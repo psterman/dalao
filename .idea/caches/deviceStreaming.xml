@@ -4,6 +4,19 @@
     <option name="deviceSelectionList">
       <list>
         <PersistentDeviceSelectionData>
+          <option name="api" value="34" />
+          <option name="brand" value="samsung" />
+          <option name="codename" value="q5q" />
+          <option name="id" value="q5q" />
+          <option name="labId" value="google" />
+          <option name="manufacturer" value="Samsung" />
+          <option name="name" value="Galaxy Z Fold5" />
+          <option name="screenDensity" value="420" />
+          <option name="screenX" value="1812" />
+          <option name="screenY" value="2176" />
+          <option name="selected" value="true" />
+        </PersistentDeviceSelectionData>
+        <PersistentDeviceSelectionData>
           <option name="api" value="27" />
           <option name="brand" value="DOCOMO" />
           <option name="codename" value="F01L" />
@@ -370,18 +383,6 @@
         <PersistentDeviceSelectionData>
           <option name="api" value="34" />
           <option name="brand" value="samsung" />
-          <option name="codename" value="q5q" />
-          <option name="id" value="q5q" />
-          <option name="labId" value="google" />
-          <option name="manufacturer" value="Samsung" />
-          <option name="name" value="Galaxy Z Fold5" />
-          <option name="screenDensity" value="420" />
-          <option name="screenX" value="1812" />
-          <option name="screenY" value="2176" />
-        </PersistentDeviceSelectionData>
-        <PersistentDeviceSelectionData>
-          <option name="api" value="34" />
-          <option name="brand" value="samsung" />
           <option name="codename" value="q6q" />
           <option name="id" value="q6q" />
           <option name="labId" value="google" />
@@ -457,5 +458,6 @@
         </PersistentDeviceSelectionData>
       </list>
     </option>
+    <option name="selectedCloudProject" value="device-streaming-a570080f" />
   </component>
 </project>

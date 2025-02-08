@@ -1,3 +1,16 @@
+package com.example.aifloatingball
+
+import android.os.Bundle
+import android.widget.Button
+import android.widget.Switch
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.aifloatingball.R
+import com.example.aifloatingball.adapter.DragCallback
+import com.example.aifloatingball.adapter.EngineAdapter
+
 class SettingsActivity : AppCompatActivity() {
     private lateinit var settingsManager: SettingsManager
     private lateinit var engineAdapter: EngineAdapter
@@ -8,31 +21,23 @@ class SettingsActivity : AppCompatActivity() {
         
         settingsManager = SettingsManager.getInstance(this)
         
-        setupRecyclerView()
-        setupSwitches()
-        setupSaveButton()
-    }
-    
-    private fun setupRecyclerView() {
+        // 初始化搜索引擎列表
         engineAdapter = EngineAdapter(settingsManager.getEngineOrder().toMutableList())
-        findViewById<RecyclerView>(R.id.engine_list).apply {
-            layoutManager = LinearLayoutManager(this@SettingsActivity)
-            adapter = engineAdapter
-            ItemTouchHelper(DragCallback(engineAdapter)).attachToRecyclerView(this)
+        val recyclerView = findViewById<RecyclerView>(R.id.engine_list)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = engineAdapter
+        ItemTouchHelper(DragCallback(engineAdapter)).attachToRecyclerView(recyclerView)
+        
+        // 初始化开关
+        val autoStartSwitch = findViewById<Switch>(R.id.auto_start_switch)
+        autoStartSwitch.isChecked = settingsManager.getAutoStart()
+        autoStartSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.setAutoStart(isChecked)
         }
-    }
-    
-    private fun setupSwitches() {
-        findViewById<Switch>(R.id.auto_hide_switch).apply {
-            isChecked = settingsManager.getAutoHide()
-            setOnCheckedChangeListener { _, isChecked ->
-                settingsManager.setAutoHide(isChecked)
-            }
-        }
-    }
-    
-    private fun setupSaveButton() {
-        findViewById<Button>(R.id.save_settings).setOnClickListener {
+        
+        // 返回按钮
+        findViewById<Button>(R.id.back_button).setOnClickListener {
+            // 保存搜索引擎顺序
             settingsManager.saveEngineOrder(engineAdapter.getEngines())
             finish()
         }

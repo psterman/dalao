@@ -1,8 +1,20 @@
+package com.example.aifloatingball
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.example.aifloatingball.adapter.EngineAdapter.SearchEngine
+
 class SettingsManager private constructor(context: Context) {
-    private val prefs = context.getSharedPreferences("ai_floating_ball_settings", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
     
     companion object {
+        private const val PREFS_NAME = "settings"
+        private const val KEY_AUTO_START = "auto_start"
+        private const val KEY_ENGINES = "search_engines"
+        
         @Volatile
         private var instance: SettingsManager? = null
         
@@ -13,23 +25,34 @@ class SettingsManager private constructor(context: Context) {
         }
     }
     
+    fun setAutoStart(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
+    }
+    
+    fun getAutoStart(): Boolean {
+        return prefs.getBoolean(KEY_AUTO_START, false)
+    }
+    
     fun saveEngineOrder(engines: List<SearchEngine>) {
-        prefs.edit().putString("engines", gson.toJson(engines)).apply()
+        val json = gson.toJson(engines)
+        prefs.edit().putString(KEY_ENGINES, json).apply()
     }
     
     fun getEngineOrder(): List<SearchEngine> {
-        val defaultEngines = listOf(
-            SearchEngine("DeepSeek", "https://deepseek.com/search?q=", 0),
-            SearchEngine("豆包", "https://www.doubao.com/search?q=", 1),
-            SearchEngine("Kimi", "https://kimi.moonshot.cn/search?q=", 2)
-        )
-        
-        val enginesJson = prefs.getString("engines", null) ?: return defaultEngines
+        val json = prefs.getString(KEY_ENGINES, null) ?: return getDefaultEngines()
         return try {
-            gson.fromJson(enginesJson, object : TypeToken<List<SearchEngine>>() {}.type)
+            gson.fromJson(json, object : TypeToken<List<SearchEngine>>() {}.type)
         } catch (e: Exception) {
-            defaultEngines
+            getDefaultEngines()
         }
+    }
+    
+    private fun getDefaultEngines(): List<SearchEngine> {
+        return listOf(
+            SearchEngine("DeepSeek", "https://deepseek.com/search?q="),
+            SearchEngine("豆包", "https://www.doubao.com/search?q="),
+            SearchEngine("Kimi", "https://kimi.moonshot.cn/search?q=")
+        )
     }
     
     fun setAutoHide(autoHide: Boolean) {

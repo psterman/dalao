@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 8.8.0" type="conditional_incidents">
+
+    <incident
+        id="InlinedApi"
+        severity="warning"
+        message="">
+        <fix-data minSdk="ffffffffff800000" requiresApi="fffffffffe000000"/>
+        <location
+            file="${:app*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/aifloatingball/FloatingWindowService.kt"
+            line="80"
+            column="13"
+            startOffset="3144"
+            endLine="80"
+            endColumn="64"
+            endOffset="3195"/>
+        <map>
+            <entry
+                name="message"
+                string="Field requires API level 26 (current min is %1$s): `android.view.WindowManager.LayoutParams#TYPE_APPLICATION_OVERLAY`"/>
+            <api-levels id="minSdk"
+                value="ffffffffff800000"/>
+            <entry
+                name="name"
+                string="TYPE_APPLICATION_OVERLAY"/>
+            <entry
+                name="owner"
+                string="android.view.WindowManager.LayoutParams"/>
+            <api-levels id="requiresApi"
+                value="fffffffffe000000"/>
+        </map>
+    </incident>
+
+    <incident
+        id="InlinedApi"
+        severity="warning"
+        message="">
+        <fix-data minSdk="ffffffffff800000" requiresApi="fffffffffe000000"/>
+        <location
+            file="${:app*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/aifloatingball/FloatingWindowService.kt"
+            line="98"
+            column="13"
+            startOffset="3811"
+            endLine="98"
+            endColumn="64"
+            endOffset="3862"/>
+        <map>
+            <entry
+                name="message"
+                string="Field requires API level 26 (current min is %1$s): `android.view.WindowManager.LayoutParams#TYPE_APPLICATION_OVERLAY`"/>
+            <api-levels id="minSdk"
+                value="ffffffffff800000"/>
+            <entry
+                name="name"
+                string="TYPE_APPLICATION_OVERLAY"/>
+            <entry
+                name="owner"
+                string="android.view.WindowManager.LayoutParams"/>
+            <api-levels id="requiresApi"
+                value="fffffffffe000000"/>
+        </map>
+    </incident>
+
+    <incident
+        id="InlinedApi"
+        severity="warning"
+        message="">
+        <fix-data minSdk="ffffffffff800000" requiresApi="fffffffffe000000"/>
+        <location
+            file="${:app*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/aifloatingball/FloatingWindowService.kt"
+            line="192"
+            column="13"
+            startOffset="7533"
+            endLine="192"
+            endColumn="64"
+            endOffset="7584"/>
+        <map>
+            <entry
+                name="message"
+                string="Field requires API level 26 (current min is %1$s): `android.view.WindowManager.LayoutParams#TYPE_APPLICATION_OVERLAY`"/>
+            <api-levels id="minSdk"
+                value="ffffffffff800000"/>
+            <entry
+                name="name"
+                string="TYPE_APPLICATION_OVERLAY"/>
+            <entry
+                name="owner"
+                string="android.view.WindowManager.LayoutParams"/>
+            <api-levels id="requiresApi"
+                value="fffffffffe000000"/>
+        </map>
+    </incident>
+
+    <incident
+        id="InlinedApi"
+        severity="warning"
+        message="">
+        <fix-data minSdk="ffffffffff800000" requiresApi="fffffffffe000000"/>
+        <location
+            file="${:app*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/aifloatingball/FloatingWindowService.kt"
+            line="329"
+            column="13"
+            startOffset="12575"
+            endLine="329"
+            endColumn="64"
+            endOffset="12626"/>
+        <map>
+            <entry
+                name="message"
+                string="Field requires API level 26 (current min is %1$s): `android.view.WindowManager.LayoutParams#TYPE_APPLICATION_OVERLAY`"/>
+            <api-levels id="minSdk"
+                value="ffffffffff800000"/>
+            <entry
+                name="name"
+                string="TYPE_APPLICATION_OVERLAY"/>
+            <entry
+                name="owner"
+                string="android.view.WindowManager.LayoutParams"/>
+            <api-levels id="requiresApi"
+                value="fffffffffe000000"/>
+        </map>
+    </incident>
+
+    <incident
+        id="InlinedApi"
+        severity="warning"
+        message="">
+        <fix-data minSdk="ffffffffff800000" requiresApi="fffffffffe000000"/>
+        <location
+            file="${:app*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/aifloatingball/menu/QuickMenuManager.kt"
+            line="31"
+            column="13"
+            startOffset="1024"
+            endLine="31"
+            endColumn="64"
+            endOffset="1075"/>
+        <map>
+            <entry
+                name="message"
+                string="Field requires API level 26 (current min is %1$s): `android.view.WindowManager.LayoutParams#TYPE_APPLICATION_OVERLAY`"/>
+            <api-levels id="minSdk"
+                value="ffffffffff800000"/>
+            <entry
+                name="name"
+                string="TYPE_APPLICATION_OVERLAY"/>
+            <entry
+                name="owner"
+                string="android.view.WindowManager.LayoutParams"/>
+            <api-levels id="requiresApi"
+                value="fffffffffe000000"/>
+        </map>
+    </incident>
+
+</incidents>

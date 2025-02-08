@@ -1,0 +1,106 @@
+[
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/layout_activity_settings.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/layout/activity_settings.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/layout_engine_item.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/layout/engine_item.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_floating_ball.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_floating_ball.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/layout_floating_ball.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/layout/floating_ball.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/layout_search_history_layout.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/layout/search_history_layout.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/layout_quick_menu_layout.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/layout/quick_menu_layout.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_history.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_history.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/anim_menu_show.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/anim/menu_show.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/layout_search_input_layout.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/layout/search_input_layout.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_settings.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_settings.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_search_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/search_background.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/anim_window_show.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/anim/window_show.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/anim_menu_hide.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/anim/menu_hide.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_quick_menu_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/quick_menu_background.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_recent.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_recent.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/anim_window_hide.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/anim/window_hide.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_floating_ball_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/floating_ball_background.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_screenshot.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_screenshot.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_search.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_search.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_mic.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_mic.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/layout_search_history_item.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/layout/search_history_item.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_brightness.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_brightness.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_bluetooth.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_bluetooth.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-33:/drawable_ic_wifi.xml.flat",
+        "source": "com.example.aifloatingball.app-main-35:/drawable/ic_wifi.xml"
+    }
+]
