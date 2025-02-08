@@ -12,8 +12,9 @@
     <color name="teal_700">#FF018786</color>
     <color name="transparent_black">#80000000</color>
     <color name="white">#FFFFFFFF</color>
-    <string name="app_name">AI悬浮搜索</string>
+    <string name="app_name">AI悬浮球</string>
     <string name="auto_hide">自动隐藏悬浮球</string>
+    <string name="floating_ball_description">AI悬浮球图标</string>
     <string name="permission_required">需要权限</string>
     <string name="save">保存</string>
     <string name="search">搜索</string>

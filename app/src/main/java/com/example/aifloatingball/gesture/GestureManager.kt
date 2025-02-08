@@ -16,34 +16,51 @@ class GestureManager(context: Context, private val callback: GestureCallback) {
     
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-            callback.onSingleTap()
-            return true
+            if (!isDragging) {
+                callback.onSingleTap()
+                return true
+            }
+            return false
         }
         
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            callback.onDoubleTap()
-            return true
+            if (!isDragging) {
+                callback.onDoubleTap()
+                return true
+            }
+            return false
         }
         
         override fun onLongPress(e: MotionEvent) {
-            isLongPressed = true
-            callback.onLongPress()
+            if (!isDragging) {
+                isLongPressed = true
+                callback.onLongPress()
+            }
         }
         
         override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-            if (e1 == null) return false
+            if (e1 == null || isDragging || isLongPressed) return false
             
             val distanceX = e2.x - e1.x
             val distanceY = e2.y - e1.y
+            val minSwipeDistance = 100 // 最小滑动距离
             
-            if (abs(distanceX) > abs(distanceY)) {
-                if (distanceX > 0) callback.onSwipeRight()
-                else callback.onSwipeLeft()
-            } else {
-                if (distanceY > 0) callback.onSwipeDown()
-                else callback.onSwipeUp()
+            if (abs(distanceX) > abs(distanceY) && abs(distanceX) > minSwipeDistance) {
+                if (distanceX > 0) {
+                    callback.onSwipeRight()
+                } else {
+                    callback.onSwipeLeft()
+                }
+                return true
+            } else if (abs(distanceY) > abs(distanceX) && abs(distanceY) > minSwipeDistance) {
+                if (distanceY > 0) {
+                    callback.onSwipeDown()
+                } else {
+                    callback.onSwipeUp()
+                }
+                return true
             }
-            return true
+            return false
         }
     })
     
@@ -66,23 +83,27 @@ class GestureManager(context: Context, private val callback: GestureCallback) {
                 }
                 
                 if (isDragging) {
-                    view.x = initialX + deltaX
-                    view.y = initialY + deltaY
-                    callback.onDrag(view.x, view.y)
+                    callback.onDrag(initialX + deltaX, initialY + deltaY)
                 }
             }
             MotionEvent.ACTION_UP -> {
                 if (isDragging) {
-                    callback.onDragEnd(view.x, view.y)
+                    callback.onDragEnd(event.rawX, event.rawY)
                 }
+                isDragging = false
+                isLongPressed = false
+            }
+            MotionEvent.ACTION_CANCEL -> {
                 isDragging = false
                 isLongPressed = false
             }
         }
         
-        return if (!isDragging) {
-            gestureDetector.onTouchEvent(event)
-        } else true
+        return gestureDetector.onTouchEvent(event)
+    }
+    
+    fun attachToView(view: View) {
+        view.setOnTouchListener { v, event -> onTouch(v, event) }
     }
     
     interface GestureCallback {

@@ -13,19 +13,19 @@ class SearchHistoryAdapter(
 ) : RecyclerView.Adapter<SearchHistoryAdapter.ViewHolder>() {
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val textView: TextView = view.findViewById(R.id.history_text)
+        val textView: TextView = view.findViewById(android.R.id.text1)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.search_history_item, parent, false)
+            .inflate(android.R.layout.simple_list_item_1, parent, false)
         return ViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val query = history[position]
-        holder.textView.text = query
-        holder.itemView.setOnClickListener { onItemClick(query) }
+        val item = history[position]
+        holder.textView.text = item
+        holder.itemView.setOnClickListener { onItemClick(item) }
     }
 
     override fun getItemCount() = history.size

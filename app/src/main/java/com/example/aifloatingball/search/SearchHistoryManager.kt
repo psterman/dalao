@@ -1,31 +1,33 @@
 package com.example.aifloatingball.search
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 class SearchHistoryManager(context: Context) {
-    private val prefs = context.getSharedPreferences("search_history", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.getSharedPreferences("search_history", Context.MODE_PRIVATE)
     private val gson = Gson()
-    private val MAX_HISTORY_SIZE = 20
+    private val maxHistorySize = 20
     
     fun addSearchQuery(query: String) {
         val history = getSearchHistory().toMutableList()
-        // 移除重复的查询
-        history.remove(query)
-        // 添加到开头
-        history.add(0, query)
+        history.remove(query)  // 移除已存在的相同查询
+        history.add(0, query)  // 添加到开头
+        
         // 保持历史记录不超过最大数量
-        if (history.size > MAX_HISTORY_SIZE) {
+        while (history.size > maxHistorySize) {
             history.removeAt(history.size - 1)
         }
-        saveSearchHistory(history)
+        
+        saveHistory(history)
     }
     
     fun getSearchHistory(): List<String> {
         val json = prefs.getString("history", null) ?: return emptyList()
+        val type = object : TypeToken<List<String>>() {}.type
         return try {
-            gson.fromJson(json, object : TypeToken<List<String>>() {}.type)
+            gson.fromJson(json, type)
         } catch (e: Exception) {
             emptyList()
         }
@@ -35,8 +37,9 @@ class SearchHistoryManager(context: Context) {
         return getSearchHistory().firstOrNull()
     }
     
-    private fun saveSearchHistory(history: List<String>) {
-        prefs.edit().putString("history", gson.toJson(history)).apply()
+    private fun saveHistory(history: List<String>) {
+        val json = gson.toJson(history)
+        prefs.edit().putString("history", json).apply()
     }
     
     fun clearHistory() {

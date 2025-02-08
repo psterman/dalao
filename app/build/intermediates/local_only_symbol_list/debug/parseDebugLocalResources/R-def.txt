@@ -47,6 +47,7 @@ id history_text
 id search_button
 id search_input
 id voice_input_button
+layout activity_permission
 layout activity_settings
 layout engine_item
 layout floating_ball
@@ -57,6 +58,7 @@ layout search_input_layout
 mipmap ic_launcher
 string app_name
 string auto_hide
+string floating_ball_description
 string permission_required
 string save
 string search

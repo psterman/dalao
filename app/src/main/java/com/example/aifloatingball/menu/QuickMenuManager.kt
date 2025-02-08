@@ -92,4 +92,12 @@ class QuickMenuManager(
         })
         view.startAnimation(animation)
     }
+
+    fun showQuickMenu() {
+        // TODO: 实现快速菜单显示逻辑
+    }
+
+    fun hideQuickMenu() {
+        // TODO: 实现快速菜单隐藏逻辑
+    }
 } 
