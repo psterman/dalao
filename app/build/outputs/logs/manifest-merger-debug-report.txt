@@ -118,13 +118,13 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] D:\.gradle\caches\8.10.2\tr
 	android:name
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:14:9-28
 service#com.example.aifloatingball.FloatingWindowService
-ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:22:9-26:57
+ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:22:9-26:58
 	android:enabled
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:24:13-35
 	android:exported
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:25:13-37
 	android:foregroundServiceType
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:13-54
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:13-55
 	android:name
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:23:13-50
 activity#com.example.aifloatingball.PermissionActivity

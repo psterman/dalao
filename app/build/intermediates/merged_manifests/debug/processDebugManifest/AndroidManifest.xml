@@ -38,7 +38,7 @@
             android:name="com.example.aifloatingball.FloatingWindowService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="phoneCall" />
+            android:foregroundServiceType="specialUse" />
 
         <activity
             android:name="com.example.aifloatingball.PermissionActivity"

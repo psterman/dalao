@@ -63,15 +63,15 @@
 36        android:usesCleartextTraffic="true" >
 36-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:20:9-44
 37        <service
-37-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:22:9-26:57
+37-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:22:9-26:58
 38            android:name="com.example.aifloatingball.FloatingWindowService"
 38-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:23:13-50
 39            android:enabled="true"
 39-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:24:13-35
 40            android:exported="false"
 40-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:25:13-37
-41            android:foregroundServiceType="phoneCall" />
-41-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:13-54
+41            android:foregroundServiceType="specialUse" />
+41-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:13-55
 42
 43        <activity
 43-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:28:9-36:20

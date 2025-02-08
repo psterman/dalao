@@ -160,15 +160,25 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val channelName = "AI悬浮球服务"
         
         try {
+            // 检查通知权限
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    Log.e("FloatingService", "没有通知权限")
+                    Toast.makeText(this, "请授予通知权限", Toast.LENGTH_LONG).show()
+                    stopSelf()
+                    return
+                }
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     channelId,
                     channelName,
-                    NotificationManager.IMPORTANCE_LOW
+                    NotificationManager.IMPORTANCE_DEFAULT
                 ).apply {
                     description = "用于保持悬浮球服务在后台运行"
-                    setShowBadge(false)
-                    enableLights(false)
+                    setShowBadge(true)
+                    enableLights(true)
                     enableVibration(false)
                 }
                 
@@ -180,7 +190,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 .setContentTitle("AI悬浮球")
                 .setContentText("正在运行中...")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setOngoing(true)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
                 .build()
