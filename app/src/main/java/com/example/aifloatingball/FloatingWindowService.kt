@@ -304,8 +304,39 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         setupVoiceInput()
         
-        // 获取输入框并设置焦点
+        // 获取输入框和搜索按钮
         val searchInput = searchView?.findViewById<EditText>(R.id.search_input)
+        val searchButton = searchView?.findViewById<ImageButton>(R.id.search_button)
+        
+        // 设置搜索按钮点击事件
+        searchButton?.setOnClickListener {
+            val query = searchInput?.text?.toString()?.trim() ?: ""
+            if (query.isNotEmpty()) {
+                performSearch(query)
+                // 关闭搜索输入框
+                windowManager?.removeView(root)
+                searchView = null
+            }
+        }
+        
+        // 设置输入框回车键监听
+        searchInput?.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                (event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN)
+            ) {
+                val query = searchInput.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    performSearch(query)
+                    // 关闭搜索输入框
+                    windowManager?.removeView(root)
+                    searchView = null
+                }
+                true
+            } else {
+                false
+            }
+        }
+        
         searchInput?.apply {
             requestFocus()
             postDelayed({
@@ -434,91 +465,110 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private fun performSearch(query: String) {
         if (query.isEmpty()) return
         
+        // 先清除现有的搜索窗口
+        closeAllWindows()
+        
         searchHistoryManager.addSearchQuery(query)
         
+        val encodedQuery = Uri.encode(query)
         val urls = listOf(
-            "https://www.bing.com/search?q=$query",
-            "https://www.google.com/search?q=$query",
-            "https://www.baidu.com/s?wd=$query"
+            "https://www.bing.com/search?q=$encodedQuery",
+            "https://www.google.com/search?q=$encodedQuery",
+            "https://www.baidu.com/s?wd=$encodedQuery"
         )
         
+        Log.d("FloatingService", "开始创建搜索窗口，查询词: $query")
         urls.forEachIndexed { index, url ->
-            createAIWindow(Uri.encode(url), index)
+            try {
+                createAIWindow(url, index)
+                Log.d("FloatingService", "成功创建第 ${index + 1} 个搜索窗口")
+            } catch (e: Exception) {
+                Log.e("FloatingService", "创建搜索窗口失败: ${e.message}")
+            }
         }
     }
     
     private fun createAIWindow(url: String, index: Int) {
-        val root = FrameLayout(this)
-        val webView = WebView(this).apply {
-            settings.apply {
-                javaScriptEnabled = false  // 默认禁用JavaScript
-                domStorageEnabled = true
-                databaseEnabled = true
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                
-                // 启用缓存
-                cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
-                
-                // 设置默认编码
-                defaultTextEncodingName = "UTF-8"
-                
-                // 允许文件访问
-                allowFileAccess = true
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    safeBrowsingEnabled = true
+        try {
+            val root = FrameLayout(this)
+            val webView = WebView(this).apply {
+                settings.apply {
+                    javaScriptEnabled = true  // 启用 JavaScript 以确保搜索引擎正常工作
+                    domStorageEnabled = true
+                    databaseEnabled = true
+                    useWideViewPort = true
+                    loadWithOverviewMode = true
+                    setSupportZoom(true)
+                    builtInZoomControls = true
+                    displayZoomControls = false
+                    
+                    // 启用缓存
+                    cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
+                    
+                    // 设置默认编码
+                    defaultTextEncodingName = "UTF-8"
+                    
+                    // 允许文件访问
+                    allowFileAccess = true
+                    
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        safeBrowsingEnabled = true
+                    }
                 }
+                
+                webViewClient = CustomWebViewClient()
+                loadUrl(url)
             }
             
-            webViewClient = CustomWebViewClient()
-            loadUrl(url)
+            root.addView(webView, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            ))
+            
+            // 计算每个窗口的高度（屏幕高度的1/3）
+            val windowHeight = screenHeight / 3
+            
+            val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    windowHeight,
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    PixelFormat.TRANSLUCENT
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.MATCH_PARENT,
+                    windowHeight,
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    PixelFormat.TRANSLUCENT
+                )
+            }.apply {
+                gravity = Gravity.TOP
+                y = index * windowHeight
+                horizontalMargin = 0.02f
+                alpha = 0.95f
+                flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+            }
+            
+            aiWindows.add(webView)
+            windowManager?.addView(root, params)
+            
+            // 添加显示动画
+            root.alpha = 0f
+            root.animate()
+                .alpha(1f)
+                .setDuration(300)
+                .start()
+            
+            Log.d("FloatingService", "成功创建搜索窗口: $url")
+        } catch (e: Exception) {
+            Log.e("FloatingService", "创建搜索窗口失败", e)
+            throw e
         }
-        
-        root.addView(webView, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        ))
-        
-        // 计算每个窗口的高度（屏幕高度的1/3）
-        val windowHeight = screenHeight / 3
-        
-        val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                windowHeight,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                PixelFormat.TRANSLUCENT
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                windowHeight,
-                WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-                PixelFormat.TRANSLUCENT
-            )
-        }.apply {
-            gravity = Gravity.TOP
-            y = index * windowHeight
-            horizontalMargin = 0.02f
-            alpha = 0.95f
-        }
-        
-        aiWindows.add(webView)
-        windowManager?.addView(root, params)
-        
-        // 添加显示动画
-        root.alpha = 0f
-        root.animate()
-            .alpha(1f)
-            .setDuration(300)
-            .start()
     }
     
     private fun performClick() {
