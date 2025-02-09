@@ -16,6 +16,9 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.app.NotificationManagerCompat
 import androidx.activity.result.contract.ActivityResultContracts
+import android.app.ActivityManager
+import android.app.usage.UsageStatsManager
+import android.content.Context
 
 class PermissionActivity : AppCompatActivity() {
     
@@ -128,10 +131,26 @@ class PermissionActivity : AppCompatActivity() {
                 return
             }
             
+            // 检查通知权限（Android 13及以上）
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    Log.w(TAG, "缺少通知权限，服务可能无法在前台运行")
+                }
+            }
+            
+            // 停止已存在的服务实例
+            stopService(Intent(this, FloatingWindowService::class.java))
+            
+            // 创建新的服务意图
             val serviceIntent = Intent(this, FloatingWindowService::class.java).apply {
                 action = "restart_foreground"
             }
             
+            // 根据系统版本选择合适的启动方式
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 Log.d(TAG, "使用 startForegroundService 启动服务")
                 startForegroundService(serviceIntent)
@@ -147,25 +166,46 @@ class PermissionActivity : AppCompatActivity() {
                     Toast.makeText(this, "服务启动失败，请重试", Toast.LENGTH_LONG).show()
                 } else {
                     Log.d(TAG, "服务已成功启动")
+                    Toast.makeText(this, "悬浮球服务已启动", Toast.LENGTH_SHORT).show()
                 }
                 finish()
-            }, 1000)
+            }, 2000) // 增加延迟时间到2秒
             
         } catch (e: Exception) {
             Log.e(TAG, "启动服务失败", e)
             Toast.makeText(this, "启动服务失败: ${e.message}", Toast.LENGTH_LONG).show()
-        finish()
+            finish()
         }
     }
     
     private fun isServiceRunning(): Boolean {
-        return try {
-            val manager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
-                manager.getRunningServices(Integer.MAX_VALUE)
-                .any { it.service.className == FloatingWindowService::class.java.name }
+        try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            // 使用 UsageStatsManager 替代已弃用的 getRunningServices
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+                val time = System.currentTimeMillis()
+                val stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY,
+                    time - 1000 * 60 * 60 * 24,  // 查询最近24小时
+                    time
+                )
+                if (stats == null || stats.isEmpty()) {
+                    Log.w(TAG, "无法获取应用使用统计信息，可能需要额外权限")
+                    // 如果无法获取使用统计，回退到传统方法
+                    @Suppress("DEPRECATION")
+                    val services = activityManager.getRunningServices(Int.MAX_VALUE)
+                    return services.any { it.service.className == FloatingWindowService::class.java.name }
+                }
+                return stats.any { it.packageName == packageName }
+            } else {
+                @Suppress("DEPRECATION")
+                val services = activityManager.getRunningServices(Int.MAX_VALUE)
+                return services.any { it.service.className == FloatingWindowService::class.java.name }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "检查服务状态失败", e)
-            false
+            return false
         }
     }
 } 

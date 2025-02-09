@@ -92,24 +92,58 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             
             // 初始化窗口管理器
-            initWindowManager()
+            try {
+                initWindowManager()
+            } catch (e: Exception) {
+                Log.e("FloatingService", "初始化窗口管理器失败", e)
+                Toast.makeText(this, "初始化窗口管理器失败: ${e.message}", Toast.LENGTH_LONG).show()
+                stopSelf()
+                return
+            }
             
             // 获取屏幕尺寸
-            initScreenSize()
+            try {
+                initScreenSize()
+            } catch (e: Exception) {
+                Log.e("FloatingService", "获取屏幕尺寸失败", e)
+                Toast.makeText(this, "获取屏幕尺寸失败: ${e.message}", Toast.LENGTH_LONG).show()
+                stopSelf()
+                return
+            }
             
             // 初始化所有管理器
-            initManagers()
+            try {
+                initManagers()
+            } catch (e: Exception) {
+                Log.e("FloatingService", "初始化管理器失败", e)
+                Toast.makeText(this, "初始化管理器失败: ${e.message}", Toast.LENGTH_LONG).show()
+                stopSelf()
+                return
+            }
             
             // 创建并显示悬浮球
-            createFloatingBall()
+            try {
+                createFloatingBall()
+            } catch (e: Exception) {
+                Log.e("FloatingService", "创建悬浮球失败", e)
+                Toast.makeText(this, "创建悬浮球失败: ${e.message}", Toast.LENGTH_LONG).show()
+                stopSelf()
+                return
+            }
             
             // 尝试启动前台服务
-            startForegroundOrNormal()
+            try {
+                startForegroundOrNormal()
+            } catch (e: Exception) {
+                Log.e("FloatingService", "启动前台服务失败", e)
+                // 即使前台服务启动失败，也继续运行
+            }
             
             Log.d("FloatingService", "服务创建完成")
         } catch (e: Exception) {
             Log.e("FloatingService", "服务创建失败", e)
             Toast.makeText(this, "服务创建失败: ${e.message}", Toast.LENGTH_LONG).show()
+            stopSelf()
         }
     }
     
@@ -213,9 +247,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("FloatingService", "onStartCommand被调用")
-        // 如果服务被系统杀死后重启，重新尝试启动前台服务
-        if (intent?.action == "restart_foreground") {
-            startForegroundOrNormal()
+        try {
+            // 如果服务被系统杀死后重启，重新尝试启动前台服务
+            if (intent?.action == "restart_foreground") {
+                startForegroundOrNormal()
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "onStartCommand执行失败", e)
         }
         return START_STICKY
     }
@@ -493,7 +531,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         searchHistoryManager.addSearchQuery(query)
         
-        val encodedQuery = Uri.encode(query)
         val urls = listOf(
             "https://kimi.moonshot.cn",  // Kimi AI
             "https://chat.deepseek.com",  // DeepSeek
@@ -1256,7 +1293,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 parent.elevation = zIndex
                 parent.translationZ = -abs(distanceFromSelected.toFloat()) * 60f
                 
-                val shadowRadius = (20f - abs(distanceFromSelected.toFloat()) * 5f).coerceAtLeast(5f)
                 parent.background = android.graphics.drawable.GradientDrawable().apply {
                     setColor(android.graphics.Color.WHITE)
                     cornerRadius = (16 * resources.displayMetrics.density)
@@ -1309,13 +1345,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         aiWindows.forEachIndexed { index, webView ->
             val parent = webView.parent as? View
             if (parent != null) {
-                // 为每个卡片设置不同的动画延迟，创造级联效果
                 parent.animate()
                     .alpha(0f)
                     .translationY(-screenHeight.toFloat())
                     .scaleX(0.8f)
                     .scaleY(0.8f)
-                    .setStartDelay((index * 50).toLong())  // 错开动画开始时间
+                    .setStartDelay((index * 50).toLong())
                     .setDuration(200)
                     .withEndAction {
                         try {
