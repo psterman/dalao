@@ -48,11 +48,11 @@ class PermissionActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        checkAndRequestPermissions()
+            checkAndRequestPermissions()
     }
     
     private fun checkAndRequestPermissions() {
-        if (!Settings.canDrawOverlays(this)) {
+            if (!Settings.canDrawOverlays(this)) {
             // 请求悬浮窗权限
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -110,7 +110,7 @@ class PermissionActivity : AppCompatActivity() {
                 startFloatingService()
             } else {
                 // 即使有权限未授予也启动服务，服务会相应地禁用相关功能
-                startFloatingService()
+                    startFloatingService()
                 Toast.makeText(this, "部分功能可能无法使用", Toast.LENGTH_LONG).show()
             }
         }
@@ -154,14 +154,14 @@ class PermissionActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "启动服务失败", e)
             Toast.makeText(this, "启动服务失败: ${e.message}", Toast.LENGTH_LONG).show()
-            finish()
+        finish()
         }
     }
     
     private fun isServiceRunning(): Boolean {
         return try {
             val manager = getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager
-            manager.getRunningServices(Integer.MAX_VALUE)
+                manager.getRunningServices(Integer.MAX_VALUE)
                 .any { it.service.className == FloatingWindowService::class.java.name }
         } catch (e: Exception) {
             Log.e(TAG, "检查服务状态失败", e)

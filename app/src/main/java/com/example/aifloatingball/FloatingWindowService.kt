@@ -37,6 +37,8 @@ import com.example.aifloatingball.search.SearchHistoryAdapter
 import com.example.aifloatingball.search.SearchHistoryManager
 import com.example.aifloatingball.utils.SystemSettingsHelper
 import com.example.aifloatingball.web.CustomWebViewClient
+import kotlin.math.abs
+import kotlin.math.min
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var windowManager: WindowManager? = null
@@ -61,6 +63,18 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var cardSpacing = 0
     private var cardRotation = 10f
     private var cardScale = 0.9f
+    
+    // 添加手势检测相关变量
+    private var initialTouchY = 0f
+    private var lastTouchY = 0f
+    private var isExitGestureInProgress = false
+    private val GESTURE_THRESHOLD = 100f  // 退出手势的阈值
+    
+    private var activeCardIndex = -1  // 当前活跃的卡片索引
+    private var lastTouchX = 0f
+    private var initialCardX = 0
+    private var initialCardY = 0
+    private var isDragging = false
     
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -364,9 +378,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 return
             }
 
-            if (recognizer == null) {
-                recognizer = SpeechRecognizer.createSpeechRecognizer(this)
-            }
+            recognizer?.destroy()
+            recognizer = SpeechRecognizer.createSpeechRecognizer(this)
             
             recognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
@@ -400,7 +413,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别器忙"
                         SpeechRecognizer.ERROR_SERVER -> "服务器错误"
                         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时"
-                        else -> "未知错误"
+                        else -> "未知错误: $error"
                     }
                     Log.e("VoiceInput", "语音识别错误: $errorMessage")
                     Toast.makeText(this@FloatingWindowService, errorMessage, Toast.LENGTH_SHORT).show()
@@ -420,7 +433,17 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 }
                 
                 override fun onEvent(eventType: Int, params: Bundle?) {
-                    Log.d("VoiceInput", "识别事件: $eventType")
+                    when (eventType) {
+                        SpeechRecognizer.ERROR_AUDIO -> Log.d("VoiceInput", "音频事件")
+                        SpeechRecognizer.ERROR_NETWORK -> Log.d("VoiceInput", "网络事件")
+                        SpeechRecognizer.ERROR_NO_MATCH -> Log.d("VoiceInput", "无匹配事件")
+                        SpeechRecognizer.ERROR_SERVER -> Log.d("VoiceInput", "服务器事件")
+                        SpeechRecognizer.ERROR_CLIENT -> Log.d("VoiceInput", "客户端事件")
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> Log.d("VoiceInput", "语音超时")
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> Log.d("VoiceInput", "权限不足")
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> Log.d("VoiceInput", "识别器忙")
+                        else -> Log.d("VoiceInput", "其他事件: $eventType")
+                    }
                 }
             })
             
@@ -472,18 +495,18 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         val encodedQuery = Uri.encode(query)
         val urls = listOf(
-            "https://www.bing.com/search?q=$encodedQuery",
-            "https://www.google.com/search?q=$encodedQuery",
-            "https://www.baidu.com/s?wd=$encodedQuery"
+            "https://kimi.moonshot.cn",  // Kimi AI
+            "https://chat.deepseek.com",  // DeepSeek
+            "https://www.doubao.com"  // 豆包
         )
         
-        Log.d("FloatingService", "开始创建搜索窗口，查询词: $query")
+        Log.d("FloatingService", "开始创建AI助手窗口，查询词: $query")
         urls.forEachIndexed { index, url ->
             try {
                 createAIWindow(url, index)
-                Log.d("FloatingService", "成功创建第 ${index + 1} 个搜索窗口")
+                Log.d("FloatingService", "成功创建第 ${index + 1} 个AI助手窗口")
             } catch (e: Exception) {
-                Log.e("FloatingService", "创建搜索窗口失败: ${e.message}")
+                Log.e("FloatingService", "创建AI助手窗口失败: ${e.message}")
             }
         }
     }
@@ -491,9 +514,89 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private fun createAIWindow(url: String, index: Int) {
         try {
             val root = FrameLayout(this)
+            
+            // 创建标题栏布局
+            val titleBar = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(16.dpToPx(), 12.dpToPx(), 16.dpToPx(), 12.dpToPx())
+                setBackgroundColor(android.graphics.Color.WHITE)
+                
+                // 添加Logo
+                val logo = TextView(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    text = when (index) {
+                        0 -> "K"
+                        1 -> "D"
+                        2 -> "豆"
+                        else -> "?"
+                    }
+                    textSize = 16f
+                    setTextColor(android.graphics.Color.parseColor("#333333"))
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    gravity = android.view.Gravity.CENTER
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(android.graphics.Color.parseColor("#F0F0F0"))
+                        cornerRadius = 12f
+                    }
+                    setPadding(12.dpToPx(), 6.dpToPx(), 12.dpToPx(), 6.dpToPx())
+                }
+                addView(logo)
+                
+                // 添加标题文本
+                val title = TextView(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        marginStart = 8.dpToPx()
+                    }
+                    text = when (index) {
+                        0 -> "Kimi AI"
+                        1 -> "DeepSeek"
+                        2 -> "豆包"
+                        else -> ""
+                    }
+                    setTextColor(android.graphics.Color.parseColor("#333333"))
+                    textSize = 16f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                }
+                addView(title)
+            }
+            
+            // 创建卡片容器
+            val cardContainer = FrameLayout(this).apply {
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.WHITE)
+                    cornerRadius = 16f
+                }
+                
+                // 添加阴影效果
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    elevation = 8f
+                }
+            }
+            
+            // 添加标题栏到卡片容器
+            cardContainer.addView(titleBar, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ))
+            
+            // 创建WebView并添加到卡片容器
             val webView = WebView(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ).apply {
+                    topMargin = 48.dpToPx() // 标题栏高度
+                }
+                
                 settings.apply {
-                    javaScriptEnabled = true  // 启用 JavaScript 以确保搜索引擎正常工作
+                    javaScriptEnabled = true
                     domStorageEnabled = true
                     databaseEnabled = true
                     useWideViewPort = true
@@ -501,15 +604,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     setSupportZoom(true)
                     builtInZoomControls = true
                     displayZoomControls = false
-                    
-                    // 启用缓存
                     cacheMode = android.webkit.WebSettings.LOAD_CACHE_ELSE_NETWORK
-                    
-                    // 设置默认编码
                     defaultTextEncodingName = "UTF-8"
-                    
-                    // 允许文件访问
                     allowFileAccess = true
+                    
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    }
                     
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         safeBrowsingEnabled = true
@@ -518,22 +619,108 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 
                 webViewClient = CustomWebViewClient()
                 loadUrl(url)
+                
+                // 修改触摸事件监听
+                setOnTouchListener { view, event ->
+                    val parent = view.parent as? View ?: return@setOnTouchListener false
+                    val params = parent.layoutParams as WindowManager.LayoutParams
+                    
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            lastTouchX = event.rawX
+                            lastTouchY = event.rawY
+                            initialCardX = params.x
+                            initialCardY = params.y
+                            activeCardIndex = index
+                            isDragging = false
+                            
+                            // 将当前卡片提升到最上层
+                            parent.elevation = 20f
+                            parent.scaleX = 1.05f
+                            parent.scaleY = 1.05f
+                            true
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val deltaX = event.rawX - lastTouchX
+                            val deltaY = event.rawY - lastTouchY
+                            
+                            // 判断是否开始拖动
+                            if (!isDragging && (abs(deltaX) > 20 || abs(deltaY) > 20)) {
+                                isDragging = true
+                            }
+                            
+                            if (isDragging) {
+                                // 处理卡片拖动
+                                params.x = (initialCardX + deltaX).toInt()
+                                params.y = (initialCardY + deltaY).toInt()
+                                
+                                // 根据水平移动距离设置透明度（为滑动关闭做准备）
+                                val alpha = 1 - min(abs(deltaX) / (screenWidth / 2), 0.6f)
+                                parent.alpha = alpha
+                                
+                                try {
+                                    windowManager?.updateViewLayout(parent, params)
+                                } catch (e: Exception) {
+                                    Log.e("FloatingService", "更新卡片位置失败", e)
+                                }
+                            }
+                            true
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            if (isDragging) {
+                                val deltaX = event.rawX - lastTouchX
+                                
+                                when {
+                                    // 左滑关闭
+                                    deltaX < -screenWidth / 3 -> {
+                                        animateCardDismissal(parent, -screenWidth.toFloat())
+                                        removeCard(index)
+                                    }
+                                    // 右滑隐藏
+                                    deltaX > screenWidth / 3 -> {
+                                        animateCardDismissal(parent, screenWidth.toFloat())
+                                        hideCard(index)
+                                    }
+                                    else -> {
+                                        // 回到原位
+                                        animateCardReturn(parent)
+                                    }
+                                }
+                            } else if (event.eventTime - event.downTime < 200) {
+                                // 点击事件，切换卡片大小
+                                toggleCardSize(parent, index)
+                            }
+                            
+                            isDragging = false
+                            true
+                        }
+                        else -> false
+                    }
+                }
+                
+                // 添加长按事件
+                setOnLongClickListener {
+                    showCardOptions(it, index)
+                    true
+                }
             }
             
-            root.addView(webView, FrameLayout.LayoutParams(
+            cardContainer.addView(webView)
+            root.addView(cardContainer, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             ))
-            
-            // 计算每个窗口的高度（屏幕高度的1/3）
-            val windowHeight = screenHeight / 3
-            
+
+            // 窗口参数设置
+            val windowHeight = (screenHeight * 2) / 3
             val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams(
                     WindowManager.LayoutParams.MATCH_PARENT,
                     windowHeight,
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT
                 )
             } else {
@@ -542,16 +729,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     WindowManager.LayoutParams.MATCH_PARENT,
                     windowHeight,
                     WindowManager.LayoutParams.TYPE_PHONE,
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                     PixelFormat.TRANSLUCENT
                 )
             }.apply {
                 gravity = Gravity.TOP
-                y = index * windowHeight
+                y = index * (windowHeight / 3)
                 horizontalMargin = 0.02f
                 alpha = 0.95f
-                flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
             }
             
             aiWindows.add(webView)
@@ -564,10 +751,115 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 .setDuration(300)
                 .start()
             
-            Log.d("FloatingService", "成功创建搜索窗口: $url")
+            Log.d("FloatingService", "成功创建AI助手窗口: $url")
         } catch (e: Exception) {
-            Log.e("FloatingService", "创建搜索窗口失败", e)
+            Log.e("FloatingService", "创建AI助手窗口失败", e)
             throw e
+        }
+    }
+    
+    private fun animateCardDismissal(view: View, targetX: Float) {
+        view.animate()
+            .translationX(targetX)
+            .alpha(0f)
+            .setDuration(200)
+            .withEndAction {
+                try {
+                    windowManager?.removeView(view)
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "移除卡片失败", e)
+                }
+            }
+            .start()
+    }
+
+    private fun animateCardReturn(view: View) {
+        view.animate()
+            .translationX(0f)
+            .translationY(0f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .alpha(1f)
+            .setDuration(200)
+            .start()
+    }
+
+    private fun toggleCardSize(view: View, index: Int) {
+        val params = view.layoutParams as WindowManager.LayoutParams
+        val isExpanded = params.height > (screenHeight * 0.7f).toInt()
+        
+        val targetHeight = if (isExpanded) {
+            (screenHeight * 0.7f).toInt()
+        } else {
+            (screenHeight * 0.85f).toInt()
+        }
+        
+        view.animate()
+            .scaleX(if (isExpanded) 1f else 1.05f)
+            .scaleY(if (isExpanded) 1f else 1.05f)
+            .setDuration(200)
+            .withEndAction {
+                params.height = targetHeight
+                try {
+                    windowManager?.updateViewLayout(view, params)
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "更新卡片大小失败", e)
+                }
+            }
+            .start()
+    }
+
+    private fun showCardOptions(view: View, index: Int) {
+        val popupMenu = PopupMenu(this, view)
+        popupMenu.menu.apply {
+            add("刷新").setOnMenuItemClickListener {
+                refreshCard(index)
+                true
+            }
+            add("分享").setOnMenuItemClickListener {
+                shareCard(index)
+                true
+            }
+            add("关闭").setOnMenuItemClickListener {
+                removeCard(index)
+                true
+            }
+        }
+        popupMenu.show()
+    }
+
+    private fun refreshCard(index: Int) {
+        aiWindows.getOrNull(index)?.reload()
+    }
+
+    private fun shareCard(index: Int) {
+        aiWindows.getOrNull(index)?.let { webView ->
+            val url = webView.url
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, url)
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(Intent.createChooser(intent, "分享到").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
+    private fun removeCard(index: Int) {
+        aiWindows.getOrNull(index)?.let { webView ->
+            val parent = webView.parent as? View
+            if (parent != null) {
+                animateCardDismissal(parent, -screenWidth.toFloat())
+                aiWindows.removeAt(index)
+            }
+        }
+    }
+
+    private fun hideCard(index: Int) {
+        aiWindows.getOrNull(index)?.let { webView ->
+            val parent = webView.parent as? View
+            if (parent != null) {
+                parent.visibility = View.GONE
+            }
         }
     }
     
@@ -695,22 +987,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
     
-    private fun closeAllWindows() {
-        aiWindows.forEach { webView ->
-            val parent = webView.parent as? View
-            if (parent != null) {
-                parent.animate()
-                    .alpha(0f)
-                    .setDuration(200)
-                    .withEndAction {
-                        windowManager?.removeView(parent)
-                    }
-                    .start()
-            }
-        }
-        aiWindows.clear()
-    }
-    
     override fun onSwipeRight() {
         try {
             Log.d("FloatingService", "右滑事件触发")
@@ -755,7 +1031,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             val deltaY = y - cardStartY
             val deltaX = x - cardStartX
             
-            if (Math.abs(deltaY) > Math.abs(deltaX)) {
+            if (abs(deltaY) > abs(deltaX)) {
                 val progress = deltaY / (screenHeight / 4)
                 showCardView(false, progress)
                 currentCardIndex = ((aiWindows.size - 1) * (progress + 1) / 2).toInt()
@@ -788,45 +1064,107 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             floatingBallView?.let { view ->
                 val params = view.layoutParams as WindowManager.LayoutParams
                 val ballSize = 48.dpToPx()
-                val hiddenPortion = (ballSize * 0.6f).toInt()
+                val hiddenPortion = (ballSize * 0.7f).toInt()  // 增加隐藏部分
                 
+                // 计算目标X坐标（吸附到屏幕边缘）
                 val targetX = when {
-                    x < screenWidth / 2 -> -hiddenPortion
-                    else -> screenWidth - ballSize + hiddenPortion
+                    x < screenWidth / 2 -> -hiddenPortion  // 吸附到左边
+                    else -> screenWidth - ballSize + hiddenPortion  // 吸附到右边
                 }
                 
-                val animator = ValueAnimator.ofInt(params.x, targetX)
-                animator.addUpdateListener { animation ->
+                // 计算目标Y坐标（保持在屏幕内）
+                val targetY = y.toInt().coerceIn(
+                    0,  // 上边界
+                    screenHeight - ballSize  // 下边界
+                )
+                
+                // 创建X轴动画
+                val animatorX = ValueAnimator.ofInt(params.x, targetX)
+                animatorX.addUpdateListener { animation ->
                     params.x = animation.animatedValue as Int
                     try {
                         windowManager?.updateViewLayout(view, params)
                     } catch (e: Exception) {
-                        Log.e("FloatingService", "更新悬浮球位置失败", e)
+                        Log.e("FloatingService", "更新悬浮球X位置失败", e)
                     }
                 }
-                animator.duration = 200
-                animator.interpolator = DecelerateInterpolator()
-                animator.start()
+                
+                // 创建Y轴动画
+                val animatorY = ValueAnimator.ofInt(params.y, targetY)
+                animatorY.addUpdateListener { animation ->
+                    params.y = animation.animatedValue as Int
+                    try {
+                        windowManager?.updateViewLayout(view, params)
+                    } catch (e: Exception) {
+                        Log.e("FloatingService", "更新悬浮球Y位置失败", e)
+                    }
+                }
+                
+                // 设置动画属性
+                animatorX.apply {
+                    duration = 200
+                    interpolator = DecelerateInterpolator()
+                    start()
+                }
+                
+                animatorY.apply {
+                    duration = 200
+                    interpolator = DecelerateInterpolator()
+                    start()
+                }
             }
         }
     }
     
     private fun showSelectedCard() {
         if (currentCardIndex >= 0 && currentCardIndex < aiWindows.size) {
-            val webView = aiWindows[currentCardIndex]
-            val parent = webView.parent as? View ?: return
+            val cardWidth = screenWidth - 48.dpToPx()
+            val cardHeight = (screenHeight * 0.8f).toInt()
+            val cardSpacing = 50.dpToPx()
             
-            // 重置当前窗口的位置和动画
-            val params = parent.layoutParams as WindowManager.LayoutParams
-            params.x = 0
-            params.y = 0
-            parent.scaleX = 1f
-            parent.scaleY = 1f
-            parent.rotation = 0f
-            try {
-                windowManager?.updateViewLayout(parent, params)
-            } catch (e: Exception) {
-                Log.e("FloatingService", "更新选中卡片位置失败", e)
+            aiWindows.forEachIndexed { index, webView ->
+                val parent = webView.parent as? View ?: return@forEachIndexed
+                val params = parent.layoutParams as WindowManager.LayoutParams
+                
+                val distanceFromSelected = abs(index - currentCardIndex)
+                val scale = if (index == currentCardIndex) 1f else 0.88f
+                val alpha = if (index == currentCardIndex) 1f else 0.65f
+                val elevation = if (index == currentCardIndex) 25f else 5f
+                
+                params.width = cardWidth
+                params.height = cardHeight
+                params.x = screenWidth / 2 - cardWidth / 2 + 
+                          (if (index < currentCardIndex) -cardWidth - cardSpacing 
+                           else if (index > currentCardIndex) cardWidth + cardSpacing else 0)
+                params.y = screenHeight / 2 - cardHeight / 2 +
+                          (distanceFromSelected * 60).toInt()
+                
+                parent.scaleX = scale
+                parent.scaleY = scale
+                parent.alpha = alpha
+                parent.elevation = elevation
+                parent.rotation = if (index == currentCardIndex) 0f 
+                                else (if (index < currentCardIndex) -8f else 8f)
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    parent.elevation = if (index == currentCardIndex) 25f else 10f
+                }
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    parent.translationZ = -abs(distanceFromSelected.toFloat()) * 40f
+                }
+                
+                // 设置背景和阴影
+                parent.background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.WHITE)
+                    cornerRadius = 16f
+                }
+                
+                try {
+                    windowManager?.updateViewLayout(parent, params)
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "更新选中卡片位置失败", e)
+                }
             }
         }
     }
@@ -834,90 +1172,163 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private fun showCardView(isHorizontal: Boolean, progress: Float) {
         if (!isCardViewMode) {
             isCardViewMode = true
-            // 显示所有窗口
             aiWindows.forEachIndexed { index, webView ->
                 val parent = webView.parent as? View ?: return@forEachIndexed
                 parent.visibility = View.VISIBLE
+                parent.alpha = 0.95f
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    parent.elevation = 8f
+                }
             }
         }
 
-        // 更新卡片位置
+        val cardWidth = screenWidth - 48.dpToPx()
+        val cardHeight = (screenHeight * 0.75f).toInt()
+        val cardSpacing = 50.dpToPx()
+        val verticalOffset = (screenHeight * 0.12).toInt()  // 计算垂直偏移基准值
+        val maxRotation = 12f
+        val maxScale = 0.92f
+        
+        val selectedIndex = if (isHorizontal) {
+            ((aiWindows.size - 1) * (progress + 1) / 2).toInt().coerceIn(0, aiWindows.size - 1)
+        } else {
+            ((aiWindows.size - 1) * (1 - progress)).toInt().coerceIn(0, aiWindows.size - 1)
+        }
+        
         aiWindows.forEachIndexed { index, webView ->
             val parent = webView.parent as? View ?: return@forEachIndexed
             val params = parent.layoutParams as WindowManager.LayoutParams
+            val distanceFromSelected = index - selectedIndex
             
             if (isHorizontal) {
-                // 水平排列
-                val baseX = screenWidth / 2 - (cardSpacing * (aiWindows.size - 1) / 2)
-                val targetX = baseX + (index * cardSpacing)
-                val currentX = targetX + (progress * cardSpacing)
+                val baseX = (index - selectedIndex) * (cardWidth + cardSpacing)
+                val currentX = baseX + (progress * cardSpacing * 1.5f)
+                val distanceFromCenter = abs(currentX) / (screenWidth / 2.0f)
                 
-                params.x = currentX.toInt()
-                params.y = screenHeight / 3
+                val scale = maxScale - (distanceFromCenter * 0.15f).coerceIn(0f, 0.25f)
+                val alpha = 1.0f - (distanceFromCenter * 0.4f).coerceIn(0f, 0.6f)
+                val rotation = (distanceFromCenter * 8f * if(currentX < 0) -1 else 1).coerceIn(-8f, 8f)
                 
-                // 添加波浪效果
-                val wave = Math.sin((currentX / screenWidth) * Math.PI) * 50
-                params.y += wave.toInt()
-                
-                // 设置缩放和旋转
-                val scale = 1f - (Math.abs(index - currentCardIndex) * (1f - cardScale))
-                val rotation = (index - currentCardIndex) * cardRotation
+                params.width = cardWidth
+                params.height = cardHeight
+                params.x = (screenWidth / 2 - cardWidth / 2 + currentX).toInt()
+                params.y = (screenHeight / 2 - cardHeight / 2 + (abs(distanceFromSelected) * 20)).toInt()
                 
                 parent.scaleX = scale
                 parent.scaleY = scale
+                parent.alpha = alpha
                 parent.rotation = rotation
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    parent.elevation = (20 * (1 - distanceFromCenter)).coerceIn(5f, 20f)
+                    parent.translationZ = -abs(distanceFromSelected.toFloat()) * 40f
+                }
             } else {
-                // 垂直排列
-                val baseY = screenHeight / 2 - (cardSpacing * (aiWindows.size - 1) / 2)
-                val targetY = baseY + (index * cardSpacing)
-                val currentY = targetY + (progress * cardSpacing)
+                val verticalPosition = screenHeight / 2f - cardHeight / 2f + 
+                                     (distanceFromSelected * verticalOffset) + 
+                                     (progress * verticalOffset)
+                params.y = verticalPosition.toInt()
                 
-                params.x = screenWidth / 2 - parent.width / 2
-                params.y = currentY.toInt()
+                val positionScale = maxScale - (abs(distanceFromSelected.toFloat()) * 0.08f).coerceIn(0f, 0.2f)
+                val zIndex = if (distanceFromSelected > 0) {
+                    25f - (distanceFromSelected.toFloat() * 6f)
+                } else {
+                    25f + (abs(distanceFromSelected.toFloat()) * 6f)
+                }
                 
-                // 添加波浪效果
-                val wave = Math.sin((currentY / screenHeight) * Math.PI) * 50
-                params.x += wave.toInt()
+                val positionAlpha = 1.0f - (abs(distanceFromSelected.toFloat()) * 0.25f).coerceIn(0f, 0.6f)
+                val tiltAngle = if (distanceFromSelected > 0) {
+                    -maxRotation * (1 - abs(progress) * 0.8f)
+                } else {
+                    maxRotation * (1 - abs(progress) * 0.8f)
+                } * min(1f, abs(distanceFromSelected.toFloat()))
                 
-                // 设置缩放和旋转
-                val scale = 1f - (Math.abs(index - currentCardIndex) * (1f - cardScale))
-                val rotation = (index - currentCardIndex) * cardRotation
+                val horizontalOffset = (distanceFromSelected * 15).toInt()
                 
-                parent.scaleX = scale
-                parent.scaleY = scale
-                parent.rotation = rotation
+                params.width = cardWidth
+                params.height = cardHeight
+                params.x = screenWidth / 2 - cardWidth / 2 + horizontalOffset
+                params.y = params.y
+                
+                parent.scaleX = positionScale
+                parent.scaleY = positionScale
+                parent.alpha = positionAlpha
+                parent.rotation = tiltAngle
+                parent.elevation = zIndex
+                parent.translationZ = -abs(distanceFromSelected.toFloat()) * 60f
+                
+                val shadowRadius = (20f - abs(distanceFromSelected.toFloat()) * 5f).coerceAtLeast(5f)
+                parent.background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.WHITE)
+                    cornerRadius = (16 * resources.displayMetrics.density)
+                }
             }
             
             try {
                 windowManager?.updateViewLayout(parent, params)
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("FloatingService", "更新卡片位置失败", e)
             }
         }
     }
 
     private fun hideCardView() {
         isCardViewMode = false
-        // 隐藏非当前窗口
-        aiWindows.forEachIndexed { _, webView ->
+        aiWindows.forEachIndexed { index, webView ->
             val parent = webView.parent as? View ?: return@forEachIndexed
-            if (currentCardIndex != aiWindows.indexOf(webView)) {
-                parent.visibility = View.GONE
-            } else {
-                // 重置当前窗口的位置和动画
-                val params = parent.layoutParams as WindowManager.LayoutParams
-                params.x = 0
-                params.y = aiWindows.indexOf(webView) * (screenHeight / 3)
-                parent.scaleX = 1f
-                parent.scaleY = 1f
-                parent.rotation = 0f
-                try {
-                    windowManager?.updateViewLayout(parent, params)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
+            val params = parent.layoutParams as WindowManager.LayoutParams
+            
+            // 恢复原始状态
+            params.width = WindowManager.LayoutParams.MATCH_PARENT
+            params.height = (screenHeight * 2) / 3
+            params.x = 0
+            params.y = index * (params.height / 3)
+            
+            // 重置所有变换
+            parent.scaleX = 1f
+            parent.scaleY = 1f
+            parent.alpha = 0.95f
+            parent.elevation = 0f
+            parent.rotation = 0f
+            parent.translationZ = 0f
+            
+            // 移除阴影和圆角
+            parent.background = null
+            
+            // 只显示当前选中的卡片
+            parent.visibility = if (index == currentCardIndex) View.VISIBLE else View.GONE
+            
+            try {
+                windowManager?.updateViewLayout(parent, params)
+            } catch (e: Exception) {
+                Log.e("FloatingService", "重置卡片位置失败", e)
             }
         }
+    }
+    
+    private fun closeAllWindows() {
+        aiWindows.forEachIndexed { index, webView ->
+            val parent = webView.parent as? View
+            if (parent != null) {
+                // 为每个卡片设置不同的动画延迟，创造级联效果
+                parent.animate()
+                    .alpha(0f)
+                    .translationY(-screenHeight.toFloat())
+                    .scaleX(0.8f)
+                    .scaleY(0.8f)
+                    .setStartDelay((index * 50).toLong())  // 错开动画开始时间
+                    .setDuration(200)
+                    .withEndAction {
+                        try {
+                            windowManager?.removeView(parent)
+                        } catch (e: Exception) {
+                            Log.e("FloatingService", "移除窗口失败", e)
+                        }
+                    }
+                    .start()
+            }
+        }
+        aiWindows.clear()
+        isCardViewMode = false
     }
     
     override fun onDestroy() {
