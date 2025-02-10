@@ -499,7 +499,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 setColor(android.graphics.Color.parseColor("#F5F5F5"))  // 设置浅灰色背景
             }
         }
-
+        
         // 创建一个垂直布局容器
         val containerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -720,7 +720,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         @JavascriptInterface
         fun getQuery(): String = query
     }
-
+    
     private fun createAICardView(url: String, index: Int): View {
         // 创建卡片容器
         val cardContainer = FrameLayout(this).apply {
@@ -738,8 +738,73 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             
             elevation = 4f.dpToPx()
-        }
 
+            // 添加点击事件处理
+            var isExpanded = false
+            setOnClickListener { view ->
+                val params = view.layoutParams as LinearLayout.LayoutParams
+                if (!isExpanded) {
+                    // 展开卡片
+                    view.animate()
+                        .scaleX(1.1f)
+                        .scaleY(1.1f)
+                        .translationZ(25f)
+                        .setDuration(300)
+                        .withStartAction {
+                            // 隐藏其他卡片
+                            aiWindows.forEachIndexed { i, webView ->
+                                if (i != index) {
+                                    webView.parent?.let { parent ->
+                                        (parent as View).animate()
+                                            .alpha(0f)
+                                            .scaleX(0.8f)
+                                            .scaleY(0.8f)
+                                            .setDuration(200)
+                                            .start()
+                                    }
+                                }
+                            }
+                        }
+                        .withEndAction {
+                            params.height = (screenHeight * 0.85f).toInt()
+                            params.width = LinearLayout.LayoutParams.MATCH_PARENT
+                            params.setMargins(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
+                            view.layoutParams = params
+                        }
+                        .start()
+                } else {
+                    // 恢复原始大小
+                    view.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .translationZ(4f)
+                        .setDuration(300)
+                        .withStartAction {
+                            params.height = (screenHeight * 0.6f).toInt()
+                            params.width = LinearLayout.LayoutParams.MATCH_PARENT
+                            params.setMargins(16.dpToPx(), if (index == 0) 16.dpToPx() else 24.dpToPx(), 16.dpToPx(), 0)
+                            view.layoutParams = params
+
+                            // 显示其他卡片
+                            aiWindows.forEachIndexed { i, webView ->
+                                if (i != index) {
+                                    webView.parent?.let { parent ->
+                                        (parent as View).animate()
+                                            .alpha(1f)
+                                            .scaleX(1f)
+                                            .scaleY(1f)
+                                            .setDuration(200)
+                                            .start()
+                                    }
+                                }
+                            }
+                        }
+                        .start()
+                }
+                isExpanded = !isExpanded
+            }
+        }
+        
         // 创建一个垂直布局来包含按钮和WebView
         val containerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -1048,7 +1113,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
+                
+                // 新增：设置布局算法
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                
+                // 新增：设置默认缩放
                 setInitialScale(100)
+                
+                // 新增：启用视口元标记
+                useWideViewPort = true
+                loadWithOverviewMode = true
+                
+                // 新增：设置内容模式
+                setUseWideViewPort(true)
+                setLoadWithOverviewMode(true)
                 
                 // 允许混合内容
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -1080,6 +1158,18 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 
                 // 设置UA
                 userAgentString = userAgentString + " Mobile"
+            }
+
+            // 新增：设置WebView的背景为透明
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            
+            // 新增：设置滚动条样式
+            isVerticalScrollBarEnabled = true
+            scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+            
+            // 新增：启用硬件加速
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
             }
             
             // 注入JavaScript接口
@@ -1179,7 +1269,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             // 加载URL
             loadUrl(url)
         }
-
+        
         // 将按钮和WebView添加到垂直布局中
         containerLayout.addView(pasteButton)
         containerLayout.addView(webView)
