@@ -41,6 +41,7 @@ import com.example.aifloatingball.utils.SystemSettingsHelper
 import com.example.aifloatingball.web.CustomWebViewClient
 import kotlin.math.abs
 import kotlin.math.min
+import android.graphics.drawable.GradientDrawable
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -51,6 +52,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var floatingBallView: View? = null
     private var searchView: View? = null
     private val aiWindows = mutableListOf<WebView>()
+    private var cardsContainer: ViewGroup? = null
     private lateinit var gestureManager: GestureManager
     private lateinit var quickMenuManager: QuickMenuManager
     private lateinit var systemSettingsHelper: SystemSettingsHelper
@@ -299,7 +301,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                     PixelFormat.RGBA_8888
                 )
             } else {
@@ -310,7 +314,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     WindowManager.LayoutParams.TYPE_PHONE,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
                     PixelFormat.RGBA_8888
                 )
             }
@@ -318,6 +324,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             params.gravity = Gravity.START or Gravity.TOP
             params.x = screenWidth - 100.dpToPx()
             params.y = screenHeight / 2
+            
+            // 设置最高层级
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                root.elevation = 1000f  // 设置非常高的elevation确保在最上层
+                root.translationZ = 1000f
+            }
             
             // 添加悬浮球到窗口
             windowManager?.addView(root, params)
@@ -463,49 +475,77 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         return (this * resources.displayMetrics.density).toInt()
     }
     
+    private fun Float.dpToPx(): Float {
+        return this * resources.displayMetrics.density
+    }
+    
     private fun showSearchInput() {
+        // 创建主容器
         val root = FrameLayout(this)
-        searchView = LayoutInflater.from(this).inflate(R.layout.search_input_layout, root, true)
         
-        val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-                PixelFormat.TRANSLUCENT
+        // 创建一个垂直布局容器
+        val containerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
             )
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-                PixelFormat.TRANSLUCENT
-            )
-        }.apply {
-            gravity = Gravity.TOP
-            flags = flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
         }
         
-        setupVoiceInput()
+        // 添加搜索框部分
+        val searchContainer = LayoutInflater.from(this).inflate(R.layout.search_input_layout, containerLayout, false)
+        searchContainer.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 16.dpToPx())
+            }
+            
+            background = GradientDrawable().apply {
+                setColor(android.graphics.Color.WHITE)
+                cornerRadius = 24.dpToPx().toFloat()
+                setStroke(1, android.graphics.Color.parseColor("#E0E0E0"))
+            }
+            
+            elevation = 4f.dpToPx()
+        }
         
-        // 获取输入框和搜索按钮
-        val searchInput = searchView?.findViewById<EditText>(R.id.search_input)
-        val searchButton = searchView?.findViewById<ImageButton>(R.id.search_button)
+        // 创建卡片容器
+        val cardsContainerView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0
+            ).apply {
+                weight = 1f  // 让卡片容器占据剩余空间
+            }
+        }
+        
+        // 将搜索框和卡片容器添加到主容器
+        containerLayout.addView(searchContainer)
+        containerLayout.addView(cardsContainerView)
+        root.addView(containerLayout)
+        searchView = root
+        cardsContainer = cardsContainerView  // 保存cardsContainer引用
+        
+        // 获取输入框和按钮
+        val searchInput = searchContainer.findViewById<EditText>(R.id.search_input)
+        val searchButton = searchContainer.findViewById<ImageButton>(R.id.search_button)
+        val voiceButton = searchContainer.findViewById<ImageButton>(R.id.voice_input_button)
         
         // 设置搜索按钮点击事件
         searchButton?.setOnClickListener {
             val query = searchInput?.text?.toString()?.trim() ?: ""
             if (query.isNotEmpty()) {
-                performSearch(query)
-                // 关闭搜索输入框
-                windowManager?.removeView(root)
-                searchView = null
+                performSearch(query, cardsContainerView)
             }
+        }
+        
+        // 设置语音按钮点击事件
+        voiceButton?.setOnClickListener {
+            startVoiceSearchMode()
         }
         
         // 设置输入框回车键监听
@@ -515,10 +555,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             ) {
                 val query = searchInput.text.toString().trim()
                 if (query.isNotEmpty()) {
-                    performSearch(query)
-                    // 关闭搜索输入框
-                    windowManager?.removeView(root)
-                    searchView = null
+                    performSearch(query, cardsContainerView)
                 }
                 true
             } else {
@@ -526,6 +563,28 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
         }
         
+        // 设置窗口参数
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) 
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP
+            flags = flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        }
+        
+        // 设置背景半透明
+        root.setBackgroundColor(android.graphics.Color.parseColor("#E6FFFFFF"))
+        
+        // 添加到窗口
+        windowManager?.addView(root, params)
+        
+        // 请求输入框焦点
         searchInput?.apply {
             requestFocus()
             postDelayed({
@@ -534,7 +593,103 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }, 200)
         }
         
-        windowManager?.addView(root, params)
+        isSearchVisible = true
+    }
+    
+    private fun performSearch(query: String, cardsContainer: ViewGroup) {
+        try {
+            if (query.isEmpty()) return
+            
+            // 隐藏输入法
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            searchView?.findFocus()?.let { view ->
+                imm.hideSoftInputFromWindow(view.windowToken, 0)
+            }
+            
+            searchHistoryManager.addSearchQuery(query)
+            
+            // 构建正确的搜索URL
+            val encodedQuery = Uri.encode(query)
+            val urls = listOf(
+                "https://kimi.moonshot.cn/chat?q=$encodedQuery",
+                "https://chat.deepseek.com/?q=$encodedQuery",
+                "https://www.doubao.com/?q=$encodedQuery"
+            )
+            
+            // 清除现有的卡片
+            cardsContainer.removeAllViews()
+            aiWindows.clear()
+            
+            // 创建新卡片
+            urls.forEachIndexed { index, url ->
+                try {
+                    val cardView = createAICardView(url, index)
+                    cardsContainer.addView(cardView)
+                    
+                    // 添加卡片出现动画
+                    cardView.alpha = 0f
+                    cardView.translationY = 50f
+                    cardView.animate()
+                        .alpha(1f)
+                        .translationY(0f)
+                        .setDuration(300)
+                        .setStartDelay((index * 100).toLong())
+                        .setInterpolator(DecelerateInterpolator())
+                        .start()
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "创建AI卡片失败: ${e.message}")
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e("FloatingService", "执行搜索失败: ${e.message}")
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun createAICardView(url: String, index: Int): View {
+        // 创建卡片容器
+        val cardContainer = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                (screenHeight * 0.25f).toInt()  // 每个卡片高度为屏幕的25%
+            ).apply {
+                setMargins(0, if (index == 0) 0 else 16.dpToPx(), 0, 0)
+            }
+            
+            // 设置圆角和阴影背景
+            background = GradientDrawable().apply {
+                setColor(android.graphics.Color.WHITE)
+                cornerRadius = 16f.dpToPx()
+                setStroke(1, android.graphics.Color.parseColor("#E0E0E0"))
+            }
+            
+            elevation = 4f.dpToPx()
+        }
+        
+        // 创建WebView
+        val webView = WebView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                useWideViewPort = true
+                loadWithOverviewMode = true
+            }
+            
+            webViewClient = CustomWebViewClient()
+            loadUrl(url)
+        }
+        
+        cardContainer.addView(webView)
+        aiWindows.add(webView)
+        
+        return cardContainer
     }
     
     private fun setupVoiceInput() {
@@ -599,7 +754,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     if (!matches.isNullOrEmpty()) {
                         val query = matches[0]
                         Log.d("VoiceInput", "识别结果: $query")
-                        performSearch(query)
+                        cardsContainer?.let { container ->
+                            performSearch(query, container)
+                        }
                     }
                 }
                 
@@ -657,204 +814,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         } catch (e: Exception) {
             Log.e("VoiceInput", "启动语音识别失败", e)
             Toast.makeText(this, "启动语音识别失败", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    private fun performSearch(query: String) {
-        if (query.isEmpty()) return
-        
-        // 先清除现有的搜索窗口
-        closeAllWindows()
-        
-        searchHistoryManager.addSearchQuery(query)
-        
-        // 构建正确的搜索URL，豆包先加载首页
-        val encodedQuery = Uri.encode(query)
-        val urls = listOf(
-            "https://kimi.moonshot.cn/chat?q=$encodedQuery",  // Kimi AI
-            "https://chat.deepseek.com/?q=$encodedQuery",  // DeepSeek
-            "https://www.doubao.com"  // 豆包 - 先加载首页
-        )
-        
-        Log.d("FloatingService", "开始创建AI助手窗口，查询词: $query")
-        Log.d("FloatingService", "构建的URLs: ${urls.joinToString("\n")}")
-        
-        urls.forEachIndexed { index, url ->
-            try {
-                createAIWindow(url, index)
-                Log.d("FloatingService", "成功创建第 ${index + 1} 个AI助手窗口，URL: $url")
-            } catch (e: Exception) {
-                Log.e("FloatingService", "创建AI助手窗口失败: ${e.message}")
-            }
-        }
-    }
-    
-    private fun createAIWindow(url: String, index: Int) {
-        try {
-            // 1. 创建根容器
-            val root = FrameLayout(this)
-            
-            // 2. 创建WebView
-            val webView = WebView(this).apply {
-                layoutParams = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.MATCH_PARENT
-                )
-                
-                setBackgroundColor(android.graphics.Color.WHITE)  // 设置白色背景
-                
-                // WebView基本设置
-                settings.apply {
-                    javaScriptEnabled = true
-                    domStorageEnabled = true
-                    databaseEnabled = true
-                    useWideViewPort = true
-                    loadWithOverviewMode = true
-                    
-                    // 重要：允许跨域和混合内容
-                    allowContentAccess = true
-                    allowFileAccess = true
-                    
-                    // 启用更多设置
-                    setSupportZoom(true)
-                    builtInZoomControls = true
-                    displayZoomControls = false
-                    loadsImagesAutomatically = true
-                    defaultTextEncodingName = "UTF-8"
-                    
-                    // 设置缓存模式
-                    cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
-                    
-                    // 启用地理位置
-                    setGeolocationEnabled(true)
-                    
-                    // 设置 UA
-                    userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                    
-                    // 允许混合内容
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    }
-                }
-                
-                // 设置WebViewClient
-                webViewClient = object : android.webkit.WebViewClient() {
-                    override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                        Log.d("WebView_${index}", "开始加载页面: $url")
-                        Toast.makeText(this@FloatingWindowService, "开始加载: $url", Toast.LENGTH_SHORT).show()
-                    }
-                    
-                    override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                        Log.d("WebView_${index}", "拦截到URL: $url")
-                        url?.let { 
-                            view?.loadUrl(it)
-                        }
-                        return true
-                    }
-                    
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        Log.d("WebView_${index}", "页面加载完成: $url")
-                        Toast.makeText(this@FloatingWindowService, "加载完成: $url", Toast.LENGTH_SHORT).show()
-                        
-                        // 注入调试代码
-                        view?.evaluateJavascript("""
-                            (function() {
-                                console.log('页面加载完成');
-                                console.log('当前URL:', window.location.href);
-                                console.log('页面标题:', document.title);
-                                var bodyContent = document.body ? document.body.innerHTML : 'body为空';
-                                console.log('Body长度:', bodyContent.length);
-                                return JSON.stringify({
-                                    url: window.location.href,
-                                    title: document.title,
-                                    hasBody: document.body !== null,
-                                    bodyLength: bodyContent.length,
-                                    readyState: document.readyState
-                                });
-                            })();
-                        """.trimIndent()) { result ->
-                            Log.d("WebView_${index}", "页面信息: $result")
-                        }
-                    }
-                    
-                    override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
-                        Log.e("WebView_${index}", "加载错误: code=$errorCode, desc=$description, url=$failingUrl")
-                        Toast.makeText(this@FloatingWindowService, "加载错误: $description", Toast.LENGTH_LONG).show()
-                        val errorHtml = """
-                            <html>
-                                <body style='background-color: white; color: black; padding: 20px;'>
-                                    <h3>加载失败</h3>
-                                    <p>错误代码: $errorCode</p>
-                                    <p>错误信息: $description</p>
-                                    <p>URL: $failingUrl</p>
-                                    <button onclick="window.location.reload()">重新加载</button>
-                                </body>
-                            </html>
-                        """.trimIndent()
-                        view?.loadData(errorHtml, "text/html", "UTF-8")
-                    }
-                    
-                    override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
-                        Log.d("WebView_${index}", "SSL错误: ${error?.toString()}, 继续加载")
-                        handler?.proceed()
-                    }
-                }
-                
-                // 设置WebChromeClient
-                webChromeClient = object : android.webkit.WebChromeClient() {
-                    override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                        Log.d("WebView_${index}", "加载进度: $newProgress%")
-                    }
-                    
-                    override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
-                        Log.d("WebView_${index}", "Console[${consoleMessage?.lineNumber()}]: ${consoleMessage?.message()}")
-                        return true
-                    }
-                    
-                    override fun onReceivedTitle(view: WebView?, title: String?) {
-                        Log.d("WebView_${index}", "收到标题: $title")
-                    }
-
-                    override fun onGeolocationPermissionsShowPrompt(origin: String?, callback: android.webkit.GeolocationPermissions.Callback?) {
-                        callback?.invoke(origin, true, false)
-                    }
-                }
-            }
-            
-            // 3. 添加WebView到根容器
-            root.addView(webView)
-            
-            // 4. 设置窗口参数
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                (screenHeight * 0.65f).toInt(),
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) 
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                else WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,  // 添加硬件加速
-                PixelFormat.TRANSLUCENT
-            ).apply {
-                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                y = screenHeight / 6 + (index * 60.dpToPx())
-                width = WindowManager.LayoutParams.MATCH_PARENT
-                height = (screenHeight * 0.65f).toInt()
-            }
-            
-            // 5. 加载URL
-            Log.d("WebView_${index}", "准备加载URL: $url")
-            webView.post {
-                webView.loadUrl(url)
-            }
-            
-            // 6. 添加到窗口管理器
-            windowManager?.addView(root, params)
-            aiWindows.add(webView)
-            
-            Log.d("WebView_${index}", "窗口创建完成")
-            
-        } catch (e: Exception) {
-            Log.e("WebView_${index}", "创建窗口失败", e)
         }
     }
     
@@ -1071,22 +1030,21 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     private fun performClick() {
-        if (!isCardViewMode) {
-            if (isSearchVisible) {
-                // 如果搜索框已显示，则隐藏
-                searchView?.let { view ->
-                    val parent = view.parent as? View
-                    if (parent != null) {
-                        windowManager?.removeView(parent)
-                        searchView = null
-                        isSearchVisible = false
-                    }
+        if (isSearchVisible) {
+            // 如果搜索框已显示，则隐藏
+            searchView?.let { view ->
+                val parent = view.parent as? View
+                if (parent != null) {
+                    windowManager?.removeView(parent)
+                    searchView = null
+                    isSearchVisible = false
                 }
-            } else {
-                // 如果搜索框未显示，则显示
-            showSearchInput()
-                isSearchVisible = true
             }
+            // 同时关闭所有卡片
+            closeAllWindows()
+        } else {
+            // 显示统一的搜索界面
+            showSearchInput()
         }
     }
     
@@ -1222,7 +1180,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         recyclerView.layoutManager = LinearLayoutManager(this)
         
         val adapter = SearchHistoryAdapter(history) { query ->
-            performSearch(query)
+            cardsContainer?.let { container ->
+                performSearch(query, container)
+            }
             windowManager?.removeView(root)
         }
         recyclerView.adapter = adapter
@@ -1520,9 +1480,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             
             // 添加卡片背景和边框
-                parent.background = android.graphics.drawable.GradientDrawable().apply {
+                parent.background = GradientDrawable().apply {
                     setColor(android.graphics.Color.WHITE)
-                cornerRadius = 24f
+                    cornerRadius = 24.dpToPx().toFloat()
                 setStroke(2, android.graphics.Color.parseColor("#E0E0E0"))
             }
             
@@ -1568,6 +1528,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         try {
             recognizer?.destroy()
             recognizer = null
+            cardsContainer = null  // 清除引用
             
             windowManager?.let { wm ->
                 floatingBallView?.let { view ->
