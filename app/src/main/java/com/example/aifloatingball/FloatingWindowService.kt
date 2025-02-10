@@ -96,6 +96,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     // 存储最后一次查询
     private var lastQuery: String = ""
     
+    // 添加缩略图缓存相关变量
+    private val thumbnailCache = mutableMapOf<Int, android.graphics.Bitmap>()
+    private val thumbnailViews = mutableMapOf<Int, ImageView>()
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -742,66 +746,58 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             // 添加点击事件处理
             var isExpanded = false
             setOnClickListener { view ->
-                val params = view.layoutParams as LinearLayout.LayoutParams
-                if (!isExpanded) {
-                    // 展开卡片
-                    view.animate()
-                        .scaleX(1.1f)
-                        .scaleY(1.1f)
-                        .translationZ(25f)
-                        .setDuration(300)
-                        .withStartAction {
-                            // 隐藏其他卡片
-                            aiWindows.forEachIndexed { i, webView ->
-                                if (i != index) {
-                                    webView.parent?.let { parent ->
-                                        (parent as View).animate()
-                                            .alpha(0f)
-                                            .scaleX(0.8f)
-                                            .scaleY(0.8f)
-                                            .setDuration(200)
-                                            .start()
-                                    }
+                try {
+                    // 检查是否有其他卡片已经展开
+                    var otherCardExpanded = false
+                    var expandedCardIndex = -1
+                    
+                    aiWindows.forEachIndexed { i, _ ->
+                        val otherCard = cardsContainer?.getChildAt(i)
+                        if (otherCard != null && otherCard != view && 
+                            (otherCard.scaleX > 1.05f || otherCard.layoutParams.height > (screenHeight * 0.7f).toInt())) {
+                            otherCardExpanded = true
+                            expandedCardIndex = i
+                            return@forEachIndexed
+                        }
+                    }
+                    
+                    // 如果其他卡片已展开，先将其恢复原状
+                    if (otherCardExpanded && expandedCardIndex != -1) {
+                        val expandedCard = cardsContainer?.getChildAt(expandedCardIndex)
+                        expandedCard?.let { card ->
+                            val params = card.layoutParams as LinearLayout.LayoutParams
+                            // 恢复原始大小
+                            card.animate()
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .translationZ(4f)
+                                .setDuration(300)
+                                .withStartAction {
+                                    params.height = (screenHeight * 0.6f).toInt()
+                                    params.width = LinearLayout.LayoutParams.MATCH_PARENT
+                                    params.setMargins(16.dpToPx(), 
+                                        if (expandedCardIndex == 0) 16.dpToPx() else 24.dpToPx(), 
+                                        16.dpToPx(), 0)
+                                    card.layoutParams = params
                                 }
-                            }
-                        }
-                        .withEndAction {
-                            params.height = (screenHeight * 0.85f).toInt()
-                            params.width = LinearLayout.LayoutParams.MATCH_PARENT
-                            params.setMargins(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
-                            view.layoutParams = params
-                        }
-                        .start()
-                } else {
-                    // 恢复原始大小
-                    view.animate()
-                        .scaleX(1f)
-                        .scaleY(1f)
-                        .translationZ(4f)
-                        .setDuration(300)
-                        .withStartAction {
-                            params.height = (screenHeight * 0.6f).toInt()
-                            params.width = LinearLayout.LayoutParams.MATCH_PARENT
-                            params.setMargins(16.dpToPx(), if (index == 0) 16.dpToPx() else 24.dpToPx(), 16.dpToPx(), 0)
-                            view.layoutParams = params
-
-                            // 显示其他卡片
-                            aiWindows.forEachIndexed { i, webView ->
-                                if (i != index) {
-                                    webView.parent?.let { parent ->
-                                        (parent as View).animate()
-                                            .alpha(1f)
-                                            .scaleX(1f)
-                                            .scaleY(1f)
-                                            .setDuration(200)
-                                            .start()
-                                    }
+                                .withEndAction {
+                                    // 恢复其他卡片的显示
+                                    updateCardVisibility(expandedCardIndex, false)
+                                    
+                                    // 然后展开当前点击的卡片
+                                    expandCurrentCard(view, index)
                                 }
-                            }
+                                .start()
+                            return@setOnClickListener
                         }
-                        .start()
+                    }
+                    
+                    // 如果没有其他卡片展开，直接展开/收起当前卡片
+                    expandCurrentCard(view, index)
+                    
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "处理卡片点击事件失败", e)
                 }
-                isExpanded = !isExpanded
             }
         }
         
@@ -2113,6 +2109,97 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         isCardViewMode = false
     }
     
+    private fun createThumbnail(webView: WebView): android.graphics.Bitmap {
+        val scale = resources.displayMetrics.density
+        val width = (webView.width / scale).toInt()
+        val height = (webView.height / scale).toInt()
+        val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.scale(1/scale, 1/scale)
+        webView.draw(canvas)
+        return bitmap
+    }
+
+    private fun showThumbnail(index: Int, parent: View) {
+        try {
+            val thumbnailView = thumbnailViews.getOrPut(index) {
+                ImageView(this).apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                    )
+                    scaleType = ImageView.ScaleType.FIT_XY
+                    
+                    // 添加点击事件，点击缩略图时恢复WebView
+                    setOnClickListener {
+                        val webView = aiWindows.getOrNull(index)
+                        if (webView != null) {
+                            webView.visibility = View.VISIBLE
+                            this.visibility = View.GONE
+                            // 展开被点击的卡片
+                            expandCurrentCard(parent, index)
+                        }
+                    }
+                }
+            }
+            
+            thumbnailCache[index]?.let { bitmap ->
+                thumbnailView.setImageBitmap(bitmap)
+                thumbnailView.visibility = View.VISIBLE
+                (parent as? ViewGroup)?.addView(thumbnailView)
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "显示缩略图失败: ${e.message}")
+        }
+    }
+
+    private fun hideThumbnail(index: Int, parent: View) {
+        try {
+            thumbnailViews[index]?.let { thumbnailView ->
+                thumbnailView.visibility = View.GONE
+                (parent as? ViewGroup)?.removeView(thumbnailView)
+                thumbnailViews.remove(index)
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "隐藏缩略图失败: ${e.message}")
+        }
+    }
+
+    private fun updateCardVisibility(index: Int, isExpanded: Boolean) {
+        val webView = aiWindows.getOrNull(index) ?: return
+        val parent = webView.parent as? View ?: return
+        
+        if (isExpanded) {
+            // 创建并缓存其他卡片的缩略图
+            aiWindows.forEachIndexed { i, otherWebView ->
+                if (i != index) {
+                    try {
+                        thumbnailCache[i] = createThumbnail(otherWebView)
+                        showThumbnail(i, otherWebView.parent as View)
+                        otherWebView.visibility = View.INVISIBLE
+                    } catch (e: Exception) {
+                        Log.e("FloatingService", "创建缩略图失败: ${e.message}")
+                    }
+                }
+            }
+        } else {
+            // 恢复其他卡片的显示
+            aiWindows.forEachIndexed { i, otherWebView ->
+                if (i != index) {
+                    try {
+                        otherWebView.visibility = View.VISIBLE
+                        hideThumbnail(i, otherWebView.parent as View)
+                        // 清理不需要的缩略图缓存
+                        thumbnailCache[i]?.recycle()
+                        thumbnailCache.remove(i)
+                    } catch (e: Exception) {
+                        Log.e("FloatingService", "恢复WebView显示失败: ${e.message}")
+                    }
+                }
+            }
+        }
+    }
+    
     override fun onDestroy() {
         try {
             recognizer?.destroy()
@@ -2147,6 +2234,76 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             Log.e("FloatingService", "清理视图失败", e)
         }
         
+        // 清理缩略图缓存
+        thumbnailCache.forEach { (_, bitmap) ->
+            bitmap.recycle()
+        }
+        thumbnailCache.clear()
+        thumbnailViews.clear()
+        
         super.onDestroy()
+    }
+
+    // 添加新的辅助方法来处理卡片展开
+    private fun expandCurrentCard(view: View, index: Int) {
+        try {
+            val params = view.layoutParams as LinearLayout.LayoutParams
+            val isExpanded = params.height > (screenHeight * 0.7f).toInt()
+            
+            if (!isExpanded) {
+                // 展开卡片前创建其他卡片的缩略图
+                updateCardVisibility(index, true)
+                
+                // 确保当前卡片的WebView是可见的
+                aiWindows[index].visibility = View.VISIBLE
+                
+                // 展开卡片
+                view.animate()
+                    .scaleX(1.1f)
+                    .scaleY(1.1f)
+                    .translationZ(25f)
+                    .setDuration(300)
+                    .withStartAction {
+                        // 使用缩略图渐隐其他卡片
+                        aiWindows.forEachIndexed { i, _ ->
+                            if (i != index) {
+                                thumbnailViews[i]?.animate()
+                                    ?.alpha(0.5f)
+                                    ?.scaleX(0.8f)
+                                    ?.scaleY(0.8f)
+                                    ?.setDuration(200)
+                                    ?.start()
+                            }
+                        }
+                    }
+                    .withEndAction {
+                        params.height = (screenHeight * 0.85f).toInt()
+                        params.width = LinearLayout.LayoutParams.MATCH_PARENT
+                        params.setMargins(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
+                        view.layoutParams = params
+                    }
+                    .start()
+            } else {
+                // 恢复原始大小
+                view.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .translationZ(4f)
+                    .setDuration(300)
+                    .withStartAction {
+                        params.height = (screenHeight * 0.6f).toInt()
+                        params.width = LinearLayout.LayoutParams.MATCH_PARENT
+                        params.setMargins(16.dpToPx(), if (index == 0) 16.dpToPx() else 24.dpToPx(), 16.dpToPx(), 0)
+                        view.layoutParams = params
+                    }
+                    .withEndAction {
+                        // 恢复其他卡片的显示
+                        updateCardVisibility(index, false)
+                    }
+                    .start()
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "展开/收起卡片失败", e)
+        }
     }
 } 
