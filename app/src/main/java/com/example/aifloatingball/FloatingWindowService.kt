@@ -28,6 +28,8 @@ import android.view.animation.AnimationUtils
 import android.view.animation.DecelerateInterpolator
 import android.webkit.SslErrorHandler
 import android.webkit.WebView
+import android.webkit.WebSettings
+import android.webkit.JavascriptInterface
 import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -90,6 +92,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var voiceSearchHandler = Handler(Looper.getMainLooper())
     private var isVoiceSearchActive = false
     private val LONG_PRESS_TIMEOUT = 2000L // 2秒长按阈值
+    
+    // 存储最后一次查询
+    private var lastQuery: String = ""
     
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -657,6 +662,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         try {
             if (query.isEmpty()) return
             
+            // 保存查询内容到剪贴板
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("search_query", query)
+            clipboard.setPrimaryClip(clip)
+            
+            // 保存查询内容
+            lastQuery = query
+            
             // 隐藏输入法
             val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
             searchView?.findFocus()?.let { view ->
@@ -665,12 +678,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             searchHistoryManager.addSearchQuery(query)
             
-            // 构建正确的搜索URL
-            val encodedQuery = Uri.encode(query)
+            // 构建基础URL（不带查询参数）
             val urls = listOf(
-                "https://kimi.moonshot.cn/chat?q=$encodedQuery",
-                "https://chat.deepseek.com/?q=$encodedQuery",
-                "https://www.doubao.com/?q=$encodedQuery"
+                "https://kimi.moonshot.cn/chat",
+                "https://chat.deepseek.com/chat",
+                "https://www.doubao.com/chat"
             )
             
             // 清除现有的卡片
@@ -683,7 +695,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     val cardView = createAICardView(url, index)
                     cardsContainer.addView(cardView)
                     
-                    // 添加卡片出现动画
                     cardView.alpha = 0f
                     cardView.translationY = 50f
                     cardView.animate()
@@ -704,17 +715,22 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
     
+    // 添加JavaScript接口类
+    private class JsInterface(private val query: String) {
+        @JavascriptInterface
+        fun getQuery(): String = query
+    }
+
     private fun createAICardView(url: String, index: Int): View {
         // 创建卡片容器
         val cardContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                (screenHeight * 0.6f).toInt()  // 增加卡片高度为屏幕的60%
+                (screenHeight * 0.6f).toInt()
             ).apply {
                 setMargins(16.dpToPx(), if (index == 0) 16.dpToPx() else 24.dpToPx(), 16.dpToPx(), 0)
             }
             
-            // 设置圆角和阴影背景
             background = GradientDrawable().apply {
                 setColor(android.graphics.Color.WHITE)
                 cornerRadius = 16f.dpToPx()
@@ -724,14 +740,303 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             elevation = 4f.dpToPx()
         }
 
-        // 创建WebView
-        val webView = WebView(this).apply {
+        // 创建一个垂直布局来包含按钮和WebView
+        val containerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        // 创建粘贴发送按钮
+        val pasteButton = Button(this).apply {
+            text = "粘贴发送"
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                // 添加内边距，避免内容贴边
+                gravity = Gravity.END
                 setMargins(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
+            }
+            
+            setOnClickListener {
+                val webView = aiWindows[index]
+                
+                // 首先尝试获取剪贴板内容
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clipData = clipboard.primaryClip
+                val text = if (clipData != null && clipData.itemCount > 0) {
+                    clipData.getItemAt(0).text.toString()
+                } else {
+                    ""
+                }
+
+                when {
+                    url.contains("kimi.moonshot.cn") -> {
+                        webView.evaluateJavascript("""
+                            (function() {
+                                function findTextarea() {
+                                    return document.querySelector('.chat-input textarea') || 
+                                           document.querySelector('.chat-input .textarea') ||
+                                           document.querySelector('textarea') ||
+                                           document.querySelector('[contenteditable="true"]');
+                                }
+
+                                function simulateInput(element, text) {
+                                    console.log('Simulating input for Kimi...');
+                                    
+                                    // 聚焦元素
+                                    element.focus();
+                                    
+                                    // 直接设置值
+                                    element.value = text;
+                                    
+                                    // 触发多个事件
+                                    const events = ['input', 'change', 'keydown', 'keyup', 'keypress'];
+                                    events.forEach(eventType => {
+                                        element.dispatchEvent(new Event(eventType, { bubbles: true }));
+                                    });
+                                    
+                                    // 模拟输入事件
+                                    const inputEvent = new InputEvent('input', {
+                                        bubbles: true,
+                                        cancelable: true,
+                                        inputType: 'insertText',
+                                        data: text
+                                    });
+                                    element.dispatchEvent(inputEvent);
+                                    
+                                    return true;
+                                }
+
+                                function simulateEnter(element) {
+                                    console.log('Simulating enter for Kimi...');
+                                    const enterEvent = new KeyboardEvent('keydown', {
+                                        bubbles: true,
+                                        cancelable: true,
+                                        keyCode: 13,
+                                        which: 13,
+                                        key: 'Enter',
+                                        code: 'Enter'
+                                    });
+                                    element.dispatchEvent(enterEvent);
+                                    
+                                    // 尝试点击发送按钮作为备选方案
+                                    const sendButton = document.querySelector('.chat-input button[type="submit"]') ||
+                                                     document.querySelector('button[type="submit"]') ||
+                                                     document.querySelector('.send-button');
+                                    if (sendButton) {
+                                        sendButton.click();
+                                    }
+                                }
+
+                                function attemptInput(text, maxAttempts = 10) {
+                                    let attempts = 0;
+                                    const interval = setInterval(() => {
+                                        const textarea = findTextarea();
+                                        if (textarea) {
+                                            console.log('Found textarea for Kimi');
+                                            clearInterval(interval);
+                                            if (simulateInput(textarea, text)) {
+                                                setTimeout(() => simulateEnter(textarea), 500);
+                                            }
+                                        } else {
+                                            console.log('Attempt ' + (attempts + 1) + ' to find textarea');
+                                            attempts++;
+                                            if (attempts >= maxAttempts) {
+                                                console.log('Failed to find textarea after ' + maxAttempts + ' attempts');
+                                                clearInterval(interval);
+                                            }
+                                        }
+                                    }, 500);
+                                }
+
+                                attemptInput(`${text}`);
+                            })();
+                        """.trimIndent(), null)
+                    }
+                    url.contains("chat.deepseek.com") -> {
+                        webView.evaluateJavascript("""
+                            (function() {
+                                function findTextarea() {
+                                    return document.querySelector('.overflow-hidden textarea') || 
+                                           document.querySelector('.chat-input textarea') ||
+                                           document.querySelector('textarea') ||
+                                           document.querySelector('[contenteditable="true"]');
+                                }
+
+                                function simulateInput(element, text) {
+                                    console.log('Simulating input for Deepseek...');
+                                    
+                                    // 聚焦元素
+                                    element.focus();
+                                    
+                                    // 直接设置值
+                                    element.value = text;
+                                    
+                                    // 触发多个事件
+                                    const events = ['input', 'change', 'keydown', 'keyup', 'keypress'];
+                                    events.forEach(eventType => {
+                                        element.dispatchEvent(new Event(eventType, { bubbles: true }));
+                                    });
+                                    
+                                    // 模拟输入事件
+                                    const inputEvent = new InputEvent('input', {
+                                        bubbles: true,
+                                        cancelable: true,
+                                        inputType: 'insertText',
+                                        data: text
+                                    });
+                                    element.dispatchEvent(inputEvent);
+                                    
+                                    return true;
+                                }
+
+                                function simulateEnter(element) {
+                                    console.log('Simulating enter for Deepseek...');
+                                    const enterEvent = new KeyboardEvent('keydown', {
+                                        bubbles: true,
+                                        cancelable: true,
+                                        keyCode: 13,
+                                        which: 13,
+                                        key: 'Enter',
+                                        code: 'Enter'
+                                    });
+                                    element.dispatchEvent(enterEvent);
+                                    
+                                    // 尝试点击发送按钮作为备选方案
+                                    const sendButton = document.querySelector('button[type="submit"]') ||
+                                                     document.querySelector('.send-button') ||
+                                                     document.querySelector('button:not([disabled])');
+                                    if (sendButton) {
+                                        sendButton.click();
+                                    }
+                                }
+
+                                function attemptInput(text, maxAttempts = 10) {
+                                    let attempts = 0;
+                                    const interval = setInterval(() => {
+                                        const textarea = findTextarea();
+                                        if (textarea) {
+                                            console.log('Found textarea for Deepseek');
+                                            clearInterval(interval);
+                                            if (simulateInput(textarea, text)) {
+                                                setTimeout(() => simulateEnter(textarea), 500);
+                                            }
+                                        } else {
+                                            console.log('Attempt ' + (attempts + 1) + ' to find textarea');
+                                            attempts++;
+                                            if (attempts >= maxAttempts) {
+                                                console.log('Failed to find textarea after ' + maxAttempts + ' attempts');
+                                                clearInterval(interval);
+                                            }
+                                        }
+                                    }, 500);
+                                }
+
+                                attemptInput(`${text}`);
+                            })();
+                        """.trimIndent(), null)
+                    }
+                    url.contains("doubao.com") -> {
+                        webView.evaluateJavascript("""
+                            (function() {
+                                function findTextarea() {
+                                    return document.querySelector('.ant-input') || 
+                                           document.querySelector('.chat-input') ||
+                                           document.querySelector('textarea') ||
+                                           document.querySelector('[contenteditable="true"]');
+                                }
+
+                                function simulateInput(element, text) {
+                                    console.log('Simulating input for Doubao...');
+                                    
+                                    // 聚焦元素
+                                    element.focus();
+                                    
+                                    // 直接设置值
+                                    element.value = text;
+                                    
+                                    // 触发多个事件
+                                    const events = ['input', 'change', 'keydown', 'keyup', 'keypress'];
+                                    events.forEach(eventType => {
+                                        element.dispatchEvent(new Event(eventType, { bubbles: true }));
+                                    });
+                                    
+                                    // 模拟输入事件
+                                    const inputEvent = new InputEvent('input', {
+                                        bubbles: true,
+                                        cancelable: true,
+                                        inputType: 'insertText',
+                                        data: text
+                                    });
+                                    element.dispatchEvent(inputEvent);
+                                    
+                                    return true;
+                                }
+
+                                function simulateEnter(element) {
+                                    console.log('Simulating enter for Doubao...');
+                                    const enterEvent = new KeyboardEvent('keydown', {
+                                        bubbles: true,
+                                        cancelable: true,
+                                        keyCode: 13,
+                                        which: 13,
+                                        key: 'Enter',
+                                        code: 'Enter'
+                                    });
+                                    element.dispatchEvent(enterEvent);
+                                    
+                                    // 尝试点击发送按钮作为备选方案
+                                    const sendButton = document.querySelector('.ant-btn-primary') ||
+                                                     document.querySelector('.send-button') ||
+                                                     document.querySelector('button:not([disabled])');
+                                    if (sendButton) {
+                                        sendButton.click();
+                                    }
+                                }
+
+                                function attemptInput(text, maxAttempts = 10) {
+                                    let attempts = 0;
+                                    const interval = setInterval(() => {
+                                        const textarea = findTextarea();
+                                        if (textarea) {
+                                            console.log('Found textarea for Doubao');
+                                            clearInterval(interval);
+                                            if (simulateInput(textarea, text)) {
+                                                setTimeout(() => simulateEnter(textarea), 500);
+                                            }
+                                        } else {
+                                            console.log('Attempt ' + (attempts + 1) + ' to find textarea');
+                                            attempts++;
+                                            if (attempts >= maxAttempts) {
+                                                console.log('Failed to find textarea after ' + maxAttempts + ' attempts');
+                                                clearInterval(interval);
+                                            }
+                                        }
+                                    }, 500);
+                                }
+
+                                attemptInput(`${text}`);
+                            })();
+                        """.trimIndent(), null)
+                    }
+                }
+                
+                // 显示提示
+                Toast.makeText(this@FloatingWindowService, "正在发送消息...", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 创建WebView
+        val webView = WebView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            ).apply {
+                setMargins(8.dpToPx(), 0, 8.dpToPx(), 8.dpToPx())
             }
             
             settings.apply {
@@ -740,17 +1045,147 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 databaseEnabled = true
                 useWideViewPort = true
                 loadWithOverviewMode = true
-                setSupportZoom(true)  // 支持缩放
-                builtInZoomControls = true  // 显示缩放控件
-                displayZoomControls = false  // 隐藏默认的缩放控件
-                setInitialScale(100)  // 设置初始缩放比例
+                setSupportZoom(true)
+                builtInZoomControls = true
+                displayZoomControls = false
+                setInitialScale(100)
+                
+                // 允许混合内容
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                }
+                
+                // 允许通用访问
+                allowContentAccess = true
+                allowFileAccess = true
+                
+                // 启用DOM存储API
+                domStorageEnabled = true
+                
+                // 启用数据库存储API
+                databaseEnabled = true
+                
+                // 设置缓存模式
+                cacheMode = WebSettings.LOAD_NO_CACHE
+                
+                // 启用JavaScript接口
+                javaScriptCanOpenWindowsAutomatically = true
+                
+                // 设置默认编码
+                defaultTextEncodingName = "UTF-8"
+                
+                // 允许加载本地内容
+                allowFileAccessFromFileURLs = true
+                allowUniversalAccessFromFileURLs = true
+                
+                // 设置UA
+                userAgentString = userAgentString + " Mobile"
             }
             
-            webViewClient = CustomWebViewClient()
+            // 注入JavaScript接口
+            addJavascriptInterface(JsInterface(lastQuery), "Android")
+            
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    
+                    // 在页面加载完成后，注入必要的 JavaScript
+                    when {
+                        url?.contains("kimi.moonshot.cn") == true -> {
+                            view?.evaluateJavascript("""
+                                (function() {
+                                    // 监听输入框变化
+                                    function setupInputListener() {
+                                        const textarea = document.querySelector('.chat-input textarea, .chat-input .textarea');
+                                        if (textarea) {
+                                            textarea.addEventListener('input', function() {
+                                                console.log('Input changed:', textarea.value);
+                                            });
+                                        }
+                                    }
+                                    
+                                    // 每500ms检查一次元素是否存在
+                                    let checkInterval = setInterval(() => {
+                                        const textarea = document.querySelector('.chat-input textarea, .chat-input .textarea');
+                                        const sendButton = document.querySelector('.chat-input button[type="submit"], .chat-input .send-button');
+                                        
+                                        if (textarea && sendButton) {
+                                            console.log('Found Kimi elements');
+                                            setupInputListener();
+                                            clearInterval(checkInterval);
+                                        }
+                                    }, 500);
+                                })();
+                            """.trimIndent(), null)
+                        }
+                        url?.contains("chat.deepseek.com") == true -> {
+                            view?.evaluateJavascript("""
+                                (function() {
+                                    function setupInputListener() {
+                                        const textarea = document.querySelector('.overflow-hidden textarea, .chat-input textarea');
+                                        if (textarea) {
+                                            textarea.addEventListener('input', function() {
+                                                console.log('Input changed:', textarea.value);
+                                            });
+                                        }
+                                    }
+                                    
+                                    let checkInterval = setInterval(() => {
+                                        const textarea = document.querySelector('.overflow-hidden textarea, .chat-input textarea');
+                                        const sendButton = document.querySelector('button[type="submit"], .send-button');
+                                        
+                                        if (textarea && sendButton) {
+                                            console.log('Found Deepseek elements');
+                                            setupInputListener();
+                                            clearInterval(checkInterval);
+                                        }
+                                    }, 500);
+                                })();
+                            """.trimIndent(), null)
+                        }
+                        url?.contains("doubao.com") == true -> {
+                            view?.evaluateJavascript("""
+                                (function() {
+                                    function setupInputListener() {
+                                        const textarea = document.querySelector('.ant-input, .chat-input');
+                                        if (textarea) {
+                                            textarea.addEventListener('input', function() {
+                                                console.log('Input changed:', textarea.value);
+                                            });
+                                        }
+                                    }
+                                    
+                                    let checkInterval = setInterval(() => {
+                                        const textarea = document.querySelector('.ant-input, .chat-input');
+                                        const sendButton = document.querySelector('.ant-btn-primary, .send-button');
+                                        
+                                        if (textarea && sendButton) {
+                                            console.log('Found Doubao elements');
+                                            setupInputListener();
+                                            clearInterval(checkInterval);
+                                        }
+                                    }, 500);
+                                })();
+                            """.trimIndent(), null)
+                        }
+                    }
+                }
+
+                override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: android.net.http.SslError?) {
+                    handler?.proceed()
+                }
+            }
+            
+            // 加载URL
             loadUrl(url)
         }
 
-        cardContainer.addView(webView)
+        // 将按钮和WebView添加到垂直布局中
+        containerLayout.addView(pasteButton)
+        containerLayout.addView(webView)
+        
+        // 将垂直布局添加到卡片容器中
+        cardContainer.addView(containerLayout)
         aiWindows.add(webView)
         
         return cardContainer
@@ -1623,29 +2058,5 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
         
         super.onDestroy()
-    }
-
-    // 自定义WebViewClient
-    private inner class CustomWebViewClient : android.webkit.WebViewClient() {
-        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-            super.onPageStarted(view, url, favicon)
-            view?.let { webView ->
-                val progressBar = (webView.parent?.parent as? FrameLayout)?.getChildAt(1) as? ProgressBar
-                progressBar?.apply {
-                    visibility = View.VISIBLE
-                    progress = 0
-                }
-            }
-        }
-        
-        override fun onPageFinished(view: WebView?, url: String?) {
-            super.onPageFinished(view, url)
-            view?.let { webView ->
-                val progressBar = (webView.parent?.parent as? FrameLayout)?.getChildAt(1) as? ProgressBar
-                progressBar?.apply {
-                    visibility = View.GONE
-                }
-            }
-        }
     }
 } 
