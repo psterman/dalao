@@ -481,8 +481,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private fun showSearchInput() {
         // 创建主容器
-        val root = FrameLayout(this)
-        
+        val root = FrameLayout(this).apply {
+            setOnClickListener {
+                // 点击空白区域关闭搜索界面和卡片
+                windowManager?.removeView(this)
+                searchView = null
+                isSearchVisible = false
+                closeAllWindows()
+            }
+            
+            background = GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#F5F5F5"))  // 设置浅灰色背景
+            }
+        }
+
         // 创建一个垂直布局容器
         val containerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -491,17 +503,47 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 LinearLayout.LayoutParams.MATCH_PARENT
             )
             setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
+            
+            // 防止点击事件传递到root
+            setOnClickListener { }
         }
         
-        // 添加搜索框部分
-        val searchContainer = LayoutInflater.from(this).inflate(R.layout.search_input_layout, containerLayout, false)
-        searchContainer.apply {
+        // 创建顶部栏布局
+        val topBarLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        
+        // 创建关闭按钮
+        val closeButton = ImageButton(this).apply {
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            setBackgroundResource(android.R.drawable.btn_default)
+            layoutParams = LinearLayout.LayoutParams(
+                48.dpToPx(),
+                48.dpToPx()
             ).apply {
-                setMargins(0, 0, 0, 16.dpToPx())
+                marginEnd = 16.dpToPx()
             }
+            setOnClickListener {
+                windowManager?.removeView(root)
+                searchView = null
+                isSearchVisible = false
+                closeAllWindows()
+            }
+        }
+        
+        // 添加搜索框部分
+        val searchContainer = LayoutInflater.from(this).inflate(R.layout.search_input_layout, null, false)
+        searchContainer.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
             
             background = GradientDrawable().apply {
                 setColor(android.graphics.Color.WHITE)
@@ -512,23 +554,41 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             elevation = 4f.dpToPx()
         }
         
+        // 将关闭按钮和搜索框添加到顶部栏
+        topBarLayout.addView(closeButton)
+        topBarLayout.addView(searchContainer)
+        
+        // 创建ScrollView
+        val scrollView = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            ).apply {
+                topMargin = 16.dpToPx()
+            }
+            isVerticalScrollBarEnabled = true  // 显示滚动条
+        }
+        
         // 创建卡片容器
         val cardsContainerView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                0
-            ).apply {
-                weight = 1f  // 让卡片容器占据剩余空间
-            }
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
         
-        // 将搜索框和卡片容器添加到主容器
-        containerLayout.addView(searchContainer)
-        containerLayout.addView(cardsContainerView)
+        // 将卡片容器添加到ScrollView
+        scrollView.addView(cardsContainerView)
+        
+        // 将顶部栏和ScrollView添加到主容器
+        containerLayout.addView(topBarLayout)
+        containerLayout.addView(scrollView)
         root.addView(containerLayout)
+        
         searchView = root
-        cardsContainer = cardsContainerView  // 保存cardsContainer引用
+        cardsContainer = cardsContainerView
         
         // 获取输入框和按钮
         val searchInput = searchContainer.findViewById<EditText>(R.id.search_input)
@@ -577,9 +637,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             gravity = Gravity.TOP
             flags = flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
         }
-        
-        // 设置背景半透明
-        root.setBackgroundColor(android.graphics.Color.parseColor("#E6FFFFFF"))
         
         // 添加到窗口
         windowManager?.addView(root, params)
@@ -652,9 +709,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val cardContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                (screenHeight * 0.25f).toInt()  // 每个卡片高度为屏幕的25%
+                (screenHeight * 0.6f).toInt()  // 增加卡片高度为屏幕的60%
             ).apply {
-                setMargins(0, if (index == 0) 0 else 16.dpToPx(), 0, 0)
+                setMargins(16.dpToPx(), if (index == 0) 16.dpToPx() else 24.dpToPx(), 16.dpToPx(), 0)
             }
             
             // 设置圆角和阴影背景
@@ -666,13 +723,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             elevation = 4f.dpToPx()
         }
-        
+
         // 创建WebView
         val webView = WebView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
-            )
+            ).apply {
+                // 添加内边距，避免内容贴边
+                setMargins(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
+            }
             
             settings.apply {
                 javaScriptEnabled = true
@@ -680,12 +740,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 databaseEnabled = true
                 useWideViewPort = true
                 loadWithOverviewMode = true
+                setSupportZoom(true)  // 支持缩放
+                builtInZoomControls = true  // 显示缩放控件
+                displayZoomControls = false  // 隐藏默认的缩放控件
+                setInitialScale(100)  // 设置初始缩放比例
             }
             
             webViewClient = CustomWebViewClient()
             loadUrl(url)
         }
-        
+
         cardContainer.addView(webView)
         aiWindows.add(webView)
         
