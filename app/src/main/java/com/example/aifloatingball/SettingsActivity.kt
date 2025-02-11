@@ -1,5 +1,7 @@
 package com.example.aifloatingball
 
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.Switch
@@ -39,7 +41,21 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<Button>(R.id.back_button).setOnClickListener {
             // 保存搜索引擎顺序
             settingsManager.saveEngineOrder(engineAdapter.getEngines())
+            
+            // 启动悬浮球服务
+            val serviceIntent = Intent(this, FloatingWindowService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            
             finish()
         }
+    }
+    
+    override fun onBackPressed() {
+        // 处理返回键，执行与返回按钮相同的操作
+        findViewById<Button>(R.id.back_button).performClick()
     }
 } 

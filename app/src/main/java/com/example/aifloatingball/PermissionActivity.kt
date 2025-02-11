@@ -133,60 +133,23 @@ class PermissionActivity : AppCompatActivity() {
     
     private fun startFloatingService() {
         try {
-            Log.d(TAG, "开始启动悬浮窗服务")
+            // 启动设置界面
+            val settingsIntent = Intent(this, SettingsActivity::class.java)
+            startActivity(settingsIntent)
             
-            // 检查悬浮窗权限
-            if (!Settings.canDrawOverlays(this)) {
-                Log.e(TAG, "缺少悬浮窗权限")
-                Toast.makeText(this, "请授予悬浮窗权限", Toast.LENGTH_LONG).show()
-                checkAndRequestPermissions()
-                return
-            }
-            
-            // 检查通知权限（Android 13及以上）
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    Log.w(TAG, "缺少通知权限，服务可能无法在前台运行")
-                }
-            }
-            
-            // 停止已存在的服务实例
-            stopService(Intent(this, FloatingWindowService::class.java))
-            
-            // 创建新的服务意图
-            val serviceIntent = Intent(this, FloatingWindowService::class.java).apply {
-                action = "restart_foreground"
-            }
-            
-            // 根据系统版本选择合适的启动方式
+            // 启动悬浮球服务
+            val serviceIntent = Intent(this, FloatingWindowService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Log.d(TAG, "使用 startForegroundService 启动服务")
                 startForegroundService(serviceIntent)
             } else {
-                Log.d(TAG, "使用 startService 启动服务")
                 startService(serviceIntent)
             }
             
-            // 延迟检查服务是否成功启动
-            Handler(Looper.getMainLooper()).postDelayed({
-                if (!isServiceRunning()) {
-                    Log.e(TAG, "服务启动失败")
-                    Toast.makeText(this, "服务启动失败，请重试", Toast.LENGTH_LONG).show()
-                } else {
-                    Log.d(TAG, "服务已成功启动")
-                    Toast.makeText(this, "悬浮球服务已启动", Toast.LENGTH_SHORT).show()
-                }
-                finish()
-            }, 2000) // 增加延迟时间到2秒
-            
+            // 关闭权限Activity
+            finish()
         } catch (e: Exception) {
             Log.e(TAG, "启动服务失败", e)
             Toast.makeText(this, "启动服务失败: ${e.message}", Toast.LENGTH_LONG).show()
-            finish()
         }
     }
     

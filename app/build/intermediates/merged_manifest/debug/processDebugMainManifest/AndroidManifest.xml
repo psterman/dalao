@@ -58,6 +58,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.example.aifloatingball.SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings"
+            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
 
         <provider
             android:name="androidx.startup.InitializationProvider"
