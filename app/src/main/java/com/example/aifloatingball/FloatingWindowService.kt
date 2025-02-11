@@ -103,12 +103,17 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var initialX = 0
     private var initialY = 0
     
+    private lateinit var settingsManager: SettingsManager
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
         try {
             Log.d("FloatingService", "服务开始创建")
             super.onCreate()
+            
+            // 初始化 SettingsManager
+            settingsManager = SettingsManager.getInstance(this)
             
             // 检查必要的权限
             if (!Settings.canDrawOverlays(this)) {
@@ -356,7 +361,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
                             // 记录初始位置
-                            val params = v.layoutParams as WindowManager.LayoutParams
+                            2222222val params = v.layoutParams as WindowManager.LayoutParams
                             initialX = params.x
                             initialY = params.y
                             initialTouchX = event.rawX
@@ -688,21 +693,17 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             searchHistoryManager.addSearchQuery(query)
             
-            // 构建基础URL（不带查询参数）
-            val urls = listOf(
-                "https://kimi.moonshot.cn/chat",
-                "https://chat.deepseek.com/chat",
-                "https://www.doubao.com/chat"
-            )
+            // 获取已排序的搜索引擎列表
+            val engines = settingsManager.getEngineOrder()
             
             // 清除现有的卡片
             cardsContainer.removeAllViews()
             aiWindows.clear()
             
             // 创建新卡片
-            urls.forEachIndexed { index, url ->
+            engines.forEachIndexed { index, engine ->
                 try {
-                    val cardView = createAICardView(url, index)
+                    val cardView = createAICardView(engine.url, index)
                     cardsContainer.addView(cardView)
                     
                     cardView.alpha = 0f

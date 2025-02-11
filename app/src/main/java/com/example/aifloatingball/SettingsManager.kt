@@ -49,9 +49,9 @@ class SettingsManager private constructor(context: Context) {
     
     private fun getDefaultEngines(): List<SearchEngine> {
         return listOf(
-            SearchEngine("DeepSeek", "https://deepseek.com/search?q="),
-            SearchEngine("豆包", "https://www.doubao.com/search?q="),
-            SearchEngine("Kimi", "https://kimi.moonshot.cn/search?q=")
+            SearchEngine("Kimi", "https://kimi.moonshot.cn/chat"),
+            SearchEngine("DeepSeek", "https://chat.deepseek.com/chat"),
+            SearchEngine("豆包", "https://www.doubao.com/chat")
         )
     }
     
