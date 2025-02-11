@@ -361,7 +361,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
                             // 记录初始位置
-                            2222222val params = v.layoutParams as WindowManager.LayoutParams
+                            val params = v.layoutParams as WindowManager.LayoutParams
                             initialX = params.x
                             initialY = params.y
                             initialTouchX = event.rawX
@@ -671,6 +671,33 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
         
         isSearchVisible = true
+        
+        // 立即创建并显示WebView卡片
+        val engines = settingsManager.getEngineOrder()
+        
+        // 清除现有的卡片
+        cardsContainerView.removeAllViews()
+        aiWindows.clear()
+        
+        // 创建新卡片
+        engines.forEachIndexed { index, engine ->
+            try {
+                val cardView = createAICardView(engine.url, index)
+                cardsContainerView.addView(cardView)
+                
+                cardView.alpha = 0f
+                cardView.translationY = 50f
+                cardView.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(300)
+                    .setStartDelay((index * 100).toLong())
+                    .setInterpolator(DecelerateInterpolator())
+                    .start()
+            } catch (e: Exception) {
+                Log.e("FloatingService", "创建AI卡片失败: ${e.message}")
+            }
+        }
     }
     
     private fun performSearch(query: String, cardsContainer: ViewGroup) {

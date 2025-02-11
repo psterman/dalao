@@ -24,12 +24,7 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaProjection"
-            android:stopWithTask="false">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </service>
+            android:stopWithTask="false" />
             
         <activity
             android:name=".PermissionActivity"
