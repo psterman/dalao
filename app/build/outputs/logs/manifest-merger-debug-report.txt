@@ -126,7 +126,7 @@ ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml
 	android:stopWithTask
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:27:13-41
 	android:foregroundServiceType
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:13-60
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:13-55
 	android:name
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:23:13-50
 activity#com.example.aifloatingball.PermissionActivity

@@ -70,8 +70,8 @@
 39-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:24:13-35
 40            android:exported="false"
 40-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:25:13-37
-41            android:foregroundServiceType="mediaProjection"
-41-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:13-60
+41            android:foregroundServiceType="specialUse"
+41-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:13-55
 42            android:stopWithTask="false" />
 42-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:27:13-41
 43

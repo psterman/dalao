@@ -48,6 +48,7 @@ import android.graphics.drawable.GradientDrawable
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
         private const val NOTIFICATION_ID = 1
+        private const val MEMORY_CHECK_INTERVAL = 30000L // 30秒检查一次内存
     }
 
     private var windowManager: WindowManager? = null
@@ -109,10 +110,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var cachedCardViews = mutableListOf<View>()
     private var hasInitializedCards = false
     
+    private var memoryCheckHandler: Handler? = null
+    private var lastMemoryUsage: Long = 0
+    private var startTime: Long = 0
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
         try {
+            startTime = System.currentTimeMillis()
+            setupMemoryMonitoring()
             Log.d("FloatingService", "服务开始创建")
             super.onCreate()
             
@@ -238,14 +245,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private fun startForegroundOrNormal() {
         try {
-                val channelId = "floating_ball_service"
-                val channelName = "悬浮球服务"
+            val channelId = "floating_ball_service"
+            val channelName = "悬浮球服务"
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     channelId,
                     channelName,
-                    NotificationManager.IMPORTANCE_HIGH
+                    NotificationManager.IMPORTANCE_LOW  // 降低通知重要性
                 ).apply {
                     description = "保持悬浮球服务运行"
                     setShowBadge(false)
@@ -259,7 +266,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
                 
             val pendingIntent = PendingIntent.getActivity(
-                        this,
+                this,
                 0,
                 Intent(this, PermissionActivity::class.java),
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -269,21 +276,22 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 }
             )
                 
-                val notification = NotificationCompat.Builder(this, channelId)
-                    .setContentTitle("悬浮球服务")
-                    .setContentText("点击管理悬浮球")
-                    .setSmallIcon(R.drawable.ic_floating_ball)
-                    .setOngoing(true)
+            val notification = NotificationCompat.Builder(this, channelId)
+                .setContentTitle("悬浮球服务")
+                .setContentText("点击管理悬浮球")
+                .setSmallIcon(R.drawable.ic_floating_ball)
+                .setOngoing(true)
                 .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setPriority(NotificationCompat.PRIORITY_LOW)  // 降低通知优先级
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                    .build()
-                
-                startForeground(NOTIFICATION_ID, notification)
-                Log.d("FloatingService", "前台服务启动成功")
+                .build()
+            
+            startForeground(NOTIFICATION_ID, notification)
+            Log.d("FloatingService", "前台服务启动成功")
         } catch (e: Exception) {
             Log.e("FloatingService", "启动前台服务失败: ${e.message}", e)
-            // 即使前台服务启动失败，也继续运行
+            // 如果前台服务启动失败，尝试以普通服务运行
+            Toast.makeText(this, "前台服务启动失败，将以普通服务运行", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -2372,6 +2380,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     override fun onDestroy() {
         try {
+            memoryCheckHandler?.removeCallbacksAndMessages(null)
+            memoryCheckHandler = null
+            
             recognizer?.destroy()
             recognizer = null
             cardsContainer = null  // 清除引用
@@ -2407,8 +2418,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             aiWindows.clear()
             cachedCardViews.clear()
             hasInitializedCards = false
+            
+            // 确保清理所有资源
+            cleanupMemory()
+            
+            super.onDestroy()
         } catch (e: Exception) {
-            Log.e("FloatingService", "清理视图失败", e)
+            Log.e("FloatingService", "服务销毁失败", e)
         }
         
         // 清理缩略图缓存
@@ -2417,8 +2433,77 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
         thumbnailCache.clear()
         thumbnailViews.clear()
+    }
+
+    private fun setupMemoryMonitoring() {
+        memoryCheckHandler = Handler(Looper.getMainLooper())
         
-        super.onDestroy()
+        val memoryRunnable = object : Runnable {
+            override fun run() {
+                try {
+                    val runtime = Runtime.getRuntime()
+                    val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+                    val memoryDelta = usedMemory - lastMemoryUsage
+                    lastMemoryUsage = usedMemory
+                    
+                    val uptime = System.currentTimeMillis() - startTime
+                    
+                    Log.d("MemoryMonitor", """
+                        运行时间: ${uptime/1000}秒
+                        已用内存: ${usedMemory/1024/1024}MB
+                        内存变化: ${memoryDelta/1024/1024}MB
+                        WebView数量: ${aiWindows.size}
+                        缓存卡片数量: ${cachedCardViews.size}
+                        缩略图缓存数量: ${thumbnailCache.size}
+                    """.trimIndent())
+                    
+                    // 检查是否存在内存泄漏风险
+                    if (memoryDelta > 50 * 1024 * 1024) { // 如果30秒内内存增长超过50MB
+                        Log.w("MemoryMonitor", "检测到可能的内存泄漏")
+                        // 主动触发GC
+                        System.gc()
+                    }
+                    
+                    // 检查总内存使用是否接近临界值
+                    val maxMemory = runtime.maxMemory()
+                    if (usedMemory > maxMemory * 0.8) { // 使用超过80%最大内存
+                        Log.w("MemoryMonitor", "内存使用接近上限，开始清理")
+                        cleanupMemory()
+                    }
+                } catch (e: Exception) {
+                    Log.e("MemoryMonitor", "内存监控失败", e)
+                }
+                
+                memoryCheckHandler?.postDelayed(this, MEMORY_CHECK_INTERVAL)
+            }
+        }
+        
+        memoryCheckHandler?.post(memoryRunnable)
+    }
+
+    private fun cleanupMemory() {
+        try {
+            // 清理缩略图缓存
+            thumbnailCache.forEach { (_, bitmap) ->
+                if (!bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
+            }
+            thumbnailCache.clear()
+            
+            // 清理不可见的WebView
+            aiWindows.forEachIndexed { index, webView ->
+                if (webView.visibility != View.VISIBLE) {
+                    webView.clearCache(true)
+                    webView.clearHistory()
+                }
+            }
+            
+            // 强制GC
+            System.gc()
+        } catch (e: Exception) {
+            Log.e("MemoryMonitor", "清理内存失败", e)
+        }
     }
 
     // 添加新的辅助方法来处理卡片展开
