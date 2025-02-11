@@ -58,6 +58,13 @@
             android:label="@string/settings"
             android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
 
+        <uses-library
+            android:name="androidx.window.extensions"
+            android:required="false" />
+        <uses-library
+            android:name="androidx.window.sidecar"
+            android:required="false" />
+
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="com.example.aifloatingball.androidx-startup"
