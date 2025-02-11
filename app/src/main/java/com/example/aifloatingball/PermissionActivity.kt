@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.app.ActivityManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.view.WindowManager
 
 class PermissionActivity : AppCompatActivity() {
     
@@ -51,7 +52,18 @@ class PermissionActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-            checkAndRequestPermissions()
+        
+        // 设置窗口完全透明
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        )
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        window.setBackgroundDrawable(null)
+        
+        // 立即检查权限
+        checkAndRequestPermissions()
     }
     
     private fun checkAndRequestPermissions() {

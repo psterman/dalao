@@ -1416,6 +1416,7 @@ color dim_foreground_disabled_material_dark
 color dim_foreground_disabled_material_light
 color dim_foreground_material_dark
 color dim_foreground_material_light
+color divider
 color error_color_material_dark
 color error_color_material_light
 color foreground_material_dark
@@ -2082,6 +2083,7 @@ color primary_dark_material_dark
 color primary_dark_material_light
 color primary_material_dark
 color primary_material_light
+color primary_text
 color primary_text_default_material_dark
 color primary_text_default_material_light
 color primary_text_disabled_material_dark
@@ -2091,6 +2093,7 @@ color purple_500
 color purple_700
 color ripple_material_dark
 color ripple_material_light
+color secondary_text
 color secondary_text_default_material_dark
 color secondary_text_default_material_light
 color secondary_text_disabled_material_dark
@@ -3179,6 +3182,7 @@ id alertTitle
 id aligned
 id all
 id allStates
+id alpha_seekbar
 id always
 id animateToEnd
 id animateToStart
@@ -3192,7 +3196,6 @@ id autoComplete
 id autoCompleteToEnd
 id autoCompleteToStart
 id auto_start_switch
-id back_button
 id barrier
 id baseline
 id beginOnFirstDraw
@@ -3290,7 +3293,6 @@ id elastic
 id embed
 id end
 id endToStart
-id engine_list
 id engine_name
 id enterAlways
 id enterAlwaysCollapsed
@@ -3517,6 +3519,7 @@ id showCustom
 id showHome
 id showTitle
 id sin
+id size_seekbar
 id skipCollapsed
 id skipped
 id slide
@@ -3583,6 +3586,7 @@ id title
 id titleDividerNoCustom
 id title_template
 id toggle
+id toolbar
 id top
 id topPanel
 id touch_outside
@@ -3599,7 +3603,9 @@ id uniform
 id unlabeled
 id up
 id useLogo
+id version_text
 id vertical_only
+id vibrate_switch
 id view_offset_helper
 id view_transition
 id view_tree_lifecycle_owner
@@ -4339,6 +4345,8 @@ style RtlOverlay_Widget_AppCompat_Search_DropDown_Text
 style RtlOverlay_Widget_AppCompat_SearchView_MagIcon
 style RtlUnderlay_Widget_AppCompat_ActionButton
 style RtlUnderlay_Widget_AppCompat_ActionButton_Overflow
+style SettingsItemStyle
+style SettingsTheme
 style ShapeAppearance_M3_Comp_Badge_Large_Shape
 style ShapeAppearance_M3_Comp_Badge_Shape
 style ShapeAppearance_M3_Comp_BottomAppBar_Container_Shape
@@ -4521,6 +4529,7 @@ style TextAppearance_MaterialComponents_Tooltip
 style TextAppearance_Widget_AppCompat_ExpandedMenu_Item
 style TextAppearance_Widget_AppCompat_Toolbar_Subtitle
 style TextAppearance_Widget_AppCompat_Toolbar_Title
+style Theme_AIFloatingBall
 style Theme_AppCompat
 style Theme_AppCompat_CompactMenu
 style Theme_AppCompat_DayNight
@@ -4737,6 +4746,7 @@ style ThemeOverlay_MaterialComponents_TimePicker_Display_TextInputEditText
 style ThemeOverlay_MaterialComponents_Toolbar_Popup_Primary
 style ThemeOverlay_MaterialComponents_Toolbar_Primary
 style ThemeOverlay_MaterialComponents_Toolbar_Surface
+style TransparentTheme
 style Widget_AppCompat_ActionBar
 style Widget_AppCompat_ActionBar_Solid
 style Widget_AppCompat_ActionBar_TabBar

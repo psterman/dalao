@@ -1,36 +1,169 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:orientation="vertical">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="搜索引擎排序"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/engine_list"
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"/>
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+        app:title="设置" />
 
-    <Switch
-        android:id="@+id/auto_start_switch"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="开机自启动"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="16dp"/>
+        android:layout_height="match_parent">
 
-    <Button
-        android:id="@+id/back_button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="返回"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
 
+            <!-- 外观设置 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="外观设置"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                style="@style/SettingsItemStyle"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="悬浮球大小"
+                    android:textColor="@color/primary_text"
+                    android:textSize="16sp" />
+
+                <SeekBar
+                    android:id="@+id/size_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:max="100"
+                    android:progress="50" />
+            </LinearLayout>
+
+            <LinearLayout
+                style="@style/SettingsItemStyle"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="悬浮球透明度"
+                    android:textColor="@color/primary_text"
+                    android:textSize="16sp" />
+
+                <SeekBar
+                    android:id="@+id/alpha_seekbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:max="100"
+                    android:progress="85" />
+            </LinearLayout>
+
+            <!-- 功能设置 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:text="功能设置"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Switch
+                android:id="@+id/auto_start_switch"
+                style="@style/SettingsItemStyle"
+                android:text="开机自启动"
+                android:textColor="@color/primary_text" />
+
+            <Switch
+                android:id="@+id/vibrate_switch"
+                style="@style/SettingsItemStyle"
+                android:text="触摸振动反馈"
+                android:textColor="@color/primary_text" />
+
+            <!-- 手势设置 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:text="手势设置"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                style="@style/SettingsItemStyle"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="单击：打开搜索"
+                    android:textColor="@color/primary_text" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="双击：显示历史记录"
+                    android:textColor="@color/primary_text" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="长按：打开设置"
+                    android:textColor="@color/primary_text" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="上滑：显示卡片视图"
+                    android:textColor="@color/primary_text" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="下滑：隐藏卡片视图"
+                    android:textColor="@color/primary_text" />
+            </LinearLayout>
+
+            <!-- 关于 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp"
+                android:text="关于"
+                android:textColor="@color/accent"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/version_text"
+                style="@style/SettingsItemStyle"
+                android:text="版本 1.0.0" />
+
+        </LinearLayout>
+    </ScrollView>
 </LinearLayout> 
