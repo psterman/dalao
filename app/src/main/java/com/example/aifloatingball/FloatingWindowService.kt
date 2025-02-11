@@ -100,6 +100,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private val thumbnailCache = mutableMapOf<Int, android.graphics.Bitmap>()
     private val thumbnailViews = mutableMapOf<Int, ImageView>()
     
+    private var initialX = 0
+    private var initialY = 0
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -353,6 +356,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
                             // 记录初始位置
+                            val params = v.layoutParams as WindowManager.LayoutParams
+                            initialX = params.x
+                            initialY = params.y
                             initialTouchX = event.rawX
                             initialTouchY = event.rawY
                             lastTouchX = event.rawX
@@ -1638,6 +1644,109 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         isVoiceSearchActive = true
         
+        // 检查麦克风权限
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Toast.makeText(this, "需要麦克风权限才能使用语音输入", Toast.LENGTH_SHORT).show()
+            stopVoiceSearchMode()
+            return
+        }
+
+        // 初始化语音识别器
+        if (recognizer == null) {
+            recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+            recognizer?.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    Log.d("VoiceInput", "准备开始语音识别")
+                }
+                
+                override fun onBeginningOfSpeech() {
+                    Log.d("VoiceInput", "开始语音输入")
+                }
+                
+                override fun onRmsChanged(rmsdB: Float) {
+                    // 可以用来更新波浪动画的强度
+                }
+                
+                override fun onBufferReceived(buffer: ByteArray?) {
+                    Log.d("VoiceInput", "接收到语音数据")
+                }
+                
+                override fun onEndOfSpeech() {
+                    Log.d("VoiceInput", "语音输入结束")
+                    stopVoiceSearchMode()
+                }
+                
+                override fun onError(error: Int) {
+                    val errorMessage = when (error) {
+                        SpeechRecognizer.ERROR_AUDIO -> "音频录制错误"
+                        SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
+                        SpeechRecognizer.ERROR_NETWORK -> "网络错误"
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
+                        SpeechRecognizer.ERROR_NO_MATCH -> "未能识别语音"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别器忙"
+                        SpeechRecognizer.ERROR_SERVER -> "服务器错误"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时"
+                        else -> "未知错误: $error"
+                    }
+                    Log.e("VoiceInput", "语音识别错误: $errorMessage")
+                    Toast.makeText(this@FloatingWindowService, errorMessage, Toast.LENGTH_SHORT).show()
+                    stopVoiceSearchMode()
+                }
+                
+                override fun onResults(results: Bundle?) {
+                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    if (!matches.isNullOrEmpty()) {
+                        val recognizedText = matches[0]
+                        Log.d("VoiceInput", "识别结果: $recognizedText")
+                        
+                        // 如果搜索界面未显示，则显示搜索界面
+                        if (!isSearchVisible) {
+                            showSearchInput()
+                        }
+                        
+                        // 将识别结果填入搜索框
+                        searchView?.findViewById<EditText>(R.id.search_input)?.apply {
+                            setText(recognizedText)
+                            setSelection(recognizedText.length)  // 将光标移到文本末尾
+                        }
+                        
+                        // 自动执行搜索
+                        cardsContainer?.let { container ->
+                            performSearch(recognizedText, container)
+                        }
+                    }
+                    stopVoiceSearchMode()
+                }
+                
+                override fun onPartialResults(partialResults: Bundle?) {
+                    // 实时显示部分识别结果
+                    val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    if (!matches.isNullOrEmpty()) {
+                        val partialText = matches[0]
+                        Log.d("VoiceInput", "部分识别结果: $partialText")
+                        
+                        if (!isSearchVisible) {
+                            showSearchInput()
+                        }
+                        
+                        searchView?.findViewById<EditText>(R.id.search_input)?.apply {
+                            setText(partialText)
+                            setSelection(partialText.length)
+                        }
+                    }
+                }
+                
+                override fun onEvent(eventType: Int, params: Bundle?) {
+                    Log.d("VoiceInput", "语音识别事件: $eventType")
+                }
+            })
+        }
+        
         // 创建波浪动画视图
         val waveView = FrameLayout(this).apply {
             layoutParams = WindowManager.LayoutParams(
@@ -1704,8 +1813,25 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         windowManager?.addView(waveView, params)
         voiceAnimationView = waveView
         
-        // 启动语音识别
-        startVoiceRecognition()
+        // 开始语音识别
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+        }
+        
+        try {
+            recognizer?.startListening(intent)
+            Toast.makeText(this, "请开始说话...", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("VoiceInput", "启动语音识别失败", e)
+            Toast.makeText(this, "启动语音识别失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            stopVoiceSearchMode()
+        }
     }
     
     private fun stopVoiceSearchMode() {
@@ -1821,12 +1947,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     override fun onLongPress() {
         try {
             Log.d("FloatingService", "长按事件触发")
-            if (!isCardViewMode && aiWindows.isNotEmpty()) {
-                cardStartY = 0f
-                cardStartX = 0f
-                isCardViewMode = true
-                showCardView(false, 0f)
-            }
+            startVoiceSearchMode()
         } catch (e: Exception) {
             Log.e("FloatingService", "处理长按事件失败", e)
         }

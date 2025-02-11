@@ -1415,7 +1415,6 @@ int color dim_foreground_disabled_material_dark 0x7f050057
 int color dim_foreground_disabled_material_light 0x7f050058
 int color dim_foreground_material_dark 0x7f050059
 int color dim_foreground_material_light 0x7f05005a
-int color divider 0x7f05030e
 int color error_color_material_dark 0x7f05005b
 int color error_color_material_light 0x7f05005c
 int color foreground_material_dark 0x7f05005d
@@ -2082,7 +2081,6 @@ int color primary_dark_material_dark 0x7f0502f1
 int color primary_dark_material_light 0x7f0502f2
 int color primary_material_dark 0x7f0502f3
 int color primary_material_light 0x7f0502f4
-int color primary_text 0x7f05030f
 int color primary_text_default_material_dark 0x7f0502f5
 int color primary_text_default_material_light 0x7f0502f6
 int color primary_text_disabled_material_dark 0x7f0502f7
@@ -2092,7 +2090,6 @@ int color purple_500 0x7f0502fa
 int color purple_700 0x7f0502fb
 int color ripple_material_dark 0x7f0502fc
 int color ripple_material_light 0x7f0502fd
-int color secondary_text 0x7f050310
 int color secondary_text_default_material_dark 0x7f0502fe
 int color secondary_text_default_material_light 0x7f0502ff
 int color secondary_text_disabled_material_dark 0x7f050300
@@ -3181,7 +3178,6 @@ int id alertTitle 0x7f080047
 int id aligned 0x7f080048
 int id all 0x7f080049
 int id allStates 0x7f08004a
-int id alpha_seekbar 0x7f08020d
 int id always 0x7f08004b
 int id animateToEnd 0x7f08004c
 int id animateToStart 0x7f08004d
@@ -3195,6 +3191,7 @@ int id autoComplete 0x7f080054
 int id autoCompleteToEnd 0x7f080055
 int id autoCompleteToStart 0x7f080056
 int id auto_start_switch 0x7f080057
+int id back_button 0x7f080058
 int id barrier 0x7f080059
 int id baseline 0x7f08005a
 int id beginOnFirstDraw 0x7f08005b
@@ -3292,6 +3289,7 @@ int id elastic 0x7f0800b6
 int id embed 0x7f0800b7
 int id end 0x7f0800b8
 int id endToStart 0x7f0800b9
+int id engine_list 0x7f0800ba
 int id engine_name 0x7f0800bb
 int id enterAlways 0x7f0800bc
 int id enterAlwaysCollapsed 0x7f0800bd
@@ -3518,7 +3516,6 @@ int id showCustom 0x7f080199
 int id showHome 0x7f08019a
 int id showTitle 0x7f08019b
 int id sin 0x7f08019c
-int id size_seekbar 0x7f08020e
 int id skipCollapsed 0x7f08019d
 int id skipped 0x7f08019e
 int id slide 0x7f08019f
@@ -3585,7 +3582,6 @@ int id title 0x7f0801db
 int id titleDividerNoCustom 0x7f0801dc
 int id title_template 0x7f0801dd
 int id toggle 0x7f0801de
-int id toolbar 0x7f08020c
 int id top 0x7f0801df
 int id topPanel 0x7f0801e0
 int id touch_outside 0x7f0801e1
@@ -3602,9 +3598,7 @@ int id uniform 0x7f0801eb
 int id unlabeled 0x7f0801ec
 int id up 0x7f0801ed
 int id useLogo 0x7f0801ee
-int id version_text 0x7f08020f
 int id vertical_only 0x7f0801ef
-int id vibrate_switch 0x7f080210
 int id view_offset_helper 0x7f0801f0
 int id view_transition 0x7f0801f1
 int id view_tree_lifecycle_owner 0x7f0801f2
@@ -4344,8 +4338,6 @@ int style RtlOverlay_Widget_AppCompat_Search_DropDown_Text 0x7f100152
 int style RtlOverlay_Widget_AppCompat_SearchView_MagIcon 0x7f100153
 int style RtlUnderlay_Widget_AppCompat_ActionButton 0x7f100154
 int style RtlUnderlay_Widget_AppCompat_ActionButton_Overflow 0x7f100155
-int style SettingsItemStyle 0x7f10045e
-int style SettingsTheme 0x7f10045f
 int style ShapeAppearance_M3_Comp_Badge_Large_Shape 0x7f100156
 int style ShapeAppearance_M3_Comp_Badge_Shape 0x7f100157
 int style ShapeAppearance_M3_Comp_BottomAppBar_Container_Shape 0x7f100158
@@ -4528,7 +4520,6 @@ int style TextAppearance_MaterialComponents_Tooltip 0x7f100208
 int style TextAppearance_Widget_AppCompat_ExpandedMenu_Item 0x7f100209
 int style TextAppearance_Widget_AppCompat_Toolbar_Subtitle 0x7f10020a
 int style TextAppearance_Widget_AppCompat_Toolbar_Title 0x7f10020b
-int style Theme_AIFloatingBall 0x7f100460
 int style Theme_AppCompat 0x7f10020c
 int style Theme_AppCompat_CompactMenu 0x7f10020d
 int style Theme_AppCompat_DayNight 0x7f10020e
