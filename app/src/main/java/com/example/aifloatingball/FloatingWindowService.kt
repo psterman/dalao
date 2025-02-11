@@ -105,6 +105,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private lateinit var settingsManager: SettingsManager
     
+    // 添加缓存相关变量
+    private var cachedCardViews = mutableListOf<View>()
+    private var hasInitializedCards = false
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -672,30 +676,50 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         isSearchVisible = true
         
-        // 立即创建并显示WebView卡片
-        val engines = settingsManager.getEngineOrder()
-        
-        // 清除现有的卡片
-        cardsContainerView.removeAllViews()
-        aiWindows.clear()
-        
-        // 创建新卡片
-        engines.forEachIndexed { index, engine ->
-            try {
-                val cardView = createAICardView(engine.url, index)
+        // 修改卡片创建逻辑
+        if (!hasInitializedCards) {
+            // 首次创建卡片
+            val engines = settingsManager.getEngineOrder()
+            
+            // 清除现有的卡片
+            cardsContainerView.removeAllViews()
+            aiWindows.clear()
+            cachedCardViews.clear()
+            
+            // 创建新卡片
+            engines.forEachIndexed { index, engine ->
+                try {
+                    val cardView = createAICardView(engine.url, index)
+                    cardsContainerView.addView(cardView)
+                    cachedCardViews.add(cardView)
+                    
+                    cardView.alpha = 0f
+                    cardView.translationY = 50f
+                    cardView.animate()
+                        .alpha(1f)
+                        .translationY(0f)
+                        .setDuration(300)
+                        .setStartDelay((index * 100).toLong())
+                        .setInterpolator(DecelerateInterpolator())
+                        .start()
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "创建AI卡片失败: ${e.message}")
+                }
+            }
+            hasInitializedCards = true
+        } else {
+            // 重用已缓存的卡片
+            cardsContainerView.removeAllViews()
+            cachedCardViews.forEach { cardView ->
                 cardsContainerView.addView(cardView)
-                
                 cardView.alpha = 0f
                 cardView.translationY = 50f
                 cardView.animate()
                     .alpha(1f)
                     .translationY(0f)
                     .setDuration(300)
-                    .setStartDelay((index * 100).toLong())
                     .setInterpolator(DecelerateInterpolator())
                     .start()
-            } catch (e: Exception) {
-                Log.e("FloatingService", "创建AI卡片失败: ${e.message}")
             }
         }
     }
@@ -2234,27 +2258,24 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     private fun closeAllWindows() {
-        aiWindows.forEachIndexed { index, webView ->
-            val parent = webView.parent as? View
-            if (parent != null) {
-                parent.animate()
-                    .alpha(0f)
-                    .translationY(-screenHeight.toFloat())
-                    .scaleX(0.8f)
-                    .scaleY(0.8f)
-                    .setStartDelay((index * 50).toLong())
-                    .setDuration(200)
-                    .withEndAction {
-                        try {
-                            windowManager?.removeView(parent)
-                        } catch (e: Exception) {
-                            Log.e("FloatingService", "移除窗口失败", e)
-                        }
+        // 修改关闭窗口逻辑，不清除 WebView
+        cachedCardViews.forEachIndexed { index, cardView ->
+            cardView.animate()
+                .alpha(0f)
+                .translationY(-screenHeight.toFloat())
+                .scaleX(0.8f)
+                .scaleY(0.8f)
+                .setStartDelay((index * 50).toLong())
+                .setDuration(200)
+                .withEndAction {
+                    try {
+                        (cardView.parent as? ViewGroup)?.removeView(cardView)
+                    } catch (e: Exception) {
+                        Log.e("FloatingService", "移除窗口失败", e)
                     }
-                    .start()
-            }
+                }
+                .start()
         }
-        aiWindows.clear()
         isCardViewMode = false
     }
     
@@ -2370,15 +2391,22 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     }
                 }
                 
-                aiWindows.forEach { webView ->
-                    val parent = webView.parent as? View
-                    if (parent != null) {
-                        wm.removeView(parent)
+                // 清理所有缓存的卡片和 WebView
+                cachedCardViews.forEach { cardView ->
+                    try {
+                        (cardView.parent as? ViewGroup)?.removeView(cardView)
+                    } catch (e: Exception) {
+                        Log.e("FloatingService", "移除卡片失败", e)
                     }
+                }
+                aiWindows.forEach { webView ->
+                    webView.destroy()
                 }
             }
             
             aiWindows.clear()
+            cachedCardViews.clear()
+            hasInitializedCards = false
         } catch (e: Exception) {
             Log.e("FloatingService", "清理视图失败", e)
         }
