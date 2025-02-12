@@ -3316,6 +3316,7 @@ id elastic
 id embed
 id end
 id endToStart
+id engine_icon
 id engine_list
 id engine_name
 id enterAlways
@@ -3337,6 +3338,7 @@ id fixed
 id flip
 id floating
 id floating_ball_icon
+id floating_ball_text
 id forever
 id fragment_container_view_tag
 id frost
@@ -3782,8 +3784,10 @@ layout design_text_input_end_icon
 layout design_text_input_start_icon
 layout engine_item
 layout floating_ball
+layout floating_ball_layout
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
+layout item_engine
 layout m3_alert_dialog
 layout m3_alert_dialog_actions
 layout m3_alert_dialog_title
@@ -3905,6 +3909,8 @@ string exposed_dropdown_menu_content_description
 string fab_transformation_scrim_behavior
 string fab_transformation_sheet_behavior
 string floating_ball_description
+string floating_ball_service_description
+string floating_ball_service_name
 string hide_bottom_view_on_scroll_behavior
 string icon_content_description
 string item_view_role_description
@@ -4008,6 +4014,8 @@ string mtrl_switch_track_decoration_path
 string mtrl_switch_track_path
 string mtrl_timepicker_cancel
 string mtrl_timepicker_confirm
+string notification_channel_description
+string notification_channel_name
 string password_toggle_content_description
 string path_password_eye
 string path_password_eye_mask_strike_through
@@ -4021,6 +4029,7 @@ string search_menu_title
 string searchbar_scrolling_view_behavior
 string searchview_clear_text_content_description
 string searchview_navigation_content_description
+string service_running
 string settings
 string side_sheet_accessibility_pane_title
 string side_sheet_behavior

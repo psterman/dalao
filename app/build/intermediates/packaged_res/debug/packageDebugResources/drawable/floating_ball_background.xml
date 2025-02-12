@@ -1,23 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 阴影层 -->
-    <item>
-        <shape android:shape="oval">
-            <solid android:color="#20000000" />
-            <padding
-                android:bottom="2dp"
-                android:left="2dp"
-                android:right="2dp"
-                android:top="2dp" />
-        </shape>
-    </item>
-    <!-- 主体层 -->
-    <item>
-        <shape android:shape="oval">
-            <solid android:color="#FFFFFF" />
-            <stroke
-                android:width="2dp"
-                android:color="#3F51B5" />
-        </shape>
-    </item>
-</layer-list> 
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <gradient
+        android:startColor="#4CAF50"
+        android:endColor="#2196F3"
+        android:angle="45"/>
+    <size
+        android:width="48dp"
+        android:height="48dp"/>
+</shape> 

@@ -63,6 +63,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var screenHeight = 0
     private lateinit var searchHistoryManager: SearchHistoryManager
     private var currentEngineIndex = 0
+    private val aiEngines = AIEngineConfig.engines
     
     private var recognizer: SpeechRecognizer? = null
     private var searchInputField: EditText? = null
@@ -310,6 +311,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private fun createFloatingBall() {
         try {
+            // 初始化所有AI窗口
+            aiEngines.forEach { engine ->
+                val webView = createWebView()
+                webView.loadUrl(engine.url)
+                aiWindows.add(webView)
+            }
+            
             Log.d("FloatingService", "开始创建悬浮球")
             
             // 创建悬浮球视图
@@ -387,16 +395,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                                     startVoiceSearchMode()
                                 }
                             }, LONG_PRESS_TIMEOUT)
-                            
-                            // 展开悬浮球（如果处于收缩状态）
-                            if (v.alpha < 1f) {
-                                v.animate()
-                                    .alpha(1f)
-                                    .scaleX(1f)
-                                    .scaleY(1f)
-                                    .setDuration(200)
-                                    .start()
-                            }
                             true
                         }
                         MotionEvent.ACTION_MOVE -> {
@@ -447,44 +445,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                                           abs(event.rawY - initialTouchY) < 5
                                 
                                 if (isTap) {
-                    performClick()
-                                } else {
-                                    // 吸附到最近的边缘
-                                    val params = v.layoutParams as WindowManager.LayoutParams
-                                    val centerX = params.x + v.width / 2
-                                    
-                                    // 计算目标位置
-                                    val targetX = if (centerX < screenWidth / 2) {
-                                        -v.width / 3  // 左边缘，露出2/3
-                                    } else {
-                                        screenWidth - v.width * 2 / 3  // 右边缘，露出2/3
-                                    }
-                                    
-                                    // 创建X轴动画
-                                    val animatorX = ValueAnimator.ofInt(params.x, targetX).apply {
-                                        duration = 200
-                                        interpolator = DecelerateInterpolator()
-                                        addUpdateListener { animation ->
-                                            params.x = animation.animatedValue as Int
-                                            try {
-                                                windowManager?.updateViewLayout(v, params)
-                                            } catch (e: Exception) {
-                                                Log.e("FloatingService", "更新悬浮球位置失败", e)
-                                            }
-                                        }
-                                    }
-                                    
-                                    // 创建缩放和透明度动画
-                                    v.animate()
-                                        .alpha(0.85f)
-                                        .scaleX(0.85f)
-                                        .scaleY(0.85f)
-                                        .setDuration(200)
-                                        .setInterpolator(DecelerateInterpolator())
-                                        .start()
-                                    
-                                    // 启动动画
-                                    animatorX.start()
+                                    performClick()
                                 }
                                 isDragging = false
                                 true
@@ -2567,5 +2528,109 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         } catch (e: Exception) {
             Log.e("FloatingService", "展开/收起卡片失败", e)
         }
+    }
+
+    private fun createWebView(): WebView {
+        return WebView(this).apply {
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                useWideViewPort = true
+                loadWithOverviewMode = true
+                setSupportZoom(true)
+                builtInZoomControls = true
+                displayZoomControls = false
+                
+                // 设置布局算法
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                
+                // 设置默认缩放
+                setInitialScale(100)
+                
+                // 启用视口元标记
+                useWideViewPort = true
+                loadWithOverviewMode = true
+                
+                // 设置内容模式
+                setUseWideViewPort(true)
+                setLoadWithOverviewMode(true)
+                
+                // 允许混合内容
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                }
+                
+                // 允许通用访问
+                allowContentAccess = true
+                allowFileAccess = true
+                
+                // 启用DOM存储API
+                domStorageEnabled = true
+                
+                // 启用数据库存储API
+                databaseEnabled = true
+                
+                // 设置缓存模式
+                cacheMode = WebSettings.LOAD_NO_CACHE
+                
+                // 启用JavaScript接口
+                javaScriptCanOpenWindowsAutomatically = true
+                
+                // 设置默认编码
+                defaultTextEncodingName = "UTF-8"
+                
+                // 允许加载本地内容
+                allowFileAccessFromFileURLs = true
+                allowUniversalAccessFromFileURLs = true
+                
+                // 设置UA
+                userAgentString = userAgentString + " Mobile"
+            }
+
+            // 设置WebView的背景为透明
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            
+            // 设置滚动条样式
+            isVerticalScrollBarEnabled = true
+            scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+            
+            // 启用硬件加速
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            }
+            
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: android.net.http.SslError?) {
+                    handler?.proceed()
+                }
+            }
+        }
+    }
+
+    private fun switchToNextEngine() {
+        currentEngineIndex = (currentEngineIndex + 1) % aiEngines.size
+        updateActiveWindow()
+    }
+
+    private fun switchToPreviousEngine() {
+        currentEngineIndex = if (currentEngineIndex > 0) currentEngineIndex - 1 else aiEngines.size - 1
+        updateActiveWindow()
+    }
+
+    private fun updateActiveWindow() {
+        aiWindows.forEachIndexed { index, webView ->
+            if (index == currentEngineIndex) {
+                webView.visibility = View.VISIBLE
+                // 更新悬浮球显示的当前AI名称
+                updateFloatingBallText(aiEngines[currentEngineIndex].name)
+            } else {
+                webView.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun updateFloatingBallText(text: String) {
+        floatingBallView?.findViewById<TextView>(R.id.floating_ball_text)?.text = text
     }
 } 

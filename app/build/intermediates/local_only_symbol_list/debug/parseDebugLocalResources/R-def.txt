@@ -39,9 +39,11 @@ id btn_screenshot
 id btn_settings
 id btn_wifi
 id drag_handle
+id engine_icon
 id engine_list
 id engine_name
 id floating_ball_icon
+id floating_ball_text
 id history_list
 id history_text
 id search_button
@@ -51,6 +53,8 @@ layout activity_permission
 layout activity_settings
 layout engine_item
 layout floating_ball
+layout floating_ball_layout
+layout item_engine
 layout quick_menu_layout
 layout search_history_item
 layout search_history_layout
@@ -59,10 +63,15 @@ mipmap ic_launcher
 string app_name
 string auto_hide
 string floating_ball_description
+string floating_ball_service_description
+string floating_ball_service_name
+string notification_channel_description
+string notification_channel_name
 string permission_required
 string save
 string search
 string search_hint
+string service_running
 string settings
 string voice_recognition_failed
 string voice_search

@@ -15,13 +15,8 @@ class DragCallback(private val adapter: EngineAdapter) : ItemTouchHelper.Callbac
         viewHolder: RecyclerView.ViewHolder,
         target: RecyclerView.ViewHolder
     ): Boolean {
-        val fromPosition = viewHolder.bindingAdapterPosition
-        val toPosition = target.bindingAdapterPosition
-        if (fromPosition != RecyclerView.NO_POSITION && toPosition != RecyclerView.NO_POSITION) {
-            adapter.moveItem(fromPosition, toPosition)
-            return true
-        }
-        return false
+        adapter.onItemMove(viewHolder.adapterPosition, target.adapterPosition)
+        return true
     }
     
     override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
@@ -29,6 +24,10 @@ class DragCallback(private val adapter: EngineAdapter) : ItemTouchHelper.Callbac
     }
     
     override fun isLongPressDragEnabled(): Boolean {
-        return true
+        return false
+    }
+    
+    override fun isItemViewSwipeEnabled(): Boolean {
+        return false
     }
 } 

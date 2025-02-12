@@ -1,4 +1,0 @@
-com.example.aifloatingball.test.app-androidTest-0 C:\Users\Administrator\Desktop\dalao\app\build\generated\res\resValues\androidTest\debug
-com.example.aifloatingball.test.app-mergeDebugAndroidTestResources-1 C:\Users\Administrator\Desktop\dalao\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
-com.example.aifloatingball.test.app-mergeDebugAndroidTestResources-2 C:\Users\Administrator\Desktop\dalao\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
-com.example.aifloatingball.test.app-debugAndroidTest-3 C:\Users\Administrator\Desktop\dalao\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources
