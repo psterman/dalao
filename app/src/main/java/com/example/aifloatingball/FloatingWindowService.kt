@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -26,10 +27,10 @@ import android.view.*
 import android.view.animation.Animation
 import android.view.animation.AnimationUtils
 import android.view.animation.DecelerateInterpolator
-import android.webkit.SslErrorHandler
-import android.webkit.WebView
-import android.webkit.WebSettings
 import android.webkit.JavascriptInterface
+import android.webkit.SslErrorHandler
+import android.webkit.WebSettings
+import android.webkit.WebView
 import android.widget.*
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -43,7 +44,6 @@ import com.example.aifloatingball.utils.SystemSettingsHelper
 import com.example.aifloatingball.web.CustomWebViewClient
 import kotlin.math.abs
 import kotlin.math.min
-import android.graphics.drawable.GradientDrawable
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -253,7 +253,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 val channel = NotificationChannel(
                     channelId,
                     channelName,
-                    NotificationManager.IMPORTANCE_LOW  // 降低通知重要性
+                    NotificationManager.IMPORTANCE_LOW
                 ).apply {
                     description = "保持悬浮球服务运行"
                     setShowBadge(false)
@@ -283,7 +283,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 .setSmallIcon(R.drawable.ic_floating_ball)
                 .setOngoing(true)
                 .setContentIntent(pendingIntent)
-                .setPriority(NotificationCompat.PRIORITY_LOW)  // 降低通知优先级
+                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .build()
             
@@ -291,7 +291,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             Log.d("FloatingService", "前台服务启动成功")
         } catch (e: Exception) {
             Log.e("FloatingService", "启动前台服务失败: ${e.message}", e)
-            // 如果前台服务启动失败，尝试以普通服务运行
             Toast.makeText(this, "前台服务启动失败，将以普通服务运行", Toast.LENGTH_SHORT).show()
         }
     }
@@ -299,7 +298,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("FloatingService", "onStartCommand被调用")
         try {
-        // 如果服务被系统杀死后重启，重新尝试启动前台服务
         if (intent?.action == "restart_foreground") {
             startForegroundOrNormal()
             }
@@ -311,7 +309,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private fun createFloatingBall() {
         try {
-            // 初始化所有AI窗口
             aiEngines.forEach { engine ->
                 val webView = createWebView()
                 webView.loadUrl(engine.url)
@@ -320,7 +317,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             Log.d("FloatingService", "开始创建悬浮球")
             
-            // 创建悬浮球视图
             val inflater = LayoutInflater.from(this)
             val root = FrameLayout(this)
             floatingBallView = inflater.inflate(R.layout.floating_ball, root, true)
@@ -330,7 +326,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 throw IllegalStateException("无法创建悬浮球视图")
             }
             
-            // 设置悬浮球参数
             val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams(
                     WindowManager.LayoutParams.WRAP_CONTENT,
@@ -362,25 +357,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             params.x = screenWidth - 100.dpToPx()
             params.y = screenHeight / 2
             
-            // 设置最高层级
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                root.elevation = 1000f  // 设置非常高的elevation确保在最上层
+                root.elevation = 1000f
                 root.translationZ = 1000f
             }
             
-            // 添加悬浮球到窗口
             windowManager?.addView(root, params)
             
-            // 设置手势监听
             floatingBallView?.let { view ->
                 gestureManager.attachToView(view)
                 Log.d("FloatingService", "已设置手势监听")
                 
-                // 设置触摸监听
                 view.setOnTouchListener { v, event ->
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
-                            // 记录初始位置
                             val params = v.layoutParams as WindowManager.LayoutParams
                             initialX = params.x
                             initialY = params.y
@@ -389,7 +379,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             lastTouchX = event.rawX
                             lastTouchY = event.rawY
                             
-                            // 启动长按检测
                             voiceSearchHandler.postDelayed({
                                 if (!isDragging) {
                                     startVoiceSearchMode()
@@ -401,7 +390,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             val deltaX = event.rawX - lastTouchX
                             val deltaY = event.rawY - lastTouchY
                             
-                            // 如果移动距离超过阈值，取消长按检测
                             if (abs(deltaX) > 5 || abs(deltaY) > 5) {
                                 voiceSearchHandler.removeCallbacksAndMessages(null)
                                 if (isVoiceSearchActive) {
@@ -415,7 +403,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                                 params.x += deltaX.toInt()
                                 params.y += deltaY.toInt()
                                 
-                                // 限制不超出屏幕
                                 params.x = params.x.coerceIn(-v.width / 3, screenWidth - v.width * 2 / 3)
                                 params.y = params.y.coerceIn(0, screenHeight - v.height)
                                 
@@ -431,16 +418,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             true
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            // 移除长按检测
                             voiceSearchHandler.removeCallbacksAndMessages(null)
                             
-                            // 如果正在进行语音搜索，则结束语音搜索
                             if (isVoiceSearchActive) {
                                 stopVoiceSearchMode()
                                 isDragging = false
                                 true
                             } else {
-                                // 判断是否为点击事件
                                 val isTap = !isDragging && abs(event.rawX - initialTouchX) < 5 && 
                                           abs(event.rawY - initialTouchY) < 5
                                 
@@ -473,10 +457,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     private fun showSearchInput() {
-        // 创建主容器
         val root = FrameLayout(this).apply {
             setOnClickListener {
-                // 点击空白区域关闭搜索界面和卡片
                 windowManager?.removeView(this)
                 searchView = null
                 isSearchVisible = false
@@ -484,11 +466,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             
             background = GradientDrawable().apply {
-                setColor(android.graphics.Color.parseColor("#F5F5F5"))  // 设置浅灰色背景
+                setColor(android.graphics.Color.parseColor("#F5F5F5"))
             }
         }
         
-        // 创建一个垂直布局容器
         val containerLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
@@ -496,12 +477,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 LinearLayout.LayoutParams.MATCH_PARENT
             )
             setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
-            
-            // 防止点击事件传递到root
             setOnClickListener { }
         }
         
-        // 创建顶部栏布局
         val topBarLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
@@ -511,7 +489,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             gravity = Gravity.CENTER_VERTICAL
         }
         
-        // 创建关闭按钮
         val closeButton = ImageButton(this).apply {
             setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
             setBackgroundResource(android.R.drawable.btn_default)
@@ -529,7 +506,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
         }
         
-        // 添加搜索框部分
         val searchContainer = LayoutInflater.from(this).inflate(R.layout.search_input_layout, null, false)
         searchContainer.apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -547,11 +523,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             elevation = 4f.dpToPx()
         }
         
-        // 将关闭按钮和搜索框添加到顶部栏
         topBarLayout.addView(closeButton)
         topBarLayout.addView(searchContainer)
         
-        // 创建ScrollView
         val scrollView = ScrollView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -560,22 +534,21 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             ).apply {
                 topMargin = 16.dpToPx()
             }
-            isVerticalScrollBarEnabled = true  // 显示滚动条
+            isVerticalScrollBarEnabled = true
+            overScrollMode = View.OVER_SCROLL_ALWAYS
+            isFillViewport = true
         }
         
-        // 创建卡片容器
         val cardsContainerView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
+            setPadding(0, 0, 0, 8.dpToPx())
         }
         
-        // 将卡片容器添加到ScrollView
         scrollView.addView(cardsContainerView)
-        
-        // 将顶部栏和ScrollView添加到主容器
         containerLayout.addView(topBarLayout)
         containerLayout.addView(scrollView)
         root.addView(containerLayout)
@@ -583,12 +556,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         searchView = root
         cardsContainer = cardsContainerView
         
-        // 获取输入框和按钮
         val searchInput = searchContainer.findViewById<EditText>(R.id.search_input)
         val searchButton = searchContainer.findViewById<ImageButton>(R.id.search_button)
         val voiceButton = searchContainer.findViewById<ImageButton>(R.id.voice_input_button)
         
-        // 设置搜索按钮点击事件
         searchButton?.setOnClickListener {
             val query = searchInput?.text?.toString()?.trim() ?: ""
             if (query.isNotEmpty()) {
@@ -596,12 +567,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
         }
         
-        // 设置语音按钮点击事件
         voiceButton?.setOnClickListener {
             startVoiceSearchMode()
         }
         
-        // 设置输入框回车键监听
         searchInput?.setOnEditorActionListener { _, actionId, event ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
                 (event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN)
@@ -616,7 +585,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
         }
         
-        // 设置窗口参数
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -631,10 +599,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             flags = flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
         }
         
-        // 添加到窗口
         windowManager?.addView(root, params)
         
-        // 请求输入框焦点
         searchInput?.apply {
             requestFocus()
             postDelayed({
@@ -645,30 +611,34 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         isSearchVisible = true
         
-        // 修改卡片创建逻辑
         if (!hasInitializedCards) {
-            // 首次创建卡片
             val engines = settingsManager.getEngineOrder()
             
-            // 清除现有的卡片
-            cardsContainerView.removeAllViews()
+            cardsContainer?.removeAllViews()
             aiWindows.clear()
             cachedCardViews.clear()
             
-            // 创建新卡片
             engines.forEachIndexed { index, engine ->
                 try {
                     val cardView = createAICardView(engine.url, index)
-                    cardsContainerView.addView(cardView)
+                    val params = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        topMargin = if (index == 0) 8.dpToPx() else 0
+                        bottomMargin = 8.dpToPx()
+                    }
+                    cardView.layoutParams = params
+                    cardsContainer?.addView(cardView)
                     cachedCardViews.add(cardView)
                     
                     cardView.alpha = 0f
                     cardView.translationY = 50f
                     cardView.animate()
-                        .alpha(1f)
+                        .alpha(0.95f)
                         .translationY(0f)
                         .setDuration(300)
-                        .setStartDelay((index * 100).toLong())
+                        .setStartDelay((index * 50).toLong())
                         .setInterpolator(DecelerateInterpolator())
                         .start()
                 } catch (e: Exception) {
@@ -677,16 +647,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             hasInitializedCards = true
         } else {
-            // 重用已缓存的卡片
-            cardsContainerView.removeAllViews()
-            cachedCardViews.forEach { cardView ->
-                cardsContainerView.addView(cardView)
+            cardsContainer?.removeAllViews()
+            cachedCardViews.forEachIndexed { index, cardView ->
+                val params = cardView.layoutParams as? LinearLayout.LayoutParams
+                params?.apply {
+                    bottomMargin = 8.dpToPx()
+                }
+                cardsContainer?.addView(cardView)
                 cardView.alpha = 0f
                 cardView.translationY = 50f
                 cardView.animate()
-                    .alpha(1f)
+                    .alpha(0.95f)
                     .translationY(0f)
                     .setDuration(300)
+                    .setStartDelay((index * 50).toLong())
                     .setInterpolator(DecelerateInterpolator())
                     .start()
             }
@@ -697,15 +671,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         try {
             if (query.isEmpty()) return
             
-            // 保存查询内容到剪贴板
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             val clip = android.content.ClipData.newPlainText("search_query", query)
             clipboard.setPrimaryClip(clip)
             
-            // 保存查询内容
             lastQuery = query
             
-            // 隐藏输入法
             val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
             searchView?.findFocus()?.let { view ->
                 imm.hideSoftInputFromWindow(view.windowToken, 0)
@@ -713,14 +684,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             searchHistoryManager.addSearchQuery(query)
             
-            // 获取已排序的搜索引擎列表
             val engines = settingsManager.getEngineOrder()
             
-            // 清除现有的卡片
             cardsContainer.removeAllViews()
             aiWindows.clear()
             
-            // 创建新卡片
             engines.forEachIndexed { index, engine ->
                 try {
                     val cardView = createAICardView(engine.url, index)
@@ -753,1780 +721,609 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     private fun createAICardView(url: String, index: Int): View {
-        // 创建卡片容器
-        val cardContainer = FrameLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                (screenHeight * 0.6f).toInt()
-            ).apply {
-                setMargins(16.dpToPx(), if (index == 0) 16.dpToPx() else 24.dpToPx(), 16.dpToPx(), 0)
-            }
-            
-            background = GradientDrawable().apply {
-                setColor(android.graphics.Color.WHITE)
-                cornerRadius = 16f.dpToPx()
-                setStroke(1, android.graphics.Color.parseColor("#E0E0E0"))
-            }
-            
-            elevation = 4f.dpToPx()
-
-            // 添加点击事件处理
-            var isExpanded = false
-            setOnClickListener { view ->
-                try {
-                    // 检查是否有其他卡片已经展开
-                    var otherCardExpanded = false
-                    var expandedCardIndex = -1
-                    
-                    aiWindows.forEachIndexed { i, _ ->
-                        val otherCard = cardsContainer?.getChildAt(i)
-                        if (otherCard != null && otherCard != view && 
-                            (otherCard.scaleX > 1.05f || otherCard.layoutParams.height > (screenHeight * 0.7f).toInt())) {
-                            otherCardExpanded = true
-                            expandedCardIndex = i
-                            return@forEachIndexed
-                        }
-                    }
-                    
-                    // 如果其他卡片已展开，先将其恢复原状
-                    if (otherCardExpanded && expandedCardIndex != -1) {
-                        val expandedCard = cardsContainer?.getChildAt(expandedCardIndex)
-                        expandedCard?.let { card ->
-                            val params = card.layoutParams as LinearLayout.LayoutParams
-                            // 恢复原始大小
-                            card.animate()
-                                .scaleX(1f)
-                                .scaleY(1f)
-                                .translationZ(4f)
-                                .setDuration(300)
-                                .withStartAction {
-                                    params.height = (screenHeight * 0.6f).toInt()
-                                    params.width = LinearLayout.LayoutParams.MATCH_PARENT
-                                    params.setMargins(16.dpToPx(), 
-                                        if (expandedCardIndex == 0) 16.dpToPx() else 24.dpToPx(), 
-                                        16.dpToPx(), 0)
-                                    card.layoutParams = params
-                                }
-                                .withEndAction {
-                                    // 恢复其他卡片的显示
-                                    updateCardVisibility(expandedCardIndex, false)
-                                    
-                                    // 然后展开当前点击的卡片
-                                    expandCurrentCard(view, index)
-                                }
-                                .start()
-                            return@setOnClickListener
-                        }
-                    }
-                    
-                    // 如果没有其他卡片展开，直接展开/收起当前卡片
-                    expandCurrentCard(view, index)
-                    
-                } catch (e: Exception) {
-                    Log.e("FloatingService", "处理卡片点击事件失败", e)
-                }
+        val cardView = LayoutInflater.from(this).inflate(R.layout.card_ai_engine, null)
+        val engine = aiEngines[index]
+        
+        val titleBar = cardView.findViewById<View>(R.id.title_bar)
+        val contentArea = cardView.findViewById<View>(R.id.content_area)
+        val webView = cardView.findViewById<WebView>(R.id.web_view)
+        
+        cardView.findViewById<ImageView>(R.id.engine_icon).setImageResource(engine.iconResId)
+        cardView.findViewById<TextView>(R.id.engine_name).text = engine.name
+        
+        setupWebView(webView, engine)
+        
+        webView.setOnTouchListener { _, event ->
+            val titleBarBottom = titleBar.bottom
+            event.y > titleBarBottom
+        }
+        
+        titleBar.elevation = 10f
+        
+        cardView.alpha = 0.95f
+        cardView.translationY = index * 60f
+        cardView.scaleX = 0.95f
+        cardView.scaleY = 0.95f
+        
+        contentArea.layoutParams = (contentArea.layoutParams as LinearLayout.LayoutParams).apply {
+            height = 0
+            weight = 0f
+        }
+        
+        titleBar.setOnClickListener {
+            if (activeCardIndex == index) {
+                collapseCard(index)
+            } else {
+                expandCard(index)
             }
         }
         
-        // 创建一个垂直布局来包含按钮和WebView
-        val containerLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
+        titleBar.setOnLongClickListener {
+            showCardOptions(cardView, index)
+            true
         }
-
-        // 创建粘贴发送按钮
-        val pasteButton = Button(this).apply {
-            text = "粘贴发送"
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.END
-                setMargins(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
-            }
-            
-            setOnClickListener {
-                val webView = aiWindows[index]
-                
-                // 首先尝试获取剪贴板内容
+        
+        val pasteButton = cardView.findViewById<Button>(R.id.paste_button)
+        pasteButton?.setOnClickListener {
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 val clipData = clipboard.primaryClip
-                val text = if (clipData != null && clipData.itemCount > 0) {
-                    clipData.getItemAt(0).text.toString()
-                } else {
-                    ""
-                }
-
-                when {
-                    url.contains("kimi.moonshot.cn") -> {
-                        webView.evaluateJavascript("""
+            if (clipData != null && clipData.itemCount > 0) {
+                val text = clipData.getItemAt(0).text.toString()
+                webView.evaluateJavascript(
+                    """
                             (function() {
-                                function findTextarea() {
-                                    return document.querySelector('.chat-input textarea') || 
-                                           document.querySelector('.chat-input .textarea') ||
-                                           document.querySelector('textarea') ||
-                                           document.querySelector('[contenteditable="true"]');
-                                }
-
-                                function simulateInput(element, text) {
-                                    console.log('Simulating input for Kimi...');
-                                    
-                                    // 聚焦元素
-                                    element.focus();
-                                    
-                                    // 直接设置值
-                                    element.value = text;
-                                    
-                                    // 触发多个事件
-                                    const events = ['input', 'change', 'keydown', 'keyup', 'keypress'];
-                                    events.forEach(eventType => {
-                                        element.dispatchEvent(new Event(eventType, { bubbles: true }));
-                                    });
-                                    
-                                    // 模拟输入事件
-                                    const inputEvent = new InputEvent('input', {
-                                        bubbles: true,
-                                        cancelable: true,
-                                        inputType: 'insertText',
-                                        data: text
-                                    });
-                                    element.dispatchEvent(inputEvent);
-                                    
-                                    return true;
-                                }
-
-                                function simulateEnter(element) {
-                                    console.log('Simulating enter for Kimi...');
-                                    const enterEvent = new KeyboardEvent('keydown', {
-                                        bubbles: true,
-                                        cancelable: true,
-                                        keyCode: 13,
-                                        which: 13,
-                                        key: 'Enter',
-                                        code: 'Enter'
-                                    });
-                                    element.dispatchEvent(enterEvent);
-                                    
-                                    // 尝试点击发送按钮作为备选方案
-                                    const sendButton = document.querySelector('.chat-input button[type="submit"]') ||
-                                                     document.querySelector('button[type="submit"]') ||
-                                                     document.querySelector('.send-button');
-                                    if (sendButton) {
-                                        sendButton.click();
-                                    }
-                                }
-
-                                function attemptInput(text, maxAttempts = 10) {
-                                    let attempts = 0;
-                                    const interval = setInterval(() => {
-                                        const textarea = findTextarea();
-                                        if (textarea) {
-                                            console.log('Found textarea for Kimi');
-                                            clearInterval(interval);
-                                            if (simulateInput(textarea, text)) {
-                                                setTimeout(() => simulateEnter(textarea), 500);
-                                            }
-                                        } else {
-                                            console.log('Attempt ' + (attempts + 1) + ' to find textarea');
-                                            attempts++;
-                                            if (attempts >= maxAttempts) {
-                                                console.log('Failed to find textarea after ' + maxAttempts + ' attempts');
-                                                clearInterval(interval);
-                                            }
-                                        }
-                                    }, 500);
-                                }
-
-                                attemptInput(`${text}`);
-                            })();
-                        """.trimIndent(), null)
-                    }
-                    url.contains("chat.deepseek.com") -> {
-                        webView.evaluateJavascript("""
-                            (function() {
-                                function findTextarea() {
-                                    return document.querySelector('.overflow-hidden textarea') || 
-                                           document.querySelector('.chat-input textarea') ||
-                                           document.querySelector('textarea') ||
-                                           document.querySelector('[contenteditable="true"]');
-                                }
-
-                                function simulateInput(element, text) {
-                                    console.log('Simulating input for Deepseek...');
-                                    
-                                    // 聚焦元素
-                                    element.focus();
-                                    
-                                    // 直接设置值
-                                    element.value = text;
-                                    
-                                    // 触发多个事件
-                                    const events = ['input', 'change', 'keydown', 'keyup', 'keypress'];
-                                    events.forEach(eventType => {
-                                        element.dispatchEvent(new Event(eventType, { bubbles: true }));
-                                    });
-                                    
-                                    // 模拟输入事件
-                                    const inputEvent = new InputEvent('input', {
-                                        bubbles: true,
-                                        cancelable: true,
-                                        inputType: 'insertText',
-                                        data: text
-                                    });
-                                    element.dispatchEvent(inputEvent);
-                                    
-                                    return true;
-                                }
-
-                                function simulateEnter(element) {
-                                    console.log('Simulating enter for Deepseek...');
-                                    const enterEvent = new KeyboardEvent('keydown', {
-                                        bubbles: true,
-                                        cancelable: true,
-                                        keyCode: 13,
-                                        which: 13,
-                                        key: 'Enter',
-                                        code: 'Enter'
-                                    });
-                                    element.dispatchEvent(enterEvent);
-                                    
-                                    // 尝试点击发送按钮作为备选方案
-                                    const sendButton = document.querySelector('button[type="submit"]') ||
-                                                     document.querySelector('.send-button') ||
-                                                     document.querySelector('button:not([disabled])');
-                                    if (sendButton) {
-                                        sendButton.click();
-                                    }
-                                }
-
-                                function attemptInput(text, maxAttempts = 10) {
-                                    let attempts = 0;
-                                    const interval = setInterval(() => {
-                                        const textarea = findTextarea();
-                                        if (textarea) {
-                                            console.log('Found textarea for Deepseek');
-                                            clearInterval(interval);
-                                            if (simulateInput(textarea, text)) {
-                                                setTimeout(() => simulateEnter(textarea), 500);
-                                            }
-                                        } else {
-                                            console.log('Attempt ' + (attempts + 1) + ' to find textarea');
-                                            attempts++;
-                                            if (attempts >= maxAttempts) {
-                                                console.log('Failed to find textarea after ' + maxAttempts + ' attempts');
-                                                clearInterval(interval);
-                                            }
-                                        }
-                                    }, 500);
-                                }
-
-                                attemptInput(`${text}`);
-                            })();
-                        """.trimIndent(), null)
-                    }
-                    url.contains("doubao.com") -> {
-                        webView.evaluateJavascript("""
-                            (function() {
-                                function findTextarea() {
-                                    return document.querySelector('.ant-input') || 
-                                           document.querySelector('.chat-input') ||
-                                           document.querySelector('textarea') ||
-                                           document.querySelector('[contenteditable="true"]');
-                                }
-
-                                function simulateInput(element, text) {
-                                    console.log('Simulating input for Doubao...');
-                                    
-                                    // 聚焦元素
-                                    element.focus();
-                                    
-                                    // 直接设置值
-                                    element.value = text;
-                                    
-                                    // 触发多个事件
-                                    const events = ['input', 'change', 'keydown', 'keyup', 'keypress'];
-                                    events.forEach(eventType => {
-                                        element.dispatchEvent(new Event(eventType, { bubbles: true }));
-                                    });
-                                    
-                                    // 模拟输入事件
-                                    const inputEvent = new InputEvent('input', {
-                                        bubbles: true,
-                                        cancelable: true,
-                                        inputType: 'insertText',
-                                        data: text
-                                    });
-                                    element.dispatchEvent(inputEvent);
-                                    
-                                    return true;
-                                }
-
-                                function simulateEnter(element) {
-                                    console.log('Simulating enter for Doubao...');
-                                    const enterEvent = new KeyboardEvent('keydown', {
-                                        bubbles: true,
-                                        cancelable: true,
-                                        keyCode: 13,
-                                        which: 13,
-                                        key: 'Enter',
-                                        code: 'Enter'
-                                    });
-                                    element.dispatchEvent(enterEvent);
-                                    
-                                    // 尝试点击发送按钮作为备选方案
-                                    const sendButton = document.querySelector('.ant-btn-primary') ||
-                                                     document.querySelector('.send-button') ||
-                                                     document.querySelector('button:not([disabled])');
-                                    if (sendButton) {
-                                        sendButton.click();
-                                    }
-                                }
-
-                                function attemptInput(text, maxAttempts = 10) {
-                                    let attempts = 0;
-                                    const interval = setInterval(() => {
-                                        const textarea = findTextarea();
-                                        if (textarea) {
-                                            console.log('Found textarea for Doubao');
-                                            clearInterval(interval);
-                                            if (simulateInput(textarea, text)) {
-                                                setTimeout(() => simulateEnter(textarea), 500);
-                                            }
-                                        } else {
-                                            console.log('Attempt ' + (attempts + 1) + ' to find textarea');
-                                            attempts++;
-                                            if (attempts >= maxAttempts) {
-                                                console.log('Failed to find textarea after ' + maxAttempts + ' attempts');
-                                                clearInterval(interval);
-                                            }
-                                        }
-                                    }, 500);
-                                }
-
-                                attemptInput(`${text}`);
-                            })();
-                        """.trimIndent(), null)
-                    }
-                }
-                
-                // 显示提示
-                Toast.makeText(this@FloatingWindowService, "正在发送消息...", Toast.LENGTH_SHORT).show()
+                        const input = document.querySelector('textarea');
+                        if (input) {
+                            input.value = '$text';
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            const button = document.querySelector('button[type="submit"]');
+                            if (button) button.click();
+                        }
+                    })()
+                    """.trimIndent(),
+                    null
+                )
             }
         }
+        
+        webView.loadUrl(url)
+        aiWindows.add(webView)
+        
+        return cardView
+    }
 
-        // 创建WebView
-        val webView = WebView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            ).apply {
-                setMargins(8.dpToPx(), 0, 8.dpToPx(), 8.dpToPx())
-            }
-            
-            settings.apply {
+    private fun setupWebView(webView: WebView, engine: AIEngine) {
+        webView.settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 databaseEnabled = true
                 useWideViewPort = true
                 loadWithOverviewMode = true
+            
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
                 
-                // 新增：设置布局算法
                 layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
                 
-                // 新增：设置默认缩放
-                setInitialScale(100)
-                
-                // 新增：启用视口元标记
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                
-                // 新增：设置内容模式
-                setUseWideViewPort(true)
-                setLoadWithOverviewMode(true)
-                
-                // 允许混合内容
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 }
                 
-                // 允许通用访问
                 allowContentAccess = true
                 allowFileAccess = true
                 
-                // 启用DOM存储API
                 domStorageEnabled = true
-                
-                // 启用数据库存储API
                 databaseEnabled = true
                 
-                // 设置缓存模式
                 cacheMode = WebSettings.LOAD_NO_CACHE
                 
-                // 启用JavaScript接口
                 javaScriptCanOpenWindowsAutomatically = true
                 
-                // 设置默认编码
                 defaultTextEncodingName = "UTF-8"
                 
-                // 允许加载本地内容
                 allowFileAccessFromFileURLs = true
                 allowUniversalAccessFromFileURLs = true
                 
-                // 设置UA
-                userAgentString = userAgentString + " Mobile"
+            val customUA = when (engine.name) {
+                "豆包" -> "Mozilla/5.0 (Linux; Android 11; Pixel 4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.104 Mobile Safari/537.36"
+                "ChatGPT" -> "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
+                else -> userAgentString + " Mobile"
             }
+            userAgentString = customUA
+        }
 
-            // 新增：设置WebView的背景为透明
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            
-            // 新增：设置滚动条样式
-            isVerticalScrollBarEnabled = true
-            scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
-            
-            // 新增：启用硬件加速
+        webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        
+        webView.isVerticalScrollBarEnabled = true
+        webView.scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+        
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            }
-            
-            // 注入JavaScript接口
-            addJavascriptInterface(JsInterface(lastQuery), "Android")
-            
-            webViewClient = object : android.webkit.WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    
-                    // 在页面加载完成后，注入必要的 JavaScript
-                    when {
-                        url?.contains("kimi.moonshot.cn") == true -> {
-                            view?.evaluateJavascript("""
-                                (function() {
-                                    // 监听输入框变化
-                                    function setupInputListener() {
-                                        const textarea = document.querySelector('.chat-input textarea, .chat-input .textarea');
-                                        if (textarea) {
-                                            textarea.addEventListener('input', function() {
-                                                console.log('Input changed:', textarea.value);
-                                            });
-                                        }
-                                    }
-                                    
-                                    // 每500ms检查一次元素是否存在
-                                    let checkInterval = setInterval(() => {
-                                        const textarea = document.querySelector('.chat-input textarea, .chat-input .textarea');
-                                        const sendButton = document.querySelector('.chat-input button[type="submit"], .chat-input .send-button');
-                                        
-                                        if (textarea && sendButton) {
-                                            console.log('Found Kimi elements');
-                                            setupInputListener();
-                                            clearInterval(checkInterval);
-                                        }
-                                    }, 500);
-                                })();
-                            """.trimIndent(), null)
-                        }
-                        url?.contains("chat.deepseek.com") == true -> {
-                            view?.evaluateJavascript("""
-                                (function() {
-                                    function setupInputListener() {
-                                        const textarea = document.querySelector('.overflow-hidden textarea, .chat-input textarea');
-                                        if (textarea) {
-                                            textarea.addEventListener('input', function() {
-                                                console.log('Input changed:', textarea.value);
-                                            });
-                                        }
-                                    }
-                                    
-                                    let checkInterval = setInterval(() => {
-                                        const textarea = document.querySelector('.overflow-hidden textarea, .chat-input textarea');
-                                        const sendButton = document.querySelector('button[type="submit"], .send-button');
-                                        
-                                        if (textarea && sendButton) {
-                                            console.log('Found Deepseek elements');
-                                            setupInputListener();
-                                            clearInterval(checkInterval);
-                                        }
-                                    }, 500);
-                                })();
-                            """.trimIndent(), null)
-                        }
-                        url?.contains("doubao.com") == true -> {
-                            view?.evaluateJavascript("""
-                                (function() {
-                                    function setupInputListener() {
-                                        const textarea = document.querySelector('.ant-input, .chat-input');
-                                        if (textarea) {
-                                            textarea.addEventListener('input', function() {
-                                                console.log('Input changed:', textarea.value);
-                                            });
-                                        }
-                                    }
-                                    
-                                    let checkInterval = setInterval(() => {
-                                        const textarea = document.querySelector('.ant-input, .chat-input');
-                                        const sendButton = document.querySelector('.ant-btn-primary, .send-button');
-                                        
-                                        if (textarea && sendButton) {
-                                            console.log('Found Doubao elements');
-                                            setupInputListener();
-                                            clearInterval(checkInterval);
-                                        }
-                                    }, 500);
-                                })();
-                            """.trimIndent(), null)
-                        }
-                    }
-                }
-
+            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
+        
+        webView.webViewClient = object : android.webkit.WebViewClient() {
                 override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: android.net.http.SslError?) {
                     handler?.proceed()
-                }
             }
             
-            // 加载URL
-            loadUrl(url)
-        }
-        
-        // 将按钮和WebView添加到垂直布局中
-        containerLayout.addView(pasteButton)
-        containerLayout.addView(webView)
-        
-        // 将垂直布局添加到卡片容器中
-        cardContainer.addView(containerLayout)
-        aiWindows.add(webView)
-        
-        return cardContainer
-    }
-    
-    private fun setupVoiceInput() {
-        try {
-            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-                Log.e("VoiceInput", "设备不支持语音识别")
-                return
-            }
-
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.RECORD_AUDIO
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                Log.e("VoiceInput", "没有麦克风权限")
-                return
-            }
-
-            recognizer?.destroy()
-            recognizer = SpeechRecognizer.createSpeechRecognizer(this)
-            
-            recognizer?.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    Log.d("VoiceInput", "准备开始语音识别")
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                val css = when (engine.name) {
+                    "豆包" -> """
+                        .mobile-container { height: auto !important; }
+                        .chat-container { height: auto !important; }
+                    """
+                    "ChatGPT" -> """
+                        body { height: auto !important; }
+                        #__next { height: auto !important; }
+                    """
+                    "阿里通义" -> """
+                        .chat-container { min-height: 80vh !important; }
+                    """
+                    "Kimi" -> """
+                        .conversation-container { min-height: 80vh !important; }
+                    """
+                    else -> ""
                 }
                 
-                override fun onBeginningOfSpeech() {
-                    Log.d("VoiceInput", "开始语音输入")
-                }
-                
-                override fun onRmsChanged(rmsdB: Float) {
-                    // 更新音量指示器
-                }
-                
-                override fun onBufferReceived(buffer: ByteArray?) {
-                    Log.d("VoiceInput", "接收到语音数据")
-                }
-                
-                override fun onEndOfSpeech() {
-                    Log.d("VoiceInput", "语音输入结束")
-                }
-                
-                override fun onError(error: Int) {
-                    val errorMessage = when (error) {
-                        SpeechRecognizer.ERROR_AUDIO -> "音频录制错误"
-                        SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
-                        SpeechRecognizer.ERROR_NETWORK -> "网络错误"
-                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "未能识别语音"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别器忙"
-                        SpeechRecognizer.ERROR_SERVER -> "服务器错误"
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时"
-                        else -> "未知错误: $error"
-                    }
-                    Log.e("VoiceInput", "语音识别错误: $errorMessage")
-                    Toast.makeText(this@FloatingWindowService, errorMessage, Toast.LENGTH_SHORT).show()
-                }
-                
-                override fun onResults(results: Bundle?) {
-                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) {
-                        val query = matches[0]
-                        Log.d("VoiceInput", "识别结果: $query")
-                        cardsContainer?.let { container ->
-                            performSearch(query, container)
-                        }
-                    }
-                }
-                
-                override fun onPartialResults(partialResults: Bundle?) {
-                    Log.d("VoiceInput", "部分识别结果")
-                }
-                
-                override fun onEvent(eventType: Int, params: Bundle?) {
-                    when (eventType) {
-                        SpeechRecognizer.ERROR_AUDIO -> Log.d("VoiceInput", "音频事件")
-                        SpeechRecognizer.ERROR_NETWORK -> Log.d("VoiceInput", "网络事件")
-                        SpeechRecognizer.ERROR_NO_MATCH -> Log.d("VoiceInput", "无匹配事件")
-                        SpeechRecognizer.ERROR_SERVER -> Log.d("VoiceInput", "服务器事件")
-                        SpeechRecognizer.ERROR_CLIENT -> Log.d("VoiceInput", "客户端事件")
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> Log.d("VoiceInput", "语音超时")
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> Log.d("VoiceInput", "权限不足")
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> Log.d("VoiceInput", "识别器忙")
-                        else -> Log.d("VoiceInput", "其他事件: $eventType")
-                    }
-                }
-            })
-            
-            searchView?.findViewById<ImageButton>(R.id.voice_input_button)?.apply {
-                visibility = View.VISIBLE
-                setOnClickListener {
-                    startVoiceRecognition()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("VoiceInput", "设置语音输入失败", e)
-        }
-    }
-    
-    private fun startVoiceRecognition() {
-        try {
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.RECORD_AUDIO
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                Toast.makeText(this, "需要麦克风权限才能使用语音输入", Toast.LENGTH_SHORT).show()
-                return
-            }
-
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                )
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            }
-            recognizer?.startListening(intent)
-        } catch (e: Exception) {
-            Log.e("VoiceInput", "启动语音识别失败", e)
-            Toast.makeText(this, "启动语音识别失败", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    private fun updateOtherCards(currentIndex: Int, deltaY: Float) {
-        val spacing = 60.dpToPx()
-        aiWindows.forEachIndexed { index, webView ->
-            if (index != currentIndex) {
-                val parent = webView.parent as? View ?: return@forEachIndexed
-                val params = parent.layoutParams as WindowManager.LayoutParams
-                val distance = abs(index - currentIndex)
-                val scale = 0.9f + (0.1f * (1f - min(distance, 2) / 2f))
-                
-                params.y = (screenHeight / 6 + (index * spacing) + 
-                          (deltaY * (1f - min(distance, 2) / 2f))).toInt()
-                
-                parent.scaleX = scale
-                parent.scaleY = scale
-                parent.alpha = 0.7f + (0.3f * (1f - min(distance, 2) / 2f))
-                
-                try {
-                    windowManager?.updateViewLayout(parent, params)
-                } catch (e: Exception) {
-                    Log.e("FloatingService", "更新其他卡片位置失败", e)
+                if (css.isNotEmpty()) {
+                    val script = """
+                        javascript:(function() {
+                            var style = document.createElement('style');
+                            style.type = 'text/css';
+                            style.innerHTML = '$css';
+                            document.head.appendChild(style);
+                        })()
+                    """.trimIndent()
+                    view?.loadUrl(script)
                 }
             }
         }
-    }
-    
-    private fun handleVerticalFling(index: Int, velocityY: Float) {
-        val direction = if (velocityY > 0) 1 else -1
-        val targetIndex = (index + direction).coerceIn(0, aiWindows.size - 1)
-        if (targetIndex != index) {
-            animateCardsSwap(index, targetIndex)
-        }
-    }
-    
-    private fun handleVerticalSwipe(index: Int, deltaY: Float) {
-        val direction = if (deltaY > 0) 1 else -1
-        val targetIndex = (index + direction).coerceIn(0, aiWindows.size - 1)
-        if (targetIndex != index) {
-            animateCardsSwap(index, targetIndex)
-        }
-    }
-    
-    private fun animateCardsSwap(fromIndex: Int, toIndex: Int) {
-        val spacing = 60.dpToPx()
-        val duration = 300L  // 减少动画时长
-        
-        aiWindows.forEachIndexed { index, webView ->
-            val parent = webView.parent as? View ?: return@forEachIndexed
-            val params = parent.layoutParams as WindowManager.LayoutParams
-            
-            val targetY = screenHeight / 6 + (index * spacing)
-            val scale = if (index == toIndex) 1f else 0.9f
-            val alpha = if (index == toIndex) 1f else 0.7f
-            val rotation = if (index == toIndex) 0f else (if (index < toIndex) 5f else -5f)  // 减小旋转角度
-            
-            // 使用加速减速插值器替代弹性插值器
-            val interpolator = DecelerateInterpolator(1.5f)
-            
-            parent.animate()
-                .y(targetY.toFloat())
-                .scaleX(scale)
-                .scaleY(scale)
-                .alpha(alpha)
-                .rotation(rotation)
-                .setDuration(duration)
-                .setInterpolator(interpolator)
-                .withLayer()
-                .withStartAction {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        parent.elevation = if (index == toIndex) 24f else 8f
-                        parent.translationZ = if (index == toIndex) 12f else -abs(index - toIndex) * 4f
-                    }
-                }
-                .withEndAction {
-                    params.y = targetY
-                    try {
-                        windowManager?.updateViewLayout(parent, params)
-                    } catch (e: Exception) {
-                        Log.e("FloatingService", "更新卡片位置失败", e)
-                    }
-                }
-                .start()
-        }
-        
-        // 交换列表中的位置
-        val temp = aiWindows[fromIndex]
-        aiWindows[fromIndex] = aiWindows[toIndex]
-        aiWindows[toIndex] = temp
-    }
-    
-    private fun animateCardDismissal(view: View, targetX: Float) {
-        view.animate()
-            .translationX(targetX)
-            .alpha(0f)
-            .setDuration(200)
-            .withEndAction {
-                try {
-                    windowManager?.removeView(view)
-                } catch (e: Exception) {
-                    Log.e("FloatingService", "移除卡片失败", e)
-                }
-            }
-            .start()
     }
 
-    private fun animateCardReturn(view: View) {
-        view.animate()
-            .translationX(0f)
+    private fun expandCard(index: Int) {
+        val cardView = cardsContainer?.getChildAt(index) ?: return
+        activeCardIndex = index
+        
+        // 获取标题栏和内容区域
+        val titleBar = cardView.findViewById<View>(R.id.title_bar)
+        val contentArea = cardView.findViewById<View>(R.id.content_area)
+        val webView = cardView.findViewById<WebView>(R.id.web_view)
+        
+        // 确保WebView可见
+        webView.visibility = View.VISIBLE
+        
+        // 计算展开后的卡片高度（屏幕高度的85%）
+        val expandedHeight = (screenHeight * 0.85f).toInt()
+        
+        // 计算卡片在屏幕中央的位置
+        val centerY = (screenHeight - expandedHeight) / 2
+        
+        // 计算标题栏高度和卡片间距
+        val titleBarHeight = titleBar.height
+        val cardSpacing = 40.dpToPx()  // 减小卡片间距
+        
+        // 展开动画
+        cardView.animate()
             .translationY(0f)
             .scaleX(1f)
             .scaleY(1f)
             .alpha(1f)
-            .setDuration(200)
-            .start()
-    }
-
-    private fun toggleCardSize(view: View, index: Int) {
-        val params = view.layoutParams as WindowManager.LayoutParams
-        val isExpanded = params.height > (screenHeight * 0.75f).toInt()
-        
-        val targetHeight = if (isExpanded) {
-            (screenHeight * 0.75f).toInt()
-        } else {
-            (screenHeight * 0.85f).toInt()
-        }
-        
-        view.animate()
-            .scaleX(if (isExpanded) 1f else 1.05f)
-            .scaleY(if (isExpanded) 1f else 1.05f)
             .setDuration(300)
-            .setInterpolator(DecelerateInterpolator())
-            .withEndAction {
-                params.height = targetHeight
-                try {
-                    windowManager?.updateViewLayout(view, params)
-                } catch (e: Exception) {
-                    Log.e("FloatingService", "更新卡片大小失败", e)
+            .withStartAction {
+                cardView.elevation = 8f
+                
+                // 调整内容区域高度
+                contentArea.layoutParams = (contentArea.layoutParams as LinearLayout.LayoutParams).apply {
+                    height = expandedHeight - titleBarHeight
+                    weight = 0f
                 }
+                
+                // 将展开的卡片移动到屏幕中央
+                val params = cardView.layoutParams as LinearLayout.LayoutParams
+                params.topMargin = centerY
+                cardView.layoutParams = params
             }
             .start()
-    }
-
-    private fun showCardOptions(view: View, index: Int) {
-        val popupMenu = PopupMenu(this, view)
-        popupMenu.menu.apply {
-            add("刷新").setOnMenuItemClickListener {
-                refreshCard(index)
-                true
-            }
-            add("分享").setOnMenuItemClickListener {
-                shareCard(index)
-                true
-            }
-            add("关闭").setOnMenuItemClickListener {
-                removeCard(index)
-                true
-            }
+        
+        // 处理其他卡片的位置
+        val totalCards = cardsContainer?.childCount ?: 0
+        for (i in 0 until totalCards) {
+            if (i != index) {
+                val otherCard = cardsContainer?.getChildAt(i) ?: continue
+                val otherTitleBar = otherCard.findViewById<View>(R.id.title_bar)
+                val otherContentArea = otherCard.findViewById<View>(R.id.content_area)
+                val otherWebView = otherCard.findViewById<WebView>(R.id.web_view)
+                
+                // 计算其他卡片的位置
+                val targetY = if (i < index) {
+                    // 上方卡片，显示在展开卡片上方
+                    centerY - ((index - i) * titleBarHeight) - cardSpacing
+                } else {
+                    // 下方卡片，显示在展开卡片下方
+                    centerY + expandedHeight + ((i - index - 1) * titleBarHeight) + cardSpacing
+                }
+                
+                otherCard.animate()
+                    .translationY(targetY.toFloat())
+                    .scaleX(0.95f)
+                    .scaleY(0.95f)
+                    .alpha(0.8f)
+                    .setDuration(300)
+                    .withStartAction {
+                        otherCard.elevation = 4f
+                        
+                        // 折叠其他卡片的内容区域
+                        otherContentArea.layoutParams = (otherContentArea.layoutParams as LinearLayout.LayoutParams).apply {
+                            height = 0
+                            weight = 0f
+                        }
+                        
+                        // 确保其他卡片的WebView隐藏
+                        otherWebView.visibility = View.GONE
+                        
+                        // 确保标题栏可见
+                        otherTitleBar.visibility = View.VISIBLE
+                }
+                .start()
         }
-        popupMenu.show()
-    }
-
-    private fun refreshCard(index: Int) {
-        aiWindows.getOrNull(index)?.reload()
-    }
-
-    private fun shareCard(index: Int) {
-        aiWindows.getOrNull(index)?.let { webView ->
-            val url = webView.url
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, url)
-            }
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(Intent.createChooser(intent, "分享到").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        
+        // 确保所有卡片都在屏幕范围内
+        val scrollView = cardsContainer?.parent as? ScrollView
+        scrollView?.post {
+            scrollView.smoothScrollTo(0, centerY)
         }
     }
-
-    private fun removeCard(index: Int) {
-        aiWindows.getOrNull(index)?.let { webView ->
-            val parent = webView.parent as? View
-            if (parent != null) {
-                animateCardDismissal(parent, -screenWidth.toFloat())
-                aiWindows.removeAt(index)
-            }
-        }
-    }
-
-    private fun hideCardView() {
-        isCardViewMode = false
-        aiWindows.forEachIndexed { index, webView ->
-            val parent = webView.parent as? View ?: return@forEachIndexed
+    
+    private fun collapseCard(index: Int) {
+        activeCardIndex = -1
+        val initialCardSpacing = 8.dpToPx()  // 设置初始紧凑间距
+        
+        // 恢复所有卡片的状态
+        for (i in 0 until (cardsContainer?.childCount ?: 0)) {
+            val card = cardsContainer?.getChildAt(i) ?: continue
             
-            // 添加退出动画
-            parent.animate()
-                .alpha(0f)
-                .scaleX(0.8f)
-                .scaleY(0.8f)
-                .translationY(100f)
-                .setDuration(200)
-                .setStartDelay((aiWindows.size - index - 1) * 50L)
-                .setInterpolator(DecelerateInterpolator())
-                .withEndAction {
-                parent.visibility = View.GONE
+            // 获取标题栏和内容区域
+            val titleBar = card.findViewById<View>(R.id.title_bar)
+            val contentArea = card.findViewById<View>(R.id.content_area)
+            val webView = card.findViewById<WebView>(R.id.web_view)
+            
+            // 计算目标Y位置（使用初始紧凑间距）
+            var targetY = 0f
+            for (j in 0 until i) {
+                val previousCard = cardsContainer?.getChildAt(j)
+                targetY += if (j == 0) initialCardSpacing else initialCardSpacing  // 使用初始紧凑间距
+            }
+            
+            card.animate()
+                .translationY(targetY)
+                .scaleX(0.95f)
+                .scaleY(0.95f)
+                .alpha(0.95f)
+            .setDuration(300)
+                .withStartAction {
+                    card.elevation = 4f
+                    
+                    // 恢复标题栏位置
+                    titleBar.translationY = 0f
+                    
+                    // 完全折叠内容区域
+                    contentArea.layoutParams = (contentArea.layoutParams as LinearLayout.LayoutParams).apply {
+                        height = 0
+                        weight = 0f
+                    }
+                    
+                    // 确保WebView完全隐藏
+                    webView.visibility = View.GONE
+                    
+                    // 重置卡片位置和边距
+                    val params = card.layoutParams as LinearLayout.LayoutParams
+                    params.topMargin = if (i == 0) initialCardSpacing else 0
+                    params.bottomMargin = initialCardSpacing  // 使用初始紧凑间距
+                    card.layoutParams = params
             }
                 .start()
-            
-            // 重置变换
-            parent.elevation = 0f
-            parent.translationZ = 0f
-            parent.rotation = 0f
         }
+        
+        // 滚动到顶部
+        val scrollView = cardsContainer?.parent as? ScrollView
+        scrollView?.smoothScrollTo(0, 0)
     }
     
-    private fun performClick() {
-        if (isSearchVisible) {
-            // 如果搜索框已显示，则隐藏
-            searchView?.let { view ->
-                val parent = view.parent as? View
-                if (parent != null) {
-                    windowManager?.removeView(parent)
-                    searchView = null
-                    isSearchVisible = false
-                }
-            }
-            // 同时关闭所有卡片
-            closeAllWindows()
-        } else {
-            // 显示统一的搜索界面
-            showSearchInput()
-        }
-    }
-    
-    private fun startVoiceSearchMode() {
-        if (isVoiceSearchActive) return
-        
-        isVoiceSearchActive = true
-        
-        // 检查麦克风权限
-        if (ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.RECORD_AUDIO
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            Toast.makeText(this, "需要麦克风权限才能使用语音输入", Toast.LENGTH_SHORT).show()
-            stopVoiceSearchMode()
-            return
-        }
-
+    private fun setupVoiceInput() {
+        try {
         // 初始化语音识别器
-        if (recognizer == null) {
-            recognizer = SpeechRecognizer.createSpeechRecognizer(this)
-            recognizer?.setRecognitionListener(object : RecognitionListener {
+            recognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
+                setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    Log.d("VoiceInput", "准备开始语音识别")
-                }
-                
-                override fun onBeginningOfSpeech() {
-                    Log.d("VoiceInput", "开始语音输入")
-                }
-                
-                override fun onRmsChanged(rmsdB: Float) {
-                    // 可以用来更新波浪动画的强度
-                }
-                
-                override fun onBufferReceived(buffer: ByteArray?) {
-                    Log.d("VoiceInput", "接收到语音数据")
-                }
-                
-                override fun onEndOfSpeech() {
-                    Log.d("VoiceInput", "语音输入结束")
-                    stopVoiceSearchMode()
-                }
+                        isVoiceSearchActive = true
+                        showVoiceSearchAnimation()
+                    }
+
+                    override fun onBeginningOfSpeech() {}
+                    override fun onRmsChanged(rmsdB: Float) {}
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+                    override fun onEndOfSpeech() {}
                 
                 override fun onError(error: Int) {
-                    val errorMessage = when (error) {
-                        SpeechRecognizer.ERROR_AUDIO -> "音频录制错误"
-                        SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
-                        SpeechRecognizer.ERROR_NETWORK -> "网络错误"
-                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
-                        SpeechRecognizer.ERROR_NO_MATCH -> "未能识别语音"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别器忙"
-                        SpeechRecognizer.ERROR_SERVER -> "服务器错误"
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时"
-                        else -> "未知错误: $error"
-                    }
-                    Log.e("VoiceInput", "语音识别错误: $errorMessage")
-                    Toast.makeText(this@FloatingWindowService, errorMessage, Toast.LENGTH_SHORT).show()
                     stopVoiceSearchMode()
+                        Toast.makeText(this@FloatingWindowService, "语音识别失败，请重试", Toast.LENGTH_SHORT).show()
                 }
                 
                 override fun onResults(results: Bundle?) {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     if (!matches.isNullOrEmpty()) {
                         val recognizedText = matches[0]
-                        Log.d("VoiceInput", "识别结果: $recognizedText")
-                        
-                        // 如果搜索界面未显示，则显示搜索界面
-                        if (!isSearchVisible) {
-                            showSearchInput()
-                        }
-                        
-                        // 将识别结果填入搜索框
-                        searchView?.findViewById<EditText>(R.id.search_input)?.apply {
-                            setText(recognizedText)
-                            setSelection(recognizedText.length)  // 将光标移到文本末尾
-                        }
-                        
-                        // 自动执行搜索
-                        cardsContainer?.let { container ->
-                            performSearch(recognizedText, container)
-                        }
+                            performSearch(recognizedText, cardsContainer!!)
                     }
                     stopVoiceSearchMode()
                 }
                 
-                override fun onPartialResults(partialResults: Bundle?) {
-                    // 实时显示部分识别结果
-                    val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    if (!matches.isNullOrEmpty()) {
-                        val partialText = matches[0]
-                        Log.d("VoiceInput", "部分识别结果: $partialText")
-                        
-                        if (!isSearchVisible) {
-                            showSearchInput()
-                        }
-                        
-                        searchView?.findViewById<EditText>(R.id.search_input)?.apply {
-                            setText(partialText)
-                            setSelection(partialText.length)
-                        }
-                    }
-                }
-                
-                override fun onEvent(eventType: Int, params: Bundle?) {
-                    Log.d("VoiceInput", "语音识别事件: $eventType")
-                }
-            })
-        }
-        
-        // 创建波浪动画视图
-        val waveView = FrameLayout(this).apply {
-            layoutParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT
-            )
-            
-            background = object : android.graphics.drawable.Drawable() {
-                private val paint = android.graphics.Paint().apply {
-                    style = android.graphics.Paint.Style.STROKE
-                    strokeWidth = 4f
-                    color = android.graphics.Color.parseColor("#4CAF50")
-                }
-                
-                private var animationValue = 0f
-                private val waves = mutableListOf<Float>()
-                private val maxWaves = 5
-                private val waveInterval = 0.2f
-                
-                init {
-                    for (i in 0 until maxWaves) {
-                        waves.add(i * waveInterval)
-                    }
-                }
-                
-                override fun draw(canvas: android.graphics.Canvas) {
-                    val centerX = bounds.width() / 2f
-                    val centerY = bounds.height() / 2f
-                    val maxRadius = kotlin.math.sqrt((centerX * centerX + centerY * centerY).toDouble()).toFloat()
-                    
-                    waves.forEachIndexed { index, offset ->
-                        val radius = (animationValue + offset) * maxRadius
-                        if (radius <= maxRadius) {
-                            paint.alpha = ((1 - (radius / maxRadius)) * 255).toInt()
-                            canvas.drawCircle(centerX, centerY, radius, paint)
-                        }
-                    }
-                    
-                    animationValue += 0.02f
-                    if (animationValue >= 1f) {
-                        animationValue = 0f
-                    }
-                    invalidateSelf()
-                }
-                
-                override fun setAlpha(alpha: Int) {}
-                override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
-                override fun getOpacity() = PixelFormat.TRANSLUCENT
+                    override fun onPartialResults(partialResults: Bundle?) {}
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
             }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "语音识别初始化失败", e)
+            Toast.makeText(this, "语音识别初始化失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-        
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) 
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        )
-        
-        windowManager?.addView(waveView, params)
-        voiceAnimationView = waveView
-        
-        // 开始语音识别
+    }
+
+    private fun startVoiceSearchMode() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
+            != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "请授予录音权限以使用语音搜索", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        try {
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
         }
-        
-        try {
             recognizer?.startListening(intent)
-            Toast.makeText(this, "请开始说话...", Toast.LENGTH_SHORT).show()
+            showVoiceSearchAnimation()
         } catch (e: Exception) {
-            Log.e("VoiceInput", "启动语音识别失败", e)
-            Toast.makeText(this, "启动语音识别失败: ${e.message}", Toast.LENGTH_SHORT).show()
-            stopVoiceSearchMode()
+            Log.e("FloatingService", "启动语音搜索失败", e)
+            Toast.makeText(this, "启动语音搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
     private fun stopVoiceSearchMode() {
-        if (!isVoiceSearchActive) return
-        
+        try {
+            recognizer?.stopListening()
+            recognizer?.cancel()
+            hideVoiceSearchAnimation()
         isVoiceSearchActive = false
-        
-        // 移除波浪动画
-        voiceAnimationView?.let { view ->
-            windowManager?.removeView(view)
-            voiceAnimationView = null
-        }
-        
-        // 停止语音识别
-        recognizer?.stopListening()
-    }
-    
-    private fun setupWindowManagement() {
-        var initialX = 0
-        var initialY = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
-        
-        floatingBallView?.setOnTouchListener { view, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = (view.layoutParams as WindowManager.LayoutParams).x
-                    initialY = (view.layoutParams as WindowManager.LayoutParams).y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val params = view.layoutParams as WindowManager.LayoutParams
-                    params.x = initialX + (event.rawX - initialTouchX).toInt()
-                    params.y = initialY + (event.rawY - initialTouchY).toInt()
-                    windowManager?.updateViewLayout(view, params)
-                    true
-                }
-                else -> false
-            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "停止语音搜索失败", e)
         }
     }
-    
-    // 显示搜索历史
-    private fun showSearchHistory() {
-        val history = searchHistoryManager.getSearchHistory()
-        if (history.isEmpty()) {
-            Toast.makeText(this, "暂无搜索历史", Toast.LENGTH_SHORT).show()
-            return
+
+    private fun showVoiceSearchAnimation() {
+        // 创建语音动画视图
+        if (voiceAnimationView == null) {
+            voiceAnimationView = LayoutInflater.from(this).inflate(R.layout.voice_search_animation, null)
         }
-        
-        // 创建历史记录列表视图
-        val root = FrameLayout(this)
-        val historyView = LayoutInflater.from(this).inflate(R.layout.search_history_layout, root, true)
-        val recyclerView = historyView.findViewById<RecyclerView>(R.id.history_list)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        
-        val adapter = SearchHistoryAdapter(history) { query ->
-            cardsContainer?.let { container ->
-                performSearch(query, container)
-            }
-            windowManager?.removeView(root)
-        }
-        recyclerView.adapter = adapter
-        
-        val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            WindowManager.LayoutParams(
+
+        // 设置动画视图的布局参数
+        val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) 
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
                 PixelFormat.TRANSLUCENT
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT
-            )
-        }
-        
-        windowManager?.addView(root, params)
-        historyView.startAnimation(AnimationUtils.loadAnimation(this, R.anim.menu_show))
-    }
-    
-    // GestureCallback 实现
-    override fun onSingleTap() {
-        try {
-            Log.d("FloatingService", "单击事件触发")
-            if (!isCardViewMode) {
-                showSearchInput()
-            }
-        } catch (e: Exception) {
-            Log.e("FloatingService", "处理单击事件失败", e)
-        }
-    }
-    
-    override fun onDoubleTap() {
-        try {
-            Log.d("FloatingService", "双击事件触发")
-            if (!isCardViewMode) {
-                showSearchHistory()
-            }
-        } catch (e: Exception) {
-            Log.e("FloatingService", "处理双击事件失败", e)
-        }
-    }
-    
-    override fun onLongPress() {
-        try {
-            Log.d("FloatingService", "长按事件触发")
-            startVoiceSearchMode()
-        } catch (e: Exception) {
-            Log.e("FloatingService", "处理长按事件失败", e)
-        }
-    }
-    
-    override fun onSwipeLeft() {
-        try {
-            Log.d("FloatingService", "左滑事件触发")
-            if (!isCardViewMode) {
-                closeAllWindows()
-            }
-        } catch (e: Exception) {
-            Log.e("FloatingService", "处理左滑事件失败", e)
-        }
-    }
-    
-    override fun onSwipeRight() {
-        try {
-            Log.d("FloatingService", "右滑事件触发")
-            if (!isCardViewMode) {
-                showSearchHistory()
-            }
-        } catch (e: Exception) {
-            Log.e("FloatingService", "处理右滑事件失败", e)
-        }
-    }
-    
-    override fun onSwipeUp() {
-        try {
-            Log.d("FloatingService", "上滑事件触发")
-            if (!isCardViewMode && aiWindows.isNotEmpty()) {
-                cardStartY = 0f
-                cardStartX = 0f
-                isCardViewMode = true
-                showCardView(false, 0f)
-            }
-        } catch (e: Exception) {
-            Log.e("FloatingService", "处理上滑事件失败", e)
-        }
-    }
-    
-    override fun onSwipeDown() {
-        try {
-            Log.d("FloatingService", "下滑事件触发")
-            if (isCardViewMode) {
-                hideCardView()
-            }
-        } catch (e: Exception) {
-            Log.e("FloatingService", "处理下滑事件失败", e)
-        }
-    }
-    
-    override fun onDrag(x: Float, y: Float) {
-        if (isCardViewMode && aiWindows.isNotEmpty()) {
-            if (cardStartY == 0f) cardStartY = y
-            if (cardStartX == 0f) cardStartX = x
-            
-            val deltaY = y - cardStartY
-            val deltaX = x - cardStartX
-            
-            if (abs(deltaY) > abs(deltaX)) {
-                val progress = deltaY / (screenHeight / 4)
-                showCardView(false, progress)
-                val index = ((aiWindows.size - 1) * (1 - progress)).toInt()
-                currentCardIndex = index.coerceIn(0, aiWindows.size - 1)
-            }
-        } else {
-            floatingBallView?.let { view ->
-                val params = view.layoutParams as WindowManager.LayoutParams
-                params.x = x.toInt()
-                params.y = y.toInt()
-                try {
-                    windowManager?.updateViewLayout(view, params)
-                } catch (e: Exception) {
-                    Log.e("FloatingService", "更新悬浮球位置失败", e)
-                }
-            }
-        }
-    }
-    
-    override fun onDragEnd(x: Float, y: Float) {
-        if (isCardViewMode) {
-            hideCardView()
-            showSelectedCard()
-        } else {
-            floatingBallView?.let { view ->
-                val params = view.layoutParams as WindowManager.LayoutParams
-                val ballSize = 48.dpToPx()
-                val hiddenPortion = (ballSize * 0.7f).toInt()  // 增加隐藏部分
-                
-                // 计算目标X坐标（吸附到屏幕边缘）
-                val targetX = when {
-                    x < screenWidth / 2 -> -hiddenPortion  // 吸附到左边
-                    else -> screenWidth - ballSize + hiddenPortion  // 吸附到右边
-                }
-                
-                // 计算目标Y坐标（保持在屏幕内）
-                val targetY = y.toInt().coerceIn(
-                    0,  // 上边界
-                    screenHeight - ballSize  // 下边界
-                )
-                
-                // 创建X轴动画
-                val animatorX = ValueAnimator.ofInt(params.x, targetX)
-                animatorX.addUpdateListener { animation ->
-                    params.x = animation.animatedValue as Int
-                    try {
-                        windowManager?.updateViewLayout(view, params)
-                    } catch (e: Exception) {
-                        Log.e("FloatingService", "更新悬浮球X位置失败", e)
-                    }
-                }
-            }
-        }
-    }
-    
-    private fun showSelectedCard() {
-        if (currentCardIndex >= 0 && currentCardIndex < aiWindows.size) {
-            val cardWidth = screenWidth - 48.dpToPx()
-            val cardHeight = (screenHeight * 0.8f).toInt()
-            val cardSpacing = 50.dpToPx()
-            
-            aiWindows.forEachIndexed { index, webView ->
-                val parent = webView.parent as? View ?: return@forEachIndexed
-                val params = parent.layoutParams as WindowManager.LayoutParams
-                
-                val distanceFromSelected = abs(index - currentCardIndex)
-                val scale = if (index == currentCardIndex) 1f else 0.88f
-                val alpha = if (index == currentCardIndex) 1f else 0.65f
-                val elevation = if (index == currentCardIndex) 25f else 5f
-                
-                params.width = cardWidth
-                params.height = cardHeight
-                params.x = screenWidth / 2 - cardWidth / 2 + 
-                          (if (index < currentCardIndex) -cardWidth - cardSpacing 
-                           else if (index > currentCardIndex) cardWidth + cardSpacing else 0)
-                params.y = screenHeight / 2 - cardHeight / 2 +
-                          (distanceFromSelected * 60).toInt()
-                
-                parent.scaleX = scale
-                parent.scaleY = scale
-                parent.alpha = alpha
-                parent.elevation = elevation
-                parent.rotation = if (index == currentCardIndex) 0f 
-                                else (if (index < currentCardIndex) -8f else 8f)
-                
-                try {
-                    windowManager?.updateViewLayout(parent, params)
-                } catch (e: Exception) {
-                    Log.e("FloatingService", "更新选中卡片位置失败", e)
-                }
-            }
-        }
-    }
-    
-    private fun showCardView(isHorizontal: Boolean, progress: Float) {
-        if (!isCardViewMode) {
-            isCardViewMode = true
-            aiWindows.forEachIndexed { index, webView ->
-                val parent = webView.parent as? View ?: return@forEachIndexed
-                parent.visibility = View.VISIBLE
-                parent.alpha = 0f
-                parent.scaleX = 0.8f
-                parent.scaleY = 0.8f
-                
-                // 添加入场动画
-                parent.animate()
-                    .alpha(0.95f)
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .setDuration(200)
-                    .setStartDelay((index * 50).toLong())
-                    .setInterpolator(DecelerateInterpolator())
-                    .start()
-                
-                // 设置阴影和Z轴顺序
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    parent.elevation = (24f - abs(index - (aiWindows.size - 1) / 2) * 6f).coerceAtLeast(8f)
-                    parent.translationZ = -abs(index - (aiWindows.size - 1) / 2) * 12f
-                }
-                
-                // 确保每个WebView加载正确的URL
-                webView.loadUrl(when (index) {
-                    0 -> "https://kimi.moonshot.cn"
-                    1 -> "https://chat.deepseek.com"
-                    else -> "https://www.doubao.com"
-                })
-            }
+        ).apply {
+            gravity = Gravity.CENTER
         }
 
-        val cardWidth = screenWidth - 48.dpToPx()
-        val cardHeight = (screenHeight * 0.65f).toInt()  // 减小卡片高度
-        val cardOverlap = cardWidth * 0.15f  // 卡片重叠的宽度
-        val maxRotation = 5f  // 最大旋转角度
-        
-        // 计算中心卡片的索引
-        val centerIndex = (aiWindows.size - 1) / 2
-        
-        aiWindows.forEachIndexed { index, webView ->
-            val parent = webView.parent as? View ?: return@forEachIndexed
-            val params = parent.layoutParams as WindowManager.LayoutParams
-            val distanceFromCenter = index - centerIndex
-            
-            // 计算基础位置
-            val baseX = screenWidth / 2 - cardWidth / 2 + (distanceFromCenter * (cardWidth - cardOverlap))
-            
-            // 应用位置和变换
-                params.width = cardWidth
-                params.height = cardHeight
-            params.x = baseX.toInt()
-            params.y = screenHeight / 2 - cardHeight / 2
-            
-            // 计算缩放和透明度
-            val scale = 1f - (abs(distanceFromCenter) * 0.1f).coerceIn(0f, 0.2f)
-            val alpha = 1f - (abs(distanceFromCenter) * 0.2f).coerceIn(0f, 0.4f)
-            
-            // 计算旋转角度
-            val rotation = maxRotation * distanceFromCenter
-            
-            // 应用变换
-                parent.scaleX = scale
-                parent.scaleY = scale
-                parent.alpha = alpha
-                parent.rotation = rotation
-            
-            // 增强阴影效果
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                parent.elevation = (24f - abs(distanceFromCenter) * 6f).coerceAtLeast(8f)
-                parent.translationZ = -abs(distanceFromCenter.toFloat()) * 12f
-                
-                // 为中心卡片添加更强的阴影
-                if (index == centerIndex) {
-                    parent.elevation = 32f
-                    parent.translationZ = 16f
-                }
-            }
-            
-            // 添加卡片背景和边框
-                parent.background = GradientDrawable().apply {
-                    setColor(android.graphics.Color.WHITE)
-                    cornerRadius = 24.dpToPx().toFloat()
-                setStroke(2, android.graphics.Color.parseColor("#E0E0E0"))
-            }
-            
-            try {
-                windowManager?.updateViewLayout(parent, params)
-            } catch (e: Exception) {
-                Log.e("FloatingService", "更新卡片位置失败", e)
-            }
-        }
-        
-        // 如果下滑距离超过阈值，退出卡片模式
-        if (progress > 0.5f) {
-            hideCardView()
-        }
-    }
-    
-    private fun closeAllWindows() {
-        // 修改关闭窗口逻辑，不清除 WebView
-        cachedCardViews.forEachIndexed { index, cardView ->
-            cardView.animate()
-                .alpha(0f)
-                .translationY(-screenHeight.toFloat())
-                .scaleX(0.8f)
-                .scaleY(0.8f)
-                .setStartDelay((index * 50).toLong())
-                .setDuration(200)
-                .withEndAction {
-                    try {
-                        (cardView.parent as? ViewGroup)?.removeView(cardView)
-                    } catch (e: Exception) {
-                        Log.e("FloatingService", "移除窗口失败", e)
-                    }
-                }
-                .start()
-        }
-        isCardViewMode = false
-    }
-    
-    private fun createThumbnail(webView: WebView): android.graphics.Bitmap {
-        val scale = resources.displayMetrics.density
-        val width = (webView.width / scale).toInt()
-        val height = (webView.height / scale).toInt()
-        val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bitmap)
-        canvas.scale(1/scale, 1/scale)
-        webView.draw(canvas)
-        return bitmap
-    }
-
-    private fun showThumbnail(index: Int, parent: View) {
         try {
-            val thumbnailView = thumbnailViews.getOrPut(index) {
-                ImageView(this).apply {
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                    scaleType = ImageView.ScaleType.FIT_XY
-                    
-                    // 添加点击事件，点击缩略图时恢复WebView
-                    setOnClickListener {
-                        val webView = aiWindows.getOrNull(index)
-                        if (webView != null) {
-                            webView.visibility = View.VISIBLE
-                            this.visibility = View.GONE
-                            // 展开被点击的卡片
-                            expandCurrentCard(parent, index)
-                        }
-                    }
-                }
-            }
+            windowManager?.addView(voiceAnimationView, params)
             
-            thumbnailCache[index]?.let { bitmap ->
-                thumbnailView.setImageBitmap(bitmap)
-                thumbnailView.visibility = View.VISIBLE
-                (parent as? ViewGroup)?.addView(thumbnailView)
-            }
+            // 开始动画
+            val animation = AnimationUtils.loadAnimation(this, R.anim.voice_ripple)
+            voiceAnimationView?.findViewById<View>(R.id.voice_ripple)?.startAnimation(animation)
         } catch (e: Exception) {
-            Log.e("FloatingService", "显示缩略图失败: ${e.message}")
+            Log.e("FloatingService", "显示语音动画失败", e)
         }
     }
 
-    private fun hideThumbnail(index: Int, parent: View) {
+    private fun hideVoiceSearchAnimation() {
         try {
-            thumbnailViews[index]?.let { thumbnailView ->
-                thumbnailView.visibility = View.GONE
-                (parent as? ViewGroup)?.removeView(thumbnailView)
-                thumbnailViews.remove(index)
+            voiceAnimationView?.let {
+                windowManager?.removeView(it)
+                voiceAnimationView = null
             }
         } catch (e: Exception) {
-            Log.e("FloatingService", "隐藏缩略图失败: ${e.message}")
+            Log.e("FloatingService", "隐藏语音动画失败", e)
         }
     }
 
-    private fun updateCardVisibility(index: Int, isExpanded: Boolean) {
-        val webView = aiWindows.getOrNull(index) ?: return
-        val parent = webView.parent as? View ?: return
-        
-        if (isExpanded) {
-            // 创建并缓存其他卡片的缩略图
-            aiWindows.forEachIndexed { i, otherWebView ->
-                if (i != index) {
-                    try {
-                        thumbnailCache[i] = createThumbnail(otherWebView)
-                        showThumbnail(i, otherWebView.parent as View)
-                        otherWebView.visibility = View.INVISIBLE
-                    } catch (e: Exception) {
-                        Log.e("FloatingService", "创建缩略图失败: ${e.message}")
-                    }
-                }
-            }
-        } else {
-            // 恢复其他卡片的显示
-            aiWindows.forEachIndexed { i, otherWebView ->
-                if (i != index) {
-                    try {
-                        otherWebView.visibility = View.VISIBLE
-                        hideThumbnail(i, otherWebView.parent as View)
-                        // 清理不需要的缩略图缓存
-                        thumbnailCache[i]?.recycle()
-                        thumbnailCache.remove(i)
-                    } catch (e: Exception) {
-                        Log.e("FloatingService", "恢复WebView显示失败: ${e.message}")
-                    }
-                }
-            }
+    private fun showCardOptions(cardView: View, index: Int) {
+        val popupMenu = android.widget.PopupMenu(this, cardView)
+        val menu = popupMenu.menu
+
+        // 添加菜单项
+        menu.add("移动到顶部").setOnMenuItemClickListener {
+            moveCardToTop(index)
+            true
         }
+
+        menu.add("移动到底部").setOnMenuItemClickListener {
+            moveCardToBottom(index)
+            true
+        }
+
+        menu.add("删除").setOnMenuItemClickListener {
+            removeCard(index)
+            true
+        }
+
+        popupMenu.show()
     }
-    
-    override fun onDestroy() {
-        try {
-            memoryCheckHandler?.removeCallbacksAndMessages(null)
-            memoryCheckHandler = null
-            
-            recognizer?.destroy()
-            recognizer = null
-            cardsContainer = null  // 清除引用
-            
-            windowManager?.let { wm ->
-                floatingBallView?.let { view ->
-                    val parent = view.parent as? View
-                    if (parent != null) {
-                        wm.removeView(parent)
-                    }
-                }
-                
-                searchView?.let { view ->
-                    val parent = view.parent as? View
-                    if (parent != null) {
-                        wm.removeView(parent)
-                    }
-                }
-                
-                // 清理所有缓存的卡片和 WebView
-                cachedCardViews.forEach { cardView ->
-                    try {
-                        (cardView.parent as? ViewGroup)?.removeView(cardView)
-                    } catch (e: Exception) {
-                        Log.e("FloatingService", "移除卡片失败", e)
-                    }
-                }
-                aiWindows.forEach { webView ->
-                    webView.destroy()
-                }
-            }
-            
-            aiWindows.clear()
-            cachedCardViews.clear()
-            hasInitializedCards = false
-            
-            // 确保清理所有资源
-            cleanupMemory()
-            
-            super.onDestroy()
-        } catch (e: Exception) {
-            Log.e("FloatingService", "服务销毁失败", e)
-        }
+
+    private fun moveCardToTop(index: Int) {
+        if (index <= 0) return
         
-        // 清理缩略图缓存
-        thumbnailCache.forEach { (_, bitmap) ->
-            bitmap.recycle()
+        val card = cardsContainer?.getChildAt(index) ?: return
+        cardsContainer?.removeViewAt(index)
+        cardsContainer?.addView(card, 0)
+        
+        // 更新引擎顺序
+        val engines = settingsManager.getEngineOrder().toMutableList()
+        val engine = engines.removeAt(index)
+        engines.add(0, engine)
+        settingsManager.saveEngineOrder(engines)
+        
+        // 重新排列所有卡片
+        rearrangeCards()
+    }
+
+    private fun moveCardToBottom(index: Int) {
+        val totalCards = cardsContainer?.childCount ?: return
+        if (index >= totalCards - 1) return
+        
+        val card = cardsContainer?.getChildAt(index) ?: return
+        cardsContainer?.removeViewAt(index)
+        cardsContainer?.addView(card)
+        
+        // 更新引擎顺序
+        val engines = settingsManager.getEngineOrder().toMutableList()
+        val engine = engines.removeAt(index)
+        engines.add(engine)
+        settingsManager.saveEngineOrder(engines)
+        
+        // 重新排列所有卡片
+        rearrangeCards()
+    }
+
+    private fun removeCard(index: Int) {
+        val totalCards = cardsContainer?.childCount ?: return
+        if (index < 0 || index >= totalCards) return
+        
+        cardsContainer?.removeViewAt(index)
+        aiWindows.removeAt(index)
+        
+        // 更新引擎顺序
+        val engines = settingsManager.getEngineOrder().toMutableList()
+        engines.removeAt(index)
+        settingsManager.saveEngineOrder(engines)
+        
+        // 重新排列所有卡片
+        rearrangeCards()
+    }
+
+    private fun rearrangeCards() {
+        val totalCards = cardsContainer?.childCount ?: return
+        for (i in 0 until totalCards) {
+            val card = cardsContainer?.getChildAt(i) ?: continue
+            card.translationY = (i * cardSpacing).toFloat()
         }
-        thumbnailCache.clear()
-        thumbnailViews.clear()
     }
 
     private fun setupMemoryMonitoring() {
         memoryCheckHandler = Handler(Looper.getMainLooper())
-        
-        val memoryRunnable = object : Runnable {
+        val memoryCheckRunnable = object : Runnable {
             override fun run() {
-                try {
-                    val runtime = Runtime.getRuntime()
-                    val usedMemory = runtime.totalMemory() - runtime.freeMemory()
-                    val memoryDelta = usedMemory - lastMemoryUsage
-                    lastMemoryUsage = usedMemory
-                    
-                    val uptime = System.currentTimeMillis() - startTime
-                    
-                    Log.d("MemoryMonitor", """
-                        运行时间: ${uptime/1000}秒
-                        已用内存: ${usedMemory/1024/1024}MB
-                        内存变化: ${memoryDelta/1024/1024}MB
-                        WebView数量: ${aiWindows.size}
-                        缓存卡片数量: ${cachedCardViews.size}
-                        缩略图缓存数量: ${thumbnailCache.size}
-                    """.trimIndent())
-                    
-                    // 检查是否存在内存泄漏风险
-                    if (memoryDelta > 50 * 1024 * 1024) { // 如果30秒内内存增长超过50MB
-                        Log.w("MemoryMonitor", "检测到可能的内存泄漏")
-                        // 主动触发GC
-                        System.gc()
-                    }
-                    
-                    // 检查总内存使用是否接近临界值
-                    val maxMemory = runtime.maxMemory()
-                    if (usedMemory > maxMemory * 0.8) { // 使用超过80%最大内存
-                        Log.w("MemoryMonitor", "内存使用接近上限，开始清理")
-                        cleanupMemory()
-                    }
-                } catch (e: Exception) {
-                    Log.e("MemoryMonitor", "内存监控失败", e)
-                }
-                
+                checkMemoryUsage()
                 memoryCheckHandler?.postDelayed(this, MEMORY_CHECK_INTERVAL)
             }
         }
-        
-        memoryCheckHandler?.post(memoryRunnable)
+        memoryCheckHandler?.post(memoryCheckRunnable)
     }
 
-    private fun cleanupMemory() {
-        try {
-            // 清理缩略图缓存
-            thumbnailCache.forEach { (_, bitmap) ->
-                if (!bitmap.isRecycled) {
-                    bitmap.recycle()
-                }
-            }
-            thumbnailCache.clear()
-            
-            // 清理不可见的WebView
-            aiWindows.forEachIndexed { index, webView ->
-                if (webView.visibility != View.VISIBLE) {
-                    webView.clearCache(true)
-                    webView.clearHistory()
-                }
-            }
-            
-            // 强制GC
+    private fun checkMemoryUsage() {
+        val runtime = Runtime.getRuntime()
+        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+        
+        // 如果内存使用增加超过阈值，执行清理
+        if (usedMemory > lastMemoryUsage * 1.5) {
             System.gc()
+            Log.d("MemoryCheck", "执行内存清理")
+        }
+        
+        lastMemoryUsage = usedMemory
+    }
+    
+    override fun onDestroy() {
+        try {
+            // 停止内存监控
+            memoryCheckHandler?.removeCallbacksAndMessages(null)
+            
+            // 清理语音识别
+            recognizer?.destroy()
+            
+            // 移除所有视图
+            windowManager?.let { wm ->
+                floatingBallView?.let { wm.removeView(it) }
+                searchView?.let { wm.removeView(it) }
+                voiceAnimationView?.let { wm.removeView(it) }
+            }
+            
+            // 清理WebView
+                aiWindows.forEach { webView ->
+                webView.stopLoading()
+                webView.clearHistory()
+                webView.clearCache(true)
+                    webView.destroy()
+                }
+            aiWindows.clear()
+            
+            // 清理缓存
+            thumbnailCache.clear()
+            thumbnailViews.clear()
+            cachedCardViews.clear()
+            
+            super.onDestroy()
         } catch (e: Exception) {
-            Log.e("MemoryMonitor", "清理内存失败", e)
+            Log.e("FloatingService", "服务销毁时发生错误", e)
         }
     }
 
-    // 添加新的辅助方法来处理卡片展开
-    private fun expandCurrentCard(view: View, index: Int) {
-        try {
-            val params = view.layoutParams as LinearLayout.LayoutParams
-            val isExpanded = params.height > (screenHeight * 0.7f).toInt()
-            
-            if (!isExpanded) {
-                // 展开卡片前创建其他卡片的缩略图
-                updateCardVisibility(index, true)
-                
-                // 确保当前卡片的WebView是可见的
-                aiWindows[index].visibility = View.VISIBLE
-                
-                // 展开卡片
-                view.animate()
-                    .scaleX(1.1f)
-                    .scaleY(1.1f)
-                    .translationZ(25f)
-                    .setDuration(300)
-                    .withStartAction {
-                        // 使用缩略图渐隐其他卡片
-                        aiWindows.forEachIndexed { i, _ ->
-                            if (i != index) {
-                                thumbnailViews[i]?.animate()
-                                    ?.alpha(0.5f)
-                                    ?.scaleX(0.8f)
-                                    ?.scaleY(0.8f)
-                                    ?.setDuration(200)
-                                    ?.start()
-                            }
-                        }
-                    }
-                    .withEndAction {
-                        params.height = (screenHeight * 0.85f).toInt()
-                        params.width = LinearLayout.LayoutParams.MATCH_PARENT
-                        params.setMargins(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
-                        view.layoutParams = params
-                    }
-                    .start()
-            } else {
-                // 恢复原始大小
-                view.animate()
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .translationZ(4f)
-                    .setDuration(300)
-                    .withStartAction {
-                        params.height = (screenHeight * 0.6f).toInt()
-                        params.width = LinearLayout.LayoutParams.MATCH_PARENT
-                        params.setMargins(16.dpToPx(), if (index == 0) 16.dpToPx() else 24.dpToPx(), 16.dpToPx(), 0)
-                        view.layoutParams = params
-                    }
-                    .withEndAction {
-                        // 恢复其他卡片的显示
-                        updateCardVisibility(index, false)
-                    }
-                    .start()
+    // 实现GestureCallback接口方法
+    override fun onGestureDetected(gesture: GestureManager.Gesture) {
+        when (gesture) {
+            GestureManager.Gesture.SWIPE_UP -> {
+                if (!isSearchVisible) {
+                    showSearchInput()
+                }
             }
-        } catch (e: Exception) {
-            Log.e("FloatingService", "展开/收起卡片失败", e)
+            GestureManager.Gesture.SWIPE_DOWN -> {
+                if (isSearchVisible) {
+                    searchView?.let { windowManager?.removeView(it) }
+                    searchView = null
+                    isSearchVisible = false
+                }
+            }
+            GestureManager.Gesture.LONG_PRESS -> {
+                quickMenuManager.showQuickMenu()
+            }
+        }
+    }
+
+    private fun performClick() {
+        if (!isSearchVisible) {
+            showSearchInput()
+        }
+    }
+
+    private fun closeAllWindows() {
+        aiWindows.forEach { webView ->
+            webView.stopLoading()
+            webView.loadUrl("about:blank")
+        }
+    }
+
+    override fun onDoubleTap() {
+        // Handle double tap gesture
+        if (!isSearchVisible) {
+            showSearchInput()
         }
     }
 
@@ -2541,96 +1338,78 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
-                
-                // 设置布局算法
                 layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                
-                // 设置默认缩放
-                setInitialScale(100)
-                
-                // 启用视口元标记
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                
-                // 设置内容模式
-                setUseWideViewPort(true)
-                setLoadWithOverviewMode(true)
-                
-                // 允许混合内容
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 }
-                
-                // 允许通用访问
                 allowContentAccess = true
                 allowFileAccess = true
-                
-                // 启用DOM存储API
-                domStorageEnabled = true
-                
-                // 启用数据库存储API
-                databaseEnabled = true
-                
-                // 设置缓存模式
                 cacheMode = WebSettings.LOAD_NO_CACHE
-                
-                // 启用JavaScript接口
                 javaScriptCanOpenWindowsAutomatically = true
-                
-                // 设置默认编码
                 defaultTextEncodingName = "UTF-8"
-                
-                // 允许加载本地内容
                 allowFileAccessFromFileURLs = true
                 allowUniversalAccessFromFileURLs = true
-                
-                // 设置UA
-                userAgentString = userAgentString + " Mobile"
             }
-
-            // 设置WebView的背景为透明
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            
-            // 设置滚动条样式
             isVerticalScrollBarEnabled = true
             scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
-            
-            // 启用硬件加速
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 setLayerType(View.LAYER_TYPE_HARDWARE, null)
             }
+        }
+    }
+
+    override fun onSingleTap() {
+        if (!isSearchVisible) {
+            showSearchInput()
+        }
+    }
+
+    override fun onLongPress() {
+        quickMenuManager.showQuickMenu()
+    }
+
+    override fun onSwipeLeft() {
+        // Not used in current implementation
+    }
+
+    override fun onSwipeRight() {
+        // Not used in current implementation
+    }
+
+    override fun onSwipeUp() {
+        if (!isSearchVisible) {
+            showSearchInput()
+        }
+    }
+
+    override fun onSwipeDown() {
+        if (isSearchVisible) {
+            searchView?.let { windowManager?.removeView(it) }
+            searchView = null
+            isSearchVisible = false
+        }
+    }
+
+    override fun onDrag(x: Float, y: Float) {
+        floatingBallView?.let { view ->
+            val params = view.layoutParams as WindowManager.LayoutParams
+            params.x = x.toInt()
+            params.y = y.toInt()
             
-            webViewClient = object : android.webkit.WebViewClient() {
-                override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: android.net.http.SslError?) {
-                    handler?.proceed()
-                }
+            // Ensure the ball stays within screen bounds
+            params.x = params.x.coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
+            params.y = params.y.coerceIn(0, screenHeight - view.height)
+            
+            try {
+                windowManager?.updateViewLayout(view, params)
+            } catch (e: Exception) {
+                Log.e("FloatingService", "更新悬浮球位置失败", e)
             }
         }
     }
 
-    private fun switchToNextEngine() {
-        currentEngineIndex = (currentEngineIndex + 1) % aiEngines.size
-        updateActiveWindow()
-    }
-
-    private fun switchToPreviousEngine() {
-        currentEngineIndex = if (currentEngineIndex > 0) currentEngineIndex - 1 else aiEngines.size - 1
-        updateActiveWindow()
-    }
-
-    private fun updateActiveWindow() {
-        aiWindows.forEachIndexed { index, webView ->
-            if (index == currentEngineIndex) {
-                webView.visibility = View.VISIBLE
-                // 更新悬浮球显示的当前AI名称
-                updateFloatingBallText(aiEngines[currentEngineIndex].name)
-            } else {
-                webView.visibility = View.GONE
-            }
-        }
-    }
-
-    private fun updateFloatingBallText(text: String) {
-        floatingBallView?.findViewById<TextView>(R.id.floating_ball_text)?.text = text
+    override fun onDragEnd(x: Float, y: Float) {
+        // Save the final position if needed
     }
 } 

@@ -2,6 +2,7 @@ R_DEF: Internal format may change without notice
 local
 anim menu_hide
 anim menu_show
+anim voice_ripple
 anim window_hide
 anim window_show
 color accent
@@ -16,6 +17,7 @@ color teal_200
 color teal_700
 color transparent_black
 color white
+drawable card_header_background
 drawable floating_ball_background
 drawable ic_bluetooth
 drawable ic_brightness
@@ -28,8 +30,10 @@ drawable ic_screenshot
 drawable ic_search
 drawable ic_settings
 drawable ic_wifi
+drawable paste_button_background
 drawable quick_menu_background
 drawable search_background
+drawable voice_ripple_background
 id auto_start_switch
 id back_button
 id btn_bluetooth
@@ -38,6 +42,7 @@ id btn_recent_apps
 id btn_screenshot
 id btn_settings
 id btn_wifi
+id content_area
 id drag_handle
 id engine_icon
 id engine_list
@@ -46,11 +51,16 @@ id floating_ball_icon
 id floating_ball_text
 id history_list
 id history_text
+id paste_button
 id search_button
 id search_input
+id title_bar
 id voice_input_button
+id voice_ripple
+id web_view
 layout activity_permission
 layout activity_settings
+layout card_ai_engine
 layout engine_item
 layout floating_ball
 layout floating_ball_layout
@@ -59,6 +69,7 @@ layout quick_menu_layout
 layout search_history_item
 layout search_history_layout
 layout search_input_layout
+layout voice_search_animation
 mipmap ic_launcher
 string app_name
 string auto_hide
