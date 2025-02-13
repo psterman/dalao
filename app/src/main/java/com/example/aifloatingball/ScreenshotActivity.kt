@@ -29,6 +29,7 @@ class ScreenshotActivity : Activity() {
         private const val REQUEST_SCREENSHOT = 1001
         private const val VIRTUAL_DISPLAY_FLAGS = DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY or
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC
+        const val ACTION_SCREENSHOT_COMPLETED = "com.example.aifloatingball.SCREENSHOT_COMPLETED"
     }
 
     private var mediaProjection: MediaProjection? = null
@@ -84,6 +85,8 @@ class ScreenshotActivity : Activity() {
                         Log.e("ScreenshotActivity", "保存截图失败", e)
                         Toast.makeText(this@ScreenshotActivity, "保存截图失败: ${e.message}", Toast.LENGTH_SHORT).show()
                     } finally {
+                        // 发送广播通知服务恢复悬浮球状态
+                        sendBroadcast(Intent(ACTION_SCREENSHOT_COMPLETED))
                         // 清理资源
                         cleanupProjection()
                         finish()
@@ -96,6 +99,7 @@ class ScreenshotActivity : Activity() {
         } catch (e: Exception) {
             Log.e("ScreenshotActivity", "启动截图失败", e)
             Toast.makeText(this, "启动截图失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            sendBroadcast(Intent(ACTION_SCREENSHOT_COMPLETED))
             finish()
         }
     }
@@ -118,12 +122,14 @@ class ScreenshotActivity : Activity() {
                     createVirtualDisplay()
                 } else {
                     Toast.makeText(this, "截图已取消", Toast.LENGTH_SHORT).show()
+                    sendBroadcast(Intent(ACTION_SCREENSHOT_COMPLETED))
                     finish()
                 }
             }
         } catch (e: Exception) {
             Log.e("ScreenshotActivity", "处理截图结果失败", e)
             Toast.makeText(this, "处理截图结果失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            sendBroadcast(Intent(ACTION_SCREENSHOT_COMPLETED))
             finish()
         }
     }
@@ -141,6 +147,7 @@ class ScreenshotActivity : Activity() {
         } catch (e: Exception) {
             Log.e("ScreenshotActivity", "创建虚拟显示失败", e)
             Toast.makeText(this, "创建虚拟显示失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            sendBroadcast(Intent(ACTION_SCREENSHOT_COMPLETED))
             cleanupProjection()
             finish()
         }
@@ -182,9 +189,22 @@ class ScreenshotActivity : Activity() {
             sendBroadcast(mediaScanIntent)
 
             Toast.makeText(this, "截图已保存至: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+            
+            // 发送广播通知服务恢复悬浮球状态
+            sendBroadcast(Intent(ACTION_SCREENSHOT_COMPLETED))
+            
+            // 清理资源并结束活动
+            Handler(Looper.getMainLooper()).postDelayed({
+                cleanupProjection()
+                finish()
+            }, 500) // 延迟500ms确保广播能被接收
         } catch (e: Exception) {
             Log.e("ScreenshotActivity", "保存截图失败", e)
             Toast.makeText(this, "保存截图失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            // 即使保存失败也发送广播恢复悬浮球状态
+            sendBroadcast(Intent(ACTION_SCREENSHOT_COMPLETED))
+            cleanupProjection()
+            finish()
         }
     }
 

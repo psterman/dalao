@@ -6,8 +6,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -118,6 +120,30 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private lateinit var gestureDetector: GestureDetector
     
+    private var screenshotModeStartTime: Long = 0
+    
+    private val screenshotReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ScreenshotActivity.ACTION_SCREENSHOT_COMPLETED) {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - screenshotModeStartTime < 1000) {
+                    // 如果间隔过短，忽略该广播事件
+                    Log.d("FloatingService", "截图完成广播间隔过短，忽略")
+                    return
+                }
+                
+                Log.d("FloatingService", "收到截图完成广播")
+                // 立即在主线程上执行恢复
+                Handler(Looper.getMainLooper()).post {
+                    Log.d("FloatingService", "开始恢复悬浮球状态")
+                    restoreFloatingBall()
+                }
+            }
+        }
+    }
+    
+    private var isScreenshotMode = false  // 添加标记位
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -126,6 +152,19 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             setupMemoryMonitoring()
             Log.d("FloatingService", "服务开始创建")
             super.onCreate()
+            
+            // 注册截图完成广播接收器
+            val filter = IntentFilter(ScreenshotActivity.ACTION_SCREENSHOT_COMPLETED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(
+                    screenshotReceiver,
+                    filter,
+                    Context.RECEIVER_NOT_EXPORTED
+                )
+            } else {
+                registerReceiver(screenshotReceiver, filter)
+            }
+            Log.d("FloatingService", "广播接收器注册成功")
             
             // 初始化 SettingsManager
             settingsManager = SettingsManager.getInstance(this)
@@ -405,11 +444,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             lastTouchX = event.rawX
                             lastTouchY = event.rawY
                             
-                            voiceSearchHandler.postDelayed({
-                                if (!isDragging) {
-                                    startVoiceSearchMode()
-                                }
-                            }, LONG_PRESS_TIMEOUT)
+                            // 只在非截图模式下启动语音搜索延时
+                            if (!isScreenshotMode) {
+                                voiceSearchHandler.postDelayed({
+                                    if (!isDragging) {
+                                        startVoiceSearchMode()
+                                    }
+                                }, LONG_PRESS_TIMEOUT)
+                            }
                             true
                         }
                         MotionEvent.ACTION_MOVE -> {
@@ -475,17 +517,149 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     private fun startScreenshotMode(view: View) {
-        // 改变悬浮球外观
-        view.setBackgroundColor(android.graphics.Color.RED)
-        view.alpha = 0.5f
-        view.scaleX = 1.5f
-        view.scaleY = 1.5f
+        if (isScreenshotMode) {
+            Log.d("FloatingService", "已经在截图模式中，忽略请求")
+            return
+        }
         
-        // 启动系统截图
-        // 这里需要通过Activity来启动截图
-        val intent = Intent(this, ScreenshotActivity::class.java)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(intent)
+        Log.d("FloatingService", "开始截图模式")
+        
+        try {
+            // 保存原始状态
+            val originalState = Bundle().apply {
+                putFloat("originalAlpha", view.alpha)
+                putFloat("originalScaleX", view.scaleX)
+                putFloat("originalScaleY", view.scaleY)
+                putInt("originalColor", (view.background as? GradientDrawable)?.color?.defaultColor 
+                    ?: android.graphics.Color.parseColor("#2196F3"))
+            }
+            view.tag = originalState
+            isScreenshotMode = true
+            screenshotModeStartTime = System.currentTimeMillis()
+
+            // 改变悬浮球外观为红色
+            val shape = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(android.graphics.Color.RED)
+            }
+            view.background = shape
+            view.alpha = 0.5f
+            view.scaleX = 1.5f
+            view.scaleY = 1.5f
+
+            // 启动系统截图
+            val intent = Intent(this, ScreenshotActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra("REQUEST_SCREENSHOT", REQUEST_SCREENSHOT)
+            }
+            startActivity(intent)
+            
+            // 启动延迟任务，如果2秒内没有收到广播，主动恢复悬浮球状态
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (isScreenshotMode) {
+                    Log.d("FloatingService", "截图完成广播超时，主动恢复悬浮球状态")
+                    restoreFloatingBall()
+                }
+            }, 2000)
+            
+            // 直接返回，不再执行后面的代码
+            return
+        } catch (e: Exception) {
+            Log.e("FloatingService", "启动截图模式失败", e)
+            isScreenshotMode = false
+            view.tag = null
+            restoreFloatingBall()
+        }
+    }
+    
+    private fun restoreFloatingBall() {
+        if (!isScreenshotMode) {
+            Log.d("FloatingService", "当前不在截图模式，忽略恢复请求")
+            return
+        }
+        
+        Log.d("FloatingService", "开始恢复悬浮球状态")
+        
+        floatingBallView?.let { view ->
+            try {
+                val originalState = view.tag as? Bundle
+                if (originalState == null) {
+                    Log.e("FloatingService", "找不到原始状态，使用默认值")
+                    // 使用默认值恢复
+                    val defaultShape = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(android.graphics.Color.parseColor("#2196F3"))
+                    }
+                    view.background = defaultShape
+                    view.alpha = 1.0f
+                    view.scaleX = 1.0f
+                    view.scaleY = 1.0f
+                    isScreenshotMode = false
+                    view.tag = null
+                } else {
+                    // 先恢复颜色
+                    val shape = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(originalState.getInt("originalColor"))
+                    }
+                    view.background = shape
+
+                    // 渐变动画恢复
+                    ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 300
+                        interpolator = DecelerateInterpolator()
+                        addUpdateListener { animator ->
+                            val fraction = animator.animatedFraction
+                            view.scaleX = 1.5f + (originalState.getFloat("originalScaleX") - 1.5f) * fraction
+                            view.scaleY = 1.5f + (originalState.getFloat("originalScaleY") - 1.5f) * fraction
+                            view.alpha = 0.5f + (originalState.getFloat("originalAlpha") - 0.5f) * fraction
+                        }
+                        addListener(object : android.animation.Animator.AnimatorListener {
+                            override fun onAnimationStart(animation: android.animation.Animator) {}
+                            override fun onAnimationEnd(animation: android.animation.Animator) {
+                                // 确保最终状态完全正确
+                                view.scaleX = originalState.getFloat("originalScaleX")
+                                view.scaleY = originalState.getFloat("originalScaleY")
+                                view.alpha = originalState.getFloat("originalAlpha")
+                                isScreenshotMode = false
+                                view.tag = null
+                                Log.d("FloatingService", "动画完成，状态已重置，isScreenshotMode: $isScreenshotMode")
+                            }
+                            override fun onAnimationCancel(animation: android.animation.Animator) {
+                                // 确保在动画取消时也重置状态
+                                view.scaleX = originalState.getFloat("originalScaleX")
+                                view.scaleY = originalState.getFloat("originalScaleY")
+                                view.alpha = originalState.getFloat("originalAlpha")
+                                isScreenshotMode = false
+                                view.tag = null
+                                Log.d("FloatingService", "动画取消，状态已重置，isScreenshotMode: $isScreenshotMode")
+                            }
+                            override fun onAnimationRepeat(animation: android.animation.Animator) {}
+                        })
+                        start()
+                    }
+                }
+
+                Log.d("FloatingService", "悬浮球状态开始恢复（动画）")
+            } catch (e: Exception) {
+                Log.e("FloatingService", "恢复悬浮球状态失败", e)
+                // 强制恢复默认状态
+                val defaultShape = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(android.graphics.Color.parseColor("#2196F3"))
+                }
+                view.background = defaultShape
+                view.alpha = 1.0f
+                view.scaleX = 1.0f
+                view.scaleY = 1.0f
+                isScreenshotMode = false
+                view.tag = null
+                Log.d("FloatingService", "强制恢复默认状态，isScreenshotMode: $isScreenshotMode")
+            }
+        }
+        
+        isScreenshotMode = false
+        Log.d("FloatingService", "悬浮球状态恢复完毕，isScreenshotMode: $isScreenshotMode")
     }
     
     // 工具方法
@@ -1315,6 +1489,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     override fun onDestroy() {
         try {
+            // 注销截图完成广播接收器
+            unregisterReceiver(screenshotReceiver)
+            
             // 停止内存监控
             memoryCheckHandler?.removeCallbacksAndMessages(null)
             
