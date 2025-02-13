@@ -1,0 +1,568 @@
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\SettingsActivity.kt:57: Error: Overriding method should call super.onBackPressed [MissingSuperCall]
+    override fun onBackPressed() {
+                 ~~~~~~~~~~~~~
+
+   Explanation for issues of type "MissingSuperCall":
+   Some methods, such as View#onDetachedFromWindow, require that you also call
+   the super implementation as part of your method.
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\menu\QuickMenuManager.kt:31: Warning: Field requires API level 26 (current min is 24): android.view.WindowManager.LayoutParams#TYPE_APPLICATION_OVERLAY [InlinedApi]
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "InlinedApi":
+   This check scans through all the Android API field references in the
+   application and flags certain constants, such as static final integers and
+   Strings, which were introduced in later versions. These will actually be
+   copied into the class files rather than being referenced, which means that
+   the value is available even when running on older devices. In some cases
+   that's fine, and in other cases it can result in a runtime crash or
+   incorrect behavior. It depends on the context, so consider the code
+   carefully and decide whether it's safe and can be suppressed or whether the
+   code needs to be guarded.
+
+   If you really want to use this API and don't need to support older devices
+   just set the minSdkVersion in your build.gradle or AndroidManifest.xml
+   files.
+
+   If your code is deliberately accessing newer APIs, and you have ensured
+   (e.g. with conditional execution) that this code will only ever be called
+   on a supported platform, then you can annotate your class or method with
+   the @TargetApi annotation specifying the local minimum SDK to apply, such
+   as @TargetApi(11), such that this check considers 11 rather than your
+   manifest file's minimum SDK as the required API level.
+
+C:\Users\Administrator\Desktop\dalao\app\build.gradle:13: Warning: Not targeting the latest versions of Android; compatibility modes apply. Consider testing and updating this version. Consult the android.os.Build.VERSION_CODES javadoc for details. [OldTargetApi]
+        targetSdk 34  // 降低目标SDK版本
+        ~~~~~~~~~~~~
+
+   Explanation for issues of type "OldTargetApi":
+   When your application or sdk runs on a version of Android that is more
+   recent than your targetSdkVersion specifies that it has been tested with,
+   various compatibility modes kick in. This ensures that your application
+   continues to work, but it may look out of place. For example, if the
+   targetSdkVersion is less than 14, your app may get an option button in the
+   UI.
+
+   To fix this issue, set the targetSdkVersion to the highest available value.
+   Then test your app to make sure everything works correctly. You may want to
+   consult the compatibility notes to see what changes apply to each version
+   you are adding support for:
+   https://developer.android.com/reference/android/os/Build.VERSION_CODES.html
+   as well as follow this guide:
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.
+   html
+
+   https://developer.android.com/distribute/best-practices/develop/target-sdk.html
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:1121: Error: Suspicious indentation: This is indented but is not continuing the previous expression (val recognizedText =...) [SuspiciousIndentation]
+                            performSearch(recognizedText, cardsContainer!!)
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:1120: Previous statement here
+
+   Explanation for issues of type "SuspiciousIndentation":
+   This check looks for cases where the indentation suggests a grouping that
+   isn't actually there in the code. A common example of this would be
+   something like
+   if (column > width)
+       line++
+       column = 0
+   Here, the column = 0 line will be executed every single time, not just if
+   the condition is true.
+
+   Available options:
+
+   **always-run** (default is false):
+   Whether this check should be included while editing.
+
+   While you're editing, it's common to have a temporary situation where you have suspicious indentation scenarios -- e.g. you start typing an `if` statement on the line above something you want to make conditional, and you haven't indented it yet. It can be distracting and misleading to suddenly have both statements light up as errors. Therefore, lint will avoid including this check when running on the fly in the editor, unless it looks like the file has not been recently edited. With this option, you can turn it on in all cases.
+
+   To configure this option, use a `lint.xml` file with an <option> like this:
+
+   ```xml
+   <lint>
+       <issue id="SuspiciousIndentation">
+           <option name="always-run" value="false" />
+       </issue>
+   </lint>
+   ```
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:560: Warning: Avoid passing null as the view root (needed to resolve layout parameters on the inflated layout's root element) [InflateParams]
+            val searchContainer = LayoutInflater.from(this).inflate(R.layout.search_input_layout, null, false)
+                                                                                                  ~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:778: Warning: Avoid passing null as the view root (needed to resolve layout parameters on the inflated layout's root element) [InflateParams]
+        val cardView = LayoutInflater.from(this).inflate(R.layout.card_ai_engine, null)
+                                                                                  ~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:1171: Warning: Avoid passing null as the view root (needed to resolve layout parameters on the inflated layout's root element) [InflateParams]
+            voiceAnimationView = LayoutInflater.from(this).inflate(R.layout.voice_search_animation, null)
+                                                                                                    ~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\menu\QuickMenuManager.kt:23: Warning: Avoid passing null as the view root (needed to resolve layout parameters on the inflated layout's root element) [InflateParams]
+        menuView = LayoutInflater.from(context).inflate(R.layout.quick_menu_layout, null).apply {
+                                                                                    ~~~~
+
+   Explanation for issues of type "InflateParams":
+   When inflating a layout, avoid passing in null as the parent view, since
+   otherwise any layout parameters on the root of the inflated layout will be
+   ignored.
+
+   https://www.bignerdranch.com/blog/understanding-androids-layoutinflater-inflate/
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\SettingsActivity.kt:34: Warning: Use SwitchCompat from AppCompat or SwitchMaterial from Material library [UseSwitchCompatOrMaterialCode from androidx.appcompat]
+        val autoStartSwitch = findViewById<Switch>(R.id.auto_start_switch)
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "UseSwitchCompatOrMaterialCode":
+   Use SwitchCompat from AppCompat or SwitchMaterial from Material library
+
+   Vendor: Android Open Source Project
+   Identifier: androidx.appcompat
+   Feedback: https://issuetracker.google.com/issues/new?component=460343
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_settings.xml:29: Warning: Use SwitchCompat from AppCompat or SwitchMaterial from Material library [UseSwitchCompatOrMaterialXml from androidx.appcompat]
+    <Switch
+    ^
+
+   Explanation for issues of type "UseSwitchCompatOrMaterialXml":
+   Use SwitchCompat from AppCompat or SwitchMaterial from Material library
+
+   Vendor: Android Open Source Project
+   Identifier: androidx.appcompat
+   Feedback: https://issuetracker.google.com/issues/new?component=460343
+
+C:\Users\Administrator\Desktop\dalao\app\build.gradle:55: Warning: A newer version of androidx.annotation:annotation than 1.7.1 is available: 1.9.1 [GradleDependency]
+    implementation 'androidx.annotation:annotation:1.7.1'
+                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "GradleDependency":
+   This detector looks for usages of libraries where the version you are using
+   is not the current stable release. Using older versions is fine, and there
+   are cases where you deliberately want to stick with an older version.
+   However, you may simply not be aware that a more recent version is
+   available, and that is what this lint check helps find.
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_history_item.xml:15: Error: Must use app:tint instead of android:tint [UseAppTint from androidx.appcompat]
+        android:tint="#757575"/>
+        ~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "UseAppTint":
+   ImageView or ImageButton uses android:tint instead of app:tint
+
+   Vendor: Android Open Source Project
+   Identifier: androidx.appcompat
+   Feedback: https://issuetracker.google.com/issues/new?component=460343
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:855: Warning: Using setJavaScriptEnabled can introduce XSS vulnerabilities into your application, review carefully [SetJavaScriptEnabled]
+            javaScriptEnabled = true
+            ~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:886: Warning: Using setJavaScriptEnabled can introduce XSS vulnerabilities into your application, review carefully [SetJavaScriptEnabled]
+            javaScriptEnabled = true
+            ~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:1417: Warning: Using setJavaScriptEnabled can introduce XSS vulnerabilities into your application, review carefully [SetJavaScriptEnabled]
+                javaScriptEnabled = true
+                ~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "SetJavaScriptEnabled":
+   Your code should not invoke setJavaScriptEnabled if you are not sure that
+   your app really requires JavaScript support.
+
+   https://goo.gle/SetJavaScriptEnabled
+   https://developer.android.com/training/articles/security-tips
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:909: Warning: Permitting connections with SSL-related errors could allow eavesdroppers to intercept data sent by your app, which impacts the privacy of your users. Consider canceling the connections by invoking SslErrorHandler#cancel(). [WebViewClientOnReceivedSslError]
+                handler?.proceed()
+                ~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:909: Warning: Permitting connections with SSL-related errors could allow eavesdroppers to intercept data sent by your app, which impacts the privacy of your users. Consider canceling the connections by invoking SslErrorHandler#cancel(). [WebViewClientOnReceivedSslError]
+                handler?.proceed()
+                ~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "WebViewClientOnReceivedSslError":
+   This check looks for onReceivedSslError implementations that invoke
+   SslErrorHandler#proceed.
+
+   https://goo.gle/WebViewClientOnReceivedSslError
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:302: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:385: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:867: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:903: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:1426: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:1440: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\PermissionActivity.kt:160: Warning: Unnecessary; SDK_INT is always >= 24 [ObsoleteSdkInt]
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values-v21: Warning: This folder configuration (v21) is unnecessary; minSdkVersion is 24. Merge all the resources in this folder into values. [ObsoleteSdkInt]
+
+   Explanation for issues of type "ObsoleteSdkInt":
+   This check flags version checks that are not necessary, because the
+   minSdkVersion (or surrounding known API level) is already at least as high
+   as the version checked for.
+
+   Similarly, it also looks for resources in -vNN folders, such as values-v14
+   where the version qualifier is less than or equal to the minSdkVersion,
+   where the contents should be merged into the best folder.
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\engine_item.xml:2: Warning: This tag and its children can be replaced by one <TextView/> and a compound drawable [UseCompoundDrawables]
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ ~~~~~~~~~~~~
+
+   Explanation for issues of type "UseCompoundDrawables":
+   A LinearLayout which contains an ImageView and a TextView can be more
+   efficiently handled as a compound drawable (a single TextView, using the
+   drawableTop, drawableLeft, drawableRight and/or drawableBottom attributes
+   to draw one or more images adjacent to the text).
+
+   If the two widgets are offset from each other with margins, this can be
+   replaced with a drawablePadding attribute.
+
+   There's a lint quickfix to perform this conversion in the Eclipse plugin.
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\drawable\ic_settings.xml:9: Warning: Very long vector path (904 characters), which is bad for performance. Considering reducing precision, removing minor details or rasterizing vector. [VectorPath]
+        android:pathData="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"/>
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "VectorPath":
+   Using long vector paths is bad for performance. There are several ways to
+   make the pathData shorter:
+   * Using less precision
+   * Removing some minor details
+   * Using the Android Studio vector conversion tool
+   * Rasterizing the image (converting to PNG)
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_input_layout.xml:7: Warning: Possible overdraw: Root element paints background #FFFFFF with a theme that also paints a background (inferred theme is @style/Theme.AppCompat.Light.NoActionBar) [Overdraw]
+    android:background="#FFFFFF">
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "Overdraw":
+   If you set a background drawable on a root view, then you should use a
+   custom theme where the theme background is null. Otherwise, the theme
+   background will be painted first, only to have your custom background
+   completely cover it; this is called "overdraw".
+
+   NOTE: This detector relies on figuring out which layouts are associated
+   with which activities based on scanning the Java code, and it's currently
+   doing that using an inexact pattern matching algorithm. Therefore, it can
+   incorrectly conclude which activity the layout is associated with and then
+   wrongly complain that a background-theme is hidden.
+
+   If you want your custom background on multiple pages, then you should
+   consider making a custom theme with your custom background and just using
+   that theme instead of a root element background.
+
+   Of course it's possible that your custom drawable is translucent and you
+   want it to be mixed with the background. However, you will get better
+   performance if you pre-mix the background with your drawable and use that
+   resulting image or color as a custom theme background instead.
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_permission.xml:2: Warning: The resource R.layout.activity_permission appears to be unused [UnusedResources]
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:4: Warning: The resource R.color.primary appears to be unused [UnusedResources]
+    <color name="primary">#3F51B5</color>
+           ~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:5: Warning: The resource R.color.primary_dark appears to be unused [UnusedResources]
+    <color name="primary_dark">#303F9F</color>
+           ~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:6: Warning: The resource R.color.accent appears to be unused [UnusedResources]
+    <color name="accent">#FF4081</color>
+           ~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:8: Warning: The resource R.color.black appears to be unused [UnusedResources]
+    <color name="black">#FF000000</color>
+           ~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:9: Warning: The resource R.color.transparent_black appears to be unused [UnusedResources]
+    <color name="transparent_black">#80000000</color>
+           ~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:10: Warning: The resource R.color.purple_200 appears to be unused [UnusedResources]
+    <color name="purple_200">#FFBB86FC</color>
+           ~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:11: Warning: The resource R.color.purple_500 appears to be unused [UnusedResources]
+    <color name="purple_500">#FF6200EE</color>
+           ~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:12: Warning: The resource R.color.purple_700 appears to be unused [UnusedResources]
+    <color name="purple_700">#FF3700B3</color>
+           ~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:13: Warning: The resource R.color.teal_200 appears to be unused [UnusedResources]
+    <color name="teal_200">#FF03DAC5</color>
+           ~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\colors.xml:14: Warning: The resource R.color.teal_700 appears to be unused [UnusedResources]
+    <color name="teal_700">#FF018786</color>
+           ~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\engine_item.xml:2: Warning: The resource R.layout.engine_item appears to be unused [UnusedResources]
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\floating_ball_layout.xml:2: Warning: The resource R.layout.floating_ball_layout appears to be unused [UnusedResources]
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\drawable\ic_history.xml:2: Warning: The resource R.drawable.ic_history appears to be unused [UnusedResources]
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\drawable\ic_launcher_foreground.xml:2: Warning: The resource R.drawable.ic_launcher_foreground appears to be unused [UnusedResources]
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\drawable\ic_mic.xml:2: Warning: The resource R.drawable.ic_mic appears to be unused [UnusedResources]
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\drawable\ic_search.xml:2: Warning: The resource R.drawable.ic_search appears to be unused [UnusedResources]
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\drawable\search_background.xml:2: Warning: The resource R.drawable.search_background appears to be unused [UnusedResources]
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_history_item.xml:2: Warning: The resource R.layout.search_history_item appears to be unused [UnusedResources]
+<LinearLayout
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_history_layout.xml:2: Warning: The resource R.layout.search_history_layout appears to be unused [UnusedResources]
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:4: Warning: The resource R.string.search_hint appears to be unused [UnusedResources]
+    <string name="search_hint">输入搜索内容</string>
+            ~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:5: Warning: The resource R.string.voice_search appears to be unused [UnusedResources]
+    <string name="voice_search">语音搜索</string>
+            ~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:6: Warning: The resource R.string.search appears to be unused [UnusedResources]
+    <string name="search">搜索</string>
+            ~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:8: Warning: The resource R.string.auto_hide appears to be unused [UnusedResources]
+    <string name="auto_hide">自动隐藏悬浮球</string>
+            ~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:9: Warning: The resource R.string.save appears to be unused [UnusedResources]
+    <string name="save">保存</string>
+            ~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:10: Warning: The resource R.string.permission_required appears to be unused [UnusedResources]
+    <string name="permission_required">需要权限</string>
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:11: Warning: The resource R.string.voice_recognition_failed appears to be unused [UnusedResources]
+    <string name="voice_recognition_failed">语音识别失败，请重试</string>
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:13: Warning: The resource R.string.floating_ball_service_name appears to be unused [UnusedResources]
+    <string name="floating_ball_service_name">AI悬浮球服务</string>
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:14: Warning: The resource R.string.floating_ball_service_description appears to be unused [UnusedResources]
+    <string name="floating_ball_service_description">提供多个AI助手的快速访问</string>
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:15: Warning: The resource R.string.notification_channel_name appears to be unused [UnusedResources]
+    <string name="notification_channel_name">AI悬浮球服务</string>
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:16: Warning: The resource R.string.notification_channel_description appears to be unused [UnusedResources]
+    <string name="notification_channel_description">保持AI悬浮球服务在后台运行</string>
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\strings.xml:17: Warning: The resource R.string.service_running appears to be unused [UnusedResources]
+    <string name="service_running">AI悬浮球服务正在运行</string>
+            ~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\styles.xml:3: Warning: The resource R.style.TransparentTheme appears to be unused [UnusedResources]
+    <style name="TransparentTheme" parent="Theme.AppCompat.Light.NoActionBar">
+           ~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\values\themes.xml:3: Warning: The resource R.style.AppTheme appears to be unused [UnusedResources]
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+           ~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\anim\window_hide.xml:2: Warning: The resource R.anim.window_hide appears to be unused [UnusedResources]
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+^
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\anim\window_show.xml:2: Warning: The resource R.anim.window_show appears to be unused [UnusedResources]
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+^
+
+   Explanation for issues of type "UnusedResources":
+   Unused resources make applications larger and slow down builds.
+
+
+   The unused resource check can ignore tests. If you want to include
+   resources that are only referenced from tests, consider packaging them in a
+   test source set instead.
+
+   You can include test sources in the unused resource check by setting the
+   system property lint.unused-resources.include-tests =true, and to exclude
+   them (usually for performance reasons), use
+   lint.unused-resources.exclude-tests =true.
+   ,
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\floating_ball_layout.xml:7: Warning: This LinearLayout layout or its FrameLayout parent is unnecessary; transfer the background attribute to the other view [UselessParent]
+    <LinearLayout
+     ~~~~~~~~~~~~
+
+   Explanation for issues of type "UselessParent":
+   A layout with children that has no siblings, is not a scrollview or a root
+   layout, and does not have a background, can be removed and have its
+   children moved directly into the parent for a flatter and more efficient
+   layout hierarchy.
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml:2: Warning: The application adaptive icon is missing a monochrome tag [MonochromeLauncherIcon]
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+^
+
+   Explanation for issues of type "MonochromeLauncherIcon":
+   If android:roundIcon and android:icon are both in your manifest, you must
+   either remove the reference to android:roundIcon if it is not needed; or,
+   supply the monochrome icon in the drawable defined by the android:roundIcon
+   and android:icon attribute.
+
+   For example, if android:roundIcon and android:icon are both in the
+   manifest, a launcher might choose to use android:roundIcon over
+   android:icon to display the adaptive app icon. Therefore, your themed
+   application iconwill not show if your monochrome attribute is not also
+   specified in android:roundIcon.
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_input_layout.xml:9: Warning: Missing autofillHints attribute [Autofill]
+    <EditText
+     ~~~~~~~~
+
+   Explanation for issues of type "Autofill":
+   Specify an autofillHints attribute when targeting SDK version 26 or higher
+   or explicitly specify that the view is not important for autofill. Your app
+   can help an autofill service classify the data correctly by providing the
+   meaning of each view that could be autofillable, such as views representing
+   usernames, passwords, credit card fields, email addresses, etc.
+
+   The hints can have any value, but it is recommended to use predefined
+   values like 'username' for a username or 'creditCardNumber' for a credit
+   card number. For a list of all predefined autofill hint constants, see the
+   AUTOFILL_HINT_ constants in the View reference at
+   https://developer.android.com/reference/android/view/View.html.
+
+   You can mark a view unimportant for autofill by specifying an
+   importantForAutofill attribute on that view or a parent view. See
+   https://developer.android.com/reference/android/view/View.html#setImportant
+   ForAutofill(int).
+
+   https://developer.android.com/guide/topics/text/autofill.html
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:396: Warning: onTouch lambda should call View#performClick when a click is detected [ClickableViewAccessibility]
+                view.setOnTouchListener { v, event ->
+                                        ^
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\FloatingWindowService.kt:790: Warning: Custom view `WebView` has setOnTouchListener called on it but does not override performClick [ClickableViewAccessibility]
+        webView.setOnTouchListener { v, event ->
+        ^
+C:\Users\Administrator\Desktop\dalao\app\src\main\java\com\example\aifloatingball\gesture\GestureManager.kt:119: Warning: onTouch lambda should call View#performClick when a click is detected [ClickableViewAccessibility]
+        view.setOnTouchListener { _, event ->
+                                ^
+
+   Explanation for issues of type "ClickableViewAccessibility":
+   If a View that overrides onTouchEvent or uses an OnTouchListener does not
+   also implement performClick and call it when clicks are detected, the View
+   may not handle accessibility actions properly. Logic handling the click
+   actions should ideally be placed in View#performClick as some accessibility
+   services invoke performClick when a click action should occur.
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_permission.xml:9: Warning: Missing contentDescription attribute on image [ContentDescription]
+    <ImageView
+     ~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\card_ai_engine.xml:25: Warning: Missing contentDescription attribute on image [ContentDescription]
+            <ImageView
+             ~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\engine_item.xml:9: Warning: Missing contentDescription attribute on image [ContentDescription]
+    <ImageView
+     ~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\item_engine.xml:17: Warning: Missing contentDescription attribute on image [ContentDescription]
+        <ImageView
+         ~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\item_engine.xml:30: Warning: Missing contentDescription attribute on image [ContentDescription]
+        <ImageView
+         ~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\quick_menu_layout.xml:14: Warning: Missing contentDescription attribute on image [ContentDescription]
+        <ImageButton
+         ~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\quick_menu_layout.xml:22: Warning: Missing contentDescription attribute on image [ContentDescription]
+        <ImageButton
+         ~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\quick_menu_layout.xml:30: Warning: Missing contentDescription attribute on image [ContentDescription]
+        <ImageButton
+         ~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\quick_menu_layout.xml:44: Warning: Missing contentDescription attribute on image [ContentDescription]
+        <ImageButton
+         ~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\quick_menu_layout.xml:52: Warning: Missing contentDescription attribute on image [ContentDescription]
+        <ImageButton
+         ~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\quick_menu_layout.xml:60: Warning: Missing contentDescription attribute on image [ContentDescription]
+        <ImageButton
+         ~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_history_item.xml:10: Warning: Missing contentDescription attribute on image [ContentDescription]
+    <ImageView
+     ~~~~~~~~~
+
+   Explanation for issues of type "ContentDescription":
+   Non-textual widgets like ImageViews and ImageButtons should use the
+   contentDescription attribute to specify a textual description of the widget
+   such that screen readers and other accessibility tools can adequately
+   describe the user interface.
+
+   Note that elements in application screens that are purely decorative and do
+   not provide any content or enable a user action should not have
+   accessibility content descriptions. In this case, set their descriptions to
+   @null. If your app's minSdkVersion is 16 or higher, you can instead set
+   these graphical elements' android:importantForAccessibility attributes to
+   no.
+
+   Note that for text fields, you should not set both the hint and the
+   contentDescription attributes since the hint will never be shown. Just set
+   the hint.
+
+   https://developer.android.com/guide/topics/ui/accessibility/apps#special-cases
+
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_permission.xml:18: Warning: Hardcoded string "AI悬浮球需要以下权限才能正常运行：", should use @string resource [HardcodedText]
+        android:text="AI悬浮球需要以下权限才能正常运行："
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_permission.xml:26: Warning: Hardcoded string "• 悬浮窗权限n• 麦克风权限n• 通知权限", should use @string resource [HardcodedText]
+        android:text="• 悬浮窗权限\n• 麦克风权限\n• 通知权限"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_permission.xml:33: Warning: Hardcoded string "请在接下来的提示中允许这些权限", should use @string resource [HardcodedText]
+        android:text="请在接下来的提示中允许这些权限"
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_settings.xml:11: Warning: Hardcoded string "AI助手设置", should use @string resource [HardcodedText]
+        android:text="AI助手设置"
+        ~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_settings.xml:19: Warning: Hardcoded string "拖动调整顺序", should use @string resource [HardcodedText]
+        android:text="拖动调整顺序"
+        ~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_settings.xml:33: Warning: Hardcoded string "开机自启动", should use @string resource [HardcodedText]
+        android:text="开机自启动"
+        ~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\activity_settings.xml:41: Warning: Hardcoded string "保存并返回", should use @string resource [HardcodedText]
+        android:text="保存并返回"/>
+        ~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\card_ai_engine.xml:44: Warning: Hardcoded string "粘贴发送", should use @string resource [HardcodedText]
+                android:text="粘贴发送"
+                ~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\floating_ball_layout.xml:23: Warning: Hardcoded string "AI", should use @string resource [HardcodedText]
+            android:text="AI" />
+            ~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_history_layout.xml:19: Warning: Hardcoded string "搜索历史", should use @string resource [HardcodedText]
+            android:text="搜索历史"
+            ~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_input_layout.xml:14: Warning: Hardcoded string "输入搜索内容", should use @string resource [HardcodedText]
+        android:hint="输入搜索内容"
+        ~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_input_layout.xml:25: Warning: Hardcoded string "语音输入", should use @string resource [HardcodedText]
+        android:contentDescription="语音输入" />
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+C:\Users\Administrator\Desktop\dalao\app\src\main\res\layout\search_input_layout.xml:33: Warning: Hardcoded string "搜索", should use @string resource [HardcodedText]
+        android:contentDescription="搜索" />
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   Explanation for issues of type "HardcodedText":
+   Hardcoding text attributes directly in layout files is bad for several
+   reasons:
+
+   * When creating configuration variations (for example for landscape or
+   portrait) you have to repeat the actual text (and keep it up to date when
+   making changes)
+
+   * The application cannot be translated to other languages by just adding
+   new translations for existing string resources.
+
+   There are quickfixes to automatically extract this hardcoded string into a
+   resource lookup.
+
+3 errors, 92 warnings

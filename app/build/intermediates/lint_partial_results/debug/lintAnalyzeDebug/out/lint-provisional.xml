@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<incidents format="6" by="lint 8.8.0" type="conditional_incidents">
+
+    <incident
+        id="InlinedApi"
+        severity="warning"
+        message="">
+        <fix-data minSdk="ffffffffff800000" requiresApi="fffffffffe000000"/>
+        <location
+            file="${:app*debug*MAIN*sourceProvider*0*javaDir*0}/com/example/aifloatingball/menu/QuickMenuManager.kt"
+            line="31"
+            column="13"
+            startOffset="1024"
+            endLine="31"
+            endColumn="64"
+            endOffset="1075"/>
+        <map>
+            <entry
+                name="message"
+                string="Field requires API level 26 (current min is %1$s): `android.view.WindowManager.LayoutParams#TYPE_APPLICATION_OVERLAY`"/>
+            <api-levels id="minSdk"
+                value="ffffffffff800000"/>
+            <entry
+                name="name"
+                string="TYPE_APPLICATION_OVERLAY"/>
+            <entry
+                name="owner"
+                string="android.view.WindowManager.LayoutParams"/>
+            <api-levels id="requiresApi"
+                value="fffffffffe000000"/>
+        </map>
+    </incident>
+
+</incidents>

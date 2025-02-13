@@ -49,6 +49,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val MEMORY_CHECK_INTERVAL = 30000L // 30秒检查一次内存
+        private const val REQUEST_SCREENSHOT = 1001
     }
 
     private var windowManager: WindowManager? = null
@@ -115,6 +116,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var lastMemoryUsage: Long = 0
     private var startTime: Long = 0
     
+    private lateinit var gestureDetector: GestureDetector
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -164,6 +167,32 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 stopSelf()
                 return
             }
+            
+            // Initialize GestureDetector
+            gestureDetector = GestureDetector(this, object : GestureDetector.OnGestureListener {
+                override fun onDown(e: MotionEvent): Boolean {
+                    return true
+                }
+
+                override fun onShowPress(e: MotionEvent) {
+                }
+
+                override fun onSingleTapUp(e: MotionEvent): Boolean {
+                    return false
+                }
+
+                override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+                    return false
+                }
+
+                override fun onLongPress(e: MotionEvent) {
+                    floatingBallView?.let { startScreenshotMode(it) }
+                }
+
+                override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                    return false
+                }
+            })
             
             // 创建并显示悬浮球
             try {
@@ -333,9 +362,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
-                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                     PixelFormat.RGBA_8888
                 )
             } else {
@@ -346,9 +373,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     WindowManager.LayoutParams.TYPE_PHONE,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
-                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                     PixelFormat.RGBA_8888
                 )
             }
@@ -369,6 +394,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 Log.d("FloatingService", "已设置手势监听")
                 
                 view.setOnTouchListener { v, event ->
+                    gestureDetector.onTouchEvent(event)
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
                             val params = v.layoutParams as WindowManager.LayoutParams
@@ -422,18 +448,19 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             
                             if (isVoiceSearchActive) {
                                 stopVoiceSearchMode()
-                                isDragging = false
-                                true
-                            } else {
-                                val isTap = !isDragging && abs(event.rawX - initialTouchX) < 5 && 
-                                          abs(event.rawY - initialTouchY) < 5
-                                
-                                if (isTap) {
-                                    performClick()
-                                }
-                                isDragging = false
-                                true
                             }
+                            
+                            val isTap = !isDragging && abs(event.rawX - initialTouchX) < 5 && 
+                                      abs(event.rawY - initialTouchY) < 5
+                            
+                            if (isTap) {
+                                if (!isSearchVisible) {
+                                    showSearchInput()
+                                }
+                            }
+                            
+                            isDragging = false
+                            true
                         }
                         else -> false
                     }
@@ -447,6 +474,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
     
+    private fun startScreenshotMode(view: View) {
+        // 改变悬浮球外观
+        view.setBackgroundColor(android.graphics.Color.RED)
+        view.alpha = 0.5f
+        view.scaleX = 1.5f
+        view.scaleY = 1.5f
+        
+        // 启动系统截图
+        // 这里需要通过Activity来启动截图
+        val intent = Intent(this, ScreenshotActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+    }
+    
     // 工具方法
     private fun Int.dpToPx(): Int {
         return (this * resources.displayMetrics.density).toInt()
@@ -457,181 +498,213 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     private fun showSearchInput() {
-        val root = FrameLayout(this).apply {
-            setOnClickListener {
-                windowManager?.removeView(this)
-                searchView = null
+        try {
+            // 如果已经显示，先关闭之前的
+            if (isSearchVisible) {
+                searchView?.let { 
+                    windowManager?.removeView(it)
+                    searchView = null
+                }
                 isSearchVisible = false
-                closeAllWindows()
             }
             
-            background = GradientDrawable().apply {
-                setColor(android.graphics.Color.parseColor("#F5F5F5"))
-            }
-        }
-        
-        val containerLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-            )
-            setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
-            setOnClickListener { }
-        }
-        
-        val topBarLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        
-        val closeButton = ImageButton(this).apply {
-            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
-            setBackgroundResource(android.R.drawable.btn_default)
-            layoutParams = LinearLayout.LayoutParams(
-                48.dpToPx(),
-                48.dpToPx()
-            ).apply {
-                marginEnd = 16.dpToPx()
-            }
-            setOnClickListener {
-                windowManager?.removeView(root)
-                searchView = null
-                isSearchVisible = false
-                closeAllWindows()
-            }
-        }
-        
-        val searchContainer = LayoutInflater.from(this).inflate(R.layout.search_input_layout, null, false)
-        searchContainer.apply {
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-            
-            background = GradientDrawable().apply {
-                setColor(android.graphics.Color.WHITE)
-                cornerRadius = 24.dpToPx().toFloat()
-                setStroke(1, android.graphics.Color.parseColor("#E0E0E0"))
+            val root = FrameLayout(this).apply {
+                setOnClickListener {
+                    closeAllWindows()
+                    windowManager?.removeView(this)
+                    searchView = null
+                    isSearchVisible = false
+                }
+                
+                background = GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#F5F5F5"))
+                }
             }
             
-            elevation = 4f.dpToPx()
-        }
-        
-        topBarLayout.addView(closeButton)
-        topBarLayout.addView(searchContainer)
-        
-        val scrollView = ScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                0,
-                1f
-            ).apply {
-                topMargin = 16.dpToPx()
+            val containerLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT
+                )
+                setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
+                setOnClickListener { }
             }
-            isVerticalScrollBarEnabled = true
-            overScrollMode = View.OVER_SCROLL_ALWAYS
-            isFillViewport = true
-        }
-        
-        val cardsContainerView = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setPadding(0, 0, 0, 8.dpToPx())
-        }
-        
-        scrollView.addView(cardsContainerView)
-        containerLayout.addView(topBarLayout)
-        containerLayout.addView(scrollView)
-        root.addView(containerLayout)
-        
-        searchView = root
-        cardsContainer = cardsContainerView
-        
-        val searchInput = searchContainer.findViewById<EditText>(R.id.search_input)
-        val searchButton = searchContainer.findViewById<ImageButton>(R.id.search_button)
-        val voiceButton = searchContainer.findViewById<ImageButton>(R.id.voice_input_button)
-        
-        searchButton?.setOnClickListener {
-            val query = searchInput?.text?.toString()?.trim() ?: ""
-            if (query.isNotEmpty()) {
-                performSearch(query, cardsContainerView)
+            
+            val topBarLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                gravity = Gravity.CENTER_VERTICAL
             }
-        }
-        
-        voiceButton?.setOnClickListener {
-            startVoiceSearchMode()
-        }
-        
-        searchInput?.setOnEditorActionListener { _, actionId, event ->
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
-                (event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN)
-            ) {
-                val query = searchInput.text.toString().trim()
+            
+            val closeButton = ImageButton(this).apply {
+                setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+                setBackgroundResource(android.R.drawable.btn_default)
+                layoutParams = LinearLayout.LayoutParams(
+                    48.dpToPx(),
+                    48.dpToPx()
+                ).apply {
+                    marginEnd = 16.dpToPx()
+                }
+                setOnClickListener {
+                    windowManager?.removeView(root)
+                    searchView = null
+                    isSearchVisible = false
+                    closeAllWindows()
+                }
+            }
+            
+            val searchContainer = LayoutInflater.from(this).inflate(R.layout.search_input_layout, null, false)
+            searchContainer.apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+                
+                background = GradientDrawable().apply {
+                    setColor(android.graphics.Color.WHITE)
+                    cornerRadius = 24.dpToPx().toFloat()
+                    setStroke(1, android.graphics.Color.parseColor("#E0E0E0"))
+                }
+                
+                elevation = 4f.dpToPx()
+            }
+            
+            topBarLayout.addView(closeButton)
+            topBarLayout.addView(searchContainer)
+            
+            val scrollView = ScrollView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f
+                ).apply {
+                    topMargin = 16.dpToPx()
+                }
+                isVerticalScrollBarEnabled = true
+                overScrollMode = View.OVER_SCROLL_ALWAYS
+                isFillViewport = true
+            }
+            
+            val cardsContainerView = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                setPadding(0, 0, 0, 8.dpToPx())
+            }
+            
+            scrollView.addView(cardsContainerView)
+            containerLayout.addView(topBarLayout)
+            containerLayout.addView(scrollView)
+            root.addView(containerLayout)
+            
+            searchView = root
+            cardsContainer = cardsContainerView
+            
+            val searchInput = searchContainer.findViewById<EditText>(R.id.search_input)
+            val searchButton = searchContainer.findViewById<ImageButton>(R.id.search_button)
+            val voiceButton = searchContainer.findViewById<ImageButton>(R.id.voice_input_button)
+            
+            searchButton?.setOnClickListener {
+                val query = searchInput?.text?.toString()?.trim() ?: ""
                 if (query.isNotEmpty()) {
                     performSearch(query, cardsContainerView)
                 }
-                true
-            } else {
-                false
             }
-        }
-        
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) 
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP
-            flags = flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-        }
-        
-        windowManager?.addView(root, params)
-        
-        searchInput?.apply {
-            requestFocus()
-            postDelayed({
-                val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-                imm.showSoftInput(this, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
-            }, 200)
-        }
-        
-        isSearchVisible = true
-        
-        if (!hasInitializedCards) {
-            val engines = settingsManager.getEngineOrder()
             
-            cardsContainer?.removeAllViews()
-            aiWindows.clear()
-            cachedCardViews.clear()
+            voiceButton?.setOnClickListener {
+                startVoiceSearchMode()
+            }
             
-            engines.forEachIndexed { index, engine ->
-                try {
-                    val cardView = createAICardView(engine.url, index)
-                    val params = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply {
-                        topMargin = if (index == 0) 8.dpToPx() else 0
+            searchInput?.setOnEditorActionListener { _, actionId, event ->
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                    (event?.keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN)
+                ) {
+                    val query = searchInput.text.toString().trim()
+                    if (query.isNotEmpty()) {
+                        performSearch(query, cardsContainerView)
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) 
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP
+                flags = flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            }
+            
+            windowManager?.addView(root, params)
+            
+            searchInput?.apply {
+                requestFocus()
+                postDelayed({
+                    val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                    imm.showSoftInput(this, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                }, 200)
+            }
+            
+            isSearchVisible = true
+            
+            if (!hasInitializedCards) {
+                val engines = settingsManager.getEngineOrder()
+                
+                cardsContainer?.removeAllViews()
+                aiWindows.clear()
+                cachedCardViews.clear()
+                
+                engines.forEachIndexed { index, engine ->
+                    try {
+                        val cardView = createAICardView(engine.url, index)
+                        val params = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            topMargin = if (index == 0) 8.dpToPx() else 0
+                            bottomMargin = 8.dpToPx()
+                        }
+                        cardView.layoutParams = params
+                        cardsContainer?.addView(cardView)
+                        cachedCardViews.add(cardView)
+                        
+                        cardView.alpha = 0f
+                        cardView.translationY = 50f
+                        cardView.animate()
+                            .alpha(0.95f)
+                            .translationY(0f)
+                            .setDuration(300)
+                            .setStartDelay((index * 50).toLong())
+                            .setInterpolator(DecelerateInterpolator())
+                            .start()
+                    } catch (e: Exception) {
+                        Log.e("FloatingService", "创建AI卡片失败: ${e.message}")
+                    }
+                }
+                hasInitializedCards = true
+            } else {
+                cardsContainer?.removeAllViews()
+                cachedCardViews.forEachIndexed { index, cardView ->
+                    val params = cardView.layoutParams as? LinearLayout.LayoutParams
+                    params?.apply {
                         bottomMargin = 8.dpToPx()
                     }
-                    cardView.layoutParams = params
                     cardsContainer?.addView(cardView)
-                    cachedCardViews.add(cardView)
-                    
                     cardView.alpha = 0f
                     cardView.translationY = 50f
                     cardView.animate()
@@ -641,29 +714,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         .setStartDelay((index * 50).toLong())
                         .setInterpolator(DecelerateInterpolator())
                         .start()
-                } catch (e: Exception) {
-                    Log.e("FloatingService", "创建AI卡片失败: ${e.message}")
                 }
             }
-            hasInitializedCards = true
-        } else {
-            cardsContainer?.removeAllViews()
-            cachedCardViews.forEachIndexed { index, cardView ->
-                val params = cardView.layoutParams as? LinearLayout.LayoutParams
-                params?.apply {
-                    bottomMargin = 8.dpToPx()
-                }
-                cardsContainer?.addView(cardView)
-                cardView.alpha = 0f
-                cardView.translationY = 50f
-                cardView.animate()
-                    .alpha(0.95f)
-                    .translationY(0f)
-                    .setDuration(300)
-                    .setStartDelay((index * 50).toLong())
-                    .setInterpolator(DecelerateInterpolator())
-                    .start()
-            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "显示搜索输入失败", e)
         }
     }
     
@@ -733,10 +787,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         setupWebView(webView, engine)
         
-        webView.setOnTouchListener { _, event ->
-            val titleBarBottom = titleBar.bottom
-            event.y > titleBarBottom
+        webView.setOnTouchListener { v, event ->
+            v.performClick()
+            webView.requestFocus()
+            false
         }
+        
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
         
         titleBar.elevation = 10f
         
@@ -794,37 +852,41 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
 
     private fun setupWebView(webView: WebView, engine: AIEngine) {
         webView.settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                databaseEnabled = true
-                useWideViewPort = true
-                loadWithOverviewMode = true
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            databaseEnabled = true
+            useWideViewPort = true
+            loadWithOverviewMode = true
             
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                
-                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                }
-                
-                allowContentAccess = true
-                allowFileAccess = true
-                
-                domStorageEnabled = true
-                databaseEnabled = true
-                
-                cacheMode = WebSettings.LOAD_NO_CACHE
-                
-                javaScriptCanOpenWindowsAutomatically = true
-                
-                defaultTextEncodingName = "UTF-8"
-                
-                allowFileAccessFromFileURLs = true
-                allowUniversalAccessFromFileURLs = true
-                
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
+            
+            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
+            
+            allowContentAccess = true
+            allowFileAccess = true
+            
+            domStorageEnabled = true
+            databaseEnabled = true
+            
+            cacheMode = WebSettings.LOAD_NO_CACHE
+            
+            javaScriptCanOpenWindowsAutomatically = true
+            
+            defaultTextEncodingName = "UTF-8"
+            
+            allowFileAccessFromFileURLs = true
+            allowUniversalAccessFromFileURLs = true
+            
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            setNeedInitialFocus(true)
+            
             val customUA = when (engine.name) {
                 "豆包" -> "Mozilla/5.0 (Linux; Android 11; Pixel 4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.104 Mobile Safari/537.36"
                 "ChatGPT" -> "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
@@ -838,25 +900,23 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         webView.isVerticalScrollBarEnabled = true
         webView.scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
         
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         }
         
         webView.webViewClient = object : android.webkit.WebViewClient() {
-                override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: android.net.http.SslError?) {
-                    handler?.proceed()
+            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: android.net.http.SslError?) {
+                handler?.proceed()
             }
             
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 val css = when (engine.name) {
                     "豆包" -> """
-                        .mobile-container { height: auto !important; }
-                        .chat-container { height: auto !important; }
+                        .mobile-container { min-height: 80vh !important; }
                     """
                     "ChatGPT" -> """
-                        body { height: auto !important; }
-                        #__next { height: auto !important; }
+                        body { min-height: 80vh !important; }
                     """
                     "阿里通义" -> """
                         .chat-container { min-height: 80vh !important; }
@@ -878,6 +938,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     """.trimIndent()
                     view?.loadUrl(script)
                 }
+                
+                view?.requestFocus()
             }
         }
     }
@@ -1281,7 +1343,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             cachedCardViews.clear()
             
             super.onDestroy()
-        } catch (e: Exception) {
+                    } catch (e: Exception) {
             Log.e("FloatingService", "服务销毁时发生错误", e)
         }
     }
@@ -1314,9 +1376,31 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
 
     private fun closeAllWindows() {
-        aiWindows.forEach { webView ->
-            webView.stopLoading()
-            webView.loadUrl("about:blank")
+        try {
+            // 清理WebView
+            aiWindows.forEach { webView ->
+                webView.stopLoading()
+                webView.loadUrl("about:blank")
+                webView.clearHistory()
+                webView.clearCache(true)
+                (webView.parent as? ViewGroup)?.removeView(webView)
+            }
+            aiWindows.clear()
+            
+            // 重置卡片状态
+            cardsContainer?.removeAllViews()
+            cachedCardViews.clear()
+            hasInitializedCards = false
+            activeCardIndex = -1
+            
+            // 清理搜索相关状态
+            isSearchVisible = false
+            searchView = null
+            
+            // 回收系统资源
+            System.gc()
+        } catch (e: Exception) {
+            Log.e("FloatingService", "关闭窗口时发生错误", e)
         }
     }
 
