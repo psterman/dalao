@@ -30,6 +30,27 @@ class SettingsActivity : AppCompatActivity() {
         recyclerView.adapter = engineAdapter
         ItemTouchHelper(DragCallback(engineAdapter)).attachToRecyclerView(recyclerView)
         
+        // 为引擎列表添加长按菜单
+        engineAdapter.setOnItemLongClickListener(object : EngineAdapter.OnItemLongClickListener {
+            override fun onItemLongClick(position: Int) {
+                val engine = engineAdapter.getEngines()[position]
+                val popupMenu = android.widget.PopupMenu(this@SettingsActivity, recyclerView.findViewHolderForAdapterPosition(position)?.itemView)
+                popupMenu.menu.add("移动到顶部").setOnMenuItemClickListener {
+                    engineAdapter.moveToTop(position)
+                    true
+                }
+                popupMenu.menu.add("移动到底部").setOnMenuItemClickListener {
+                    engineAdapter.moveToBottom(position)
+                    true
+                }
+                popupMenu.menu.add("删除").setOnMenuItemClickListener {
+                    engineAdapter.removeEngine(position)
+                    true
+                }
+                popupMenu.show()
+            }
+        })
+        
         // 初始化开关
         val autoStartSwitch = findViewById<Switch>(R.id.auto_start_switch)
         autoStartSwitch.isChecked = settingsManager.getAutoStart()

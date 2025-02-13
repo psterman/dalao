@@ -24,7 +24,7 @@ class DragCallback(private val adapter: EngineAdapter) : ItemTouchHelper.Callbac
     }
     
     override fun isLongPressDragEnabled(): Boolean {
-        return false
+        return true
     }
     
     override fun isItemViewSwipeEnabled(): Boolean {

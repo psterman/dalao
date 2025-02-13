@@ -3346,7 +3346,10 @@ int id floating_ball_text 0x7f0800d6
 int id forever 0x7f0800d7
 int id fragment_container_view_tag 0x7f0800d8
 int id frost 0x7f0800d9
+int id fullscreen_close_button 0x7f080212
 int id fullscreen_header 0x7f0800da
+int id fullscreen_title 0x7f080213
+int id fullscreen_webview 0x7f080214
 int id ghost_view 0x7f0800db
 int id ghost_view_holder 0x7f0800dc
 int id gone 0x7f0800dd
@@ -3772,6 +3775,7 @@ int layout abc_search_dropdown_item_icons_2line 0x7f0b0018
 int layout abc_search_view 0x7f0b0019
 int layout abc_select_dialog_material 0x7f0b001a
 int layout abc_tooltip 0x7f0b001b
+int layout activity_fullscreen_webview 0x7f0b0077
 int layout activity_permission 0x7f0b001c
 int layout activity_settings 0x7f0b001d
 int layout card_ai_engine 0x7f0b001e

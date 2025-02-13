@@ -872,23 +872,36 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 }
                 hasInitializedCards = true
             } else {
+                // 重新加载卡片，使用最新的引擎顺序
+                val engines = settingsManager.getEngineOrder()
+                
                 cardsContainer?.removeAllViews()
-                cachedCardViews.forEachIndexed { index, cardView ->
-                    val params = cardView.layoutParams as? LinearLayout.LayoutParams
-                    params?.apply {
-                        bottomMargin = 8.dpToPx()
+                aiWindows.clear()
+                
+                engines.forEachIndexed { index, engine ->
+                    try {
+                        val cardView = createAICardView(engine.url, index)
+                        cardsContainer?.addView(cardView)
+                        
+                        cardView.alpha = 0f
+                        cardView.translationY = 50f
+                        cardView.animate()
+                            .alpha(1f)
+                            .translationY(0f)
+                            .setDuration(300)
+                            .setStartDelay((index * 100).toLong())
+                            .setInterpolator(DecelerateInterpolator())
+                            .start()
+                    } catch (e: Exception) {
+                        Log.e("FloatingService", "创建AI卡片失败: ${e.message}")
                     }
-                    cardsContainer?.addView(cardView)
-                    cardView.alpha = 0f
-                    cardView.translationY = 50f
-                    cardView.animate()
-                        .alpha(0.95f)
-                        .translationY(0f)
-                        .setDuration(300)
-                        .setStartDelay((index * 50).toLong())
-                        .setInterpolator(DecelerateInterpolator())
-                        .start()
                 }
+                
+                // 重置缓存的卡片视图
+                cachedCardViews.clear()
+                cachedCardViews.addAll(cardsContainer?.let { 
+                    (0 until it.childCount).map { i -> it.getChildAt(i) } 
+                } ?: listOf())
             }
         } catch (e: Exception) {
             Log.e("FloatingService", "显示搜索输入失败", e)
@@ -950,7 +963,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private fun createAICardView(url: String, index: Int): View {
         val cardView = LayoutInflater.from(this).inflate(R.layout.card_ai_engine, null)
-        val engine = aiEngines[index]
+        
+        // 使用最新的引擎配置
+        val engines = settingsManager.getEngineOrder()
+        val engine = engines[index]
         
         val titleBar = cardView.findViewById<View>(R.id.title_bar)
         val contentArea = cardView.findViewById<View>(R.id.content_area)
@@ -1385,82 +1401,62 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val popupMenu = android.widget.PopupMenu(this, cardView)
         val menu = popupMenu.menu
 
-        // 添加菜单项
-        menu.add("移动到顶部").setOnMenuItemClickListener {
-            moveCardToTop(index)
+        // 获取当前的引擎列表
+        val engines = settingsManager.getEngineOrder()
+        
+        // 确保索引在有效范围内
+        val safeIndex = index.coerceIn(0, engines.size - 1)
+        val webView = cardView.findViewById<WebView>(R.id.web_view)
+
+        // 添加菜单项：刷新页面
+        menu.add("刷新页面").setOnMenuItemClickListener {
+            webView.reload()
             true
         }
 
-        menu.add("移动到底部").setOnMenuItemClickListener {
-            moveCardToBottom(index)
+        // 添加菜单项：系统分享
+        menu.add("分享").setOnMenuItemClickListener {
+            try {
+                // 获取当前页面的标题和URL
+                webView.evaluateJavascript("document.title") { title ->
+                    webView.url?.let { url ->
+                        // 移除可能的引号
+                        val cleanTitle = title.trim('"')
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TITLE, cleanTitle)
+                            putExtra(Intent.EXTRA_TEXT, "$cleanTitle\n$url")
+                        }
+                        
+                        // 创建一个临时的 Activity 来启动分享
+                        val chooserIntent = Intent.createChooser(
+                            shareIntent, 
+                            "分享 $cleanTitle"
+                        )
+                        chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(chooserIntent)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("FloatingService", "分享失败", e)
+                Toast.makeText(this, "分享失败", Toast.LENGTH_SHORT).show()
+            }
             true
         }
 
-        menu.add("删除").setOnMenuItemClickListener {
-            removeCard(index)
+        // 添加菜单项：全屏
+        menu.add("全屏").setOnMenuItemClickListener {
+            // 切换到全屏模式
+            val fullscreenIntent = Intent(this, FullscreenWebViewActivity::class.java).apply {
+                putExtra("URL", webView.url)
+                putExtra("TITLE", engines[safeIndex].name)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(fullscreenIntent)
             true
         }
 
         popupMenu.show()
-    }
-
-    private fun moveCardToTop(index: Int) {
-        if (index <= 0) return
-        
-        val card = cardsContainer?.getChildAt(index) ?: return
-        cardsContainer?.removeViewAt(index)
-        cardsContainer?.addView(card, 0)
-        
-        // 更新引擎顺序
-        val engines = settingsManager.getEngineOrder().toMutableList()
-        val engine = engines.removeAt(index)
-        engines.add(0, engine)
-        settingsManager.saveEngineOrder(engines)
-        
-        // 重新排列所有卡片
-        rearrangeCards()
-    }
-
-    private fun moveCardToBottom(index: Int) {
-        val totalCards = cardsContainer?.childCount ?: return
-        if (index >= totalCards - 1) return
-        
-        val card = cardsContainer?.getChildAt(index) ?: return
-        cardsContainer?.removeViewAt(index)
-        cardsContainer?.addView(card)
-        
-        // 更新引擎顺序
-        val engines = settingsManager.getEngineOrder().toMutableList()
-        val engine = engines.removeAt(index)
-        engines.add(engine)
-        settingsManager.saveEngineOrder(engines)
-        
-        // 重新排列所有卡片
-        rearrangeCards()
-    }
-
-    private fun removeCard(index: Int) {
-        val totalCards = cardsContainer?.childCount ?: return
-        if (index < 0 || index >= totalCards) return
-        
-        cardsContainer?.removeViewAt(index)
-        aiWindows.removeAt(index)
-        
-        // 更新引擎顺序
-        val engines = settingsManager.getEngineOrder().toMutableList()
-        engines.removeAt(index)
-        settingsManager.saveEngineOrder(engines)
-        
-        // 重新排列所有卡片
-        rearrangeCards()
-    }
-
-    private fun rearrangeCards() {
-        val totalCards = cardsContainer?.childCount ?: return
-        for (i in 0 until totalCards) {
-            val card = cardsContainer?.getChildAt(i) ?: continue
-            card.translationY = (i * cardSpacing).toFloat()
-        }
     }
 
     private fun setupMemoryMonitoring() {

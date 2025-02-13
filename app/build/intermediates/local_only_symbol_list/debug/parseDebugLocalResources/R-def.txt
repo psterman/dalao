@@ -49,6 +49,9 @@ id engine_list
 id engine_name
 id floating_ball_icon
 id floating_ball_text
+id fullscreen_close_button
+id fullscreen_title
+id fullscreen_webview
 id history_list
 id history_text
 id paste_button
@@ -58,6 +61,7 @@ id title_bar
 id voice_input_button
 id voice_ripple
 id web_view
+layout activity_fullscreen_webview
 layout activity_permission
 layout activity_settings
 layout card_ai_engine
