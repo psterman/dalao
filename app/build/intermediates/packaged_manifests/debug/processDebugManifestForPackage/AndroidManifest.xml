@@ -41,7 +41,7 @@
             android:name="com.example.aifloatingball.FloatingWindowService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse|mediaProjection"
+            android:foregroundServiceType="specialUse"
             android:stopWithTask="false" />
 
         <activity

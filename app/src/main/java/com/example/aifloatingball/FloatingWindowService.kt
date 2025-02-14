@@ -46,6 +46,8 @@ import com.example.aifloatingball.utils.SystemSettingsHelper
 import com.example.aifloatingball.web.CustomWebViewClient
 import kotlin.math.abs
 import kotlin.math.min
+import android.content.ClipboardManager
+import android.content.ClipData
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -317,6 +319,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             val channelId = "floating_ball_service"
             val channelName = "悬浮球服务"
             
+            // 创建通知渠道
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(
                     channelId,
@@ -338,11 +341,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 this,
                 0,
                 Intent(this, PermissionActivity::class.java),
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                } else {
-                    PendingIntent.FLAG_UPDATE_CURRENT
-                }
             )
                 
             val notification = NotificationCompat.Builder(this, channelId)
@@ -352,14 +351,28 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 .setOngoing(true)
                 .setContentIntent(pendingIntent)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .build()
             
             startForeground(NOTIFICATION_ID, notification)
             Log.d("FloatingService", "前台服务启动成功")
         } catch (e: Exception) {
-            Log.e("FloatingService", "启动前台服务失败: ${e.message}", e)
-            Toast.makeText(this, "前台服务启动失败，将以普通服务运行", Toast.LENGTH_SHORT).show()
+            Log.e("FloatingService", "前台服务启动失败", e)
+            
+            // 显示错误提示
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(
+                    this, 
+                    "前台服务启动失败：${e.message}\n将以普通服务运行", 
+                    Toast.LENGTH_LONG
+                ).show()
+                
+                // 尝试以普通服务启动
+                try {
+                    startService(Intent(this, FloatingWindowService::class.java))
+                } catch (serviceStartException: Exception) {
+                    Log.e("FloatingService", "普通服务启动失败", serviceStartException)
+                }
+            }
         }
     }
     
@@ -809,6 +822,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     false
                 }
             }
+
+            // 自定义长按菜单
+            searchInput.setOnLongClickListener { v ->
+                showContextMenu(v)
+                true
+            }
             
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -881,17 +900,17 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 engines.forEachIndexed { index, engine ->
                     try {
                         val cardView = createAICardView(engine.url, index)
-                        cardsContainer?.addView(cardView)
+                    cardsContainer?.addView(cardView)
                         
-                        cardView.alpha = 0f
-                        cardView.translationY = 50f
-                        cardView.animate()
+                    cardView.alpha = 0f
+                    cardView.translationY = 50f
+                    cardView.animate()
                             .alpha(1f)
-                            .translationY(0f)
-                            .setDuration(300)
+                        .translationY(0f)
+                        .setDuration(300)
                             .setStartDelay((index * 100).toLong())
-                            .setInterpolator(DecelerateInterpolator())
-                            .start()
+                        .setInterpolator(DecelerateInterpolator())
+                        .start()
                     } catch (e: Exception) {
                         Log.e("FloatingService", "创建AI卡片失败: ${e.message}")
                     }
@@ -1132,6 +1151,43 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 view?.requestFocus()
             }
         }
+
+        // 自定义长按菜单
+        webView.setOnLongClickListener { v ->
+            showContextMenu(v)
+            true
+        }
+    }
+
+    private fun showContextMenu(view: View) {
+        val popupMenu = PopupMenu(this, view)
+        popupMenu.menu.apply {
+            add("复制").setOnMenuItemClickListener {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val text = (view as? TextView)?.text?.toString() ?: ""
+                val clip = ClipData.newPlainText("text", text)
+                clipboard.setPrimaryClip(clip)
+                true
+            }
+            add("粘贴").setOnMenuItemClickListener {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clipData = clipboard.primaryClip
+                if (clipData != null && clipData.itemCount > 0) {
+                    val pasteText = clipData.getItemAt(0).text.toString()
+                    (view as? EditText)?.apply {
+                        val start = selectionStart.coerceAtLeast(0)
+                        val end = selectionEnd.coerceAtLeast(0)
+                        text.replace(start, end, pasteText)
+                    }
+                }
+                true
+            }
+            add("全选").setOnMenuItemClickListener {
+                (view as? EditText)?.selectAll()
+                true
+            }
+        }
+        popupMenu.show()
     }
 
     private fun expandCard(index: Int) {
@@ -1417,26 +1473,39 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         // 添加菜单项：系统分享
         menu.add("分享").setOnMenuItemClickListener {
             try {
-                // 获取当前页面的标题和URL
-                webView.evaluateJavascript("document.title") { title ->
-                    webView.url?.let { url ->
-                        // 移除可能的引号
-                        val cleanTitle = title.trim('"')
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TITLE, cleanTitle)
-                            putExtra(Intent.EXTRA_TEXT, "$cleanTitle\n$url")
+                // 异步获取页面标题和URL
+                webView.evaluateJavascript(
+                    "(function() { return { title: document.title, url: window.location.href }; })();",
+                    { result ->
+                        try {
+                            // 解析 JSON 结果
+                            val jsonObject = org.json.JSONObject(result)
+                            val title = jsonObject.getString("title")
+                            val url = jsonObject.getString("url")
+
+                            // 在主线程上执行分享
+                            Handler(Looper.getMainLooper()).post {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TITLE, title)
+                                    putExtra(Intent.EXTRA_TEXT, "$title\n$url")
+                                }
+                                
+                                val chooserIntent = Intent.createChooser(
+                                    shareIntent, 
+                                    "分享 $title"
+                                )
+                                chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(chooserIntent)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("FloatingService", "解析分享信息失败", e)
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(this, "分享失败", Toast.LENGTH_SHORT).show()
+                            }
                         }
-                        
-                        // 创建一个临时的 Activity 来启动分享
-                        val chooserIntent = Intent.createChooser(
-                            shareIntent, 
-                            "分享 $cleanTitle"
-                        )
-                        chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        startActivity(chooserIntent)
                     }
-                }
+                )
             } catch (e: Exception) {
                 Log.e("FloatingService", "分享失败", e)
                 Toast.makeText(this, "分享失败", Toast.LENGTH_SHORT).show()
@@ -1446,13 +1515,24 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
 
         // 添加菜单项：全屏
         menu.add("全屏").setOnMenuItemClickListener {
-            // 切换到全屏模式
-            val fullscreenIntent = Intent(this, FullscreenWebViewActivity::class.java).apply {
-                putExtra("URL", webView.url)
-                putExtra("TITLE", engines[safeIndex].name)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(fullscreenIntent)
+            // 异步获取页面URL
+            webView.evaluateJavascript(
+                "(function() { return window.location.href; })();",
+                { result ->
+                    // 移除可能的引号
+                    val url = result.trim('"')
+                    
+                    // 在主线程上启动全屏 Activity
+                    Handler(Looper.getMainLooper()).post {
+                        val fullscreenIntent = Intent(this, FullscreenWebViewActivity::class.java).apply {
+                            putExtra("URL", url)
+                            putExtra("TITLE", engines[safeIndex].name)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(fullscreenIntent)
+                    }
+                }
+            )
             true
         }
 
