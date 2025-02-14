@@ -3235,9 +3235,12 @@ int id bounceEnd 0x7f080067
 int id bounceStart 0x7f080068
 int id btn_bluetooth 0x7f080069
 int id btn_brightness 0x7f08006a
+int id btn_close 0x7f080218
 int id btn_recent_apps 0x7f08006b
 int id btn_screenshot 0x7f08006c
+int id btn_search 0x7f080219
 int id btn_settings 0x7f08006d
+int id btn_voice 0x7f08021a
 int id btn_wifi 0x7f08006e
 int id buttonPanel 0x7f08006f
 int id cache_measures 0x7f080070
@@ -3652,6 +3655,7 @@ int id visible_removing_fragment_view_tag 0x7f080205
 int id voice_input_button 0x7f080206
 int id voice_ripple 0x7f080207
 int id web_view 0x7f080208
+int id webview 0x7f08021b
 int id west 0x7f080209
 int id withText 0x7f08020a
 int id with_icon 0x7f08020b
@@ -3777,6 +3781,7 @@ int layout abc_select_dialog_material 0x7f0b001a
 int layout abc_tooltip 0x7f0b001b
 int layout activity_fullscreen_webview 0x7f0b0077
 int layout activity_permission 0x7f0b001c
+int layout activity_search 0x7f0b0078
 int layout activity_settings 0x7f0b001d
 int layout card_ai_engine 0x7f0b001e
 int layout custom_dialog 0x7f0b001f

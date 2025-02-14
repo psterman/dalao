@@ -46,8 +46,6 @@ import com.example.aifloatingball.utils.SystemSettingsHelper
 import com.example.aifloatingball.web.CustomWebViewClient
 import kotlin.math.abs
 import kotlin.math.min
-import android.content.ClipboardManager
-import android.content.ClipData
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -798,6 +796,15 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             val searchButton = searchContainer.findViewById<ImageButton>(R.id.search_button)
             val voiceButton = searchContainer.findViewById<ImageButton>(R.id.voice_input_button)
             
+            // 设置 EditText 以支持系统剪贴板操作
+            searchInput?.apply {
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isLongClickable = true
+                setTextIsSelectable(true)
+                customSelectionActionModeCallback = null  // 移除自定义回调，使用系统默认的
+            }
+
             searchButton?.setOnClickListener {
                 val query = searchInput?.text?.toString()?.trim() ?: ""
                 if (query.isNotEmpty()) {
@@ -821,12 +828,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 } else {
                     false
                 }
-            }
-
-            // 自定义长按菜单
-            searchInput.setOnLongClickListener { v ->
-                showContextMenu(v)
-                true
             }
             
             val params = WindowManager.LayoutParams(
@@ -1032,24 +1033,73 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         val pasteButton = cardView.findViewById<Button>(R.id.paste_button)
         pasteButton?.setOnClickListener {
+            try {
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 val clipData = clipboard.primaryClip
-            if (clipData != null && clipData.itemCount > 0) {
-                val text = clipData.getItemAt(0).text.toString()
-                webView.evaluateJavascript(
-                    """
-                            (function() {
-                        const input = document.querySelector('textarea');
-                        if (input) {
-                            input.value = '$text';
-                            input.dispatchEvent(new Event('input', { bubbles: true }));
-                            const button = document.querySelector('button[type="submit"]');
-                            if (button) button.click();
-                        }
-                    })()
-                    """.trimIndent(),
-                    null
-                )
+                if (clipData != null && clipData.itemCount > 0) {
+                    val text = clipData.getItemAt(0).text.toString()
+                    
+                    // 使用 JavaScript 接口来处理粘贴
+                    webView.evaluateJavascript(
+                        """
+                        (function() {
+                            function simulatePaste(text) {
+                                const activeElement = document.activeElement;
+                                const textareas = document.getElementsByTagName('textarea');
+                                const inputs = document.getElementsByTagName('input');
+                                
+                                // 尝试在当前焦点元素上粘贴
+                                if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
+                                    activeElement.value = text;
+                                    activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+                                    return true;
+                                }
+                                
+                                // 尝试在第一个文本区域粘贴
+                                for (let textarea of textareas) {
+                                    if (textarea.offsetParent !== null) {  // 检查元素是否可见
+                                        textarea.value = text;
+                                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                        textarea.focus();
+                                        return true;
+                                    }
+                                }
+                                
+                                // 尝试在第一个输入框粘贴
+                                for (let input of inputs) {
+                                    if (input.type === 'text' && input.offsetParent !== null) {
+                                        input.value = text;
+                                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                                        input.focus();
+                                        return true;
+                                    }
+                                }
+                                
+                                return false;
+                            }
+                            
+                            const success = simulatePaste(`${text}`);
+                            if (success) {
+                                // 尝试触发发送按钮
+                                const buttons = document.getElementsByTagName('button');
+                                for (let button of buttons) {
+                                    if (button.offsetParent !== null && 
+                                        (button.type === 'submit' || 
+                                         button.textContent.includes('发送') || 
+                                         button.textContent.includes('Send'))) {
+                                        button.click();
+                                        break;
+                                    }
+                                }
+                            }
+                        })();
+                        """.trimIndent(),
+                        null
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("FloatingService", "粘贴操作失败", e)
+                Toast.makeText(this, "粘贴失败：${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
         
@@ -1092,10 +1142,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             allowFileAccessFromFileURLs = true
             allowUniversalAccessFromFileURLs = true
             
-            javaScriptEnabled = true
+            // 启用 DOM storage API
             domStorageEnabled = true
-            setNeedInitialFocus(true)
             
+            // 设置自定义 User Agent
             val customUA = when (engine.name) {
                 "豆包" -> "Mozilla/5.0 (Linux; Android 11; Pixel 4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.104 Mobile Safari/537.36"
                 "ChatGPT" -> "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
@@ -1103,6 +1153,15 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             userAgentString = customUA
         }
+
+        // 注入自定义 JavaScript 接口
+        webView.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun getClipboardText(): String {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                return clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+            }
+        }, "AndroidClipboard")
 
         webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         
@@ -1120,74 +1179,38 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                val css = when (engine.name) {
-                    "豆包" -> """
-                        .mobile-container { min-height: 80vh !important; }
-                    """
-                    "ChatGPT" -> """
-                        body { min-height: 80vh !important; }
-                    """
-                    "阿里通义" -> """
-                        .chat-container { min-height: 80vh !important; }
-                    """
-                    "Kimi" -> """
-                        .conversation-container { min-height: 80vh !important; }
-                    """
-                    else -> ""
-                }
                 
-                if (css.isNotEmpty()) {
-                    val script = """
-                        javascript:(function() {
-                            var style = document.createElement('style');
-                            style.type = 'text/css';
-                            style.innerHTML = '$css';
-                            document.head.appendChild(style);
-                        })()
-                    """.trimIndent()
-                    view?.loadUrl(script)
-                }
+                // 注入辅助脚本
+                val script = """
+                    javascript:(function() {
+                        // 启用剪贴板功能
+                        document.addEventListener('paste', function(e) {
+                            const text = window.AndroidClipboard.getClipboardText();
+                            if (text) {
+                                const activeElement = document.activeElement;
+                                if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
+                                    activeElement.value = text;
+                                    activeElement.dispatchEvent(new Event('input', { bubbles: true }));
+                                }
+                            }
+                        });
+                        
+                        // 自定义样式
+                        var style = document.createElement('style');
+                        style.type = 'text/css';
+                        style.innerHTML = `
+                            textarea, input[type="text"] {
+                                user-select: text !important;
+                                -webkit-user-select: text !important;
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    })();
+                """.trimIndent()
                 
-                view?.requestFocus()
+                view?.loadUrl(script)
             }
         }
-
-        // 自定义长按菜单
-        webView.setOnLongClickListener { v ->
-            showContextMenu(v)
-            true
-        }
-    }
-
-    private fun showContextMenu(view: View) {
-        val popupMenu = PopupMenu(this, view)
-        popupMenu.menu.apply {
-            add("复制").setOnMenuItemClickListener {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val text = (view as? TextView)?.text?.toString() ?: ""
-                val clip = ClipData.newPlainText("text", text)
-                clipboard.setPrimaryClip(clip)
-                true
-            }
-            add("粘贴").setOnMenuItemClickListener {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clipData = clipboard.primaryClip
-                if (clipData != null && clipData.itemCount > 0) {
-                    val pasteText = clipData.getItemAt(0).text.toString()
-                    (view as? EditText)?.apply {
-                        val start = selectionStart.coerceAtLeast(0)
-                        val end = selectionEnd.coerceAtLeast(0)
-                        text.replace(start, end, pasteText)
-                    }
-                }
-                true
-            }
-            add("全选").setOnMenuItemClickListener {
-                (view as? EditText)?.selectAll()
-                true
-            }
-        }
-        popupMenu.show()
     }
 
     private fun expandCard(index: Int) {

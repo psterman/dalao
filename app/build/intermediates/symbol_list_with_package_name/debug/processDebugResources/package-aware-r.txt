@@ -3236,9 +3236,12 @@ id bounceEnd
 id bounceStart
 id btn_bluetooth
 id btn_brightness
+id btn_close
 id btn_recent_apps
 id btn_screenshot
+id btn_search
 id btn_settings
+id btn_voice
 id btn_wifi
 id buttonPanel
 id cache_measures
@@ -3653,6 +3656,7 @@ id visible_removing_fragment_view_tag
 id voice_input_button
 id voice_ripple
 id web_view
+id webview
 id west
 id withText
 id with_icon
@@ -3778,6 +3782,7 @@ layout abc_select_dialog_material
 layout abc_tooltip
 layout activity_fullscreen_webview
 layout activity_permission
+layout activity_search
 layout activity_settings
 layout card_ai_engine
 layout custom_dialog

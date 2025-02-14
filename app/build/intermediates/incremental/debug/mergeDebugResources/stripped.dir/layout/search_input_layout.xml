@@ -14,7 +14,12 @@
         android:hint="输入搜索内容"
         android:imeOptions="actionSearch"
         android:inputType="text"
-        android:maxLines="1" />
+        android:maxLines="1"
+        android:textIsSelectable="true"
+        android:longClickable="true"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:contextClickable="true" />
 
     <ImageButton
         android:id="@+id/voice_input_button"
