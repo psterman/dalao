@@ -2,17 +2,22 @@ package com.example.aifloatingball
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.preference.PreferenceManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 class SettingsManager private constructor(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+    private val appContext = context.applicationContext
     private val gson = Gson()
     
     companion object {
-        private const val PREFS_NAME = "ai_floating_ball_settings"
-        private const val KEY_ENGINE_ORDER = "engine_order"
+        private const val KEY_FLOATING_BALL_SIZE = "floating_ball_size"
+        private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_PRIVACY_MODE = "privacy_mode"
         private const val KEY_AUTO_START = "auto_start"
+        private const val KEY_ENGINE_ORDER = "engine_order"
+        private const val KEY_AUTO_HIDE = "auto_hide"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -24,6 +29,35 @@ class SettingsManager private constructor(context: Context) {
         }
     }
     
+    // 悬浮球大小设置 (30-100)
+    fun getFloatingBallSize(): Int = prefs.getInt(KEY_FLOATING_BALL_SIZE, 50)
+    
+    fun setFloatingBallSize(size: Int) {
+        prefs.edit().putInt(KEY_FLOATING_BALL_SIZE, size).apply()
+    }
+
+    // 主题设置
+    fun getThemeMode(): String = prefs.getString(KEY_THEME_MODE, "system") ?: "system"
+    
+    fun setThemeMode(mode: String) {
+        prefs.edit().putString(KEY_THEME_MODE, mode).apply()
+    }
+
+    // 隐私模式设置
+    fun getPrivacyMode(): Boolean = prefs.getBoolean(KEY_PRIVACY_MODE, false)
+    
+    fun setPrivacyMode(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_PRIVACY_MODE, enabled).apply()
+    }
+
+    // 开机自启动设置
+    fun getAutoStart(): Boolean = prefs.getBoolean(KEY_AUTO_START, false)
+    
+    fun setAutoStart(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
+    }
+    
+    // 搜索引擎排序设置
     fun getEngineOrder(): List<AIEngine> {
         val json = prefs.getString(KEY_ENGINE_ORDER, null)
         return if (json != null) {
@@ -43,17 +77,10 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putString(KEY_ENGINE_ORDER, json).apply()
     }
     
-    fun getAutoStart(): Boolean {
-        return prefs.getBoolean(KEY_AUTO_START, false)
-    }
-    
-    fun setAutoStart(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
-    }
-    
+    // 自动隐藏设置
     fun setAutoHide(autoHide: Boolean) {
-        prefs.edit().putBoolean("auto_hide", autoHide).apply()
+        prefs.edit().putBoolean(KEY_AUTO_HIDE, autoHide).apply()
     }
     
-    fun getAutoHide(): Boolean = prefs.getBoolean("auto_hide", false)
+    fun getAutoHide(): Boolean = prefs.getBoolean(KEY_AUTO_HIDE, false)
 } 

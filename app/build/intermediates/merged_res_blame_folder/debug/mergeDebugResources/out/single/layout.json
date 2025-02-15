@@ -4,6 +4,10 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_settings.xml"
     },
     {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\settings_activity.xml",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\settings_activity.xml"
+    },
+    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\activity_permission.xml",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_permission.xml"
     },
@@ -24,6 +28,10 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\search_input_layout.xml"
     },
     {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\activity_search_engine_settings.xml",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_search_engine_settings.xml"
+    },
+    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\floating_ball.xml",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\floating_ball.xml"
     },
@@ -38,6 +46,10 @@
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\search_history_item.xml",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\search_history_item.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeDebugResources-3:/layout/floating_ball.xml",
+        "source": "com.example.aifloatingball.app-main-6:/layout/floating_ball.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\card_ai_engine.xml",
@@ -56,11 +68,11 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\item_engine.xml"
     },
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\activity_fullscreen_webview.xml",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_fullscreen_webview.xml"
+        "merged": "com.example.aifloatingball.app-mergeDebugResources-3:/layout/item_engine.xml",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_engine.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-mergeDebugResources-3:/layout/card_search_engine.xml",
-        "source": "com.example.aifloatingball.app-main-6:/layout/card_search_engine.xml"
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\activity_fullscreen_webview.xml",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_fullscreen_webview.xml"
     }
 ]

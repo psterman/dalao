@@ -5,6 +5,10 @@
     <string name="voice_search">语音搜索</string>
     <string name="search">搜索</string>
     <string name="settings">设置</string>
+    <string name="settings_general">通用</string>
+    <string name="settings_display">显示与外观</string>
+    <string name="settings_privacy">隐私与安全</string>
+    <string name="settings_about">关于</string>
     <string name="auto_hide">自动隐藏悬浮球</string>
     <string name="save">保存</string>
     <string name="permission_required">需要权限</string>
@@ -15,4 +19,6 @@
     <string name="notification_channel_name">AI悬浮球服务</string>
     <string name="notification_channel_description">保持AI悬浮球服务在后台运行</string>
     <string name="service_running">AI悬浮球服务正在运行</string>
+    <string name="search_engine_settings">搜索引擎排序</string>
+    <string name="drag_to_sort">长按拖动排序</string>
 </resources> 

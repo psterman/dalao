@@ -14,7 +14,9 @@ class DragCallback(private val adapter: EngineAdapter) : ItemTouchHelper.Callbac
         return true
     }
 
-    override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
+    override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+        // 不支持滑动删除
+    }
 
     override fun isLongPressDragEnabled(): Boolean = true
 

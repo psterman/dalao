@@ -49,15 +49,7 @@ class EngineAdapter(private val engines: MutableList<AIEngine>) :
     override fun getItemCount() = engines.size
     
     fun onItemMove(fromPosition: Int, toPosition: Int) {
-        if (fromPosition < toPosition) {
-            for (i in fromPosition until toPosition) {
-                Collections.swap(engines, i, i + 1)
-            }
-        } else {
-            for (i in fromPosition downTo toPosition + 1) {
-                Collections.swap(engines, i, i - 1)
-            }
-        }
+        Collections.swap(engines, fromPosition, toPosition)
         notifyItemMoved(fromPosition, toPosition)
     }
     
@@ -96,5 +88,5 @@ class EngineAdapter(private val engines: MutableList<AIEngine>) :
         }
     }
     
-    fun getEngines(): List<AIEngine> = engines
+    fun getEngines(): List<AIEngine> = engines.toList()
 } 

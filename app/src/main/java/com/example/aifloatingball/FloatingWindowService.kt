@@ -304,7 +304,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             systemSettingsHelper = SystemSettingsHelper(this)
             searchHistoryManager = SearchHistoryManager(this)
             gestureManager = GestureManager(this, this)
-            quickMenuManager = QuickMenuManager(this, windowManager!!, systemSettingsHelper)
+            quickMenuManager = QuickMenuManager(this, windowManager!!)
             Log.d("FloatingService", "所有管理器初始化成功")
         } catch (e: Exception) {
             Log.e("FloatingService", "初始化管理器失败", e)
@@ -375,15 +375,27 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("FloatingService", "onStartCommand被调用")
-        try {
-        if (intent?.action == "restart_foreground") {
-            startForegroundOrNormal()
+        when (intent?.action) {
+            "UPDATE_BALL_SIZE" -> {
+                val size = intent.getIntExtra("size", 50)
+                updateFloatingBallSize(size)
             }
-        } catch (e: Exception) {
-            Log.e("FloatingService", "onStartCommand执行失败", e)
         }
-        return START_STICKY
+        return super.onStartCommand(intent, flags, startId)
+    }
+    
+    private fun updateFloatingBallSize(size: Int) {
+        val dpSize = (size * resources.displayMetrics.density).toInt()
+        floatingBallView?.let { view ->
+            val params = view.layoutParams as WindowManager.LayoutParams
+            params.width = dpSize
+            params.height = dpSize
+            try {
+                windowManager?.updateViewLayout(view, params)
+            } catch (e: Exception) {
+                Log.e("FloatingService", "更新悬浮球大小失败", e)
+            }
+        }
     }
     
     private fun createFloatingBall() {
@@ -405,7 +417,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 throw IllegalStateException("无法创建悬浮球视图")
             }
             
-            val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val windowParams = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams(
                     WindowManager.LayoutParams.WRAP_CONTENT,
                     WindowManager.LayoutParams.WRAP_CONTENT,
@@ -428,16 +440,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 )
             }
             
-            params.gravity = Gravity.START or Gravity.TOP
-            params.x = screenWidth - 100.dpToPx()
-            params.y = screenHeight / 2
+            windowParams.gravity = Gravity.START or Gravity.TOP
+            windowParams.x = screenWidth - 100.dpToPx()
+            windowParams.y = screenHeight / 2
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 root.elevation = 1000f
                 root.translationZ = 1000f
             }
             
-            windowManager?.addView(root, params)
+            windowManager?.addView(root, windowParams)
             
             floatingBallView?.let { view ->
                 gestureManager.attachToView(view)
@@ -1018,9 +1030,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 }
                 
                 // 将展开的卡片移动到屏幕中央
-                val params = cardView.layoutParams as LinearLayout.LayoutParams
-                params.topMargin = centerY
-                cardView.layoutParams = params
+                val cardParams = cardView.layoutParams as LinearLayout.LayoutParams
+                cardParams.topMargin = centerY
+                cardView.layoutParams = cardParams
             }
             .start()
         
@@ -1062,9 +1074,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         
                         // 确保标题栏可见
                         otherTitleBar.visibility = View.VISIBLE
-                }
-                .start()
-        }
+                    }
+                    .start()
+            }
         }
         
         // 确保所有卡片都在屏幕范围内
@@ -1074,7 +1086,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
     
-    private fun collapseCard(index: Int) {
+    private fun collapseCard(_index: Int) {
         activeCardIndex = -1
         val initialCardSpacing = 8.dpToPx()  // 设置初始紧凑间距
         
@@ -1090,8 +1102,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             // 计算目标Y位置（使用初始紧凑间距）
             var targetY = 0f
             for (j in 0 until i) {
-                val previousCard = cardsContainer?.getChildAt(j)
-                targetY += if (j == 0) initialCardSpacing else initialCardSpacing  // 使用初始紧凑间距
+                targetY += initialCardSpacing  // 使用初始紧凑间距
             }
             
             card.animate()
@@ -1099,7 +1110,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 .scaleX(0.95f)
                 .scaleY(0.95f)
                 .alpha(0.95f)
-            .setDuration(300)
+                .setDuration(300)
                 .withStartAction {
                     card.elevation = 4f
                     
@@ -1116,11 +1127,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     webView.visibility = View.GONE
                     
                     // 重置卡片位置和边距
-                    val params = card.layoutParams as LinearLayout.LayoutParams
-                    params.topMargin = if (i == 0) initialCardSpacing else 0
-                    params.bottomMargin = initialCardSpacing  // 使用初始紧凑间距
-                    card.layoutParams = params
-            }
+                    val cardParams = card.layoutParams as LinearLayout.LayoutParams
+                    cardParams.topMargin = if (i == 0) initialCardSpacing else 0
+                    cardParams.bottomMargin = initialCardSpacing  // 使用初始紧凑间距
+                    card.layoutParams = cardParams
+                }
                 .start()
         }
         

@@ -4,8 +4,8 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewbinding.ViewBinding;
@@ -20,34 +20,16 @@ public final class QuickMenuLayoutBinding implements ViewBinding {
   private final LinearLayout rootView;
 
   @NonNull
-  public final ImageButton btnBluetooth;
+  public final TextView closeButton;
 
   @NonNull
-  public final ImageButton btnBrightness;
+  public final TextView settingsButton;
 
-  @NonNull
-  public final ImageButton btnRecentApps;
-
-  @NonNull
-  public final ImageButton btnScreenshot;
-
-  @NonNull
-  public final ImageButton btnSettings;
-
-  @NonNull
-  public final ImageButton btnWifi;
-
-  private QuickMenuLayoutBinding(@NonNull LinearLayout rootView, @NonNull ImageButton btnBluetooth,
-      @NonNull ImageButton btnBrightness, @NonNull ImageButton btnRecentApps,
-      @NonNull ImageButton btnScreenshot, @NonNull ImageButton btnSettings,
-      @NonNull ImageButton btnWifi) {
+  private QuickMenuLayoutBinding(@NonNull LinearLayout rootView, @NonNull TextView closeButton,
+      @NonNull TextView settingsButton) {
     this.rootView = rootView;
-    this.btnBluetooth = btnBluetooth;
-    this.btnBrightness = btnBrightness;
-    this.btnRecentApps = btnRecentApps;
-    this.btnScreenshot = btnScreenshot;
-    this.btnSettings = btnSettings;
-    this.btnWifi = btnWifi;
+    this.closeButton = closeButton;
+    this.settingsButton = settingsButton;
   }
 
   @Override
@@ -77,44 +59,19 @@ public final class QuickMenuLayoutBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.btn_bluetooth;
-      ImageButton btnBluetooth = ViewBindings.findChildViewById(rootView, id);
-      if (btnBluetooth == null) {
+      id = R.id.closeButton;
+      TextView closeButton = ViewBindings.findChildViewById(rootView, id);
+      if (closeButton == null) {
         break missingId;
       }
 
-      id = R.id.btn_brightness;
-      ImageButton btnBrightness = ViewBindings.findChildViewById(rootView, id);
-      if (btnBrightness == null) {
+      id = R.id.settingsButton;
+      TextView settingsButton = ViewBindings.findChildViewById(rootView, id);
+      if (settingsButton == null) {
         break missingId;
       }
 
-      id = R.id.btn_recent_apps;
-      ImageButton btnRecentApps = ViewBindings.findChildViewById(rootView, id);
-      if (btnRecentApps == null) {
-        break missingId;
-      }
-
-      id = R.id.btn_screenshot;
-      ImageButton btnScreenshot = ViewBindings.findChildViewById(rootView, id);
-      if (btnScreenshot == null) {
-        break missingId;
-      }
-
-      id = R.id.btn_settings;
-      ImageButton btnSettings = ViewBindings.findChildViewById(rootView, id);
-      if (btnSettings == null) {
-        break missingId;
-      }
-
-      id = R.id.btn_wifi;
-      ImageButton btnWifi = ViewBindings.findChildViewById(rootView, id);
-      if (btnWifi == null) {
-        break missingId;
-      }
-
-      return new QuickMenuLayoutBinding((LinearLayout) rootView, btnBluetooth, btnBrightness,
-          btnRecentApps, btnScreenshot, btnSettings, btnWifi);
+      return new QuickMenuLayoutBinding((LinearLayout) rootView, closeButton, settingsButton);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

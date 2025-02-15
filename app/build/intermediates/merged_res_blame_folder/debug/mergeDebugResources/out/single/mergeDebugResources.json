@@ -1,27 +1,15 @@
 [
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_mic.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_mic.xml"
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_voice_ripple_background.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\voice_ripple_background.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_item_engine.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\item_engine.xml"
     },
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_voice_ripple_background.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\voice_ripple_background.xml"
-    },
-    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\anim_menu_show.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\anim\\menu_show.xml"
-    },
-    {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_activity_fullscreen_webview.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_fullscreen_webview.xml"
-    },
-    {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_floating_ball_layout.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\floating_ball_layout.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_launcher_foreground.xml.flat",
@@ -40,14 +28,6 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_history.xml"
     },
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\anim_menu_hide.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\anim\\menu_hide.xml"
-    },
-    {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_engine_item.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\engine_item.xml"
-    },
-    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_bluetooth.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_bluetooth.xml"
     },
@@ -56,28 +36,16 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\search_input_layout.xml"
     },
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_card_ai_engine.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\card_ai_engine.xml"
-    },
-    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_recent.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_recent.xml"
     },
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_quick_menu_background.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\quick_menu_background.xml"
-    },
-    {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_activity_settings.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_settings.xml"
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_activity_search_engine_settings.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_search_engine_settings.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\mipmap-anydpi-v26\\ic_launcher.xml"
-    },
-    {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\anim_voice_ripple.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\anim\\voice_ripple.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_wifi.xml.flat",
@@ -100,16 +68,8 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\floating_ball.xml"
     },
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\anim_window_hide.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\anim\\window_hide.xml"
-    },
-    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_search_history_layout.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\search_history_layout.xml"
-    },
-    {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_card_search_engine.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\card_search_engine.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_paste_button_background.xml.flat",
@@ -124,24 +84,8 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\circle_background.xml"
     },
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_settings.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_settings.xml"
-    },
-    {
-        "merged": "com.example.aifloatingball.app-debug-4:/layout_card_search_engine.xml.flat",
-        "source": "com.example.aifloatingball.app-main-6:/layout/card_search_engine.xml"
-    },
-    {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_search.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_search.xml"
-    },
-    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_voice_search_animation.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\voice_search_animation.xml"
-    },
-    {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_quick_menu_layout.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\quick_menu_layout.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_search_history_item.xml.flat",
@@ -158,5 +102,105 @@
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\anim_window_show.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\anim\\window_show.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-4:/xml_root_preferences.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/xml/root_preferences.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_mic.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_mic.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_activity_fullscreen_webview.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_fullscreen_webview.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_floating_ball_layout.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\floating_ball_layout.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_chatgpt.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_chatgpt.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_claude.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_claude.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\xml_root_preferences.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\xml\\root_preferences.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-4:/layout_floating_ball.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/floating_ball.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\anim_menu_hide.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\anim\\menu_hide.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_engine_item.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\engine_item.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_doubao.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_doubao.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_qianwen.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_qianwen.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_card_ai_engine.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\card_ai_engine.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_quick_menu_background.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\quick_menu_background.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_activity_settings.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_settings.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\anim_voice_ripple.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\anim\\voice_ripple.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_xinghuo.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_xinghuo.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\anim_window_hide.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\anim\\window_hide.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_card_search_engine.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\card_search_engine.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_settings_activity.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\settings_activity.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_settings.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_settings.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_quick_menu_layout.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\quick_menu_layout.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_search.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_search.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-4:/layout_item_engine.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_engine.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_wenxin.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_wenxin.xml"
     }
 ]
