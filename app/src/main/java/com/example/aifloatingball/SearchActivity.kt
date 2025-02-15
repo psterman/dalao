@@ -153,10 +153,10 @@ class SearchActivity : AppCompatActivity() {
         adapter?.let {
             // 如果卡片已经展开，则折叠
             if (it.isCardExpanded(position)) {
-                it.collapseCard(position)
+                it.toggleCard(position)
             } else {
                 // 否则展开卡片
-                it.expandCard(position)
+                it.toggleCard(position)
             }
         }
     }
