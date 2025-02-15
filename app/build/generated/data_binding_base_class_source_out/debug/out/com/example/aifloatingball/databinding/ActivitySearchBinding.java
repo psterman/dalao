@@ -4,12 +4,14 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.webkit.WebView;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.example.aifloatingball.R;
@@ -34,17 +36,26 @@ public final class ActivitySearchBinding implements ViewBinding {
   public final EditText searchInput;
 
   @NonNull
-  public final WebView webview;
+  public final RecyclerView searchResultsRecycler;
+
+  @NonNull
+  public final FrameLayout voiceAnimationContainer;
+
+  @NonNull
+  public final ImageView voiceAnimationView;
 
   private ActivitySearchBinding(@NonNull CoordinatorLayout rootView, @NonNull ImageButton btnClose,
       @NonNull ImageButton btnSearch, @NonNull ImageButton btnVoice, @NonNull EditText searchInput,
-      @NonNull WebView webview) {
+      @NonNull RecyclerView searchResultsRecycler, @NonNull FrameLayout voiceAnimationContainer,
+      @NonNull ImageView voiceAnimationView) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnSearch = btnSearch;
     this.btnVoice = btnVoice;
     this.searchInput = searchInput;
-    this.webview = webview;
+    this.searchResultsRecycler = searchResultsRecycler;
+    this.voiceAnimationContainer = voiceAnimationContainer;
+    this.voiceAnimationView = voiceAnimationView;
   }
 
   @Override
@@ -98,14 +109,26 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.webview;
-      WebView webview = ViewBindings.findChildViewById(rootView, id);
-      if (webview == null) {
+      id = R.id.search_results_recycler;
+      RecyclerView searchResultsRecycler = ViewBindings.findChildViewById(rootView, id);
+      if (searchResultsRecycler == null) {
+        break missingId;
+      }
+
+      id = R.id.voice_animation_container;
+      FrameLayout voiceAnimationContainer = ViewBindings.findChildViewById(rootView, id);
+      if (voiceAnimationContainer == null) {
+        break missingId;
+      }
+
+      id = R.id.voice_animation_view;
+      ImageView voiceAnimationView = ViewBindings.findChildViewById(rootView, id);
+      if (voiceAnimationView == null) {
         break missingId;
       }
 
       return new ActivitySearchBinding((CoordinatorLayout) rootView, btnClose, btnSearch, btnVoice,
-          searchInput, webview);
+          searchInput, searchResultsRecycler, voiceAnimationContainer, voiceAnimationView);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

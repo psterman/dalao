@@ -9,15 +9,15 @@
         android:pivotX="50%"
         android:pivotY="50%"
         android:repeatCount="infinite"
-        android:repeatMode="restart"
-        android:toXScale="1.5"
-        android:toYScale="1.5" />
+        android:repeatMode="reverse"
+        android:toXScale="1.2"
+        android:toYScale="1.2" />
         
     <alpha
         android:duration="1000"
-        android:fromAlpha="0.8"
+        android:fromAlpha="1.0"
         android:repeatCount="infinite"
-        android:repeatMode="restart"
-        android:toAlpha="0.0" />
+        android:repeatMode="reverse"
+        android:toAlpha="0.5" />
         
 </set> 

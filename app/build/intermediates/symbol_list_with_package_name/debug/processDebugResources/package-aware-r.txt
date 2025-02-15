@@ -3015,6 +3015,7 @@ drawable btn_radio_off_to_on_mtrl_animation
 drawable btn_radio_on_mtrl
 drawable btn_radio_on_to_off_mtrl_animation
 drawable card_header_background
+drawable circle_background
 drawable design_fab_background
 drawable design_ic_visibility
 drawable design_ic_visibility_off
@@ -3548,6 +3549,7 @@ id search_go_btn
 id search_input
 id search_mag_icon
 id search_plate
+id search_results_recycler
 id search_src_text
 id search_voice_btn
 id select_dialog_listview
@@ -3653,10 +3655,12 @@ id view_tree_saved_state_registry_owner
 id view_tree_view_model_store_owner
 id visible
 id visible_removing_fragment_view_tag
+id voice_animation_container
+id voice_animation_view
 id voice_input_button
 id voice_ripple
 id web_view
-id webview
+id webview_container
 id west
 id withText
 id with_icon
@@ -3785,6 +3789,7 @@ layout activity_permission
 layout activity_search
 layout activity_settings
 layout card_ai_engine
+layout card_search_engine
 layout custom_dialog
 layout design_bottom_navigation_item
 layout design_bottom_sheet_dialog

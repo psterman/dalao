@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:2:1-60:12
-INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:2:1-60:12
-INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:2:1-60:12
-INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:2:1-60:12
+ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:2:1-66:12
+INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:2:1-66:12
+INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:2:1-66:12
+INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:2:1-66:12
 MERGED from [androidx.databinding:viewbinding:8.8.0] D:\.gradle\caches\8.10.2\transforms\43d39aa7087276179ce434963625067f\transformed\jetified-viewbinding-8.8.0\AndroidManifest.xml:2:1-7:12
 MERGED from [com.google.android.material:material:1.11.0] D:\.gradle\caches\8.10.2\transforms\24e31963abc671a741cf8dc37d934932\transformed\material-1.11.0\AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.4] D:\.gradle\caches\8.10.2\transforms\44a0620101e530c6be0849163c07a4b2\transformed\constraintlayout-2.1.4\AndroidManifest.xml:2:1-11:12
@@ -106,8 +106,8 @@ ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml
 	android:name
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:15:22-71
 application
-ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:17:5-59:19
-INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:17:5-59:19
+ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:17:5-65:19
+INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:17:5-65:19
 MERGED from [com.google.android.material:material:1.11.0] D:\.gradle\caches\8.10.2\transforms\24e31963abc671a741cf8dc37d934932\transformed\material-1.11.0\AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.11.0] D:\.gradle\caches\8.10.2\transforms\24e31963abc671a741cf8dc37d934932\transformed\material-1.11.0\AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.4] D:\.gradle\caches\8.10.2\transforms\44a0620101e530c6be0849163c07a4b2\transformed\constraintlayout-2.1.4\AndroidManifest.xml:9:5-20
@@ -174,34 +174,44 @@ category#android.intent.category.LAUNCHER
 ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:39:17-77
 	android:name
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:39:27-74
+activity#com.example.aifloatingball.SearchActivity
+ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:43:9-47:40
+	android:windowSoftInputMode
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:46:13-55
+	android:exported
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:47:13-37
+	android:theme
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:45:13-69
+	android:name
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:44:13-43
 activity#com.example.aifloatingball.SettingsActivity
-ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:43:9-47:74
+ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:49:9-53:74
 	android:label
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:46:13-45
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:52:13-45
 	android:exported
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:45:13-37
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:51:13-37
 	android:theme
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:47:13-71
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:53:13-71
 	android:name
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:44:13-45
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:50:13-45
 activity#com.example.aifloatingball.ScreenshotActivity
-ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:49:9-52:40
-	android:exported
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:52:13-37
-	android:theme
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:51:13-72
-	android:name
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:50:13-47
-activity#com.example.aifloatingball.FullscreenWebViewActivity
-ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:54:9-58:39
+ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:55:9-58:40
 	android:exported
 		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:58:13-37
-	android:configChanges
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:57:13-74
 	android:theme
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:56:13-63
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:57:13-72
 	android:name
-		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:55:13-54
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:56:13-47
+activity#com.example.aifloatingball.FullscreenWebViewActivity
+ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:60:9-64:39
+	android:exported
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:64:13-37
+	android:configChanges
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:63:13-74
+	android:theme
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:62:13-63
+	android:name
+		ADDED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:61:13-54
 uses-sdk
 INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml
