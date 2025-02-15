@@ -35,6 +35,15 @@
 
         <ListPreference
             app:iconSpaceReserved="false"
+            app:key="layout_theme"
+            app:title="布局主题"
+            app:summary="选择AI窗口的排版样式"
+            app:entries="@array/layout_theme_entries"
+            app:entryValues="@array/layout_theme_values"
+            app:defaultValue="fold"/>
+
+        <ListPreference
+            app:iconSpaceReserved="false"
             app:key="theme_mode"
             app:title="主题设置"
             app:summary="选择应用的显示主题"

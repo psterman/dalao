@@ -18,6 +18,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_AUTO_START = "auto_start"
         private const val KEY_ENGINE_ORDER = "engine_order"
         private const val KEY_AUTO_HIDE = "auto_hide"
+        private const val KEY_LAYOUT_THEME = "layout_theme"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -83,4 +84,11 @@ class SettingsManager private constructor(context: Context) {
     }
     
     fun getAutoHide(): Boolean = prefs.getBoolean(KEY_AUTO_HIDE, false)
+
+    // 布局主题设置
+    fun getLayoutTheme(): String = prefs.getString(KEY_LAYOUT_THEME, "fold") ?: "fold"
+    
+    fun setLayoutTheme(theme: String) {
+        prefs.edit().putString(KEY_LAYOUT_THEME, theme).apply()
+    }
 } 

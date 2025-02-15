@@ -11,4 +11,14 @@
         <item>light</item>
         <item>dark</item>
     </string-array>
+
+    <string-array name="layout_theme_entries">
+        <item>折叠式布局</item>
+        <item>卡片式布局</item>
+    </string-array>
+
+    <string-array name="layout_theme_values">
+        <item>fold</item>
+        <item>card</item>
+    </string-array>
 </resources> 

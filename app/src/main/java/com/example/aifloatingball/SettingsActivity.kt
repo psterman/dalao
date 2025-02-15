@@ -63,6 +63,18 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 初始化布局主题设置
+            findPreference<ListPreference>("layout_theme")?.apply {
+                value = settingsManager.getLayoutTheme()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setLayoutTheme(newValue as String)
+                    // 发送广播通知SearchActivity更新布局
+                    val intent = Intent("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
+                    requireContext().sendBroadcast(intent)
+                    true
+                }
+            }
+
             // 初始化主题设置
             findPreference<ListPreference>("theme_mode")?.apply {
                 value = settingsManager.getThemeMode()

@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string-array name="layout_theme_entries">
+        <item>折叠式布局</item>
+        <item>卡片式布局</item>
+    </string-array>
+    <string-array name="layout_theme_values">
+        <item>fold</item>
+        <item>card</item>
+    </string-array>
     <string-array name="theme_entries">
         <item>跟随系统</item>
         <item>浅色模式</item>
@@ -22,6 +30,7 @@
     <color name="teal_700">#FF018786</color>
     <color name="transparent_black">#80000000</color>
     <color name="white">#FFFFFFFF</color>
+    <dimen name="card_spacing">8dp</dimen>
     <string name="app_name">AI悬浮球</string>
     <string name="auto_hide">自动隐藏悬浮球</string>
     <string name="drag_to_sort">长按拖动排序</string>

@@ -8,9 +8,9 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
@@ -21,7 +21,7 @@ import java.lang.String;
 
 public final class ActivitySearchBinding implements ViewBinding {
   @NonNull
-  private final CoordinatorLayout rootView;
+  private final LinearLayout rootView;
 
   @NonNull
   public final ImageButton btnClose;
@@ -31,6 +31,9 @@ public final class ActivitySearchBinding implements ViewBinding {
 
   @NonNull
   public final ImageButton btnVoice;
+
+  @NonNull
+  public final RecyclerView cardRecyclerView;
 
   @NonNull
   public final EditText searchInput;
@@ -44,14 +47,16 @@ public final class ActivitySearchBinding implements ViewBinding {
   @NonNull
   public final ImageView voiceAnimationView;
 
-  private ActivitySearchBinding(@NonNull CoordinatorLayout rootView, @NonNull ImageButton btnClose,
-      @NonNull ImageButton btnSearch, @NonNull ImageButton btnVoice, @NonNull EditText searchInput,
+  private ActivitySearchBinding(@NonNull LinearLayout rootView, @NonNull ImageButton btnClose,
+      @NonNull ImageButton btnSearch, @NonNull ImageButton btnVoice,
+      @NonNull RecyclerView cardRecyclerView, @NonNull EditText searchInput,
       @NonNull RecyclerView searchResultsRecycler, @NonNull FrameLayout voiceAnimationContainer,
       @NonNull ImageView voiceAnimationView) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnSearch = btnSearch;
     this.btnVoice = btnVoice;
+    this.cardRecyclerView = cardRecyclerView;
     this.searchInput = searchInput;
     this.searchResultsRecycler = searchResultsRecycler;
     this.voiceAnimationContainer = voiceAnimationContainer;
@@ -60,7 +65,7 @@ public final class ActivitySearchBinding implements ViewBinding {
 
   @Override
   @NonNull
-  public CoordinatorLayout getRoot() {
+  public LinearLayout getRoot() {
     return rootView;
   }
 
@@ -103,6 +108,12 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.card_recycler_view;
+      RecyclerView cardRecyclerView = ViewBindings.findChildViewById(rootView, id);
+      if (cardRecyclerView == null) {
+        break missingId;
+      }
+
       id = R.id.search_input;
       EditText searchInput = ViewBindings.findChildViewById(rootView, id);
       if (searchInput == null) {
@@ -127,8 +138,9 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivitySearchBinding((CoordinatorLayout) rootView, btnClose, btnSearch, btnVoice,
-          searchInput, searchResultsRecycler, voiceAnimationContainer, voiceAnimationView);
+      return new ActivitySearchBinding((LinearLayout) rootView, btnClose, btnSearch, btnVoice,
+          cardRecyclerView, searchInput, searchResultsRecycler, voiceAnimationContainer,
+          voiceAnimationView);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

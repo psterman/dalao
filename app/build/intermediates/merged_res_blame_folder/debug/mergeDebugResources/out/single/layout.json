@@ -32,8 +32,16 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\activity_search_engine_settings.xml"
     },
     {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\search_engine_card.xml",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\search_engine_card.xml"
+    },
+    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\floating_ball.xml",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\floating_ball.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\card_layout_theme.xml",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\card_layout_theme.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\voice_search_animation.xml",
@@ -48,12 +56,12 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\search_history_item.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-mergeDebugResources-3:/layout/floating_ball.xml",
-        "source": "com.example.aifloatingball.app-main-6:/layout/floating_ball.xml"
-    },
-    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\card_ai_engine.xml",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\card_ai_engine.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeDebugResources-3:/layout/search_engine_card.xml",
+        "source": "com.example.aifloatingball.app-main-6:/layout/search_engine_card.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-3:\\layout\\engine_item.xml",

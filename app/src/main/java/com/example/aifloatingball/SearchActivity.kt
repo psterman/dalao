@@ -22,6 +22,14 @@ import androidx.recyclerview.widget.RecyclerView
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.view.animation.DecelerateInterpolator
+import android.animation.Animator
+import androidx.recyclerview.widget.GridLayoutManager
+import android.net.Uri
+import android.widget.PopupMenu
+import org.json.JSONObject
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
@@ -34,25 +42,56 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var searchAdapter: SearchEngineAdapter
     private lateinit var settingsManager: SettingsManager
+    private var currentLayoutTheme: String = "fold"
+    private val layoutThemeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.LAYOUT_THEME_CHANGED") {
+                currentLayoutTheme = settingsManager.getLayoutTheme()
+                setupViews()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_search)
+        try {
+            super.onCreate(savedInstanceState)
+            setContentView(R.layout.activity_search)
 
-        settingsManager = SettingsManager.getInstance(this)
-        
-        initViews()
-        setupRecyclerView()
-        setupVoiceRecognition()
-        setupClickListeners()
-
-        // 检查是否有剪贴板文本传入
-        val clipboardText = intent.getStringExtra("CLIPBOARD_TEXT")
-        clipboardText?.let { text ->
-            if (text.isNotBlank()) {
-                searchInput.setText(text)
-                performSearch(text)
+            settingsManager = SettingsManager.getInstance(this)
+            currentLayoutTheme = settingsManager.getLayoutTheme()
+            
+            // 注册布局主题变更广播接收器
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(
+                    layoutThemeReceiver,
+                    IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED"),
+                    Context.RECEIVER_NOT_EXPORTED
+                )
+            } else {
+                registerReceiver(
+                    layoutThemeReceiver,
+                    IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
+                )
             }
+            
+            initViews()
+            setupViews()
+            setupRecyclerView()
+            setupVoiceRecognition()
+            setupClickListeners()
+
+            // 检查是否有剪贴板文本传入
+            val clipboardText = intent.getStringExtra("CLIPBOARD_TEXT")
+            clipboardText?.let { text ->
+                if (text.isNotBlank()) {
+                    searchInput.setText(text)
+                    performSearch(text)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SearchActivity", "Error in onCreate", e)
+            Toast.makeText(this, "启动失败：${e.message}", Toast.LENGTH_LONG).show()
+            finish()
         }
     }
 
@@ -66,9 +105,77 @@ class SearchActivity : AppCompatActivity() {
         recyclerView = findViewById(R.id.search_results_recycler)
     }
 
+    private fun setupViews() {
+        try {
+            val searchResultsRecycler = findViewById<RecyclerView>(R.id.search_results_recycler)
+            val cardRecyclerView = findViewById<RecyclerView>(R.id.card_recycler_view)
+            
+            when (currentLayoutTheme) {
+                "card" -> {
+                    cardRecyclerView.visibility = View.VISIBLE
+                    searchResultsRecycler.visibility = View.GONE
+                    setupCardLayout()
+                }
+                else -> {
+                    cardRecyclerView.visibility = View.GONE
+                    searchResultsRecycler.visibility = View.VISIBLE
+                    setupFoldLayout()
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SearchActivity", "Error setting up views", e)
+            Toast.makeText(this, "视图初始化失败：${e.message}", Toast.LENGTH_SHORT).show()
+            finish()
+        }
+    }
+
+    private fun setupCardLayout() {
+        val recyclerView = findViewById<RecyclerView>(R.id.card_recycler_view)
+        recyclerView.layoutManager = GridLayoutManager(this, 2)
+        
+        val engines = settingsManager.getEngineOrder().map { aiEngine ->
+            SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
+        }
+        val adapter = CardLayoutAdapter(engines, 
+            onCardClick = { position -> 
+                expandCard(position)
+            },
+            onCardLongClick = { view, position ->
+                showCardOptions(view, position)
+                true
+            }
+        )
+        recyclerView.adapter = adapter
+    }
+
+    private fun expandCard(position: Int) {
+        val adapter = findViewById<RecyclerView>(R.id.card_recycler_view).adapter as? CardLayoutAdapter
+        adapter?.let {
+            // 如果卡片已经展开，则折叠
+            if (it.isCardExpanded(position)) {
+                it.collapseCard(position)
+            } else {
+                // 否则展开卡片
+                it.expandCard(position)
+            }
+        }
+    }
+
+    private fun setupFoldLayout() {
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        val engines = settingsManager.getEngineOrder().map { aiEngine ->
+            SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
+        }
+        searchAdapter = SearchEngineAdapter(engines)
+        recyclerView.adapter = searchAdapter
+    }
+
     private fun setupRecyclerView() {
         recyclerView.layoutManager = LinearLayoutManager(this)
-        searchAdapter = SearchEngineAdapter(settingsManager.getEngineOrder())
+        val engines = settingsManager.getEngineOrder().map { aiEngine ->
+            SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
+        }
+        searchAdapter = SearchEngineAdapter(engines)
         recyclerView.adapter = searchAdapter
     }
 
@@ -102,7 +209,19 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun performSearch(query: String) {
-        searchAdapter.performSearch(query)
+        try {
+            when (currentLayoutTheme) {
+                "card" -> {
+                    (findViewById<RecyclerView>(R.id.card_recycler_view).adapter as? CardLayoutAdapter)?.performSearch(query)
+                }
+                else -> {
+                    searchAdapter.performSearch(query)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SearchActivity", "Error performing search", e)
+            Toast.makeText(this, "搜索失败：${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun setupVoiceRecognition() {
@@ -185,256 +304,63 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
-    private inner class SearchEngineAdapter(private val engines: List<AIEngine>) : 
-        RecyclerView.Adapter<SearchEngineAdapter.ViewHolder>() {
+    fun showCardOptions(view: View, position: Int) {
+        val popupMenu = PopupMenu(this, view)
+        val menu = popupMenu.menu
 
-        val webViews = mutableMapOf<Int, WebView>()  // 改用Map来存储WebView
-        private var expandedPosition = -1  // 记录当前展开的位置
+        // 获取当前的引擎列表
+        val engines = settingsManager.getEngineOrder().map { aiEngine ->
+            SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
+        }
+        val engine = engines[position]
+        val webView = view.findViewById<WebView>(R.id.web_view)
 
-        inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-            val engineIcon: ImageView = view.findViewById(R.id.engine_icon)
-            val engineName: TextView = view.findViewById(R.id.engine_name)
-            val webViewContainer: ViewGroup = view.findViewById(R.id.webview_container)
-            val titleBar: View = view.findViewById(R.id.title_bar)
+        menu.add("刷新页面").setOnMenuItemClickListener {
+            webView.reload()
+            true
         }
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.card_search_engine, parent, false)
-            return ViewHolder(view)
-        }
+        menu.add("分享").setOnMenuItemClickListener {
+            webView.evaluateJavascript(
+                "(function() { return { title: document.title, url: window.location.href }; })();",
+                { result ->
+                    try {
+                        val jsonObject = JSONObject(result)
+                        val title = jsonObject.getString("title")
+                        val url = jsonObject.getString("url")
 
-        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val engine = engines[position]
-            
-            holder.engineIcon.setImageResource(engine.iconResId)
-            holder.engineName.text = engine.name
-
-            // 设置点击事件
-            holder.titleBar.setOnClickListener {
-                if (expandedPosition == position) {
-                    // 折叠当前卡片
-                    collapseCard(holder, position)
-                } else {
-                    // 如果有其他展开的卡片，先折叠它
-                    if (expandedPosition != -1) {
-                        notifyItemChanged(expandedPosition)
-                    }
-                    // 展开当前卡片
-                    expandCard(holder, position)
-                }
-            }
-
-            // 根据展开状态设置容器高度
-            if (expandedPosition == position) {
-                holder.webViewContainer.visibility = View.VISIBLE
-                holder.webViewContainer.layoutParams.height = 600.dpToPx()
-                
-                // 确保WebView已创建并添加到容器中
-                ensureWebViewCreated(holder, position)
-            } else {
-                holder.webViewContainer.visibility = View.GONE
-                holder.webViewContainer.layoutParams.height = 0
-                
-                // 移除WebView（可选，取决于内存使用情况）
-                removeWebViewIfNeeded(position)
-            }
-        }
-
-        private fun expandCard(holder: ViewHolder, position: Int) {
-            expandedPosition = position
-            
-            // 创建并设置WebView
-            ensureWebViewCreated(holder, position)
-            
-            // 加载初始URL
-            val engine = engines[position]
-            webViews[position]?.let { webView ->
-                webView.post {
-                    webView.loadUrl(engine.url)
-                }
-            }
-            
-            // 展开动画
-            holder.webViewContainer.visibility = View.VISIBLE
-            val anim = ValueAnimator.ofInt(0, 600.dpToPx())
-            anim.duration = 300
-            anim.interpolator = DecelerateInterpolator()
-            anim.addUpdateListener { animator ->
-                holder.webViewContainer.layoutParams.height = animator.animatedValue as Int
-                holder.webViewContainer.requestLayout()
-            }
-            anim.start()
-        }
-
-        private fun collapseCard(holder: ViewHolder, position: Int) {
-            expandedPosition = -1
-            
-            // 折叠动画
-            val anim = ValueAnimator.ofInt(holder.webViewContainer.height, 0)
-            anim.duration = 300
-            anim.interpolator = DecelerateInterpolator()
-            anim.addUpdateListener { animator ->
-                holder.webViewContainer.layoutParams.height = animator.animatedValue as Int
-                holder.webViewContainer.requestLayout()
-            }
-            anim.addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    holder.webViewContainer.visibility = View.GONE
-                    // 可选：移除WebView以节省内存
-                    removeWebViewIfNeeded(position)
-                }
-            })
-            anim.start()
-        }
-
-        private fun ensureWebViewCreated(holder: ViewHolder, position: Int) {
-            if (!webViews.containsKey(position)) {
-                val webView = WebView(this@SearchActivity).apply {
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                }
-                setupWebView(webView)
-                webViews[position] = webView
-            }
-            
-            val webView = webViews[position]
-            if (webView?.parent != null) {
-                (webView.parent as? ViewGroup)?.removeView(webView)
-            }
-            holder.webViewContainer.addView(webView)
-        }
-
-        private fun removeWebViewIfNeeded(position: Int) {
-            webViews[position]?.let { webView ->
-                (webView.parent as? ViewGroup)?.removeView(webView)
-                // 可选：完全销毁WebView以节省内存
-                // webView.destroy()
-                // webViews.remove(position)
-            }
-        }
-
-        override fun getItemCount() = engines.size
-
-        fun performSearch(query: String) {
-            // 只在当前展开的WebView中执行搜索
-            if (expandedPosition != -1) {
-                val engine = engines[expandedPosition]
-                val url = if (query.isNotEmpty()) {
-                    getSearchUrl(engine, query)
-                } else {
-                    engine.url
-                }
-                webViews[expandedPosition]?.let { webView ->
-                    webView.post {
-                        webView.loadUrl(url)
-                    }
-                }
-            }
-        }
-
-        private fun getSearchUrl(engine: AIEngine, query: String): String {
-            return when (engine.name) {
-                "Google" -> "https://www.google.com/search?q=$query"
-                "Bing" -> "https://www.bing.com/search?q=$query"
-                "百度" -> "https://www.baidu.com/s?wd=$query"
-                "ChatGPT" -> "https://chat.openai.com/"
-                "Claude" -> "https://claude.ai/"
-                "文心一言" -> "https://yiyan.baidu.com/"
-                "通义千问" -> "https://qianwen.aliyun.com/"
-                "讯飞星火" -> "https://xinghuo.xfyun.cn/"
-                "Gemini" -> "https://gemini.google.com/"
-                "Copilot" -> "https://copilot.microsoft.com/"
-                "豆包" -> "https://www.doubao.com/"
-                else -> "https://www.google.com/search?q=$query"  // 默认使用 Google
-            }
-        }
-
-        private fun setupWebView(webView: WebView) {
-            webView.settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                databaseEnabled = true
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                allowContentAccess = true
-                allowFileAccess = true
-                cacheMode = WebSettings.LOAD_NO_CACHE
-                javaScriptCanOpenWindowsAutomatically = true
-                defaultTextEncodingName = "UTF-8"
-                
-                // 添加新的设置
-                setGeolocationEnabled(true)
-                mediaPlaybackRequiresUserGesture = false
-                loadsImagesAutomatically = true
-                blockNetworkImage = false
-                blockNetworkLoads = false
-                
-                // 设置 User Agent
-                userAgentString = userAgentString.replace("; wv", "")
-                
-                // 添加更多必要的设置
-                databaseEnabled = true
-                domStorageEnabled = true
-                setGeolocationEnabled(true)
-                
-                // 允许混合内容
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                }
-            }
-
-            // 设置WebViewClient以处理页面加载
-            webView.webViewClient = object : android.webkit.WebViewClient() {
-                override fun shouldOverrideUrlLoading(
-                    view: WebView?,
-                    request: android.webkit.WebResourceRequest?
-                ): Boolean {
-                    request?.url?.let { uri ->
-                        if (uri.scheme in listOf("http", "https")) {
-                            view?.loadUrl(uri.toString())
-                            return true
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TITLE, title)
+                            putExtra(Intent.EXTRA_TEXT, "$title\n$url")
                         }
+                        
+                        startActivity(Intent.createChooser(shareIntent, "分享 $title"))
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "分享失败", Toast.LENGTH_SHORT).show()
                     }
-                    return true // 其他链接交给系统处理
                 }
-
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    view?.visibility = View.VISIBLE
-                }
-
-                override fun onReceivedError(
-                    view: WebView?,
-                    errorCode: Int,
-                    description: String?,
-                    failingUrl: String?
-                ) {
-                    Toast.makeText(this@SearchActivity, "加载失败: $description", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            // 设置WebChromeClient以处理JavaScript对话框等
-            webView.webChromeClient = object : android.webkit.WebChromeClient() {
-                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                    super.onProgressChanged(view, newProgress)
-                }
-
-                override fun onGeolocationPermissionsShowPrompt(
-                    origin: String?,
-                    callback: android.webkit.GeolocationPermissions.Callback?
-                ) {
-                    callback?.invoke(origin, true, false)
-                }
-            }
+            )
+            true
         }
+
+        menu.add("全屏").setOnMenuItemClickListener {
+            webView.evaluateJavascript(
+                "(function() { return window.location.href; })();",
+                { result ->
+                    val url = result.trim('"')
+                    val fullscreenIntent = Intent(this, FullscreenWebViewActivity::class.java).apply {
+                        putExtra("URL", url)
+                        putExtra("TITLE", engine.name)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(fullscreenIntent)
+                }
+            )
+            true
+        }
+
+        popupMenu.show()
     }
 
     private fun Int.dpToPx(): Int {
@@ -442,18 +368,34 @@ class SearchActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        recognizer?.destroy()
-        // Clean up WebViews
-        searchAdapter.webViews.values.forEach { webView ->
-            webView.loadUrl("about:blank")
-            webView.clearHistory()
-            webView.clearCache(true)
-            (webView.parent as? ViewGroup)?.removeView(webView)
-            webView.removeAllViews()
-            webView.destroy()
+        try {
+            // 清理 WebViews
+            if (currentLayoutTheme == "card") {
+                (findViewById<RecyclerView>(R.id.card_recycler_view).adapter as? CardLayoutAdapter)?.cleanupWebViews()
+            } else {
+                searchAdapter.cleanupWebViews()
+            }
+            
+            // 注销广播接收器
+            try {
+                unregisterReceiver(layoutThemeReceiver)
+            } catch (e: Exception) {
+                android.util.Log.e("SearchActivity", "Error unregistering receiver", e)
+            }
+            
+            // 清理语音识别
+            try {
+                recognizer?.destroy()
+                recognizer = null
+            } catch (e: Exception) {
+                android.util.Log.e("SearchActivity", "Error destroying recognizer", e)
+            }
+            
+            super.onDestroy()
+        } catch (e: Exception) {
+            android.util.Log.e("SearchActivity", "Error in onDestroy", e)
+            super.onDestroy()
         }
-        searchAdapter.webViews.clear()
     }
 
     companion object {

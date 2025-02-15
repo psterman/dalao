@@ -82,6 +82,8 @@ animator mtrl_fab_hide_motion_spec
 animator mtrl_fab_show_motion_spec
 animator mtrl_fab_transformation_sheet_collapse_spec
 animator mtrl_fab_transformation_sheet_expand_spec
+array layout_theme_entries
+array layout_theme_values
 array theme_entries
 array theme_values
 attr SharedValue
@@ -2271,6 +2273,7 @@ dimen abc_text_size_subtitle_material_toolbar
 dimen abc_text_size_title_material
 dimen abc_text_size_title_material_toolbar
 dimen appcompat_dialog_background_inset
+dimen card_spacing
 dimen cardview_compat_inset_shadow
 dimen cardview_default_elevation
 dimen cardview_default_radius
@@ -3103,6 +3106,7 @@ drawable ic_chatgpt
 drawable ic_claude
 drawable ic_clear_black_24
 drawable ic_clock_black_24dp
+drawable ic_close
 drawable ic_doubao
 drawable ic_floating_ball
 drawable ic_history
@@ -3112,6 +3116,7 @@ drawable ic_m3_chip_check
 drawable ic_m3_chip_checked_circle
 drawable ic_m3_chip_close
 drawable ic_mic
+drawable ic_more
 drawable ic_mtrl_checked_circle
 drawable ic_mtrl_chip_checked_black
 drawable ic_mtrl_chip_checked_circle
@@ -3317,6 +3322,7 @@ id buttonPanel
 id cache_measures
 id callMeasure
 id cancel_button
+id card_recycler_view
 id carryVelocity
 id center
 id centerCrop
@@ -3344,6 +3350,7 @@ id container
 id content
 id contentPanel
 id content_area
+id content_container
 id contiguous
 id continuousVelocity
 id coordinator
@@ -3398,6 +3405,7 @@ id endToStart
 id engine_icon
 id engine_list
 id engine_name
+id engine_title
 id enterAlways
 id enterAlwaysCollapsed
 id exitUntilCollapsed
@@ -3567,6 +3575,7 @@ id open_search_view_search_prefix
 id open_search_view_status_bar_spacer
 id open_search_view_toolbar
 id open_search_view_toolbar_container
+id options_button
 id outline
 id outward
 id overshoot
@@ -3873,6 +3882,7 @@ layout activity_search
 layout activity_search_engine_settings
 layout activity_settings
 layout card_ai_engine
+layout card_layout_theme
 layout card_search_engine
 layout custom_dialog
 layout design_bottom_navigation_item
@@ -3972,6 +3982,7 @@ layout preference_widget_seekbar_material
 layout preference_widget_switch
 layout preference_widget_switch_compat
 layout quick_menu_layout
+layout search_engine_card
 layout search_history_item
 layout search_history_layout
 layout search_input_layout
