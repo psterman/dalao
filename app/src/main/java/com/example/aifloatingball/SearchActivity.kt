@@ -45,6 +45,15 @@ class SearchActivity : AppCompatActivity() {
         setupRecyclerView()
         setupVoiceRecognition()
         setupClickListeners()
+
+        // 检查是否有剪贴板文本传入
+        val clipboardText = intent.getStringExtra("CLIPBOARD_TEXT")
+        clipboardText?.let { text ->
+            if (text.isNotBlank()) {
+                searchInput.setText(text)
+                performSearch(text)
+            }
+        }
     }
 
     private fun initViews() {

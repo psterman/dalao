@@ -387,10 +387,32 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private fun updateFloatingBallSize(size: Int) {
         val dpSize = (size * resources.displayMetrics.density).toInt()
         floatingBallView?.let { view ->
+            // 更新根布局参数
             val params = view.layoutParams as WindowManager.LayoutParams
             params.width = dpSize
             params.height = dpSize
+            
+            // 获取悬浮球图标
+            val icon = view.findViewById<ImageView>(R.id.floating_ball_icon)
+            
+            // 更新图标布局参数
+            val iconParams = icon.layoutParams
+            iconParams.width = dpSize
+            iconParams.height = dpSize
+            icon.layoutParams = iconParams
+            
+            // 计算图标的内边距（保持比例）
+            val iconPadding = (dpSize * 0.167).toInt() // 保持原有的8dp/48dp的比例
+            icon.setPadding(iconPadding, iconPadding, iconPadding, iconPadding)
+            
+            // 确保没有阴影和轮廓
+            icon.elevation = 0f
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                icon.outlineProvider = null
+            }
+            
             try {
+                // 更新窗口布局
                 windowManager?.updateViewLayout(view, params)
             } catch (e: Exception) {
                 Log.e("FloatingService", "更新悬浮球大小失败", e)
@@ -696,11 +718,22 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private fun showSearchInput() {
         try {
+            // 获取剪贴板文本
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clipboardText = clipboard.primaryClip?.let { 
+                if (it.itemCount > 0) it.getItemAt(0).text?.toString() 
+                else null 
+            }
+
+            // 启动搜索Activity，并传递剪贴板文本
             val intent = Intent(this, SearchActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                clipboardText?.let { 
+                    putExtra("CLIPBOARD_TEXT", it) 
+                }
             }
             startActivity(intent)
-                    } catch (e: Exception) {
+        } catch (e: Exception) {
             Log.e("FloatingService", "启动搜索Activity失败", e)
             Toast.makeText(this, "启动搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
@@ -796,11 +829,56 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             weight = 0f
         }
         
+        // 获取剪贴板文本
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clipboardText = clipboard.primaryClip?.let { 
+            if (it.itemCount > 0) it.getItemAt(0).text?.toString() 
+            else null 
+        }
+        
+        // 点击标题栏展开/折叠卡片
         titleBar.setOnClickListener {
             if (activeCardIndex == index) {
                 collapseCard(index)
             } else {
                 expandCard(index)
+                
+                // 如果有剪贴板文本，自动搜索
+                clipboardText?.let { text ->
+                    if (text.isNotBlank()) {
+                        // 使用 JavaScript 注入剪贴板文本并触发搜索
+                        webView.evaluateJavascript(
+                            """
+                            (function() {
+                                const searchInputs = document.querySelectorAll('textarea, input[type="text"]');
+                                const sendButtons = document.querySelectorAll('button');
+                                
+                                // 尝试填充文本到第一个可见的输入框
+                                for (let input of searchInputs) {
+                                    if (input.offsetParent !== null) {
+                                        input.value = `${text}`;
+                                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                                        
+                                        // 尝试触发发送按钮
+                                        for (let button of sendButtons) {
+                                            if (button.offsetParent !== null && 
+                                                (button.type === 'submit' || 
+                                                 button.textContent.includes('发送') || 
+                                                 button.textContent.includes('Send') ||
+                                                 button.textContent.includes('搜索'))) {
+                                                button.click();
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                            })();
+                            """.trimIndent(),
+                            null
+                        )
+                    }
+                }
             }
         }
         
@@ -812,7 +890,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val pasteButton = cardView.findViewById<Button>(R.id.paste_button)
         pasteButton?.setOnClickListener {
             try {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                 val clipData = clipboard.primaryClip
                 if (clipData != null && clipData.itemCount > 0) {
                     val text = clipData.getItemAt(0).text.toString()
