@@ -25,6 +25,8 @@ dimen card_spacing
 drawable card_header_background
 drawable circle_background
 drawable floating_ball_background
+drawable ic_arrow_back
+drawable ic_arrow_forward
 drawable ic_bluetooth
 drawable ic_brightness
 drawable ic_chatgpt
@@ -35,9 +37,11 @@ drawable ic_floating_ball
 drawable ic_history
 drawable ic_launcher_foreground
 drawable ic_mic
+drawable ic_minimize
 drawable ic_more
 drawable ic_qianwen
 drawable ic_recent
+drawable ic_refresh
 drawable ic_screenshot
 drawable ic_search
 drawable ic_settings
@@ -50,13 +54,17 @@ drawable search_background
 drawable voice_ripple_background
 id auto_start_switch
 id back_button
+id btn_back
 id btn_close
+id btn_forward
+id btn_minimize
+id btn_refresh
 id btn_search
 id btn_voice
 id card_recycler_view
 id closeButton
-id content_area
 id content_container
+id control_bar
 id drag_handle
 id engine_icon
 id engine_list
@@ -70,7 +78,6 @@ id fullscreen_webview
 id history_list
 id history_text
 id options_button
-id paste_button
 id search_button
 id search_input
 id search_results_recycler

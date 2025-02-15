@@ -151,13 +151,8 @@ class SearchActivity : AppCompatActivity() {
     private fun expandCard(position: Int) {
         val adapter = findViewById<RecyclerView>(R.id.card_recycler_view).adapter as? CardLayoutAdapter
         adapter?.let {
-            // 如果卡片已经展开，则折叠
-            if (it.isCardExpanded(position)) {
-                it.toggleCard(position)
-            } else {
-                // 否则展开卡片
-                it.toggleCard(position)
-            }
+            // 直接进入全屏模式
+            it.enterFullscreen(position)
         }
     }
 

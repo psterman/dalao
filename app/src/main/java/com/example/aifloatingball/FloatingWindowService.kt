@@ -800,7 +800,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val engine = engines[index]
         
         val titleBar = cardView.findViewById<View>(R.id.title_bar)
-        val contentArea = cardView.findViewById<View>(R.id.content_area)
+        val contentContainer = cardView.findViewById<ViewGroup>(R.id.content_container)
         val webView = cardView.findViewById<WebView>(R.id.web_view)
         
         cardView.findViewById<ImageView>(R.id.engine_icon).setImageResource(engine.iconResId)
@@ -824,7 +824,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         cardView.scaleX = 0.95f
         cardView.scaleY = 0.95f
         
-        contentArea.layoutParams = (contentArea.layoutParams as LinearLayout.LayoutParams).apply {
+        contentContainer.layoutParams = (contentContainer.layoutParams as LinearLayout.LayoutParams).apply {
             height = 0
             weight = 0f
         }
@@ -885,77 +885,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         titleBar.setOnLongClickListener {
             showCardOptions(cardView, index)
             true
-        }
-        
-        val pasteButton = cardView.findViewById<Button>(R.id.paste_button)
-        pasteButton?.setOnClickListener {
-            try {
-                val clipData = clipboard.primaryClip
-                if (clipData != null && clipData.itemCount > 0) {
-                    val text = clipData.getItemAt(0).text.toString()
-                    
-                    // 使用 JavaScript 接口来处理粘贴
-                    webView.evaluateJavascript(
-                        """
-                        (function() {
-                            function simulatePaste(text) {
-                                const activeElement = document.activeElement;
-                                const textareas = document.getElementsByTagName('textarea');
-                                const inputs = document.getElementsByTagName('input');
-                                
-                                // 尝试在当前焦点元素上粘贴
-                                if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
-                                    activeElement.value = text;
-                                    activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-                                    return true;
-                                }
-                                
-                                // 尝试在第一个文本区域粘贴
-                                for (let textarea of textareas) {
-                                    if (textarea.offsetParent !== null) {  // 检查元素是否可见
-                                        textarea.value = text;
-                                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
-                                        textarea.focus();
-                                        return true;
-                                    }
-                                }
-                                
-                                // 尝试在第一个输入框粘贴
-                                for (let input of inputs) {
-                                    if (input.type === 'text' && input.offsetParent !== null) {
-                                        input.value = text;
-                                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                                        input.focus();
-                                        return true;
-                                    }
-                                }
-                                
-                                return false;
-                            }
-                            
-                            const success = simulatePaste(`${text}`);
-                            if (success) {
-                                // 尝试触发发送按钮
-                                const buttons = document.getElementsByTagName('button');
-                                for (let button of buttons) {
-                                    if (button.offsetParent !== null && 
-                                        (button.type === 'submit' || 
-                                         button.textContent.includes('发送') || 
-                                         button.textContent.includes('Send'))) {
-                                        button.click();
-                                        break;
-                                    }
-                                }
-                            }
-                        })();
-                        """.trimIndent(),
-                        null
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e("FloatingService", "粘贴操作失败", e)
-                Toast.makeText(this, "粘贴失败：${e.message}", Toast.LENGTH_SHORT).show()
-            }
         }
         
         webView.loadUrl(url)
@@ -1074,7 +1003,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         // 获取标题栏和内容区域
         val titleBar = cardView.findViewById<View>(R.id.title_bar)
-        val contentArea = cardView.findViewById<View>(R.id.content_area)
+        val contentContainer = cardView.findViewById<ViewGroup>(R.id.content_container)
         val webView = cardView.findViewById<WebView>(R.id.web_view)
         
         // 确保WebView可见
@@ -1101,7 +1030,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 cardView.elevation = 8f
                 
                 // 调整内容区域高度
-                contentArea.layoutParams = (contentArea.layoutParams as LinearLayout.LayoutParams).apply {
+                contentContainer.layoutParams = (contentContainer.layoutParams as LinearLayout.LayoutParams).apply {
                     height = expandedHeight - titleBarHeight
                     weight = 0f
                 }
@@ -1119,7 +1048,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             if (i != index) {
                 val otherCard = cardsContainer?.getChildAt(i) ?: continue
                 val otherTitleBar = otherCard.findViewById<View>(R.id.title_bar)
-                val otherContentArea = otherCard.findViewById<View>(R.id.content_area)
+                val otherContentContainer = otherCard.findViewById<ViewGroup>(R.id.content_container)
                 val otherWebView = otherCard.findViewById<WebView>(R.id.web_view)
                 
                 // 计算其他卡片的位置
@@ -1141,7 +1070,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         otherCard.elevation = 4f
                         
                         // 折叠其他卡片的内容区域
-                        otherContentArea.layoutParams = (otherContentArea.layoutParams as LinearLayout.LayoutParams).apply {
+                        otherContentContainer.layoutParams = (otherContentContainer.layoutParams as LinearLayout.LayoutParams).apply {
                             height = 0
                             weight = 0f
                         }
@@ -1173,7 +1102,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 获取标题栏和内容区域
             val titleBar = card.findViewById<View>(R.id.title_bar)
-            val contentArea = card.findViewById<View>(R.id.content_area)
+            val contentContainer = card.findViewById<ViewGroup>(R.id.content_container)
             val webView = card.findViewById<WebView>(R.id.web_view)
             
             // 计算目标Y位置（使用初始紧凑间距）
@@ -1195,7 +1124,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     titleBar.translationY = 0f
                     
                     // 完全折叠内容区域
-                    contentArea.layoutParams = (contentArea.layoutParams as LinearLayout.LayoutParams).apply {
+                    contentContainer.layoutParams = (contentContainer.layoutParams as LinearLayout.LayoutParams).apply {
                         height = 0
                         weight = 0f
                     }
