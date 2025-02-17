@@ -380,8 +380,49 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 val size = intent.getIntExtra("size", 50)
                 updateFloatingBallSize(size)
             }
+            else -> {
+                // 获取搜索引擎信息
+                val engineName = intent?.getStringExtra("ENGINE_NAME")
+                val engineUrl = intent?.getStringExtra("ENGINE_URL")
+                val engineIcon = intent?.getIntExtra("ENGINE_ICON", R.drawable.ic_search_engine)
+                val searchQuery = intent?.getStringExtra("SEARCH_QUERY")
+                val shouldOpenUrl = intent?.getBooleanExtra("SHOULD_OPEN_URL", false) ?: false
+
+                if (engineName != null && engineUrl != null && engineIcon != null) {
+                    val engine = SearchEngine(engineName, engineUrl, engineIcon)
+                    
+                    // 构建实际URL
+                    val url = if (!searchQuery.isNullOrEmpty()) {
+                        engine.getSearchUrl(searchQuery)
+                    } else {
+                        engineUrl
+                    }
+
+                    // 创建并显示卡片
+                    val cardsContainer = createCardsContainer()
+                    val cardView = createAICardView(url, currentEngineIndex)
+                    cardsContainer.addView(cardView)
+                    
+                    // 显示卡片容器
+                    windowManager?.addView(cardsContainer, createCardsContainerLayoutParams())
+                    
+                    // 如果需要立即打开URL，展开卡片
+                    if (shouldOpenUrl) {
+                        expandCard(cardView, true)
+                    }
+                    
+                    // 保存WebView到卡片列表
+                    cardView.findViewById<WebView>(R.id.web_view)?.let { webView ->
+                        aiWindows.add(webView)
+                        // 如果需要立即打开URL，加载页面
+                        if (shouldOpenUrl) {
+                            webView.loadUrl(url)
+                        }
+                    }
+                }
+            }
         }
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
     
     private fun updateFloatingBallSize(size: Int) {
@@ -808,86 +849,57 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         setupWebView(webView, engine)
         
-        webView.setOnTouchListener { v, event ->
-            v.performClick()
-            webView.requestFocus()
-            false
-        }
+        // 设置WebView的布局参数
+        webView.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
         
+        // 确保WebView可见
+        webView.visibility = View.VISIBLE
+        
+        // 设置WebView的焦点
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
+        webView.requestFocus()
         
-        titleBar.elevation = 10f
+        // 立即加载URL
+        webView.loadUrl(url)
         
+        // 设置内容容器的布局参数
+        contentContainer.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            800  // 设置一个固定高度，确保内容可见
+        )
+        
+        // 确保内容容器可见
+        contentContainer.visibility = View.VISIBLE
+        
+        // 设置卡片的基本样式
         cardView.alpha = 0.95f
         cardView.translationY = index * 60f
         cardView.scaleX = 0.95f
         cardView.scaleY = 0.95f
         
-        contentContainer.layoutParams = (contentContainer.layoutParams as LinearLayout.LayoutParams).apply {
-            height = 0
-            weight = 0f
-        }
-        
-        // 获取剪贴板文本
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-        val clipboardText = clipboard.primaryClip?.let { 
-            if (it.itemCount > 0) it.getItemAt(0).text?.toString() 
-            else null 
-        }
-        
         // 点击标题栏展开/折叠卡片
         titleBar.setOnClickListener {
-            if (activeCardIndex == index) {
-                collapseCard(index)
+            if (contentContainer.layoutParams.height == 800) {
+                // 展开到全屏
+                contentContainer.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT
+                )
             } else {
-                expandCard(index)
-                
-                // 如果有剪贴板文本，自动搜索
-                clipboardText?.let { text ->
-                    if (text.isNotBlank()) {
-                        // 使用 JavaScript 注入剪贴板文本并触发搜索
-                        webView.evaluateJavascript(
-                            """
-                            (function() {
-                                const searchInputs = document.querySelectorAll('textarea, input[type="text"]');
-                                const sendButtons = document.querySelectorAll('button');
-                                
-                                // 尝试填充文本到第一个可见的输入框
-                                for (let input of searchInputs) {
-                                    if (input.offsetParent !== null) {
-                                        input.value = `${text}`;
-                                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                                        
-                                        // 尝试触发发送按钮
-                                        for (let button of sendButtons) {
-                                            if (button.offsetParent !== null && 
-                                                (button.type === 'submit' || 
-                                                 button.textContent.includes('发送') || 
-                                                 button.textContent.includes('Send') ||
-                                                 button.textContent.includes('搜索'))) {
-                                                button.click();
-                                                break;
-                                            }
-                                        }
-                                        break;
-                                    }
-                                }
-                            })();
-                            """.trimIndent(),
-                            null
-                        )
-                    }
-                }
+                // 折叠到默认高度
+                contentContainer.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    800
+                )
             }
+            contentContainer.requestLayout()
         }
         
-        titleBar.setOnLongClickListener {
-            showCardOptions(cardView, index)
-            true
-        }
-        
-        webView.loadUrl(url)
+        // 添加到WebView列表
         aiWindows.add(webView)
         
         return cardView
@@ -905,31 +917,24 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             builtInZoomControls = true
             displayZoomControls = false
             
-            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             }
             
+            // 启用所有必要的功能
             allowContentAccess = true
             allowFileAccess = true
-            
             domStorageEnabled = true
             databaseEnabled = true
-            
-            cacheMode = WebSettings.LOAD_NO_CACHE
-            
             javaScriptCanOpenWindowsAutomatically = true
             
+            // 设置缓存模式
+            cacheMode = WebSettings.LOAD_NO_CACHE
+            
+            // 设置编码
             defaultTextEncodingName = "UTF-8"
             
-            allowFileAccessFromFileURLs = true
-            allowUniversalAccessFromFileURLs = true
-            
-            // 启用 DOM storage API
-            domStorageEnabled = true
-            
-            // 设置自定义 User Agent
+            // 设置UA
             val customUA = when (engine.name) {
                 "豆包" -> "Mozilla/5.0 (Linux; Android 11; Pixel 4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.104 Mobile Safari/537.36"
                 "ChatGPT" -> "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
@@ -938,24 +943,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             userAgentString = customUA
         }
 
-        // 注入自定义 JavaScript 接口
-        webView.addJavascriptInterface(object {
-            @android.webkit.JavascriptInterface
-            fun getClipboardText(): String {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                return clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
-            }
-        }, "AndroidClipboard")
-
-        webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-        
-        webView.isVerticalScrollBarEnabled = true
-        webView.scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        }
-        
         webView.webViewClient = object : android.webkit.WebViewClient() {
             override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: android.net.http.SslError?) {
                 handler?.proceed()
@@ -963,36 +950,23 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                
-                // 注入辅助脚本
-                val script = """
-                    javascript:(function() {
-                        // 启用剪贴板功能
-                        document.addEventListener('paste', function(e) {
-                            const text = window.AndroidClipboard.getClipboardText();
-                            if (text) {
-                                const activeElement = document.activeElement;
-                                if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
-                                    activeElement.value = text;
-                                    activeElement.dispatchEvent(new Event('input', { bubbles: true }));
-                                }
-                            }
-                        });
-                        
-                        // 自定义样式
-                        var style = document.createElement('style');
-                        style.type = 'text/css';
-                        style.innerHTML = `
-                            textarea, input[type="text"] {
-                                user-select: text !important;
-                                -webkit-user-select: text !important;
-                            }
-                        `;
-                        document.head.appendChild(style);
-                    })();
-                """.trimIndent()
-                
-                view?.loadUrl(script)
+                // 页面加载完成后，确保WebView可见
+                view?.visibility = View.VISIBLE
+            }
+            
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                url?.let { view?.loadUrl(it) }
+                return true
+            }
+        }
+        
+        webView.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                if (newProgress == 100) {
+                    // 加载完成，确保WebView可见
+                    view?.visibility = View.VISIBLE
+                }
             }
         }
     }
@@ -1554,5 +1528,53 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
 
     override fun onDragEnd(x: Float, y: Float) {
         // Save the final position if needed
+    }
+
+    private fun createCardsContainer(): ViewGroup {
+        return FrameLayout(this).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+    }
+
+    private fun createCardsContainerLayoutParams(): WindowManager.LayoutParams {
+        return WindowManager.LayoutParams().apply {
+            type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+            gravity = Gravity.CENTER
+        }
+    }
+
+    private fun expandCard(cardView: View, animate: Boolean = true) {
+        val container = cardView.findViewById<View>(R.id.content_container)
+        val controlBar = cardView.findViewById<View>(R.id.control_bar)
+        
+        container.visibility = View.VISIBLE
+        controlBar.visibility = View.VISIBLE
+        
+        if (animate) {
+            cardView.alpha = 0f
+            cardView.scaleX = 0.8f
+            cardView.scaleY = 0.8f
+            
+            cardView.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(300)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
     }
 } 

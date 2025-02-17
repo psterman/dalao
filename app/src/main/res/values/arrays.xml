@@ -15,10 +15,12 @@
     <string-array name="layout_theme_entries">
         <item>折叠式布局</item>
         <item>卡片式布局</item>
+        <item>列表式布局</item>
     </string-array>
 
     <string-array name="layout_theme_values">
         <item>fold</item>
         <item>card</item>
+        <item>list</item>
     </string-array>
 </resources> 

@@ -227,8 +227,18 @@ class CardLayoutAdapter(
         }
     }
 
-    fun performSearch(query: String) {
+    fun performSearch(query: String, engine: SearchEngine? = null) {
         currentQuery = query
+        
+        // 如果指定了搜索引擎，先切换到对应的引擎
+        engine?.let { targetEngine ->
+            val position = engines.indexOfFirst { it.name == targetEngine.name }
+            if (position != -1) {
+                onCardClick(position)
+            }
+        }
+        
+        // 执行搜索
         webViews.forEach { (position, webView) ->
             try {
                 val url = engines[position].getSearchUrl(query)

@@ -835,6 +835,27 @@ attr logo
 attr logoAdjustViewBounds
 attr logoDescription
 attr logoScaleType
+attr lottieAnimationViewStyle
+attr lottie_asyncUpdates
+attr lottie_autoPlay
+attr lottie_cacheComposition
+attr lottie_clipToCompositionBounds
+attr lottie_colorFilter
+attr lottie_defaultFontFileExtension
+attr lottie_enableMergePathsForKitKatAndAbove
+attr lottie_fallbackRes
+attr lottie_fileName
+attr lottie_ignoreDisabledSystemAnimations
+attr lottie_imageAssetsFolder
+attr lottie_loop
+attr lottie_progress
+attr lottie_rawRes
+attr lottie_renderMode
+attr lottie_repeatCount
+attr lottie_repeatMode
+attr lottie_speed
+attr lottie_url
+attr lottie_useCompositionFrameRate
 attr marginHorizontal
 attr marginLeftSystemWindowInsets
 attr marginRightSystemWindowInsets
@@ -1499,6 +1520,7 @@ color dim_foreground_disabled_material_dark
 color dim_foreground_disabled_material_light
 color dim_foreground_material_dark
 color dim_foreground_material_light
+color divider
 color error_color_material_dark
 color error_color_material_light
 color foreground_material_dark
@@ -2349,6 +2371,8 @@ dimen hint_pressed_alpha_material_light
 dimen item_touch_helper_max_drag_scroll_per_frame
 dimen item_touch_helper_swipe_escape_max_velocity
 dimen item_touch_helper_swipe_escape_velocity
+dimen letter_index_width
+dimen letter_text_size
 dimen m3_alert_dialog_action_bottom_padding
 dimen m3_alert_dialog_action_top_padding
 dimen m3_alert_dialog_corner_size
@@ -2987,6 +3011,9 @@ dimen preference_seekbar_padding_vertical
 dimen preference_seekbar_value_minWidth
 dimen preferences_detail_width
 dimen preferences_header_width
+dimen preview_padding
+dimen preview_text_size
+dimen preview_width
 dimen tooltip_corner_radius
 dimen tooltip_horizontal_padding
 dimen tooltip_margin
@@ -3130,6 +3157,7 @@ drawable ic_refresh
 drawable ic_screenshot
 drawable ic_search
 drawable ic_search_black_24
+drawable ic_search_engine
 drawable ic_settings
 drawable ic_wenxin
 drawable ic_wifi
@@ -3208,6 +3236,7 @@ drawable notification_tile_bg
 drawable notify_panel_notification_icon_bg
 drawable paste_button_background
 drawable preference_list_divider_material
+drawable preview_background
 drawable quick_menu_background
 drawable search_background
 drawable test_level_drawable
@@ -3306,6 +3335,7 @@ id autoComplete
 id autoCompleteToEnd
 id autoCompleteToStart
 id auto_start_switch
+id automatic
 id back_button
 id barrier
 id baseline
@@ -3388,6 +3418,7 @@ id disableHome
 id disableIntraAutoTransition
 id disablePostScroll
 id disableScroll
+id disabled
 id disjoint
 id dragAnticlockwise
 id dragClockwise
@@ -3408,10 +3439,13 @@ id edit_query
 id edit_text_id
 id elastic
 id embed
+id enabled
 id end
 id endToStart
 id engine_icon
 id engine_list
+id engine_list_container
+id engine_list_layout
 id engine_name
 id engine_title
 id enterAlways
@@ -3449,6 +3483,7 @@ id graph_wrap
 id group_divider
 id grouping
 id groups
+id hardware
 id header_title
 id hide_ime_id
 id hideable
@@ -3481,12 +3516,15 @@ id layout
 id left
 id leftToRight
 id legacy
+id letter_index_bar
+id letter_title
 id line1
 id line3
 id linear
 id listMode
 id list_item
 id locale
+id lottie_layer_name
 id ltr
 id m3_side_sheet
 id marquee
@@ -3606,6 +3644,10 @@ id preferences_detail
 id preferences_header
 id preferences_sliding_pane_layout
 id pressed
+id preview_container
+id preview_engine_list
+id preview_icon
+id preview_name
 id progress_circular
 id progress_horizontal
 id radio
@@ -3613,6 +3655,8 @@ id ratio
 id rectangles
 id recycler_view
 id report_drawn
+id restart
+id reverse
 id reverseSawtooth
 id right
 id rightToLeft
@@ -3640,7 +3684,6 @@ id search_go_btn
 id search_input
 id search_mag_icon
 id search_plate
-id search_results_recycler
 id search_src_text
 id search_voice_btn
 id seekbar
@@ -3664,6 +3707,7 @@ id snackbar_action
 id snackbar_text
 id snap
 id snapMargins
+id software
 id south
 id spacer
 id special_effects_controller_view_tag
@@ -3915,6 +3959,8 @@ layout image_frame
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
 layout item_engine
+layout item_search_engine
+layout letter_index_layout
 layout m3_alert_dialog
 layout m3_alert_dialog_actions
 layout m3_alert_dialog_title
@@ -5428,6 +5474,7 @@ styleable LinearLayoutCompat_Layout android_layout_gravity android_layout_width 
 styleable LinearProgressIndicator indeterminateAnimationType indicatorDirectionLinear
 styleable ListPopupWindow android_dropDownHorizontalOffset android_dropDownVerticalOffset
 styleable ListPreference android_entries android_entryValues entries entryValues useSimpleSummaryProvider
+styleable LottieAnimationView lottie_asyncUpdates lottie_autoPlay lottie_cacheComposition lottie_clipToCompositionBounds lottie_colorFilter lottie_defaultFontFileExtension lottie_enableMergePathsForKitKatAndAbove lottie_fallbackRes lottie_fileName lottie_ignoreDisabledSystemAnimations lottie_imageAssetsFolder lottie_loop lottie_progress lottie_rawRes lottie_renderMode lottie_repeatCount lottie_repeatMode lottie_speed lottie_url lottie_useCompositionFrameRate
 styleable MaterialAlertDialog backgroundInsetBottom backgroundInsetEnd backgroundInsetStart backgroundInsetTop backgroundTint
 styleable MaterialAlertDialogTheme materialAlertDialogBodyTextStyle materialAlertDialogButtonSpacerVisibility materialAlertDialogTheme materialAlertDialogTitleIconStyle materialAlertDialogTitlePanelStyle materialAlertDialogTitleTextStyle
 styleable MaterialAutoCompleteTextView android_inputType android_popupElevation dropDownBackgroundTint simpleItemLayout simpleItemSelectedColor simpleItemSelectedRippleColor simpleItems

@@ -3,10 +3,12 @@
     <string-array name="layout_theme_entries">
         <item>折叠式布局</item>
         <item>卡片式布局</item>
+        <item>列表式布局</item>
     </string-array>
     <string-array name="layout_theme_values">
         <item>fold</item>
         <item>card</item>
+        <item>list</item>
     </string-array>
     <string-array name="theme_entries">
         <item>跟随系统</item>
@@ -20,6 +22,7 @@
     </string-array>
     <color name="accent">#FF4081</color>
     <color name="black">#FF000000</color>
+    <color name="divider">#E0E0E0</color>
     <color name="ic_launcher_background">#3DDC84</color>
     <color name="primary">#3F51B5</color>
     <color name="primary_dark">#303F9F</color>
@@ -31,6 +34,11 @@
     <color name="transparent_black">#80000000</color>
     <color name="white">#FFFFFFFF</color>
     <dimen name="card_spacing">8dp</dimen>
+    <dimen name="letter_index_width">24dp</dimen>
+    <dimen name="letter_text_size">14sp</dimen>
+    <dimen name="preview_padding">16dp</dimen>
+    <dimen name="preview_text_size">18sp</dimen>
+    <dimen name="preview_width">200dp</dimen>
     <string name="app_name">AI悬浮球</string>
     <string name="auto_hide">自动隐藏悬浮球</string>
     <string name="drag_to_sort">长按拖动排序</string>

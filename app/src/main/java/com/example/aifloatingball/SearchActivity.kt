@@ -7,29 +7,29 @@ import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.view.animation.AnimationUtils
-import android.webkit.WebSettings
-import android.webkit.WebView
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import android.animation.AnimatorListenerAdapter
-import android.animation.ValueAnimator
-import android.view.animation.DecelerateInterpolator
-import android.animation.Animator
-import androidx.recyclerview.widget.GridLayoutManager
-import android.net.Uri
-import android.widget.PopupMenu
-import org.json.JSONObject
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.IntentFilter
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import net.sourceforge.pinyin4j.PinyinHelper
+import net.sourceforge.pinyin4j.format.HanyuPinyinCaseType
+import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat
+import net.sourceforge.pinyin4j.format.HanyuPinyinToneType
+import net.sourceforge.pinyin4j.format.HanyuPinyinVCharType
+import android.view.LayoutInflater
+import android.view.Gravity
+import android.view.ViewGroup
+import com.airbnb.lottie.LottieAnimationView
+import com.airbnb.lottie.LottieDrawable
+import android.graphics.Color
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
@@ -37,10 +37,8 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var searchButton: ImageButton
     private lateinit var closeButton: ImageButton
     private var recognizer: SpeechRecognizer? = null
-    private lateinit var voiceAnimationView: ImageView
-    private lateinit var voiceAnimationContainer: View
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var searchAdapter: SearchEngineAdapter
+    private lateinit var voiceAnimationView: LottieAnimationView
+    private lateinit var voiceAnimationContainer: FrameLayout
     private lateinit var settingsManager: SettingsManager
     private var currentLayoutTheme: String = "fold"
     private val layoutThemeReceiver = object : BroadcastReceiver() {
@@ -51,6 +49,12 @@ class SearchActivity : AppCompatActivity() {
             }
         }
     }
+    private lateinit var letterIndexBar: com.example.aifloatingball.view.LetterIndexBar
+    private lateinit var previewContainer: LinearLayout
+    private lateinit var letterTitle: TextView
+    private lateinit var previewEngineList: LinearLayout
+    private var currentLetter: Char = 'A'
+    private var sortedEngines: List<SearchEngine> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
@@ -73,10 +77,8 @@ class SearchActivity : AppCompatActivity() {
                     IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
                 )
             }
-            
-            initViews()
+        
             setupViews()
-            setupRecyclerView()
             setupVoiceRecognition()
             setupClickListeners()
 
@@ -85,7 +87,6 @@ class SearchActivity : AppCompatActivity() {
             clipboardText?.let { text ->
                 if (text.isNotBlank()) {
                     searchInput.setText(text)
-                    performSearch(text)
                 }
             }
         } catch (e: Exception) {
@@ -95,33 +96,43 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
-    private fun initViews() {
-        searchInput = findViewById(R.id.search_input)
-        voiceButton = findViewById(R.id.btn_voice)
-        searchButton = findViewById(R.id.btn_search)
-        closeButton = findViewById(R.id.btn_close)
-        voiceAnimationView = findViewById(R.id.voice_animation_view)
-        voiceAnimationContainer = findViewById(R.id.voice_animation_container)
-        recyclerView = findViewById(R.id.search_results_recycler)
-    }
-
     private fun setupViews() {
         try {
-            val searchResultsRecycler = findViewById<RecyclerView>(R.id.search_results_recycler)
-            val cardRecyclerView = findViewById<RecyclerView>(R.id.card_recycler_view)
-            
-            when (currentLayoutTheme) {
-                "card" -> {
-                    cardRecyclerView.visibility = View.VISIBLE
-                    searchResultsRecycler.visibility = View.GONE
-                    setupCardLayout()
+            // 初始化所有视图
+            searchInput = findViewById(R.id.search_input) ?: throw IllegalStateException("搜索输入框未找到")
+            voiceButton = findViewById(R.id.btn_voice) ?: throw IllegalStateException("语音按钮未找到")
+            searchButton = findViewById(R.id.btn_search) ?: throw IllegalStateException("搜索按钮未找到")
+            closeButton = findViewById(R.id.btn_close) ?: throw IllegalStateException("关闭按钮未找到")
+            voiceAnimationView = findViewById(R.id.voice_animation_view) ?: throw IllegalStateException("语音动画视图未找到")
+            voiceAnimationContainer = findViewById(R.id.voice_animation_container) ?: throw IllegalStateException("语音动画容器未找到")
+            letterIndexBar = findViewById(R.id.letter_index_bar) ?: throw IllegalStateException("字母索引栏未找到")
+            previewContainer = findViewById(R.id.preview_container) ?: throw IllegalStateException("预览容器未找到")
+            letterTitle = findViewById(R.id.letter_title) ?: throw IllegalStateException("字母标题未找到")
+            previewEngineList = findViewById(R.id.preview_engine_list) ?: throw IllegalStateException("预览引擎列表未找到")
+
+            // 初始化搜索引擎列表
+            sortedEngines = settingsManager.getEngineOrder().map { aiEngine ->
+                SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
+            }.sortedWith(compareBy { 
+                val firstChar = it.name.first().toString()
+                when {
+                    firstChar.matches(Regex("[A-Za-z]")) -> firstChar.uppercase()
+                    firstChar.matches(Regex("[\u4e00-\u9fa5]")) -> {
+                        try {
+                            java.text.Collator.getInstance(java.util.Locale.CHINESE)
+                                .getCollationKey(firstChar).sourceString
+                        } catch (e: Exception) {
+                            firstChar
+                        }
+                    }
+                    else -> firstChar
                 }
-                else -> {
-                    cardRecyclerView.visibility = View.GONE
-                    searchResultsRecycler.visibility = View.VISIBLE
-                    setupFoldLayout()
-                }
-            }
+            })
+
+            setupLetterIndexLayout()
+            // 显示初始字母的搜索引擎列表
+            showSearchEnginesByLetter(currentLetter)
+
         } catch (e: Exception) {
             android.util.Log.e("SearchActivity", "Error setting up views", e)
             Toast.makeText(this, "视图初始化失败：${e.message}", Toast.LENGTH_SHORT).show()
@@ -129,56 +140,22 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupCardLayout() {
-        val recyclerView = findViewById<RecyclerView>(R.id.card_recycler_view)
-        recyclerView.layoutManager = GridLayoutManager(this, 2)
-        
-        val engines = settingsManager.getEngineOrder().map { aiEngine ->
-            SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
-        }
-        val adapter = CardLayoutAdapter(engines, 
-            onCardClick = { position -> 
-                expandCard(position)
-            },
-            onCardLongClick = { view, position ->
-                showCardOptions(view, position)
-                true
-            }
-        )
-        recyclerView.adapter = adapter
-    }
-
-    private fun expandCard(position: Int) {
-        val adapter = findViewById<RecyclerView>(R.id.card_recycler_view).adapter as? CardLayoutAdapter
-        adapter?.let {
-            // 直接进入全屏模式
-            it.enterFullscreen(position)
-        }
-    }
-
-    private fun setupFoldLayout() {
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        val engines = settingsManager.getEngineOrder().map { aiEngine ->
-            SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
-        }
-        searchAdapter = SearchEngineAdapter(engines)
-        recyclerView.adapter = searchAdapter
-    }
-
-    private fun setupRecyclerView() {
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        val engines = settingsManager.getEngineOrder().map { aiEngine ->
-            SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
-        }
-        searchAdapter = SearchEngineAdapter(engines)
-        recyclerView.adapter = searchAdapter
-    }
-
     private fun setupClickListeners() {
         searchButton.setOnClickListener {
             val query = searchInput.text.toString().trim()
             if (query.isNotEmpty()) {
-                performSearch(query)
+                // 启动悬浮窗服务并传入搜索内容
+                val selectedEngine = sortedEngines.firstOrNull()
+                selectedEngine?.let { engine ->
+                    val intent = Intent(this, FloatingWindowService::class.java).apply {
+                        putExtra("ENGINE_NAME", engine.name)
+                        putExtra("ENGINE_URL", engine.url)
+                        putExtra("ENGINE_ICON", engine.iconResId)
+                        putExtra("SEARCH_QUERY", query)
+                    }
+                    startService(intent)
+                    finish()
+                }
             }
         }
 
@@ -192,30 +169,11 @@ class SearchActivity : AppCompatActivity() {
 
         searchInput.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                val query = searchInput.text.toString().trim()
-                if (query.isNotEmpty()) {
-                    performSearch(query)
-                }
+                searchButton.performClick()
                 true
             } else {
                 false
             }
-        }
-    }
-
-    private fun performSearch(query: String) {
-        try {
-            when (currentLayoutTheme) {
-                "card" -> {
-                    (findViewById<RecyclerView>(R.id.card_recycler_view).adapter as? CardLayoutAdapter)?.performSearch(query)
-                }
-                else -> {
-                    searchAdapter.performSearch(query)
-                }
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("SearchActivity", "Error performing search", e)
-            Toast.makeText(this, "搜索失败：${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -231,7 +189,7 @@ class SearchActivity : AppCompatActivity() {
                     if (!matches.isNullOrEmpty()) {
                         val recognizedText = matches[0]
                         searchInput.setText(recognizedText)
-                        performSearch(recognizedText)
+                        searchButton.performClick()
                     }
                     hideVoiceSearchAnimation()
                 }
@@ -274,12 +232,14 @@ class SearchActivity : AppCompatActivity() {
     private fun showVoiceSearchAnimation() {
         voiceAnimationContainer.visibility = View.VISIBLE
         voiceAnimationView.visibility = View.VISIBLE
-        val animation = AnimationUtils.loadAnimation(this, R.anim.voice_ripple)
-        voiceAnimationView.startAnimation(animation)
+        // Use a simple animation
+        voiceAnimationView.setAnimation("{ \"v\":\"5.5.7\", \"fr\":60, \"ip\":0, \"op\":180, \"w\":512, \"h\":512, \"nm\":\"Voice Animation\", \"ddd\":0, \"assets\":[], \"layers\":[{ \"ddd\":0, \"ind\":1, \"ty\":4, \"nm\":\"Circle\", \"sr\":1, \"ks\":{ \"o\":{ \"a\":1, \"k\":[{ \"i\":{ \"x\":[0.833], \"y\":[0.833] }, \"o\":{ \"x\":[0.167], \"y\":[0.167] }, \"t\":0, \"s\":[100] },{ \"t\":90, \"s\":[0] }] }, \"r\":{ \"a\":0, \"k\":0 }, \"p\":{ \"a\":0, \"k\":[256,256,0] }, \"a\":{ \"a\":0, \"k\":[0,0,0] }, \"s\":{ \"a\":1, \"k\":[{ \"i\":{ \"x\":[0.833,0.833,0.833], \"y\":[0.833,0.833,0.833] }, \"o\":{ \"x\":[0.167,0.167,0.167], \"y\":[0.167,0.167,0.167] }, \"t\":0, \"s\":[100,100,100] },{ \"t\":90, \"s\":[200,200,100] }] } }, \"ao\":0, \"shapes\":[{ \"ty\":\"gr\", \"it\":[{ \"d\":1, \"ty\":\"el\", \"s\":{ \"a\":0, \"k\":[100,100] }, \"p\":{ \"a\":0, \"k\":[0,0] }, \"nm\":\"Ellipse Path 1\" },{ \"ty\":\"st\", \"c\":{ \"a\":0, \"k\":[0.2,0.4,1,1] }, \"o\":{ \"a\":0, \"k\":100 }, \"w\":{ \"a\":0, \"k\":10 }, \"lc\":2, \"lj\":1, \"ml\":4, \"bm\":0, \"nm\":\"Stroke 1\" },{ \"ty\":\"tr\", \"p\":{ \"a\":0, \"k\":[0,0] }, \"a\":{ \"a\":0, \"k\":[0,0] }, \"s\":{ \"a\":0, \"k\":[100,100] }, \"r\":{ \"a\":0, \"k\":0 }, \"o\":{ \"a\":0, \"k\":100 }, \"sk\":{ \"a\":0, \"k\":0 }, \"sa\":{ \"a\":0, \"k\":0 }, \"nm\":\"Transform\" }], \"nm\":\"Group 1\" }], \"ip\":0, \"op\":180, \"st\":0, \"bm\":0 }], \"markers\":[] }")
+        voiceAnimationView.repeatCount = LottieDrawable.INFINITE
+        voiceAnimationView.playAnimation()
     }
 
     private fun hideVoiceSearchAnimation() {
-        voiceAnimationView.clearAnimation()
+        voiceAnimationView.cancelAnimation()
         voiceAnimationView.visibility = View.GONE
         voiceAnimationContainer.visibility = View.GONE
     }
@@ -299,78 +259,111 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
-    fun showCardOptions(view: View, position: Int) {
-        val popupMenu = PopupMenu(this, view)
-        val menu = popupMenu.menu
-
-        // 获取当前的引擎列表
-        val engines = settingsManager.getEngineOrder().map { aiEngine ->
-            SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
+    private fun setupLetterIndexLayout() {
+        letterIndexBar.onLetterSelectedListener = { _, letter ->
+            currentLetter = letter
+            showSearchEnginesByLetter(letter)
         }
-        val engine = engines[position]
-        val webView = view.findViewById<WebView>(R.id.web_view)
-
-        menu.add("刷新页面").setOnMenuItemClickListener {
-            webView.reload()
-            true
-        }
-
-        menu.add("分享").setOnMenuItemClickListener {
-            webView.evaluateJavascript(
-                "(function() { return { title: document.title, url: window.location.href }; })();",
-                { result ->
-                    try {
-                        val jsonObject = JSONObject(result)
-                        val title = jsonObject.getString("title")
-                        val url = jsonObject.getString("url")
-
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TITLE, title)
-                            putExtra(Intent.EXTRA_TEXT, "$title\n$url")
-                        }
-                        
-                        startActivity(Intent.createChooser(shareIntent, "分享 $title"))
-                    } catch (e: Exception) {
-                        Toast.makeText(this, "分享失败", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            )
-            true
-        }
-
-        menu.add("全屏").setOnMenuItemClickListener {
-            webView.evaluateJavascript(
-                "(function() { return window.location.href; })();",
-                { result ->
-                    val url = result.trim('"')
-                    val fullscreenIntent = Intent(this, FullscreenWebViewActivity::class.java).apply {
-                        putExtra("URL", url)
-                        putExtra("TITLE", engine.name)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    startActivity(fullscreenIntent)
-                }
-            )
-            true
-        }
-
-        popupMenu.show()
     }
 
-    private fun Int.dpToPx(): Int {
-        return (this * resources.displayMetrics.density).toInt()
+    private fun showSearchEnginesByLetter(letter: Char) {
+        try {
+            // 更新字母标题
+            letterTitle.text = letter.toString()
+
+            // 清空搜索引擎列表
+            previewEngineList.removeAllViews()
+
+            // 创建拼音转换器
+            val format = HanyuPinyinOutputFormat().apply {
+                toneType = HanyuPinyinToneType.WITHOUT_TONE
+                caseType = HanyuPinyinCaseType.UPPERCASE
+                vCharType = HanyuPinyinVCharType.WITH_V
+            }
+
+            // 查找所有匹配该字母的搜索引擎
+            val matchingEngines = sortedEngines.filter { engine ->
+                val firstChar = engine.name.first()
+                when {
+                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                        firstChar.toString().uppercase() == letter.toString()
+                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                        try {
+                            val pinyin = PinyinHelper.toHanyuPinyinStringArray(firstChar, format)
+                            pinyin?.firstOrNull()?.firstOrNull()?.toString()?.uppercase() == letter.toString()
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
+
+            if (matchingEngines.isEmpty()) {
+                // 如果没有匹配的搜索引擎，显示提示信息
+                val noEngineText = TextView(this).apply {
+                    text = "没有以 $letter 开头的搜索引擎"
+                    textSize = 16f
+                    setTextColor(Color.GRAY)
+                    gravity = Gravity.CENTER
+                    setPadding(16, 32, 16, 32)
+                }
+                previewEngineList.addView(noEngineText)
+            } else {
+                // 添加匹配的搜索引擎
+                matchingEngines.forEach { engine ->
+                    val engineItem = LayoutInflater.from(this).inflate(
+                        R.layout.item_search_engine,
+                        previewEngineList,
+                        false
+                    )
+
+                    engineItem.findViewById<ImageView>(R.id.engine_icon)
+                        .setImageResource(engine.iconResId)
+                    engineItem.findViewById<TextView>(R.id.engine_name)
+                        .text = engine.name
+
+                    // 添加点击事件
+                    engineItem.setOnClickListener {
+                        val intent = Intent(this, FloatingWindowService::class.java).apply {
+                            putExtra("ENGINE_NAME", engine.name)
+                            putExtra("ENGINE_URL", engine.url)
+                            putExtra("ENGINE_ICON", engine.iconResId)
+                            putExtra("SHOULD_OPEN_URL", true)
+                            val query = searchInput.text.toString().trim()
+                            if (query.isNotEmpty()) {
+                                putExtra("SEARCH_QUERY", query)
+                            }
+                        }
+                        startService(intent)
+                        finish()
+                    }
+
+                    previewEngineList.addView(engineItem)
+
+                    // 在每个搜索引擎项之间添加分隔线
+                    if (engine != matchingEngines.last()) {
+                        val divider = View(this).apply {
+                            setBackgroundColor(ContextCompat.getColor(context, R.color.divider))
+                            layoutParams = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                1
+                            ).apply {
+                                setMargins(16, 0, 16, 0)
+                            }
+                        }
+                        previewEngineList.addView(divider)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SearchActivity", "Error showing search engines", e)
+            Toast.makeText(this, "显示搜索引擎列表失败：${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onDestroy() {
         try {
-            // 清理 WebViews
-            if (currentLayoutTheme == "card") {
-                (findViewById<RecyclerView>(R.id.card_recycler_view).adapter as? CardLayoutAdapter)?.cleanupWebViews()
-            } else {
-                searchAdapter.cleanupWebViews()
-            }
-            
             // 注销广播接收器
             try {
                 unregisterReceiver(layoutThemeReceiver)

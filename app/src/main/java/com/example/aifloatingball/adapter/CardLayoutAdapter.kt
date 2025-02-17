@@ -13,6 +13,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.AIEngine
 import com.example.aifloatingball.R
 import android.widget.FrameLayout
+import com.example.aifloatingball.model.SearchEngine
+import java.net.URLEncoder
 
 class CardLayoutAdapter(
     private val engines: List<AIEngine>,
@@ -250,6 +252,35 @@ class CardLayoutAdapter(
         fullscreenPosition = -1
         fullscreenCard = null
         notifyDataSetChanged()
+    }
+
+    fun performSearch(query: String, engine: SearchEngine? = null) {
+        currentQuery = query
+        
+        // 如果指定了搜索引擎，先切换到对应的引擎
+        engine?.let { targetEngine ->
+            val position = engines.indexOfFirst { it.name == targetEngine.name }
+            if (position != -1) {
+                activePosition = position
+                notifyDataSetChanged()
+            }
+        }
+        
+        // 执行搜索
+        val currentEngine = engines[activePosition]
+        when (currentEngine.name) {
+            "豆包" -> webViews[activePosition]?.loadUrl("https://www.doubao.com/chat")
+            "通义千问" -> webViews[activePosition]?.loadUrl("https://tongyi.aliyun.com/")
+            else -> {
+                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                val searchUrl = if (query.isNotEmpty()) {
+                    currentEngine.url.replace("{query}", encodedQuery)
+                } else {
+                    currentEngine.url
+                }
+                webViews[activePosition]?.loadUrl(searchUrl)
+            }
+        }
     }
 
     override fun getItemCount() = engines.size
