@@ -32,20 +32,16 @@
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_history.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-debug-4:/layout_activity_search.xml.flat",
-        "source": "com.example.aifloatingball.app-main-6:/layout/activity_search.xml"
-    },
-    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_preview_background.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\preview_background.xml"
     },
     {
-        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_bluetooth.xml.flat",
-        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_bluetooth.xml"
-    },
-    {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_search_engine_card.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\layout\\search_engine_card.xml"
+    },
+    {
+        "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_bluetooth.xml.flat",
+        "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_bluetooth.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\layout_search_input_layout.xml.flat",
@@ -74,6 +70,10 @@
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_screenshot.xml.flat",
         "source": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-6:\\drawable\\ic_screenshot.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-4:/anim_letter_wave.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/anim/letter_wave.xml"
     },
     {
         "merged": "D:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-4:\\drawable_ic_close.xml.flat",

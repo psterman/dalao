@@ -6,4 +6,6 @@
     <dimen name="preview_padding">16dp</dimen>
     <dimen name="letter_index_width">24dp</dimen>
     <dimen name="preview_width">200dp</dimen>
+    <dimen name="letter_index_bar_width">24dp</dimen>
+    <dimen name="letter_index_bar_margin">8dp</dimen>
 </resources> 

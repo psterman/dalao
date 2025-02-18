@@ -1,5 +1,6 @@
 R_DEF: Internal format may change without notice
 local
+anim letter_wave
 anim menu_hide
 anim menu_show
 anim voice_ripple
@@ -10,6 +11,7 @@ array layout_theme_values
 array theme_entries
 array theme_values
 color accent
+color background
 color black
 color divider
 color ic_launcher_background
@@ -20,9 +22,13 @@ color purple_500
 color purple_700
 color teal_200
 color teal_700
+color text_primary
+color text_secondary
 color transparent_black
 color white
 dimen card_spacing
+dimen letter_index_bar_margin
+dimen letter_index_bar_width
 dimen letter_index_width
 dimen letter_text_size
 dimen preview_padding
