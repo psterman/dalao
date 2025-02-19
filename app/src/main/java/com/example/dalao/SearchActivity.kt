@@ -20,12 +20,15 @@ import com.example.aifloatingball.AIEngineConfig
 import com.example.aifloatingball.FloatingWindowService
 import com.example.aifloatingball.R
 import com.example.aifloatingball.view.LetterIndexBar
+import com.example.aifloatingball.SettingsManager
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
-    private lateinit var engineListLayout: LinearLayout
+    private lateinit var previewEngineList: LinearLayout
     private lateinit var letterIndexBar: LetterIndexBar
-    private val searchEngines = AIEngineConfig.engines
+    private lateinit var letterTitle: TextView
+    private lateinit var settingsManager: SettingsManager
+    private val searchEngines = mutableListOf<AIEngine>()
 
     companion object {
         private const val ACTION_SHOW_SEARCH = "com.example.aifloatingball.ACTION_SHOW_SEARCH"
@@ -37,10 +40,17 @@ class SearchActivity : AppCompatActivity() {
 
         // 初始化视图
         searchInput = findViewById(R.id.search_input)
-        engineListLayout = findViewById(R.id.engine_list_layout)
+        previewEngineList = findViewById(R.id.preview_engine_list)
         letterIndexBar = findViewById(R.id.letter_index_bar)
+        letterTitle = findViewById(R.id.letter_title)
+
+        // 初始化设置管理器和搜索引擎列表
+        settingsManager = SettingsManager.getInstance(this)
+        searchEngines.clear()
+        searchEngines.addAll(settingsManager.getFilteredEngineOrder())
 
         setupLetterIndexBar()
+        showSearchEnginesByLetter('A') // 显示初始字母的搜索引擎列表
     }
 
     private fun setupLetterIndexBar() {
@@ -50,27 +60,11 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun showSearchEnginesByLetter(letter: Char) {
-        engineListLayout.removeAllViews()
+        // 更新字母标题
+        letterTitle.text = letter.toString()
         
-        // 添加字母标题
-        val letterTitle = TextView(this).apply {
-            text = letter.toString()
-            textSize = 24f
-            setTextColor(Color.BLACK)
-            gravity = Gravity.CENTER
-            setPadding(16, 16, 16, 16)
-        }
-        engineListLayout.addView(letterTitle)
-
-        // 添加分隔线
-        val divider = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                2
-            )
-            setBackgroundColor(ContextCompat.getColor(context, R.color.divider))
-        }
-        engineListLayout.addView(divider)
+        // 清空搜索引擎列表
+        previewEngineList.removeAllViews()
 
         // 查找所有匹配该字母的搜索引擎
         val matchingEngines = searchEngines.filter { engine ->
@@ -91,13 +85,13 @@ class SearchActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 setPadding(16, 32, 16, 32)
             }
-            engineListLayout.addView(noEngineText)
+            previewEngineList.addView(noEngineText)
         } else {
             // 添加匹配的搜索引擎
             matchingEngines.forEach { engine ->
                 val engineItem = LayoutInflater.from(this).inflate(
                     R.layout.item_search_engine,
-                    engineListLayout,
+                    previewEngineList,
                     false
                 )
 
@@ -122,7 +116,7 @@ class SearchActivity : AppCompatActivity() {
                     finish()
                 }
 
-                engineListLayout.addView(engineItem)
+                previewEngineList.addView(engineItem)
 
                 // 在每个搜索引擎项之间添加分隔线
                 if (engine != matchingEngines.last()) {
@@ -133,7 +127,7 @@ class SearchActivity : AppCompatActivity() {
                         )
                         setBackgroundColor(ContextCompat.getColor(context, R.color.divider))
                     }
-                    engineListLayout.addView(itemDivider)
+                    previewEngineList.addView(itemDivider)
                 }
             }
         }

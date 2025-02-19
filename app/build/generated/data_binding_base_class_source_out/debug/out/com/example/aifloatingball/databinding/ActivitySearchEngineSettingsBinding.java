@@ -4,7 +4,7 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.LinearLayout;
+import android.widget.FrameLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.recyclerview.widget.RecyclerView;
@@ -17,12 +17,12 @@ import java.lang.String;
 
 public final class ActivitySearchEngineSettingsBinding implements ViewBinding {
   @NonNull
-  private final LinearLayout rootView;
+  private final FrameLayout rootView;
 
   @NonNull
   public final RecyclerView engineList;
 
-  private ActivitySearchEngineSettingsBinding(@NonNull LinearLayout rootView,
+  private ActivitySearchEngineSettingsBinding(@NonNull FrameLayout rootView,
       @NonNull RecyclerView engineList) {
     this.rootView = rootView;
     this.engineList = engineList;
@@ -30,7 +30,7 @@ public final class ActivitySearchEngineSettingsBinding implements ViewBinding {
 
   @Override
   @NonNull
-  public LinearLayout getRoot() {
+  public FrameLayout getRoot() {
     return rootView;
   }
 
@@ -61,7 +61,7 @@ public final class ActivitySearchEngineSettingsBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivitySearchEngineSettingsBinding((LinearLayout) rootView, engineList);
+      return new ActivitySearchEngineSettingsBinding((FrameLayout) rootView, engineList);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

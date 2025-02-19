@@ -13,7 +13,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
-import com.airbnb.lottie.LottieAnimationView;
 import com.example.aifloatingball.R;
 import com.example.aifloatingball.view.LetterIndexBar;
 import java.lang.NullPointerException;
@@ -22,22 +21,13 @@ import java.lang.String;
 
 public final class ActivitySearchBinding implements ViewBinding {
   @NonNull
-  private final LinearLayout rootView;
+  private final FrameLayout rootView;
 
   @NonNull
   public final ImageButton btnClose;
 
   @NonNull
   public final ImageButton btnSearch;
-
-  @NonNull
-  public final ImageButton btnVoice;
-
-  @NonNull
-  public final FrameLayout engineListContainer;
-
-  @NonNull
-  public final LinearLayout engineListLayout;
 
   @NonNull
   public final LetterIndexBar letterIndexBar;
@@ -54,37 +44,23 @@ public final class ActivitySearchBinding implements ViewBinding {
   @NonNull
   public final EditText searchInput;
 
-  @NonNull
-  public final FrameLayout voiceAnimationContainer;
-
-  @NonNull
-  public final LottieAnimationView voiceAnimationView;
-
-  private ActivitySearchBinding(@NonNull LinearLayout rootView, @NonNull ImageButton btnClose,
-      @NonNull ImageButton btnSearch, @NonNull ImageButton btnVoice,
-      @NonNull FrameLayout engineListContainer, @NonNull LinearLayout engineListLayout,
-      @NonNull LetterIndexBar letterIndexBar, @NonNull TextView letterTitle,
-      @NonNull LinearLayout previewContainer, @NonNull LinearLayout previewEngineList,
-      @NonNull EditText searchInput, @NonNull FrameLayout voiceAnimationContainer,
-      @NonNull LottieAnimationView voiceAnimationView) {
+  private ActivitySearchBinding(@NonNull FrameLayout rootView, @NonNull ImageButton btnClose,
+      @NonNull ImageButton btnSearch, @NonNull LetterIndexBar letterIndexBar,
+      @NonNull TextView letterTitle, @NonNull LinearLayout previewContainer,
+      @NonNull LinearLayout previewEngineList, @NonNull EditText searchInput) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnSearch = btnSearch;
-    this.btnVoice = btnVoice;
-    this.engineListContainer = engineListContainer;
-    this.engineListLayout = engineListLayout;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
     this.previewContainer = previewContainer;
     this.previewEngineList = previewEngineList;
     this.searchInput = searchInput;
-    this.voiceAnimationContainer = voiceAnimationContainer;
-    this.voiceAnimationView = voiceAnimationView;
   }
 
   @Override
   @NonNull
-  public LinearLayout getRoot() {
+  public FrameLayout getRoot() {
     return rootView;
   }
 
@@ -121,24 +97,6 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.btn_voice;
-      ImageButton btnVoice = ViewBindings.findChildViewById(rootView, id);
-      if (btnVoice == null) {
-        break missingId;
-      }
-
-      id = R.id.engine_list_container;
-      FrameLayout engineListContainer = ViewBindings.findChildViewById(rootView, id);
-      if (engineListContainer == null) {
-        break missingId;
-      }
-
-      id = R.id.engine_list_layout;
-      LinearLayout engineListLayout = ViewBindings.findChildViewById(rootView, id);
-      if (engineListLayout == null) {
-        break missingId;
-      }
-
       id = R.id.letter_index_bar;
       LetterIndexBar letterIndexBar = ViewBindings.findChildViewById(rootView, id);
       if (letterIndexBar == null) {
@@ -169,21 +127,8 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.voice_animation_container;
-      FrameLayout voiceAnimationContainer = ViewBindings.findChildViewById(rootView, id);
-      if (voiceAnimationContainer == null) {
-        break missingId;
-      }
-
-      id = R.id.voice_animation_view;
-      LottieAnimationView voiceAnimationView = ViewBindings.findChildViewById(rootView, id);
-      if (voiceAnimationView == null) {
-        break missingId;
-      }
-
-      return new ActivitySearchBinding((LinearLayout) rootView, btnClose, btnSearch, btnVoice,
-          engineListContainer, engineListLayout, letterIndexBar, letterTitle, previewContainer,
-          previewEngineList, searchInput, voiceAnimationContainer, voiceAnimationView);
+      return new ActivitySearchBinding((FrameLayout) rootView, btnClose, btnSearch, letterIndexBar,
+          letterTitle, previewContainer, previewEngineList, searchInput);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

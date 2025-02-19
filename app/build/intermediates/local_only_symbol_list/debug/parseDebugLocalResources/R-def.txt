@@ -45,6 +45,8 @@ drawable ic_chatgpt
 drawable ic_claude
 drawable ic_close
 drawable ic_doubao
+drawable ic_drag_handle
+drawable ic_edit
 drawable ic_floating_ball
 drawable ic_history
 drawable ic_launcher_foreground
@@ -75,16 +77,13 @@ id btn_forward
 id btn_minimize
 id btn_refresh
 id btn_search
-id btn_voice
 id card_recycler_view
 id closeButton
 id content_container
 id control_bar
-id drag_handle
+id engine_checkbox
 id engine_icon
 id engine_list
-id engine_list_container
-id engine_list_layout
 id engine_list_popup
 id engine_name
 id engine_title

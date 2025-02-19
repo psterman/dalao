@@ -4,7 +4,6 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -21,15 +20,10 @@ public final class EngineItemBinding implements ViewBinding {
   private final LinearLayout rootView;
 
   @NonNull
-  public final ImageView dragHandle;
-
-  @NonNull
   public final TextView engineName;
 
-  private EngineItemBinding(@NonNull LinearLayout rootView, @NonNull ImageView dragHandle,
-      @NonNull TextView engineName) {
+  private EngineItemBinding(@NonNull LinearLayout rootView, @NonNull TextView engineName) {
     this.rootView = rootView;
-    this.dragHandle = dragHandle;
     this.engineName = engineName;
   }
 
@@ -60,19 +54,13 @@ public final class EngineItemBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.drag_handle;
-      ImageView dragHandle = ViewBindings.findChildViewById(rootView, id);
-      if (dragHandle == null) {
-        break missingId;
-      }
-
       id = R.id.engine_name;
       TextView engineName = ViewBindings.findChildViewById(rootView, id);
       if (engineName == null) {
         break missingId;
       }
 
-      return new EngineItemBinding((LinearLayout) rootView, dragHandle, engineName);
+      return new EngineItemBinding((LinearLayout) rootView, engineName);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

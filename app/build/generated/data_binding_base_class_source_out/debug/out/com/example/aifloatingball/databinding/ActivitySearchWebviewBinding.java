@@ -32,9 +32,6 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
   public final ImageButton btnSearch;
 
   @NonNull
-  public final ImageButton btnVoice;
-
-  @NonNull
   public final LinearLayout engineListPopup;
 
   @NonNull
@@ -59,15 +56,14 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
   public final WebView webview;
 
   private ActivitySearchWebviewBinding(@NonNull FrameLayout rootView, @NonNull ImageButton btnClose,
-      @NonNull ImageButton btnSearch, @NonNull ImageButton btnVoice,
-      @NonNull LinearLayout engineListPopup, @NonNull LetterIndexBar letterIndexBar,
-      @NonNull TextView letterTitle, @NonNull LinearLayout previewEngineList,
-      @NonNull EditText searchInput, @NonNull FrameLayout voiceAnimationContainer,
-      @NonNull LottieAnimationView voiceAnimationView, @NonNull WebView webview) {
+      @NonNull ImageButton btnSearch, @NonNull LinearLayout engineListPopup,
+      @NonNull LetterIndexBar letterIndexBar, @NonNull TextView letterTitle,
+      @NonNull LinearLayout previewEngineList, @NonNull EditText searchInput,
+      @NonNull FrameLayout voiceAnimationContainer, @NonNull LottieAnimationView voiceAnimationView,
+      @NonNull WebView webview) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnSearch = btnSearch;
-    this.btnVoice = btnVoice;
     this.engineListPopup = engineListPopup;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
@@ -114,12 +110,6 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
       id = R.id.btn_search;
       ImageButton btnSearch = ViewBindings.findChildViewById(rootView, id);
       if (btnSearch == null) {
-        break missingId;
-      }
-
-      id = R.id.btn_voice;
-      ImageButton btnVoice = ViewBindings.findChildViewById(rootView, id);
-      if (btnVoice == null) {
         break missingId;
       }
 
@@ -171,7 +161,7 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivitySearchWebviewBinding((FrameLayout) rootView, btnClose, btnSearch, btnVoice,
+      return new ActivitySearchWebviewBinding((FrameLayout) rootView, btnClose, btnSearch,
           engineListPopup, letterIndexBar, letterTitle, previewEngineList, searchInput,
           voiceAnimationContainer, voiceAnimationView, webview);
     }

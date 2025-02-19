@@ -19,6 +19,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_ENGINE_ORDER = "engine_order"
         private const val KEY_AUTO_HIDE = "auto_hide"
         private const val KEY_LAYOUT_THEME = "layout_theme"
+        private const val KEY_ENABLED_ENGINES = "enabled_engines"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -90,5 +91,22 @@ class SettingsManager private constructor(context: Context) {
     
     fun setLayoutTheme(theme: String) {
         prefs.edit().putString(KEY_LAYOUT_THEME, theme).apply()
+    }
+
+    // 获取启用的搜索引擎列表
+    fun getEnabledEngines(): Set<String> {
+        return prefs.getStringSet(KEY_ENABLED_ENGINES, null) ?: 
+               getEngineOrder().map { it.name }.toSet() // 默认全部启用
+    }
+    
+    // 保存启用的搜索引擎列表
+    fun saveEnabledEngines(enabledEngines: Set<String>) {
+        prefs.edit().putStringSet(KEY_ENABLED_ENGINES, enabledEngines).apply()
+    }
+
+    // 获取经过筛选的搜索引擎列表（只返回启用的引擎）
+    fun getFilteredEngineOrder(): List<AIEngine> {
+        val enabledEngines = getEnabledEngines()
+        return getEngineOrder().filter { it.name in enabledEngines }
     }
 } 

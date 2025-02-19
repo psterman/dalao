@@ -3143,6 +3143,8 @@ drawable ic_clear_black_24
 drawable ic_clock_black_24dp
 drawable ic_close
 drawable ic_doubao
+drawable ic_drag_handle
+drawable ic_edit
 drawable ic_floating_ball
 drawable ic_history
 drawable ic_keyboard_black_24dp
@@ -3362,7 +3364,6 @@ id btn_forward
 id btn_minimize
 id btn_refresh
 id btn_search
-id btn_voice
 id buttonPanel
 id cache_measures
 id callMeasure
@@ -3435,7 +3436,6 @@ id dragLeft
 id dragRight
 id dragStart
 id dragUp
-id drag_handle
 id dropdown_menu
 id easeIn
 id easeInOut
@@ -3449,10 +3449,9 @@ id embed
 id enabled
 id end
 id endToStart
+id engine_checkbox
 id engine_icon
 id engine_list
-id engine_list_container
-id engine_list_layout
 id engine_list_popup
 id engine_name
 id engine_title

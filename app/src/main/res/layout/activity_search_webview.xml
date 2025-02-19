@@ -25,14 +25,6 @@
                 android:maxLines="1" />
 
             <ImageButton
-                android:id="@+id/btn_voice"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="语音搜索"
-                android:src="@drawable/ic_mic" />
-
-            <ImageButton
                 android:id="@+id/btn_search"
                 android:layout_width="48dp"
                 android:layout_height="48dp"

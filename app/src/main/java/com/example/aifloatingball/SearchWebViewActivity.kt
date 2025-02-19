@@ -1,44 +1,28 @@
 package com.example.aifloatingball
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebSettings
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.IntentFilter
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.LayoutInflater
 import android.view.Gravity
-import com.airbnb.lottie.LottieAnimationView
-import com.airbnb.lottie.LottieDrawable
 import android.graphics.Color
 import android.util.Log
-import android.os.Handler
-import android.os.Looper
 
 class SearchWebViewActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
-    private lateinit var voiceButton: ImageButton
     private lateinit var searchButton: ImageButton
     private lateinit var closeButton: ImageButton
     private lateinit var webView: WebView
-    private var recognizer: SpeechRecognizer? = null
-    private lateinit var voiceAnimationView: LottieAnimationView
-    private lateinit var voiceAnimationContainer: FrameLayout
     private lateinit var settingsManager: SettingsManager
     private lateinit var letterIndexBar: com.example.aifloatingball.view.LetterIndexBar
     private lateinit var previewContainer: LinearLayout
@@ -47,21 +31,11 @@ class SearchWebViewActivity : AppCompatActivity() {
     private var currentLetter: Char = 'A'
     private var sortedEngines: List<SearchEngine> = emptyList()
     private lateinit var engineListPopup: LinearLayout
-    private var isVoiceRecognitionActive = false
-    private var isRecognizerInitializing = false
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private var pendingRecognitionIntent: Intent? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
             super.onCreate(savedInstanceState)
             setContentView(R.layout.activity_search_webview)
-
-            // 设置Activity不被finish
-            window.setFlags(
-                android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
-                android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-            )
 
             settingsManager = SettingsManager.getInstance(this)
             
@@ -83,54 +57,13 @@ class SearchWebViewActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        try {
-            // 在Activity恢复时初始化语音识别
-            setupVoiceRecognition()
-        } catch (e: Exception) {
-            Log.e("SearchWebViewActivity", "onResume初始化语音识别失败", e)
-        }
-    }
-
-    override fun onPause() {
-        try {
-            mainHandler.removeCallbacksAndMessages(null)
-            isVoiceRecognitionActive = false
-            isRecognizerInitializing = false
-            pendingRecognitionIntent = null
-            
-            if (recognizer != null) {
-                try {
-                    recognizer?.cancel()
-                } catch (e: Exception) {
-                    Log.e("SearchWebViewActivity", "取消语音识别失败", e)
-                }
-                try {
-                    recognizer?.destroy()
-                } catch (e: Exception) {
-                    Log.e("SearchWebViewActivity", "销毁语音识别器失败", e)
-                }
-                recognizer = null
-            }
-            
-            hideVoiceSearchAnimation()
-        } catch (e: Exception) {
-            Log.e("SearchWebViewActivity", "onPause清理语音识别资源失败", e)
-        }
-        super.onPause()
-    }
-
     private fun setupViews() {
         try {
             // 初始化所有视图
             searchInput = findViewById(R.id.search_input) ?: throw IllegalStateException("搜索输入框未找到")
-            voiceButton = findViewById(R.id.btn_voice) ?: throw IllegalStateException("语音按钮未找到")
             searchButton = findViewById(R.id.btn_search) ?: throw IllegalStateException("搜索按钮未找到")
             closeButton = findViewById(R.id.btn_close) ?: throw IllegalStateException("关闭按钮未找到")
             webView = findViewById(R.id.webview) ?: throw IllegalStateException("WebView未找到")
-            voiceAnimationView = findViewById(R.id.voice_animation_view) ?: throw IllegalStateException("语音动画视图未找到")
-            voiceAnimationContainer = findViewById(R.id.voice_animation_container) ?: throw IllegalStateException("语音动画容器未找到")
             letterIndexBar = findViewById(R.id.letter_index_bar) ?: throw IllegalStateException("字母索引栏未找到")
             engineListPopup = findViewById(R.id.engine_list_popup) ?: throw IllegalStateException("搜索引擎列表弹窗未找到")
             letterTitle = findViewById(R.id.letter_title) ?: throw IllegalStateException("字母标题未找到")
@@ -223,10 +156,6 @@ class SearchWebViewActivity : AppCompatActivity() {
             selectedEngine?.let { engine ->
                 performSearch(engine, query.ifBlank { null })
             }
-        }
-
-        voiceButton.setOnClickListener {
-            startVoiceRecognition()
         }
 
         closeButton.setOnClickListener {
@@ -381,420 +310,12 @@ class SearchWebViewActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupVoiceRecognition() {
-        if (isRecognizerInitializing) {
-            Log.d("SearchWebViewActivity", "语音识别器正在初始化中")
-            return
-        }
-
-        try {
-            isRecognizerInitializing = true
-            
-            // 检查设备是否支持语音识别
-            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-                Log.e("SearchWebViewActivity", "设备不支持语音识别")
-                voiceButton.visibility = View.GONE
-                isRecognizerInitializing = false
-                return
-            }
-
-            // 检查是否已经有语音识别器实例
-            if (recognizer != null) {
-                try {
-                    recognizer?.cancel()
-                    recognizer?.destroy()
-                    recognizer = null
-                } catch (e: Exception) {
-                    Log.e("SearchWebViewActivity", "清理旧的语音识别器失败", e)
-                }
-            }
-
-            // 创建新的语音识别器实例，使用Activity上下文而不是applicationContext
-            recognizer = try {
-                SpeechRecognizer.createSpeechRecognizer(this).apply {
-                    setRecognitionListener(createRecognitionListener())
-                }
-            } catch (e: Exception) {
-                Log.e("SearchWebViewActivity", "创建语音识别器失败", e)
-                null
-            }
-
-            if (recognizer == null) {
-                Log.e("SearchWebViewActivity", "语音识别器初始化失败")
-                voiceButton.visibility = View.GONE
-                isRecognizerInitializing = false
-                return
-            }
-
-            isRecognizerInitializing = false
-            
-            // 如果有待处理的识别意图，立即处理
-            pendingRecognitionIntent?.let { intent ->
-                if (!isFinishing && !isDestroyed) {
-                    startListening(intent)
-                }
-                pendingRecognitionIntent = null
-            }
-        } catch (e: Exception) {
-            Log.e("SearchWebViewActivity", "初始化语音识别失败", e)
-            voiceButton.visibility = View.GONE
-            if (!isFinishing && !isDestroyed) {
-                Toast.makeText(this, "语音识别功能不可用：${e.message}", Toast.LENGTH_SHORT).show()
-            }
-            isRecognizerInitializing = false
-        }
-    }
-
-    private fun createRecognitionListener(): RecognitionListener {
-        return object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                if (!isFinishing && !isDestroyed) {
-                    try {
-                        showVoiceSearchAnimation()
-                        Log.d("SearchWebViewActivity", "语音识别准备就绪")
-                    } catch (e: Exception) {
-                        Log.e("SearchWebViewActivity", "显示语音动画失败", e)
-                    }
-                }
-            }
-
-            override fun onResults(results: Bundle?) {
-                isVoiceRecognitionActive = false
-                if (!isFinishing && !isDestroyed) {
-                    try {
-                        hideVoiceSearchAnimation()
-                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        Log.d("SearchWebViewActivity", "语音识别结果: $matches")
-                        
-                        if (!matches.isNullOrEmpty()) {
-                            val recognizedText = matches[0]
-                            Log.d("SearchWebViewActivity", "识别到的文本: $recognizedText")
-                            
-                            // 在主线程中更新UI
-                            runOnUiThread {
-                                try {
-                                    searchInput.setText(recognizedText)
-                                    // 确保文本设置后再触发搜索
-                                    searchInput.post {
-                                        searchButton.performClick()
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("SearchWebViewActivity", "设置识别文本失败", e)
-                                    Toast.makeText(this@SearchWebViewActivity, 
-                                        "设置识别文本失败：${e.message}", 
-                                        Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        } else {
-                            Log.d("SearchWebViewActivity", "未识别到文本")
-                            runOnUiThread {
-                                Toast.makeText(this@SearchWebViewActivity, 
-                                    "未能识别到语音内容", 
-                                    Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e("SearchWebViewActivity", "处理语音识别结果失败", e)
-                        runOnUiThread {
-                            Toast.makeText(this@SearchWebViewActivity, 
-                                "处理语音识别结果失败：${e.message}", 
-                                Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-
-            override fun onPartialResults(partialResults: Bundle?) {
-                if (!isFinishing && !isDestroyed) {
-                    try {
-                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        Log.d("SearchWebViewActivity", "部分识别结果: $matches")
-                        
-                        if (!matches.isNullOrEmpty()) {
-                            val recognizedText = matches[0]
-                            // 在主线程中更新UI，显示部分识别结果
-                            runOnUiThread {
-                                try {
-                                    searchInput.setText(recognizedText)
-                                } catch (e: Exception) {
-                                    Log.e("SearchWebViewActivity", "设置部分识别文本失败", e)
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e("SearchWebViewActivity", "处理部分识别结果失败", e)
-                    }
-                }
-            }
-
-            override fun onError(error: Int) {
-                if (!isFinishing && !isDestroyed) {
-                    try {
-                        hideVoiceSearchAnimation()
-                        val errorMessage = when (error) {
-                            SpeechRecognizer.ERROR_AUDIO -> "音频录制错误"
-                            SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
-                            SpeechRecognizer.ERROR_NETWORK -> "网络错误，请检查网络连接"
-                            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时，请检查网络连接"
-                            SpeechRecognizer.ERROR_NO_MATCH -> "未能匹配语音，请重试"
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "语音识别服务忙，请稍后重试"
-                            SpeechRecognizer.ERROR_SERVER -> "服务器错误，请稍后重试"
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "未检测到语音输入，请重试"
-                            12 -> {
-                                // 特殊处理错误码12
-                                Log.w("SearchWebViewActivity", "收到错误码12，尝试重新初始化语音识别")
-                                isVoiceRecognitionActive = false
-                                
-                                // 延迟重新初始化
-                                mainHandler.removeCallbacksAndMessages(null)
-                                mainHandler.postDelayed({
-                                    if (!isFinishing && !isDestroyed) {
-                                        Log.d("SearchWebViewActivity", "重新初始化语音识别")
-                                        setupVoiceRecognition()
-                                    }
-                                }, 1000)
-                                return // 不显示错误消息，静默重试
-                            }
-                            else -> "语音识别出错 (错误码: $error)"
-                        }
-                        
-                        isVoiceRecognitionActive = false
-                        
-                        if (error != 12) {
-                            Log.e("SearchWebViewActivity", "语音识别错误: $errorMessage (错误码: $error)")
-                            if (!isFinishing && !isDestroyed) {
-                                runOnUiThread {
-                                    Toast.makeText(this@SearchWebViewActivity, errorMessage, Toast.LENGTH_SHORT).show()
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e("SearchWebViewActivity", "处理语音识别错误失败", e)
-                    }
-                }
-            }
-
-            override fun onBeginningOfSpeech() {
-                Log.d("SearchWebViewActivity", "开始语音输入")
-            }
-
-            override fun onRmsChanged(rmsdB: Float) {
-                // 可以用来更新音量动画
-            }
-
-            override fun onBufferReceived(buffer: ByteArray?) {
-                Log.d("SearchWebViewActivity", "接收到语音数据")
-            }
-
-            override fun onEndOfSpeech() {
-                Log.d("SearchWebViewActivity", "语音输入结束")
-            }
-
-            override fun onEvent(eventType: Int, params: Bundle?) {
-                Log.d("SearchWebViewActivity", "语音识别事件: $eventType")
-            }
-        }
-    }
-
-    private fun startVoiceRecognition() {
-        if (isFinishing || isDestroyed) {
-            Log.d("SearchWebViewActivity", "Activity已结束，不能开始语音识别")
-            return
-        }
-
-        if (isVoiceRecognitionActive) {
-            Log.d("SearchWebViewActivity", "语音识别已经在进行中")
-            return
-        }
-
-        try {
-            // 检查语音识别器是否可用
-            if (recognizer == null || isRecognizerInitializing) {
-                // 如果正在初始化，保存意图等待初始化完成
-                val intent = createRecognitionIntent()
-                if (isRecognizerInitializing) {
-                    Log.d("SearchWebViewActivity", "语音识别器正在初始化，保存意图")
-                    pendingRecognitionIntent = intent
-                    return
-                }
-                
-                Log.d("SearchWebViewActivity", "语音识别器未初始化，开始初始化")
-                setupVoiceRecognition()
-                if (recognizer == null) {
-                    if (!isFinishing && !isDestroyed) {
-                        Toast.makeText(this, "语音识别功能不可用", Toast.LENGTH_SHORT).show()
-                    }
-                    return
-                }
-            }
-
-            // 检查录音权限
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
-                != PackageManager.PERMISSION_GRANTED) {
-                Log.d("SearchWebViewActivity", "请求录音权限")
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.RECORD_AUDIO),
-                    PERMISSION_REQUEST_RECORD_AUDIO
-                )
-                return
-            }
-
-            val intent = createRecognitionIntent()
-            isVoiceRecognitionActive = true
-            try {
-                Log.d("SearchWebViewActivity", "开始语音识别")
-                recognizer?.startListening(intent)
-            } catch (e: Exception) {
-                Log.e("SearchWebViewActivity", "启动语音识别失败", e)
-                isVoiceRecognitionActive = false
-                if (!isFinishing && !isDestroyed) {
-                    Toast.makeText(this, "启动语音识别失败：${e.message}", Toast.LENGTH_SHORT).show()
-                    
-                    // 延迟重新初始化
-                    mainHandler.removeCallbacksAndMessages(null)
-                    mainHandler.postDelayed({
-                        if (!isFinishing && !isDestroyed) {
-                            setupVoiceRecognition()
-                        }
-                    }, 1000)
-                }
-            }
-        } catch (e: Exception) {
-            isVoiceRecognitionActive = false
-            Log.e("SearchWebViewActivity", "语音识别过程出错", e)
-            if (!isFinishing && !isDestroyed) {
-                Toast.makeText(this, "语音识别失败：${e.message}", Toast.LENGTH_SHORT).show()
-            }
-            hideVoiceSearchAnimation()
-        }
-    }
-
-    private fun createRecognitionIntent(): Intent {
-        return Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false) // 改为优先使用在线识别
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 500L)
-        }
-    }
-
-    private fun startListening(intent: Intent) {
-        if (isFinishing || isDestroyed) {
-            Log.d("SearchWebViewActivity", "Activity已结束，不能开始语音识别")
-            return
-        }
-
-        isVoiceRecognitionActive = true
-        try {
-            recognizer?.startListening(intent)
-            Log.d("SearchWebViewActivity", "开始语音识别")
-        } catch (e: Exception) {
-            isVoiceRecognitionActive = false
-            Log.e("SearchWebViewActivity", "启动语音识别失败", e)
-            if (!isFinishing && !isDestroyed) {
-                Toast.makeText(this, "启动语音识别失败：${e.message}", Toast.LENGTH_SHORT).show()
-                // 延迟重新初始化
-                mainHandler.removeCallbacksAndMessages(null)
-                mainHandler.postDelayed({
-                    if (!isFinishing && !isDestroyed) {
-                        setupVoiceRecognition()
-                    }
-                }, 1000)
-            }
-        }
-    }
-
-    private fun showVoiceSearchAnimation() {
-        try {
-            runOnUiThread {
-                try {
-                    voiceAnimationContainer?.visibility = View.VISIBLE
-                    voiceAnimationView?.apply {
-                        visibility = View.VISIBLE
-                        setAnimation("voice_animation.json")
-                        repeatCount = LottieDrawable.INFINITE
-                        playAnimation()
-                    }
-                } catch (e: Exception) {
-                    Log.e("SearchWebViewActivity", "UI线程中显示语音动画失败", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("SearchWebViewActivity", "显示语音动画失败", e)
-        }
-    }
-
-    private fun hideVoiceSearchAnimation() {
-        try {
-            runOnUiThread {
-                try {
-                    voiceAnimationView?.apply {
-                        cancelAnimation()
-                        visibility = View.GONE
-                    }
-                    voiceAnimationContainer?.visibility = View.GONE
-                } catch (e: Exception) {
-                    Log.e("SearchWebViewActivity", "UI线程中隐藏语音动画失败", e)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("SearchWebViewActivity", "隐藏语音动画失败", e)
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSION_REQUEST_RECORD_AUDIO) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startVoiceRecognition()
-            } else {
-                Toast.makeText(this, "需要语音权限才能使用语音搜索功能", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
     override fun onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack()
         } else {
             super.onBackPressed()
         }
-    }
-
-    override fun onDestroy() {
-        try {
-            if (recognizer != null) {
-                try {
-                    recognizer?.cancel()
-                } catch (e: Exception) {
-                    Log.e("SearchWebViewActivity", "取消语音识别失败", e)
-                }
-                try {
-                    recognizer?.destroy()
-                } catch (e: Exception) {
-                    Log.e("SearchWebViewActivity", "销毁语音识别器失败", e)
-                }
-                recognizer = null
-            }
-        } catch (e: Exception) {
-            Log.e("SearchWebViewActivity", "清理语音识别资源失败", e)
-        }
-        super.onDestroy()
-    }
-
-    companion object {
-        private const val PERMISSION_REQUEST_RECORD_AUDIO = 1001
     }
 
     data class SearchEngine(
