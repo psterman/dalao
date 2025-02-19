@@ -3807,6 +3807,7 @@ id voice_animation_view
 id voice_input_button
 id voice_ripple
 id web_view
+id webview
 id webview_container
 id west
 id withText
@@ -3937,6 +3938,7 @@ layout activity_fullscreen_webview
 layout activity_permission
 layout activity_search
 layout activity_search_engine_settings
+layout activity_search_webview
 layout activity_settings
 layout card_ai_engine
 layout card_layout_theme

@@ -463,142 +463,68 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private fun createFloatingBall() {
         try {
-            aiEngines.forEach { engine ->
-                val webView = createWebView()
-                webView.loadUrl(engine.url)
-                aiWindows.add(webView)
-            }
+            // 创建悬浮球视图
+            floatingBallView = LayoutInflater.from(this).inflate(R.layout.floating_ball, null)
             
-            Log.d("FloatingService", "开始创建悬浮球")
-            
-            val inflater = LayoutInflater.from(this)
-            val root = FrameLayout(this)
-            floatingBallView = inflater.inflate(R.layout.floating_ball, root, true)
-            
-            if (floatingBallView == null) {
-                Log.e("FloatingService", "悬浮球视图创建失败")
-                throw IllegalStateException("无法创建悬浮球视图")
-            }
-            
-            val windowParams = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                    PixelFormat.RGBA_8888
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
+            // 设置悬浮球布局参数
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
                     WindowManager.LayoutParams.TYPE_PHONE,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                    PixelFormat.RGBA_8888
-                )
-            }
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            )
             
-            windowParams.gravity = Gravity.START or Gravity.TOP
-            windowParams.x = screenWidth - 100.dpToPx()
-            windowParams.y = screenHeight / 2
+            // 设置初始位置
+            params.gravity = Gravity.TOP or Gravity.START
+            params.x = screenWidth - 100
+            params.y = screenHeight / 2
             
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                root.elevation = 1000f
-                root.translationZ = 1000f
-            }
-            
-            windowManager?.addView(root, windowParams)
-            
-            floatingBallView?.let { view ->
-                gestureManager.attachToView(view)
-                Log.d("FloatingService", "已设置手势监听")
-                
-                view.setOnTouchListener { v, event ->
-                    gestureDetector.onTouchEvent(event)
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            val params = v.layoutParams as WindowManager.LayoutParams
-                            initialX = params.x
-                            initialY = params.y
-                            initialTouchX = event.rawX
-                            initialTouchY = event.rawY
-                            lastTouchX = event.rawX
-                            lastTouchY = event.rawY
-                            
-                            // 只在非截图模式下启动语音搜索延时
-                            if (!isScreenshotMode) {
-                                voiceSearchHandler.postDelayed({
-                                    if (!isDragging) {
-                                        startVoiceSearchMode()
-                                    }
-                                }, LONG_PRESS_TIMEOUT)
-                            }
-                            true
-                        }
-                        MotionEvent.ACTION_MOVE -> {
-                            val deltaX = event.rawX - lastTouchX
-                            val deltaY = event.rawY - lastTouchY
-                            
-                            if (abs(deltaX) > 5 || abs(deltaY) > 5) {
-                                voiceSearchHandler.removeCallbacksAndMessages(null)
-                                if (isVoiceSearchActive) {
-                                    stopVoiceSearchMode()
-                                }
-                                isDragging = true
-                            }
-                            
-                            if (isDragging) {
-                                val params = v.layoutParams as WindowManager.LayoutParams
-                                params.x += deltaX.toInt()
-                                params.y += deltaY.toInt()
-                                
-                                params.x = params.x.coerceIn(-v.width / 3, screenWidth - v.width * 2 / 3)
-                                params.y = params.y.coerceIn(0, screenHeight - v.height)
-                                
-                                try {
-                                    windowManager?.updateViewLayout(v, params)
-                                } catch (e: Exception) {
-                                    Log.e("FloatingService", "更新悬浮球位置失败", e)
-                                }
-                            }
-                            
-                            lastTouchX = event.rawX
-                            lastTouchY = event.rawY
-                            true
-                        }
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            voiceSearchHandler.removeCallbacksAndMessages(null)
-                            
-                            if (isVoiceSearchActive) {
-                                stopVoiceSearchMode()
-                            }
-                            
-                            val isTap = !isDragging && abs(event.rawX - initialTouchX) < 5 && 
-                                      abs(event.rawY - initialTouchY) < 5
-                            
-                            if (isTap) {
-                                if (!isSearchVisible) {
-                                    showSearchInput()
-                                }
-                            }
-                            
-                            isDragging = false
-                            true
-                        }
-                        else -> false
+            // 添加触摸事件监听
+            floatingBallView?.setOnTouchListener { view, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        lastTouchX = event.rawX
+                        lastTouchY = event.rawY
+                        view.performClick()
+                        true
                     }
+                    MotionEvent.ACTION_MOVE -> {
+                        val deltaX = event.rawX - initialTouchX
+                        val deltaY = event.rawY - initialTouchY
+                        params.x = (initialX + deltaX).toInt()
+                        params.y = (initialY + deltaY).toInt()
+                        windowManager?.updateViewLayout(floatingBallView, params)
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
+                            // 这是一个点击事件
+                            val intent = Intent(this, SearchWebViewActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            }
+                            startActivity(intent)
+                        }
+                        true
+                    }
+                    else -> false
                 }
             }
             
-            Log.d("FloatingService", "悬浮球创建成功")
+            // 添加到窗口
+            windowManager?.addView(floatingBallView, params)
+            
         } catch (e: Exception) {
             Log.e("FloatingService", "创建悬浮球失败", e)
-            throw e
+            Toast.makeText(this, "创建悬浮球失败: ${e.message}", Toast.LENGTH_LONG).show()
+            stopSelf()
         }
     }
     

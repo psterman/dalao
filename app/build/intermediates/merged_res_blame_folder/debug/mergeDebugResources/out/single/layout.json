@@ -12,6 +12,10 @@
         "source": "com.example.aifloatingball.app-main-6:/layout/card_layout_theme.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-mergeDebugResources-3:/layout/activity_search_webview.xml",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_search_webview.xml"
+    },
+    {
         "merged": "com.example.aifloatingball.app-mergeDebugResources-3:/layout/activity_settings.xml",
         "source": "com.example.aifloatingball.app-main-6:/layout/activity_settings.xml"
     },

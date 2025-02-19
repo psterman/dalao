@@ -68,5 +68,11 @@
             android:exported="false"
             android:label="@string/search_engine_settings"
             android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
+
+        <activity
+            android:name=".SearchWebViewActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
     </application>
 </manifest> 
