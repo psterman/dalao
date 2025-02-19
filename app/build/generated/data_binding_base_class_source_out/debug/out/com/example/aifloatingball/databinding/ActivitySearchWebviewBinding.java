@@ -23,7 +23,7 @@ import java.lang.String;
 
 public final class ActivitySearchWebviewBinding implements ViewBinding {
   @NonNull
-  private final LinearLayout rootView;
+  private final FrameLayout rootView;
 
   @NonNull
   public final ImageButton btnClose;
@@ -35,13 +35,13 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
   public final ImageButton btnVoice;
 
   @NonNull
+  public final LinearLayout engineListPopup;
+
+  @NonNull
   public final LetterIndexBar letterIndexBar;
 
   @NonNull
   public final TextView letterTitle;
-
-  @NonNull
-  public final LinearLayout previewContainer;
 
   @NonNull
   public final LinearLayout previewEngineList;
@@ -58,19 +58,19 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
   @NonNull
   public final WebView webview;
 
-  private ActivitySearchWebviewBinding(@NonNull LinearLayout rootView,
-      @NonNull ImageButton btnClose, @NonNull ImageButton btnSearch, @NonNull ImageButton btnVoice,
-      @NonNull LetterIndexBar letterIndexBar, @NonNull TextView letterTitle,
-      @NonNull LinearLayout previewContainer, @NonNull LinearLayout previewEngineList,
+  private ActivitySearchWebviewBinding(@NonNull FrameLayout rootView, @NonNull ImageButton btnClose,
+      @NonNull ImageButton btnSearch, @NonNull ImageButton btnVoice,
+      @NonNull LinearLayout engineListPopup, @NonNull LetterIndexBar letterIndexBar,
+      @NonNull TextView letterTitle, @NonNull LinearLayout previewEngineList,
       @NonNull EditText searchInput, @NonNull FrameLayout voiceAnimationContainer,
       @NonNull LottieAnimationView voiceAnimationView, @NonNull WebView webview) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnSearch = btnSearch;
     this.btnVoice = btnVoice;
+    this.engineListPopup = engineListPopup;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
-    this.previewContainer = previewContainer;
     this.previewEngineList = previewEngineList;
     this.searchInput = searchInput;
     this.voiceAnimationContainer = voiceAnimationContainer;
@@ -80,7 +80,7 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
 
   @Override
   @NonNull
-  public LinearLayout getRoot() {
+  public FrameLayout getRoot() {
     return rootView;
   }
 
@@ -123,6 +123,12 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.engine_list_popup;
+      LinearLayout engineListPopup = ViewBindings.findChildViewById(rootView, id);
+      if (engineListPopup == null) {
+        break missingId;
+      }
+
       id = R.id.letter_index_bar;
       LetterIndexBar letterIndexBar = ViewBindings.findChildViewById(rootView, id);
       if (letterIndexBar == null) {
@@ -132,12 +138,6 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
       id = R.id.letter_title;
       TextView letterTitle = ViewBindings.findChildViewById(rootView, id);
       if (letterTitle == null) {
-        break missingId;
-      }
-
-      id = R.id.preview_container;
-      LinearLayout previewContainer = ViewBindings.findChildViewById(rootView, id);
-      if (previewContainer == null) {
         break missingId;
       }
 
@@ -171,8 +171,8 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivitySearchWebviewBinding((LinearLayout) rootView, btnClose, btnSearch,
-          btnVoice, letterIndexBar, letterTitle, previewContainer, previewEngineList, searchInput,
+      return new ActivitySearchWebviewBinding((FrameLayout) rootView, btnClose, btnSearch, btnVoice,
+          engineListPopup, letterIndexBar, letterTitle, previewEngineList, searchInput,
           voiceAnimationContainer, voiceAnimationView, webview);
     }
     String missingId = rootView.getResources().getResourceName(id);

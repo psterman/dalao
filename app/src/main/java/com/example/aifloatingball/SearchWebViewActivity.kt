@@ -44,6 +44,7 @@ class SearchWebViewActivity : AppCompatActivity() {
     private lateinit var previewEngineList: LinearLayout
     private var currentLetter: Char = 'A'
     private var sortedEngines: List<SearchEngine> = emptyList()
+    private lateinit var engineListPopup: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
@@ -82,7 +83,7 @@ class SearchWebViewActivity : AppCompatActivity() {
             voiceAnimationView = findViewById(R.id.voice_animation_view) ?: throw IllegalStateException("语音动画视图未找到")
             voiceAnimationContainer = findViewById(R.id.voice_animation_container) ?: throw IllegalStateException("语音动画容器未找到")
             letterIndexBar = findViewById(R.id.letter_index_bar) ?: throw IllegalStateException("字母索引栏未找到")
-            previewContainer = findViewById(R.id.preview_container) ?: throw IllegalStateException("预览容器未找到")
+            engineListPopup = findViewById(R.id.engine_list_popup) ?: throw IllegalStateException("搜索引擎列表弹窗未找到")
             letterTitle = findViewById(R.id.letter_title) ?: throw IllegalStateException("字母标题未找到")
             previewEngineList = findViewById(R.id.preview_engine_list) ?: throw IllegalStateException("预览引擎列表未找到")
 
@@ -106,11 +107,19 @@ class SearchWebViewActivity : AppCompatActivity() {
             })
 
             setupLetterIndexLayout()
-            // 显示初始字母的搜索引擎列表
-            showSearchEnginesByLetter(currentLetter)
+            
+            // 点击空白区域隐藏搜索引擎列表
+            findViewById<View>(android.R.id.content)?.setOnClickListener {
+                if (engineListPopup.visibility == View.VISIBLE) {
+                    engineListPopup.visibility = View.GONE
+                }
+            }
+            
+            // 防止点击搜索引擎列表时触发隐藏
+            engineListPopup.setOnClickListener { /* 不做任何处理，阻止点击事件传递 */ }
 
         } catch (e: Exception) {
-            android.util.Log.e("SearchWebViewActivity", "Error setting up views", e)
+            Log.e("SearchWebViewActivity", "视图初始化失败", e)
             Toast.makeText(this, "视图初始化失败：${e.message}", Toast.LENGTH_SHORT).show()
             finish()
         }
@@ -143,20 +152,27 @@ class SearchWebViewActivity : AppCompatActivity() {
         }
     }
 
-    private fun performSearch(engine: SearchEngine, query: String) {
-        val searchUrl = engine.url.replace("%s", query)
-        webView.loadUrl(searchUrl)
+    private fun performSearch(engine: SearchEngine, query: String?) {
+        val url = if (query.isNullOrBlank()) {
+            // 如果没有查询文本，使用搜索引擎的首页URL（去掉%s部分）
+            engine.url.replace("%s", "").replace("search?q=", "")
+                .replace("search?query=", "")
+                .replace("search?word=", "")
+                .replace("s?wd=", "")
+        } else {
+            // 有查询文本，使用完整的搜索URL
+            engine.url.replace("%s", query)
+        }
+        webView.loadUrl(url)
     }
 
     private fun setupClickListeners() {
         searchButton.setOnClickListener {
             val query = searchInput.text.toString().trim()
-            if (query.isNotEmpty()) {
-                // 使用当前选中的搜索引擎进行搜索
-                val selectedEngine = sortedEngines.firstOrNull()
-                selectedEngine?.let { engine ->
-                    performSearch(engine, query)
-                }
+            // 使用当前选中的搜索引擎进行搜索
+            val selectedEngine = sortedEngines.firstOrNull()
+            selectedEngine?.let { engine ->
+                performSearch(engine, query.ifBlank { null })
             }
         }
 
@@ -184,6 +200,8 @@ class SearchWebViewActivity : AppCompatActivity() {
                 try {
                     currentLetter = letter
                     showSearchEnginesByLetter(letter)
+                    // 显示搜索引擎列表
+                    engineListPopup.visibility = View.VISIBLE
                     // 震动反馈
                     val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -275,11 +293,9 @@ class SearchWebViewActivity : AppCompatActivity() {
                         engineItem.setOnClickListener {
                             try {
                                 val query = searchInput.text.toString().trim()
-                                if (query.isNotEmpty()) {
-                                    performSearch(engine, query)
-                                } else {
-                                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                                }
+                                performSearch(engine, query.ifBlank { null })
+                                // 隐藏搜索引擎列表
+                                engineListPopup.visibility = View.GONE
                             } catch (e: Exception) {
                                 Log.e("SearchWebViewActivity", "搜索引擎点击处理失败", e)
                                 Toast.makeText(this, "处理点击事件失败：${e.message}", Toast.LENGTH_SHORT).show()

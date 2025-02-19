@@ -62,6 +62,7 @@ drawable ic_wenxin
 drawable ic_wifi
 drawable ic_xinghuo
 drawable paste_button_background
+drawable popup_background
 drawable preview_background
 drawable quick_menu_background
 drawable search_background
@@ -84,6 +85,7 @@ id engine_icon
 id engine_list
 id engine_list_container
 id engine_list_layout
+id engine_list_popup
 id engine_name
 id engine_title
 id floating_ball_icon

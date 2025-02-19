@@ -3240,6 +3240,7 @@ int drawable notification_template_icon_low_bg 0x7f0800f9
 int drawable notification_tile_bg 0x7f0800fa
 int drawable notify_panel_notification_icon_bg 0x7f0800fb
 int drawable paste_button_background 0x7f0800fc
+int drawable popup_background 0x7f080105
 int drawable preference_list_divider_material 0x7f0800fd
 int drawable preview_background 0x7f0800fe
 int drawable quick_menu_background 0x7f0800ff
@@ -3451,6 +3452,7 @@ int id engine_icon 0x7f0900c7
 int id engine_list 0x7f0900c8
 int id engine_list_container 0x7f0900c9
 int id engine_list_layout 0x7f0900ca
+int id engine_list_popup 0x7f090239
 int id engine_name 0x7f0900cb
 int id engine_title 0x7f0900cc
 int id enterAlways 0x7f0900cd
