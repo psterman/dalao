@@ -46,6 +46,7 @@ import com.example.aifloatingball.utils.SystemSettingsHelper
 import com.example.aifloatingball.web.CustomWebViewClient
 import kotlin.math.abs
 import kotlin.math.min
+import com.example.aifloatingball.SearchActivity
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -56,7 +57,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
 
     private var windowManager: WindowManager? = null
     private var floatingBallView: View? = null
-    private var searchView: View? = null
     private val aiWindows = mutableListOf<WebView>()
     private var cardsContainer: ViewGroup? = null
     private lateinit var gestureManager: GestureManager
@@ -64,12 +64,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private lateinit var systemSettingsHelper: SystemSettingsHelper
     private var screenWidth = 0
     private var screenHeight = 0
-    private lateinit var searchHistoryManager: SearchHistoryManager
     private var currentEngineIndex = 0
     private val aiEngines = AIEngineConfig.engines
     
     private var recognizer: SpeechRecognizer? = null
-    private var searchInputField: EditText? = null
     
     private var isCardViewMode = false
     private var cardStartY = 0f
@@ -92,14 +90,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var isDragging = false
     private var initialTouchX = 0f
     
-    private var isSearchVisible = false
     private var voiceAnimationView: View? = null
     private var voiceSearchHandler = Handler(Looper.getMainLooper())
     private var isVoiceSearchActive = false
     private val LONG_PRESS_TIMEOUT = 2000L // 2秒长按阈值
-    
-    // 存储最后一次查询
-    private var lastQuery: String = ""
     
     // 添加缩略图缓存相关变量
     private val thumbnailCache = mutableMapOf<Int, android.graphics.Bitmap>()
@@ -302,7 +296,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private fun initManagers() {
         try {
             systemSettingsHelper = SystemSettingsHelper(this)
-            searchHistoryManager = SearchHistoryManager(this)
             gestureManager = GestureManager(this, this)
             quickMenuManager = QuickMenuManager(this, windowManager!!)
             Log.d("FloatingService", "所有管理器初始化成功")
@@ -390,7 +383,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
 
                 if (engineName != null && engineUrl != null && engineIcon != null) {
                     val engine = SearchEngine(engineName, engineUrl, engineIcon)
-                    
                     // 构建实际URL
                     val url = if (!searchQuery.isNullOrEmpty()) {
                         engine.getSearchUrl(searchQuery)
@@ -402,15 +394,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     val cardsContainer = createCardsContainer()
                     val cardView = createAICardView(url, currentEngineIndex)
                     cardsContainer.addView(cardView)
-                    
-                    // 显示卡片容器
                     windowManager?.addView(cardsContainer, createCardsContainerLayoutParams())
-                    
+
                     // 如果需要立即打开URL，展开卡片
                     if (shouldOpenUrl) {
                         expandCard(cardView, true)
                     }
-                    
+
                     // 保存WebView到卡片列表
                     cardView.findViewById<WebView>(R.id.web_view)?.let { webView ->
                         aiWindows.add(webView)
@@ -714,15 +704,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             val clip = android.content.ClipData.newPlainText("search_query", query)
             clipboard.setPrimaryClip(clip)
             
-            lastQuery = query
-            
-            val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-            searchView?.findFocus()?.let { view ->
-                imm.hideSoftInputFromWindow(view.windowToken, 0)
-            }
-            
-            searchHistoryManager.addSearchQuery(query)
-            
             val engines = settingsManager.getEngineOrder()
             
             cardsContainer.removeAllViews()
@@ -730,7 +711,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             engines.forEachIndexed { index, engine ->
                 try {
-                    val cardView = createAICardView(engine.url, index)
+                    val searchEngine = SearchEngine(engine.name, engine.url, engine.iconResId)
+                    val cardView = createAICardView(searchEngine.url, index)
                     cardsContainer.addView(cardView)
                     
                     cardView.alpha = 0f
@@ -766,14 +748,17 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val engines = settingsManager.getEngineOrder()
         val engine = engines[index]
         
+        // 创建 SearchEngine 对象
+        val searchEngine = SearchEngine(engine.name, engine.url, engine.iconResId)
+        
         val titleBar = cardView.findViewById<View>(R.id.title_bar)
         val contentContainer = cardView.findViewById<ViewGroup>(R.id.content_container)
         val webView = cardView.findViewById<WebView>(R.id.web_view)
         
-        cardView.findViewById<ImageView>(R.id.engine_icon).setImageResource(engine.iconResId)
-        cardView.findViewById<TextView>(R.id.engine_name).text = engine.name
+        cardView.findViewById<ImageView>(R.id.engine_icon).setImageResource(searchEngine.iconResId)
+        cardView.findViewById<TextView>(R.id.engine_name).text = searchEngine.name
         
-        setupWebView(webView, engine)
+        setupWebView(webView, searchEngine)
         
         // 设置WebView的布局参数
         webView.layoutParams = FrameLayout.LayoutParams(
@@ -790,6 +775,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         webView.requestFocus()
         
         // 立即加载URL
+        Log.d("FloatingService", "Creating card view for URL: $url")
         webView.loadUrl(url)
         
         // 设置内容容器的布局参数
@@ -831,7 +817,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         return cardView
     }
 
-    private fun setupWebView(webView: WebView, engine: AIEngine) {
+    private fun setupWebView(webView: WebView, engine: SearchEngine) {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -897,98 +883,29 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
 
-    private fun expandCard(index: Int) {
-        val cardView = cardsContainer?.getChildAt(index) ?: return
-        activeCardIndex = index
-        
-        // 获取标题栏和内容区域
-        val titleBar = cardView.findViewById<View>(R.id.title_bar)
-        val contentContainer = cardView.findViewById<ViewGroup>(R.id.content_container)
-        val webView = cardView.findViewById<WebView>(R.id.web_view)
-        
-        // 确保WebView可见
-        webView.visibility = View.VISIBLE
-        
-        // 计算展开后的卡片高度（屏幕高度的85%）
-        val expandedHeight = (screenHeight * 0.85f).toInt()
-        
-        // 计算卡片在屏幕中央的位置
-        val centerY = (screenHeight - expandedHeight) / 2
-        
-        // 计算标题栏高度和卡片间距
-        val titleBarHeight = titleBar.height
-        val cardSpacing = 40.dpToPx()  // 减小卡片间距
-        
-        // 展开动画
-        cardView.animate()
-            .translationY(0f)
-            .scaleX(1f)
-            .scaleY(1f)
-            .alpha(1f)
-            .setDuration(300)
-            .withStartAction {
-                cardView.elevation = 8f
-                
-                // 调整内容区域高度
-                contentContainer.layoutParams = (contentContainer.layoutParams as LinearLayout.LayoutParams).apply {
-                    height = expandedHeight - titleBarHeight
-                    weight = 0f
-                }
-                
-                // 将展开的卡片移动到屏幕中央
-                val cardParams = cardView.layoutParams as LinearLayout.LayoutParams
-                cardParams.topMargin = centerY
-                cardView.layoutParams = cardParams
-            }
-            .start()
-        
-        // 处理其他卡片的位置
-        val totalCards = cardsContainer?.childCount ?: 0
-        for (i in 0 until totalCards) {
-            if (i != index) {
-                val otherCard = cardsContainer?.getChildAt(i) ?: continue
-                val otherTitleBar = otherCard.findViewById<View>(R.id.title_bar)
-                val otherContentContainer = otherCard.findViewById<ViewGroup>(R.id.content_container)
-                val otherWebView = otherCard.findViewById<WebView>(R.id.web_view)
-                
-                // 计算其他卡片的位置
-                val targetY = if (i < index) {
-                    // 上方卡片，显示在展开卡片上方
-                    centerY - ((index - i) * titleBarHeight) - cardSpacing
-                } else {
-                    // 下方卡片，显示在展开卡片下方
-                    centerY + expandedHeight + ((i - index - 1) * titleBarHeight) + cardSpacing
-                }
-                
-                otherCard.animate()
-                    .translationY(targetY.toFloat())
-                    .scaleX(0.95f)
-                    .scaleY(0.95f)
-                    .alpha(0.8f)
-                    .setDuration(300)
-                    .withStartAction {
-                        otherCard.elevation = 4f
-                        
-                        // 折叠其他卡片的内容区域
-                        otherContentContainer.layoutParams = (otherContentContainer.layoutParams as LinearLayout.LayoutParams).apply {
-                            height = 0
-                            weight = 0f
-                        }
-                        
-                        // 确保其他卡片的WebView隐藏
-                        otherWebView.visibility = View.GONE
-                        
-                        // 确保标题栏可见
-                        otherTitleBar.visibility = View.VISIBLE
-                    }
-                    .start()
-            }
+    private fun createCardsContainer(): ViewGroup {
+        return FrameLayout(this).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
         }
-        
-        // 确保所有卡片都在屏幕范围内
-        val scrollView = cardsContainer?.parent as? ScrollView
-        scrollView?.post {
-            scrollView.smoothScrollTo(0, centerY)
+    }
+
+    private fun createCardsContainerLayoutParams(): WindowManager.LayoutParams {
+        return WindowManager.LayoutParams().apply {
+            type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                @Suppress("DEPRECATION")
+                WindowManager.LayoutParams.TYPE_PHONE
+            }
+            format = PixelFormat.TRANSLUCENT
+            flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            width = WindowManager.LayoutParams.MATCH_PARENT
+            height = WindowManager.LayoutParams.MATCH_PARENT
+            gravity = Gravity.CENTER
         }
     }
     
@@ -1283,7 +1200,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             // 移除所有视图
             windowManager?.let { wm ->
                 floatingBallView?.let { wm.removeView(it) }
-                searchView?.let { wm.removeView(it) }
                 voiceAnimationView?.let { wm.removeView(it) }
             }
             
@@ -1311,16 +1227,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     override fun onGestureDetected(gesture: GestureManager.Gesture) {
         when (gesture) {
             GestureManager.Gesture.SWIPE_UP -> {
-                if (!isSearchVisible) {
-                    showSearchInput()
-                }
+                // 移除搜索相关代码
             }
             GestureManager.Gesture.SWIPE_DOWN -> {
-                if (isSearchVisible) {
-                    searchView?.let { windowManager?.removeView(it) }
-                    searchView = null
-                    isSearchVisible = false
-                }
+                // 移除搜索相关代码
             }
             GestureManager.Gesture.LONG_PRESS -> {
                 quickMenuManager.showQuickMenu()
@@ -1329,9 +1239,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
 
     private fun performClick() {
-        if (!isSearchVisible) {
-            showSearchInput()
-        }
+        // 移除搜索相关代码
     }
 
     private fun closeAllWindows() {
@@ -1352,10 +1260,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             hasInitializedCards = false
             activeCardIndex = -1
             
-            // 清理搜索相关状态
-            isSearchVisible = false
-            searchView = null
-            
             // 回收系统资源
             System.gc()
         } catch (e: Exception) {
@@ -1364,48 +1268,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
 
     override fun onDoubleTap() {
-        // Handle double tap gesture
-        if (!isSearchVisible) {
-            showSearchInput()
-        }
-    }
-
-    private fun createWebView(): WebView {
-        return WebView(this).apply {
-            settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                databaseEnabled = true
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                }
-                allowContentAccess = true
-                allowFileAccess = true
-                cacheMode = WebSettings.LOAD_NO_CACHE
-                javaScriptCanOpenWindowsAutomatically = true
-                defaultTextEncodingName = "UTF-8"
-                allowFileAccessFromFileURLs = true
-                allowUniversalAccessFromFileURLs = true
-            }
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            isVerticalScrollBarEnabled = true
-            scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            }
-        }
+        // 移除搜索相关代码
     }
 
     override fun onSingleTap() {
-        if (!isSearchVisible) {
-            showSearchInput()
-        }
+        // 移除搜索相关代码
     }
 
     override fun onLongPress() {
@@ -1421,17 +1288,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
 
     override fun onSwipeUp() {
-        if (!isSearchVisible) {
-            showSearchInput()
-        }
+        // 移除搜索相关代码
     }
 
     override fun onSwipeDown() {
-        if (isSearchVisible) {
-            searchView?.let { windowManager?.removeView(it) }
-            searchView = null
-            isSearchVisible = false
-        }
+        // 移除搜索相关代码
     }
 
     override fun onDrag(x: Float, y: Float) {
@@ -1456,51 +1317,117 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         // Save the final position if needed
     }
 
-    private fun createCardsContainer(): ViewGroup {
-        return FrameLayout(this).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+    private fun createFloatingCard(engine: SearchEngine, query: String) {
+        try {
+            // 创建悬浮窗视图
+            val cardView = LayoutInflater.from(this).inflate(R.layout.layout_floating_window, null)
+            
+            // 设置WebView
+            val webView = cardView.findViewById<WebView>(R.id.web_view)
+            setupWebView(webView, engine)
+            
+            // 加载URL
+            val url = if (query.isNotEmpty()) {
+                engine.url.replace("%s", query)
+            } else {
+                engine.url
+            }
+            webView.loadUrl(url)
+            
+            // 创建悬浮窗参数
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
             )
+            
+            // 设置初始位置
+            params.gravity = Gravity.TOP or Gravity.START
+            params.x = 50 + (aiWindows.size * 60)  // 错开显示
+            params.y = 100 + (aiWindows.size * 60)
+            
+            // 添加到窗口管理器
+            windowManager?.addView(cardView, params)
+            aiWindows.add(webView)
+            
+            // 更新卡片层级
+            updateCardStack()
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "创建悬浮卡片失败", e)
+            Toast.makeText(this, "创建悬浮卡片失败：${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun createCardsContainerLayoutParams(): WindowManager.LayoutParams {
-        return WindowManager.LayoutParams().apply {
-            type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    private fun expandCard(cardView: View, shouldLoadUrl: Boolean = false) {
+        // 创建新的 WindowManager.LayoutParams
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
-                @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+
+        // 设置展开到全屏
+        params.x = 0
+        params.y = 0
+
+        // 检查视图是否已附加到窗口管理器
+        if (cardView.isAttachedToWindow) {
+            windowManager?.updateViewLayout(cardView, params)
+        } else {
+            Log.e("FloatingWindowService", "视图未附加到窗口管理器，无法展开卡片")
+        }
+
+        // 显示控制栏
+        cardView.findViewById<View>(R.id.control_bar)?.visibility = View.VISIBLE
+
+        // 设置最小化按钮点击事件
+        cardView.findViewById<ImageButton>(R.id.btn_minimize)?.setOnClickListener {
+            minimizeCard(cardView)
+        }
+
+        // 如果需要加载URL
+        if (shouldLoadUrl) {
+            cardView.findViewById<WebView>(R.id.web_view)?.let { webView ->
+                if (!webView.url.isNullOrEmpty()) {
+                    webView.loadUrl(webView.url!!)
+                }
             }
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
-            gravity = Gravity.CENTER
         }
     }
 
-    private fun expandCard(cardView: View, animate: Boolean = true) {
-        val container = cardView.findViewById<View>(R.id.content_container)
-        val controlBar = cardView.findViewById<View>(R.id.control_bar)
+    private fun minimizeCard(cardView: View) {
+        val params = cardView.layoutParams as WindowManager.LayoutParams
         
-        container.visibility = View.VISIBLE
-        controlBar.visibility = View.VISIBLE
+        // 恢复到原始大小
+        params.width = WindowManager.LayoutParams.WRAP_CONTENT
+        params.height = WindowManager.LayoutParams.WRAP_CONTENT
         
-        if (animate) {
-            cardView.alpha = 0f
-            cardView.scaleX = 0.8f
-            cardView.scaleY = 0.8f
-            
-            cardView.animate()
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(300)
-                .setInterpolator(DecelerateInterpolator())
-                .start()
-        }
+        // 恢复到原始位置
+        val index = (cardsContainer?.indexOfChild(cardView) ?: 0)
+        params.x = 50 + (index * 60)
+        params.y = 100 + (index * 60)
+        
+        windowManager?.updateViewLayout(cardView, params)
+        
+        // 隐藏控制栏
+        cardView.findViewById<View>(R.id.control_bar)?.visibility = View.GONE
+    }
+
+    private fun updateCardStack() {
+        // 这里可以添加逻辑来更新浮动卡片的堆叠顺序和可见性
+        // 例如，遍历当前的卡片并根据需要调整它们的顺序
+        Log.d("FloatingService", "更新卡片堆栈");
+        // TODO: 实现具体的更新逻辑
     }
 } 

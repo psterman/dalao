@@ -5,27 +5,18 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import android.widget.CheckBox
 import androidx.recyclerview.widget.RecyclerView
-import com.example.aifloatingball.AIEngine
 import com.example.aifloatingball.R
+import com.example.aifloatingball.model.SearchEngine
 
 class EngineAdapter(
-    private val engines: MutableList<AIEngine>,
-    private var enabledEngines: Set<String>,
-    private val selectionListener: OnEngineSelectionListener
+    private val engines: List<SearchEngine>,
+    private val onEngineClick: (SearchEngine) -> Unit
 ) : RecyclerView.Adapter<EngineAdapter.ViewHolder>() {
 
-    private val selectedEngines = enabledEngines.toMutableSet()
-
-    interface OnEngineSelectionListener {
-        fun onEngineSelectionChanged(selectedEngines: Set<String>)
-    }
-
-    inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val icon: ImageView = view.findViewById(R.id.engine_icon)
-        val name: TextView = view.findViewById(R.id.engine_name)
-        val checkbox: CheckBox = view.findViewById(R.id.engine_checkbox)
+    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val engineIcon: ImageView = view.findViewById(R.id.engine_icon)
+        val engineName: TextView = view.findViewById(R.id.engine_name)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -36,28 +27,10 @@ class EngineAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val engine = engines[position]
-        
-        holder.icon.setImageResource(engine.iconResId)
-        holder.name.text = engine.name
-        
-        // 显示复选框
-        holder.checkbox.visibility = View.VISIBLE
-        
-        // 设置复选框状态
-        holder.checkbox.isChecked = selectedEngines.contains(engine.name)
-        
-        // 复选框点击事件
-        holder.checkbox.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                selectedEngines.add(engine.name)
-            } else {
-                selectedEngines.remove(engine.name)
-            }
-            selectionListener.onEngineSelectionChanged(selectedEngines)
-        }
+        holder.engineIcon.setImageResource(engine.iconResId)
+        holder.engineName.text = engine.name
+        holder.itemView.setOnClickListener { onEngineClick(engine) }
     }
 
     override fun getItemCount() = engines.size
-
-    fun getEngines(): List<AIEngine> = engines
 } 

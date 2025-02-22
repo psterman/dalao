@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.aifloatingball.app-mergeDebugResources-2:/values-bg/values-bg.xml",
+            "outputFile": "com.example.aifloatingball.app-mergeDebugResources-43:/values-bg/values-bg.xml",
             "map": [
                 {
                     "source": "D:\\.gradle\\caches\\8.10.2\\transforms\\f2155e37e819f599ea2ce0aab864215c\\transformed\\material-1.11.0\\res\\values-bg\\values-bg.xml",

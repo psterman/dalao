@@ -154,7 +154,7 @@ class SearchWebViewActivity : AppCompatActivity() {
             // 使用当前选中的搜索引擎进行搜索
             val selectedEngine = sortedEngines.firstOrNull()
             selectedEngine?.let { engine ->
-                performSearch(engine, query.ifBlank { null })
+                createFloatingCard(engine, query)
             }
         }
 
@@ -271,7 +271,7 @@ class SearchWebViewActivity : AppCompatActivity() {
                         engineItem.setOnClickListener {
                             try {
                                 val query = searchInput.text.toString().trim()
-                                performSearch(engine, query.ifBlank { null })
+                                createFloatingCard(engine, query)
                                 // 隐藏搜索引擎列表
                                 engineListPopup.visibility = View.GONE
                             } catch (e: Exception) {
@@ -307,6 +307,23 @@ class SearchWebViewActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.e("SearchWebViewActivity", "显示搜索引擎列表失败", e)
             Toast.makeText(this, "显示搜索引擎列表失败：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun createFloatingCard(engine: SearchEngine, query: String) {
+        try {
+            // 启动悬浮窗服务并传递搜索引擎信息
+            val intent = Intent(this, FloatingWindowService::class.java).apply {
+                putExtra("ENGINE_NAME", engine.name)
+                putExtra("ENGINE_URL", engine.url)
+                putExtra("ENGINE_ICON", engine.iconResId)
+                putExtra("SEARCH_QUERY", query)
+                putExtra("SHOULD_OPEN_URL", true)
+            }
+            startService(intent)
+        } catch (e: Exception) {
+            Log.e("SearchWebViewActivity", "创建悬浮卡片失败", e)
+            Toast.makeText(this, "创建悬浮卡片失败：${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

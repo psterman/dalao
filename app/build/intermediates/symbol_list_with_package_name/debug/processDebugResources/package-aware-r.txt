@@ -3109,6 +3109,7 @@ drawable abc_textfield_search_material
 drawable abc_vector_test
 drawable avd_hide_password
 drawable avd_show_password
+drawable bg_floating_window
 drawable btn_checkbox_checked_mtrl
 drawable btn_checkbox_checked_to_unchecked_mtrl_animation
 drawable btn_checkbox_unchecked_mtrl
@@ -3449,7 +3450,6 @@ id embed
 id enabled
 id end
 id endToStart
-id engine_checkbox
 id engine_icon
 id engine_list
 id engine_list_popup
@@ -3969,6 +3969,7 @@ layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
 layout item_engine
 layout item_search_engine
+layout layout_floating_window
 layout letter_index_layout
 layout m3_alert_dialog
 layout m3_alert_dialog_actions

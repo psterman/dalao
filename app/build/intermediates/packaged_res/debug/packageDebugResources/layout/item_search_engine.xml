@@ -6,12 +6,6 @@
     android:padding="8dp"
     android:gravity="center_vertical">
 
-    <CheckBox
-        android:id="@+id/engine_checkbox"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="8dp"/>
-
     <ImageView
         android:id="@+id/engine_icon"
         android:layout_width="24dp"

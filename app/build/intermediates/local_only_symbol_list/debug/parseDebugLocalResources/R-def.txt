@@ -34,6 +34,7 @@ dimen letter_text_size
 dimen preview_padding
 dimen preview_text_size
 dimen preview_width
+drawable bg_floating_window
 drawable card_header_background
 drawable circle_background
 drawable floating_ball_background
@@ -81,7 +82,6 @@ id card_recycler_view
 id closeButton
 id content_container
 id control_bar
-id engine_checkbox
 id engine_icon
 id engine_list
 id engine_list_popup
@@ -127,6 +127,7 @@ layout floating_ball
 layout floating_ball_layout
 layout item_engine
 layout item_search_engine
+layout layout_floating_window
 layout letter_index_layout
 layout quick_menu_layout
 layout search_engine_card

@@ -9,41 +9,41 @@
 9        android:targetSdkVersion="34" />
 10
 11    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-11-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:4:5-78
-11-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:4:22-75
+11-->D:\dalao\app\src\main\AndroidManifest.xml:4:5-78
+11-->D:\dalao\app\src\main\AndroidManifest.xml:4:22-75
 12    <uses-permission android:name="android.permission.INTERNET" />
-12-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:5:5-67
-12-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:5:22-64
+12-->D:\dalao\app\src\main\AndroidManifest.xml:5:5-67
+12-->D:\dalao\app\src\main\AndroidManifest.xml:5:22-64
 13    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-13-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:6:5-71
-13-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:6:22-68
+13-->D:\dalao\app\src\main\AndroidManifest.xml:6:5-71
+13-->D:\dalao\app\src\main\AndroidManifest.xml:6:22-68
 14    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-14-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:7:5-79
-14-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:7:22-76
+14-->D:\dalao\app\src\main\AndroidManifest.xml:7:5-79
+14-->D:\dalao\app\src\main\AndroidManifest.xml:7:22-76
 15    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-15-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:8:5-77
-15-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:8:22-74
+15-->D:\dalao\app\src\main\AndroidManifest.xml:8:5-77
+15-->D:\dalao\app\src\main\AndroidManifest.xml:8:22-74
 16    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-16-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:9:5-77
-16-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:9:22-74
+16-->D:\dalao\app\src\main\AndroidManifest.xml:9:5-77
+16-->D:\dalao\app\src\main\AndroidManifest.xml:9:22-74
 17    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-17-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:10:5-89
-17-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:10:22-86
+17-->D:\dalao\app\src\main\AndroidManifest.xml:10:5-89
+17-->D:\dalao\app\src\main\AndroidManifest.xml:10:22-86
 18    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-18-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:11:5-94
-18-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:11:22-91
+18-->D:\dalao\app\src\main\AndroidManifest.xml:11:5-94
+18-->D:\dalao\app\src\main\AndroidManifest.xml:11:22-91
 19    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-19-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:12:5-80
-19-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:12:22-77
+19-->D:\dalao\app\src\main\AndroidManifest.xml:12:5-80
+19-->D:\dalao\app\src\main\AndroidManifest.xml:12:22-77
 20    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-20-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:13:5-81
-20-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:13:22-78
+20-->D:\dalao\app\src\main\AndroidManifest.xml:13:5-81
+20-->D:\dalao\app\src\main\AndroidManifest.xml:13:22-78
 21    <uses-permission android:name="android.permission.READ_CLIPBOARD" />
-21-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:14:5-73
-21-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:14:22-70
+21-->D:\dalao\app\src\main\AndroidManifest.xml:14:5-73
+21-->D:\dalao\app\src\main\AndroidManifest.xml:14:22-70
 22    <uses-permission android:name="android.permission.WRITE_CLIPBOARD" />
-22-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:15:5-74
-22-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:15:22-71
+22-->D:\dalao\app\src\main\AndroidManifest.xml:15:5-74
+22-->D:\dalao\app\src\main\AndroidManifest.xml:15:22-71
 23
 24    <permission
 24-->[androidx.core:core:1.12.0] D:\.gradle\caches\8.10.2\transforms\958501ca0d6894797f5ed4c3b9b05aad\transformed\core-1.12.0\AndroidManifest.xml:22:5-24:47
@@ -57,116 +57,116 @@
 28-->[androidx.core:core:1.12.0] D:\.gradle\caches\8.10.2\transforms\958501ca0d6894797f5ed4c3b9b05aad\transformed\core-1.12.0\AndroidManifest.xml:26:22-94
 29
 30    <application
-30-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:17:5-77:19
+30-->D:\dalao\app\src\main\AndroidManifest.xml:17:5-77:19
 31        android:name="com.example.aifloatingball.App"
-31-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:18:9-28
+31-->D:\dalao\app\src\main\AndroidManifest.xml:18:9-28
 32        android:allowBackup="true"
-32-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:19:9-35
+32-->D:\dalao\app\src\main\AndroidManifest.xml:19:9-35
 33        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
 33-->[androidx.core:core:1.12.0] D:\.gradle\caches\8.10.2\transforms\958501ca0d6894797f5ed4c3b9b05aad\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
 34        android:debuggable="true"
 35        android:extractNativeLibs="false"
 36        android:icon="@mipmap/ic_launcher"
-36-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:20:9-43
+36-->D:\dalao\app\src\main\AndroidManifest.xml:20:9-43
 37        android:label="@string/app_name"
-37-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:21:9-41
+37-->D:\dalao\app\src\main\AndroidManifest.xml:21:9-41
 38        android:supportsRtl="true"
-38-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:22:9-35
+38-->D:\dalao\app\src\main\AndroidManifest.xml:22:9-35
 39        android:testOnly="true"
 40        android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-40-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:23:9-65
+40-->D:\dalao\app\src\main\AndroidManifest.xml:23:9-65
 41        android:usesCleartextTraffic="true" >
-41-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:24:9-44
+41-->D:\dalao\app\src\main\AndroidManifest.xml:24:9-44
 42        <service
-42-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:26:9-31:44
+42-->D:\dalao\app\src\main\AndroidManifest.xml:26:9-31:44
 43            android:name="com.example.aifloatingball.FloatingWindowService"
-43-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:27:13-50
+43-->D:\dalao\app\src\main\AndroidManifest.xml:27:13-50
 44            android:enabled="true"
-44-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:28:13-35
+44-->D:\dalao\app\src\main\AndroidManifest.xml:28:13-35
 45            android:exported="false"
-45-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:29:13-37
+45-->D:\dalao\app\src\main\AndroidManifest.xml:29:13-37
 46            android:foregroundServiceType="specialUse"
-46-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:30:13-55
+46-->D:\dalao\app\src\main\AndroidManifest.xml:30:13-55
 47            android:stopWithTask="false" />
-47-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:31:13-41
+47-->D:\dalao\app\src\main\AndroidManifest.xml:31:13-41
 48
 49        <activity
-49-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:33:9-41:20
+49-->D:\dalao\app\src\main\AndroidManifest.xml:33:9-41:20
 50            android:name="com.example.aifloatingball.PermissionActivity"
-50-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:34:13-47
+50-->D:\dalao\app\src\main\AndroidManifest.xml:34:13-47
 51            android:exported="true"
-51-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:35:13-36
+51-->D:\dalao\app\src\main\AndroidManifest.xml:35:13-36
 52            android:theme="@style/Theme.AppCompat.Light" >
-52-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:36:13-57
+52-->D:\dalao\app\src\main\AndroidManifest.xml:36:13-57
 53            <intent-filter>
-53-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:37:13-40:29
+53-->D:\dalao\app\src\main\AndroidManifest.xml:37:13-40:29
 54                <action android:name="android.intent.action.MAIN" />
-54-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:38:17-69
-54-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:38:25-66
+54-->D:\dalao\app\src\main\AndroidManifest.xml:38:17-69
+54-->D:\dalao\app\src\main\AndroidManifest.xml:38:25-66
 55
 56                <category android:name="android.intent.category.LAUNCHER" />
-56-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:39:17-77
-56-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:39:27-74
+56-->D:\dalao\app\src\main\AndroidManifest.xml:39:17-77
+56-->D:\dalao\app\src\main\AndroidManifest.xml:39:27-74
 57            </intent-filter>
 58        </activity>
 59        <activity
-59-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:43:9-47:40
+59-->D:\dalao\app\src\main\AndroidManifest.xml:43:9-47:40
 60            android:name="com.example.aifloatingball.SearchActivity"
-60-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:44:13-43
+60-->D:\dalao\app\src\main\AndroidManifest.xml:44:13-43
 61            android:exported="false"
-61-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:47:13-37
+61-->D:\dalao\app\src\main\AndroidManifest.xml:47:13-37
 62            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-62-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:45:13-69
+62-->D:\dalao\app\src\main\AndroidManifest.xml:45:13-69
 63            android:windowSoftInputMode="adjustResize" />
-63-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:46:13-55
+63-->D:\dalao\app\src\main\AndroidManifest.xml:46:13-55
 64        <activity
-64-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:49:9-53:74
+64-->D:\dalao\app\src\main\AndroidManifest.xml:49:9-53:74
 65            android:name="com.example.aifloatingball.SettingsActivity"
-65-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:50:13-45
+65-->D:\dalao\app\src\main\AndroidManifest.xml:50:13-45
 66            android:exported="false"
-66-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:51:13-37
+66-->D:\dalao\app\src\main\AndroidManifest.xml:51:13-37
 67            android:label="@string/settings"
-67-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:52:13-45
+67-->D:\dalao\app\src\main\AndroidManifest.xml:52:13-45
 68            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
-68-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:53:13-71
+68-->D:\dalao\app\src\main\AndroidManifest.xml:53:13-71
 69        <activity
-69-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:55:9-58:40
+69-->D:\dalao\app\src\main\AndroidManifest.xml:55:9-58:40
 70            android:name="com.example.aifloatingball.ScreenshotActivity"
-70-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:56:13-47
+70-->D:\dalao\app\src\main\AndroidManifest.xml:56:13-47
 71            android:exported="false"
-71-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:58:13-37
+71-->D:\dalao\app\src\main\AndroidManifest.xml:58:13-37
 72            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-72-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:57:13-72
+72-->D:\dalao\app\src\main\AndroidManifest.xml:57:13-72
 73        <activity
-73-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:60:9-64:39
+73-->D:\dalao\app\src\main\AndroidManifest.xml:60:9-64:39
 74            android:name="com.example.aifloatingball.FullscreenWebViewActivity"
-74-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:61:13-54
+74-->D:\dalao\app\src\main\AndroidManifest.xml:61:13-54
 75            android:configChanges="orientation|keyboardHidden|screenSize"
-75-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:63:13-74
+75-->D:\dalao\app\src\main\AndroidManifest.xml:63:13-74
 76            android:exported="false"
-76-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:64:13-37
+76-->D:\dalao\app\src\main\AndroidManifest.xml:64:13-37
 77            android:theme="@style/Theme.AppCompat.NoActionBar" />
-77-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:62:13-63
+77-->D:\dalao\app\src\main\AndroidManifest.xml:62:13-63
 78        <activity
-78-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:66:9-70:74
+78-->D:\dalao\app\src\main\AndroidManifest.xml:66:9-70:74
 79            android:name="com.example.aifloatingball.SearchEngineSettingsActivity"
-79-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:67:13-57
+79-->D:\dalao\app\src\main\AndroidManifest.xml:67:13-57
 80            android:exported="false"
-80-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:68:13-37
+80-->D:\dalao\app\src\main\AndroidManifest.xml:68:13-37
 81            android:label="@string/search_engine_settings"
-81-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:69:13-59
+81-->D:\dalao\app\src\main\AndroidManifest.xml:69:13-59
 82            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
-82-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:70:13-71
+82-->D:\dalao\app\src\main\AndroidManifest.xml:70:13-71
 83        <activity
-83-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:72:9-76:40
+83-->D:\dalao\app\src\main\AndroidManifest.xml:72:9-76:40
 84            android:name="com.example.aifloatingball.SearchWebViewActivity"
-84-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:73:13-50
+84-->D:\dalao\app\src\main\AndroidManifest.xml:73:13-50
 85            android:exported="false"
-85-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:76:13-37
+85-->D:\dalao\app\src\main\AndroidManifest.xml:76:13-37
 86            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
-86-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:74:13-69
+86-->D:\dalao\app\src\main\AndroidManifest.xml:74:13-69
 87            android:windowSoftInputMode="adjustResize" />
-87-->C:\Users\Administrator\Desktop\dalao\app\src\main\AndroidManifest.xml:75:13-55
+87-->D:\dalao\app\src\main\AndroidManifest.xml:75:13-55
 88
 89        <uses-library
 89-->[androidx.window:window:1.2.0] D:\.gradle\caches\8.10.2\transforms\bcd6d9d0e202b2b1ae5068af6860bfcd\transformed\jetified-window-1.2.0\AndroidManifest.xml:23:9-25:40
