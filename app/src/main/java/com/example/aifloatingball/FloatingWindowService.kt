@@ -1551,32 +1551,75 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                                WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
             }
 
-            // 检查视图的状态并正确处理
-            if (cardView.parent == null) {
-                // 如果视图没有父视图，直接添加到窗口
-                windowManager?.addView(cardView, params)
-            } else if (cardView.parent is ViewGroup) {
-                // 如果视图有父视图，先移除再添加
-                (cardView.parent as ViewGroup).removeView(cardView)
-                windowManager?.addView(cardView, params)
-            } else if (cardView.windowToken != null) {
-                // 如果视图已经在窗口中，更新布局
-                windowManager?.updateViewLayout(cardView, params)
-            }
+            // 添加标题栏拖动和折叠功能
+            var initialX = 0
+            var initialY = 0
+            var initialTouchX = 0f
+            var initialTouchY = 0f
+            var isDragging = false
+            var startClickTime = 0L
 
-            // 设置触摸事件拦截
-            cardView.setOnTouchListener { v, event ->
+            cardView.findViewById<View>(R.id.title_bar)?.setOnTouchListener { v, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        v.requestFocus()
+                        // 记录初始位置和时间
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        startClickTime = System.currentTimeMillis()
+                        isDragging = false
                         true
                     }
+                    MotionEvent.ACTION_MOVE -> {
+                        // 计算移动距离
+                        val deltaX = (event.rawX - initialTouchX).toInt()
+                        val deltaY = (event.rawY - initialTouchY).toInt()
+                        
+                        // 如果移动距离超过阈值，认为是拖动
+                        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                            isDragging = true
+                        }
+                        
+                        if (isDragging) {
+                            // 更新窗口位置
+                            params.x = initialX + deltaX
+                            params.y = initialY + deltaY
+                            windowManager?.updateViewLayout(cardView, params)
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        // 如果不是拖动，且点击时间小于500ms，则认为是点击
+                        val clickDuration = System.currentTimeMillis() - startClickTime
+                        if (!isDragging && clickDuration < 500) {
+                            minimizeCard(cardView)
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            }
+
+            // 设置外部点击事件
+            cardView.setOnTouchListener { v, event ->
+                when (event.action) {
                     MotionEvent.ACTION_OUTSIDE -> {
                         minimizeCard(cardView)
                         true
                     }
                     else -> false
                 }
+            }
+
+            // 检查视图的状态并正确处理
+            if (cardView.parent == null) {
+                windowManager?.addView(cardView, params)
+            } else if (cardView.parent is ViewGroup) {
+                (cardView.parent as ViewGroup).removeView(cardView)
+                windowManager?.addView(cardView, params)
+            } else if (cardView.windowToken != null) {
+                windowManager?.updateViewLayout(cardView, params)
             }
 
             // 获取 WebView 并请求焦点
@@ -1601,7 +1644,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
 
     private fun minimizeCard(cardView: View) {
         try {
-            // 只有当视图已附加到窗口时才进行更新
             if (cardView.windowToken != null) {
                 val params = WindowManager.LayoutParams().apply {
                     width = WindowManager.LayoutParams.WRAP_CONTENT
