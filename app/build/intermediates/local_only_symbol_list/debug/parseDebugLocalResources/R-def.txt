@@ -48,6 +48,8 @@ drawable ic_close
 drawable ic_doubao
 drawable ic_drag_handle
 drawable ic_edit
+drawable ic_expand_less
+drawable ic_expand_more
 drawable ic_floating_ball
 drawable ic_history
 drawable ic_launcher_foreground
@@ -78,6 +80,7 @@ id btn_forward
 id btn_minimize
 id btn_refresh
 id btn_search
+id btn_toggle
 id card_recycler_view
 id closeButton
 id content_container
@@ -159,5 +162,6 @@ string settings_privacy
 string voice_recognition_failed
 string voice_search
 style AppTheme
+style FloatingCardDialog
 style TransparentTheme
 xml root_preferences

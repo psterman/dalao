@@ -3146,6 +3146,8 @@ drawable ic_close
 drawable ic_doubao
 drawable ic_drag_handle
 drawable ic_edit
+drawable ic_expand_less
+drawable ic_expand_more
 drawable ic_floating_ball
 drawable ic_history
 drawable ic_keyboard_black_24dp
@@ -3365,6 +3367,7 @@ id btn_forward
 id btn_minimize
 id btn_refresh
 id btn_search
+id btn_toggle
 id buttonPanel
 id cache_measures
 id callMeasure
@@ -4543,6 +4546,7 @@ style BasePreferenceThemeOverlay
 style CardView
 style CardView_Dark
 style CardView_Light
+style FloatingCardDialog
 style MaterialAlertDialog_Material3
 style MaterialAlertDialog_Material3_Animation
 style MaterialAlertDialog_Material3_Body_Text

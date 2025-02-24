@@ -1,8 +1,10 @@
 package com.example.aifloatingball
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -13,6 +15,11 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebSettings
+import android.webkit.SslErrorHandler
+import android.net.http.SslError
 import net.sourceforge.pinyin4j.PinyinHelper
 import net.sourceforge.pinyin4j.format.HanyuPinyinCaseType
 import net.sourceforge.pinyin4j.format.HanyuPinyinOutputFormat
@@ -27,6 +34,16 @@ import android.view.MotionEvent
 import android.view.WindowManager
 import android.graphics.PixelFormat
 import android.util.DisplayMetrics
+import android.view.inputmethod.InputMethodManager
+import android.os.Handler
+import android.os.Looper
+import android.app.Dialog
+import android.view.Window
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.graphics.drawable.ColorDrawable
+import android.provider.Settings
+import android.util.Log
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
@@ -52,6 +69,16 @@ class SearchActivity : AppCompatActivity() {
             if (intent?.action == "com.example.aifloatingball.LAYOUT_THEME_CHANGED") {
                 currentLayoutTheme = settingsManager.getLayoutTheme()
                 setupViews()
+            }
+        }
+    }
+
+    private val focusClearReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.CLEAR_SEARCH_FOCUS") {
+                searchInput.clearFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(searchInput.windowToken, 0)
             }
         }
     }
@@ -106,6 +133,9 @@ class SearchActivity : AppCompatActivity() {
                     IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
                 )
             }
+        
+            // 注册广播接收器
+            registerReceiver(focusClearReceiver, IntentFilter("com.example.aifloatingball.CLEAR_SEARCH_FOCUS"))
         
             setupViews()
             setupClickListeners()
@@ -282,16 +312,207 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun createFloatingCard(engine: SearchEngine, query: String) {
+        try {
+            // 检查是否有悬浮窗权限
+            if (!Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "请先授予悬浮窗权限", Toast.LENGTH_SHORT).show()
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+                startActivity(intent)
+                return
+            }
+
+            val dialog = Dialog(this, R.style.FloatingCardDialog).apply {
+                requestWindowFeature(Window.FEATURE_NO_TITLE)
+                val cardView = createCardView(engine, query)
+                setContentView(cardView)
+                
+                window?.apply {
+                    setLayout(MATCH_PARENT, WRAP_CONTENT)
+                    
+                    // 设置窗口类型
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                    } else {
+                        setType(WindowManager.LayoutParams.TYPE_PHONE)
+                    }
+                    
+                    // 设置窗口属性
+                    attributes = attributes.apply {
+                        gravity = Gravity.TOP
+                        x = 50 + (cardViews.size * 60)
+                        y = 100 + (cardViews.size * 60)
+                        flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    }
+                    
+                    // 设置背景透明
+                    setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                }
+
+                // 设置对话框不可取消
+                setCancelable(false)
+                setCanceledOnTouchOutside(false)
+            }
+            
+            // 保存 Dialog 引用以便后续管理
+            dialog.window?.decorView?.let { decorView ->
+                cardViews.add(decorView)
+                currentCardIndex = cardViews.size - 1
+            }
+            
+            // 显示对话框
+            dialog.show()
+
+            // 最小化当前Activity
+            moveTaskToBack(true)
+            
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "创建浮动卡片失败", e)
+            Toast.makeText(this, "创建浮动卡片失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun createCardView(engine: SearchEngine, query: String): View {
         val cardView = LayoutInflater.from(this).inflate(R.layout.card_ai_engine, null)
+        
+        // 获取标题栏和内容区域
+        val titleBar = cardView.findViewById<View>(R.id.title_bar)
+        val contentContainer = cardView.findViewById<ViewGroup>(R.id.content_container)
         
         // 设置卡片基本属性
         cardView.findViewById<ImageView>(R.id.engine_icon).setImageResource(engine.iconResId)
         cardView.findViewById<TextView>(R.id.engine_name).text = engine.name
         
         // 设置WebView
-        val webView = cardView.findViewById<android.webkit.WebView>(R.id.web_view)
+        val webView = cardView.findViewById<WebView>(R.id.web_view)
         setupWebView(webView, engine)
         
+        // 设置最小化按钮
+        cardView.findViewById<ImageButton>(R.id.btn_minimize)?.setOnClickListener {
+            try {
+                val parent = cardView.parent as? ViewGroup
+                parent?.removeView(cardView)
+                cardViews.remove(cardView)
+                if (cardViews.isEmpty()) {
+                    // 如果没有更多卡片，返回到Activity
+                    startActivity(Intent(this, SearchActivity::class.java))
+                }
+            } catch (e: Exception) {
+                Log.e("SearchActivity", "最小化卡片失败", e)
+            }
+        }
+
+        // 初始化拖动相关变量
+        var initialX = 0
+        var initialY = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        
+        // 设置标题栏的触摸事件，处理拖动
+        titleBar.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    // 记录初始位置
+                    val params = cardView.layoutParams as WindowManager.LayoutParams
+                    initialX = params.x
+                    initialY = params.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    // 计算移动距离并更新位置
+                    val params = cardView.layoutParams as WindowManager.LayoutParams
+                    params.x = initialX + (event.rawX - initialTouchX).toInt()
+                    params.y = initialY + (event.rawY - initialTouchY).toInt()
+                    try {
+                        windowManager.updateViewLayout(cardView, params)
+                    } catch (e: Exception) {
+                        android.util.Log.e("SearchActivity", "更新卡片位置失败", e)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+        
+        // 添加折叠/展开按钮
+        val toggleButton = cardView.findViewById<ImageButton>(R.id.btn_toggle)
+        toggleButton.setOnClickListener {
+            if (contentContainer.visibility == View.VISIBLE) {
+                // 折叠
+                contentContainer.visibility = View.GONE
+                toggleButton.setImageResource(R.drawable.ic_expand_more) // 使用 expand_more 图标
+                val params = cardView.layoutParams as WindowManager.LayoutParams
+                params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                windowManager.updateViewLayout(cardView, params)
+            } else {
+                // 展开
+                contentContainer.visibility = View.VISIBLE
+                toggleButton.setImageResource(R.drawable.ic_expand_less) // 使用 expand_less 图标
+                val params = cardView.layoutParams as WindowManager.LayoutParams
+                params.height = WindowManager.LayoutParams.WRAP_CONTENT
+                windowManager.updateViewLayout(cardView, params)
+            }
+        }
+
+        // 设置 WebView 的焦点属性
+        webView.isFocusable = true
+        webView.isFocusableInTouchMode = true
+        
+        // 添加触摸监听器来处理焦点和输入
+        webView.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    try {
+                        // 获取父视图的 WindowManager.LayoutParams
+                        val params = cardView.layoutParams as WindowManager.LayoutParams
+                        if (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0) {
+                            // 移除 FLAG_NOT_FOCUSABLE 并添加 FLAG_ALT_FOCUSABLE_IM
+                            params.flags = (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) or
+                                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+                            windowManager.updateViewLayout(cardView, params)
+                            
+                            // 请求焦点并显示输入法
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                webView.requestFocus()
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+                            }, 100)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("SearchActivity", "更新窗口焦点状态失败", e)
+                    }
+                }
+            }
+            false // 继续传递触摸事件
+        }
+
+        // 添加焦点变化监听
+        webView.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                try {
+                    val params = cardView.layoutParams as WindowManager.LayoutParams
+                    if (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE == 0) {
+                        // 恢复 FLAG_NOT_FOCUSABLE 并移除 FLAG_ALT_FOCUSABLE_IM
+                        params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        params.flags = params.flags and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM.inv()
+                        windowManager.updateViewLayout(cardView, params)
+                        
+                        // 隐藏输入法
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.hideSoftInputFromWindow(webView.windowToken, 0)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("SearchActivity", "恢复窗口焦点状态失败", e)
+                }
+            }
+        }
+
         // 加载URL
         val url = if (query.isNotEmpty()) {
             when (engine.name) {
@@ -324,7 +545,7 @@ class SearchActivity : AppCompatActivity() {
             true
         }
 
-        // 创建悬浮窗参数
+        // 修改悬浮窗参数
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -332,7 +553,8 @@ class SearchActivity : AppCompatActivity() {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,  // 添加这个标志
             PixelFormat.TRANSLUCENT
         )
 
@@ -348,9 +570,11 @@ class SearchActivity : AppCompatActivity() {
 
         // 更新卡片层级
         updateCardStack()
+
+        return cardView
     }
 
-    private fun setupWebView(webView: android.webkit.WebView, engine: SearchEngine) {
+    private fun setupWebView(webView: WebView, engine: SearchEngine) {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -361,15 +585,15 @@ class SearchActivity : AppCompatActivity() {
             displayZoomControls = false
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             }
         }
 
-        webView.webViewClient = object : android.webkit.WebViewClient() {
+        webView.webViewClient = object : WebViewClient() {
             override fun onReceivedSslError(
-                view: android.webkit.WebView?,
-                handler: android.webkit.SslErrorHandler?,
-                error: android.net.http.SslError?
+                view: WebView?,
+                handler: SslErrorHandler?,
+                error: SslError?
             ) {
                 handler?.proceed()
             }
@@ -377,22 +601,36 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun expandCard(cardView: View) {
-        val params = cardView.layoutParams as WindowManager.LayoutParams
-        
-        // 展开到全屏
-        params.width = WindowManager.LayoutParams.MATCH_PARENT
-        params.height = WindowManager.LayoutParams.MATCH_PARENT
-        params.x = 0
-        params.y = 0
-        
-        windowManager.updateViewLayout(cardView, params)
-        
-        // 显示控制栏
-        cardView.findViewById<View>(R.id.control_bar).visibility = View.VISIBLE
-        
-        // 设置最小化按钮点击事件
-        cardView.findViewById<ImageButton>(R.id.btn_minimize).setOnClickListener {
-            minimizeCard(cardView)
+        try {
+            val params = cardView.layoutParams as WindowManager.LayoutParams
+            
+            // 展开到全屏并设置正确的标志
+            params.width = WindowManager.LayoutParams.MATCH_PARENT
+            params.height = WindowManager.LayoutParams.MATCH_PARENT
+            params.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or  // 允许外部点击
+                          WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or  // 监听外部触摸
+                          WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM  // 允许输入法
+            params.x = 0
+            params.y = 0
+            
+            windowManager.updateViewLayout(cardView, params)
+            
+            // 获取并设置 WebView 焦点
+            cardView.findViewById<WebView>(R.id.web_view)?.apply {
+                isFocusable = true
+                isFocusableInTouchMode = true
+                requestFocus()
+            }
+            
+            // 显示控制栏
+            cardView.findViewById<View>(R.id.control_bar).visibility = View.VISIBLE
+            
+            // 设置最小化按钮点击事件
+            cardView.findViewById<ImageButton>(R.id.btn_minimize).setOnClickListener {
+                minimizeCard(cardView)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SearchActivity", "展开卡片失败", e)
         }
     }
 
@@ -455,11 +693,12 @@ class SearchActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(layoutThemeReceiver)
+        unregisterReceiver(focusClearReceiver)
         
         // 清理所有卡片
         cardViews.forEach { cardView ->
             try {
-                windowManager.removeView(cardView)
+                (cardView.parent as? ViewGroup)?.removeView(cardView)
             } catch (e: Exception) {
                 android.util.Log.e("SearchActivity", "移除卡片失败", e)
             }

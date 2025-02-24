@@ -38,6 +38,9 @@ public final class CardAiEngineBinding implements ViewBinding {
   public final ImageButton btnRefresh;
 
   @NonNull
+  public final ImageButton btnToggle;
+
+  @NonNull
   public final FrameLayout contentContainer;
 
   @NonNull
@@ -57,14 +60,16 @@ public final class CardAiEngineBinding implements ViewBinding {
 
   private CardAiEngineBinding(@NonNull CardView rootView, @NonNull ImageButton btnBack,
       @NonNull ImageButton btnForward, @NonNull ImageButton btnMinimize,
-      @NonNull ImageButton btnRefresh, @NonNull FrameLayout contentContainer,
-      @NonNull LinearLayout controlBar, @NonNull ImageView engineIcon, @NonNull TextView engineName,
-      @NonNull RelativeLayout titleBar, @NonNull WebView webView) {
+      @NonNull ImageButton btnRefresh, @NonNull ImageButton btnToggle,
+      @NonNull FrameLayout contentContainer, @NonNull LinearLayout controlBar,
+      @NonNull ImageView engineIcon, @NonNull TextView engineName, @NonNull RelativeLayout titleBar,
+      @NonNull WebView webView) {
     this.rootView = rootView;
     this.btnBack = btnBack;
     this.btnForward = btnForward;
     this.btnMinimize = btnMinimize;
     this.btnRefresh = btnRefresh;
+    this.btnToggle = btnToggle;
     this.contentContainer = contentContainer;
     this.controlBar = controlBar;
     this.engineIcon = engineIcon;
@@ -124,6 +129,12 @@ public final class CardAiEngineBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.btn_toggle;
+      ImageButton btnToggle = ViewBindings.findChildViewById(rootView, id);
+      if (btnToggle == null) {
+        break missingId;
+      }
+
       id = R.id.content_container;
       FrameLayout contentContainer = ViewBindings.findChildViewById(rootView, id);
       if (contentContainer == null) {
@@ -161,7 +172,8 @@ public final class CardAiEngineBinding implements ViewBinding {
       }
 
       return new CardAiEngineBinding((CardView) rootView, btnBack, btnForward, btnMinimize,
-          btnRefresh, contentContainer, controlBar, engineIcon, engineName, titleBar, webView);
+          btnRefresh, btnToggle, contentContainer, controlBar, engineIcon, engineName, titleBar,
+          webView);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

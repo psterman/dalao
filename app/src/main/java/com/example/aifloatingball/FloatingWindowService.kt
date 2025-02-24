@@ -47,6 +47,7 @@ import com.example.aifloatingball.web.CustomWebViewClient
 import kotlin.math.abs
 import kotlin.math.min
 import com.example.aifloatingball.SearchActivity
+import android.view.inputmethod.InputMethodManager
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -464,7 +465,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 else
                     WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT
             )
             
@@ -766,26 +768,100 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             FrameLayout.LayoutParams.MATCH_PARENT
         )
         
-        // 确保WebView可见
+        // 确保WebView可见并可获取焦点
         webView.visibility = View.VISIBLE
-        
-        // 设置WebView的焦点
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
-        webView.requestFocus()
+        
+        // 修改触摸监听器的实现
+        webView.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    try {
+                        // 获取卡片视图的 WindowManager.LayoutParams
+                        val cardParams = cardView.layoutParams as? WindowManager.LayoutParams
+                        if (cardParams != null) {
+                            // 移除 FLAG_NOT_FOCUSABLE 并添加必要的标志
+                            cardParams.flags = (cardParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) or
+                                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+                            
+                            // 更新窗口布局
+                            windowManager?.updateViewLayout(cardView, cardParams)
+                            
+                            // 执行点击操作
+                            v.performClick()
+                            
+                            // 确保WebView可以接收输入
+                            webView.isFocusable = true
+                            webView.isFocusableInTouchMode = true
+                            webView.requestFocus()
+                            
+                            // 使用Handler延迟显示输入法，确保焦点已经完全设置
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED)
+                            }, 100)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("FloatingService", "更新窗口焦点状态失败", e)
+                    }
+                }
+            }
+            false
+        }
+
+        // 添加焦点变化监听器
+        webView.setOnFocusChangeListener { _, hasFocus ->
+            try {
+                val cardParams = cardView.layoutParams as? WindowManager.LayoutParams
+                if (cardParams != null) {
+                    if (!hasFocus) {
+                        // 失去焦点时恢复原始标志
+                        cardParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                        windowManager?.updateViewLayout(cardView, cardParams)
+                        
+                        // 隐藏输入法
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.hideSoftInputFromWindow(webView.windowToken, 0)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("FloatingService", "更新窗口焦点状态失败", e)
+            }
+        }
+
+        // 修改焦点变化监听器的实现
+        webView.setOnFocusChangeListener { _, hasFocus ->
+            try {
+                // 获取卡片视图的 WindowManager.LayoutParams
+                val cardParams = cardView.layoutParams as? WindowManager.LayoutParams
+                if (cardParams != null) {
+                    if (!hasFocus) {
+                        // 恢复原始标志
+                        cardParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                        
+                        // 更新窗口布局
+                        windowManager?.updateViewLayout(cardView, cardParams)
+                        
+                        // 隐藏软键盘
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.hideSoftInputFromWindow(webView.windowToken, 0)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("FloatingService", "更新窗口焦点状态失败", e)
+            }
+        }
         
         // 立即加载URL
         Log.d("FloatingService", "Creating card view for URL: $url")
         webView.loadUrl(url)
-        
-        // 设置内容容器的布局参数
-        contentContainer.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            800  // 设置一个固定高度，确保内容可见
-        )
-        
-        // 确保内容容器可见
-        contentContainer.visibility = View.VISIBLE
         
         // 设置卡片的基本样式
         cardView.alpha = 0.95f
@@ -794,27 +870,97 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         cardView.scaleY = 0.95f
         
         // 点击标题栏展开/折叠卡片
+        var isExpanded = false
         titleBar.setOnClickListener {
-            if (contentContainer.layoutParams.height == 800) {
-                // 展开到全屏
-                contentContainer.layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.MATCH_PARENT
-                )
-            } else {
-                // 折叠到默认高度
-                contentContainer.layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    800
-                )
+            isExpanded = !isExpanded
+            val animator = ValueAnimator.ofFloat(if (isExpanded) 0f else 1f, if (isExpanded) 1f else 0f)
+            animator.duration = 300
+            animator.interpolator = DecelerateInterpolator()
+            
+            // 保存初始位置和大小
+            val initialScale = cardView.scaleX
+            val initialTranslationY = cardView.translationY
+            val initialHeight = contentContainer.height
+            
+            animator.addUpdateListener { animation ->
+                val progress = animation.animatedValue as Float
+                
+                // 更新缩放
+                val targetScale = if (isExpanded) 1f else 0.95f
+                cardView.scaleX = initialScale + (targetScale - initialScale) * progress
+                cardView.scaleY = cardView.scaleX
+                
+                // 更新位置
+                val targetTranslationY = if (isExpanded) 0f else (index * 60f)
+                cardView.translationY = initialTranslationY + (targetTranslationY - initialTranslationY) * progress
+                
+                // 更新内容容器
+                val targetHeight = if (isExpanded) screenHeight - titleBar.height else 0
+                contentContainer.layoutParams.height = (initialHeight + (targetHeight - initialHeight) * progress).toInt()
+                contentContainer.requestLayout()
+                
+                // 更新透明度
+                cardView.alpha = if (isExpanded) 1f else 0.95f
             }
-            contentContainer.requestLayout()
+            
+            animator.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationStart(animation: android.animation.Animator) {
+                    if (isExpanded) {
+                        contentContainer.visibility = View.VISIBLE
+                        webView.visibility = View.VISIBLE
+                    }
+                }
+                
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (!isExpanded) {
+                        contentContainer.visibility = View.GONE
+                        webView.visibility = View.GONE
+                    }
+                }
+            })
+            
+            animator.start()
+            
+            // 更新其他卡片的位置
+            updateOtherCardsPosition(cardView, isExpanded)
         }
         
-        // 添加到WebView列表
-        aiWindows.add(webView)
-        
         return cardView
+    }
+
+    private fun updateOtherCardsPosition(selectedCard: View, isExpanded: Boolean) {
+        val parentView = selectedCard.parent as? ViewGroup ?: return
+        val selectedIndex = parentView.indexOfChild(selectedCard)
+        
+        for (i in 0 until parentView.childCount) {
+            if (i != selectedIndex) {
+                val card = parentView.getChildAt(i)
+                val animator = ValueAnimator.ofFloat(0f, 1f)
+                animator.duration = 300
+                animator.interpolator = DecelerateInterpolator()
+                
+                val initialTranslationY = card.translationY
+                val targetTranslationY = if (isExpanded) {
+                    if (i < selectedIndex) -card.height.toFloat() else screenHeight.toFloat()
+                } else {
+                    i * 60f
+                }
+                
+                animator.addUpdateListener { animation ->
+                    val progress = animation.animatedValue as Float
+                    card.translationY = initialTranslationY + (targetTranslationY - initialTranslationY) * progress
+                    card.alpha = if (isExpanded) (1f - progress) else (0.95f * progress)
+                }
+                
+                animator.addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        card.visibility = if (isExpanded) View.GONE else View.VISIBLE
+                    }
+                })
+                
+                animator.start()
+            }
+        }
     }
 
     private fun setupWebView(webView: WebView, engine: SearchEngine) {
@@ -840,8 +986,15 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             databaseEnabled = true
             javaScriptCanOpenWindowsAutomatically = true
             
-            // 设置缓存模式
-            cacheMode = WebSettings.LOAD_NO_CACHE
+            // 优化性能设置
+            cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NARROW_COLUMNS)
+            setSupportMultipleWindows(true)
+            setEnableSmoothTransition(true)
+            
+            // 启用DOM存储和数据库
+            domStorageEnabled = true
+            databaseEnabled = true
             
             // 设置编码
             defaultTextEncodingName = "UTF-8"
@@ -860,10 +1013,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 handler?.proceed()
             }
             
-            override fun onPageFinished(view: WebView?, url: String?) {
+            override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 // 页面加载完成后，确保WebView可见
-                view?.visibility = View.VISIBLE
+                view.visibility = View.VISIBLE
             }
             
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -893,19 +1046,23 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
 
     private fun createCardsContainerLayoutParams(): WindowManager.LayoutParams {
-        return WindowManager.LayoutParams().apply {
-            type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        return WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                } else {
-                @Suppress("DEPRECATION")
-                WindowManager.LayoutParams.TYPE_PHONE
-            }
-            format = PixelFormat.TRANSLUCENT
-            flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            width = WindowManager.LayoutParams.MATCH_PARENT
-            height = WindowManager.LayoutParams.MATCH_PARENT
-            gravity = Gravity.CENTER
+            else
+                WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 100
+            // 设置输入法显示模式
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                           WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
         }
     }
     
@@ -936,9 +1093,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 .setDuration(300)
                 .withStartAction {
                     card.elevation = 4f
-                    
-                    // 恢复标题栏位置
-                    titleBar.translationY = 0f
                     
                     // 完全折叠内容区域
                     contentContainer.layoutParams = (contentContainer.layoutParams as LinearLayout.LayoutParams).apply {
@@ -1204,18 +1358,32 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             
             // 清理WebView
-                aiWindows.forEach { webView ->
-                webView.stopLoading()
-                webView.clearHistory()
-                webView.clearCache(true)
-                    webView.destroy()
+            aiWindows.forEach { webView ->
+                webView.apply {
+                    clearHistory()
+                    clearCache(true)
+                    clearFormData()
+                    clearSslPreferences()
+                    clearMatches()
+                    // 停止加载
+                    stopLoading()
+                    // 加载空白页
+                    loadUrl("about:blank")
+                    // 移除WebView
+                    (parent as? ViewGroup)?.removeView(this)
+                    // 销毁WebView
+                    destroy()
                 }
+            }
             aiWindows.clear()
             
             // 清理缓存
             thumbnailCache.clear()
             thumbnailViews.clear()
             cachedCardViews.clear()
+            
+            // 强制进行垃圾回收
+            System.gc()
             
             super.onDestroy()
                     } catch (e: Exception) {
@@ -1364,64 +1532,106 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
 
     private fun expandCard(cardView: View, shouldLoadUrl: Boolean = false) {
-        // 创建新的 WindowManager.LayoutParams
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            PixelFormat.TRANSLUCENT
-        )
+        try {
+            val params = WindowManager.LayoutParams().apply {
+                width = WindowManager.LayoutParams.MATCH_PARENT
+                height = WindowManager.LayoutParams.MATCH_PARENT
+                type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    WindowManager.LayoutParams.TYPE_PHONE
+                }
+                flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                        WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+                format = PixelFormat.TRANSLUCENT
+                x = 0
+                y = 0
+                softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                               WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
+            }
 
-        // 设置展开到全屏
-        params.x = 0
-        params.y = 0
+            // 检查视图的状态并正确处理
+            if (cardView.parent == null) {
+                // 如果视图没有父视图，直接添加到窗口
+                windowManager?.addView(cardView, params)
+            } else if (cardView.parent is ViewGroup) {
+                // 如果视图有父视图，先移除再添加
+                (cardView.parent as ViewGroup).removeView(cardView)
+                windowManager?.addView(cardView, params)
+            } else if (cardView.windowToken != null) {
+                // 如果视图已经在窗口中，更新布局
+                windowManager?.updateViewLayout(cardView, params)
+            }
 
-        // 检查视图是否已附加到窗口管理器
-        if (cardView.isAttachedToWindow) {
-            windowManager?.updateViewLayout(cardView, params)
-        } else {
-            Log.e("FloatingWindowService", "视图未附加到窗口管理器，无法展开卡片")
-        }
-
-        // 显示控制栏
-        cardView.findViewById<View>(R.id.control_bar)?.visibility = View.VISIBLE
-
-        // 设置最小化按钮点击事件
-        cardView.findViewById<ImageButton>(R.id.btn_minimize)?.setOnClickListener {
-            minimizeCard(cardView)
-        }
-
-        // 如果需要加载URL
-        if (shouldLoadUrl) {
-            cardView.findViewById<WebView>(R.id.web_view)?.let { webView ->
-                if (!webView.url.isNullOrEmpty()) {
-                    webView.loadUrl(webView.url!!)
+            // 设置触摸事件拦截
+            cardView.setOnTouchListener { v, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        v.requestFocus()
+                        true
+                    }
+                    MotionEvent.ACTION_OUTSIDE -> {
+                        minimizeCard(cardView)
+                        true
+                    }
+                    else -> false
                 }
             }
+
+            // 获取 WebView 并请求焦点
+            cardView.findViewById<WebView>(R.id.web_view)?.apply {
+                isFocusable = true
+                isFocusableInTouchMode = true
+                requestFocus()
+            }
+
+            // 显示控制栏
+            cardView.findViewById<View>(R.id.control_bar)?.visibility = View.VISIBLE
+
+            // 设置最小化按钮点击事件
+            cardView.findViewById<ImageButton>(R.id.btn_minimize)?.setOnClickListener {
+                minimizeCard(cardView)
+            }
+
+        } catch (e: Exception) {
+            Log.e("FloatingService", "展开卡片失败", e)
         }
     }
 
     private fun minimizeCard(cardView: View) {
-        val params = cardView.layoutParams as WindowManager.LayoutParams
-        
-        // 恢复到原始大小
-        params.width = WindowManager.LayoutParams.WRAP_CONTENT
-        params.height = WindowManager.LayoutParams.WRAP_CONTENT
-        
-        // 恢复到原始位置
-        val index = (cardsContainer?.indexOfChild(cardView) ?: 0)
-        params.x = 50 + (index * 60)
-        params.y = 100 + (index * 60)
-        
-        windowManager?.updateViewLayout(cardView, params)
-        
-        // 隐藏控制栏
-        cardView.findViewById<View>(R.id.control_bar)?.visibility = View.GONE
+        try {
+            // 只有当视图已附加到窗口时才进行更新
+            if (cardView.windowToken != null) {
+                val params = WindowManager.LayoutParams().apply {
+                    width = WindowManager.LayoutParams.WRAP_CONTENT
+                    height = WindowManager.LayoutParams.WRAP_CONTENT
+                    type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    } else {
+                        WindowManager.LayoutParams.TYPE_PHONE
+                    }
+                    flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                    format = PixelFormat.TRANSLUCENT
+                    
+                    // 恢复到原始位置
+                    val index = cardsContainer?.indexOfChild(cardView) ?: 0
+                    x = 50 + (index * 60)
+                    y = 100 + (index * 60)
+                }
+
+                windowManager?.updateViewLayout(cardView, params)
+                
+                // 隐藏控制栏
+                cardView.findViewById<View>(R.id.control_bar)?.visibility = View.GONE
+                
+                // 更新卡片层级
+                updateCardStack()
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "最小化卡片失败", e)
+        }
     }
 
     private fun updateCardStack() {
@@ -1430,4 +1640,4 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         Log.d("FloatingService", "更新卡片堆栈");
         // TODO: 实现具体的更新逻辑
     }
-} 
+}
