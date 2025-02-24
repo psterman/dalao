@@ -14,6 +14,7 @@ import com.example.aifloatingball.R
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.max
+import com.example.aifloatingball.model.SearchEngine
 
 class LetterIndexBar @JvmOverloads constructor(
     context: Context,
@@ -125,7 +126,13 @@ class LetterIndexBar @JvmOverloads constructor(
         }
     }
 
-    var onLetterSelectedListener: ((Int, Char) -> Unit)? = null
+    var engines: List<SearchEngine> = emptyList()
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    var onLetterSelectedListener: ((View, Char) -> Unit)? = null
     var onLetterTouchEnd: (() -> Unit)? = null
     var onTouchPositionChanged: ((Float, Float) -> Unit)? = null
 
@@ -193,7 +200,7 @@ class LetterIndexBar @JvmOverloads constructor(
                         lastAnimatedIndex = index
                     }
                     invalidate()
-                    onLetterSelectedListener?.invoke(index, letters[index])
+                    onLetterSelectedListener?.invoke(this, letters[index])
                 }
                 onTouchPositionChanged?.invoke(event.x, event.y)
                 return true

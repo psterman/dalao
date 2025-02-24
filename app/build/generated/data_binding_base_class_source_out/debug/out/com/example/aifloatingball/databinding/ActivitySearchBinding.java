@@ -4,8 +4,8 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebView;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -21,7 +21,7 @@ import java.lang.String;
 
 public final class ActivitySearchBinding implements ViewBinding {
   @NonNull
-  private final FrameLayout rootView;
+  private final LinearLayout rootView;
 
   @NonNull
   public final ImageButton btnClose;
@@ -36,31 +36,31 @@ public final class ActivitySearchBinding implements ViewBinding {
   public final TextView letterTitle;
 
   @NonNull
-  public final LinearLayout previewContainer;
-
-  @NonNull
   public final LinearLayout previewEngineList;
 
   @NonNull
   public final EditText searchInput;
 
-  private ActivitySearchBinding(@NonNull FrameLayout rootView, @NonNull ImageButton btnClose,
+  @NonNull
+  public final WebView webView;
+
+  private ActivitySearchBinding(@NonNull LinearLayout rootView, @NonNull ImageButton btnClose,
       @NonNull ImageButton btnSearch, @NonNull LetterIndexBar letterIndexBar,
-      @NonNull TextView letterTitle, @NonNull LinearLayout previewContainer,
-      @NonNull LinearLayout previewEngineList, @NonNull EditText searchInput) {
+      @NonNull TextView letterTitle, @NonNull LinearLayout previewEngineList,
+      @NonNull EditText searchInput, @NonNull WebView webView) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnSearch = btnSearch;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
-    this.previewContainer = previewContainer;
     this.previewEngineList = previewEngineList;
     this.searchInput = searchInput;
+    this.webView = webView;
   }
 
   @Override
   @NonNull
-  public FrameLayout getRoot() {
+  public LinearLayout getRoot() {
     return rootView;
   }
 
@@ -109,12 +109,6 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.preview_container;
-      LinearLayout previewContainer = ViewBindings.findChildViewById(rootView, id);
-      if (previewContainer == null) {
-        break missingId;
-      }
-
       id = R.id.preview_engine_list;
       LinearLayout previewEngineList = ViewBindings.findChildViewById(rootView, id);
       if (previewEngineList == null) {
@@ -127,8 +121,14 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivitySearchBinding((FrameLayout) rootView, btnClose, btnSearch, letterIndexBar,
-          letterTitle, previewContainer, previewEngineList, searchInput);
+      id = R.id.web_view;
+      WebView webView = ViewBindings.findChildViewById(rootView, id);
+      if (webView == null) {
+        break missingId;
+      }
+
+      return new ActivitySearchBinding((LinearLayout) rootView, btnClose, btnSearch, letterIndexBar,
+          letterTitle, previewEngineList, searchInput, webView);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));
