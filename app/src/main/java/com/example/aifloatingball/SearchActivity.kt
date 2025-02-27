@@ -12,6 +12,7 @@ import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.view.LetterIndexBar
 
 class SearchActivity : AppCompatActivity() {
+    private lateinit var drawerLayout: androidx.drawerlayout.widget.DrawerLayout
     private lateinit var webView: WebView
     private lateinit var letterIndexBar: LetterIndexBar
     private lateinit var letterTitle: TextView
@@ -19,6 +20,7 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText
     private lateinit var searchButton: ImageButton
     private lateinit var closeButton: ImageButton
+    private lateinit var menuButton: ImageButton
     private lateinit var settingsManager: SettingsManager
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,9 +31,11 @@ class SearchActivity : AppCompatActivity() {
         initViews()
         setupWebView()
         setupLetterIndexBar()
+        setupDrawer()
     }
 
     private fun initViews() {
+        drawerLayout = findViewById(R.id.drawer_layout)
         webView = findViewById(R.id.web_view)
         letterIndexBar = findViewById(R.id.letter_index_bar)
         letterTitle = findViewById(R.id.letter_title)
@@ -39,6 +43,15 @@ class SearchActivity : AppCompatActivity() {
         searchInput = findViewById(R.id.search_input)
         searchButton = findViewById(R.id.btn_search)
         closeButton = findViewById(R.id.btn_close)
+        menuButton = findViewById(R.id.btn_menu)
+
+        menuButton.setOnClickListener {
+            if (drawerLayout.isDrawerOpen(androidx.core.view.GravityCompat.START)) {
+                drawerLayout.closeDrawer(androidx.core.view.GravityCompat.START)
+            } else {
+                drawerLayout.openDrawer(androidx.core.view.GravityCompat.START)
+            }
+        }
 
         searchButton.setOnClickListener {
             val query = searchInput.text.toString().trim()
@@ -76,30 +89,34 @@ class SearchActivity : AppCompatActivity() {
 
     private fun setupLetterIndexBar() {
         letterIndexBar.onLetterSelectedListener = { _, letter ->
-            showEnginesByLetter(letter)
+            updateEngineList(letter)
         }
     }
 
-    private fun showEnginesByLetter(letter: Char) {
-        letterTitle.text = letter.toString()
+    private fun updateEngineList(selectedLetter: Char? = null) {
+        letterTitle.text = selectedLetter?.toString() ?: ""
         engineList.removeAllViews()
 
         val engines = settingsManager.getEngineOrder().map { engine ->
             SearchEngine(engine.name, engine.url, engine.iconResId)
         }
         
-        val matchingEngines = engines.filter {
-            val firstChar = it.name.first()
-            when {
-                firstChar.toString().matches(Regex("[A-Za-z]")) -> 
-                    firstChar.uppercaseChar() == letter
-                firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> 
-                    firstChar.toString().first().uppercaseChar() == letter
-                else -> false
+        val filteredEngines = if (selectedLetter != null) {
+            engines.filter {
+                val firstChar = it.name.first()
+                when {
+                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                        firstChar.uppercaseChar() == selectedLetter.uppercaseChar()
+                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> 
+                        firstChar.toString().first().uppercaseChar() == selectedLetter.uppercaseChar()
+                    else -> false
+                }
             }
+        } else {
+            engines
         }
-
-        matchingEngines.forEach { engine ->
+        
+        filteredEngines.forEach { engine ->
             val engineItem = LayoutInflater.from(this)
                 .inflate(R.layout.item_search_engine, engineList, false)
 
@@ -110,10 +127,27 @@ class SearchActivity : AppCompatActivity() {
 
             engineItem.setOnClickListener {
                 openSearchEngine(engine)
+                drawerLayout.closeDrawer(androidx.core.view.GravityCompat.START)
             }
 
             engineList.addView(engineItem)
         }
+    }
+
+    private fun setupDrawer() {
+        drawerLayout.addDrawerListener(object : androidx.drawerlayout.widget.DrawerLayout.DrawerListener {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {}
+            
+            override fun onDrawerOpened(drawerView: View) {
+                updateEngineList()
+            }
+            
+            override fun onDrawerClosed(drawerView: View) {}
+            
+            override fun onDrawerStateChanged(newState: Int) {}
+        })
+
+        drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
     }
 
     private fun openSearchEngine(engine: SearchEngine) {

@@ -40,6 +40,9 @@ drawable circle_background
 drawable floating_ball_background
 drawable ic_arrow_back
 drawable ic_arrow_forward
+drawable ic_baseline_close_24
+drawable ic_baseline_menu_24
+drawable ic_baseline_search_24
 drawable ic_bluetooth
 drawable ic_brightness
 drawable ic_chatgpt
@@ -77,6 +80,7 @@ id back_button
 id btn_back
 id btn_close
 id btn_forward
+id btn_menu
 id btn_minimize
 id btn_refresh
 id btn_search
@@ -85,6 +89,7 @@ id card_recycler_view
 id closeButton
 id content_container
 id control_bar
+id drawer_layout
 id engine_icon
 id engine_list
 id engine_list_popup
@@ -104,6 +109,7 @@ id preview_container
 id preview_engine_list
 id preview_icon
 id preview_name
+id search_bar
 id search_button
 id search_input
 id settings

@@ -445,25 +445,46 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         initialTouchY = event.rawY
                         lastTouchX = event.rawX
                         lastTouchY = event.rawY
+                        isExitGestureInProgress = false
                         view.performClick()
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val deltaX = event.rawX - initialTouchX
                         val deltaY = event.rawY - initialTouchY
-                        params.x = (initialX + deltaX).toInt()
-                        params.y = (initialY + deltaY).toInt()
-                        windowManager?.updateViewLayout(floatingBallView, params)
+                        
+                        // 检测垂直滑动手势
+                        if (!isExitGestureInProgress && abs(deltaY) > GESTURE_THRESHOLD && abs(deltaY) > abs(deltaX)) {
+                            isExitGestureInProgress = true
+                            // 根据滑动方向设置动画
+                            val slideAnimation = ValueAnimator.ofFloat(0f, if (deltaY > 0) screenHeight.toFloat() else -screenHeight.toFloat())
+                            slideAnimation.duration = 300
+                            slideAnimation.interpolator = DecelerateInterpolator()
+                            slideAnimation.addUpdateListener { animator ->
+                                params.y = (initialY + animator.animatedValue as Float).toInt()
+                                try {
+                                    windowManager?.updateViewLayout(floatingBallView, params)
+                                } catch (e: Exception) {
+                                    Log.e("FloatingService", "更新悬浮球位置失败", e)
+                                }
+                            }
+                            slideAnimation.start()
+                        } else if (!isExitGestureInProgress) {
+                            params.x = (initialX + deltaX).toInt()
+                            params.y = (initialY + deltaY).toInt()
+                            windowManager?.updateViewLayout(floatingBallView, params)
+                        }
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
+                        if (!isExitGestureInProgress && abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
                             // 这是一个点击事件，启动搜索Activity
                             val intent = Intent(this, SearchActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                             }
                             startActivity(intent)
                         }
+                        isExitGestureInProgress = false
                         true
                     }
                     else -> false
