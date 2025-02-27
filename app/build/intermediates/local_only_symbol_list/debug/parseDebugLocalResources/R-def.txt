@@ -84,12 +84,15 @@ id btn_menu
 id btn_minimize
 id btn_refresh
 id btn_search
+id btn_settings
 id btn_toggle
 id card_recycler_view
+id checkbox
 id closeButton
 id content_container
 id control_bar
 id drawer_layout
+id engine_description
 id engine_icon
 id engine_list
 id engine_list_popup
@@ -134,6 +137,7 @@ layout card_search_engine
 layout engine_item
 layout floating_ball
 layout floating_ball_layout
+layout item_ai_engine
 layout item_engine
 layout item_search_engine
 layout layout_floating_window
@@ -167,7 +171,7 @@ string settings_general
 string settings_privacy
 string voice_recognition_failed
 string voice_search
-style AppTheme
 style FloatingCardDialog
+style Theme.AIFloatingBall
 style TransparentTheme
 xml root_preferences

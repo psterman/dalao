@@ -9,7 +9,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebSettings
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.view.LetterIndexBar
+import net.sourceforge.pinyin4j.PinyinHelper
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: androidx.drawerlayout.widget.DrawerLayout
@@ -97,18 +99,19 @@ class SearchActivity : AppCompatActivity() {
         letterTitle.text = selectedLetter?.toString() ?: ""
         engineList.removeAllViews()
 
-        val engines = settingsManager.getEngineOrder().map { engine ->
-            SearchEngine(engine.name, engine.url, engine.iconResId)
-        }
+        val engines = AISearchEngine.DEFAULT_AI_ENGINES.filter { engine -> engine.isEnabled }
         
         val filteredEngines = if (selectedLetter != null) {
-            engines.filter {
-                val firstChar = it.name.first()
+            engines.filter { engine ->
+                val firstChar = engine.name.first()
                 when {
                     firstChar.toString().matches(Regex("[A-Za-z]")) -> 
                         firstChar.uppercaseChar() == selectedLetter.uppercaseChar()
                     firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> 
-                        firstChar.toString().first().uppercaseChar() == selectedLetter.uppercaseChar()
+                        PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                            ?.firstOrNull()
+                            ?.first()
+                            ?.uppercaseChar() == selectedLetter.uppercaseChar()
                     else -> false
                 }
             }
@@ -118,20 +121,79 @@ class SearchActivity : AppCompatActivity() {
         
         filteredEngines.forEach { engine ->
             val engineItem = LayoutInflater.from(this)
-                .inflate(R.layout.item_search_engine, engineList, false)
+                .inflate(R.layout.item_ai_engine, engineList, false)
 
             engineItem.findViewById<ImageView>(R.id.engine_icon)
                 .setImageResource(engine.iconResId)
             engineItem.findViewById<TextView>(R.id.engine_name)
                 .text = engine.name
+            engineItem.findViewById<TextView>(R.id.engine_description)
+                .text = engine.description
+                
+            val checkbox = engineItem.findViewById<CheckBox>(R.id.checkbox)
+            checkbox.isChecked = engine.isEnabled
+            checkbox.setOnCheckedChangeListener { _, isChecked ->
+                engine.isEnabled = isChecked
+                getSharedPreferences("engine_prefs", MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("engine_${engine.id}", isChecked)
+                    .apply()
+            }
+
+            engineItem.findViewById<ImageButton>(R.id.btn_settings).setOnClickListener {
+                showEngineSettings(engine)
+            }
 
             engineItem.setOnClickListener {
-                openSearchEngine(engine)
-                drawerLayout.closeDrawer(androidx.core.view.GravityCompat.START)
+                if (engine.isEnabled) {
+                    openSearchEngine(engine)
+                    drawerLayout.closeDrawer(androidx.core.view.GravityCompat.START)
+                } else {
+                    Toast.makeText(this, "请先启用该搜索引擎", Toast.LENGTH_SHORT).show()
+                }
             }
 
             engineList.addView(engineItem)
         }
+    }
+
+    private fun showEngineSettings(engine: AISearchEngine) {
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("${engine.name} 设置")
+            .setItems(arrayOf("访问主页", "复制链接", "分享")) { _, which ->
+                when (which) {
+                    0 -> openSearchEngine(engine)
+                    1 -> {
+                        val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("URL", engine.url))
+                        Toast.makeText(this, "已复制链接", Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, "${engine.name}: ${engine.url}")
+                        }
+                        startActivity(android.content.Intent.createChooser(intent, "分享到"))
+                    }
+                }
+            }
+            .create()
+        dialog.show()
+    }
+
+    private fun openSearchEngine(engine: AISearchEngine) {
+        val query = searchInput.text.toString().trim()
+        val url = if (query.isNotEmpty() && engine.url.contains("{query}")) {
+            engine.url.replace("{query}", android.net.Uri.encode(query))
+        } else {
+            engine.url
+        }
+        webView.loadUrl(url)
+    }
+
+    private fun performSearch(query: String) {
+        val currentEngine = AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull { it.isEnabled }
+        currentEngine?.let { openSearchEngine(it) }
     }
 
     private fun setupDrawer() {
@@ -148,23 +210,6 @@ class SearchActivity : AppCompatActivity() {
         })
 
         drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
-    }
-
-    private fun openSearchEngine(engine: SearchEngine) {
-        val query = searchInput.text.toString().trim()
-        val url = if (query.isNotEmpty()) {
-            engine.getSearchUrl(query)
-        } else {
-            engine.url
-        }
-        webView.loadUrl(url)
-    }
-
-    private fun performSearch(query: String) {
-        val currentEngine = settingsManager.getEngineOrder().firstOrNull()?.let { engine ->
-            SearchEngine(engine.name, engine.url, engine.iconResId)
-        }
-        currentEngine?.let { openSearchEngine(it) }
     }
 
     override fun onBackPressed() {

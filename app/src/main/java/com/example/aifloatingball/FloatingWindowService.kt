@@ -470,9 +470,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             }
                             slideAnimation.start()
                         } else if (!isExitGestureInProgress) {
-                            params.x = (initialX + deltaX).toInt()
-                            params.y = (initialY + deltaY).toInt()
-                            windowManager?.updateViewLayout(floatingBallView, params)
+                        params.x = (initialX + deltaX).toInt()
+                        params.y = (initialY + deltaY).toInt()
+                        windowManager?.updateViewLayout(floatingBallView, params)
                         }
                         true
                     }
@@ -835,7 +835,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             System.gc()
             
             super.onDestroy()
-        } catch (e: Exception) {
+                    } catch (e: Exception) {
             Log.e("FloatingService", "服务销毁时发生错误", e)
         }
     }
