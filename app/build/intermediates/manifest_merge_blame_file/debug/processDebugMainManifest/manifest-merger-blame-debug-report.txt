@@ -115,8 +115,8 @@
 60-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:44:13-43
 61            android:exported="false"
 61-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:47:13-37
-62            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar"
-62-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:45:13-81
+62            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
+62-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:45:13-78
 63            android:windowSoftInputMode="adjustResize" />
 63-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:46:13-55
 64        <activity

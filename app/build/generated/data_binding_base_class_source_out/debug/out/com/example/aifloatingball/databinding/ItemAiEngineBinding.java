@@ -4,8 +4,6 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.CheckBox;
-import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -23,12 +21,6 @@ public final class ItemAiEngineBinding implements ViewBinding {
   private final MaterialCardView rootView;
 
   @NonNull
-  public final ImageButton btnSettings;
-
-  @NonNull
-  public final CheckBox checkbox;
-
-  @NonNull
   public final TextView engineDescription;
 
   @NonNull
@@ -37,12 +29,10 @@ public final class ItemAiEngineBinding implements ViewBinding {
   @NonNull
   public final TextView engineName;
 
-  private ItemAiEngineBinding(@NonNull MaterialCardView rootView, @NonNull ImageButton btnSettings,
-      @NonNull CheckBox checkbox, @NonNull TextView engineDescription,
-      @NonNull ImageView engineIcon, @NonNull TextView engineName) {
+  private ItemAiEngineBinding(@NonNull MaterialCardView rootView,
+      @NonNull TextView engineDescription, @NonNull ImageView engineIcon,
+      @NonNull TextView engineName) {
     this.rootView = rootView;
-    this.btnSettings = btnSettings;
-    this.checkbox = checkbox;
     this.engineDescription = engineDescription;
     this.engineIcon = engineIcon;
     this.engineName = engineName;
@@ -75,18 +65,6 @@ public final class ItemAiEngineBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.btn_settings;
-      ImageButton btnSettings = ViewBindings.findChildViewById(rootView, id);
-      if (btnSettings == null) {
-        break missingId;
-      }
-
-      id = R.id.checkbox;
-      CheckBox checkbox = ViewBindings.findChildViewById(rootView, id);
-      if (checkbox == null) {
-        break missingId;
-      }
-
       id = R.id.engine_description;
       TextView engineDescription = ViewBindings.findChildViewById(rootView, id);
       if (engineDescription == null) {
@@ -105,8 +83,8 @@ public final class ItemAiEngineBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ItemAiEngineBinding((MaterialCardView) rootView, btnSettings, checkbox,
-          engineDescription, engineIcon, engineName);
+      return new ItemAiEngineBinding((MaterialCardView) rootView, engineDescription, engineIcon,
+          engineName);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

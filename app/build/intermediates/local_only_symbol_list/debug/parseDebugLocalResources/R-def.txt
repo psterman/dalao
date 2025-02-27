@@ -84,13 +84,13 @@ id btn_menu
 id btn_minimize
 id btn_refresh
 id btn_search
-id btn_settings
 id btn_toggle
 id card_recycler_view
 id checkbox
 id closeButton
 id content_container
 id control_bar
+id drag_handle
 id drawer_layout
 id engine_description
 id engine_icon
@@ -139,6 +139,7 @@ layout floating_ball
 layout floating_ball_layout
 layout item_ai_engine
 layout item_engine
+layout item_engine_setting
 layout item_search_engine
 layout layout_floating_window
 layout letter_index_layout

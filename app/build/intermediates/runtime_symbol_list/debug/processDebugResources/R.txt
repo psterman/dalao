@@ -3370,7 +3370,6 @@ int id btn_menu 0x7f09006d
 int id btn_minimize 0x7f09006e
 int id btn_refresh 0x7f09006f
 int id btn_search 0x7f090070
-int id btn_settings 0x7f090071
 int id btn_toggle 0x7f090072
 int id buttonPanel 0x7f090073
 int id cache_measures 0x7f090074
@@ -3444,6 +3443,7 @@ int id dragLeft 0x7f0900b7
 int id dragRight 0x7f0900b8
 int id dragStart 0x7f0900b9
 int id dragUp 0x7f0900ba
+int id drag_handle 0x7f09023b
 int id drawer_layout 0x7f0900bb
 int id dropdown_menu 0x7f0900bc
 int id easeIn 0x7f0900bd
@@ -3978,6 +3978,7 @@ int layout ime_base_split_test_activity 0x7f0c003a
 int layout ime_secondary_split_test_activity 0x7f0c003b
 int layout item_ai_engine 0x7f0c003c
 int layout item_engine 0x7f0c003d
+int layout item_engine_setting 0x7f0c0095
 int layout item_search_engine 0x7f0c003e
 int layout layout_floating_window 0x7f0c003f
 int layout letter_index_layout 0x7f0c0040

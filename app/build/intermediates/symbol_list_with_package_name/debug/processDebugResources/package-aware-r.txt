@@ -3371,7 +3371,6 @@ id btn_menu
 id btn_minimize
 id btn_refresh
 id btn_search
-id btn_settings
 id btn_toggle
 id buttonPanel
 id cache_measures
@@ -3445,6 +3444,7 @@ id dragLeft
 id dragRight
 id dragStart
 id dragUp
+id drag_handle
 id drawer_layout
 id dropdown_menu
 id easeIn
@@ -3979,6 +3979,7 @@ layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity
 layout item_ai_engine
 layout item_engine
+layout item_engine_setting
 layout item_search_engine
 layout layout_floating_window
 layout letter_index_layout

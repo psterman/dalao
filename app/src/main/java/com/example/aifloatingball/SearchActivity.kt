@@ -129,20 +129,6 @@ class SearchActivity : AppCompatActivity() {
                 .text = engine.name
             engineItem.findViewById<TextView>(R.id.engine_description)
                 .text = engine.description
-                
-            val checkbox = engineItem.findViewById<CheckBox>(R.id.checkbox)
-            checkbox.isChecked = engine.isEnabled
-            checkbox.setOnCheckedChangeListener { _, isChecked ->
-                engine.isEnabled = isChecked
-                getSharedPreferences("engine_prefs", MODE_PRIVATE)
-                    .edit()
-                    .putBoolean("engine_${engine.id}", isChecked)
-                    .apply()
-            }
-
-            engineItem.findViewById<ImageButton>(R.id.btn_settings).setOnClickListener {
-                showEngineSettings(engine)
-            }
 
             engineItem.setOnClickListener {
                 if (engine.isEnabled) {
@@ -153,14 +139,19 @@ class SearchActivity : AppCompatActivity() {
                 }
             }
 
+            engineItem.setOnLongClickListener {
+                showEngineSettings(engine)
+                true
+            }
+
             engineList.addView(engineItem)
         }
     }
 
     private fun showEngineSettings(engine: AISearchEngine) {
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("${engine.name} 设置")
-            .setItems(arrayOf("访问主页", "复制链接", "分享")) { _, which ->
+            .setTitle("${engine.name} 选项")
+            .setItems(arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")) { _, which ->
                 when (which) {
                     0 -> openSearchEngine(engine)
                     1 -> {
@@ -174,6 +165,11 @@ class SearchActivity : AppCompatActivity() {
                             putExtra(android.content.Intent.EXTRA_TEXT, "${engine.name}: ${engine.url}")
                         }
                         startActivity(android.content.Intent.createChooser(intent, "分享到"))
+                    }
+                    3 -> {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, 
+                            android.net.Uri.parse(engine.url))
+                        startActivity(intent)
                     }
                 }
             }

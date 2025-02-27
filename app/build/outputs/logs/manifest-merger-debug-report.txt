@@ -191,7 +191,7 @@ ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:43:9-47:40
 	android:exported
 		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:47:13-37
 	android:theme
-		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:45:13-81
+		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:45:13-78
 	android:name
 		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:44:13-43
 activity#com.example.aifloatingball.SettingsActivity
