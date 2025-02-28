@@ -7,11 +7,12 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 class SettingsManager private constructor(context: Context) {
-    private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val appContext = context.applicationContext
     private val gson = Gson()
     
     companion object {
+        private const val PREFS_NAME = "floating_ball_settings"
         private const val KEY_FLOATING_BALL_SIZE = "floating_ball_size"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_PRIVACY_MODE = "privacy_mode"
@@ -20,13 +21,14 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_AUTO_HIDE = "auto_hide"
         private const val KEY_LAYOUT_THEME = "layout_theme"
         private const val KEY_ENABLED_ENGINES = "enabled_engines"
+        private const val KEY_LEFT_HANDED_MODE = "left_handed_mode"
         
         @Volatile
         private var instance: SettingsManager? = null
         
         fun getInstance(context: Context): SettingsManager {
             return instance ?: synchronized(this) {
-                instance ?: SettingsManager(context).also { instance = it }
+                instance ?: SettingsManager(context.applicationContext).also { instance = it }
             }
         }
     }
@@ -109,4 +111,10 @@ class SettingsManager private constructor(context: Context) {
         val enabledEngines = getEnabledEngines()
         return getEngineOrder().filter { it.name in enabledEngines }
     }
+
+    var isLeftHandedMode: Boolean
+        get() = prefs.getBoolean(KEY_LEFT_HANDED_MODE, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_LEFT_HANDED_MODE, value).apply()
+        }
 } 

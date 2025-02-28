@@ -2199,6 +2199,8 @@ color purple_500
 color purple_700
 color ripple_material_dark
 color ripple_material_light
+color search_input_background
+color search_input_stroke
 color secondary_text_default_material_dark
 color secondary_text_default_material_light
 color secondary_text_disabled_material_dark
@@ -2362,6 +2364,7 @@ dimen design_tab_text_size_2line
 dimen design_textinput_caption_translate_y
 dimen disabled_alpha_material_dark
 dimen disabled_alpha_material_light
+dimen engine_list_width
 dimen fastscroll_default_thickness
 dimen fastscroll_margin
 dimen fastscroll_minimum_range
@@ -3020,6 +3023,7 @@ dimen preferences_header_width
 dimen preview_padding
 dimen preview_text_size
 dimen preview_width
+dimen search_history_margin
 dimen tooltip_corner_radius
 dimen tooltip_horizontal_padding
 dimen tooltip_margin
@@ -3158,6 +3162,7 @@ drawable ic_launcher_foreground
 drawable ic_m3_chip_check
 drawable ic_m3_chip_checked_circle
 drawable ic_m3_chip_close
+drawable ic_menu
 drawable ic_mic
 drawable ic_minimize
 drawable ic_more
@@ -3254,6 +3259,7 @@ drawable preference_list_divider_material
 drawable preview_background
 drawable quick_menu_background
 drawable search_background
+drawable search_input_background
 drawable test_level_drawable
 drawable tooltip_frame_dark
 drawable tooltip_frame_light
@@ -3459,6 +3465,7 @@ id embed
 id enabled
 id end
 id endToStart
+id engineList
 id engine_description
 id engine_icon
 id engine_list
@@ -3692,6 +3699,9 @@ id scrollIndicatorDown
 id scrollIndicatorUp
 id scrollView
 id scrollable
+id searchContainer
+id searchHistoryList
+id searchInput
 id search_badge
 id search_bar
 id search_button
@@ -3750,6 +3760,7 @@ id stretch
 id submenuarrow
 id submit_area
 id supportScrollUp
+id switchLeftHandedMode
 id switchWidget
 id tabMode
 id tag_accessibility_actions
@@ -3813,6 +3824,7 @@ id view_tree_saved_state_registry_owner
 id view_tree_view_model_store_owner
 id visible
 id visible_removing_fragment_view_tag
+id voiceSearchButton
 id voice_animation_container
 id voice_animation_view
 id voice_input_button
@@ -4099,6 +4111,7 @@ string abc_toolbar_collapse_description
 string androidx_startup
 string app_name
 string appbar_scrolling_view_behavior
+string appearance
 string auto_hide
 string bottom_sheet_behavior
 string bottomsheet_action_collapse
@@ -4117,6 +4130,7 @@ string character_counter_content_description
 string character_counter_overflowed_content_description
 string character_counter_pattern
 string clear_text_end_icon_content_description
+string close
 string copy
 string drag_to_sort
 string error_a11y_label
@@ -4131,6 +4145,8 @@ string floating_ball_service_name
 string hide_bottom_view_on_scroll_behavior
 string icon_content_description
 string item_view_role_description
+string left_handed_mode
+string left_handed_mode_description
 string m3_exceed_max_badge_text_suffix
 string m3_ref_typeface_brand_medium
 string m3_ref_typeface_brand_regular
@@ -4169,6 +4185,7 @@ string material_timepicker_minute
 string material_timepicker_pm
 string material_timepicker_select_time
 string material_timepicker_text_input_mode_description
+string menu
 string mtrl_badge_numberless_content_description
 string mtrl_checkbox_button_icon_path_checked
 string mtrl_checkbox_button_icon_path_group_name
@@ -4255,6 +4272,7 @@ string settings_about
 string settings_display
 string settings_general
 string settings_privacy
+string settings_title
 string side_sheet_accessibility_pane_title
 string side_sheet_behavior
 string status_bar_notification_info_overflow

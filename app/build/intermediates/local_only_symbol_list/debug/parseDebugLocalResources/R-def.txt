@@ -20,6 +20,8 @@ color primary_dark
 color purple_200
 color purple_500
 color purple_700
+color search_input_background
+color search_input_stroke
 color teal_200
 color teal_700
 color text_primary
@@ -27,6 +29,7 @@ color text_secondary
 color transparent_black
 color white
 dimen card_spacing
+dimen engine_list_width
 dimen letter_index_bar_margin
 dimen letter_index_bar_width
 dimen letter_index_width
@@ -34,6 +37,7 @@ dimen letter_text_size
 dimen preview_padding
 dimen preview_text_size
 dimen preview_width
+dimen search_history_margin
 drawable bg_floating_window
 drawable card_header_background
 drawable circle_background
@@ -56,6 +60,7 @@ drawable ic_expand_more
 drawable ic_floating_ball
 drawable ic_history
 drawable ic_launcher_foreground
+drawable ic_menu
 drawable ic_mic
 drawable ic_minimize
 drawable ic_more
@@ -74,6 +79,7 @@ drawable popup_background
 drawable preview_background
 drawable quick_menu_background
 drawable search_background
+drawable search_input_background
 drawable voice_ripple_background
 id auto_start_switch
 id back_button
@@ -92,6 +98,7 @@ id content_container
 id control_bar
 id drag_handle
 id drawer_layout
+id engineList
 id engine_description
 id engine_icon
 id engine_list
@@ -112,12 +119,16 @@ id preview_container
 id preview_engine_list
 id preview_icon
 id preview_name
-id search_bar
+id searchContainer
+id searchHistoryList
+id searchInput
 id search_button
 id search_input
 id settings
 id settingsButton
+id switchLeftHandedMode
 id title_bar
+id voiceSearchButton
 id voice_animation_container
 id voice_animation_view
 id voice_input_button
@@ -152,11 +163,16 @@ layout settings_activity
 layout voice_search_animation
 mipmap ic_launcher
 string app_name
+string appearance
 string auto_hide
+string close
 string drag_to_sort
 string floating_ball_description
 string floating_ball_service_description
 string floating_ball_service_name
+string left_handed_mode
+string left_handed_mode_description
+string menu
 string notification_channel_description
 string notification_channel_name
 string permission_required
@@ -170,6 +186,7 @@ string settings_about
 string settings_display
 string settings_general
 string settings_privacy
+string settings_title
 string voice_recognition_failed
 string voice_search
 style FloatingCardDialog

@@ -30,6 +30,8 @@
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
+    <color name="search_input_background">#F5F5F5</color>
+    <color name="search_input_stroke">#E0E0E0</color>
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_700">#FF018786</color>
     <color name="text_primary">#212121</color>
@@ -37,6 +39,7 @@
     <color name="transparent_black">#80000000</color>
     <color name="white">#FFFFFFFF</color>
     <dimen name="card_spacing">8dp</dimen>
+    <dimen name="engine_list_width">80dp</dimen>
     <dimen name="letter_index_bar_margin">8dp</dimen>
     <dimen name="letter_index_bar_width">24dp</dimen>
     <dimen name="letter_index_width">24dp</dimen>
@@ -44,12 +47,18 @@
     <dimen name="preview_padding">16dp</dimen>
     <dimen name="preview_text_size">18sp</dimen>
     <dimen name="preview_width">200dp</dimen>
+    <dimen name="search_history_margin">16dp</dimen>
     <string name="app_name">AI悬浮球</string>
+    <string name="appearance">外观</string>
     <string name="auto_hide">自动隐藏悬浮球</string>
+    <string name="close">关闭</string>
     <string name="drag_to_sort">长按拖动排序</string>
     <string name="floating_ball_description">AI悬浮球图标</string>
     <string name="floating_ball_service_description">提供多个AI助手的快速访问</string>
     <string name="floating_ball_service_name">AI悬浮球服务</string>
+    <string name="left_handed_mode">左手模式</string>
+    <string name="left_handed_mode_description">调整界面布局以适应左手使用习惯</string>
+    <string name="menu">菜单</string>
     <string name="notification_channel_description">保持AI悬浮球服务在后台运行</string>
     <string name="notification_channel_name">AI悬浮球服务</string>
     <string name="permission_required">需要权限</string>
@@ -63,6 +72,7 @@
     <string name="settings_display">显示与外观</string>
     <string name="settings_general">通用</string>
     <string name="settings_privacy">隐私与安全</string>
+    <string name="settings_title">设置</string>
     <string name="voice_recognition_failed">语音识别失败，请重试</string>
     <string name="voice_search">语音搜索</string>
     <style name="FloatingCardDialog" parent="Theme.AppCompat.Dialog">

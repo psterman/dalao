@@ -120,15 +120,15 @@
 63            android:windowSoftInputMode="adjustResize" />
 63-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:46:13-55
 64        <activity
-64-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:49:9-53:74
+64-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:49:9-53:40
 65            android:name="com.example.aifloatingball.SettingsActivity"
 65-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:50:13-45
 66            android:exported="false"
-66-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:51:13-37
-67            android:label="@string/settings"
-67-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:52:13-45
-68            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
-68-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:53:13-71
+66-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:53:13-37
+67            android:label="@string/settings_title"
+67-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:51:13-51
+68            android:theme="@style/Theme.AIFloatingBall" />
+68-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:52:13-56
 69        <activity
 69-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:55:9-58:40
 70            android:name="com.example.aifloatingball.ScreenshotActivity"

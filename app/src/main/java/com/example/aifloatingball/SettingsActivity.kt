@@ -3,6 +3,7 @@ package com.example.aifloatingball
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.widget.Switch
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -10,9 +11,28 @@ import androidx.preference.*
 
 class SettingsActivity : AppCompatActivity() {
     
+    private lateinit var settingsManager: SettingsManager
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.settings_activity)
+        setContentView(R.layout.activity_settings)
+        
+        settingsManager = SettingsManager.getInstance(this)
+        
+        // 初始化左手模式开关
+        val switchLeftHandedMode = findViewById<Switch>(R.id.switchLeftHandedMode)
+        switchLeftHandedMode.isChecked = settingsManager.isLeftHandedMode
+        
+        // 监听左手模式开关变化
+        switchLeftHandedMode.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.isLeftHandedMode = isChecked
+            // 发送广播通知其他组件更新布局
+            sendBroadcast(Intent(ACTION_SETTINGS_CHANGED).apply {
+                putExtra(EXTRA_LEFT_HANDED_MODE_CHANGED, true)
+            })
+        }
+        
+        // 只在第一次创建时添加Fragment
         if (savedInstanceState == null) {
             supportFragmentManager
                 .beginTransaction()
@@ -20,13 +40,7 @@ class SettingsActivity : AppCompatActivity() {
                 .commit()
         }
         
-        val callback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                finish()
-            }
-        }
-        onBackPressedDispatcher.addCallback(this, callback)
-        
+        // 设置返回按钮
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
     }
 
@@ -37,7 +51,7 @@ class SettingsActivity : AppCompatActivity() {
 
     class SettingsFragment : PreferenceFragmentCompat(), SharedPreferences.OnSharedPreferenceChangeListener {
         private lateinit var settingsManager: SettingsManager
-
+        
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
             settingsManager = SettingsManager.getInstance(requireContext())
@@ -161,5 +175,10 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    companion object {
+        const val ACTION_SETTINGS_CHANGED = "com.example.aifloatingball.SETTINGS_CHANGED"
+        const val EXTRA_LEFT_HANDED_MODE_CHANGED = "left_handed_mode_changed"
     }
 } 

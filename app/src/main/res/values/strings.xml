@@ -21,4 +21,10 @@
     <string name="service_running">AI悬浮球服务正在运行</string>
     <string name="search_engine_settings">搜索引擎排序</string>
     <string name="drag_to_sort">长按拖动排序</string>
+    <string name="settings_title">设置</string>
+    <string name="appearance">外观</string>
+    <string name="left_handed_mode">左手模式</string>
+    <string name="left_handed_mode_description">调整界面布局以适应左手使用习惯</string>
+    <string name="menu">菜单</string>
+    <string name="close">关闭</string>
 </resources> 
