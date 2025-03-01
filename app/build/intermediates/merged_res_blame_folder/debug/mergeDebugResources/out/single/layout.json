@@ -48,6 +48,10 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\search_history_item.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-mergeDebugResources-44:/layout/item_ai_engine.xml",
+        "source": "com.example.aifloatingball.app-main-47:/layout/item_ai_engine.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\settings_activity.xml",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\settings_activity.xml"
     },

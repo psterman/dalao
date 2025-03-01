@@ -18,4 +18,19 @@
     <color name="text_secondary">#757575</color>
     <color name="search_input_background">#F5F5F5</color>
     <color name="search_input_stroke">#E0E0E0</color>
+    <!-- 悬浮球图标颜色 -->
+    <color name="floating_ball_icon_light">#757575</color>
+    <color name="floating_ball_icon_dark">#E0E0E0</color>
+    <!-- 字母索引栏颜色 -->
+    <color name="letter_index_background_light">#F5F5F5</color>
+    <color name="letter_index_text_light">#666666</color>
+    <color name="letter_title_text_light">#666666</color>
+    <color name="letter_index_selected_background_light">#E0E0E0</color>
+
+    <!-- 搜索引擎列表颜色 -->
+    <color name="engine_list_background_light">#FFFFFF</color>
+    <color name="engine_name_text_light">#333333</color>
+    <color name="engine_description_text_light">#666666</color>
+    <color name="engine_icon_light">#666666</color>
+    <color name="divider_light">#E0E0E0</color>
 </resources> 

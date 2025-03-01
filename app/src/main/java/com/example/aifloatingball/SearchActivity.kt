@@ -23,6 +23,9 @@ import net.sourceforge.pinyin4j.PinyinHelper
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import android.os.Build
+import android.util.Log
+import androidx.core.content.ContextCompat
+import android.content.res.Configuration
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
@@ -135,11 +138,23 @@ class SearchActivity : AppCompatActivity() {
     
     private val layoutThemeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            // Handle layout theme change
+            if (intent?.action == "com.example.aifloatingball.LAYOUT_THEME_CHANGED") {
+                // 更新 WebView 的主题
+                updateWebViewTheme()
+                // 更新字母索引栏和搜索引擎面板的主题
+                updateLetterIndexBarTheme()
+                updateEngineListTheme()
+                // 重新加载当前页面以应用新主题
+                webView.reload()
+            }
         }
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 在设置布局之前应用主题
+        val currentNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        val isDarkMode = currentNightMode == Configuration.UI_MODE_NIGHT_YES
+        
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
         
@@ -178,6 +193,10 @@ class SearchActivity : AppCompatActivity() {
         if (intent.getBooleanExtra("from_floating_ball", false)) {
             loadDefaultSearchEngine()
         }
+
+        // 初始化时应用主题
+        updateLetterIndexBarTheme()
+        updateEngineListTheme()
     }
 
     private fun initViews() {
@@ -262,8 +281,72 @@ class SearchActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                // 在页面加载完成后应用主题
+                updateWebViewTheme()
             }
         }
+
+        // 初始化时设置主题
+        updateWebViewTheme()
+    }
+
+    private fun updateWebViewTheme() {
+        val currentNightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        val isDarkMode = currentNightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            webView.settings.forceDark = if (isDarkMode) {
+                WebSettings.FORCE_DARK_ON
+            } else {
+                WebSettings.FORCE_DARK_OFF
+            }
+        } else {
+            // 对于低版本 Android，在页面加载完成后注入 CSS
+            if (isDarkMode) {
+                webView.evaluateJavascript("""
+                    (function() {
+                        var darkModeStyle = document.getElementById('dark-mode-style');
+                        if (!darkModeStyle) {
+                            darkModeStyle = document.createElement('style');
+                            darkModeStyle.id = 'dark-mode-style';
+                            darkModeStyle.type = 'text/css';
+                            darkModeStyle.innerHTML = `
+                                :root {
+                                    filter: invert(90%) hue-rotate(180deg) !important;
+                                }
+                                img, video, canvas, [style*="background-image"] {
+                                    filter: invert(100%) hue-rotate(180deg) !important;
+                                }
+                                @media (prefers-color-scheme: dark) {
+                                    :root {
+                                        filter: none !important;
+                                    }
+                                    img, video, canvas, [style*="background-image"] {
+                                        filter: none !important;
+                                    }
+                                }
+                            `;
+                            document.head.appendChild(darkModeStyle);
+                        }
+                    })()
+                """.trimIndent(), null)
+            } else {
+                webView.evaluateJavascript("""
+                    (function() {
+                        var darkModeStyle = document.getElementById('dark-mode-style');
+                        if (darkModeStyle) {
+                            darkModeStyle.remove();
+                        }
+                    })()
+                """.trimIndent(), null)
+            }
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 配置变化时更新主题
+        updateWebViewTheme()
     }
 
     private fun setupLetterIndexBar() {
@@ -273,7 +356,19 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun updateEngineList(selectedLetter: Char? = null) {
+        // 更新字母标题
         letterTitle.text = selectedLetter?.toString() ?: ""
+        letterTitle.visibility = if (selectedLetter != null) View.VISIBLE else View.GONE
+        
+        // 设置字母标题的颜色和背景
+        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        letterTitle.setTextColor(ContextCompat.getColor(this,
+            if (isDarkMode) R.color.letter_index_text_dark
+            else R.color.letter_index_text_light))
+        letterTitle.setBackgroundColor(ContextCompat.getColor(this,
+            if (isDarkMode) R.color.letter_index_selected_background_dark
+            else R.color.letter_index_selected_background_light))
+
         previewEngineList.removeAllViews()
 
         val engines = if (isAIMode) {
@@ -305,24 +400,38 @@ class SearchActivity : AppCompatActivity() {
         filteredEngines.forEach { engine ->
             val engineItem = LayoutInflater.from(this)
                 .inflate(R.layout.item_ai_engine, previewEngineList, false)
-            
+
             // 设置引擎图标
             engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
                 setImageResource(engine.iconResId)
                 visibility = View.VISIBLE
+                setColorFilter(ContextCompat.getColor(this@SearchActivity,
+                    if (isDarkMode) R.color.engine_icon_dark
+                    else R.color.engine_icon_light))
             }
             
             // 设置引擎名称
             engineItem.findViewById<TextView>(R.id.engine_name).apply {
                 text = engine.name
                 visibility = View.VISIBLE
+                setTextColor(ContextCompat.getColor(this@SearchActivity,
+                    if (isDarkMode) R.color.engine_name_text_dark
+                    else R.color.engine_name_text_light))
             }
             
             // 设置引擎描述
             engineItem.findViewById<TextView>(R.id.engine_description).apply {
                 text = engine.description
                 visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
+                setTextColor(ContextCompat.getColor(this@SearchActivity,
+                    if (isDarkMode) R.color.engine_description_text_dark
+                    else R.color.engine_description_text_light))
             }
+
+            // 设置项目背景
+            engineItem.setBackgroundColor(ContextCompat.getColor(this,
+                if (isDarkMode) R.color.engine_list_background_dark
+                else R.color.engine_list_background_light))
 
             // 设置点击事件
             engineItem.setOnClickListener {
@@ -345,7 +454,9 @@ class SearchActivity : AppCompatActivity() {
             // 添加分隔线
             if (filteredEngines.last() != engine) {
                 View(this).apply {
-                    setBackgroundColor(getColor(android.R.color.darker_gray))
+                    setBackgroundColor(ContextCompat.getColor(this@SearchActivity,
+                        if (isDarkMode) R.color.divider_dark
+                        else R.color.divider_light))
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         1
@@ -449,8 +560,8 @@ class SearchActivity : AppCompatActivity() {
 
     private fun performSearch(query: String) {
         if (isAIMode) {
-            val currentEngine = AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull { it.isEnabled }
-            currentEngine?.let { openSearchEngine(it) }
+        val currentEngine = AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull { it.isEnabled }
+        currentEngine?.let { openSearchEngine(it) }
         } else {
             // Default to first normal search engine if none selected
             openSearchEngine(NORMAL_SEARCH_ENGINES.first())
@@ -552,28 +663,74 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun loadDefaultSearchEngine() {
-        // 获取默认搜索模式
-        isAIMode = settingsManager.getBoolean(SettingsActivity.PREF_DEFAULT_SEARCH_MODE, true)
-        modeSwitch.isChecked = isAIMode
-
-        // 获取默认搜索引擎
-        val defaultEngineValue = settingsManager.getString(SettingsActivity.PREF_DEFAULT_SEARCH_ENGINE, "")
-        if (defaultEngineValue.isNotEmpty()) {
+        try {
+            // 从设置中获取默认搜索引擎信息
+            val defaultEngineValue = settingsManager.getString(SettingsActivity.PREF_DEFAULT_SEARCH_ENGINE, "DeepSeek|https://deepseek.com|true")
+            
+            // 解析设置值
             val parts = defaultEngineValue.split("|")
-            if (parts.size == 2) {
-                val engineName = parts[0]
-                val engineUrl = parts[1]
-                
-                // 查找对应的搜索引擎
-                val engine = if (isAIMode) {
-                    AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineName }
-                } else {
-                    NORMAL_SEARCH_ENGINES.find { it.name == engineName }
-                }
+            if (parts.size < 3) {
+                Log.e("SearchActivity", "搜索引擎设置格式错误: $defaultEngineValue")
+                loadDeepSeekAsDefault()
+                return
+            }
 
-                // 打开默认搜索引擎页面
-                engine?.let {
-                    webView.loadUrl(it.url)
+            val engineName = parts[0]
+            val engineUrl = parts[1]
+            val isAIEngine = parts[2].toBoolean()
+            
+            // 设置搜索模式
+            isAIMode = isAIEngine
+            modeSwitch.isChecked = isAIEngine
+
+            // 查找对应的搜索引擎
+            val engine = if (isAIEngine) {
+                AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineName }
+            } else {
+                NORMAL_SEARCH_ENGINES.find { it.name == engineName }
+            }
+
+            if (engine != null) {
+                // 确保 WebView 已经初始化并加载URL
+                webView.post {
+                    try {
+                        val urlToLoad = if (engine.url.contains("{query}")) {
+                            engine.url.replace("{query}", "")
+                        } else {
+                            engine.url
+                        }
+                        webView.loadUrl(urlToLoad)
+                        Log.d("SearchActivity", "正在加载URL: $urlToLoad")
+                    } catch (e: Exception) {
+                        Log.e("SearchActivity", "加载URL失败", e)
+                        loadDeepSeekAsDefault()
+                    }
+                }
+            } else {
+                Log.e("SearchActivity", "未找到搜索引擎: $engineName")
+                loadDeepSeekAsDefault()
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "加载默认搜索引擎失败", e)
+            loadDeepSeekAsDefault()
+        }
+    }
+
+    private fun loadDeepSeekAsDefault() {
+        val deepseek = AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == "DeepSeek" }
+        deepseek?.let {
+            webView.post {
+                try {
+                    webView.loadUrl("https://deepseek.com")
+                    // 保存为默认搜索引擎
+                    settingsManager.putString(SettingsActivity.PREF_DEFAULT_SEARCH_ENGINE, "${it.name}|${it.url}|true")
+                    settingsManager.putBoolean(SettingsActivity.PREF_DEFAULT_SEARCH_MODE, true)
+                    isAIMode = true
+                    modeSwitch.isChecked = true
+                    Toast.makeText(this, "已重置为 DeepSeek 作为默认搜索引擎", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e("SearchActivity", "加载DeepSeek失败", e)
+                    Toast.makeText(this, "加载搜索引擎失败: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -590,5 +747,83 @@ class SearchActivity : AppCompatActivity() {
         unregisterReceiver(settingsReceiver)
         unregisterReceiver(layoutThemeReceiver)
         super.onDestroy()
+    }
+
+    private fun updateLetterIndexBarTheme() {
+        val nightModeFlags = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        val isDarkMode = nightModeFlags == Configuration.UI_MODE_NIGHT_YES
+        
+        // 设置深色模式状态
+        letterIndexBar.setDarkMode(isDarkMode)
+        
+        // 设置背景色
+        letterIndexBar.setBackgroundColor(ContextCompat.getColor(this,
+            if (isDarkMode) R.color.letter_index_background_dark
+            else R.color.letter_index_background_light))
+            
+        // 设置字母标题的颜色和背景
+        letterTitle.setTextColor(ContextCompat.getColor(this,
+            if (isDarkMode) R.color.letter_index_text_dark
+            else R.color.letter_index_text_light))
+        letterTitle.setBackgroundColor(ContextCompat.getColor(this,
+            if (isDarkMode) R.color.letter_index_selected_background_dark
+            else R.color.letter_index_selected_background_light))
+    }
+
+    private fun updateEngineListTheme() {
+        val currentNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        val isDarkMode = currentNightMode == Configuration.UI_MODE_NIGHT_YES
+
+        // 更新抽屉布局背景色
+        (drawerLayout.getChildAt(1) as? LinearLayout)?.apply {
+            setBackgroundColor(ContextCompat.getColor(this@SearchActivity,
+                if (isDarkMode) R.color.engine_list_background_dark
+                else R.color.engine_list_background_light))
+        }
+
+        // 更新搜索引擎列表的背景色
+        previewEngineList.setBackgroundColor(ContextCompat.getColor(this,
+            if (isDarkMode) R.color.engine_list_background_dark
+            else R.color.engine_list_background_light))
+
+        // 更新每个搜索引擎项的颜色
+        for (i in 0 until previewEngineList.childCount) {
+            val child = previewEngineList.getChildAt(i)
+            if (child is ViewGroup) {
+                // 更新引擎名称文本颜色
+                child.findViewById<TextView>(R.id.engine_name)?.apply {
+                    setTextColor(ContextCompat.getColor(this@SearchActivity,
+                        if (isDarkMode) R.color.engine_name_text_dark
+                        else R.color.engine_name_text_light))
+                }
+
+                // 更新引擎描述文本颜色
+                child.findViewById<TextView>(R.id.engine_description)?.apply {
+                    setTextColor(ContextCompat.getColor(this@SearchActivity,
+                        if (isDarkMode) R.color.engine_description_text_dark
+                        else R.color.engine_description_text_light))
+                }
+
+                // 更新图标颜色
+                child.findViewById<ImageView>(R.id.engine_icon)?.apply {
+                    setColorFilter(ContextCompat.getColor(this@SearchActivity,
+                        if (isDarkMode) R.color.engine_icon_dark
+                        else R.color.engine_icon_light))
+                }
+
+                // 更新整个项目的背景
+                child.setBackgroundColor(ContextCompat.getColor(this,
+                    if (isDarkMode) R.color.engine_list_background_dark
+                    else R.color.engine_list_background_light))
+            } else if (child is View && child.layoutParams.height == 1) {
+                // 更新分隔线颜色
+                child.setBackgroundColor(ContextCompat.getColor(this,
+                    if (isDarkMode) R.color.divider_dark
+                    else R.color.divider_light))
+            }
+        }
+
+        // 强制重绘整个列表
+        previewEngineList.invalidate()
     }
 } 

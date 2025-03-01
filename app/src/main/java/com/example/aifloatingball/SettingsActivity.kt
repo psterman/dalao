@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.Switch
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -162,7 +163,38 @@ class SettingsActivity : AppCompatActivity() {
         private fun setupDefaultSearchEnginePreference() {
             val defaultSearchPref = findPreference<ListPreference>(PREF_DEFAULT_SEARCH_ENGINE)
             val isAIMode = findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.isChecked ?: true
+            
+            // 设置默认搜索引擎列表
             updateDefaultSearchEngineList(isAIMode)
+            
+            // 设置当前值
+            defaultSearchPref?.apply {
+                setOnPreferenceChangeListener { _, newValue ->
+                    try {
+                        val (engineName, engineUrl, isAI) = (newValue as String).split("|")
+                        // 保存设置
+                        settingsManager.putString(PREF_DEFAULT_SEARCH_ENGINE, newValue)
+                        settingsManager.putBoolean(PREF_DEFAULT_SEARCH_MODE, isAI.toBoolean())
+                        
+                        // 更新UI
+                        findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.isChecked = isAI.toBoolean()
+                        
+                        Toast.makeText(requireContext(), "已设置 $engineName 为默认搜索引擎", Toast.LENGTH_SHORT).show()
+                        true
+                    } catch (e: Exception) {
+                        Toast.makeText(requireContext(), "设置默认搜索引擎失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        false
+                    }
+                }
+            }
+            
+            // 监听搜索模式变化
+            findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.apply {
+                setOnPreferenceChangeListener { _, newValue ->
+                    updateDefaultSearchEngineList(newValue as Boolean)
+                    true
+                }
+            }
         }
 
         private fun updateDefaultSearchEngineList(isAIMode: Boolean) {
@@ -174,11 +206,13 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             val engineNames = engines.map { it.name }.toTypedArray()
-            val engineValues = engines.map { "${it.name}|${it.url}" }.toTypedArray()
+            val engineValues = engines.map { "${it.name}|${it.url}|$isAIMode" }.toTypedArray()
 
             defaultSearchPref?.apply {
                 entries = engineNames
                 entryValues = engineValues
+                
+                // 保持当前选中的搜索引擎（如果它在新列表中存在）
                 if (value == null || !engineValues.contains(value)) {
                     value = engineValues.firstOrNull()
                 }

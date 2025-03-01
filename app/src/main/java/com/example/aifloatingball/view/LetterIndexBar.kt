@@ -15,6 +15,7 @@ import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.max
 import com.example.aifloatingball.model.SearchEngine
+import android.graphics.Color
 
 class LetterIndexBar @JvmOverloads constructor(
     context: Context,
@@ -25,8 +26,13 @@ class LetterIndexBar @JvmOverloads constructor(
     private val letters = ('A'..'Z').toList()
     private var selectedIndex = -1
     private var lastAnimatedIndex = -1
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private var textColor: Int = Color.BLACK
+    private var selectedBackgroundColor: Int = Color.LTGRAY
+    private var isDarkMode: Boolean = false
+    private val paint = Paint().apply {
+        isAntiAlias = true
         textAlign = Paint.Align.CENTER
+        color = textColor
         textSize = resources.getDimension(R.dimen.letter_text_size)
     }
     private val letterRects = mutableListOf<RectF>()
@@ -138,6 +144,13 @@ class LetterIndexBar @JvmOverloads constructor(
 
     init {
         setLayerType(LAYER_TYPE_HARDWARE, null)
+        // 初始化时检查当前主题
+        val nightModeFlags = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        isDarkMode = nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        // 设置初始文字颜色
+        textColor = ContextCompat.getColor(context, 
+            if (isDarkMode) R.color.letter_index_text_dark 
+            else R.color.letter_index_text_light)
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -159,12 +172,20 @@ class LetterIndexBar @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        
+        // 先绘制背景
+        if (isDarkMode) {
+            setBackgroundColor(ContextCompat.getColor(context, R.color.letter_index_background_dark))
+        } else {
+            setBackgroundColor(ContextCompat.getColor(context, R.color.letter_index_background_light))
+        }
 
         letters.forEachIndexed { index, letter ->
-            paint.color = if (index == selectedIndex) {
-                ContextCompat.getColor(context, R.color.accent)
+            // 设置未选中状态的文字颜色
+            paint.color = if (isDarkMode) {
+                ContextCompat.getColor(context, R.color.letter_index_text_dark)
             } else {
-                ContextCompat.getColor(context, R.color.primary)
+                ContextCompat.getColor(context, R.color.letter_index_text_light)
             }
 
             val rect = letterRects[index]
@@ -176,9 +197,29 @@ class LetterIndexBar @JvmOverloads constructor(
             val centerX = rect.centerX()
             val centerY = rect.centerY()
             
+            // 如果是选中的字母，绘制背景
+            if (index == selectedIndex) {
+                paint.style = Paint.Style.FILL
+                // 设置选中背景色
+                paint.color = if (isDarkMode) {
+                    ContextCompat.getColor(context, R.color.letter_index_selected_background_dark)
+                } else {
+                    ContextCompat.getColor(context, R.color.letter_index_selected_background_light)
+                }
+                canvas.drawCircle(centerX, centerY, paint.textSize * 0.7f, paint)
+                
+                // 设置选中状态的文字颜色
+                paint.color = if (isDarkMode) {
+                    ContextCompat.getColor(context, R.color.letter_index_text_dark)
+                } else {
+                    ContextCompat.getColor(context, R.color.letter_index_text_light)
+                }
+            }
+            
             canvas.translate(0f, offset)
             canvas.scale(scale, scale, centerX, centerY)
             
+            paint.style = Paint.Style.FILL
             val textY = centerY + (paint.textSize / 3)
             canvas.drawText(letter.toString(), centerX, textY, paint)
             
@@ -231,5 +272,30 @@ class LetterIndexBar @JvmOverloads constructor(
         } else {
             'A'
         }
+    }
+
+    fun setTextColor(color: Int) {
+        textColor = color
+        paint.color = color
+        invalidate()
+    }
+
+    fun setSelectedBackgroundColor(color: Int) {
+        selectedBackgroundColor = color
+        invalidate()
+    }
+
+    fun setDarkMode(dark: Boolean) {
+        isDarkMode = dark
+        // 更新文字颜色
+        textColor = ContextCompat.getColor(context,
+            if (isDarkMode) R.color.letter_index_text_dark
+            else R.color.letter_index_text_light)
+        invalidate()
+    }
+
+    override fun setBackgroundColor(color: Int) {
+        super.setBackgroundColor(color)
+        invalidate()
     }
 } 

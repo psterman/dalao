@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -132,6 +133,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private var isScreenshotMode = false  // 添加标记位
     
+    private val themeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.LAYOUT_THEME_CHANGED") {
+                updateFloatingBallTheme()
+            }
+        }
+    }
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -156,6 +165,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 初始化 SettingsManager
             settingsManager = SettingsManager.getInstance(this)
+            
+            // 注册主题变化的广播接收器
+            val themeFilter = IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(themeReceiver, themeFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(themeReceiver, themeFilter)
+            }
             
             // 检查必要的权限
             if (!Settings.canDrawOverlays(this)) {
@@ -481,6 +498,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             // 这是一个点击事件，启动搜索Activity
                             val intent = Intent(this, SearchActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                putExtra("from_floating_ball", true)
                             }
                             startActivity(intent)
                         }
@@ -493,6 +511,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 添加到窗口
             windowManager?.addView(floatingBallView, params)
+            
+            // 初始化时应用主题
+            updateFloatingBallTheme()
             
         } catch (e: Exception) {
             Log.e("FloatingService", "创建悬浮球失败", e)
@@ -819,6 +840,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     override fun onDestroy() {
         try {
             unregisterReceiver(screenshotReceiver)
+            unregisterReceiver(themeReceiver)
             memoryCheckHandler?.removeCallbacksAndMessages(null)
             recognizer?.destroy()
             
@@ -907,5 +929,26 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
 
     override fun onDragEnd(x: Float, y: Float) {
         // Save the final position if needed
+    }
+
+    private fun updateFloatingBallTheme() {
+        val currentNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        val isDarkMode = currentNightMode == Configuration.UI_MODE_NIGHT_YES
+        
+        floatingBallView?.apply {
+            if (isDarkMode) {
+                // 暗色主题
+                background = ContextCompat.getDrawable(this@FloatingWindowService, R.drawable.bg_floating_ball_dark)
+                findViewById<ImageView>(R.id.floating_ball_icon)?.apply {
+                    setColorFilter(ContextCompat.getColor(context, R.color.floating_ball_icon_dark))
+                }
+            } else {
+                // 亮色主题
+                background = ContextCompat.getDrawable(this@FloatingWindowService, R.drawable.bg_floating_ball_light)
+                findViewById<ImageView>(R.id.floating_ball_icon)?.apply {
+                    setColorFilter(ContextCompat.getColor(context, R.color.floating_ball_icon_light))
+                }
+            }
+        }
     }
 }
