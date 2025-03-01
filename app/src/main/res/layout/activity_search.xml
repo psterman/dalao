@@ -103,12 +103,21 @@
             android:layout_height="0dp"
             android:layout_weight="1">
 
-            <!-- 搜索引擎列表 -->
-            <LinearLayout
-                android:id="@+id/preview_engine_list"
+            <!-- 添加 ScrollView 包装搜索引擎列表 -->
+            <androidx.core.widget.NestedScrollView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:orientation="vertical" />
+                android:layout_marginEnd="24dp">
+
+                <!-- 搜索引擎列表 -->
+                <LinearLayout
+                    android:id="@+id/preview_engine_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingBottom="16dp" />
+
+            </androidx.core.widget.NestedScrollView>
 
             <!-- 字母索引栏 -->
             <com.example.aifloatingball.view.LetterIndexBar

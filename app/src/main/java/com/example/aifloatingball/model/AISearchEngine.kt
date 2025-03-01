@@ -1,5 +1,7 @@
 package com.example.aifloatingball.model
 
+import android.R
+
 class AISearchEngine(
     name: String,
     url: String,
@@ -17,94 +19,112 @@ class AISearchEngine(
     companion object {
         val DEFAULT_AI_ENGINES = listOf(
             AISearchEngine(
-                "cueme",
-                "CueMe写作",
-                android.R.drawable.ic_menu_edit,
-                "专业的AI写作助手"
+                name = "ChatGPT",
+                url = "https://chat.openai.com",
+                iconResId = R.drawable.ic_dialog_info,
+                description = "OpenAI的AI助手"
             ),
             AISearchEngine(
-                "grok",
-                "Grok",
-                android.R.drawable.ic_dialog_email,
-                "X公司的AI助手"
+                name = "Claude",
+                url = "https://claude.ai",
+                iconResId = R.drawable.ic_dialog_alert,
+                description = "Anthropic AI助手"
             ),
             AISearchEngine(
-                "mita",
-                "秘塔AI",
-                android.R.drawable.ic_menu_search,
-                "智能搜索引擎"
+                name = "文心一言",
+                url = "https://yiyan.baidu.com",
+                iconResId = R.drawable.ic_menu_edit,
+                description = "百度AI助手"
             ),
             AISearchEngine(
-                "perplexity",
-                "Perplexity",
-                android.R.drawable.ic_menu_help,
-                "AI搜索引擎"
+                name = "通义千问",
+                url = "https://qianwen.aliyun.com",
+                iconResId = R.drawable.ic_menu_help,
+                description = "阿里AI助手"
             ),
             AISearchEngine(
-                "baixiao",
-                "百小应",
-                android.R.drawable.ic_menu_compass,
-                "百度AI助手"
+                name = "讯飞星火",
+                url = "https://xinghuo.xfyun.cn",
+                iconResId = R.drawable.ic_menu_search,
+                description = "讯飞AI助手"
             ),
             AISearchEngine(
-                "hailuo",
-                "海螺AI",
-                android.R.drawable.ic_menu_rotate,
-                "智能对话助手"
+                name = "Gemini",
+                url = "https://gemini.google.com",
+                iconResId = R.drawable.ic_menu_view,
+                description = "Google AI助手"
             ),
             AISearchEngine(
-                "xiaoyi",
-                "华为小艺",
-                android.R.drawable.ic_menu_send,
-                "华为AI助手"
+                name = "Copilot",
+                url = "https://copilot.microsoft.com",
+                iconResId = R.drawable.ic_menu_manage,
+                description = "微软AI助手"
             ),
             AISearchEngine(
-                "gemini",
-                "Gemini",
-                android.R.drawable.ic_menu_view,
-                "Google AI助手"
+                name = "豆包",
+                url = "https://www.doubao.com",
+                iconResId = R.drawable.ic_menu_compass,
+                description = "字节跳动AI助手"
             ),
             AISearchEngine(
-                "poe",
-                "Poe",
-                android.R.drawable.ic_dialog_info,
-                "多模型AI平台"
+                name = "Kimi",
+                url = "https://kimi.moonshot.cn",
+                iconResId = R.drawable.ic_menu_rotate,
+                description = "Moonshot AI助手"
             ),
             AISearchEngine(
-                "meta",
-                "Meta AI",
-                android.R.drawable.ic_menu_compass,
-                "Meta AI助手"
+                name = "秘塔AI",
+                url = "https://metaso.cn",
+                iconResId = R.drawable.ic_menu_send,
+                description = "智能搜索引擎"
             ),
             AISearchEngine(
-                "tiangong",
-                "天工AI",
-                android.R.drawable.ic_menu_zoom,
-                "昆仑万维AI助手"
+                name = "DeepSeek",
+                url = "https://chat.deepseek.com",
+                iconResId = R.drawable.ic_menu_agenda,
+                description = "DeepSeek AI助手"
             ),
             AISearchEngine(
-                "copilot",
-                "Copilot",
-                android.R.drawable.ic_menu_edit,
-                "微软AI助手"
+                name = "Perplexity",
+                url = "https://www.perplexity.ai",
+                iconResId = R.drawable.ic_menu_zoom,
+                description = "AI搜索引擎"
             ),
             AISearchEngine(
-                "nanoai",
-                "纳米AI",
-                android.R.drawable.ic_menu_view,
-                "智能AI助手"
+                name = "百小应",
+                url = "https://yiyan.baidu.com",
+                iconResId = R.drawable.ic_menu_today,
+                description = "百度AI助手"
             ),
             AISearchEngine(
-                "claude",
-                "Claude",
-                android.R.drawable.ic_menu_help,
-                "Anthropic AI助手"
+                name = "华为小艺",
+                url = "https://xiaoyi.huawei.com/chat/",
+                iconResId = R.drawable.ic_menu_call,
+                description = "华为AI助手"
             ),
             AISearchEngine(
-                "wenxiaobai",
-                "问小白",
-                android.R.drawable.ic_dialog_email,
-                "智能问答助手"
+                name = "Poe",
+                url = "https://poe.com",
+                iconResId = R.drawable.ic_menu_camera,
+                description = "多模型AI平台"
+            ),
+            AISearchEngine(
+                name = "Meta AI",
+                url = "https://meta.ai",
+                iconResId = R.drawable.ic_menu_directions,
+                description = "Meta AI助手"
+            ),
+            AISearchEngine(
+                name = "纳米AI",
+                url = "https://nanoai.com",
+                iconResId = R.drawable.ic_menu_gallery,
+                description = "智能AI助手"
+            ),
+            AISearchEngine(
+                name = "问小白",
+                url = "https://www.wenxiaobai.com/chat/",
+                iconResId = R.drawable.ic_menu_info_details,
+                description = "智能问答助手"
             )
         )
     }
