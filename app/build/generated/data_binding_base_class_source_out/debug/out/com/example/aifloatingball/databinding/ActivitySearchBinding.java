@@ -8,6 +8,7 @@ import android.webkit.WebView;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.Switch;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -35,19 +36,16 @@ public final class ActivitySearchBinding implements ViewBinding {
   public final DrawerLayout drawerLayout;
 
   @NonNull
-  public final RecyclerView engineList;
-
-  @NonNull
   public final LetterIndexBar letterIndexBar;
 
   @NonNull
   public final TextView letterTitle;
 
   @NonNull
-  public final LinearLayout previewEngineList;
+  public final Switch modeSwitch;
 
   @NonNull
-  public final LinearLayout searchContainer;
+  public final LinearLayout previewEngineList;
 
   @NonNull
   public final RecyclerView searchHistoryList;
@@ -63,20 +61,18 @@ public final class ActivitySearchBinding implements ViewBinding {
 
   private ActivitySearchBinding(@NonNull DrawerLayout rootView, @NonNull ImageButton btnClose,
       @NonNull ImageButton btnMenu, @NonNull DrawerLayout drawerLayout,
-      @NonNull RecyclerView engineList, @NonNull LetterIndexBar letterIndexBar,
-      @NonNull TextView letterTitle, @NonNull LinearLayout previewEngineList,
-      @NonNull LinearLayout searchContainer, @NonNull RecyclerView searchHistoryList,
-      @NonNull EditText searchInput, @NonNull ImageButton voiceSearchButton,
-      @NonNull WebView webView) {
+      @NonNull LetterIndexBar letterIndexBar, @NonNull TextView letterTitle,
+      @NonNull Switch modeSwitch, @NonNull LinearLayout previewEngineList,
+      @NonNull RecyclerView searchHistoryList, @NonNull EditText searchInput,
+      @NonNull ImageButton voiceSearchButton, @NonNull WebView webView) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnMenu = btnMenu;
     this.drawerLayout = drawerLayout;
-    this.engineList = engineList;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
+    this.modeSwitch = modeSwitch;
     this.previewEngineList = previewEngineList;
-    this.searchContainer = searchContainer;
     this.searchHistoryList = searchHistoryList;
     this.searchInput = searchInput;
     this.voiceSearchButton = voiceSearchButton;
@@ -124,12 +120,6 @@ public final class ActivitySearchBinding implements ViewBinding {
 
       DrawerLayout drawerLayout = (DrawerLayout) rootView;
 
-      id = R.id.engineList;
-      RecyclerView engineList = ViewBindings.findChildViewById(rootView, id);
-      if (engineList == null) {
-        break missingId;
-      }
-
       id = R.id.letter_index_bar;
       LetterIndexBar letterIndexBar = ViewBindings.findChildViewById(rootView, id);
       if (letterIndexBar == null) {
@@ -142,15 +132,15 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
-      id = R.id.preview_engine_list;
-      LinearLayout previewEngineList = ViewBindings.findChildViewById(rootView, id);
-      if (previewEngineList == null) {
+      id = R.id.mode_switch;
+      Switch modeSwitch = ViewBindings.findChildViewById(rootView, id);
+      if (modeSwitch == null) {
         break missingId;
       }
 
-      id = R.id.searchContainer;
-      LinearLayout searchContainer = ViewBindings.findChildViewById(rootView, id);
-      if (searchContainer == null) {
+      id = R.id.preview_engine_list;
+      LinearLayout previewEngineList = ViewBindings.findChildViewById(rootView, id);
+      if (previewEngineList == null) {
         break missingId;
       }
 
@@ -179,8 +169,8 @@ public final class ActivitySearchBinding implements ViewBinding {
       }
 
       return new ActivitySearchBinding((DrawerLayout) rootView, btnClose, btnMenu, drawerLayout,
-          engineList, letterIndexBar, letterTitle, previewEngineList, searchContainer,
-          searchHistoryList, searchInput, voiceSearchButton, webView);
+          letterIndexBar, letterTitle, modeSwitch, previewEngineList, searchHistoryList,
+          searchInput, voiceSearchButton, webView);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

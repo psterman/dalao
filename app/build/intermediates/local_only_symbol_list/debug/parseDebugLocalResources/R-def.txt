@@ -41,6 +41,7 @@ dimen search_history_margin
 drawable bg_floating_window
 drawable card_header_background
 drawable circle_background
+drawable drawer_background
 drawable floating_ball_background
 drawable ic_arrow_back
 drawable ic_arrow_forward
@@ -63,6 +64,7 @@ drawable ic_launcher_foreground
 drawable ic_menu
 drawable ic_mic
 drawable ic_minimize
+drawable ic_mode_switch
 drawable ic_more
 drawable ic_qianwen
 drawable ic_recent
@@ -73,6 +75,7 @@ drawable ic_search_engine
 drawable ic_settings
 drawable ic_wenxin
 drawable ic_wifi
+drawable ic_xiaohongshu
 drawable ic_xinghuo
 drawable paste_button_background
 drawable popup_background
@@ -98,7 +101,6 @@ id content_container
 id control_bar
 id drag_handle
 id drawer_layout
-id engineList
 id engine_description
 id engine_icon
 id engine_list
@@ -114,12 +116,12 @@ id history_list
 id history_text
 id letter_index_bar
 id letter_title
+id mode_switch
 id options_button
 id preview_container
 id preview_engine_list
 id preview_icon
 id preview_name
-id searchContainer
 id searchHistoryList
 id searchInput
 id search_button

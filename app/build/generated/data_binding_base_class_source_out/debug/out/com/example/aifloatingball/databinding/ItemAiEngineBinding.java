@@ -5,20 +5,20 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.example.aifloatingball.R;
-import com.google.android.material.card.MaterialCardView;
 import java.lang.NullPointerException;
 import java.lang.Override;
 import java.lang.String;
 
 public final class ItemAiEngineBinding implements ViewBinding {
   @NonNull
-  private final MaterialCardView rootView;
+  private final LinearLayout rootView;
 
   @NonNull
   public final TextView engineDescription;
@@ -29,9 +29,8 @@ public final class ItemAiEngineBinding implements ViewBinding {
   @NonNull
   public final TextView engineName;
 
-  private ItemAiEngineBinding(@NonNull MaterialCardView rootView,
-      @NonNull TextView engineDescription, @NonNull ImageView engineIcon,
-      @NonNull TextView engineName) {
+  private ItemAiEngineBinding(@NonNull LinearLayout rootView, @NonNull TextView engineDescription,
+      @NonNull ImageView engineIcon, @NonNull TextView engineName) {
     this.rootView = rootView;
     this.engineDescription = engineDescription;
     this.engineIcon = engineIcon;
@@ -40,7 +39,7 @@ public final class ItemAiEngineBinding implements ViewBinding {
 
   @Override
   @NonNull
-  public MaterialCardView getRoot() {
+  public LinearLayout getRoot() {
     return rootView;
   }
 
@@ -83,7 +82,7 @@ public final class ItemAiEngineBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ItemAiEngineBinding((MaterialCardView) rootView, engineDescription, engineIcon,
+      return new ItemAiEngineBinding((LinearLayout) rootView, engineDescription, engineIcon,
           engineName);
     }
     String missingId = rootView.getResources().getResourceName(id);

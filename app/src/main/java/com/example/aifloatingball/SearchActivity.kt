@@ -37,6 +37,92 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var menuButton: ImageButton
     private lateinit var settingsManager: SettingsManager
     private lateinit var engineAdapter: EngineAdapter
+    private lateinit var modeSwitch: Switch
+
+    private var isAIMode: Boolean = true
+    
+    companion object {
+        val NORMAL_SEARCH_ENGINES = listOf(
+            SearchEngine(
+                name = "小红书",
+                url = "https://www.xiaohongshu.com/search?keyword={query}",
+                iconResId = R.drawable.ic_search,
+                description = "小红书搜索"
+            ),
+            SearchEngine(
+                name = "什么值得买",
+                url = "https://search.smzdm.com/?s={query}",
+                iconResId = R.drawable.ic_search,
+                description = "什么值得买搜索"
+            ),
+            SearchEngine(
+                name = "知乎",
+                url = "https://www.zhihu.com/search?type=content&q={query}",
+                iconResId = R.drawable.ic_search,
+                description = "知乎搜索"
+            ),
+            SearchEngine(
+                name = "GitHub",
+                url = "https://github.com/search?q={query}",
+                iconResId = R.drawable.ic_search,
+                description = "GitHub搜索"
+            ),
+            SearchEngine(
+                name = "CSDN",
+                url = "https://so.csdn.net/so/search?q={query}",
+                iconResId = R.drawable.ic_search,
+                description = "CSDN搜索"
+            ),
+            SearchEngine(
+                name = "百度",
+                url = "https://www.baidu.com/s?wd={query}",
+                iconResId = R.drawable.ic_search,
+                description = "百度搜索"
+            ),
+            SearchEngine(
+                name = "谷歌",
+                url = "https://www.google.com/search?q={query}",
+                iconResId = R.drawable.ic_search,
+                description = "Google搜索"
+            ),
+            SearchEngine(
+                name = "搜狗",
+                url = "https://www.sogou.com/web?query={query}",
+                iconResId = R.drawable.ic_search,
+                description = "搜狗搜索"
+            ),
+            SearchEngine(
+                name = "V2EX",
+                url = "https://www.v2ex.com/search?q={query}",
+                iconResId = R.drawable.ic_search,
+                description = "V2EX搜索"
+            ),
+            SearchEngine(
+                name = "今日头条",
+                url = "https://so.toutiao.com/search?keyword={query}",
+                iconResId = R.drawable.ic_search,
+                description = "今日头条搜索"
+            ),
+            SearchEngine(
+                name = "YouTube",
+                url = "https://www.youtube.com/results?search_query={query}",
+                iconResId = R.drawable.ic_search,
+                description = "YouTube搜索"
+            ),
+            SearchEngine(
+                name = "哔哩哔哩",
+                url = "https://search.bilibili.com/all?keyword={query}",
+                iconResId = R.drawable.ic_search,
+                description = "哔哩哔哩搜索"
+            ),
+            SearchEngine(
+                name = "X",
+                url = "https://twitter.com/search?q={query}",
+                iconResId = R.drawable.ic_search,
+                description = "X搜索"
+            )
+        )
+    }
     
     private val settingsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -98,6 +184,7 @@ class SearchActivity : AppCompatActivity() {
         searchButton = findViewById(R.id.voiceSearchButton)
         closeButton = findViewById(R.id.btn_close)
         menuButton = findViewById(R.id.btn_menu)
+        modeSwitch = findViewById(R.id.mode_switch)
 
         menuButton.setOnClickListener {
             val isLeftHanded = settingsManager.isLeftHandedMode
@@ -127,9 +214,33 @@ class SearchActivity : AppCompatActivity() {
             finish()
         }
 
-        letterIndexBar.engines = settingsManager.getEngineOrder().map { engine ->
-            SearchEngine(engine.name, engine.url, engine.iconResId)
+        modeSwitch.setOnCheckedChangeListener { _, isChecked ->
+            isAIMode = isChecked
+            updateEngineList()
+            // Save mode preference
+            settingsManager.setSearchMode(isAIMode)
         }
+        
+        // Initialize switch state from settings
+        isAIMode = settingsManager.getSearchMode()
+        modeSwitch.isChecked = isAIMode
+        
+        // 初始化引擎列表
+        previewEngineList = findViewById(R.id.preview_engine_list)
+        previewEngineList.orientation = LinearLayout.VERTICAL
+        
+        // 设置初始引擎列表
+        updateEngineList()
+        
+        // 初始化字母索引栏
+        letterIndexBar = findViewById(R.id.letter_index_bar)
+        letterIndexBar.engines = if (isAIMode) {
+            AISearchEngine.DEFAULT_AI_ENGINES
+        } else {
+            NORMAL_SEARCH_ENGINES
+        }
+        
+        setupLetterIndexBar()
     }
 
     private fun setupWebView() {
@@ -160,7 +271,11 @@ class SearchActivity : AppCompatActivity() {
         letterTitle.text = selectedLetter?.toString() ?: ""
         previewEngineList.removeAllViews()
 
-        val engines = AISearchEngine.DEFAULT_AI_ENGINES.filter { engine -> engine.isEnabled }
+        val engines = if (isAIMode) {
+            AISearchEngine.DEFAULT_AI_ENGINES.filter { it.isEnabled }
+        } else {
+            NORMAL_SEARCH_ENGINES
+        }
         
         val filteredEngines = if (selectedLetter != null) {
             engines.filter { engine ->
@@ -168,35 +283,49 @@ class SearchActivity : AppCompatActivity() {
                 when {
                     firstChar.toString().matches(Regex("[A-Za-z]")) -> 
                         firstChar.uppercaseChar() == selectedLetter.uppercaseChar()
-                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> 
-                        PinyinHelper.toHanyuPinyinStringArray(firstChar)
-                            ?.firstOrNull()
-                            ?.first()
-                            ?.uppercaseChar() == selectedLetter.uppercaseChar()
+                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                        val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                        pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == selectedLetter.uppercaseChar()
+                    }
                     else -> false
                 }
             }
         } else {
             engines
         }
+
+        // 确保引擎列表可见
+        previewEngineList.visibility = View.VISIBLE
         
         filteredEngines.forEach { engine ->
             val engineItem = LayoutInflater.from(this)
                 .inflate(R.layout.item_ai_engine, previewEngineList, false)
+            
+            // 设置引擎图标
+            engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                setImageResource(engine.iconResId)
+                visibility = View.VISIBLE
+            }
+            
+            // 设置引擎名称
+            engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                text = engine.name
+                visibility = View.VISIBLE
+            }
+            
+            // 设置引擎描述
+            engineItem.findViewById<TextView>(R.id.engine_description).apply {
+                text = engine.description
+                visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
+            }
 
-            engineItem.findViewById<ImageView>(R.id.engine_icon)
-                .setImageResource(engine.iconResId)
-            engineItem.findViewById<TextView>(R.id.engine_name)
-                .text = engine.name
-            engineItem.findViewById<TextView>(R.id.engine_description)
-                .text = engine.description
-
+            // 设置点击事件
             engineItem.setOnClickListener {
-                if (engine.isEnabled) {
-                    openSearchEngine(engine)
-                    drawerLayout.closeDrawer(GravityCompat.START)
-                } else {
+                if (engine is AISearchEngine && !engine.isEnabled) {
                     Toast.makeText(this, "请先启用该搜索引擎", Toast.LENGTH_SHORT).show()
+                } else {
+                    openSearchEngine(engine)
+                    drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
                 }
             }
 
@@ -205,7 +334,20 @@ class SearchActivity : AppCompatActivity() {
                 true
             }
 
+            // 添加到列表中
             previewEngineList.addView(engineItem)
+            
+            // 添加分隔线
+            if (filteredEngines.last() != engine) {
+                View(this).apply {
+                    setBackgroundColor(getColor(android.R.color.darker_gray))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        1
+                    )
+                    previewEngineList.addView(this)
+                }
+            }
         }
     }
 
@@ -259,10 +401,16 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
-    private fun showEngineSettings(engine: AISearchEngine) {
+    private fun showEngineSettings(engine: SearchEngine) {
+        val options = if (engine is AISearchEngine) {
+            arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
+        } else {
+            arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
+        }
+
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("${engine.name} 选项")
-            .setItems(arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")) { _, which ->
+            .setItems(options) { _, which ->
                 when (which) {
                     0 -> openSearchEngine(engine)
                     1 -> {
@@ -288,19 +436,20 @@ class SearchActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun openSearchEngine(engine: AISearchEngine) {
+    private fun openSearchEngine(engine: SearchEngine) {
         val query = searchInput.text.toString().trim()
-        val url = if (query.isNotEmpty() && engine.url.contains("{query}")) {
-            engine.url.replace("{query}", android.net.Uri.encode(query))
-        } else {
-            engine.url
-        }
+        val url = engine.getSearchUrl(query)
         webView.loadUrl(url)
     }
 
     private fun performSearch(query: String) {
-        val currentEngine = AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull { it.isEnabled }
-        currentEngine?.let { openSearchEngine(it) }
+        if (isAIMode) {
+            val currentEngine = AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull { it.isEnabled }
+            currentEngine?.let { openSearchEngine(it) }
+        } else {
+            // Default to first normal search engine if none selected
+            openSearchEngine(NORMAL_SEARCH_ENGINES.first())
+        }
     }
 
     private fun setupDrawer() {

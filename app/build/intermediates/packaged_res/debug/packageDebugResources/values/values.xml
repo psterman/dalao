@@ -39,7 +39,7 @@
     <color name="transparent_black">#80000000</color>
     <color name="white">#FFFFFFFF</color>
     <dimen name="card_spacing">8dp</dimen>
-    <dimen name="engine_list_width">80dp</dimen>
+    <dimen name="engine_list_width">280dp</dimen>
     <dimen name="letter_index_bar_margin">8dp</dimen>
     <dimen name="letter_index_bar_width">24dp</dimen>
     <dimen name="letter_index_width">24dp</dimen>

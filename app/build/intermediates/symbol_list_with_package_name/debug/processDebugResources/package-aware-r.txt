@@ -3129,6 +3129,7 @@ drawable design_ic_visibility
 drawable design_ic_visibility_off
 drawable design_password_eye
 drawable design_snackbar_background
+drawable drawer_background
 drawable floating_ball_background
 drawable ic_arrow_back
 drawable ic_arrow_back_black_24
@@ -3165,6 +3166,7 @@ drawable ic_m3_chip_close
 drawable ic_menu
 drawable ic_mic
 drawable ic_minimize
+drawable ic_mode_switch
 drawable ic_more
 drawable ic_mtrl_checked_circle
 drawable ic_mtrl_chip_checked_black
@@ -3180,6 +3182,7 @@ drawable ic_search_engine
 drawable ic_settings
 drawable ic_wenxin
 drawable ic_wifi
+drawable ic_xiaohongshu
 drawable ic_xinghuo
 drawable m3_avd_hide_password
 drawable m3_avd_show_password
@@ -3465,7 +3468,6 @@ id embed
 id enabled
 id end
 id endToStart
-id engineList
 id engine_description
 id engine_icon
 id engine_list
@@ -3579,6 +3581,7 @@ id matrix
 id message
 id middle
 id mini
+id mode_switch
 id month_grid
 id month_navigation_bar
 id month_navigation_fragment_toggle
@@ -3699,7 +3702,6 @@ id scrollIndicatorDown
 id scrollIndicatorUp
 id scrollView
 id scrollable
-id searchContainer
 id searchHistoryList
 id searchInput
 id search_badge

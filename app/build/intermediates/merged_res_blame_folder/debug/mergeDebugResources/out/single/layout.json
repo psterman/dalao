@@ -24,6 +24,10 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\card_layout_theme.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-mergeDebugResources-44:/layout/activity_search.xml",
+        "source": "com.example.aifloatingball.app-main-47:/layout/activity_search.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\item_search_engine.xml",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\item_search_engine.xml"
     },
@@ -50,10 +54,6 @@
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\floating_ball.xml",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\floating_ball.xml"
-    },
-    {
-        "merged": "com.example.aifloatingball.app-mergeDebugResources-44:/layout/activity_settings.xml",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_settings.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\activity_fullscreen_webview.xml",

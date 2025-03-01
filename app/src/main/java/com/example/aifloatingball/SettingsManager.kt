@@ -22,6 +22,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_LAYOUT_THEME = "layout_theme"
         private const val KEY_ENABLED_ENGINES = "enabled_engines"
         private const val KEY_LEFT_HANDED_MODE = "left_handed_mode"
+        private const val KEY_SEARCH_MODE = "search_mode"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -117,4 +118,12 @@ class SettingsManager private constructor(context: Context) {
         set(value) {
             prefs.edit().putBoolean(KEY_LEFT_HANDED_MODE, value).apply()
         }
+
+    fun setSearchMode(isAIMode: Boolean) {
+        prefs.edit().putBoolean(KEY_SEARCH_MODE, isAIMode).apply()
+    }
+
+    fun getSearchMode(): Boolean {
+        return prefs.getBoolean(KEY_SEARCH_MODE, true) // Default to AI mode
+    }
 } 
