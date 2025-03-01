@@ -48,6 +48,7 @@
     <dimen name="preview_text_size">18sp</dimen>
     <dimen name="preview_width">200dp</dimen>
     <dimen name="search_history_margin">16dp</dimen>
+    <dimen name="search_input_margin">64dp</dimen>
     <string name="app_name">AI悬浮球</string>
     <string name="appearance">外观</string>
     <string name="auto_hide">自动隐藏悬浮球</string>

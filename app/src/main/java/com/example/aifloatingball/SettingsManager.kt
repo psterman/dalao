@@ -12,7 +12,7 @@ class SettingsManager private constructor(context: Context) {
     private val gson = Gson()
     
     companion object {
-        private const val PREFS_NAME = "floating_ball_settings"
+        private const val PREFS_NAME = "settings"
         private const val KEY_FLOATING_BALL_SIZE = "floating_ball_size"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_PRIVACY_MODE = "privacy_mode"
@@ -23,6 +23,8 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_ENABLED_ENGINES = "enabled_engines"
         private const val KEY_LEFT_HANDED_MODE = "left_handed_mode"
         private const val KEY_SEARCH_MODE = "search_mode"
+        private const val KEY_DEFAULT_SEARCH_ENGINE = "default_search_engine"
+        private const val KEY_DEFAULT_SEARCH_MODE = "default_search_mode"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -115,15 +117,29 @@ class SettingsManager private constructor(context: Context) {
 
     var isLeftHandedMode: Boolean
         get() = prefs.getBoolean(KEY_LEFT_HANDED_MODE, false)
-        set(value) {
-            prefs.edit().putBoolean(KEY_LEFT_HANDED_MODE, value).apply()
-        }
+        set(value) = prefs.edit().putBoolean(KEY_LEFT_HANDED_MODE, value).apply()
 
     fun setSearchMode(isAIMode: Boolean) {
         prefs.edit().putBoolean(KEY_SEARCH_MODE, isAIMode).apply()
     }
 
     fun getSearchMode(): Boolean {
-        return prefs.getBoolean(KEY_SEARCH_MODE, true) // Default to AI mode
+        return prefs.getBoolean(KEY_SEARCH_MODE, true)
+    }
+
+    fun getString(key: String, defaultValue: String): String {
+        return prefs.getString(key, defaultValue) ?: defaultValue
+    }
+
+    fun getBoolean(key: String, defaultValue: Boolean): Boolean {
+        return prefs.getBoolean(key, defaultValue)
+    }
+
+    fun putString(key: String, value: String) {
+        prefs.edit().putString(key, value).apply()
+    }
+
+    fun putBoolean(key: String, value: Boolean) {
+        prefs.edit().putBoolean(key, value).apply()
     }
 } 

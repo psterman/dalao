@@ -10,4 +10,5 @@
     <dimen name="letter_index_bar_margin">8dp</dimen>
     <dimen name="search_history_margin">16dp</dimen>
     <dimen name="engine_list_width">280dp</dimen>
+    <dimen name="search_input_margin">64dp</dimen>
 </resources> 

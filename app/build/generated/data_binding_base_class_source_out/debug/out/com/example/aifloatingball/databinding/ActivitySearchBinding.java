@@ -36,6 +36,9 @@ public final class ActivitySearchBinding implements ViewBinding {
   public final DrawerLayout drawerLayout;
 
   @NonNull
+  public final LinearLayout leftButtons;
+
+  @NonNull
   public final LetterIndexBar letterIndexBar;
 
   @NonNull
@@ -46,6 +49,9 @@ public final class ActivitySearchBinding implements ViewBinding {
 
   @NonNull
   public final LinearLayout previewEngineList;
+
+  @NonNull
+  public final LinearLayout rightButtons;
 
   @NonNull
   public final RecyclerView searchHistoryList;
@@ -61,18 +67,21 @@ public final class ActivitySearchBinding implements ViewBinding {
 
   private ActivitySearchBinding(@NonNull DrawerLayout rootView, @NonNull ImageButton btnClose,
       @NonNull ImageButton btnMenu, @NonNull DrawerLayout drawerLayout,
-      @NonNull LetterIndexBar letterIndexBar, @NonNull TextView letterTitle,
-      @NonNull Switch modeSwitch, @NonNull LinearLayout previewEngineList,
+      @NonNull LinearLayout leftButtons, @NonNull LetterIndexBar letterIndexBar,
+      @NonNull TextView letterTitle, @NonNull Switch modeSwitch,
+      @NonNull LinearLayout previewEngineList, @NonNull LinearLayout rightButtons,
       @NonNull RecyclerView searchHistoryList, @NonNull EditText searchInput,
       @NonNull ImageButton voiceSearchButton, @NonNull WebView webView) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnMenu = btnMenu;
     this.drawerLayout = drawerLayout;
+    this.leftButtons = leftButtons;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
     this.modeSwitch = modeSwitch;
     this.previewEngineList = previewEngineList;
+    this.rightButtons = rightButtons;
     this.searchHistoryList = searchHistoryList;
     this.searchInput = searchInput;
     this.voiceSearchButton = voiceSearchButton;
@@ -120,6 +129,12 @@ public final class ActivitySearchBinding implements ViewBinding {
 
       DrawerLayout drawerLayout = (DrawerLayout) rootView;
 
+      id = R.id.left_buttons;
+      LinearLayout leftButtons = ViewBindings.findChildViewById(rootView, id);
+      if (leftButtons == null) {
+        break missingId;
+      }
+
       id = R.id.letter_index_bar;
       LetterIndexBar letterIndexBar = ViewBindings.findChildViewById(rootView, id);
       if (letterIndexBar == null) {
@@ -141,6 +156,12 @@ public final class ActivitySearchBinding implements ViewBinding {
       id = R.id.preview_engine_list;
       LinearLayout previewEngineList = ViewBindings.findChildViewById(rootView, id);
       if (previewEngineList == null) {
+        break missingId;
+      }
+
+      id = R.id.right_buttons;
+      LinearLayout rightButtons = ViewBindings.findChildViewById(rootView, id);
+      if (rightButtons == null) {
         break missingId;
       }
 
@@ -169,8 +190,8 @@ public final class ActivitySearchBinding implements ViewBinding {
       }
 
       return new ActivitySearchBinding((DrawerLayout) rootView, btnClose, btnMenu, drawerLayout,
-          letterIndexBar, letterTitle, modeSwitch, previewEngineList, searchHistoryList,
-          searchInput, voiceSearchButton, webView);
+          leftButtons, letterIndexBar, letterTitle, modeSwitch, previewEngineList, rightButtons,
+          searchHistoryList, searchInput, voiceSearchButton, webView);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

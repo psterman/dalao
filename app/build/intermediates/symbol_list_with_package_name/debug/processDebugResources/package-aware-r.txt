@@ -3024,6 +3024,7 @@ dimen preview_padding
 dimen preview_text_size
 dimen preview_width
 dimen search_history_margin
+dimen search_input_margin
 dimen tooltip_corner_radius
 dimen tooltip_horizontal_padding
 dimen tooltip_margin
@@ -3541,6 +3542,7 @@ id labeled
 id layout
 id left
 id leftToRight
+id left_buttons
 id legacy
 id letter_index_bar
 id letter_title
@@ -3687,6 +3689,7 @@ id reverse
 id reverseSawtooth
 id right
 id rightToLeft
+id right_buttons
 id right_icon
 id right_side
 id rounded

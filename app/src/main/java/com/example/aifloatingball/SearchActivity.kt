@@ -173,6 +173,11 @@ class SearchActivity : AppCompatActivity() {
         setupLetterIndexBar()
         setupDrawer()
         updateLayoutForHandedness()
+
+        // 如果是从悬浮球打开的，直接加载默认搜索引擎
+        if (intent.getBooleanExtra("from_floating_ball", false)) {
+            loadDefaultSearchEngine()
+        }
     }
 
     private fun initViews() {
@@ -493,6 +498,30 @@ class SearchActivity : AppCompatActivity() {
                 gravity = if (isLeftHanded) Gravity.END else Gravity.START
             }
         }
+
+        // 更新菜单按钮位置
+        val leftButtons = findViewById<LinearLayout>(R.id.left_buttons)
+        val rightButtons = findViewById<LinearLayout>(R.id.right_buttons)
+        val menuButton = findViewById<ImageButton>(R.id.btn_menu)
+
+        // 从当前父容器中移除菜单按钮
+        (menuButton.parent as? ViewGroup)?.removeView(menuButton)
+
+        if (isLeftHanded) {
+            // 左手模式：将菜单按钮添加到右侧按钮容器的开始位置
+            rightButtons.addView(menuButton, 0)
+        } else {
+            // 右手模式：将菜单按钮添加到左侧按钮容器
+            leftButtons.addView(menuButton)
+        }
+
+        // 更新搜索输入框的边距，确保不被按钮遮挡
+        searchInput.apply {
+            val params = layoutParams as FrameLayout.LayoutParams
+            params.marginStart = resources.getDimensionPixelSize(R.dimen.search_input_margin)
+            params.marginEnd = resources.getDimensionPixelSize(R.dimen.search_input_margin)
+            layoutParams = params
+        }
         
         // 更新搜索历史列表边距
         val historyParams = searchHistoryList.layoutParams
@@ -518,6 +547,34 @@ class SearchActivity : AppCompatActivity() {
                 historyParams.marginStart = marginStart
                 historyParams.marginEnd = marginEnd
                 searchHistoryList.layoutParams = historyParams
+            }
+        }
+    }
+
+    private fun loadDefaultSearchEngine() {
+        // 获取默认搜索模式
+        isAIMode = settingsManager.getBoolean(SettingsActivity.PREF_DEFAULT_SEARCH_MODE, true)
+        modeSwitch.isChecked = isAIMode
+
+        // 获取默认搜索引擎
+        val defaultEngineValue = settingsManager.getString(SettingsActivity.PREF_DEFAULT_SEARCH_ENGINE, "")
+        if (defaultEngineValue.isNotEmpty()) {
+            val parts = defaultEngineValue.split("|")
+            if (parts.size == 2) {
+                val engineName = parts[0]
+                val engineUrl = parts[1]
+                
+                // 查找对应的搜索引擎
+                val engine = if (isAIMode) {
+                    AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineName }
+                } else {
+                    NORMAL_SEARCH_ENGINES.find { it.name == engineName }
+                }
+
+                // 打开默认搜索引擎页面
+                engine?.let {
+                    webView.loadUrl(it.url)
+                }
             }
         }
     }

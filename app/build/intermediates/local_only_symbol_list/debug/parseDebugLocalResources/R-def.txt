@@ -38,6 +38,7 @@ dimen preview_padding
 dimen preview_text_size
 dimen preview_width
 dimen search_history_margin
+dimen search_input_margin
 drawable bg_floating_window
 drawable card_header_background
 drawable circle_background
@@ -114,6 +115,7 @@ id fullscreen_title
 id fullscreen_webview
 id history_list
 id history_text
+id left_buttons
 id letter_index_bar
 id letter_title
 id mode_switch
@@ -122,6 +124,7 @@ id preview_container
 id preview_engine_list
 id preview_icon
 id preview_name
+id right_buttons
 id searchHistoryList
 id searchInput
 id search_button

@@ -8,6 +8,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.*
+import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.model.SearchEngine
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -127,6 +129,24 @@ class SettingsActivity : AppCompatActivity() {
                 // TODO: 实现检查更新逻辑
                 true
             }
+
+            // 左手模式开关
+            findPreference<SwitchPreferenceCompat>(PREF_LEFT_HANDED_MODE)?.setOnPreferenceChangeListener { _, newValue ->
+                val intent = Intent(ACTION_SETTINGS_CHANGED).apply {
+                    putExtra(EXTRA_LEFT_HANDED_MODE_CHANGED, true)
+                }
+                requireContext().sendBroadcast(intent)
+                true
+            }
+
+            // 默认搜索模式
+            findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.setOnPreferenceChangeListener { _, newValue ->
+                updateDefaultSearchEngineList(newValue as Boolean)
+                true
+            }
+
+            // 默认搜索引擎
+            setupDefaultSearchEnginePreference()
         }
 
         private fun updateTheme(mode: String) {
@@ -137,6 +157,32 @@ class SettingsActivity : AppCompatActivity() {
             }
             AppCompatDelegate.setDefaultNightMode(nightMode)
             requireActivity().recreate()
+        }
+
+        private fun setupDefaultSearchEnginePreference() {
+            val defaultSearchPref = findPreference<ListPreference>(PREF_DEFAULT_SEARCH_ENGINE)
+            val isAIMode = findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.isChecked ?: true
+            updateDefaultSearchEngineList(isAIMode)
+        }
+
+        private fun updateDefaultSearchEngineList(isAIMode: Boolean) {
+            val defaultSearchPref = findPreference<ListPreference>(PREF_DEFAULT_SEARCH_ENGINE)
+            val engines = if (isAIMode) {
+                AISearchEngine.DEFAULT_AI_ENGINES
+            } else {
+                SearchActivity.NORMAL_SEARCH_ENGINES
+            }
+
+            val engineNames = engines.map { it.name }.toTypedArray()
+            val engineValues = engines.map { "${it.name}|${it.url}" }.toTypedArray()
+
+            defaultSearchPref?.apply {
+                entries = engineNames
+                entryValues = engineValues
+                if (value == null || !engineValues.contains(value)) {
+                    value = engineValues.firstOrNull()
+                }
+            }
         }
 
         override fun onResume() {
@@ -180,5 +226,8 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         const val ACTION_SETTINGS_CHANGED = "com.example.aifloatingball.SETTINGS_CHANGED"
         const val EXTRA_LEFT_HANDED_MODE_CHANGED = "left_handed_mode_changed"
+        const val PREF_LEFT_HANDED_MODE = "left_handed_mode"
+        const val PREF_DEFAULT_SEARCH_ENGINE = "default_search_engine"
+        const val PREF_DEFAULT_SEARCH_MODE = "default_search_mode"
     }
 } 

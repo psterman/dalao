@@ -3023,6 +3023,7 @@ int dimen preview_padding 0x7f070321
 int dimen preview_text_size 0x7f070322
 int dimen preview_width 0x7f070323
 int dimen search_history_margin 0x7f070324
+int dimen search_input_margin 0x7f07032d
 int dimen tooltip_corner_radius 0x7f070325
 int dimen tooltip_horizontal_padding 0x7f070326
 int dimen tooltip_margin 0x7f070327
@@ -3540,6 +3541,7 @@ int id labeled 0x7f090110
 int id layout 0x7f090111
 int id left 0x7f090112
 int id leftToRight 0x7f090113
+int id left_buttons 0x7f090243
 int id legacy 0x7f090114
 int id letter_index_bar 0x7f090115
 int id letter_title 0x7f090116
@@ -3686,6 +3688,7 @@ int id reverse 0x7f0901a2
 int id reverseSawtooth 0x7f0901a3
 int id right 0x7f0901a4
 int id rightToLeft 0x7f0901a5
+int id right_buttons 0x7f090244
 int id right_icon 0x7f0901a6
 int id right_side 0x7f0901a7
 int id rounded 0x7f0901a8
