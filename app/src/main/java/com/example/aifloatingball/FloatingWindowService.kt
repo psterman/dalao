@@ -53,6 +53,9 @@ import com.example.aifloatingball.SearchActivity
 import android.view.inputmethod.InputMethodManager
 import android.view.animation.OvershootInterpolator
 import kotlin.math.sqrt
+import android.content.ClipboardManager
+import android.webkit.URLUtil
+import android.app.AlertDialog
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -151,6 +154,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var edgeSnapAnimator: ValueAnimator? = null
     private val edgeSnapThresholdPx by lazy { EDGE_SNAP_THRESHOLD * resources.displayMetrics.density }
     
+    private lateinit var clipboardManager: ClipboardManager
+    private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+        handleClipboardContent()
+    }
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -159,6 +167,15 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             setupMemoryMonitoring()
             Log.d("FloatingService", "服务开始创建")
             super.onCreate()
+            
+            // 初始化剪贴板管理器并立即开始监听
+            clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboardManager.addPrimaryClipChangedListener(clipboardListener)
+            
+            // 立即检查剪贴板内容
+            Handler(Looper.getMainLooper()).postDelayed({
+                handleClipboardContent()
+            }, 500) // 延迟500毫秒，确保服务完全启动
             
             // 注册截图完成广播接收器
             val filter = IntentFilter(ScreenshotActivity.ACTION_SCREENSHOT_COMPLETED)
@@ -472,18 +489,15 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         initialTouchY = event.rawY
                         lastTouchX = event.rawX
                         lastTouchY = event.rawY
-                        view.performClick()
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val deltaX = event.rawX - initialTouchX
                         val deltaY = event.rawY - initialTouchY
                         
-                        // 直接更新位置，不做任何吸附处理
                         params.x = (initialX + deltaX).toInt()
                         params.y = (initialY + deltaY).toInt()
                         
-                        // 确保不超出屏幕边界
                         params.x = params.x.coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
                         params.y = params.y.coerceIn(0, screenHeight - view.height)
                         
@@ -496,12 +510,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     }
                     MotionEvent.ACTION_UP -> {
                         if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
-                            // 这是一个点击事件，启动搜索Activity
-                            val intent = Intent(this, SearchActivity::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                                putExtra("from_floating_ball", true)
-                            }
-                            startActivity(intent)
+                            // 直接检查剪贴板内容
+                            handleClipboardContent()
                         } else {
                             // 只在水平方向处理边缘吸附
                             val distanceToLeftEdge = params.x + view.width / 3
@@ -848,6 +858,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     override fun onDestroy() {
         try {
+            if (::clipboardManager.isInitialized) {
+                clipboardManager.removePrimaryClipChangedListener(clipboardListener)
+            }
             unregisterReceiver(screenshotReceiver)
             unregisterReceiver(themeReceiver)
             memoryCheckHandler?.removeCallbacksAndMessages(null)
@@ -1071,6 +1084,149 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     setColorFilter(ContextCompat.getColor(context, R.color.floating_ball_icon_light))
                 }
             }
+        }
+    }
+
+    private fun handleClipboardContent() {
+        try {
+            Log.d("FloatingService", "开始检查剪贴板内容")
+            
+            if (!::clipboardManager.isInitialized) {
+                clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            }
+
+            if (!clipboardManager.hasPrimaryClip()) {
+                Log.d("FloatingService", "剪贴板为空")
+                openDefaultSearch()
+                return
+            }
+
+            val clipData = clipboardManager.primaryClip
+            val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
+
+            Log.d("FloatingService", "获取到剪贴板内容: $clipText")
+
+            if (clipText.isNullOrEmpty()) {
+                Log.d("FloatingService", "剪贴板内容为空")
+                openDefaultSearch()
+                return
+            }
+
+            // 在主线程上创建并显示悬浮对话框
+            Handler(Looper.getMainLooper()).post {
+                showOverlayDialog(clipText)
+            }
+
+        } catch (e: Exception) {
+            Log.e("FloatingService", "处理剪贴板内容失败", e)
+            openDefaultSearch()
+        }
+    }
+
+    private fun showOverlayDialog(content: String) {
+        try {
+            // 创建对话框视图
+            val dialogView = LayoutInflater.from(this).inflate(R.layout.overlay_dialog, null)
+            
+            // 设置窗口参数
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.CENTER
+            }
+
+            // 设置内容
+            dialogView.findViewById<TextView>(R.id.dialog_title).text = "检测到剪贴板内容"
+            dialogView.findViewById<TextView>(R.id.dialog_message).text = content
+
+            // 设置按钮点击事件
+            if (URLUtil.isValidUrl(content)) {
+                dialogView.findViewById<Button>(R.id.btn_open_link).apply {
+                    visibility = View.VISIBLE
+                    setOnClickListener {
+                        windowManager?.removeView(dialogView)
+                        openUrl(content)
+                    }
+                }
+            }
+
+            dialogView.findViewById<Button>(R.id.btn_search).setOnClickListener {
+                windowManager?.removeView(dialogView)
+                searchContent(content)
+            }
+
+            dialogView.findViewById<Button>(R.id.btn_cancel).setOnClickListener {
+                windowManager?.removeView(dialogView)
+                openDefaultSearch()
+            }
+
+            // 添加到窗口
+            windowManager?.addView(dialogView, params)
+
+            // 设置自动关闭
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    if (dialogView.parent != null) {
+                        windowManager?.removeView(dialogView)
+                        openDefaultSearch()
+                    }
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "移除对话框失败", e)
+                }
+            }, 5000)
+
+        } catch (e: Exception) {
+            Log.e("FloatingService", "显示悬浮对话框失败", e)
+            openDefaultSearch()
+        }
+    }
+
+    private fun openUrl(url: String) {
+        try {
+            Log.d("FloatingService", "准备打开URL: $url")
+            val intent = Intent(this, FullscreenWebViewActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION) // 添加无动画标志，使打开更快
+                putExtra("url", url)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("FloatingService", "打开URL失败", e)
+            Toast.makeText(this, "打开URL失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            openDefaultSearch()
+        }
+    }
+
+    private fun searchContent(query: String) {
+        try {
+            Log.d("FloatingService", "准备搜索内容: $query")
+            val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+            val searchUrl = "https://www.baidu.com/s?wd=$encodedQuery"
+            openUrl(searchUrl)
+        } catch (e: Exception) {
+            Log.e("FloatingService", "搜索内容失败", e)
+            Toast.makeText(this, "搜索内容失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            openDefaultSearch()
+        }
+    }
+
+    private fun openDefaultSearch() {
+        Log.d("FloatingService", "打开默认搜索页面")
+        try {
+            val intent = Intent(this, SearchActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("FloatingService", "打开默认搜索失败", e)
+            Toast.makeText(this, "打开默认搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }

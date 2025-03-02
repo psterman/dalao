@@ -5,9 +5,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebView;
-import android.widget.ImageButton;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewbinding.ViewBinding;
@@ -19,29 +18,24 @@ import java.lang.String;
 
 public final class ActivityFullscreenWebviewBinding implements ViewBinding {
   @NonNull
-  private final LinearLayout rootView;
+  private final RelativeLayout rootView;
 
   @NonNull
-  public final ImageButton fullscreenCloseButton;
+  public final ProgressBar progressBar;
 
   @NonNull
-  public final TextView fullscreenTitle;
+  public final WebView webView;
 
-  @NonNull
-  public final WebView fullscreenWebview;
-
-  private ActivityFullscreenWebviewBinding(@NonNull LinearLayout rootView,
-      @NonNull ImageButton fullscreenCloseButton, @NonNull TextView fullscreenTitle,
-      @NonNull WebView fullscreenWebview) {
+  private ActivityFullscreenWebviewBinding(@NonNull RelativeLayout rootView,
+      @NonNull ProgressBar progressBar, @NonNull WebView webView) {
     this.rootView = rootView;
-    this.fullscreenCloseButton = fullscreenCloseButton;
-    this.fullscreenTitle = fullscreenTitle;
-    this.fullscreenWebview = fullscreenWebview;
+    this.progressBar = progressBar;
+    this.webView = webView;
   }
 
   @Override
   @NonNull
-  public LinearLayout getRoot() {
+  public RelativeLayout getRoot() {
     return rootView;
   }
 
@@ -66,26 +60,19 @@ public final class ActivityFullscreenWebviewBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.fullscreen_close_button;
-      ImageButton fullscreenCloseButton = ViewBindings.findChildViewById(rootView, id);
-      if (fullscreenCloseButton == null) {
+      id = R.id.progressBar;
+      ProgressBar progressBar = ViewBindings.findChildViewById(rootView, id);
+      if (progressBar == null) {
         break missingId;
       }
 
-      id = R.id.fullscreen_title;
-      TextView fullscreenTitle = ViewBindings.findChildViewById(rootView, id);
-      if (fullscreenTitle == null) {
+      id = R.id.webView;
+      WebView webView = ViewBindings.findChildViewById(rootView, id);
+      if (webView == null) {
         break missingId;
       }
 
-      id = R.id.fullscreen_webview;
-      WebView fullscreenWebview = ViewBindings.findChildViewById(rootView, id);
-      if (fullscreenWebview == null) {
-        break missingId;
-      }
-
-      return new ActivityFullscreenWebviewBinding((LinearLayout) rootView, fullscreenCloseButton,
-          fullscreenTitle, fullscreenWebview);
+      return new ActivityFullscreenWebviewBinding((RelativeLayout) rootView, progressBar, webView);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

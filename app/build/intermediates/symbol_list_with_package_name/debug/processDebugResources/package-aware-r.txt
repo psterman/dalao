@@ -3145,6 +3145,9 @@ drawable btn_radio_off_mtrl
 drawable btn_radio_off_to_on_mtrl_animation
 drawable btn_radio_on_mtrl
 drawable btn_radio_on_to_off_mtrl_animation
+drawable button_background
+drawable button_background_cancel
+drawable button_background_confirm
 drawable card_header_background
 drawable circle_background
 drawable design_fab_background
@@ -3152,6 +3155,7 @@ drawable design_ic_visibility
 drawable design_ic_visibility_off
 drawable design_password_eye
 drawable design_snackbar_background
+drawable dialog_background
 drawable drawer_background
 drawable floating_ball_background
 drawable ic_arrow_back
@@ -3283,6 +3287,7 @@ drawable paste_button_background
 drawable popup_background
 drawable preference_list_divider_material
 drawable preview_background
+drawable progress_bar_drawable
 drawable quick_menu_background
 drawable search_background
 drawable search_input_background
@@ -3397,16 +3402,19 @@ id bounceBoth
 id bounceEnd
 id bounceStart
 id btn_back
+id btn_cancel
 id btn_close
 id btn_forward
 id btn_menu
 id btn_minimize
+id btn_open_link
 id btn_refresh
 id btn_search
 id btn_toggle
 id buttonPanel
 id cache_measures
 id callMeasure
+id cancelButton
 id cancel_button
 id card_recycler_view
 id carryVelocity
@@ -3430,6 +3438,7 @@ id closeButton
 id closest
 id collapseActionView
 id compress
+id confirmButton
 id confirm_button
 id constraint
 id container
@@ -3460,6 +3469,8 @@ id design_menu_item_action_area_stub
 id design_menu_item_text
 id design_navigation_view
 id dialog_button
+id dialog_message
+id dialog_title
 id dimensions
 id direct
 id disableHome
@@ -3520,10 +3531,7 @@ id floating_ball_text
 id forever
 id fragment_container_view_tag
 id frost
-id fullscreen_close_button
 id fullscreen_header
-id fullscreen_title
-id fullscreen_webview
 id ghost_view
 id ghost_view_holder
 id gone
@@ -3699,6 +3707,7 @@ id preview_container
 id preview_engine_list
 id preview_icon
 id preview_name
+id progressBar
 id progress_circular
 id progress_horizontal
 id radio
@@ -3856,6 +3865,7 @@ id voice_animation_container
 id voice_animation_view
 id voice_input_button
 id voice_ripple
+id webView
 id web_view
 id webview
 id webview_container
@@ -3993,6 +4003,7 @@ layout activity_settings
 layout card_ai_engine
 layout card_layout_theme
 layout card_search_engine
+layout clipboard_dialog
 layout custom_dialog
 layout design_bottom_navigation_item
 layout design_bottom_sheet_dialog
@@ -4079,6 +4090,7 @@ layout notification_template_custom_big
 layout notification_template_icon_group
 layout notification_template_part_chronometer
 layout notification_template_part_time
+layout overlay_dialog
 layout preference
 layout preference_category
 layout preference_category_material
