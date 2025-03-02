@@ -4,7 +4,10 @@ import android.content.Context
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.VelocityTracker
 import kotlin.math.abs
+import kotlin.math.min
+import kotlin.math.sqrt
 
 class GestureManager(context: Context, private val callback: GestureCallback) {
     private var lastTouchX = 0f
@@ -13,6 +16,8 @@ class GestureManager(context: Context, private val callback: GestureCallback) {
     private var initialY = 0
     private var isDragging = false
     private var isLongPressed = false
+    private var velocityTracker: VelocityTracker? = null
+    private var lastUpdateTime = 0L
     
     interface GestureCallback {
         fun onGestureDetected(gesture: Gesture)
@@ -24,7 +29,7 @@ class GestureManager(context: Context, private val callback: GestureCallback) {
         fun onSwipeUp()
         fun onSwipeDown()
         fun onDrag(x: Float, y: Float)
-        fun onDragEnd(x: Float, y: Float)
+        fun onDragEnd(x: Float, y: Float, velocityX: Float = 0f, velocityY: Float = 0f)
     }
     
     enum class Gesture {
@@ -77,7 +82,21 @@ class GestureManager(context: Context, private val callback: GestureCallback) {
         }
     })
     
+    companion object {
+        private const val SWIPE_THRESHOLD = 100
+        private const val SWIPE_VELOCITY_THRESHOLD = 100
+        private const val DRAG_THRESHOLD = 8f // dp
+        private const val DRAG_UPDATE_INTERVAL = 16L // ms, 约60fps
+    }
+    
+    private val dragThresholdPx = DRAG_THRESHOLD * context.resources.displayMetrics.density
+    
     fun onTouch(view: View, event: MotionEvent): Boolean {
+        if (velocityTracker == null) {
+            velocityTracker = VelocityTracker.obtain()
+        }
+        velocityTracker?.addMovement(event)
+        
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 lastTouchX = event.rawX
@@ -86,29 +105,50 @@ class GestureManager(context: Context, private val callback: GestureCallback) {
                 initialY = view.y.toInt()
                 isDragging = false
                 isLongPressed = false
+                lastUpdateTime = System.currentTimeMillis()
             }
             MotionEvent.ACTION_MOVE -> {
                 val deltaX = event.rawX - lastTouchX
                 val deltaY = event.rawY - lastTouchY
                 
-                if (!isDragging && !isLongPressed && (abs(deltaX) > 10 || abs(deltaY) > 10)) {
-                    isDragging = true
+                if (!isDragging && !isLongPressed) {
+                    val distance = sqrt(deltaX * deltaX + deltaY * deltaY)
+                    if (distance > dragThresholdPx) {
+                        isDragging = true
+                    }
                 }
                 
                 if (isDragging) {
-                    callback.onDrag(initialX + deltaX, initialY + deltaY)
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastUpdateTime >= DRAG_UPDATE_INTERVAL) {
+                        velocityTracker?.computeCurrentVelocity(1000)
+                        val velocityX = velocityTracker?.xVelocity ?: 0f
+                        val velocityY = velocityTracker?.yVelocity ?: 0f
+                        
+                        val dampingFactor = 1.0f - min(
+                            sqrt(velocityX * velocityX + velocityY * velocityY) / 3000f,
+                            0.5f
+                        )
+                        
+                        val newX = initialX + deltaX * dampingFactor
+                        val newY = initialY + deltaY * dampingFactor
+                        
+                        callback.onDrag(newX, newY)
+                        lastUpdateTime = currentTime
+                    }
                 }
             }
-            MotionEvent.ACTION_UP -> {
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (isDragging) {
-                    callback.onDragEnd(event.rawX, event.rawY)
+                    velocityTracker?.computeCurrentVelocity(1000)
+                    val velocityX = velocityTracker?.xVelocity ?: 0f
+                    val velocityY = velocityTracker?.yVelocity ?: 0f
+                    callback.onDragEnd(event.rawX, event.rawY, velocityX, velocityY)
                 }
                 isDragging = false
                 isLongPressed = false
-            }
-            MotionEvent.ACTION_CANCEL -> {
-                isDragging = false
-                isLongPressed = false
+                velocityTracker?.recycle()
+                velocityTracker = null
             }
         }
         
@@ -119,10 +159,5 @@ class GestureManager(context: Context, private val callback: GestureCallback) {
         view.setOnTouchListener { _, event ->
             gestureDetector.onTouchEvent(event)
         }
-    }
-    
-    companion object {
-        private const val SWIPE_THRESHOLD = 100
-        private const val SWIPE_VELOCITY_THRESHOLD = 100
     }
 } 

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/drawer_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 主内容区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- 顶部工具栏 -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="8dp">
+
+            <!-- 左侧按钮容器 -->
+            <LinearLayout
+                android:id="@+id/left_buttons"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|center_vertical"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/btn_menu"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@android:drawable/ic_menu_sort_by_size"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="菜单" />
+            </LinearLayout>
+
+            <!-- 中间搜索输入框 -->
+            <EditText
+                android:id="@+id/searchInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginStart="64dp"
+                android:layout_marginEnd="64dp"
+                android:hint="输入搜索内容"
+                android:background="@android:color/transparent" />
+
+            <!-- 右侧按钮容器 -->
+            <LinearLayout
+                android:id="@+id/right_buttons"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|center_vertical"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/voiceSearchButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@android:drawable/ic_search_category_default"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="搜索" />
+
+                <ImageButton
+                    android:id="@+id/btn_close"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="关闭" />
+            </LinearLayout>
+
+        </FrameLayout>
+
+        <!-- WebView -->
+        <WebView
+            android:id="@+id/web_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <!-- 搜索历史列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/searchHistoryList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- 抽屉内容 -->
+    <LinearLayout
+        android:layout_width="280dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:orientation="vertical"
+        android:background="?android:attr/windowBackground">
+
+        <!-- 模式切换开关 -->
+        <Switch
+            android:id="@+id/mode_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp"
+            android:text="AI模式"
+            android:checked="true" />
+
+        <!-- 字母标题 -->
+        <TextView
+            android:id="@+id/letter_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:background="?android:attr/colorBackground" />
+
+        <!-- 搜索引擎列表容器 -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <!-- 添加 ScrollView 包装搜索引擎列表 -->
+            <androidx.core.widget.NestedScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="24dp">
+
+                <!-- 搜索引擎列表 -->
+                <LinearLayout
+                    android:id="@+id/preview_engine_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingBottom="16dp" />
+
+            </androidx.core.widget.NestedScrollView>
+
+            <!-- 字母索引栏 -->
+            <com.example.aifloatingball.view.LetterIndexBar
+                android:id="@+id/letter_index_bar"
+                android:layout_width="24dp"
+                android:layout_height="match_parent"
+                android:layout_gravity="end" />
+        </FrameLayout>
+    </LinearLayout>
+
+</androidx.drawerlayout.widget.DrawerLayout>

@@ -1,6 +1,8 @@
 package com.example.aifloatingball
 
 import android.Manifest
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -49,12 +51,17 @@ import kotlin.math.abs
 import kotlin.math.min
 import com.example.aifloatingball.SearchActivity
 import android.view.inputmethod.InputMethodManager
+import android.view.animation.OvershootInterpolator
+import kotlin.math.sqrt
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val MEMORY_CHECK_INTERVAL = 30000L // 30秒检查一次内存
         private const val REQUEST_SCREENSHOT = 1001
+        private const val EDGE_SNAP_THRESHOLD = 32f // dp
+        private const val FLING_MIN_VELOCITY = 500f // 最小甩动速度
+        private const val ANIMATION_DURATION = 300L // 动画持续时间
     }
 
     private var windowManager: WindowManager? = null
@@ -140,6 +147,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
         }
     }
+    
+    private var edgeSnapAnimator: ValueAnimator? = null
+    private val edgeSnapThresholdPx by lazy { EDGE_SNAP_THRESHOLD * resources.displayMetrics.density }
     
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -462,7 +472,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         initialTouchY = event.rawY
                         lastTouchX = event.rawX
                         lastTouchY = event.rawY
-                        isExitGestureInProgress = false
                         view.performClick()
                         true
                     }
@@ -470,39 +479,39 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         val deltaX = event.rawX - initialTouchX
                         val deltaY = event.rawY - initialTouchY
                         
-                        // 检测垂直滑动手势
-                        if (!isExitGestureInProgress && abs(deltaY) > GESTURE_THRESHOLD && abs(deltaY) > abs(deltaX)) {
-                            isExitGestureInProgress = true
-                            // 根据滑动方向设置动画
-                            val slideAnimation = ValueAnimator.ofFloat(0f, if (deltaY > 0) screenHeight.toFloat() else -screenHeight.toFloat())
-                            slideAnimation.duration = 300
-                            slideAnimation.interpolator = DecelerateInterpolator()
-                            slideAnimation.addUpdateListener { animator ->
-                                params.y = (initialY + animator.animatedValue as Float).toInt()
-                                try {
-                                    windowManager?.updateViewLayout(floatingBallView, params)
-                                } catch (e: Exception) {
-                                    Log.e("FloatingService", "更新悬浮球位置失败", e)
-                                }
-                            }
-                            slideAnimation.start()
-                        } else if (!isExitGestureInProgress) {
+                        // 直接更新位置，不做任何吸附处理
                         params.x = (initialX + deltaX).toInt()
                         params.y = (initialY + deltaY).toInt()
-                        windowManager?.updateViewLayout(floatingBallView, params)
+                        
+                        // 确保不超出屏幕边界
+                        params.x = params.x.coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
+                        params.y = params.y.coerceIn(0, screenHeight - view.height)
+                        
+                        try {
+                            windowManager?.updateViewLayout(floatingBallView, params)
+                        } catch (e: Exception) {
+                            Log.e("FloatingService", "更新悬浮球位置失败", e)
                         }
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (!isExitGestureInProgress && abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
+                        if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
                             // 这是一个点击事件，启动搜索Activity
                             val intent = Intent(this, SearchActivity::class.java).apply {
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
                                 putExtra("from_floating_ball", true)
                             }
                             startActivity(intent)
+                        } else {
+                            // 只在水平方向处理边缘吸附
+                            val distanceToLeftEdge = params.x + view.width / 3
+                            val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
+                            
+                            when {
+                                distanceToLeftEdge <= edgeSnapThresholdPx -> snapToEdge(params, true)
+                                distanceToRightEdge <= edgeSnapThresholdPx -> snapToEdge(params, false)
+                            }
                         }
-                        isExitGestureInProgress = false
                         true
                     }
                     else -> false
@@ -620,9 +629,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             view.scaleY = 1.5f + (originalState.getFloat("originalScaleY") - 1.5f) * fraction
                             view.alpha = 0.5f + (originalState.getFloat("originalAlpha") - 0.5f) * fraction
                         }
-                        addListener(object : android.animation.Animator.AnimatorListener {
-                            override fun onAnimationStart(animation: android.animation.Animator) {}
-                            override fun onAnimationEnd(animation: android.animation.Animator) {
+                        addListener(object : Animator.AnimatorListener {
+                            override fun onAnimationStart(animation: Animator) {}
+                            override fun onAnimationEnd(animation: Animator) {
                                 // 确保最终状态完全正确
                                 view.scaleX = originalState.getFloat("originalScaleX")
                                 view.scaleY = originalState.getFloat("originalScaleY")
@@ -631,7 +640,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                                 view.tag = null
                                 Log.d("FloatingService", "动画完成，状态已重置，isScreenshotMode: $isScreenshotMode")
                             }
-                            override fun onAnimationCancel(animation: android.animation.Animator) {
+                            override fun onAnimationCancel(animation: Animator) {
                                 // 确保在动画取消时也重置状态
                                 view.scaleX = originalState.getFloat("originalScaleX")
                                 view.scaleY = originalState.getFloat("originalScaleY")
@@ -640,7 +649,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                                 view.tag = null
                                 Log.d("FloatingService", "动画取消，状态已重置，isScreenshotMode: $isScreenshotMode")
                             }
-                            override fun onAnimationRepeat(animation: android.animation.Animator) {}
+                            override fun onAnimationRepeat(animation: Animator) {}
                         })
                         start()
                     }
@@ -912,12 +921,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     override fun onDrag(x: Float, y: Float) {
         floatingBallView?.let { view ->
             val params = view.layoutParams as WindowManager.LayoutParams
-            params.x = x.toInt()
-            params.y = y.toInt()
             
-            // Ensure the ball stays within screen bounds
-            params.x = params.x.coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
-            params.y = params.y.coerceIn(0, screenHeight - view.height)
+            // 限制在屏幕范围内，垂直方向不需要额外处理
+            params.x = x.toInt().coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
+            params.y = y.toInt().coerceIn(0, screenHeight - view.height)
             
             try {
                 windowManager?.updateViewLayout(view, params)
@@ -927,8 +934,123 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
 
-    override fun onDragEnd(x: Float, y: Float) {
-        // Save the final position if needed
+    override fun onDragEnd(x: Float, y: Float, velocityX: Float, velocityY: Float) {
+        floatingBallView?.let { view ->
+            val params = view.layoutParams as WindowManager.LayoutParams
+            
+            // 处理甩动效果
+            if (abs(velocityX) > FLING_MIN_VELOCITY || abs(velocityY) > FLING_MIN_VELOCITY) {
+                handleFling(params, velocityX, velocityY)
+                return
+            }
+            
+            // 只处理水平方向的边缘吸附
+            val distanceToLeftEdge = params.x + view.width / 3
+            val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
+            
+            when {
+                distanceToLeftEdge <= edgeSnapThresholdPx -> snapToEdge(params, true)
+                distanceToRightEdge <= edgeSnapThresholdPx -> snapToEdge(params, false)
+            }
+        }
+    }
+    
+    private fun handleFling(params: WindowManager.LayoutParams, velocityX: Float, velocityY: Float) {
+        edgeSnapAnimator?.cancel()
+        
+        val view = floatingBallView ?: return
+        val startX = params.x
+        val startY = params.y
+        
+        // 调整减速系数，使甩动更自然
+        val deceleration = 0.8f
+        val duration = (sqrt((velocityX * velocityX + velocityY * velocityY)) / deceleration).toLong()
+        // 水平方向保持原有逻辑
+        val distanceX = (velocityX * duration / 2500f).toInt()
+        // 垂直方向使用更小的系数，减少移动距离
+        val distanceY = (velocityY * duration / 3000f).toInt()
+        
+        var targetX = (startX + distanceX).coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
+        // 垂直方向只需要确保不超出屏幕边界
+        val targetY = (startY + distanceY).coerceIn(0, screenHeight - view.height)
+        
+        // 只处理水平方向的边缘吸附
+        val snapDistance = edgeSnapThresholdPx * 2
+        if (targetX < snapDistance) {
+            targetX = -view.width / 3
+        } else if (targetX > screenWidth - view.width * 2 / 3 - snapDistance) {
+            targetX = screenWidth - view.width * 2 / 3
+        }
+        
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            this.duration = min(duration, ANIMATION_DURATION)
+            interpolator = DecelerateInterpolator(1.2f)
+            
+            addUpdateListener { animator ->
+                val fraction = animator.animatedValue as Float
+                params.x = (startX + (targetX - startX) * fraction).toInt()
+                params.y = (startY + (targetY - startY) * fraction).toInt()
+                try {
+                    windowManager?.updateViewLayout(view, params)
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "更新悬浮球位置失败", e)
+                }
+            }
+            
+            addListener(object : Animator.AnimatorListener {
+                override fun onAnimationStart(animation: Animator) {}
+                override fun onAnimationEnd(animation: Animator) {
+                    // 只检查水平方向的边缘吸附
+                    val distanceToLeftEdge = params.x + view.width / 3
+                    val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
+                    
+                    when {
+                        distanceToLeftEdge <= edgeSnapThresholdPx * 1.5f -> snapToEdge(params, true)
+                        distanceToRightEdge <= edgeSnapThresholdPx * 1.5f -> snapToEdge(params, false)
+                    }
+                }
+                override fun onAnimationCancel(animation: Animator) {}
+                override fun onAnimationRepeat(animation: Animator) {}
+            })
+            
+            start()
+        }
+    }
+    
+    private fun snapToEdge(params: WindowManager.LayoutParams, toLeft: Boolean) {
+        edgeSnapAnimator?.cancel()
+        
+        val view = floatingBallView ?: return
+        val startX = params.x
+        val targetX = if (toLeft) -view.width / 3 else screenWidth - view.width * 2 / 3
+        
+        // 计算移动距离，用于调整动画参数
+        val distance = abs(targetX - startX)
+        
+        edgeSnapAnimator = ValueAnimator.ofInt(startX, targetX).apply {
+            // 根据距离调整动画时长，距离越长动画越慢
+            duration = min(150L + (distance / 3), 300L)
+            
+            // 根据距离选择合适的插值器
+            interpolator = if (distance > screenWidth / 4) {
+                // 大距离使用减速插值器，更平滑
+                DecelerateInterpolator(1.5f)
+            } else {
+                // 小距离使用弱化的回弹效果
+                OvershootInterpolator(0.3f)
+            }
+            
+            addUpdateListener { animator ->
+                params.x = animator.animatedValue as Int
+                try {
+                    windowManager?.updateViewLayout(view, params)
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "更新悬浮球位置失败", e)
+                }
+            }
+            
+            start()
+        }
     }
 
     private fun updateFloatingBallTheme() {
