@@ -229,7 +229,9 @@ string settings_privacy
 string settings_title
 string voice_recognition_failed
 string voice_search
+style AppTheme
 style FloatingCardDialog
 style Theme.AIFloatingBall
+style TransparentDialog
 style TransparentTheme
 xml root_preferences

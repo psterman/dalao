@@ -26,6 +26,13 @@ import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
 import android.content.res.Configuration
+import android.os.Handler
+import android.os.Looper
+import android.net.Uri
+import android.webkit.URLUtil
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
@@ -180,6 +187,23 @@ class SearchActivity : AppCompatActivity() {
             registerReceiver(layoutThemeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(layoutThemeReceiver, filter)
+        }
+        
+        // 检查是否需要自动检查剪贴板
+        if (intent.getBooleanExtra("CHECK_CLIPBOARD", false)) {
+            // 延迟一小段时间，确保界面完全加载
+            Handler(Looper.getMainLooper()).postDelayed({
+                val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                if (clipboardManager.hasPrimaryClip()) {
+                    val clipData = clipboardManager.primaryClip
+                    val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
+                    
+                    if (!clipText.isNullOrEmpty()) {
+                        // 有剪贴板内容，显示对话框
+                        showClipboardDialog(clipText)
+                    }
+                }
+            }, 100)
         }
         
         // 初始化布局
@@ -825,5 +849,69 @@ class SearchActivity : AppCompatActivity() {
 
         // 强制重绘整个列表
         previewEngineList.invalidate()
+    }
+
+    private fun showClipboardDialog(content: String) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.overlay_dialog, null)
+        
+        // 设置内容
+        dialogView.findViewById<TextView>(R.id.dialog_title).text = "检测到剪贴板内容"
+        dialogView.findViewById<TextView>(R.id.dialog_message).text = content
+        
+        // 创建对话框
+        val dialog = AlertDialog.Builder(this, R.style.TransparentDialog)
+            .setView(dialogView)
+            .create()
+        
+        // 设置按钮点击事件
+        if (URLUtil.isValidUrl(content)) {
+            dialogView.findViewById<Button>(R.id.btn_open_link).apply {
+                visibility = View.VISIBLE
+                setOnClickListener {
+                    dialog.dismiss()
+                    openUrl(content)
+                }
+            }
+        }
+        
+        dialogView.findViewById<Button>(R.id.btn_search).setOnClickListener {
+            dialog.dismiss()
+            searchContent(content)
+        }
+        
+        dialogView.findViewById<Button>(R.id.btn_cancel).setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        // 显示对话框
+        dialog.show()
+        
+        // 设置自动关闭
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (dialog.isShowing) {
+                dialog.dismiss()
+            }
+        }, 5000)
+    }
+    
+    private fun openUrl(url: String) {
+        try {
+            val intent = Intent(this, FullscreenWebViewActivity::class.java).apply {
+                putExtra("url", url)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "打开URL失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun searchContent(query: String) {
+        try {
+            val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+            val searchUrl = "https://www.baidu.com/s?wd=$encodedQuery"
+            openUrl(searchUrl)
+        } catch (e: Exception) {
+            Toast.makeText(this, "搜索内容失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 } 

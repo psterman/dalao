@@ -87,6 +87,9 @@
     <string name="settings_title">设置</string>
     <string name="voice_recognition_failed">语音识别失败，请重试</string>
     <string name="voice_search">语音搜索</string>
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        
+    </style>
     <style name="FloatingCardDialog" parent="Theme.AppCompat.Dialog">
         <item name="android:windowIsFloating">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
@@ -108,6 +111,14 @@
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
         
         <item name="materialCardViewStyle">@style/Widget.MaterialComponents.CardView</item>
+    </style>
+    <style name="TransparentDialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:background">@android:color/transparent</item>
     </style>
     <style name="TransparentTheme" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>

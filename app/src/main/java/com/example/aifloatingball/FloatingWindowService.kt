@@ -156,7 +156,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     
     private lateinit var clipboardManager: ClipboardManager
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
-        handleClipboardContent()
+        // 当剪贴板内容变化时，立即在主线程上处理
+        Handler(Looper.getMainLooper()).post {
+            try {
+                val clipData = clipboardManager.primaryClip
+                val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
+                
+                if (!clipText.isNullOrEmpty()) {
+                    Log.d("FloatingService", "检测到新的剪贴板内容: $clipText")
+                    showOverlayDialog(clipText)
+                }
+            } catch (e: Exception) {
+                Log.e("FloatingService", "处理剪贴板内容变化失败", e)
+            }
+        }
     }
     
     override fun onBind(intent: Intent?): IBinder? = null
@@ -172,10 +185,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboardManager.addPrimaryClipChangedListener(clipboardListener)
             
-            // 立即检查剪贴板内容
-            Handler(Looper.getMainLooper()).postDelayed({
-                handleClipboardContent()
-            }, 500) // 延迟500毫秒，确保服务完全启动
+            // 检查初始剪贴板内容
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    val clipData = clipboardManager.primaryClip
+                    val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
+                    
+                    if (!clipText.isNullOrEmpty()) {
+                        Log.d("FloatingService", "检测到初始剪贴板内容: $clipText")
+                        showOverlayDialog(clipText)
+                    }
+                } catch (e: Exception) {
+                    Log.e("FloatingService", "检查初始剪贴板内容失败", e)
+                }
+            }
             
             // 注册截图完成广播接收器
             val filter = IntentFilter(ScreenshotActivity.ACTION_SCREENSHOT_COMPLETED)
@@ -510,10 +533,33 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     }
                     MotionEvent.ACTION_UP -> {
                         if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
-                            // 直接检查剪贴板内容
-                            handleClipboardContent()
+                            // 点击事件，打开悬浮窗并立即检查剪贴板
+                            val intent = Intent(this@FloatingWindowService, SearchActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                                // 添加标记，表示需要检查剪贴板
+                                putExtra("CHECK_CLIPBOARD", true)
+                            }
+                            startActivity(intent)
+                            
+                            // 延迟一小段时间后检查剪贴板，确保界面已经打开
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                if (!::clipboardManager.isInitialized) {
+                                    clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                }
+                                
+                                if (clipboardManager.hasPrimaryClip()) {
+                                    val clipData = clipboardManager.primaryClip
+                                    val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
+                                    
+                                    if (!clipText.isNullOrEmpty()) {
+                                        // 有剪贴板内容，显示对话框
+                                        showOverlayDialog(clipText)
+                                    }
+                                }
+                            }, 300) // 延迟300毫秒，等待界面打开
                         } else {
-                            // 只在水平方向处理边缘吸附
+                            // 处理边缘吸附
                             val distanceToLeftEdge = params.x + view.width / 3
                             val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
                             

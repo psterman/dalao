@@ -4330,6 +4330,7 @@ int style Animation_Material3_SideSheetDialog 0x7f110007
 int style Animation_Material3_SideSheetDialog_Left 0x7f110008
 int style Animation_Material3_SideSheetDialog_Right 0x7f110009
 int style Animation_MaterialComponents_BottomSheetDialog 0x7f11000a
+int style AppTheme 0x7f110481
 int style Base_AlertDialog_AppCompat 0x7f11000b
 int style Base_AlertDialog_AppCompat_Light 0x7f11000c
 int style Base_Animation_AppCompat_Dialog 0x7f11000d
@@ -5092,6 +5093,7 @@ int style ThemeOverlay_MaterialComponents_TimePicker_Display_TextInputEditText 0
 int style ThemeOverlay_MaterialComponents_Toolbar_Popup_Primary 0x7f110302
 int style ThemeOverlay_MaterialComponents_Toolbar_Primary 0x7f110303
 int style ThemeOverlay_MaterialComponents_Toolbar_Surface 0x7f110304
+int style TransparentDialog 0x7f11047f
 int style TransparentTheme 0x7f110305
 int style Widget_AppCompat_ActionBar 0x7f110306
 int style Widget_AppCompat_ActionBar_Solid 0x7f110307
