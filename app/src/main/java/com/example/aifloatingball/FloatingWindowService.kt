@@ -50,6 +50,7 @@ import com.example.aifloatingball.web.CustomWebViewClient
 import kotlin.math.abs
 import kotlin.math.min
 import com.example.aifloatingball.SearchActivity
+import com.example.aifloatingball.HomeActivity
 import android.view.inputmethod.InputMethodManager
 import android.view.animation.OvershootInterpolator
 import kotlin.math.sqrt
@@ -533,31 +534,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     }
                     MotionEvent.ACTION_UP -> {
                         if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
-                            // 点击事件，打开悬浮窗并立即检查剪贴板
+                            // 点击事件，打开悬浮窗并加载默认主页
                             val intent = Intent(this@FloatingWindowService, SearchActivity::class.java).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                                // 添加标记，表示需要检查剪贴板
-                                putExtra("CHECK_CLIPBOARD", true)
+                                // 添加标记，表示从悬浮球打开
+                                putExtra("from_floating_ball", true)
                             }
                             startActivity(intent)
-                            
-                            // 延迟一小段时间后检查剪贴板，确保界面已经打开
-                            Handler(Looper.getMainLooper()).postDelayed({
-                                if (!::clipboardManager.isInitialized) {
-                                    clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                }
-                                
-                                if (clipboardManager.hasPrimaryClip()) {
-                                    val clipData = clipboardManager.primaryClip
-                                    val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
-                                    
-                                    if (!clipText.isNullOrEmpty()) {
-                                        // 有剪贴板内容，显示对话框
-                                        showOverlayDialog(clipText)
-                                    }
-                                }
-                            }, 300) // 延迟300毫秒，等待界面打开
                         } else {
                             // 处理边缘吸附
                             val distanceToLeftEdge = params.x + view.width / 3
@@ -1181,7 +1165,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.CENTER
@@ -1190,13 +1174,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             // 设置内容
             dialogView.findViewById<TextView>(R.id.dialog_title).text = "检测到剪贴板内容"
             dialogView.findViewById<TextView>(R.id.dialog_message).text = content
-
+            
             // 设置按钮点击事件
             if (URLUtil.isValidUrl(content)) {
                 dialogView.findViewById<Button>(R.id.btn_open_link).apply {
                     visibility = View.VISIBLE
                     setOnClickListener {
-                        windowManager?.removeView(dialogView)
+                windowManager?.removeView(dialogView)
                         openUrl(content)
                     }
                 }
@@ -1209,7 +1193,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
 
             dialogView.findViewById<Button>(R.id.btn_cancel).setOnClickListener {
                 windowManager?.removeView(dialogView)
-                openDefaultSearch()
+                // 根据设置决定打开哪个页面
+                val defaultPage = settingsManager.getDefaultPage()
+                val intent = if (defaultPage == "home") {
+                    Intent(this, com.example.aifloatingball.HomeActivity::class.java)
+                } else {
+                    Intent(this, SearchActivity::class.java)
+                }
+                intent.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                }
+                startActivity(intent)
+                // 确保页面正确加载
+                Log.d("FloatingService", "取消按钮点击，打开默认页面: $defaultPage")
             }
 
             // 添加到窗口
@@ -1240,8 +1237,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION) // 添加无动画标志，使打开更快
                 putExtra("url", url)
-            }
-            startActivity(intent)
+        }
+        startActivity(intent)
         } catch (e: Exception) {
             Log.e("FloatingService", "打开URL失败", e)
             Toast.makeText(this, "打开URL失败: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -1263,16 +1260,24 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
 
     private fun openDefaultSearch() {
-        Log.d("FloatingService", "打开默认搜索页面")
+        Log.d("FloatingService", "打开默认页面")
         try {
-            val intent = Intent(this, SearchActivity::class.java).apply {
+            // 根据设置决定打开哪个页面
+            val defaultPage = settingsManager.getDefaultPage()
+            val intent = if (defaultPage == "home") {
+                // 使用正确的包路径打开HomeActivity
+                Intent(this, com.example.aifloatingball.HomeActivity::class.java)
+            } else {
+                Intent(this, SearchActivity::class.java)
+            }
+            intent.apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            }
-            startActivity(intent)
+        }
+        startActivity(intent)
         } catch (e: Exception) {
-            Log.e("FloatingService", "打开默认搜索失败", e)
-            Toast.makeText(this, "打开默认搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e("FloatingService", "打开默认页面失败", e)
+            Toast.makeText(this, "打开默认页面失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }

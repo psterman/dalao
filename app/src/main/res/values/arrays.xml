@@ -23,4 +23,22 @@
         <item>card</item>
         <item>list</item>
     </string-array>
-</resources> 
+    
+    <string-array name="home_page_entries">
+        <item>功能主页</item>
+        <item>百度</item>
+        <item>Google</item>
+        <item>必应</item>
+        <item>DeepSeek</item>
+        <item>空白页</item>
+    </string-array>
+
+    <string-array name="home_page_values">
+        <item>function_home</item>
+        <item>https://www.baidu.com</item>
+        <item>https://www.google.com</item>
+        <item>https://www.bing.com</item>
+        <item>https://deepseek.com</item>
+        <item>about:blank</item>
+    </string-array>
+</resources>

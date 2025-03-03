@@ -54,6 +54,12 @@ class SearchActivity : AppCompatActivity() {
     companion object {
         val NORMAL_SEARCH_ENGINES = listOf(
             SearchEngine(
+                name = "功能主页",
+                url = "home",  // 特殊标记，表示这是主页选项
+                iconResId = R.drawable.ic_home,  // 请确保有这个图标资源
+                description = "打开功能主页"
+            ),
+            SearchEngine(
                 name = "小红书",
                 url = "https://www.xiaohongshu.com/search?keyword={query}",
                 iconResId = R.drawable.ic_search,
@@ -189,10 +195,26 @@ class SearchActivity : AppCompatActivity() {
             registerReceiver(layoutThemeReceiver, filter)
         }
         
-        // 检查是否需要自动检查剪贴板
-        if (intent.getBooleanExtra("CHECK_CLIPBOARD", false)) {
-            // 延迟一小段时间，确保界面完全加载
-            Handler(Looper.getMainLooper()).postDelayed({
+        // 初始化布局
+        initViews()
+        setupWebView()
+        setupLetterIndexBar()
+        setupDrawer()
+        updateLayoutForHandedness()
+
+        // 如果是从悬浮球打开的，加载默认主页
+        if (intent.getBooleanExtra("from_floating_ball", false)) {
+            // 加载默认主页
+            loadDefaultSearchEngine()
+        }
+
+        // 初始化时应用主题
+        updateLetterIndexBarTheme()
+        updateEngineListTheme()
+
+        // 在 Activity 完全初始化后检查剪贴板
+        window.decorView.post {
+            if (intent.getBooleanExtra("from_floating_ball", false)) {
                 val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 if (clipboardManager.hasPrimaryClip()) {
                     val clipData = clipboardManager.primaryClip
@@ -203,24 +225,8 @@ class SearchActivity : AppCompatActivity() {
                         showClipboardDialog(clipText)
                     }
                 }
-            }, 100)
+            }
         }
-        
-        // 初始化布局
-        initViews()
-        setupWebView()
-        setupLetterIndexBar()
-        setupDrawer()
-        updateLayoutForHandedness()
-
-        // 如果是从悬浮球打开的，直接加载默认搜索引擎
-        if (intent.getBooleanExtra("from_floating_ball", false)) {
-            loadDefaultSearchEngine()
-        }
-
-        // 初始化时应用主题
-        updateLetterIndexBarTheme()
-        updateEngineListTheme()
     }
 
     private fun initViews() {
@@ -702,6 +708,17 @@ class SearchActivity : AppCompatActivity() {
             val engineName = parts[0]
             val engineUrl = parts[1]
             val isAIEngine = parts[2].toBoolean()
+
+            // 如果是功能主页，直接打开 HomeActivity
+            if (engineUrl == "home") {
+                val intent = Intent(this, HomeActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                }
+                startActivity(intent)
+                finish() // 关闭当前的 SearchActivity
+                return
+            }
             
             // 设置搜索模式
             isAIMode = isAIEngine

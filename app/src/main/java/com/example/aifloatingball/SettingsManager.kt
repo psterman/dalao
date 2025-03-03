@@ -25,6 +25,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_SEARCH_MODE = "search_mode"
         private const val KEY_DEFAULT_SEARCH_ENGINE = "default_search_engine"
         private const val KEY_DEFAULT_SEARCH_MODE = "default_search_mode"
+        private const val KEY_HOME_PAGE_URL = "home_page_url"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -142,4 +143,27 @@ class SettingsManager private constructor(context: Context) {
     fun putBoolean(key: String, value: Boolean) {
         prefs.edit().putBoolean(key, value).apply()
     }
-} 
+
+    // 主页URL设置
+    fun getHomePageUrl(): String {
+        return prefs.getString(KEY_HOME_PAGE_URL, "") ?: ""
+    }
+
+    fun setHomePageUrl(url: String) {
+        prefs.edit().putString(KEY_HOME_PAGE_URL, url).apply()
+    }
+
+    // 获取默认页面设置
+    fun getDefaultPage(): String {
+        return try {
+            prefs.getString(KEY_DEFAULT_SEARCH_MODE, "home")
+        } catch (e: ClassCastException) {
+            // 如果存储的是布尔值，则转换为对应的字符串
+            if (prefs.getBoolean(KEY_DEFAULT_SEARCH_MODE, false)) "search" else "home"
+        } ?: "home"
+    }
+
+    fun setDefaultPage(page: String) {
+        prefs.edit().putString(KEY_DEFAULT_SEARCH_MODE, page).apply()
+    }
+}

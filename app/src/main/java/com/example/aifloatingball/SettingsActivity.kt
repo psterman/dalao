@@ -202,7 +202,13 @@ class SettingsActivity : AppCompatActivity() {
             val engines = if (isAIMode) {
                 AISearchEngine.DEFAULT_AI_ENGINES
             } else {
-                SearchActivity.NORMAL_SEARCH_ENGINES
+                // 确保功能主页总是在普通搜索引擎列表的第一位
+                val homeEngine = SearchActivity.NORMAL_SEARCH_ENGINES.find { it.name == "功能主页" }
+                if (homeEngine != null) {
+                    listOf(homeEngine) + SearchActivity.NORMAL_SEARCH_ENGINES.filter { it.name != "功能主页" }
+                } else {
+                    SearchActivity.NORMAL_SEARCH_ENGINES
+                }
             }
 
             val engineNames = engines.map { it.name }.toTypedArray()

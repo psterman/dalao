@@ -129,7 +129,24 @@ class SearchWebViewActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // 页面加载完成后的处理
+                // 页面加载完成后，自动查找输入框并填充剪贴板内容
+                val clipboardText = intent.getStringExtra("CLIPBOARD_TEXT")
+                if (!clipboardText.isNullOrBlank()) {
+                    val js = """
+                        (function() {
+                            var inputs = document.querySelectorAll('input[type="text"], input[type="search"], input:not([type])');
+                            if (inputs.length > 0) {
+                                var searchInput = inputs[0];
+                                searchInput.value = '$clipboardText';
+                                searchInput.focus();
+                                // 触发input事件以通知页面内容已更改
+                                var event = new Event('input', { bubbles: true });
+                                searchInput.dispatchEvent(event);
+                            }
+                        })();
+                    """.trimIndent()
+                    view?.evaluateJavascript(js, null)
+                }
             }
         }
     }
@@ -340,4 +357,4 @@ class SearchWebViewActivity : AppCompatActivity() {
         val url: String,
         val iconResId: Int
     )
-} 
+}
