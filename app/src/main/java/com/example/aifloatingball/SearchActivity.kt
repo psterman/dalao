@@ -9,6 +9,8 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.KeyEvent
+import android.view.inputmethod.EditorInfo
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -40,7 +42,6 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var letterIndexBar: LetterIndexBar
     private lateinit var letterTitle: TextView
     private lateinit var previewEngineList: LinearLayout
-    private lateinit var searchHistoryList: RecyclerView
     private lateinit var searchInput: EditText
     private lateinit var searchButton: ImageButton
     private lateinit var closeButton: ImageButton
@@ -48,8 +49,15 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var settingsManager: SettingsManager
     private lateinit var engineAdapter: EngineAdapter
     private lateinit var modeSwitch: Switch
+    private lateinit var webViewContainer: ViewGroup
+    private lateinit var appBarLayout: ViewGroup
+    private lateinit var engineList: RecyclerView
 
     private var isAIMode: Boolean = true
+    
+    // Add flags to track receiver registration
+    private var isSettingsReceiverRegistered = false
+    private var isLayoutThemeReceiverRegistered = false
     
     companion object {
         val NORMAL_SEARCH_ENGINES = listOf(
@@ -173,59 +181,34 @@ class SearchActivity : AppCompatActivity() {
         
         settingsManager = SettingsManager.getInstance(this)
         
-        previewEngineList = findViewById(R.id.preview_engine_list)
-        searchHistoryList = findViewById(R.id.searchHistoryList)
-        
-        // 设置搜索历史RecyclerView
-        searchHistoryList.layoutManager = LinearLayoutManager(this)
-        
-        // 注册设置变化广播接收器
-        val settingsFilter = IntentFilter(SettingsActivity.ACTION_SETTINGS_CHANGED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            registerReceiver(settingsReceiver, settingsFilter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(settingsReceiver, settingsFilter)
-        }
-        
-        // 注册布局主题变化的广播接收器
-        val filter = IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            registerReceiver(layoutThemeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(layoutThemeReceiver, filter)
-        }
-        
-        // 初始化布局
-        initViews()
-        setupWebView()
-        setupLetterIndexBar()
-        setupDrawer()
-        updateLayoutForHandedness()
+        try {
+            // Initialize views
+            initViews()
+            
+            // Register receivers
+            registerReceivers()
+            
+            // Setup UI components
+            setupWebView()
+            setupLetterIndexBar()
+            setupDrawer()
+            updateLayoutForHandedness()
 
-        // 如果是从悬浮球打开的，加载默认主页
-        if (intent.getBooleanExtra("from_floating_ball", false)) {
-            // 加载默认主页
-            loadDefaultSearchEngine()
-        }
-
-        // 初始化时应用主题
-        updateLetterIndexBarTheme()
-        updateEngineListTheme()
-
-        // 在 Activity 完全初始化后检查剪贴板
-        window.decorView.post {
+            // Load default search engine if opened from floating ball
             if (intent.getBooleanExtra("from_floating_ball", false)) {
-                val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                if (clipboardManager.hasPrimaryClip()) {
-                    val clipData = clipboardManager.primaryClip
-                    val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
-                    
-                    if (!clipText.isNullOrEmpty()) {
-                        // 有剪贴板内容，显示对话框
-                        showClipboardDialog(clipText)
-                    }
-                }
+                loadDefaultSearchEngine()
             }
+
+            // Apply initial themes
+            updateLetterIndexBarTheme()
+            updateEngineListTheme()
+
+            // Check clipboard after initialization
+            checkClipboard()
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "Error initializing views", e)
+            Toast.makeText(this, "初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
+            finish()
         }
     }
 
@@ -234,67 +217,27 @@ class SearchActivity : AppCompatActivity() {
         webView = findViewById(R.id.web_view)
         letterIndexBar = findViewById(R.id.letter_index_bar)
         letterTitle = findViewById(R.id.letter_title)
-        searchInput = findViewById(R.id.searchInput)
-        searchButton = findViewById(R.id.voiceSearchButton)
+        searchInput = findViewById(R.id.search_input)
+        searchButton = findViewById(R.id.voice_search)
         closeButton = findViewById(R.id.btn_close)
         menuButton = findViewById(R.id.btn_menu)
         modeSwitch = findViewById(R.id.mode_switch)
-
-        menuButton.setOnClickListener {
-            val isLeftHanded = settingsManager.isLeftHandedMode
-            if (isLeftHanded) {
-                if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
-                    drawerLayout.closeDrawer(GravityCompat.END)
-                } else {
-                    drawerLayout.openDrawer(GravityCompat.END)
-                }
-            } else {
-                if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                    drawerLayout.closeDrawer(GravityCompat.START)
-                } else {
-                    drawerLayout.openDrawer(GravityCompat.START)
-                }
-            }
-        }
-
-        searchButton.setOnClickListener {
-            val query = searchInput.text.toString().trim()
-            if (query.isNotEmpty()) {
-                performSearch(query)
-            }
-        }
-
-        closeButton.setOnClickListener {
-            finish()
-        }
-
-        modeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            isAIMode = isChecked
-            updateEngineList()
-            // Save mode preference
-            settingsManager.setSearchMode(isAIMode)
-        }
-        
-        // Initialize switch state from settings
-        isAIMode = settingsManager.getSearchMode()
-        modeSwitch.isChecked = isAIMode
-        
-        // 初始化引擎列表
+        webViewContainer = findViewById(R.id.webview_container)
+        appBarLayout = findViewById(R.id.appbar)
+        engineList = findViewById(R.id.engine_list)
         previewEngineList = findViewById(R.id.preview_engine_list)
         previewEngineList.orientation = LinearLayout.VERTICAL
-        
-        // 设置初始引擎列表
+
+        setupClickListeners()
+        setupEngineList()
         updateEngineList()
         
-        // 初始化字母索引栏
-        letterIndexBar = findViewById(R.id.letter_index_bar)
+        // Initialize letter index bar with engines
         letterIndexBar.engines = if (isAIMode) {
             AISearchEngine.DEFAULT_AI_ENGINES
         } else {
             NORMAL_SEARCH_ENGINES
         }
-        
-        setupLetterIndexBar()
     }
 
     private fun setupWebView() {
@@ -658,37 +601,21 @@ class SearchActivity : AppCompatActivity() {
 
         // 更新搜索输入框的边距，确保不被按钮遮挡
         searchInput.apply {
-            val params = layoutParams as FrameLayout.LayoutParams
-            params.marginStart = resources.getDimensionPixelSize(R.dimen.search_input_margin)
-            params.marginEnd = resources.getDimensionPixelSize(R.dimen.search_input_margin)
+            val params = layoutParams
+            val marginStart = resources.getDimensionPixelSize(R.dimen.search_input_margin)
+            val marginEnd = resources.getDimensionPixelSize(R.dimen.search_input_margin)
+            
+            when (params) {
+                is LinearLayout.LayoutParams -> {
+                    params.marginStart = marginStart
+                    params.marginEnd = marginEnd
+                }
+                is FrameLayout.LayoutParams -> {
+                    params.marginStart = marginStart
+                    params.marginEnd = marginEnd
+                }
+            }
             layoutParams = params
-        }
-        
-        // 更新搜索历史列表边距
-        val historyParams = searchHistoryList.layoutParams
-        val marginStart = resources.getDimensionPixelSize(
-            if (isLeftHanded) R.dimen.search_history_margin else R.dimen.engine_list_width
-        )
-        val marginEnd = resources.getDimensionPixelSize(
-            if (isLeftHanded) R.dimen.engine_list_width else R.dimen.search_history_margin
-        )
-        
-        when (historyParams) {
-            is RelativeLayout.LayoutParams -> {
-                historyParams.marginStart = marginStart
-                historyParams.marginEnd = marginEnd
-                searchHistoryList.layoutParams = historyParams
-            }
-            is LinearLayout.LayoutParams -> {
-                historyParams.marginStart = marginStart
-                historyParams.marginEnd = marginEnd
-                searchHistoryList.layoutParams = historyParams
-            }
-            is FrameLayout.LayoutParams -> {
-                historyParams.marginStart = marginStart
-                historyParams.marginEnd = marginEnd
-                searchHistoryList.layoutParams = historyParams
-            }
         }
     }
 
@@ -785,8 +712,18 @@ class SearchActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        unregisterReceiver(settingsReceiver)
-        unregisterReceiver(layoutThemeReceiver)
+        try {
+            if (isSettingsReceiverRegistered) {
+                unregisterReceiver(settingsReceiver)
+                isSettingsReceiverRegistered = false
+            }
+            if (isLayoutThemeReceiverRegistered) {
+                unregisterReceiver(layoutThemeReceiver)
+                isLayoutThemeReceiverRegistered = false
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "Error unregistering receivers", e)
+        }
         super.onDestroy()
     }
 
@@ -930,5 +867,109 @@ class SearchActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "搜索内容失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun registerReceivers() {
+        try {
+            // Register settings change receiver
+            val settingsFilter = IntentFilter(SettingsActivity.ACTION_SETTINGS_CHANGED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(settingsReceiver, settingsFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(settingsReceiver, settingsFilter)
+            }
+            isSettingsReceiverRegistered = true
+            
+            // Register layout theme change receiver
+            val themeFilter = IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(layoutThemeReceiver, themeFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(layoutThemeReceiver, themeFilter)
+            }
+            isLayoutThemeReceiverRegistered = true
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "Error registering receivers", e)
+        }
+    }
+
+    private fun checkClipboard() {
+        if (intent.getBooleanExtra("from_floating_ball", false)) {
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboardManager.hasPrimaryClip()) {
+                val clipData = clipboardManager.primaryClip
+                val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
+                
+                if (!clipText.isNullOrEmpty()) {
+                    showClipboardDialog(clipText)
+                }
+            }
+        }
+    }
+
+    private fun setupClickListeners() {
+        menuButton.setOnClickListener {
+            val isLeftHanded = settingsManager.isLeftHandedMode
+            if (isLeftHanded) {
+                if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
+                    drawerLayout.closeDrawer(GravityCompat.END)
+                } else {
+                    drawerLayout.openDrawer(GravityCompat.END)
+                }
+            } else {
+                if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                } else {
+                    drawerLayout.openDrawer(GravityCompat.START)
+                }
+            }
+        }
+
+        searchButton.setOnClickListener {
+            val query = searchInput.text.toString().trim()
+            if (query.isNotEmpty()) {
+                performSearch(query)
+            }
+        }
+
+        closeButton.setOnClickListener {
+            finish()
+        }
+
+        modeSwitch.setOnCheckedChangeListener { _, isChecked ->
+            isAIMode = isChecked
+            updateEngineList()
+            settingsManager.setSearchMode(isAIMode)
+        }
+
+        // Initialize switch state from settings
+        isAIMode = settingsManager.getSearchMode()
+        modeSwitch.isChecked = isAIMode
+
+        // Set up search input action listener
+        searchInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH ||
+                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                val query = searchInput.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    performSearch(query)
+                }
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    private fun setupEngineList() {
+        engineList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        engineAdapter = EngineAdapter(
+            engines = if (isAIMode) AISearchEngine.DEFAULT_AI_ENGINES else emptyList(),
+            onEngineClick = { engine ->
+                openSearchEngine(engine)
+                drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
+            }
+        )
+        engineList.adapter = engineAdapter
     }
 } 

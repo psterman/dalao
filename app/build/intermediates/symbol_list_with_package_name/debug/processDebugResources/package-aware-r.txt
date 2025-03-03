@@ -3768,13 +3768,12 @@ id scrollIndicatorDown
 id scrollIndicatorUp
 id scrollView
 id scrollable
-id searchHistoryList
-id searchInput
 id search_badge
 id search_bar
 id search_bar_container
 id search_button
 id search_close_btn
+id search_content
 id search_edit_frame
 id search_go_btn
 id search_icon
@@ -3907,7 +3906,6 @@ id view_tree_saved_state_registry_owner
 id view_tree_view_model_store_owner
 id visible
 id visible_removing_fragment_view_tag
-id voiceSearchButton
 id voice_animation_container
 id voice_animation_view
 id voice_input_button

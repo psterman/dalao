@@ -189,10 +189,9 @@ id preview_icon
 id preview_name
 id progressBar
 id right_buttons
-id searchHistoryList
-id searchInput
 id search_bar_container
 id search_button
+id search_content
 id search_icon
 id search_input
 id settings
@@ -212,7 +211,6 @@ id text_night_mode
 id text_no_image
 id text_share
 id title_bar
-id voiceSearchButton
 id voice_animation_container
 id voice_animation_view
 id voice_input_button
