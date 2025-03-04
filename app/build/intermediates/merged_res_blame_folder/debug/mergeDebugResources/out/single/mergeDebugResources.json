@@ -16,6 +16,10 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\anim\\window_hide.xml"
     },
     {
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_loading_background.xml.flat",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\loading_background.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_voice_ripple_background.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\voice_ripple_background.xml"
     },
@@ -82,10 +86,6 @@
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_minimize.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_minimize.xml"
-    },
-    {
-        "merged": "com.example.aifloatingball.app-debug-45:/drawable_loading_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/loading_background.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_image.xml.flat",
@@ -324,6 +324,10 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_more.xml"
     },
     {
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_search_bar_background.xml.flat",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\search_bar_background.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_button_background_confirm.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\button_background_confirm.xml"
     },
@@ -398,6 +402,10 @@
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_search_engine.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_search_engine.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_search_bar_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/search_bar_background.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_arrow_back.xml.flat",

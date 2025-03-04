@@ -53,12 +53,16 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var menuButton: ImageButton
     private lateinit var settingsManager: SettingsManager
     private lateinit var engineAdapter: EngineAdapter
-    private lateinit var modeSwitch: Switch
+    private lateinit var modeSwitch: com.google.android.material.switchmaterial.SwitchMaterial
     private lateinit var webViewContainer: ViewGroup
     private lateinit var appBarLayout: AppBarLayout
     private lateinit var engineList: RecyclerView
     private lateinit var progressBar: ProgressBar
     private lateinit var loadingView: View
+    private lateinit var searchInput: EditText
+    private lateinit var searchEngineButton: ImageButton
+    private lateinit var clearSearchButton: ImageButton
+    private var currentSearchEngine: SearchEngine? = null
 
     private var isAIMode: Boolean = true
     
@@ -233,6 +237,11 @@ class SearchActivity : AppCompatActivity() {
         modeSwitch = findViewById(R.id.mode_switch)
         progressBar = findViewById(R.id.progress_bar)
         loadingView = findViewById(R.id.loading_view)
+        
+        // Initialize search views
+        searchInput = findViewById(R.id.search_input)
+        searchEngineButton = findViewById(R.id.btn_search_engine)
+        clearSearchButton = findViewById(R.id.btn_clear_search)
 
         // 初始化时隐藏进度条和加载视图
         progressBar.visibility = View.GONE
@@ -240,6 +249,9 @@ class SearchActivity : AppCompatActivity() {
 
         // 设置基本点击事件
         setupBasicClickListeners()
+        
+        // 设置搜索相关事件
+        setupSearchViews()
 
         // 设置模式切换开关
         modeSwitch.apply {
@@ -260,6 +272,14 @@ class SearchActivity : AppCompatActivity() {
         } else {
             NORMAL_SEARCH_ENGINES
         }
+        
+        // Set initial search engine
+        currentSearchEngine = if (isAIMode) {
+            AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull { it.isEnabled }
+        } else {
+            NORMAL_SEARCH_ENGINES.firstOrNull()
+        }
+        updateSearchEngineIcon()
     }
 
     private fun setupBasicClickListeners() {
@@ -1080,6 +1100,103 @@ class SearchActivity : AppCompatActivity() {
             isLayoutThemeReceiverRegistered = true
         } catch (e: Exception) {
             Log.e("SearchActivity", "Error registering receivers", e)
+        }
+    }
+
+    private fun setupSearchViews() {
+        // 设置搜索输入框事件
+        searchInput.setOnEditorActionListener { v, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performSearch(v.text.toString())
+                true
+            } else {
+                false
+            }
+        }
+
+        // 设置清除按钮事件
+        clearSearchButton.setOnClickListener {
+            searchInput.setText("")
+            clearSearchButton.visibility = View.GONE
+        }
+
+        // 监听输入变化以显示/隐藏清除按钮
+        searchInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                clearSearchButton.visibility = if (s?.isNotEmpty() == true) View.VISIBLE else View.GONE
+            }
+        })
+
+        // 设置搜索引擎选择按钮事件
+        searchEngineButton.setOnClickListener {
+            showSearchEngineSelector()
+        }
+    }
+
+    private fun showSearchEngineSelector() {
+        val engines = if (isAIMode) {
+            AISearchEngine.DEFAULT_AI_ENGINES.filter { it.isEnabled }
+        } else {
+            NORMAL_SEARCH_ENGINES
+        }
+
+        val engineNames = engines.map { it.name }.toTypedArray()
+        val currentIndex = engines.indexOfFirst { it == currentSearchEngine }
+
+        AlertDialog.Builder(this)
+            .setTitle("选择搜索引擎")
+            .setSingleChoiceItems(engineNames, currentIndex) { dialog, which ->
+                currentSearchEngine = engines[which]
+                updateSearchEngineIcon()
+                dialog.dismiss()
+                
+                // 如果搜索框有内容，立即执行搜索
+                val query = searchInput.text.toString()
+                if (query.isNotEmpty()) {
+                    performSearch(query)
+                }
+            }
+            .show()
+    }
+
+    private fun updateSearchEngineIcon() {
+        currentSearchEngine?.let { engine ->
+            searchEngineButton.setImageResource(engine.iconResId)
+            searchInput.hint = "在 ${engine.name} 中搜索或输入网址"
+        }
+    }
+
+    private fun performSearch(query: String) {
+        if (query.isEmpty()) return
+
+        try {
+            // 隐藏键盘
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(searchInput.windowToken, 0)
+
+            // 判断是否是URL
+            val isUrl = URLUtil.isValidUrl(query) || 
+                       query.matches(Regex("^[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}.*$"))
+
+            if (isUrl) {
+                // 如果是URL，直接加载
+                val url = if (!query.startsWith("http://") && !query.startsWith("https://")) {
+                    "https://$query"
+                } else {
+                    query
+                }
+                webView.loadUrl(url)
+            } else {
+                // 否则使用当前搜索引擎搜索
+                currentSearchEngine?.let { engine ->
+                    val searchUrl = engine.url.replace("{query}", Uri.encode(query))
+                    webView.loadUrl(searchUrl)
+                }
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 } 

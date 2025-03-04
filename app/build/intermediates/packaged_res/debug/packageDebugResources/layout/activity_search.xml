@@ -15,7 +15,8 @@
             android:id="@+id/appbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@android:color/transparent">
+            android:background="?android:attr/colorBackground"
+            android:elevation="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -27,7 +28,10 @@
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:padding="8dp">
+                    android:paddingTop="12dp"
+                    android:paddingBottom="12dp"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp">
 
                     <!-- 左侧按钮容器 -->
                     <LinearLayout
@@ -39,11 +43,64 @@
 
                         <ImageButton
                             android:id="@+id/btn_menu"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:background="?android:attr/selectableItemBackgroundBorderless"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="?android:attr/actionBarItemBackground"
                             android:contentDescription="菜单"
-                            android:src="@android:drawable/ic_menu_sort_by_size" />
+                            android:padding="8dp"
+                            android:scaleType="fitCenter"
+                            android:src="@android:drawable/ic_menu_sort_by_size"
+                            android:tint="?android:attr/textColorPrimary" />
+                    </LinearLayout>
+
+                    <!-- 搜索栏容器 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:layout_marginStart="48dp"
+                        android:layout_marginEnd="96dp"
+                        android:orientation="horizontal"
+                        android:background="@drawable/search_bar_background"
+                        android:gravity="center_vertical">
+
+                        <ImageButton
+                            android:id="@+id/btn_search_engine"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="?android:attr/actionBarItemBackground"
+                            android:src="@android:drawable/ic_menu_search"
+                            android:padding="8dp"
+                            android:scaleType="fitCenter"
+                            android:tint="?android:attr/textColorPrimary"
+                            android:contentDescription="切换搜索引擎"/>
+
+                        <EditText
+                            android:id="@+id/search_input"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:background="@null"
+                            android:hint="搜索或输入网址"
+                            android:textColorHint="?android:attr/textColorSecondary"
+                            android:textColor="?android:attr/textColorPrimary"
+                            android:imeOptions="actionSearch"
+                            android:inputType="textUri"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:singleLine="true"
+                            android:textSize="15sp"/>
+
+                        <ImageButton
+                            android:id="@+id/btn_clear_search"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="?android:attr/actionBarItemBackground"
+                            android:src="@android:drawable/ic_menu_close_clear_cancel"
+                            android:padding="8dp"
+                            android:scaleType="fitCenter"
+                            android:tint="?android:attr/textColorPrimary"
+                            android:visibility="gone"
+                            android:contentDescription="清除搜索"/>
                     </LinearLayout>
 
                     <!-- 右侧按钮容器 -->
@@ -54,21 +111,25 @@
                         android:layout_gravity="end|center_vertical"
                         android:orientation="horizontal">
 
-                        <Switch
+                        <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/mode_switch"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_gravity="center_vertical"
                             android:layout_marginEnd="8dp"
-                            android:text="AI 模式  " />
+                            android:text="AI 模式"
+                            android:textSize="13sp" />
 
                         <ImageButton
                             android:id="@+id/btn_close"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:background="?android:attr/selectableItemBackgroundBorderless"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="?android:attr/actionBarItemBackground"
                             android:contentDescription="关闭"
-                            android:src="@android:drawable/ic_menu_close_clear_cancel" />
+                            android:padding="8dp"
+                            android:scaleType="fitCenter"
+                            android:src="@android:drawable/ic_menu_close_clear_cancel"
+                            android:tint="?android:attr/textColorPrimary" />
                     </LinearLayout>
                 </FrameLayout>
 
@@ -80,7 +141,9 @@
                     android:clipToPadding="false"
                     android:orientation="horizontal"
                     android:paddingStart="8dp"
-                    android:paddingEnd="8dp" />
+                    android:paddingEnd="8dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp" />
 
             </LinearLayout>
         </com.google.android.material.appbar.AppBarLayout>
@@ -101,9 +164,9 @@
             <!-- 添加水平进度条 -->
             <ProgressBar
                 android:id="@+id/progress_bar"
-                style="?android:attr/progressBarStyleHorizontal"
+                style="@style/Widget.AppCompat.ProgressBar.Horizontal"
                 android:layout_width="match_parent"
-                android:layout_height="3dp"
+                android:layout_height="2dp"
                 android:layout_gravity="top"
                 android:progressDrawable="@drawable/progress_bar_drawable"
                 android:visibility="gone" />
@@ -113,33 +176,40 @@
                 android:id="@+id/loading_view"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="#80000000"
+                android:background="#52000000"
                 android:visibility="gone">
 
-                <LinearLayout
+                <com.google.android.material.card.MaterialCardView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_centerInParent="true"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="16dp"
-                    android:background="@drawable/loading_background">
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="4dp">
 
-                    <ProgressBar
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:indeterminateTintMode="src_atop"
-                        android:indeterminateTint="@color/colorAccent"/>
-
-                    <TextView
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="正在加载..."
-                        android:textColor="@android:color/white"
-                        android:textSize="14sp"/>
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:padding="24dp">
 
-                </LinearLayout>
+                        <ProgressBar
+                            android:layout_width="42dp"
+                            android:layout_height="42dp"
+                            android:indeterminateTintMode="src_atop"
+                            android:indeterminateTint="?attr/colorPrimary"/>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:text="正在加载..."
+                            android:textColor="?android:attr/textColorPrimary"
+                            android:textSize="14sp"/>
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
 
             </RelativeLayout>
 

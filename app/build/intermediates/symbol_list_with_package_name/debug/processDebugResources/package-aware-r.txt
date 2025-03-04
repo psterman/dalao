@@ -3306,6 +3306,7 @@ drawable preview_background
 drawable progress_bar_drawable
 drawable quick_menu_background
 drawable search_background
+drawable search_bar_background
 drawable search_input_background
 drawable test_level_drawable
 drawable tooltip_frame_dark
@@ -3422,6 +3423,7 @@ id btn_back
 id btn_bookmark
 id btn_bookmarks
 id btn_cancel
+id btn_clear_search
 id btn_close
 id btn_forward
 id btn_history
@@ -3431,6 +3433,7 @@ id btn_night_mode
 id btn_open_link
 id btn_refresh
 id btn_search
+id btn_search_engine
 id btn_settings
 id btn_share
 id btn_toggle

@@ -3305,6 +3305,7 @@ int drawable preview_background 0x7f08011c
 int drawable progress_bar_drawable 0x7f08011d
 int drawable quick_menu_background 0x7f08011e
 int drawable search_background 0x7f08011f
+int drawable search_bar_background 0x7f080125
 int drawable search_input_background 0x7f080120
 int drawable test_level_drawable 0x7f080121
 int drawable tooltip_frame_dark 0x7f080122
@@ -3421,6 +3422,7 @@ int id btn_back 0x7f09006b
 int id btn_bookmark 0x7f09006c
 int id btn_bookmarks 0x7f09006d
 int id btn_cancel 0x7f09006e
+int id btn_clear_search 0x7f09026b
 int id btn_close 0x7f09006f
 int id btn_forward 0x7f090070
 int id btn_history 0x7f090071
@@ -3430,6 +3432,7 @@ int id btn_night_mode 0x7f090074
 int id btn_open_link 0x7f090075
 int id btn_refresh 0x7f090076
 int id btn_search 0x7f090077
+int id btn_search_engine 0x7f09026c
 int id btn_settings 0x7f090078
 int id btn_share 0x7f090079
 int id btn_toggle 0x7f09007a
