@@ -24,12 +24,12 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_settings.xml"
     },
     {
-        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_button_background.xml.flat",
-        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\button_background.xml"
-    },
-    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_desktop.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_desktop.xml"
+    },
+    {
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_button_background.xml.flat",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\button_background.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_circle_ripple_active.xml.flat",
@@ -84,6 +84,10 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_minimize.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_loading_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/loading_background.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_image.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_image.xml"
     },
@@ -98,6 +102,10 @@
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_bg_floating_ball_dark.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\bg_floating_ball_dark.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_progress_bar_drawable.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/progress_bar_drawable.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\anim_voice_ripple.xml.flat",

@@ -5,10 +5,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.WebView;
-import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import android.widget.Switch;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -53,22 +54,22 @@ public final class ActivitySearchBinding implements ViewBinding {
   public final TextView letterTitle;
 
   @NonNull
+  public final RelativeLayout loadingView;
+
+  @NonNull
   public final Switch modeSwitch;
 
   @NonNull
   public final LinearLayout previewEngineList;
 
   @NonNull
+  public final ProgressBar progressBar;
+
+  @NonNull
   public final LinearLayout rightButtons;
 
   @NonNull
   public final LinearLayout searchContent;
-
-  @NonNull
-  public final EditText searchInput;
-
-  @NonNull
-  public final ImageButton voiceSearch;
 
   @NonNull
   public final WebView webView;
@@ -80,10 +81,10 @@ public final class ActivitySearchBinding implements ViewBinding {
       @NonNull ImageButton btnClose, @NonNull ImageButton btnMenu,
       @NonNull DrawerLayout drawerLayout, @NonNull RecyclerView engineList,
       @NonNull LinearLayout leftButtons, @NonNull LetterIndexBar letterIndexBar,
-      @NonNull TextView letterTitle, @NonNull Switch modeSwitch,
-      @NonNull LinearLayout previewEngineList, @NonNull LinearLayout rightButtons,
-      @NonNull LinearLayout searchContent, @NonNull EditText searchInput,
-      @NonNull ImageButton voiceSearch, @NonNull WebView webView,
+      @NonNull TextView letterTitle, @NonNull RelativeLayout loadingView,
+      @NonNull Switch modeSwitch, @NonNull LinearLayout previewEngineList,
+      @NonNull ProgressBar progressBar, @NonNull LinearLayout rightButtons,
+      @NonNull LinearLayout searchContent, @NonNull WebView webView,
       @NonNull FrameLayout webviewContainer) {
     this.rootView = rootView;
     this.appbar = appbar;
@@ -94,12 +95,12 @@ public final class ActivitySearchBinding implements ViewBinding {
     this.leftButtons = leftButtons;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
+    this.loadingView = loadingView;
     this.modeSwitch = modeSwitch;
     this.previewEngineList = previewEngineList;
+    this.progressBar = progressBar;
     this.rightButtons = rightButtons;
     this.searchContent = searchContent;
-    this.searchInput = searchInput;
-    this.voiceSearch = voiceSearch;
     this.webView = webView;
     this.webviewContainer = webviewContainer;
   }
@@ -175,6 +176,12 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.loading_view;
+      RelativeLayout loadingView = ViewBindings.findChildViewById(rootView, id);
+      if (loadingView == null) {
+        break missingId;
+      }
+
       id = R.id.mode_switch;
       Switch modeSwitch = ViewBindings.findChildViewById(rootView, id);
       if (modeSwitch == null) {
@@ -187,6 +194,12 @@ public final class ActivitySearchBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.progress_bar;
+      ProgressBar progressBar = ViewBindings.findChildViewById(rootView, id);
+      if (progressBar == null) {
+        break missingId;
+      }
+
       id = R.id.right_buttons;
       LinearLayout rightButtons = ViewBindings.findChildViewById(rootView, id);
       if (rightButtons == null) {
@@ -196,18 +209,6 @@ public final class ActivitySearchBinding implements ViewBinding {
       id = R.id.search_content;
       LinearLayout searchContent = ViewBindings.findChildViewById(rootView, id);
       if (searchContent == null) {
-        break missingId;
-      }
-
-      id = R.id.search_input;
-      EditText searchInput = ViewBindings.findChildViewById(rootView, id);
-      if (searchInput == null) {
-        break missingId;
-      }
-
-      id = R.id.voice_search;
-      ImageButton voiceSearch = ViewBindings.findChildViewById(rootView, id);
-      if (voiceSearch == null) {
         break missingId;
       }
 
@@ -224,8 +225,8 @@ public final class ActivitySearchBinding implements ViewBinding {
       }
 
       return new ActivitySearchBinding((DrawerLayout) rootView, appbar, btnClose, btnMenu,
-          drawerLayout, engineList, leftButtons, letterIndexBar, letterTitle, modeSwitch,
-          previewEngineList, rightButtons, searchContent, searchInput, voiceSearch, webView,
+          drawerLayout, engineList, leftButtons, letterIndexBar, letterTitle, loadingView,
+          modeSwitch, previewEngineList, progressBar, rightButtons, searchContent, webView,
           webviewContainer);
     }
     String missingId = rootView.getResources().getResourceName(id);

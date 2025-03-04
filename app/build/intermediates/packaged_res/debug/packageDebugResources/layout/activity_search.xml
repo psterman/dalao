@@ -15,8 +15,7 @@
             android:id="@+id/appbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@android:color/transparent"
-            app:elevation="0dp">
+            android:background="@android:color/transparent">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -47,46 +46,6 @@
                             android:src="@android:drawable/ic_menu_sort_by_size" />
                     </LinearLayout>
 
-                    <!-- 搜索栏 -->
-                    <com.google.android.material.card.MaterialCardView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="64dp"
-                        android:layout_marginEnd="64dp"
-                        app:cardElevation="0dp"
-                        app:cardBackgroundColor="#1A000000">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="48dp"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal"
-                            android:paddingStart="16dp"
-                            android:paddingEnd="16dp">
-
-                            <EditText
-                                android:id="@+id/search_input"
-                                android:layout_width="0dp"
-                                android:layout_height="match_parent"
-                                android:layout_weight="1"
-                                android:background="@null"
-                                android:hint="搜索或输入网址"
-                                android:imeOptions="actionSearch"
-                                android:inputType="text"
-                                android:textColorHint="#61000000"
-                                android:textSize="16sp" />
-
-                            <ImageButton
-                                android:id="@+id/voice_search"
-                                android:layout_width="48dp"
-                                android:layout_height="48dp"
-                                android:alpha="0.6"
-                                android:background="?android:attr/selectableItemBackgroundBorderless"
-                                android:src="@drawable/ic_search" />
-
-                        </LinearLayout>
-                    </com.google.android.material.card.MaterialCardView>
-
                     <!-- 右侧按钮容器 -->
                     <LinearLayout
                         android:id="@+id/right_buttons"
@@ -94,6 +53,14 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="end|center_vertical"
                         android:orientation="horizontal">
+
+                        <Switch
+                            android:id="@+id/mode_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_vertical"
+                            android:layout_marginEnd="8dp"
+                            android:text="AI 模式  " />
 
                         <ImageButton
                             android:id="@+id/btn_close"
@@ -123,12 +90,58 @@
             android:id="@+id/webview_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:nestedScrollingEnabled="true"
             app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
             <WebView
                 android:id="@+id/web_view"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
+
+            <!-- 添加水平进度条 -->
+            <ProgressBar
+                android:id="@+id/progress_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:layout_gravity="top"
+                android:progressDrawable="@drawable/progress_bar_drawable"
+                android:visibility="gone" />
+
+            <!-- 添加加载动画视图 -->
+            <RelativeLayout
+                android:id="@+id/loading_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:background="@drawable/loading_background">
+
+                    <ProgressBar
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:indeterminateTintMode="src_atop"
+                        android:indeterminateTint="@color/colorAccent"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="正在加载..."
+                        android:textColor="@android:color/white"
+                        android:textSize="14sp"/>
+
+                </LinearLayout>
+
+            </RelativeLayout>
 
         </FrameLayout>
 
@@ -139,15 +152,6 @@
             android:layout_height="match_parent"
             android:orientation="vertical"
             app:layout_behavior="@string/appbar_scrolling_view_behavior">
-
-            <!-- 模式切换开关 -->
-            <Switch
-                android:id="@+id/mode_switch"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:layout_margin="16dp"
-                android:text="AI 模式  " />
 
         </LinearLayout>
 

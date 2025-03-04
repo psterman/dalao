@@ -1482,6 +1482,9 @@ color cardview_dark_background
 color cardview_light_background
 color cardview_shadow_end_color
 color cardview_shadow_start_color
+color colorAccent
+color colorPrimary
+color colorPrimaryDark
 color design_bottom_navigation_shadow_color
 color design_box_stroke_color
 color design_dark_default_color_background
@@ -3223,6 +3226,7 @@ drawable ic_wenxin
 drawable ic_wifi
 drawable ic_xiaohongshu
 drawable ic_xinghuo
+drawable loading_background
 drawable m3_avd_hide_password
 drawable m3_avd_show_password
 drawable m3_bottom_sheet_drag_handle
@@ -3613,6 +3617,7 @@ id line3
 id linear
 id listMode
 id list_item
+id loading_view
 id locale
 id lottie_layer_name
 id ltr
@@ -3740,6 +3745,7 @@ id preview_engine_list
 id preview_icon
 id preview_name
 id progressBar
+id progress_bar
 id progress_circular
 id progress_horizontal
 id radio

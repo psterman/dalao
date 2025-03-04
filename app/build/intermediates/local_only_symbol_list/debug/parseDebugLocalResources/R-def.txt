@@ -15,6 +15,9 @@ array theme_values
 color accent
 color background
 color black
+color colorAccent
+color colorPrimary
+color colorPrimaryDark
 color divider
 color divider_dark
 color divider_light
@@ -116,6 +119,7 @@ drawable ic_wenxin
 drawable ic_wifi
 drawable ic_xiaohongshu
 drawable ic_xinghuo
+drawable loading_background
 drawable paste_button_background
 drawable popup_background
 drawable preview_background
@@ -180,6 +184,7 @@ id layout_no_image
 id left_buttons
 id letter_index_bar
 id letter_title
+id loading_view
 id message
 id mode_switch
 id options_button
@@ -188,6 +193,7 @@ id preview_engine_list
 id preview_icon
 id preview_name
 id progressBar
+id progress_bar
 id right_buttons
 id search_bar_container
 id search_button

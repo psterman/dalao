@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -18,6 +19,11 @@ import androidx.recyclerview.widget.RecyclerView
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebSettings
+import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
+import android.graphics.Bitmap
+import android.webkit.WebChromeClient
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.view.LetterIndexBar
@@ -35,6 +41,7 @@ import android.webkit.URLUtil
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
+import com.google.android.material.appbar.AppBarLayout
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
@@ -42,16 +49,16 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var letterIndexBar: LetterIndexBar
     private lateinit var letterTitle: TextView
     private lateinit var previewEngineList: LinearLayout
-    private lateinit var searchInput: EditText
-    private lateinit var searchButton: ImageButton
     private lateinit var closeButton: ImageButton
     private lateinit var menuButton: ImageButton
     private lateinit var settingsManager: SettingsManager
     private lateinit var engineAdapter: EngineAdapter
     private lateinit var modeSwitch: Switch
     private lateinit var webViewContainer: ViewGroup
-    private lateinit var appBarLayout: ViewGroup
+    private lateinit var appBarLayout: AppBarLayout
     private lateinit var engineList: RecyclerView
+    private lateinit var progressBar: ProgressBar
+    private lateinit var loadingView: View
 
     private var isAIMode: Boolean = true
     
@@ -69,7 +76,7 @@ class SearchActivity : AppCompatActivity() {
             ),
             SearchEngine(
                 name = "小红书",
-                url = "https://www.xiaohongshu.com/search?keyword={query}",
+                url = "https://www.xiaohongshu.com/explore?keyword={query}",
                 iconResId = R.drawable.ic_search,
                 description = "小红书搜索"
             ),
@@ -172,7 +179,6 @@ class SearchActivity : AppCompatActivity() {
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 在设置布局之前应用主题
         val currentNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         val isDarkMode = currentNightMode == Configuration.UI_MODE_NIGHT_YES
         
@@ -217,18 +223,34 @@ class SearchActivity : AppCompatActivity() {
         webView = findViewById(R.id.web_view)
         letterIndexBar = findViewById(R.id.letter_index_bar)
         letterTitle = findViewById(R.id.letter_title)
-        searchInput = findViewById(R.id.search_input)
-        searchButton = findViewById(R.id.voice_search)
         closeButton = findViewById(R.id.btn_close)
         menuButton = findViewById(R.id.btn_menu)
-        modeSwitch = findViewById(R.id.mode_switch)
         webViewContainer = findViewById(R.id.webview_container)
         appBarLayout = findViewById(R.id.appbar)
         engineList = findViewById(R.id.engine_list)
         previewEngineList = findViewById(R.id.preview_engine_list)
         previewEngineList.orientation = LinearLayout.VERTICAL
+        modeSwitch = findViewById(R.id.mode_switch)
+        progressBar = findViewById(R.id.progress_bar)
+        loadingView = findViewById(R.id.loading_view)
 
-        setupClickListeners()
+        // 初始化时隐藏进度条和加载视图
+        progressBar.visibility = View.GONE
+        loadingView.visibility = View.GONE
+
+        // 设置基本点击事件
+        setupBasicClickListeners()
+
+        // 设置模式切换开关
+        modeSwitch.apply {
+            isChecked = settingsManager.getSearchMode()
+            setOnCheckedChangeListener { _, isChecked ->
+                isAIMode = isChecked
+                updateEngineList()
+                settingsManager.setSearchMode(isAIMode)
+            }
+        }
+
         setupEngineList()
         updateEngineList()
         
@@ -237,6 +259,31 @@ class SearchActivity : AppCompatActivity() {
             AISearchEngine.DEFAULT_AI_ENGINES
         } else {
             NORMAL_SEARCH_ENGINES
+        }
+    }
+
+    private fun setupBasicClickListeners() {
+        // 设置菜单按钮点击事件
+        menuButton.setOnClickListener {
+            val isLeftHanded = settingsManager.isLeftHandedMode
+            if (isLeftHanded) {
+                if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
+                    drawerLayout.closeDrawer(GravityCompat.END)
+                } else {
+                    drawerLayout.openDrawer(GravityCompat.END)
+                }
+            } else {
+                if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                } else {
+                    drawerLayout.openDrawer(GravityCompat.START)
+                }
+            }
+        }
+
+        // 设置关闭按钮点击事件
+        closeButton.setOnClickListener {
+            finish()
         }
     }
 
@@ -249,13 +296,136 @@ class SearchActivity : AppCompatActivity() {
             setSupportZoom(true)
             builtInZoomControls = true
             displayZoomControls = false
+            
+            // 添加新的设置
+            javaScriptCanOpenWindowsAutomatically = true
+            allowFileAccess = true
+            allowContentAccess = true
+            databaseEnabled = true
+            
+            // 设置缓存模式
+            cacheMode = WebSettings.LOAD_DEFAULT
+            
+            // 设置 UA
+            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            
+            // 允许混合内容
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
+            
+            // 启用第三方 Cookie
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+            }
         }
 
         webView.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                // 显示进度条和加载视图
+                progressBar.visibility = View.VISIBLE
+                loadingView.visibility = View.VISIBLE
+                Log.d("SearchActivity", "开始加载URL: $url")
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // 在页面加载完成后应用主题
+                // 隐藏进度条和加载视图
+                progressBar.visibility = View.GONE
+                loadingView.visibility = View.GONE
                 updateWebViewTheme()
+                Log.d("SearchActivity", "页面加载完成: $url")
+            }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                super.onReceivedError(view, request, error)
+                // 隐藏进度条和加载视图
+                progressBar.visibility = View.GONE
+                loadingView.visibility = View.GONE
+                
+                val errorUrl = request?.url?.toString() ?: "unknown"
+                val errorDescription = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    error?.description?.toString()
+                } else {
+                    "未知错误"
+                }
+                val errorMsg = "加载失败: $errorDescription\nURL: $errorUrl"
+                Log.e("SearchActivity", errorMsg)
+                Toast.makeText(this@SearchActivity, errorMsg, Toast.LENGTH_LONG).show()
+                
+                // 显示错误页面
+                val errorHtml = """
+                    <html>
+                        <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1">
+                            <style>
+                                body { 
+                                    font-family: sans-serif;
+                                    padding: 20px;
+                                    text-align: center;
+                                }
+                                .error-container {
+                                    margin-top: 50px;
+                                }
+                                .error-title {
+                                    color: #d32f2f;
+                                    font-size: 20px;
+                                    margin-bottom: 10px;
+                                }
+                                .error-message {
+                                    color: #666;
+                                    font-size: 16px;
+                                }
+                                .error-url {
+                                    color: #999;
+                                    font-size: 14px;
+                                    margin-top: 10px;
+                                    word-break: break-all;
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="error-container">
+                                <div class="error-title">加载失败</div>
+                                <div class="error-message">$errorDescription</div>
+                                <div class="error-url">$errorUrl</div>
+                            </div>
+                        </body>
+                    </html>
+                """.trimIndent()
+                view?.loadData(errorHtml, "text/html", "UTF-8")
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                request?.url?.let { uri ->
+                    Log.d("SearchActivity", "正在处理URL: ${uri.toString()}")
+                    if (uri.scheme == "mailto" || uri.scheme == "tel" || uri.scheme == "sms") {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, uri))
+                            return true
+                        } catch (e: Exception) {
+                            Log.e("SearchActivity", "处理特殊URL失败", e)
+                        }
+                    }
+                }
+                return false
+            }
+        }
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                if (newProgress == 100) {
+                    // 加载完成，隐藏进度条
+                    progressBar.visibility = View.GONE
+                } else {
+                    // 更新加载进度
+                    if (progressBar.visibility != View.VISIBLE) {
+                        progressBar.visibility = View.VISIBLE
+                    }
+                    progressBar.progress = newProgress
+                }
             }
         }
 
@@ -525,100 +695,6 @@ class SearchActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun openSearchEngine(engine: SearchEngine) {
-        val query = searchInput.text.toString().trim()
-        val url = engine.getSearchUrl(query)
-        webView.loadUrl(url)
-    }
-
-    private fun performSearch(query: String) {
-        if (isAIMode) {
-        val currentEngine = AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull { it.isEnabled }
-        currentEngine?.let { openSearchEngine(it) }
-        } else {
-            // Default to first normal search engine if none selected
-            openSearchEngine(NORMAL_SEARCH_ENGINES.first())
-        }
-    }
-
-    private fun setupDrawer() {
-        drawerLayout.addDrawerListener(object : DrawerLayout.DrawerListener {
-            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {}
-            
-            override fun onDrawerOpened(drawerView: View) {
-                updateEngineList()
-            }
-            
-            override fun onDrawerClosed(drawerView: View) {}
-            
-            override fun onDrawerStateChanged(newState: Int) {}
-        })
-
-        // 根据当前模式设置初始抽屉位置
-        val isLeftHanded = settingsManager.isLeftHandedMode
-        (drawerLayout.getChildAt(1) as? LinearLayout)?.let { drawer ->
-            drawer.layoutParams = (drawer.layoutParams as DrawerLayout.LayoutParams).apply {
-                gravity = if (isLeftHanded) Gravity.END else Gravity.START
-            }
-        }
-        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
-    }
-
-    private fun updateLayoutForHandedness() {
-        val isLeftHanded = settingsManager.isLeftHandedMode
-        
-        // 更新抽屉位置
-        (drawerLayout.getChildAt(1) as? LinearLayout)?.let { drawer ->
-            // 先关闭抽屉，避免切换时的动画问题
-            if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                drawerLayout.closeDrawer(GravityCompat.START)
-            }
-            if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
-                drawerLayout.closeDrawer(GravityCompat.END)
-            }
-            
-            // 更新抽屉位置
-            drawer.layoutParams = (drawer.layoutParams as DrawerLayout.LayoutParams).apply {
-                gravity = if (isLeftHanded) Gravity.END else Gravity.START
-            }
-        }
-
-        // 更新菜单按钮位置
-        val leftButtons = findViewById<LinearLayout>(R.id.left_buttons)
-        val rightButtons = findViewById<LinearLayout>(R.id.right_buttons)
-        val menuButton = findViewById<ImageButton>(R.id.btn_menu)
-
-        // 从当前父容器中移除菜单按钮
-        (menuButton.parent as? ViewGroup)?.removeView(menuButton)
-
-        if (isLeftHanded) {
-            // 左手模式：将菜单按钮添加到右侧按钮容器的开始位置
-            rightButtons.addView(menuButton, 0)
-        } else {
-            // 右手模式：将菜单按钮添加到左侧按钮容器
-            leftButtons.addView(menuButton)
-        }
-
-        // 更新搜索输入框的边距，确保不被按钮遮挡
-        searchInput.apply {
-            val params = layoutParams
-            val marginStart = resources.getDimensionPixelSize(R.dimen.search_input_margin)
-            val marginEnd = resources.getDimensionPixelSize(R.dimen.search_input_margin)
-            
-            when (params) {
-                is LinearLayout.LayoutParams -> {
-                    params.marginStart = marginStart
-                    params.marginEnd = marginEnd
-                }
-                is FrameLayout.LayoutParams -> {
-                    params.marginStart = marginStart
-                    params.marginEnd = marginEnd
-                }
-            }
-            layoutParams = params
-        }
-    }
-
     private fun loadDefaultSearchEngine() {
         try {
             // 从设置中获取默认搜索引擎信息
@@ -701,6 +777,71 @@ class SearchActivity : AppCompatActivity() {
                     Toast.makeText(this, "加载搜索引擎失败: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    private fun openSearchEngine(engine: SearchEngine) {
+        // 如果是主页选项，直接打开HomeActivity
+        if (engine.url == "home") {
+            val intent = Intent(this, HomeActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        // 特殊处理 ChatGPT
+        if (engine.url.contains("chat.openai.com")) {
+            AlertDialog.Builder(this)
+                .setTitle("访问提示")
+                .setMessage("访问 ChatGPT 需要：\n1. 科学上网\n2. OpenAI 账号登录\n\n是否继续访问？")
+                .setPositiveButton("继续") { _, _ ->
+                    webView.loadUrl(engine.url)
+                }
+                .setNegativeButton("取消", null)
+                .show()
+            return
+        }
+
+        // 加载其他 URL
+        webView.loadUrl(engine.url)
+    }
+
+    private fun updateLayoutForHandedness() {
+        val isLeftHanded = settingsManager.isLeftHandedMode
+        
+        // 更新抽屉位置
+        (drawerLayout.getChildAt(1) as? LinearLayout)?.let { drawer ->
+            // 先关闭抽屉，避免切换时的动画问题
+            if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                drawerLayout.closeDrawer(GravityCompat.START)
+            }
+            if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
+                drawerLayout.closeDrawer(GravityCompat.END)
+            }
+            
+            // 更新抽屉位置
+            drawer.layoutParams = (drawer.layoutParams as DrawerLayout.LayoutParams).apply {
+                gravity = if (isLeftHanded) Gravity.END else Gravity.START
+            }
+        }
+
+        // 更新菜单按钮位置
+        val leftButtons = findViewById<LinearLayout>(R.id.left_buttons)
+        val rightButtons = findViewById<LinearLayout>(R.id.right_buttons)
+        val menuButton = findViewById<ImageButton>(R.id.btn_menu)
+
+        // 从当前父容器中移除菜单按钮
+        (menuButton.parent as? ViewGroup)?.removeView(menuButton)
+
+        if (isLeftHanded) {
+            // 左手模式：将菜单按钮添加到右侧按钮容器的开始位置
+            rightButtons.addView(menuButton, 0)
+        } else {
+            // 右手模式：将菜单按钮添加到左侧按钮容器
+            leftButtons.addView(menuButton)
         }
     }
 
@@ -805,6 +946,55 @@ class SearchActivity : AppCompatActivity() {
         previewEngineList.invalidate()
     }
 
+    private fun setupDrawer() {
+        drawerLayout.addDrawerListener(object : DrawerLayout.DrawerListener {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {}
+            
+            override fun onDrawerOpened(drawerView: View) {
+                updateEngineList()
+            }
+            
+            override fun onDrawerClosed(drawerView: View) {}
+            
+            override fun onDrawerStateChanged(newState: Int) {}
+        })
+
+        // 根据当前模式设置初始抽屉位置
+        val isLeftHanded = settingsManager.isLeftHandedMode
+        (drawerLayout.getChildAt(1) as? LinearLayout)?.let { drawer ->
+            drawer.layoutParams = (drawer.layoutParams as DrawerLayout.LayoutParams).apply {
+                gravity = if (isLeftHanded) Gravity.END else Gravity.START
+            }
+        }
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+    }
+
+    private fun setupEngineList() {
+        engineList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        engineAdapter = EngineAdapter(
+            engines = if (isAIMode) AISearchEngine.DEFAULT_AI_ENGINES else emptyList(),
+            onEngineClick = { engine ->
+                openSearchEngine(engine)
+                drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
+            }
+        )
+        engineList.adapter = engineAdapter
+    }
+
+    private fun checkClipboard() {
+        if (intent.getBooleanExtra("from_floating_ball", false)) {
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboardManager.hasPrimaryClip()) {
+                val clipData = clipboardManager.primaryClip
+                val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
+                
+                if (!clipText.isNullOrEmpty()) {
+                    showClipboardDialog(clipText)
+                }
+            }
+        }
+    }
+
     private fun showClipboardDialog(content: String) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.overlay_dialog, null)
         
@@ -891,85 +1081,5 @@ class SearchActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.e("SearchActivity", "Error registering receivers", e)
         }
-    }
-
-    private fun checkClipboard() {
-        if (intent.getBooleanExtra("from_floating_ball", false)) {
-            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            if (clipboardManager.hasPrimaryClip()) {
-                val clipData = clipboardManager.primaryClip
-                val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
-                
-                if (!clipText.isNullOrEmpty()) {
-                    showClipboardDialog(clipText)
-                }
-            }
-        }
-    }
-
-    private fun setupClickListeners() {
-        menuButton.setOnClickListener {
-            val isLeftHanded = settingsManager.isLeftHandedMode
-            if (isLeftHanded) {
-                if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
-                    drawerLayout.closeDrawer(GravityCompat.END)
-                } else {
-                    drawerLayout.openDrawer(GravityCompat.END)
-                }
-            } else {
-                if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                    drawerLayout.closeDrawer(GravityCompat.START)
-                } else {
-                    drawerLayout.openDrawer(GravityCompat.START)
-                }
-            }
-        }
-
-        searchButton.setOnClickListener {
-            val query = searchInput.text.toString().trim()
-            if (query.isNotEmpty()) {
-                performSearch(query)
-            }
-        }
-
-        closeButton.setOnClickListener {
-            finish()
-        }
-
-        modeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            isAIMode = isChecked
-            updateEngineList()
-            settingsManager.setSearchMode(isAIMode)
-        }
-
-        // Initialize switch state from settings
-        isAIMode = settingsManager.getSearchMode()
-        modeSwitch.isChecked = isAIMode
-
-        // Set up search input action listener
-        searchInput.setOnEditorActionListener { _, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH ||
-                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
-                val query = searchInput.text.toString().trim()
-                if (query.isNotEmpty()) {
-                    performSearch(query)
-                }
-                true
-            } else {
-                false
-            }
-        }
-    }
-
-    private fun setupEngineList() {
-        engineList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        engineAdapter = EngineAdapter(
-            engines = if (isAIMode) AISearchEngine.DEFAULT_AI_ENGINES else emptyList(),
-            onEngineClick = { engine ->
-                openSearchEngine(engine)
-                drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
-            }
-        )
-        engineList.adapter = engineAdapter
     }
 } 
