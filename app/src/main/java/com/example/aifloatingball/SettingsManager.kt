@@ -10,6 +10,7 @@ class SettingsManager private constructor(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val appContext = context.applicationContext
     private val gson = Gson()
+    private val listeners = mutableMapOf<String, MutableList<(String, Any?) -> Unit>>()
     
     companion object {
         private const val PREFS_NAME = "settings"
@@ -140,8 +141,10 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putString(key, value).apply()
     }
 
+    // Combined putBoolean method with notification functionality
     fun putBoolean(key: String, value: Boolean) {
         prefs.edit().putBoolean(key, value).apply()
+        notifyListeners(key, value)
     }
 
     // 主页URL设置
@@ -165,5 +168,17 @@ class SettingsManager private constructor(context: Context) {
 
     fun setDefaultPage(page: String) {
         prefs.edit().putString(KEY_DEFAULT_SEARCH_MODE, page).apply()
+    }
+
+    fun <T> registerOnSettingChangeListener(key: String, listener: (String, T) -> Unit) {
+        if (!listeners.containsKey(key)) {
+            listeners[key] = mutableListOf()
+        }
+        @Suppress("UNCHECKED_CAST")
+        listeners[key]?.add(listener as (String, Any?) -> Unit)
+    }
+
+    private fun notifyListeners(key: String, value: Any?) {
+        listeners[key]?.forEach { it(key, value) }
     }
 }

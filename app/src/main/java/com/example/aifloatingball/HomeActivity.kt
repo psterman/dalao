@@ -53,6 +53,8 @@ import net.sourceforge.pinyin4j.PinyinHelper
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.view.LetterIndexBar
+import android.view.Gravity
+import androidx.cardview.widget.CardView
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private lateinit var searchInput: EditText
@@ -110,6 +112,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private val EDGE_SIZE = 50 // dp
     private var edgeSizePixels = 0
     private var isAIMode = true
+    private var edgeGravity = GravityCompat.START
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -135,6 +138,14 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         letterTitle = findViewById(R.id.letter_title)
         previewEngineList = findViewById(R.id.preview_engine_list)
 
+        // 设置抽屉布局
+        setupDrawer()
+
+        // 监听主题和左右手模式变化
+        settingsManager.registerOnSettingChangeListener<Boolean>("right_handed_mode") { _, value ->
+            updateDrawerGravity()
+        }
+
         // 初始化 WebView
         setupWebView()
 
@@ -157,6 +168,250 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         window.decorView.post {
             checkClipboard()
         }
+    }
+
+    private fun setupDrawer() {
+        // 禁用抽屉的自动关闭
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+        
+        // 根据设置更新抽屉位置
+        updateDrawerGravity()
+        
+        // 应用主题颜色
+        applyDrawerTheme()
+        
+        // 设置抽屉监听器
+        drawerLayout.addDrawerListener(object : DrawerLayout.DrawerListener {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
+                // 更新透明度和动画
+                drawerView.alpha = 0.3f + (0.7f * slideOffset)
+            }
+            
+            override fun onDrawerOpened(drawerView: View) {
+                isDrawerEnabled = true
+                drawerView.alpha = 1.0f
+            }
+            
+            override fun onDrawerClosed(drawerView: View) {
+                isDrawerEnabled = false
+            }
+            
+            override fun onDrawerStateChanged(newState: Int) {}
+        })
+
+        // 设置空白区域点击监听器
+        findViewById<View>(R.id.drawer_layout).setOnClickListener { view ->
+            if (view.id == R.id.drawer_layout && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                drawerLayout.closeDrawer(GravityCompat.START)
+            }
+        }
+    }
+
+    private fun updateDrawerGravity() {
+        // 获取左右手模式设置
+        val isRightHanded = settingsManager.getBoolean("right_handed_mode", true)
+        
+        // 更新抽屉位置
+        val drawerContent = findViewById<View>(R.id.nav_drawer)
+        val params = drawerContent.layoutParams as DrawerLayout.LayoutParams
+        params.gravity = if (isRightHanded) GravityCompat.START else GravityCompat.END
+        drawerContent.layoutParams = params
+        
+        // 更新长按区域的判断
+        edgeGravity = if (isRightHanded) GravityCompat.START else GravityCompat.END
+
+        // 更新工具栏布局
+        updateToolbarLayout(isRightHanded)
+    }
+
+    private fun updateToolbarLayout(isRightHanded: Boolean) {
+        // 获取搜索栏容器
+        val searchBarContainer = findViewById<CardView>(R.id.search_bar_container) ?: return
+        val searchBarParams = searchBarContainer.layoutParams as ViewGroup.MarginLayoutParams
+        
+        // 获取底部工具栏容器和按钮组
+        val leftButtonGroup = findViewById<LinearLayout>(R.id.left_buttons)
+        val rightButtonGroup = findViewById<LinearLayout>(R.id.right_buttons)
+        val menuButton = findViewById<ImageButton>(R.id.btn_menu)
+        val historyButton = findViewById<ImageButton>(R.id.btn_history)
+        val bookmarksButton = findViewById<ImageButton>(R.id.btn_bookmarks)
+        val settingsButton = findViewById<ImageButton>(R.id.btn_settings)
+        
+        if (isRightHanded) {
+            // 右手模式
+            searchBarParams.marginStart = resources.getDimensionPixelSize(R.dimen.search_bar_margin)
+            searchBarParams.marginEnd = resources.getDimensionPixelSize(R.dimen.search_bar_margin)
+            
+            // 移动菜单按钮到左侧
+            leftButtonGroup?.apply {
+                removeAllViews()
+                addView(menuButton)
+            }
+            
+            // 功能按钮在右侧
+            rightButtonGroup?.apply {
+                removeAllViews()
+                addView(historyButton)
+                addView(bookmarksButton)
+                addView(settingsButton)
+            }
+            
+            // 设置边距
+            leftButtonGroup?.setPadding(
+                resources.getDimensionPixelSize(R.dimen.toolbar_edge_margin),
+                0,
+                resources.getDimensionPixelSize(R.dimen.toolbar_group_spacing),
+                0
+            )
+            
+            rightButtonGroup?.setPadding(
+                resources.getDimensionPixelSize(R.dimen.toolbar_group_spacing),
+                0,
+                resources.getDimensionPixelSize(R.dimen.toolbar_edge_margin),
+                0
+            )
+            
+            // 重新设置按钮间距
+            historyButton.layoutParams = (historyButton.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = 0
+            }
+            bookmarksButton.layoutParams = (bookmarksButton.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = resources.getDimensionPixelSize(R.dimen.toolbar_icon_spacing)
+            }
+            settingsButton.layoutParams = (settingsButton.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = resources.getDimensionPixelSize(R.dimen.toolbar_icon_spacing)
+            }
+        } else {
+            // 左手模式
+            searchBarParams.marginStart = resources.getDimensionPixelSize(R.dimen.search_bar_margin_left_handed)
+            searchBarParams.marginEnd = resources.getDimensionPixelSize(R.dimen.search_bar_margin)
+            
+            // 移动菜单按钮到右侧
+            rightButtonGroup?.apply {
+                removeAllViews()
+                addView(menuButton)
+            }
+            
+            // 功能按钮在左侧
+            leftButtonGroup?.apply {
+                removeAllViews()
+                addView(historyButton)
+                addView(bookmarksButton)
+                addView(settingsButton)
+            }
+            
+            // 设置边距
+            leftButtonGroup?.setPadding(
+                resources.getDimensionPixelSize(R.dimen.toolbar_edge_margin_left_handed),
+                0,
+                resources.getDimensionPixelSize(R.dimen.toolbar_group_spacing),
+                0
+            )
+            
+            rightButtonGroup?.setPadding(
+                resources.getDimensionPixelSize(R.dimen.toolbar_group_spacing),
+                0,
+                resources.getDimensionPixelSize(R.dimen.toolbar_edge_margin_left_handed),
+                0
+            )
+            
+            // 重新设置按钮间距
+            historyButton.layoutParams = (historyButton.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = 0
+            }
+            bookmarksButton.layoutParams = (bookmarksButton.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = resources.getDimensionPixelSize(R.dimen.toolbar_icon_spacing)
+            }
+            settingsButton.layoutParams = (settingsButton.layoutParams as LinearLayout.LayoutParams).apply {
+                marginStart = resources.getDimensionPixelSize(R.dimen.toolbar_icon_spacing)
+            }
+        }
+        
+        // 应用搜索栏布局参数
+        searchBarContainer.layoutParams = searchBarParams
+    }
+
+    private fun applyDrawerTheme() {
+        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val themeMode = settingsManager.getThemeMode()
+        val layoutTheme = settingsManager.getLayoutTheme()
+        
+        // 获取主题颜色
+        val backgroundColor = ContextCompat.getColor(this, 
+            if (isDarkMode) R.color.drawer_background_dark else R.color.drawer_background_light)
+        val textColor = ContextCompat.getColor(this,
+            if (isDarkMode) R.color.drawer_text_dark else R.color.drawer_text_light)
+        val accentColor = ContextCompat.getColor(this,
+            when (layoutTheme) {
+                "fold" -> if (isDarkMode) R.color.fold_accent_dark else R.color.fold_accent_light
+                "glass" -> if (isDarkMode) R.color.glass_accent_dark else R.color.glass_accent_light
+                else -> if (isDarkMode) R.color.material_accent_dark else R.color.material_accent_light
+            }
+        )
+        
+        // 应用颜色到抽屉组件
+        val drawerContent = findViewById<View>(R.id.nav_drawer)
+        drawerContent.setBackgroundColor(backgroundColor)
+        
+        // 更新字母索引栏颜色
+        letterIndexBar.setThemeColors(textColor, accentColor)
+        letterIndexBar.setDarkMode(isDarkMode)
+        
+        // 更新字母标题颜色
+        letterTitle.setTextColor(textColor)
+        
+        // 更新搜索引擎列表样式
+        for (i in 0 until previewEngineList.childCount) {
+            val view = previewEngineList.getChildAt(i)
+            when (view) {
+                is TextView -> view.setTextColor(textColor)
+                is ImageView -> view.setColorFilter(textColor)
+                else -> {
+                    // 分隔线
+                    view.setBackgroundColor(textColor.withAlpha(0.1f))
+                }
+            }
+        }
+    }
+
+    private fun Int.withAlpha(alpha: Float): Int {
+        val a = (alpha * 255).toInt()
+        return this and 0x00FFFFFF or (a shl 24)
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                // 检查是否在边缘区域
+                val isInEdgeArea = when (edgeGravity) {
+                    GravityCompat.START -> event.x <= edgeSizePixels
+                    GravityCompat.END -> event.x >= resources.displayMetrics.widthPixels - edgeSizePixels
+                    else -> false
+                }
+                
+                if (isInEdgeArea) {
+                    longPressStartTime = System.currentTimeMillis()
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                if (longPressStartTime > 0) {
+                    val pressDuration = System.currentTimeMillis() - longPressStartTime
+                    if (pressDuration >= LONG_PRESS_DURATION) {
+                        // 根据左右手模式打开抽屉
+                        when (edgeGravity) {
+                            GravityCompat.START -> drawerLayout.openDrawer(GravityCompat.START)
+                            GravityCompat.END -> drawerLayout.openDrawer(GravityCompat.END)
+                        }
+                        return true
+                    }
+                }
+                longPressStartTime = 0
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                longPressStartTime = 0
+            }
+        }
+        return super.dispatchTouchEvent(event)
     }
 
     private fun initGestureDetectors() {
@@ -248,66 +503,6 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 baseScale = webView.scale
             }
         })
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-        if (ev == null) return super.dispatchTouchEvent(ev)
-
-        // 处理缩放手势
-        scaleGestureDetector.onTouchEvent(ev)
-
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                lastTapCount = 1
-                lastTapTime = System.currentTimeMillis()
-                isTwoFingerTap = false
-
-                // 检查是否在边缘区域
-                if (ev.x <= edgeSizePixels || ev.x >= resources.displayMetrics.widthPixels - edgeSizePixels) {
-                    longPressStartTime = System.currentTimeMillis()
-                    isDrawerEnabled = true
-                }
-            }
-            MotionEvent.ACTION_POINTER_DOWN -> {
-                if (ev.pointerCount == 2) {
-                    lastTapCount = 2
-                    isTwoFingerTap = true
-                }
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (isDrawerEnabled && System.currentTimeMillis() - longPressStartTime >= LONG_PRESS_DURATION) {
-                    // 长按时间达到，打开抽屉
-                    if (ev.x <= edgeSizePixels) {
-                        drawerLayout.openDrawer(GravityCompat.START)
-                        showGestureHint("打开搜索引擎列表")
-                    }
-                    isDrawerEnabled = false
-                }
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                isDrawerEnabled = false
-
-                if (isTwoFingerTap && 
-                    System.currentTimeMillis() - lastTapTime < DOUBLE_TAP_TIMEOUT &&
-                    !isScaling) {
-                    // 双指轻点刷新
-                    showGestureHint("正在刷新页面")
-                    webView.reload()
-                    return true
-                }
-            }
-        }
-
-        // 如果是双指操作或正在缩放，不传递给 WebView
-        if (ev.pointerCount > 1 || isScaling) {
-            return true
-        }
-
-        // 处理单指手势（滑动导航等）
-        gestureDetector.onTouchEvent(ev)
-
-        // 对于单指操作，传递给 WebView 处理滚动和点击
-        return super.dispatchTouchEvent(ev)
     }
 
     private fun showGestureHint(message: String) {
@@ -883,11 +1078,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun setupLetterIndexBar() {
-        letterIndexBar.engines = if (isAIMode) {
-            AISearchEngine.DEFAULT_AI_ENGINES
-        } else {
-            SearchActivity.NORMAL_SEARCH_ENGINES
-        }
+        // 直接使用普通搜索引擎列表，移除AI模式切换
+        letterIndexBar.engines = SearchActivity.NORMAL_SEARCH_ENGINES
 
         letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
             override fun onLetterSelected(view: View, letter: Char) {
@@ -895,128 +1087,120 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
         }
 
-        // 初始化时更新一次列表
-        updateEngineList()
+        // 设置搜索引擎点击监听器
+        previewEngineList.setOnClickListener(null)
     }
 
-    private fun updateEngineList(selectedLetter: Char? = null) {
+    private fun updateEngineList(letter: Char) {
         // 更新字母标题
-        letterTitle.text = selectedLetter?.toString() ?: ""
-        letterTitle.visibility = if (selectedLetter != null) View.VISIBLE else View.GONE
+        letterTitle.text = letter.toString()
+        letterTitle.visibility = View.VISIBLE
+        
+        // 显示对应字母的搜索引擎
+        showSearchEnginesByLetter(letter)
+    }
 
-        // 设置字母标题的颜色和背景
-        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        letterTitle.setTextColor(ContextCompat.getColor(this,
-            if (isDarkMode) R.color.letter_index_text_dark
-            else R.color.letter_index_text_light))
-        letterTitle.setBackgroundColor(ContextCompat.getColor(this,
-            if (isDarkMode) R.color.letter_index_selected_background_dark
-            else R.color.letter_index_selected_background_light))
-
+    private fun showSearchEnginesByLetter(letter: Char) {
+        // 清空现有列表
         previewEngineList.removeAllViews()
 
-        val engines = if (isAIMode) {
-            AISearchEngine.DEFAULT_AI_ENGINES.filter { it.isEnabled }
-        } else {
-            SearchActivity.NORMAL_SEARCH_ENGINES
+        // 获取当前主题模式
+        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+        // 直接使用普通搜索引擎列表
+        val engines = SearchActivity.NORMAL_SEARCH_ENGINES
+
+        // 过滤匹配的搜索引擎
+        val matchingEngines = engines.filter { engine ->
+            val firstChar = engine.name.first()
+            when {
+                firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                    firstChar.uppercaseChar() == letter.uppercaseChar()
+                firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                    val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                    pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
+                }
+                else -> false
+            }
         }
 
-        val filteredEngines = if (selectedLetter != null) {
-            engines.filter { engine ->
-                val firstChar = engine.name.first()
-                when {
-                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
-                        firstChar.uppercaseChar() == selectedLetter.uppercaseChar()
-                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
-                        val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
-                        pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == selectedLetter.uppercaseChar()
-                    }
-                    else -> false
-                }
+        if (matchingEngines.isEmpty()) {
+            // 如果没有匹配的搜索引擎，显示提示信息
+            val noEngineText = TextView(this).apply {
+                text = "没有以 $letter 开头的搜索引擎"
+                textSize = 16f
+                setTextColor(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_name_text_dark else R.color.engine_name_text_light))
+                gravity = android.view.Gravity.CENTER
+                setPadding(16, 32, 16, 32)
             }
+            previewEngineList.addView(noEngineText)
         } else {
-            engines
+            // 添加匹配的搜索引擎
+            matchingEngines.forEach { engine ->
+                val engineItem = LayoutInflater.from(this).inflate(
+                    R.layout.item_search_engine,
+                    previewEngineList,
+                    false
+                )
+
+                // 设置引擎图标
+                engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                    setImageResource(engine.iconResId)
+                    setColorFilter(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_icon_dark else R.color.engine_icon_light))
+                }
+
+                // 设置引擎名称
+                engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                    text = engine.name
+                    setTextColor(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_name_text_dark else R.color.engine_name_text_light))
+                }
+
+                // 设置点击事件
+                engineItem.setOnClickListener {
+                    val query = searchInput.text.toString().trim()
+                    openSearchEngine(engine, query)
+                    drawerLayout.closeDrawer(if (settingsManager.getBoolean("right_handed_mode", true)) GravityCompat.START else GravityCompat.END)
+                }
+
+                previewEngineList.addView(engineItem)
+
+                // 添加分隔线（除了最后一项）
+                if (engine != matchingEngines.last()) {
+                    View(this).apply {
+                        setBackgroundColor(ContextCompat.getColor(context, if (isDarkMode) R.color.divider_dark else R.color.divider_light))
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            1
+                        ).apply {
+                            setMargins(16, 0, 16, 0)
+                        }
+                    }.also { previewEngineList.addView(it) }
+                }
+            }
         }
+    }
 
-        // 确保引擎列表可见
-        previewEngineList.visibility = View.VISIBLE
-
-        filteredEngines.forEach { engine ->
-            val engineItem = LayoutInflater.from(this)
-                .inflate(R.layout.item_ai_engine, previewEngineList, false)
-
-            // 设置引擎图标
-            engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
-                setImageResource(engine.iconResId)
-                visibility = View.VISIBLE
-                setColorFilter(ContextCompat.getColor(this@HomeActivity,
-                    if (isDarkMode) R.color.engine_icon_dark
-                    else R.color.engine_icon_light))
-            }
-
-            // 设置引擎名称
-            engineItem.findViewById<TextView>(R.id.engine_name).apply {
-                text = engine.name
-                visibility = View.VISIBLE
-                setTextColor(ContextCompat.getColor(this@HomeActivity,
-                    if (isDarkMode) R.color.engine_name_text_dark
-                    else R.color.engine_name_text_light))
-            }
-
-            // 设置引擎描述
-            engineItem.findViewById<TextView>(R.id.engine_description).apply {
-                text = engine.description
-                visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
-                setTextColor(ContextCompat.getColor(this@HomeActivity,
-                    if (isDarkMode) R.color.engine_description_text_dark
-                    else R.color.engine_description_text_light))
-            }
-
-            // 设置项目背景
-            engineItem.setBackgroundColor(ContextCompat.getColor(this,
-                if (isDarkMode) R.color.engine_list_background_dark
-                else R.color.engine_list_background_light))
-
-            // 设置点击事件
-            engineItem.setOnClickListener {
-                if (engine is AISearchEngine && !engine.isEnabled) {
-                    Toast.makeText(this, "请先启用该搜索引擎", Toast.LENGTH_SHORT).show()
-                } else {
-                    openSearchEngine(engine)
-                    drawerLayout.closeDrawer(GravityCompat.START)
-                }
-            }
-
-            engineItem.setOnLongClickListener {
-                showEngineSettings(engine)
-                true
-            }
-
-            // 添加到列表中
-            previewEngineList.addView(engineItem)
-
-            // 添加分隔线
-            if (filteredEngines.last() != engine) {
-                View(this).apply {
-                    setBackgroundColor(ContextCompat.getColor(this@HomeActivity,
-                        if (isDarkMode) R.color.divider_dark
-                        else R.color.divider_light))
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        1
-                    )
-                    previewEngineList.addView(this)
-                }
-            }
+    private fun openSearchEngine(engine: SearchEngine, query: String = "") {
+        if (query.isEmpty()) {
+            // 如果没有查询文本，直接打开搜索引擎主页
+            webView.visibility = View.VISIBLE
+            homeContent.visibility = View.GONE
+            webView.loadUrl(engine.url.replace("%s", "").replace("search?q=", "")
+                .replace("search?query=", "")
+                .replace("search?word=", "")
+                .replace("s?wd=", ""))
+        } else {
+            // 有查询文本，使用搜索引擎进行搜索
+            val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+            val searchUrl = engine.url.replace("%s", encodedQuery)
+            webView.visibility = View.VISIBLE
+            homeContent.visibility = View.GONE
+            webView.loadUrl(searchUrl)
         }
     }
 
     private fun showEngineSettings(engine: SearchEngine) {
-        val options = if (engine is AISearchEngine) {
-            arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
-        } else {
-            arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
-        }
+        val options = arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
 
         AlertDialog.Builder(this)
             .setTitle("${engine.name} 选项")
@@ -1042,11 +1226,5 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 }
             }
             .show()
-    }
-
-    private fun openSearchEngine(engine: SearchEngine) {
-        webView.visibility = View.VISIBLE
-        homeContent.visibility = View.GONE
-        webView.loadUrl(engine.url)
     }
 } 

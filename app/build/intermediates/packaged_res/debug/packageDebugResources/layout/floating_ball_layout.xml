@@ -20,7 +20,7 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:gravity="center"
-            android:text="AI" />
+            android:text="搜索" />
 
     </LinearLayout>
 

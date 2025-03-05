@@ -13,4 +13,17 @@
     <dimen name="search_input_margin">64dp</dimen>
     <dimen name="letter_index_text_size">12sp</dimen>
     <dimen name="letter_index_padding">4dp</dimen>
+    <dimen name="search_bar_margin">16dp</dimen>
+    <dimen name="search_bar_margin_left_handed">56dp</dimen>
+    <dimen name="drawer_width">280dp</dimen>
+    <dimen name="letter_title_height">48dp</dimen>
+    <dimen name="toolbar_height">56dp</dimen>
+    <dimen name="toolbar_icon_size">24dp</dimen>
+    <dimen name="toolbar_padding">8dp</dimen>
+    <dimen name="toolbar_icon_margin">8dp</dimen>
+    <dimen name="toolbar_edge_margin">16dp</dimen>
+    <dimen name="toolbar_edge_margin_left_handed">56dp</dimen>
+    <dimen name="toolbar_button_size">48dp</dimen>
+    <dimen name="toolbar_icon_spacing">16dp</dimen>
+    <dimen name="toolbar_group_spacing">24dp</dimen>
 </resources> 

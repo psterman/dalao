@@ -38,19 +38,76 @@ class SearchActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
 
-        // 初始化视图
+        // Initialize views
         searchInput = findViewById(R.id.search_input)
         previewEngineList = findViewById(R.id.preview_engine_list)
         letterIndexBar = findViewById(R.id.letter_index_bar)
         letterTitle = findViewById(R.id.letter_title)
 
-        // 初始化设置管理器和搜索引擎列表
+        // Initialize settings manager and search engine list
         settingsManager = SettingsManager.getInstance(this)
         searchEngines.clear()
         searchEngines.addAll(settingsManager.getFilteredEngineOrder())
 
+        // Apply theme
+        applyTheme()
+
         setupLetterIndexBar()
-        showSearchEnginesByLetter('A') // 显示初始字母的搜索引擎列表
+        showSearchEnginesByLetter('A') // Show initial letter's search engine list
+    }
+
+    private fun applyTheme() {
+        val isDarkMode = when (settingsManager.getThemeMode()) {
+            "dark" -> true
+            "light" -> false
+            else -> resources.configuration.uiMode and 
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK == 
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
+
+        val layoutTheme = settingsManager.getLayoutTheme()
+        
+        // Apply theme colors based on layout theme
+        val backgroundColor = when (layoutTheme) {
+            "fold" -> if (isDarkMode) R.color.fold_background_dark else R.color.fold_background_light
+            "material" -> if (isDarkMode) R.color.material_background_dark else R.color.material_background_light
+            "glass" -> if (isDarkMode) R.color.glass_background_dark else R.color.glass_background_light
+            else -> if (isDarkMode) R.color.fold_background_dark else R.color.fold_background_light
+        }
+
+        val textColor = when (layoutTheme) {
+            "fold" -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
+            "material" -> if (isDarkMode) R.color.material_text_dark else R.color.material_text_light
+            "glass" -> if (isDarkMode) R.color.glass_text_dark else R.color.glass_text_light
+            else -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
+        }
+
+        // Apply colors to views
+        letterTitle.setTextColor(ContextCompat.getColor(this, textColor))
+        letterIndexBar.setBackgroundColor(ContextCompat.getColor(this, backgroundColor))
+        previewEngineList.setBackgroundColor(ContextCompat.getColor(this, backgroundColor))
+
+        // Update letter index bar theme
+        letterIndexBar.setDarkMode(isDarkMode)
+        letterIndexBar.setThemeColors(
+            ContextCompat.getColor(this, textColor),
+            ContextCompat.getColor(this, backgroundColor)
+        )
+    }
+
+    // Add method to update theme
+    private fun updateTheme() {
+        applyTheme()
+        // Refresh the current letter's engine list to apply new colors
+        letterTitle.text?.firstOrNull()?.let { letter ->
+            showSearchEnginesByLetter(letter)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Update theme when activity resumes
+        updateTheme()
     }
 
     private fun setupLetterIndexBar() {
@@ -71,10 +128,27 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun showSearchEnginesByLetter(letter: Char) {
-        // 更新字母标题
+        // Update letter title
         letterTitle.text = letter.toString()
         
-        // 清空搜索引擎列表
+        // Get theme colors
+        val isDarkMode = when (settingsManager.getThemeMode()) {
+            "dark" -> true
+            "light" -> false
+            else -> resources.configuration.uiMode and 
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK == 
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
+        
+        val layoutTheme = settingsManager.getLayoutTheme()
+        val textColor = when (layoutTheme) {
+            "fold" -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
+            "material" -> if (isDarkMode) R.color.material_text_dark else R.color.material_text_light
+            "glass" -> if (isDarkMode) R.color.glass_text_dark else R.color.glass_text_light
+            else -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
+        }
+
+        // Clear engine list
         previewEngineList.removeAllViews()
 
         // 查找所有匹配该字母的搜索引擎
@@ -106,13 +180,17 @@ class SearchActivity : AppCompatActivity() {
                     false
                 )
 
-                // 设置搜索引擎图标
-                engineItem.findViewById<ImageView>(R.id.engine_icon)
-                    .setImageResource(engine.iconResId)
+                // Set search engine icon with theme color
+                engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                    setImageResource(engine.iconResId)
+                    setColorFilter(ContextCompat.getColor(context, textColor))
+                }
 
-                // 设置搜索引擎名称
-                engineItem.findViewById<TextView>(R.id.engine_name)
-                    .text = engine.name
+                // Set search engine name with theme color
+                engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                    text = engine.name
+                    setTextColor(ContextCompat.getColor(context, textColor))
+                }
 
                 // 添加点击事件
                 engineItem.setOnClickListener {

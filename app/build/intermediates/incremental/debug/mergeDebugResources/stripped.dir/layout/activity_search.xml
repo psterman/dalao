@@ -15,8 +15,7 @@
             android:id="@+id/appbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="?android:attr/colorBackground"
-            android:elevation="4dp">
+            android:background="@android:color/transparent">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -28,10 +27,7 @@
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingTop="12dp"
-                    android:paddingBottom="12dp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp">
+                    android:padding="8dp">
 
                     <!-- 左侧按钮容器 -->
                     <LinearLayout
@@ -43,35 +39,29 @@
 
                         <ImageButton
                             android:id="@+id/btn_menu"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="?android:attr/actionBarItemBackground"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:background="?android:attr/selectableItemBackgroundBorderless"
                             android:contentDescription="菜单"
-                            android:padding="8dp"
-                            android:scaleType="fitCenter"
-                            android:src="@android:drawable/ic_menu_sort_by_size"
-                            android:tint="?android:attr/textColorPrimary" />
+                            android:src="@android:drawable/ic_menu_sort_by_size" />
                     </LinearLayout>
 
                     <!-- 搜索栏容器 -->
                     <LinearLayout
                         android:layout_width="match_parent"
-                        android:layout_height="40dp"
-                        android:layout_marginStart="48dp"
-                        android:layout_marginEnd="96dp"
-                            android:orientation="horizontal"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="56dp"
+                        android:layout_marginEnd="104dp"
+                        android:orientation="horizontal"
                         android:background="@drawable/search_bar_background"
                         android:gravity="center_vertical">
 
                         <ImageButton
                             android:id="@+id/btn_search_engine"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="?android:attr/actionBarItemBackground"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:background="?android:attr/selectableItemBackgroundBorderless"
                             android:src="@android:drawable/ic_menu_search"
-                            android:padding="8dp"
-                            android:scaleType="fitCenter"
-                            android:tint="?android:attr/textColorPrimary"
                             android:contentDescription="切换搜索引擎"/>
 
                             <EditText
@@ -81,24 +71,19 @@
                                 android:layout_weight="1"
                                 android:background="@null"
                                 android:hint="搜索或输入网址"
-                            android:textColorHint="?android:attr/textColorSecondary"
-                                android:textColor="?android:attr/textColorPrimary"
                                 android:imeOptions="actionSearch"
                             android:inputType="textUri"
                             android:paddingStart="8dp"
                             android:paddingEnd="8dp"
                                 android:singleLine="true"
-                            android:textSize="15sp"/>
+                            android:textSize="16sp"/>
 
                             <ImageButton
                             android:id="@+id/btn_clear_search"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="?android:attr/actionBarItemBackground"
+                                android:layout_width="48dp"
+                                android:layout_height="48dp"
+                                android:background="?android:attr/selectableItemBackgroundBorderless"
                             android:src="@android:drawable/ic_menu_close_clear_cancel"
-                            android:padding="8dp"
-                            android:scaleType="fitCenter"
-                            android:tint="?android:attr/textColorPrimary"
                             android:visibility="gone"
                             android:contentDescription="清除搜索"/>
                         </LinearLayout>
@@ -110,15 +95,6 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="end|center_vertical"
                         android:orientation="horizontal">
-
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/mode_switch"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_gravity="center_vertical"
-                            android:layout_marginEnd="8dp"
-                            android:text="AI 模式"
-                            android:textSize="13sp" />
 
                         <ImageButton
                             android:id="@+id/btn_close"
@@ -141,37 +117,84 @@
                     android:clipToPadding="false"
                     android:orientation="horizontal"
                     android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp" />
+                    android:paddingEnd="8dp" />
 
             </LinearLayout>
         </com.google.android.material.appbar.AppBarLayout>
 
-        <ProgressBar
-            android:id="@+id/progress_bar"
-            style="@style/Widget.AppCompat.ProgressBar.Horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="2dp"
-            android:layout_below="@id/appbar"
-            android:visibility="gone"
-            android:progressDrawable="@drawable/progress_bar_drawable"/>
-
-        <WebView
-            android:id="@+id/web_view"
+        <!-- WebView Container -->
+        <FrameLayout
+            android:id="@+id/webview_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+            android:nestedScrollingEnabled="true"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <TextView
-            android:id="@+id/gesture_hint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:background="@drawable/gesture_hint_background"
-            android:padding="12dp"
-            android:textColor="@android:color/white"
-            android:visibility="gone"/>
+            <WebView
+                android:id="@+id/web_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <!-- Gesture Hint TextView -->
+            <TextView
+                android:id="@+id/gesture_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="@drawable/gesture_hint_background"
+                android:padding="12dp"
+                android:textColor="@android:color/white"
+                android:textSize="16sp"
+                android:visibility="gone"
+                android:elevation="4dp"
+                android:alpha="0.9" />
+
+            <!-- 添加水平进度条 -->
+            <ProgressBar
+                android:id="@+id/progress_bar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:layout_gravity="top"
+                android:progressDrawable="@drawable/progress_bar_drawable"
+                android:visibility="gone" />
+
+            <!-- 添加加载动画视图 -->
+            <RelativeLayout
+                android:id="@+id/loading_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#80000000"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerInParent="true"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:background="@drawable/loading_background">
+
+                    <ProgressBar
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:indeterminateTintMode="src_atop"
+                        android:indeterminateTint="@color/colorAccent"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="正在加载..."
+                        android:textColor="@android:color/white"
+                        android:textSize="14sp"/>
+
+                </LinearLayout>
+
+            </RelativeLayout>
+
+        </FrameLayout>
 
         <!-- 搜索内容区域 -->
         <LinearLayout

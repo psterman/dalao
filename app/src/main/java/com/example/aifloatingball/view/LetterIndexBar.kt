@@ -285,12 +285,14 @@ class LetterIndexBar @JvmOverloads constructor(
         invalidate()
     }
 
-    fun setDarkMode(dark: Boolean) {
-        isDarkMode = dark
-        // 更新文字颜色
-        textColor = ContextCompat.getColor(context,
-            if (isDarkMode) R.color.letter_index_text_dark
-            else R.color.letter_index_text_light)
+    fun setDarkMode(darkMode: Boolean) {
+        isDarkMode = darkMode
+        invalidate()
+    }
+
+    fun setThemeColors(textColorRes: Int, backgroundColorRes: Int) {
+        textColor = textColorRes
+        selectedBackgroundColor = backgroundColorRes
         invalidate()
     }
 

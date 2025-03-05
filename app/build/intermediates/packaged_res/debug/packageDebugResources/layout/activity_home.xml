@@ -30,7 +30,10 @@
                 android:id="@+id/search_bar_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_margin="16dp"
+                android:layout_marginStart="@dimen/search_bar_margin"
+                android:layout_marginEnd="@dimen/search_bar_margin"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
                 app:cardCornerRadius="24dp"
                 app:cardElevation="0dp"
                 app:cardBackgroundColor="#1A000000"
@@ -46,8 +49,8 @@
 
                     <ImageView
                         android:id="@+id/search_icon"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
+                        android:layout_width="@dimen/toolbar_icon_size"
+                        android:layout_height="@dimen/toolbar_icon_size"
                         android:src="@drawable/ic_search"
                         android:alpha="0.6"
                         android:tint="?android:attr/textColorSecondary"/>
@@ -99,38 +102,71 @@
         <!-- 底部功能栏 -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="@dimen/toolbar_height"
             android:layout_gravity="bottom"
             android:background="?android:attr/colorBackground"
             android:elevation="8dp"
             android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp">
+            android:gravity="center_vertical">
 
-            <ImageButton
-                android:id="@+id/btn_menu"
-                style="@style/BottomBarButton"
-                android:src="@drawable/ic_menu"/>
+            <!-- 左侧按钮组 -->
+            <LinearLayout
+                android:id="@+id/left_buttons"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:paddingStart="@dimen/toolbar_edge_margin"
+                android:paddingEnd="@dimen/toolbar_group_spacing">
+
+                <ImageButton
+                    android:id="@+id/btn_menu"
+                    style="@style/BottomBarButton"
+                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_height="@dimen/toolbar_button_size"
+                    android:padding="@dimen/toolbar_icon_margin"
+                    android:src="@drawable/ic_menu"/>
+            </LinearLayout>
 
             <Space
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"/>
 
-            <ImageButton
-                android:id="@+id/btn_history"
-                style="@style/BottomBarButton"
-                android:src="@drawable/ic_history"/>
+            <!-- 右侧按钮组 -->
+            <LinearLayout
+                android:id="@+id/right_buttons"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:paddingStart="@dimen/toolbar_group_spacing"
+                android:paddingEnd="@dimen/toolbar_edge_margin">
 
-            <ImageButton
-                android:id="@+id/btn_bookmarks"
-                style="@style/BottomBarButton"
-                android:src="@drawable/ic_bookmark"/>
+                <ImageButton
+                    android:id="@+id/btn_history"
+                    style="@style/BottomBarButton"
+                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_height="@dimen/toolbar_button_size"
+                    android:padding="@dimen/toolbar_icon_margin"
+                    android:src="@drawable/ic_history"/>
 
-            <ImageButton
-                android:id="@+id/btn_settings"
-                style="@style/BottomBarButton"
-                android:src="@drawable/ic_settings"/>
+                <ImageButton
+                    android:id="@+id/btn_bookmarks"
+                    style="@style/BottomBarButton"
+                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_height="@dimen/toolbar_button_size"
+                    android:layout_marginStart="@dimen/toolbar_icon_spacing"
+                    android:padding="@dimen/toolbar_icon_margin"
+                    android:src="@drawable/ic_bookmark"/>
+
+                <ImageButton
+                    android:id="@+id/btn_settings"
+                    style="@style/BottomBarButton"
+                    android:layout_width="@dimen/toolbar_button_size"
+                    android:layout_height="@dimen/toolbar_button_size"
+                    android:layout_marginStart="@dimen/toolbar_icon_spacing"
+                    android:padding="@dimen/toolbar_icon_margin"
+                    android:src="@drawable/ic_settings"/>
+            </LinearLayout>
         </LinearLayout>
 
         <!-- 添加手势提示视图 -->
@@ -153,47 +189,41 @@
 
     <!-- 搜索引擎抽屉 -->
     <LinearLayout
-        android:layout_width="280dp"
+        android:id="@+id/nav_drawer"
+        android:layout_width="@dimen/drawer_width"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:orientation="horizontal"
-        android:background="?android:attr/colorBackground">
+        android:background="@color/drawer_background_light"
+        android:orientation="vertical">
+
+        <!-- 字母标题 -->
+        <TextView
+            android:id="@+id/letter_title"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/letter_title_height"
+            android:gravity="center"
+            android:textSize="24sp"
+            android:textColor="@color/drawer_text_light"
+            android:visibility="gone"/>
+
+        <!-- 搜索引擎列表 -->
+        <LinearLayout
+            android:id="@+id/preview_engine_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"/>
 
         <!-- 字母索引栏 -->
         <com.example.aifloatingball.view.LetterIndexBar
             android:id="@+id/letter_index_bar"
-            android:layout_width="32dp"
+            android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_gravity="end"
-            android:background="?android:attr/colorBackground"/>
+            android:padding="8dp"/>
 
-        <!-- 搜索引擎列表容器 -->
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <!-- 字母标题 -->
-            <TextView
-                android:id="@+id/letter_title"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:padding="8dp"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:visibility="gone"/>
-
-            <!-- 搜索引擎列表 -->
-            <LinearLayout
-                android:id="@+id/preview_engine_list"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="vertical"
-                android:padding="8dp"/>
-
-        </LinearLayout>
     </LinearLayout>
 
 </androidx.drawerlayout.widget.DrawerLayout>

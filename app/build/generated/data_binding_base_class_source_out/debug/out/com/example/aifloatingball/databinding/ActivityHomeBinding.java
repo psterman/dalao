@@ -53,13 +53,22 @@ public final class ActivityHomeBinding implements ViewBinding {
   public final LinearLayout homeContent;
 
   @NonNull
+  public final LinearLayout leftButtons;
+
+  @NonNull
   public final LetterIndexBar letterIndexBar;
 
   @NonNull
   public final TextView letterTitle;
 
   @NonNull
+  public final LinearLayout navDrawer;
+
+  @NonNull
   public final LinearLayout previewEngineList;
+
+  @NonNull
+  public final LinearLayout rightButtons;
 
   @NonNull
   public final CardView searchBarContainer;
@@ -83,11 +92,13 @@ public final class ActivityHomeBinding implements ViewBinding {
       @NonNull ImageButton btnBookmarks, @NonNull ImageButton btnHistory,
       @NonNull ImageButton btnMenu, @NonNull ImageButton btnSettings,
       @NonNull DrawerLayout drawerLayout, @NonNull TextView gestureHint,
-      @NonNull LinearLayout homeContent, @NonNull LetterIndexBar letterIndexBar,
-      @NonNull TextView letterTitle, @NonNull LinearLayout previewEngineList,
-      @NonNull CardView searchBarContainer, @NonNull ImageView searchIcon,
-      @NonNull EditText searchInput, @NonNull RecyclerView shortcutsGrid,
-      @NonNull ImageButton voiceSearch, @NonNull FrameLayout webviewContainer) {
+      @NonNull LinearLayout homeContent, @NonNull LinearLayout leftButtons,
+      @NonNull LetterIndexBar letterIndexBar, @NonNull TextView letterTitle,
+      @NonNull LinearLayout navDrawer, @NonNull LinearLayout previewEngineList,
+      @NonNull LinearLayout rightButtons, @NonNull CardView searchBarContainer,
+      @NonNull ImageView searchIcon, @NonNull EditText searchInput,
+      @NonNull RecyclerView shortcutsGrid, @NonNull ImageButton voiceSearch,
+      @NonNull FrameLayout webviewContainer) {
     this.rootView = rootView;
     this.appbar = appbar;
     this.btnBookmarks = btnBookmarks;
@@ -97,9 +108,12 @@ public final class ActivityHomeBinding implements ViewBinding {
     this.drawerLayout = drawerLayout;
     this.gestureHint = gestureHint;
     this.homeContent = homeContent;
+    this.leftButtons = leftButtons;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
+    this.navDrawer = navDrawer;
     this.previewEngineList = previewEngineList;
+    this.rightButtons = rightButtons;
     this.searchBarContainer = searchBarContainer;
     this.searchIcon = searchIcon;
     this.searchInput = searchInput;
@@ -179,6 +193,12 @@ public final class ActivityHomeBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.left_buttons;
+      LinearLayout leftButtons = ViewBindings.findChildViewById(rootView, id);
+      if (leftButtons == null) {
+        break missingId;
+      }
+
       id = R.id.letter_index_bar;
       LetterIndexBar letterIndexBar = ViewBindings.findChildViewById(rootView, id);
       if (letterIndexBar == null) {
@@ -191,9 +211,21 @@ public final class ActivityHomeBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.nav_drawer;
+      LinearLayout navDrawer = ViewBindings.findChildViewById(rootView, id);
+      if (navDrawer == null) {
+        break missingId;
+      }
+
       id = R.id.preview_engine_list;
       LinearLayout previewEngineList = ViewBindings.findChildViewById(rootView, id);
       if (previewEngineList == null) {
+        break missingId;
+      }
+
+      id = R.id.right_buttons;
+      LinearLayout rightButtons = ViewBindings.findChildViewById(rootView, id);
+      if (rightButtons == null) {
         break missingId;
       }
 
@@ -234,9 +266,9 @@ public final class ActivityHomeBinding implements ViewBinding {
       }
 
       return new ActivityHomeBinding((DrawerLayout) rootView, appbar, btnBookmarks, btnHistory,
-          btnMenu, btnSettings, drawerLayout, gestureHint, homeContent, letterIndexBar, letterTitle,
-          previewEngineList, searchBarContainer, searchIcon, searchInput, shortcutsGrid,
-          voiceSearch, webviewContainer);
+          btnMenu, btnSettings, drawerLayout, gestureHint, homeContent, leftButtons, letterIndexBar,
+          letterTitle, navDrawer, previewEngineList, rightButtons, searchBarContainer, searchIcon,
+          searchInput, shortcutsGrid, voiceSearch, webviewContainer);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

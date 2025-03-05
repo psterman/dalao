@@ -5,6 +5,25 @@
     <color name="colorPrimaryDark">#1976D2</color>
     <color name="colorAccent">#2196F3</color>
 
+    <!-- Theme-specific Colors -->
+    <!-- Fold Theme -->
+    <color name="fold_background_light">#FFFFFF</color>
+    <color name="fold_background_dark">#1A1A1A</color>
+    <color name="fold_text_light">#000000</color>
+    <color name="fold_text_dark">#FFFFFF</color>
+
+    <!-- Material Theme -->
+    <color name="material_background_light">#F5F5F5</color>
+    <color name="material_background_dark">#212121</color>
+    <color name="material_text_light">#212121</color>
+    <color name="material_text_dark">#FFFFFF</color>
+
+    <!-- Glass Theme -->
+    <color name="glass_background_light">#FFFFFF</color>
+    <color name="glass_background_dark">#000000</color>
+    <color name="glass_text_light">#000000</color>
+    <color name="glass_text_dark">#FFFFFF</color>
+
     <color name="ic_launcher_background">#3DDC84</color>
     <color name="primary">#2196F3</color>
     <color name="primary_dark">#1976D2</color>
@@ -51,4 +70,18 @@
     <!-- Divider Colors -->
     <color name="divider_dark">#1AFFFFFF</color>
     <color name="divider_light">#1A000000</color>
+
+    <!-- Drawer Theme Colors -->
+    <color name="drawer_background_light">#FFFFFF</color>
+    <color name="drawer_background_dark">#1F1F1F</color>
+    <color name="drawer_text_light">#000000</color>
+    <color name="drawer_text_dark">#FFFFFF</color>
+    
+    <!-- Theme Accent Colors -->
+    <color name="fold_accent_light">#2196F3</color>
+    <color name="fold_accent_dark">#64B5F6</color>
+    <color name="glass_accent_light">#00BCD4</color>
+    <color name="glass_accent_dark">#4DD0E1</color>
+    <color name="material_accent_light">#FF4081</color>
+    <color name="material_accent_dark">#FF80AB</color>
 </resources> 
