@@ -42,6 +42,17 @@ import java.io.ByteArrayInputStream
 import android.webkit.WebStorage
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.view.ScaleGestureDetector
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.core.view.GravityCompat
+import android.content.ClipData
+import android.net.Uri
+import android.content.res.Configuration
+import androidx.core.content.ContextCompat
+import net.sourceforge.pinyin4j.PinyinHelper
+import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.view.LetterIndexBar
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private lateinit var searchInput: EditText
@@ -53,6 +64,13 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private lateinit var appBarLayout: AppBarLayout
     private lateinit var homeContent: View
     private lateinit var menuDialog: BottomSheetDialog
+    private lateinit var gestureHintView: TextView
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var letterIndexBar: LetterIndexBar
+    private lateinit var letterTitle: TextView
+    private lateinit var previewEngineList: LinearLayout
+    private lateinit var settingsManager: SettingsManager
+    private val gestureHintHandler = Handler(Looper.getMainLooper())
     
     // 浏览器设置状态
     private var isNoImageMode = false
@@ -61,13 +79,48 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var isIncognitoMode = false
     private var isNightMode = false
 
+    // 手势相关变量
+    private lateinit var gestureDetector: GestureDetector
+    private lateinit var scaleGestureDetector: ScaleGestureDetector
+    private var currentScale = 1f
+    private var isScaling = false
+    private var initialSpan = 0f
+    private val MIN_SCALE_SPAN = 20f
+    private val SCALE_VELOCITY_THRESHOLD = 0.02f
+    private var lastScaleFactor = 1f
+    private var lastGestureHintRunnable: Runnable? = null
+    
+    // 手势状态追踪
+    private var lastTapTime = 0L
+    private var lastTapCount = 0
+    private val DOUBLE_TAP_TIMEOUT = 300L
+    private var isTwoFingerTap = false
+    private var touchCount = 0
+    private var lastTouchTime = 0L
+    private val DOUBLE_TAP_TIMEOUT_TOUCH = 300L
+
     private val SWIPE_THRESHOLD = 100
     private val SWIPE_VELOCITY_THRESHOLD = 100
     private var lastTouchPointerCount = 0
 
+    // 抽屉相关变量
+    private var isDrawerEnabled = false
+    private var longPressStartTime = 0L
+    private val LONG_PRESS_DURATION = 500L
+    private val EDGE_SIZE = 50 // dp
+    private var edgeSizePixels = 0
+    private var isAIMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
+
+        // 初始化设置管理器
+        settingsManager = SettingsManager.getInstance(this)
+
+        // 计算边缘区域大小
+        val density = resources.displayMetrics.density
+        edgeSizePixels = (EDGE_SIZE * density).toInt()
 
         // 初始化视图
         searchInput = findViewById(R.id.search_input)
@@ -76,12 +129,17 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         webViewContainer = findViewById(R.id.webview_container)
         appBarLayout = findViewById(R.id.appbar)
         homeContent = findViewById(R.id.home_content)
+        gestureHintView = findViewById(R.id.gesture_hint)
+        drawerLayout = findViewById(R.id.drawer_layout)
+        letterIndexBar = findViewById(R.id.letter_index_bar)
+        letterTitle = findViewById(R.id.letter_title)
+        previewEngineList = findViewById(R.id.preview_engine_list)
 
         // 初始化 WebView
         setupWebView()
 
         // 设置手势检测
-        gestureDetectorCompat = GestureDetectorCompat(this, this)
+        initGestureDetectors()
 
         // 设置搜索功能
         setupSearch()
@@ -92,10 +150,190 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         // 设置底部按钮
         setupBottomBar()
 
+        // 设置字母索引栏
+        setupLetterIndexBar()
+
         // 在Activity完全初始化后检查剪贴板
         window.decorView.post {
             checkClipboard()
         }
+    }
+
+    private fun initGestureDetectors() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                if (e1 == null) return false
+                
+                val distanceX = e2.x - e1.x
+                val distanceY = e2.y - e1.y
+                
+                // 检测水平滑动
+                if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(velocityX) > 1000) {
+                    if (distanceX > 0 && webView.canGoBack()) {
+                        showGestureHint("返回上一页")
+                        webView.goBack()
+                        return true
+                    } else if (distanceX < 0 && webView.canGoForward()) {
+                        showGestureHint("前进下一页")
+                        webView.goForward()
+                        return true
+                    }
+                }
+                return false
+            }
+
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                // 获取屏幕高度和点击位置
+                val screenHeight = webView.height
+                val tapY = e.y
+
+                // 判断点击位置是在屏幕上半部分还是下半部分
+                val scrollToTop = tapY < screenHeight / 2
+
+                webView.evaluateJavascript("""
+                    (function() {
+                        window.scrollTo({
+                            top: ${if (scrollToTop) "0" else "document.documentElement.scrollHeight"},
+                            behavior: 'smooth'
+                        });
+                        return '${if (scrollToTop) "top" else "bottom"}';
+                    })()
+                """) { result ->
+                    val destination = result?.replace("\"", "") ?: "top"
+                    showGestureHint(if (destination == "top") "返回顶部" else "滚动到底部")
+                }
+                return true
+            }
+        })
+
+        scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            private var baseScale = 1f
+            private var lastSpan = 0f
+            
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                baseScale = webView.scale
+                lastSpan = detector.currentSpan
+                isScaling = true
+                return true
+            }
+
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                // 计算手指间距离的变化比例
+                val spanRatio = detector.currentSpan / lastSpan
+                lastSpan = detector.currentSpan
+                
+                // 使用比例计算新的缩放值，并添加阻尼效果
+                val dampingFactor = 0.8f // 阻尼系数，使缩放更平滑
+                val scaleFactor = 1f + (spanRatio - 1f) * dampingFactor
+                
+                val newScale = baseScale * scaleFactor
+                
+                // 限制缩放范围并应用缩放
+                if (newScale in 0.1f..5.0f) {
+                    webView.setInitialScale((newScale * 100).toInt())
+                    baseScale = newScale
+                    
+                    // 只在缩放比例变化显著时显示提示
+                    if (Math.abs(newScale - currentScale) > 0.02f) {
+                        showGestureHint("缩放: ${(newScale * 100).toInt()}%")
+                        currentScale = newScale
+                    }
+                    return true
+                }
+                return false
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                isScaling = false
+                baseScale = webView.scale
+            }
+        })
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev == null) return super.dispatchTouchEvent(ev)
+
+        // 处理缩放手势
+        scaleGestureDetector.onTouchEvent(ev)
+
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastTapCount = 1
+                lastTapTime = System.currentTimeMillis()
+                isTwoFingerTap = false
+
+                // 检查是否在边缘区域
+                if (ev.x <= edgeSizePixels || ev.x >= resources.displayMetrics.widthPixels - edgeSizePixels) {
+                    longPressStartTime = System.currentTimeMillis()
+                    isDrawerEnabled = true
+                }
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (ev.pointerCount == 2) {
+                    lastTapCount = 2
+                    isTwoFingerTap = true
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (isDrawerEnabled && System.currentTimeMillis() - longPressStartTime >= LONG_PRESS_DURATION) {
+                    // 长按时间达到，打开抽屉
+                    if (ev.x <= edgeSizePixels) {
+                        drawerLayout.openDrawer(GravityCompat.START)
+                        showGestureHint("打开搜索引擎列表")
+                    }
+                    isDrawerEnabled = false
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isDrawerEnabled = false
+
+                if (isTwoFingerTap && 
+                    System.currentTimeMillis() - lastTapTime < DOUBLE_TAP_TIMEOUT &&
+                    !isScaling) {
+                    // 双指轻点刷新
+                    showGestureHint("正在刷新页面")
+                    webView.reload()
+                    return true
+                }
+            }
+        }
+
+        // 如果是双指操作或正在缩放，不传递给 WebView
+        if (ev.pointerCount > 1 || isScaling) {
+            return true
+        }
+
+        // 处理单指手势（滑动导航等）
+        gestureDetector.onTouchEvent(ev)
+
+        // 对于单指操作，传递给 WebView 处理滚动和点击
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun showGestureHint(message: String) {
+        // 取消之前的提示
+        lastGestureHintRunnable?.let { gestureHintHandler.removeCallbacks(it) }
+        
+        // 显示新提示
+        gestureHintView.text = message
+        gestureHintView.alpha = 1f
+        gestureHintView.visibility = View.VISIBLE
+        
+        // 创建淡出动画
+        gestureHintView.animate()
+            .alpha(0f)
+            .setDuration(1000)
+            .setStartDelay(500)
+            .withEndAction {
+                gestureHintView.visibility = View.GONE
+            }
+            .start()
+        
+        // 设置自动隐藏
+        lastGestureHintRunnable = Runnable {
+            gestureHintView.visibility = View.GONE
+        }
+        gestureHintHandler.postDelayed(lastGestureHintRunnable!!, 1500)
     }
 
     private fun setupWebView() {
@@ -642,5 +880,173 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             })()
         """.trimIndent()
         webView.evaluateJavascript(js, null)
+    }
+
+    private fun setupLetterIndexBar() {
+        letterIndexBar.engines = if (isAIMode) {
+            AISearchEngine.DEFAULT_AI_ENGINES
+        } else {
+            SearchActivity.NORMAL_SEARCH_ENGINES
+        }
+
+        letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
+            override fun onLetterSelected(view: View, letter: Char) {
+                updateEngineList(letter)
+            }
+        }
+
+        // 初始化时更新一次列表
+        updateEngineList()
+    }
+
+    private fun updateEngineList(selectedLetter: Char? = null) {
+        // 更新字母标题
+        letterTitle.text = selectedLetter?.toString() ?: ""
+        letterTitle.visibility = if (selectedLetter != null) View.VISIBLE else View.GONE
+
+        // 设置字母标题的颜色和背景
+        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        letterTitle.setTextColor(ContextCompat.getColor(this,
+            if (isDarkMode) R.color.letter_index_text_dark
+            else R.color.letter_index_text_light))
+        letterTitle.setBackgroundColor(ContextCompat.getColor(this,
+            if (isDarkMode) R.color.letter_index_selected_background_dark
+            else R.color.letter_index_selected_background_light))
+
+        previewEngineList.removeAllViews()
+
+        val engines = if (isAIMode) {
+            AISearchEngine.DEFAULT_AI_ENGINES.filter { it.isEnabled }
+        } else {
+            SearchActivity.NORMAL_SEARCH_ENGINES
+        }
+
+        val filteredEngines = if (selectedLetter != null) {
+            engines.filter { engine ->
+                val firstChar = engine.name.first()
+                when {
+                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                        firstChar.uppercaseChar() == selectedLetter.uppercaseChar()
+                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                        val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                        pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == selectedLetter.uppercaseChar()
+                    }
+                    else -> false
+                }
+            }
+        } else {
+            engines
+        }
+
+        // 确保引擎列表可见
+        previewEngineList.visibility = View.VISIBLE
+
+        filteredEngines.forEach { engine ->
+            val engineItem = LayoutInflater.from(this)
+                .inflate(R.layout.item_ai_engine, previewEngineList, false)
+
+            // 设置引擎图标
+            engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                setImageResource(engine.iconResId)
+                visibility = View.VISIBLE
+                setColorFilter(ContextCompat.getColor(this@HomeActivity,
+                    if (isDarkMode) R.color.engine_icon_dark
+                    else R.color.engine_icon_light))
+            }
+
+            // 设置引擎名称
+            engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                text = engine.name
+                visibility = View.VISIBLE
+                setTextColor(ContextCompat.getColor(this@HomeActivity,
+                    if (isDarkMode) R.color.engine_name_text_dark
+                    else R.color.engine_name_text_light))
+            }
+
+            // 设置引擎描述
+            engineItem.findViewById<TextView>(R.id.engine_description).apply {
+                text = engine.description
+                visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
+                setTextColor(ContextCompat.getColor(this@HomeActivity,
+                    if (isDarkMode) R.color.engine_description_text_dark
+                    else R.color.engine_description_text_light))
+            }
+
+            // 设置项目背景
+            engineItem.setBackgroundColor(ContextCompat.getColor(this,
+                if (isDarkMode) R.color.engine_list_background_dark
+                else R.color.engine_list_background_light))
+
+            // 设置点击事件
+            engineItem.setOnClickListener {
+                if (engine is AISearchEngine && !engine.isEnabled) {
+                    Toast.makeText(this, "请先启用该搜索引擎", Toast.LENGTH_SHORT).show()
+                } else {
+                    openSearchEngine(engine)
+                    drawerLayout.closeDrawer(GravityCompat.START)
+                }
+            }
+
+            engineItem.setOnLongClickListener {
+                showEngineSettings(engine)
+                true
+            }
+
+            // 添加到列表中
+            previewEngineList.addView(engineItem)
+
+            // 添加分隔线
+            if (filteredEngines.last() != engine) {
+                View(this).apply {
+                    setBackgroundColor(ContextCompat.getColor(this@HomeActivity,
+                        if (isDarkMode) R.color.divider_dark
+                        else R.color.divider_light))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        1
+                    )
+                    previewEngineList.addView(this)
+                }
+            }
+        }
+    }
+
+    private fun showEngineSettings(engine: SearchEngine) {
+        val options = if (engine is AISearchEngine) {
+            arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
+        } else {
+            arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("${engine.name} 选项")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> openSearchEngine(engine)
+                    1 -> {
+                        val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("URL", engine.url))
+                        Toast.makeText(this, "已复制链接", Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "${engine.name}: ${engine.url}")
+                        }
+                        startActivity(Intent.createChooser(intent, "分享到"))
+                    }
+                    3 -> {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(engine.url))
+                        startActivity(intent)
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun openSearchEngine(engine: SearchEngine) {
+        webView.visibility = View.VISIBLE
+        homeContent.visibility = View.GONE
+        webView.loadUrl(engine.url)
     }
 } 

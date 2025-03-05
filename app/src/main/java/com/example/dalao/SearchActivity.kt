@@ -54,9 +54,20 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun setupLetterIndexBar() {
-        letterIndexBar.onLetterSelectedListener = { _, letter ->
-            showSearchEnginesByLetter(letter)
+        letterIndexBar.onLetterSelectedListener = object : com.example.aifloatingball.view.LetterIndexBar.OnLetterSelectedListener {
+            override fun onLetterSelected(view: View, letter: Char) {
+                updateEngineList(letter)
+            }
         }
+    }
+
+    private fun updateEngineList(letter: Char) {
+        // Update letter title
+        letterTitle.text = letter.toString()
+        letterTitle.visibility = View.VISIBLE
+        
+        // Show engines for the selected letter
+        showSearchEnginesByLetter(letter)
     }
 
     private fun showSearchEnginesByLetter(letter: Char) {

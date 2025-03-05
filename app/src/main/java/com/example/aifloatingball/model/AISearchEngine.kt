@@ -1,12 +1,12 @@
 package com.example.aifloatingball.model
 
-import android.R
+import com.example.aifloatingball.R
 
 class AISearchEngine(
     name: String,
     url: String,
     iconResId: Int,
-    description: String,
+    description: String = "",
     var isEnabled: Boolean = true
 ) : SearchEngine(name, url, iconResId, description) {
     enum class Category {
@@ -19,16 +19,22 @@ class AISearchEngine(
     companion object {
         val DEFAULT_AI_ENGINES = listOf(
             AISearchEngine(
-                name = "ChatGPT",
-                url = "https://chat.openai.com",
-                iconResId = R.drawable.ic_dialog_info,
-                description = "OpenAI的AI助手"
+                "ChatGPT",
+                "https://chat.openai.com/",
+                R.drawable.ic_chatgpt,
+                "OpenAI 官方 ChatGPT"
             ),
             AISearchEngine(
-                name = "Claude",
-                url = "https://claude.ai",
-                iconResId = R.drawable.ic_dialog_alert,
-                description = "Anthropic AI助手"
+                "Claude",
+                "https://claude.ai/",
+                R.drawable.ic_claude,
+                "Anthropic Claude AI"
+            ),
+            AISearchEngine(
+                "Gemini",
+                "https://gemini.google.com/",
+                R.drawable.ic_gemini,
+                "Google Gemini AI"
             ),
             AISearchEngine(
                 name = "文心一言",
@@ -47,12 +53,6 @@ class AISearchEngine(
                 url = "https://xinghuo.xfyun.cn",
                 iconResId = R.drawable.ic_menu_search,
                 description = "讯飞AI助手"
-            ),
-            AISearchEngine(
-                name = "Gemini",
-                url = "https://gemini.google.com",
-                iconResId = R.drawable.ic_menu_view,
-                description = "Google AI助手"
             ),
             AISearchEngine(
                 name = "Copilot",

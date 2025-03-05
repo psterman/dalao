@@ -9,14 +9,16 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.cardview.widget.CardView;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.example.aifloatingball.R;
+import com.example.aifloatingball.view.LetterIndexBar;
 import com.google.android.material.appbar.AppBarLayout;
 import java.lang.NullPointerException;
 import java.lang.Override;
@@ -24,7 +26,7 @@ import java.lang.String;
 
 public final class ActivityHomeBinding implements ViewBinding {
   @NonNull
-  private final CoordinatorLayout rootView;
+  private final DrawerLayout rootView;
 
   @NonNull
   public final AppBarLayout appbar;
@@ -42,7 +44,22 @@ public final class ActivityHomeBinding implements ViewBinding {
   public final ImageButton btnSettings;
 
   @NonNull
+  public final DrawerLayout drawerLayout;
+
+  @NonNull
+  public final TextView gestureHint;
+
+  @NonNull
   public final LinearLayout homeContent;
+
+  @NonNull
+  public final LetterIndexBar letterIndexBar;
+
+  @NonNull
+  public final TextView letterTitle;
+
+  @NonNull
+  public final LinearLayout previewEngineList;
 
   @NonNull
   public final CardView searchBarContainer;
@@ -62,20 +79,27 @@ public final class ActivityHomeBinding implements ViewBinding {
   @NonNull
   public final FrameLayout webviewContainer;
 
-  private ActivityHomeBinding(@NonNull CoordinatorLayout rootView, @NonNull AppBarLayout appbar,
+  private ActivityHomeBinding(@NonNull DrawerLayout rootView, @NonNull AppBarLayout appbar,
       @NonNull ImageButton btnBookmarks, @NonNull ImageButton btnHistory,
       @NonNull ImageButton btnMenu, @NonNull ImageButton btnSettings,
-      @NonNull LinearLayout homeContent, @NonNull CardView searchBarContainer,
-      @NonNull ImageView searchIcon, @NonNull EditText searchInput,
-      @NonNull RecyclerView shortcutsGrid, @NonNull ImageButton voiceSearch,
-      @NonNull FrameLayout webviewContainer) {
+      @NonNull DrawerLayout drawerLayout, @NonNull TextView gestureHint,
+      @NonNull LinearLayout homeContent, @NonNull LetterIndexBar letterIndexBar,
+      @NonNull TextView letterTitle, @NonNull LinearLayout previewEngineList,
+      @NonNull CardView searchBarContainer, @NonNull ImageView searchIcon,
+      @NonNull EditText searchInput, @NonNull RecyclerView shortcutsGrid,
+      @NonNull ImageButton voiceSearch, @NonNull FrameLayout webviewContainer) {
     this.rootView = rootView;
     this.appbar = appbar;
     this.btnBookmarks = btnBookmarks;
     this.btnHistory = btnHistory;
     this.btnMenu = btnMenu;
     this.btnSettings = btnSettings;
+    this.drawerLayout = drawerLayout;
+    this.gestureHint = gestureHint;
     this.homeContent = homeContent;
+    this.letterIndexBar = letterIndexBar;
+    this.letterTitle = letterTitle;
+    this.previewEngineList = previewEngineList;
     this.searchBarContainer = searchBarContainer;
     this.searchIcon = searchIcon;
     this.searchInput = searchInput;
@@ -86,7 +110,7 @@ public final class ActivityHomeBinding implements ViewBinding {
 
   @Override
   @NonNull
-  public CoordinatorLayout getRoot() {
+  public DrawerLayout getRoot() {
     return rootView;
   }
 
@@ -141,9 +165,35 @@ public final class ActivityHomeBinding implements ViewBinding {
         break missingId;
       }
 
+      DrawerLayout drawerLayout = (DrawerLayout) rootView;
+
+      id = R.id.gesture_hint;
+      TextView gestureHint = ViewBindings.findChildViewById(rootView, id);
+      if (gestureHint == null) {
+        break missingId;
+      }
+
       id = R.id.home_content;
       LinearLayout homeContent = ViewBindings.findChildViewById(rootView, id);
       if (homeContent == null) {
+        break missingId;
+      }
+
+      id = R.id.letter_index_bar;
+      LetterIndexBar letterIndexBar = ViewBindings.findChildViewById(rootView, id);
+      if (letterIndexBar == null) {
+        break missingId;
+      }
+
+      id = R.id.letter_title;
+      TextView letterTitle = ViewBindings.findChildViewById(rootView, id);
+      if (letterTitle == null) {
+        break missingId;
+      }
+
+      id = R.id.preview_engine_list;
+      LinearLayout previewEngineList = ViewBindings.findChildViewById(rootView, id);
+      if (previewEngineList == null) {
         break missingId;
       }
 
@@ -183,9 +233,10 @@ public final class ActivityHomeBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivityHomeBinding((CoordinatorLayout) rootView, appbar, btnBookmarks, btnHistory,
-          btnMenu, btnSettings, homeContent, searchBarContainer, searchIcon, searchInput,
-          shortcutsGrid, voiceSearch, webviewContainer);
+      return new ActivityHomeBinding((DrawerLayout) rootView, appbar, btnBookmarks, btnHistory,
+          btnMenu, btnSettings, drawerLayout, gestureHint, homeContent, letterIndexBar, letterTitle,
+          previewEngineList, searchBarContainer, searchIcon, searchInput, shortcutsGrid,
+          voiceSearch, webviewContainer);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

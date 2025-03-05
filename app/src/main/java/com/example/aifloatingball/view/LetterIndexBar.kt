@@ -138,7 +138,7 @@ class LetterIndexBar @JvmOverloads constructor(
             invalidate()
         }
 
-    var onLetterSelectedListener: ((View, Char) -> Unit)? = null
+    var onLetterSelectedListener: OnLetterSelectedListener? = null
     var onLetterTouchEnd: (() -> Unit)? = null
     var onTouchPositionChanged: ((Float, Float) -> Unit)? = null
 
@@ -241,7 +241,7 @@ class LetterIndexBar @JvmOverloads constructor(
                         lastAnimatedIndex = index
                     }
                     invalidate()
-                    onLetterSelectedListener?.invoke(this, letters[index])
+                    onLetterSelectedListener?.onLetterSelected(this, letters[index])
                 }
                 onTouchPositionChanged?.invoke(event.x, event.y)
                 return true
@@ -297,5 +297,9 @@ class LetterIndexBar @JvmOverloads constructor(
     override fun setBackgroundColor(color: Int) {
         super.setBackgroundColor(color)
         invalidate()
+    }
+
+    interface OnLetterSelectedListener {
+        fun onLetterSelected(view: View, letter: Char)
     }
 } 

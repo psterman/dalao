@@ -88,7 +88,7 @@ class SearchWebViewActivity : AppCompatActivity() {
                 }
             })
 
-            setupLetterIndexLayout()
+            setupLetterIndexBar()
             
             // 点击空白区域隐藏搜索引擎列表
             findViewById<View>(android.R.id.content)?.setOnClickListener {
@@ -189,29 +189,21 @@ class SearchWebViewActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupLetterIndexLayout() {
-        try {
-            letterIndexBar.onLetterSelectedListener = { _, letter ->
-                try {
-                    currentLetter = letter
-                    showSearchEnginesByLetter(letter)
-                    // 显示搜索引擎列表
-                    engineListPopup.visibility = View.VISIBLE
-                    // 震动反馈
-                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator.vibrate(50)
-                    }
-                } catch (e: Exception) {
-                    Log.e("SearchWebViewActivity", "字母选择处理失败", e)
-                }
+    private fun setupLetterIndexBar() {
+        letterIndexBar.onLetterSelectedListener = object : com.example.aifloatingball.view.LetterIndexBar.OnLetterSelectedListener {
+            override fun onLetterSelected(view: View, letter: Char) {
+                updateEngineList(letter)
             }
-        } catch (e: Exception) {
-            Log.e("SearchWebViewActivity", "设置字母索引布局失败", e)
         }
+    }
+
+    private fun updateEngineList(letter: Char) {
+        // Update letter title
+        letterTitle.text = letter.toString()
+        letterTitle.visibility = View.VISIBLE
+        
+        // Show engines for the selected letter
+        showSearchEnginesByLetter(letter)
     }
 
     private fun showSearchEnginesByLetter(letter: Char) {

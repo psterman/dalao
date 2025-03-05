@@ -23,29 +23,32 @@
     <color name="text_secondary">#757575</color>
     <color name="search_input_background">#F5F5F5</color>
     <color name="search_input_stroke">#E0E0E0</color>
+
     <!-- 悬浮球图标颜色 -->
     <color name="floating_ball_icon_light">#757575</color>
     <color name="floating_ball_icon_dark">#E0E0E0</color>
-    <!-- 字母索引栏颜色 -->
-    <color name="letter_index_background_light">#FFFFFF</color>
-    <color name="letter_index_text_light">#212121</color>
-    <color name="letter_title_text_light">#666666</color>
-    <color name="letter_index_selected_background_light">#E0E0E0</color>
 
-    <!-- 搜索引擎列表颜色 -->
-    <color name="engine_list_background_light">#FFFFFF</color>
-    <color name="engine_name_text_light">#212121</color>
-    <color name="engine_description_text_light">#757575</color>
-    <color name="engine_icon_light">#757575</color>
-    <color name="divider_light">#E0E0E0</color>
-
-    <!-- Dark Theme Colors -->
-    <color name="engine_icon_dark">#B0BEC5</color>
-    <color name="engine_name_text_dark">#FFFFFF</color>
-    <color name="engine_description_text_dark">#B0BEC5</color>
-    <color name="engine_list_background_dark">#212121</color>
-    <color name="letter_index_text_dark">#FFFFFF</color>
+    <!-- Letter Index Colors -->
+    <color name="letter_index_text">#99000000</color>
+    <color name="letter_index_text_selected">#FF000000</color>
+    <color name="letter_index_text_dark">#99FFFFFF</color>
+    <color name="letter_index_text_light">#99000000</color>
+    <color name="letter_index_selected_background_dark">#1AFFFFFF</color>
+    <color name="letter_index_selected_background_light">#1A000000</color>
     <color name="letter_index_background_dark">#212121</color>
-    <color name="letter_index_selected_background_dark">#424242</color>
-    <color name="divider_dark">#424242</color>
+    <color name="letter_index_background_light">#FFFFFF</color>
+
+    <!-- Engine List Colors -->
+    <color name="engine_icon_dark">#CCFFFFFF</color>
+    <color name="engine_icon_light">#CC000000</color>
+    <color name="engine_name_text_dark">#FFFFFF</color>
+    <color name="engine_name_text_light">#000000</color>
+    <color name="engine_description_text_dark">#99FFFFFF</color>
+    <color name="engine_description_text_light">#99000000</color>
+    <color name="engine_list_background_dark">#1A1A1A</color>
+    <color name="engine_list_background_light">#FFFFFF</color>
+
+    <!-- Divider Colors -->
+    <color name="divider_dark">#1AFFFFFF</color>
+    <color name="divider_light">#1A000000</color>
 </resources> 

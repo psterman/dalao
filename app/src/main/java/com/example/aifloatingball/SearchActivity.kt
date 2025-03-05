@@ -42,6 +42,9 @@ import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import com.google.android.material.appbar.AppBarLayout
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
@@ -54,11 +57,9 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var settingsManager: SettingsManager
     private lateinit var engineAdapter: EngineAdapter
     private lateinit var modeSwitch: com.google.android.material.switchmaterial.SwitchMaterial
-    private lateinit var webViewContainer: ViewGroup
     private lateinit var appBarLayout: AppBarLayout
     private lateinit var engineList: RecyclerView
     private lateinit var progressBar: ProgressBar
-    private lateinit var loadingView: View
     private lateinit var searchInput: EditText
     private lateinit var searchEngineButton: ImageButton
     private lateinit var clearSearchButton: ImageButton
@@ -70,6 +71,30 @@ class SearchActivity : AppCompatActivity() {
     private var isSettingsReceiverRegistered = false
     private var isLayoutThemeReceiverRegistered = false
     
+    private lateinit var gestureDetector: GestureDetector
+    private lateinit var scaleGestureDetector: ScaleGestureDetector
+    private var currentScale = 1f
+    private var isScaling = false
+    private var initialSpan = 0f
+    private val MIN_SCALE_SPAN = 20f  // 降低触发阈值，让缩放更容易触发
+    private val SCALE_VELOCITY_THRESHOLD = 0.02f  // 降低速度阈值，让缩放更灵敏
+    private var lastScaleFactor = 1f
+    private lateinit var gestureOverlay: View
+    private lateinit var gestureHintView: TextView
+    private var gestureHintHandler = Handler(Looper.getMainLooper())
+    private var lastGestureHintRunnable: Runnable? = null
+    
+    // 手势状态追踪
+    private var lastTapTime = 0L
+    private var lastTapCount = 0
+    private val DOUBLE_TAP_TIMEOUT = 300L
+    private var isTwoFingerTap = false
+
+    // 跟踪触摸点数量
+    private var touchCount = 0
+    private var lastTouchTime = 0L
+    private val DOUBLE_TAP_TIMEOUT_TOUCH = 300L // 双指轻点的时间窗口
+
     companion object {
         val NORMAL_SEARCH_ENGINES = listOf(
             SearchEngine(
@@ -192,8 +217,9 @@ class SearchActivity : AppCompatActivity() {
         settingsManager = SettingsManager.getInstance(this)
         
         try {
-            // Initialize views
+            // Initialize views and gesture detectors
             initViews()
+            initGestureDetectors()
             
             // Register receivers
             registerReceivers()
@@ -229,23 +255,22 @@ class SearchActivity : AppCompatActivity() {
         letterTitle = findViewById(R.id.letter_title)
         closeButton = findViewById(R.id.btn_close)
         menuButton = findViewById(R.id.btn_menu)
-        webViewContainer = findViewById(R.id.webview_container)
         appBarLayout = findViewById(R.id.appbar)
         engineList = findViewById(R.id.engine_list)
         previewEngineList = findViewById(R.id.preview_engine_list)
         previewEngineList.orientation = LinearLayout.VERTICAL
         modeSwitch = findViewById(R.id.mode_switch)
         progressBar = findViewById(R.id.progress_bar)
-        loadingView = findViewById(R.id.loading_view)
+        gestureHintView = findViewById(R.id.gesture_hint)
         
         // Initialize search views
         searchInput = findViewById(R.id.search_input)
         searchEngineButton = findViewById(R.id.btn_search_engine)
         clearSearchButton = findViewById(R.id.btn_clear_search)
 
-        // 初始化时隐藏进度条和加载视图
+        // 初始化时隐藏进度条
         progressBar.visibility = View.GONE
-        loadingView.visibility = View.GONE
+        gestureHintView.visibility = View.GONE
 
         // 设置基本点击事件
         setupBasicClickListeners()
@@ -280,6 +305,165 @@ class SearchActivity : AppCompatActivity() {
             NORMAL_SEARCH_ENGINES.firstOrNull()
         }
         updateSearchEngineIcon()
+    }
+
+    private fun initGestureDetectors() {
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                if (e1 == null) return false
+                
+                val distanceX = e2.x - e1.x
+                val distanceY = e2.y - e1.y
+                
+                // 检测水平滑动
+                if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(velocityX) > 1000) {
+                    if (distanceX > 0 && webView.canGoBack()) {
+                        showGestureHint("返回上一页")
+                        webView.goBack()
+                        return true
+                    } else if (distanceX < 0 && webView.canGoForward()) {
+                        showGestureHint("前进下一页")
+                        webView.goForward()
+                        return true
+                    }
+                }
+                return false
+            }
+
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                // 获取屏幕高度和点击位置
+                val screenHeight = webView.height
+                val tapY = e.y
+
+                // 判断点击位置是在屏幕上半部分还是下半部分
+                val scrollToTop = tapY < screenHeight / 2
+
+                webView.evaluateJavascript("""
+                    (function() {
+                        window.scrollTo({
+                            top: ${if (scrollToTop) "0" else "document.documentElement.scrollHeight"},
+                            behavior: 'smooth'
+                        });
+                        return '${if (scrollToTop) "top" else "bottom"}';
+                    })()
+                """) { result ->
+                    val destination = result?.replace("\"", "") ?: "top"
+                    showGestureHint(if (destination == "top") "返回顶部" else "滚动到底部")
+                }
+                return true
+            }
+        })
+
+        scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            private var baseScale = 1f
+            private var lastSpan = 0f
+            
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                baseScale = webView.scale
+                lastSpan = detector.currentSpan
+                isScaling = true
+                return true
+            }
+
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                // 计算手指间距离的变化比例
+                val spanRatio = detector.currentSpan / lastSpan
+                lastSpan = detector.currentSpan
+                
+                // 使用比例计算新的缩放值，并添加阻尼效果
+                val dampingFactor = 0.8f // 阻尼系数，使缩放更平滑
+                val scaleFactor = 1f + (spanRatio - 1f) * dampingFactor
+                
+                val newScale = baseScale * scaleFactor
+                
+                // 限制缩放范围并应用缩放
+                if (newScale in 0.1f..5.0f) {
+                    webView.setInitialScale((newScale * 100).toInt())
+                    baseScale = newScale
+                    
+                    // 只在缩放比例变化显著时显示提示
+                    if (Math.abs(newScale - currentScale) > 0.02f) {
+                        showGestureHint("缩放: ${(newScale * 100).toInt()}%")
+                        currentScale = newScale
+                    }
+                    return true
+                }
+                return false
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                isScaling = false
+                baseScale = webView.scale
+            }
+        })
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev == null) return super.dispatchTouchEvent(ev)
+
+        // 处理缩放手势
+        scaleGestureDetector.onTouchEvent(ev)
+
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastTapCount = 1
+                lastTapTime = System.currentTimeMillis()
+                isTwoFingerTap = false
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (ev.pointerCount == 2) {
+                    lastTapCount = 2
+                    isTwoFingerTap = true
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                if (isTwoFingerTap && 
+                    System.currentTimeMillis() - lastTapTime < DOUBLE_TAP_TIMEOUT &&
+                    !isScaling) {
+                    // 双指轻点刷新
+                    showGestureHint("正在刷新页面")
+                    webView.reload()
+                    return true
+                }
+            }
+        }
+
+        // 如果是双指操作或正在缩放，不传递给 WebView
+        if (ev.pointerCount > 1 || isScaling) {
+            return true
+        }
+
+        // 处理单指手势（滑动导航等）
+        gestureDetector.onTouchEvent(ev)
+
+        // 对于单指操作，传递给 WebView 处理滚动和点击
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun showGestureHint(message: String) {
+        // 取消之前的提示
+        lastGestureHintRunnable?.let { gestureHintHandler.removeCallbacks(it) }
+        
+        // 显示新提示
+        gestureHintView.text = message
+        gestureHintView.alpha = 1f
+        gestureHintView.visibility = View.VISIBLE
+        
+        // 创建淡出动画
+        gestureHintView.animate()
+            .alpha(0f)
+            .setDuration(1000)
+            .setStartDelay(500)
+            .withEndAction {
+                gestureHintView.visibility = View.GONE
+            }
+            .start()
+        
+        // 设置自动隐藏
+        lastGestureHintRunnable = Runnable {
+            gestureHintView.visibility = View.GONE
+        }
+        gestureHintHandler.postDelayed(lastGestureHintRunnable!!, 1500)
     }
 
     private fun setupBasicClickListeners() {
@@ -317,6 +501,11 @@ class SearchActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
             
+            // 增加这些设置来优化缩放体验
+            textZoom = 100  // 确保文本缩放正常
+            defaultZoom = WebSettings.ZoomDensity.MEDIUM
+            layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+            
             // 添加新的设置
             javaScriptCanOpenWindowsAutomatically = true
             allowFileAccess = true
@@ -343,93 +532,107 @@ class SearchActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                // 显示进度条和加载视图
+                // 只显示进度条，不显示全屏加载视图
                 progressBar.visibility = View.VISIBLE
-                loadingView.visibility = View.VISIBLE
                 Log.d("SearchActivity", "开始加载URL: $url")
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // 隐藏进度条和加载视图
+                // 隐藏进度条
                 progressBar.visibility = View.GONE
-                loadingView.visibility = View.GONE
                 updateWebViewTheme()
                 Log.d("SearchActivity", "页面加载完成: $url")
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 super.onReceivedError(view, request, error)
-                // 隐藏进度条和加载视图
-                progressBar.visibility = View.GONE
-                loadingView.visibility = View.GONE
                 
-                val errorUrl = request?.url?.toString() ?: "unknown"
-                val errorDescription = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    error?.description?.toString()
-                } else {
-                    "未知错误"
+                // 只处理主页面加载错误，忽略资源加载错误
+                if (request?.isForMainFrame == true) {
+                    progressBar.visibility = View.GONE
+                    
+                    val errorUrl = request.url?.toString() ?: "unknown"
+                    val errorDescription = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        error?.description?.toString()
+                    } else {
+                        "未知错误"
+                    }
+                    
+                    Toast.makeText(this@SearchActivity, "页面加载失败", Toast.LENGTH_SHORT).show()
+                    
+                    // 显示更友好的错误页面
+                    val errorHtml = """
+                        <html>
+                            <head>
+                                <meta name="viewport" content="width=device-width, initial-scale=1">
+                                <style>
+                                    body { 
+                                        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                        padding: 20px;
+                                        text-align: center;
+                                        color: #333;
+                                        background: #f5f5f5;
+                                    }
+                                    .error-container {
+                                        background: white;
+                                        border-radius: 8px;
+                                        padding: 20px;
+                                        margin: 20px auto;
+                                        max-width: 400px;
+                                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                                    }
+                                    .error-icon {
+                                        font-size: 48px;
+                                        margin-bottom: 16px;
+                                    }
+                                    .error-title {
+                                        color: #d32f2f;
+                                        font-size: 18px;
+                                        margin-bottom: 8px;
+                                    }
+                                    .error-message {
+                                        color: #666;
+                                        font-size: 14px;
+                                        line-height: 1.4;
+                                    }
+                                    .retry-button {
+                                        background: #1976d2;
+                                        color: white;
+                                        border: none;
+                                        padding: 8px 16px;
+                                        border-radius: 4px;
+                                        margin-top: 16px;
+                                        cursor: pointer;
+                                    }
+                                </style>
+                            </head>
+                            <body>
+                                <div class="error-container">
+                                    <div class="error-icon">😕</div>
+                                    <div class="error-title">页面加载失败</div>
+                                    <div class="error-message">
+                                        抱歉，无法加载页面。请检查网络连接后重试。
+                                    </div>
+                                    <button class="retry-button" onclick="window.location.reload()">
+                                        重新加载
+                                    </button>
+                                </div>
+                            </body>
+                        </html>
+                    """.trimIndent()
+                    view?.loadData(errorHtml, "text/html", "UTF-8")
                 }
-                val errorMsg = "加载失败: $errorDescription\nURL: $errorUrl"
-                Log.e("SearchActivity", errorMsg)
-                Toast.makeText(this@SearchActivity, errorMsg, Toast.LENGTH_LONG).show()
-                
-                // 显示错误页面
-                val errorHtml = """
-                    <html>
-                        <head>
-                            <meta name="viewport" content="width=device-width, initial-scale=1">
-                            <style>
-                                body { 
-                                    font-family: sans-serif;
-                                    padding: 20px;
-                                    text-align: center;
-                                }
-                                .error-container {
-                                    margin-top: 50px;
-                                }
-                                .error-title {
-                                    color: #d32f2f;
-                                    font-size: 20px;
-                                    margin-bottom: 10px;
-                                }
-                                .error-message {
-                                    color: #666;
-                                    font-size: 16px;
-                                }
-                                .error-url {
-                                    color: #999;
-                                    font-size: 14px;
-                                    margin-top: 10px;
-                                    word-break: break-all;
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <div class="error-container">
-                                <div class="error-title">加载失败</div>
-                                <div class="error-message">$errorDescription</div>
-                                <div class="error-url">$errorUrl</div>
-                            </div>
-                        </body>
-                    </html>
-                """.trimIndent()
-                view?.loadData(errorHtml, "text/html", "UTF-8")
             }
 
-            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                request?.url?.let { uri ->
-                    Log.d("SearchActivity", "正在处理URL: ${uri.toString()}")
-                    if (uri.scheme == "mailto" || uri.scheme == "tel" || uri.scheme == "sms") {
-                        try {
-                            startActivity(Intent(Intent.ACTION_VIEW, uri))
-                            return true
-                        } catch (e: Exception) {
-                            Log.e("SearchActivity", "处理特殊URL失败", e)
-                        }
-                    }
+            override fun onReceivedError(view: WebView?, errorCode: Int,
+                                       description: String?, failingUrl: String?) {
+                super.onReceivedError(view, errorCode, description, failingUrl)
+                
+                // 忽略资源加载错误的提示
+                if (failingUrl != view?.url) {
+                    return
                 }
-                return false
             }
         }
 
@@ -513,8 +716,10 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun setupLetterIndexBar() {
-        letterIndexBar.onLetterSelectedListener = { _, letter ->
-            updateEngineList(letter)
+        letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
+            override fun onLetterSelected(view: View, letter: Char) {
+                updateEngineList(letter)
+            }
         }
     }
 
@@ -1154,9 +1359,9 @@ class SearchActivity : AppCompatActivity() {
                 
                 // 如果搜索框有内容，立即执行搜索
                 val query = searchInput.text.toString()
-                if (query.isNotEmpty()) {
-                    performSearch(query)
-                }
+                    if (query.isNotEmpty()) {
+                        performSearch(query)
+                    }
             }
             .show()
     }

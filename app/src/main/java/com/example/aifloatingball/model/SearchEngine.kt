@@ -1,10 +1,10 @@
 package com.example.aifloatingball.model
 
 open class SearchEngine(
-    open val name: String,
-    open val url: String,
-    open val iconResId: Int,
-    open val description: String = ""
+    val name: String,
+    val url: String,
+    val iconResId: Int,
+    val description: String = ""
 ) {
     open fun getSearchUrl(query: String): String {
         return if (url.contains("{query}")) {
