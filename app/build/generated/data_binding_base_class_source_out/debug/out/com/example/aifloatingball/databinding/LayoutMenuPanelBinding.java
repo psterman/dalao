@@ -25,6 +25,9 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
   public final LinearLayout btnBookmark;
 
   @NonNull
+  public final LinearLayout btnFloatingMode;
+
+  @NonNull
   public final LinearLayout btnHistory;
 
   @NonNull
@@ -41,6 +44,9 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
 
   @NonNull
   public final ImageView iconDesktopMode;
+
+  @NonNull
+  public final ImageView iconFloatingMode;
 
   @NonNull
   public final ImageView iconHistory;
@@ -91,6 +97,9 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
   public final TextView textDesktopMode;
 
   @NonNull
+  public final TextView textFloatingMode;
+
+  @NonNull
   public final TextView textHistory;
 
   @NonNull
@@ -106,9 +115,10 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
   public final TextView textShare;
 
   private LayoutMenuPanelBinding(@NonNull LinearLayout rootView, @NonNull LinearLayout btnBookmark,
-      @NonNull LinearLayout btnHistory, @NonNull LinearLayout btnNightMode,
-      @NonNull LinearLayout btnShare, @NonNull ImageView iconAdBlock,
-      @NonNull ImageView iconBookmark, @NonNull ImageView iconDesktopMode,
+      @NonNull LinearLayout btnFloatingMode, @NonNull LinearLayout btnHistory,
+      @NonNull LinearLayout btnNightMode, @NonNull LinearLayout btnShare,
+      @NonNull ImageView iconAdBlock, @NonNull ImageView iconBookmark,
+      @NonNull ImageView iconDesktopMode, @NonNull ImageView iconFloatingMode,
       @NonNull ImageView iconHistory, @NonNull ImageView iconIncognito,
       @NonNull ImageView iconNightMode, @NonNull ImageView iconNoImage,
       @NonNull ImageView iconShare, @NonNull LinearLayout layoutAdBlock,
@@ -117,16 +127,19 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
       @NonNull SwitchMaterial switchDesktopMode, @NonNull SwitchMaterial switchIncognito,
       @NonNull SwitchMaterial switchNoImage, @NonNull TextView textAdBlock,
       @NonNull TextView textBookmark, @NonNull TextView textDesktopMode,
-      @NonNull TextView textHistory, @NonNull TextView textIncognito,
-      @NonNull TextView textNightMode, @NonNull TextView textNoImage, @NonNull TextView textShare) {
+      @NonNull TextView textFloatingMode, @NonNull TextView textHistory,
+      @NonNull TextView textIncognito, @NonNull TextView textNightMode,
+      @NonNull TextView textNoImage, @NonNull TextView textShare) {
     this.rootView = rootView;
     this.btnBookmark = btnBookmark;
+    this.btnFloatingMode = btnFloatingMode;
     this.btnHistory = btnHistory;
     this.btnNightMode = btnNightMode;
     this.btnShare = btnShare;
     this.iconAdBlock = iconAdBlock;
     this.iconBookmark = iconBookmark;
     this.iconDesktopMode = iconDesktopMode;
+    this.iconFloatingMode = iconFloatingMode;
     this.iconHistory = iconHistory;
     this.iconIncognito = iconIncognito;
     this.iconNightMode = iconNightMode;
@@ -143,6 +156,7 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
     this.textAdBlock = textAdBlock;
     this.textBookmark = textBookmark;
     this.textDesktopMode = textDesktopMode;
+    this.textFloatingMode = textFloatingMode;
     this.textHistory = textHistory;
     this.textIncognito = textIncognito;
     this.textNightMode = textNightMode;
@@ -183,6 +197,12 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.btn_floating_mode;
+      LinearLayout btnFloatingMode = ViewBindings.findChildViewById(rootView, id);
+      if (btnFloatingMode == null) {
+        break missingId;
+      }
+
       id = R.id.btn_history;
       LinearLayout btnHistory = ViewBindings.findChildViewById(rootView, id);
       if (btnHistory == null) {
@@ -216,6 +236,12 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
       id = R.id.icon_desktop_mode;
       ImageView iconDesktopMode = ViewBindings.findChildViewById(rootView, id);
       if (iconDesktopMode == null) {
+        break missingId;
+      }
+
+      id = R.id.icon_floating_mode;
+      ImageView iconFloatingMode = ViewBindings.findChildViewById(rootView, id);
+      if (iconFloatingMode == null) {
         break missingId;
       }
 
@@ -315,6 +341,12 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.text_floating_mode;
+      TextView textFloatingMode = ViewBindings.findChildViewById(rootView, id);
+      if (textFloatingMode == null) {
+        break missingId;
+      }
+
       id = R.id.text_history;
       TextView textHistory = ViewBindings.findChildViewById(rootView, id);
       if (textHistory == null) {
@@ -345,12 +377,13 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
         break missingId;
       }
 
-      return new LayoutMenuPanelBinding((LinearLayout) rootView, btnBookmark, btnHistory,
-          btnNightMode, btnShare, iconAdBlock, iconBookmark, iconDesktopMode, iconHistory,
-          iconIncognito, iconNightMode, iconNoImage, iconShare, layoutAdBlock, layoutDesktopMode,
-          layoutIncognito, layoutNoImage, switchAdBlock, switchDesktopMode, switchIncognito,
-          switchNoImage, textAdBlock, textBookmark, textDesktopMode, textHistory, textIncognito,
-          textNightMode, textNoImage, textShare);
+      return new LayoutMenuPanelBinding((LinearLayout) rootView, btnBookmark, btnFloatingMode,
+          btnHistory, btnNightMode, btnShare, iconAdBlock, iconBookmark, iconDesktopMode,
+          iconFloatingMode, iconHistory, iconIncognito, iconNightMode, iconNoImage, iconShare,
+          layoutAdBlock, layoutDesktopMode, layoutIncognito, layoutNoImage, switchAdBlock,
+          switchDesktopMode, switchIncognito, switchNoImage, textAdBlock, textBookmark,
+          textDesktopMode, textFloatingMode, textHistory, textIncognito, textNightMode, textNoImage,
+          textShare);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

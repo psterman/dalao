@@ -55,6 +55,7 @@ import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.view.LetterIndexBar
 import android.view.Gravity
 import androidx.cardview.widget.CardView
+import android.provider.Settings
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private lateinit var searchInput: EditText
@@ -938,6 +939,15 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 iconContainer
             )
         }
+
+        // 悬浮窗模式
+        view.findViewById<LinearLayout>(R.id.btn_floating_mode).apply {
+            setOnClickListener {
+                // 切换到悬浮窗模式
+                toggleFloatingMode()
+                menuDialog.dismiss()
+            }
+        }
     }
 
     private fun updateButtonState(isActive: Boolean, icon: ImageView, text: TextView, background: FrameLayout) {
@@ -1181,26 +1191,60 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun openSearchEngine(engine: SearchEngine, query: String = "") {
-        if (query.isEmpty()) {
-            // 如果没有查询文本，直接打开搜索引擎主页
-            webView.visibility = View.VISIBLE
-            homeContent.visibility = View.GONE
-            webView.loadUrl(engine.url.replace("%s", "").replace("search?q=", "")
-                .replace("search?query=", "")
-                .replace("search?word=", "")
-                .replace("s?wd=", ""))
+        // 检查是否应该使用悬浮窗模式
+        val useFloatingMode = settingsManager.getBoolean("use_floating_mode", false)
+        
+        if (useFloatingMode) {
+            // 检查是否有SYSTEM_ALERT_WINDOW权限
+            if (!Settings.canDrawOverlays(this)) {
+                // 没有权限，请求权限
+                Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                intent.data = Uri.parse("package:$packageName")
+                startActivity(intent)
+                return
+            }
+            
+            // 有权限，启动悬浮窗服务
+            val intent = Intent(this, FloatingWebViewService::class.java)
+            
+            if (query.isEmpty()) {
+                // 如果没有查询文本，直接打开搜索引擎主页
+                intent.putExtra("url", engine.url.replace("{query}", "").replace("search?q=", "")
+                    .replace("search?query=", "")
+                    .replace("search?word=", "")
+                    .replace("s?wd=", ""))
+            } else {
+                // 有查询文本，使用搜索引擎进行搜索
+                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                val searchUrl = engine.url.replace("{query}", encodedQuery)
+                intent.putExtra("url", searchUrl)
+            }
+            
+            startService(intent)
         } else {
-            // 有查询文本，使用搜索引擎进行搜索
-            val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-            val searchUrl = engine.url.replace("%s", encodedQuery)
-            webView.visibility = View.VISIBLE
-            homeContent.visibility = View.GONE
-            webView.loadUrl(searchUrl)
+            // 使用普通模式
+            if (query.isEmpty()) {
+                // 如果没有查询文本，直接打开搜索引擎主页
+                webView.visibility = View.VISIBLE
+                homeContent.visibility = View.GONE
+                webView.loadUrl(engine.url.replace("{query}", "").replace("search?q=", "")
+                    .replace("search?query=", "")
+                    .replace("search?word=", "")
+                    .replace("s?wd=", ""))
+            } else {
+                // 有查询文本，使用搜索引擎进行搜索
+                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                val searchUrl = engine.url.replace("{query}", encodedQuery)
+                webView.visibility = View.VISIBLE
+                homeContent.visibility = View.GONE
+                webView.loadUrl(searchUrl)
+            }
         }
     }
 
     private fun showEngineSettings(engine: SearchEngine) {
-        val options = arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
+        val options = arrayOf("访问主页", "在悬浮窗中打开", "复制链接", "分享", "在浏览器中打开")
 
         AlertDialog.Builder(this)
             .setTitle("${engine.name} 选项")
@@ -1208,23 +1252,63 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 when (which) {
                     0 -> openSearchEngine(engine)
                     1 -> {
+                        // 在悬浮窗中打开
+                        settingsManager.putBoolean("use_floating_mode", true)
+                        openSearchEngine(engine)
+                        settingsManager.putBoolean("use_floating_mode", false) // 重置为默认值
+                    }
+                    2 -> {
                         val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
                         clipboard.setPrimaryClip(ClipData.newPlainText("URL", engine.url))
                         Toast.makeText(this, "已复制链接", Toast.LENGTH_SHORT).show()
                     }
-                    2 -> {
+                    3 -> {
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, "${engine.name}: ${engine.url}")
                         }
                         startActivity(Intent.createChooser(intent, "分享到"))
                     }
-                    3 -> {
+                    4 -> {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(engine.url))
                         startActivity(intent)
                     }
                 }
             }
             .show()
+    }
+
+    private fun toggleFloatingMode() {
+        // 检查是否有SYSTEM_ALERT_WINDOW权限
+        if (!Settings.canDrawOverlays(this)) {
+            // 没有权限，请求权限
+            Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+            intent.data = Uri.parse("package:$packageName")
+            startActivity(intent)
+            return
+        }
+
+        // 有权限，启动悬浮窗服务
+        val intent = Intent(this, FloatingWebViewService::class.java)
+        
+        // 如果WebView可见，传递当前URL
+        if (webView.visibility == View.VISIBLE) {
+            intent.putExtra("url", webView.url)
+        } else {
+            // 否则传递默认搜索引擎
+            val defaultEngine = SearchActivity.NORMAL_SEARCH_ENGINES.firstOrNull { it.name == "百度" }
+                ?: SearchActivity.NORMAL_SEARCH_ENGINES.first()
+            intent.putExtra("url", defaultEngine.url.replace("{query}", ""))
+        }
+        
+        startService(intent)
+        
+        // 如果WebView可见，隐藏WebView
+        if (webView.visibility == View.VISIBLE) {
+            webView.visibility = View.GONE
+            homeContent.visibility = View.VISIBLE
+            webView.loadUrl("about:blank")
+        }
     }
 } 

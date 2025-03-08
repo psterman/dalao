@@ -27,4 +27,11 @@
     <string name="left_handed_mode_description">调整界面布局以适应左手使用习惯</string>
     <string name="menu">菜单</string>
     <string name="close">关闭</string>
+    <string name="expand">展开</string>
+    <string name="collapse">收起</string>
+    <string name="back">后退</string>
+    <string name="forward">前进</string>
+    <string name="refresh">刷新</string>
+    <string name="floating_mode">悬浮窗模式</string>
+    <string name="open_in_floating_mode">在悬浮窗中打开</string>
 </resources> 

@@ -45,6 +45,11 @@
             android:exported="false"
             android:foregroundServiceType="specialUse"
             android:stopWithTask="false" />
+        <service
+            android:name="com.example.aifloatingball.FloatingWebViewService"
+            android:enabled="true"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light" />
 
         <activity
             android:name="com.example.aifloatingball.PermissionActivity"

@@ -331,5 +331,39 @@
                 android:text="夜间"
                 android:textSize="12sp"/>
         </LinearLayout>
+
+        <!-- 添加悬浮窗模式按钮 -->
+        <LinearLayout
+            android:id="@+id/btn_floating_mode"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="8dp">
+
+            <FrameLayout
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/circle_ripple">
+
+                <ImageView
+                    android:id="@+id/icon_floating_mode"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_floating_mode"
+                    android:tint="@android:color/darker_gray" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/text_floating_mode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/floating_mode"
+                android:textColor="@android:color/darker_gray"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout> 

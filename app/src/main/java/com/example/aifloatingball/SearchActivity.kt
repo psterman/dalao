@@ -44,6 +44,7 @@ import com.google.android.material.appbar.AppBarLayout
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.provider.Settings
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
@@ -450,7 +451,7 @@ class SearchActivity : AppCompatActivity() {
             if (isLeftHanded) {
                 if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
                     drawerLayout.closeDrawer(GravityCompat.END)
-        } else {
+                } else {
                     drawerLayout.openDrawer(GravityCompat.END)
                 }
             } else {
@@ -466,6 +467,50 @@ class SearchActivity : AppCompatActivity() {
         closeButton.setOnClickListener {
             finish()
         }
+        
+        // 添加悬浮窗模式按钮
+        val floatingModeButton = findViewById<ImageButton>(R.id.btn_floating_mode)
+        if (floatingModeButton != null) {
+            floatingModeButton.setOnClickListener {
+                toggleFloatingMode()
+            }
+        }
+    }
+
+    private fun toggleFloatingMode() {
+        // 检查是否有SYSTEM_ALERT_WINDOW权限
+        if (!Settings.canDrawOverlays(this)) {
+            // 没有权限，请求权限
+            Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+            intent.data = Uri.parse("package:$packageName")
+            startActivity(intent)
+            return
+        }
+
+        // 有权限，启动悬浮窗服务
+        val intent = Intent(this, FloatingWebViewService::class.java)
+        
+        // 获取当前URL
+        val currentUrl = webView.url
+        if (currentUrl != null && currentUrl != "about:blank") {
+            intent.putExtra("url", currentUrl)
+        } else {
+            // 如果没有当前URL，使用当前搜索引擎
+            currentSearchEngine?.let { engine ->
+                val query = searchInput.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                    val searchUrl = engine.url.replace("{query}", encodedQuery)
+                    intent.putExtra("url", searchUrl)
+                } else {
+                    intent.putExtra("url", engine.url.replace("{query}", ""))
+                }
+            }
+        }
+        
+        startService(intent)
+        finish() // 关闭当前Activity
     }
 
     private fun setupWebView() {
@@ -892,7 +937,7 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun showEngineSettings(engine: SearchEngine) {
-        val options = arrayOf("访问主页", "复制链接", "分享", "在浏览器中打开")
+        val options = arrayOf("访问主页", "在悬浮窗中打开", "复制链接", "分享", "在浏览器中打开")
 
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("${engine.name} 选项")
@@ -900,18 +945,24 @@ class SearchActivity : AppCompatActivity() {
                 when (which) {
                     0 -> openSearchEngine(engine)
                     1 -> {
+                        // 在悬浮窗中打开
+                        settingsManager.putBoolean("use_floating_mode", true)
+                        openSearchEngine(engine)
+                        settingsManager.putBoolean("use_floating_mode", false) // 重置为默认值
+                    }
+                    2 -> {
                         val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("URL", engine.url))
                         Toast.makeText(this, "已复制链接", Toast.LENGTH_SHORT).show()
                     }
-                    2 -> {
+                    3 -> {
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, "${engine.name}: ${engine.url}")
                         }
                         startActivity(Intent.createChooser(intent, "分享到"))
                     }
-                    3 -> {
+                    4 -> {
                         val intent = Intent(Intent.ACTION_VIEW, 
                             android.net.Uri.parse(engine.url))
                         startActivity(intent)
@@ -961,15 +1012,53 @@ class SearchActivity : AppCompatActivity() {
             return
         }
 
-        // 获取当前搜索词
-        val query = searchInput.text.toString().trim()
+        // 检查是否应该使用悬浮窗模式
+        val useFloatingMode = settingsManager.getBoolean("use_floating_mode", false)
         
-        // 如果搜索框不为空，则直接搜索
-        if (query.isNotEmpty()) {
-            performSearch(query)
+        if (useFloatingMode) {
+            // 检查是否有SYSTEM_ALERT_WINDOW权限
+            if (!Settings.canDrawOverlays(this)) {
+                // 没有权限，请求权限
+                Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                intent.data = Uri.parse("package:$packageName")
+                startActivity(intent)
+                return
+            }
+            
+            // 有权限，启动悬浮窗服务
+            val intent = Intent(this, FloatingWebViewService::class.java)
+            
+            // 获取当前搜索词
+            val query = searchInput.text.toString().trim()
+            
+            if (query.isEmpty()) {
+                // 如果没有查询文本，直接打开搜索引擎主页
+                intent.putExtra("url", engine.url.replace("{query}", "").replace("search?q=", "")
+                    .replace("search?query=", "")
+                    .replace("search?word=", "")
+                    .replace("s?wd=", ""))
+            } else {
+                // 有查询文本，使用搜索引擎进行搜索
+                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                val searchUrl = engine.url.replace("{query}", encodedQuery)
+                intent.putExtra("url", searchUrl)
+            }
+            
+            startService(intent)
+            finish() // 关闭当前Activity
         } else {
-            // 否则加载搜索引擎主页
-            loadSearchEngineHomepage(engine)
+            // 使用普通模式
+            // 获取当前搜索词
+            val query = searchInput.text.toString().trim()
+            
+            // 如果搜索框不为空，则直接搜索
+            if (query.isNotEmpty()) {
+                performSearch(query)
+            } else {
+                // 否则加载搜索引擎主页
+                loadSearchEngineHomepage(engine)
+            }
         }
     }
 

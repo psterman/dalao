@@ -30,6 +30,12 @@
             android:foregroundServiceType="specialUse"
             android:stopWithTask="false" />
             
+        <service
+            android:name=".FloatingWebViewService"
+            android:enabled="true"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light" />
+            
         <activity
             android:name=".PermissionActivity"
             android:exported="true"

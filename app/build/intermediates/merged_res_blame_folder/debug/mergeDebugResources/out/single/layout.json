@@ -28,10 +28,6 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\card_layout_theme.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-mergeDebugResources-44:/layout/activity_search.xml",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_search.xml"
-    },
-    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\item_search_engine.xml",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\item_search_engine.xml"
     },
@@ -40,12 +36,12 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\engine_item.xml"
     },
     {
-        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\activity_permission.xml",
-        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\activity_permission.xml"
-    },
-    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\activity_search_webview.xml",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\activity_search_webview.xml"
+    },
+    {
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\activity_permission.xml",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\activity_permission.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\search_history_item.xml",
@@ -72,6 +68,10 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\search_input_layout.xml"
     },
     {
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\layout_floating_webview.xml",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\layout_floating_webview.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\card_search_engine.xml",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\card_search_engine.xml"
     },
@@ -96,16 +96,20 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\overlay_dialog.xml"
     },
     {
-        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\floating_ball_layout.xml",
-        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\floating_ball_layout.xml"
-    },
-    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\item_ai_engine.xml",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\item_ai_engine.xml"
     },
     {
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\floating_ball_layout.xml",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\floating_ball_layout.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\clipboard_dialog.xml",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\clipboard_dialog.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeDebugResources-44:/layout/layout_floating_webview.xml",
+        "source": "com.example.aifloatingball.app-main-47:/layout/layout_floating_webview.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-mergeDebugResources-44:\\layout\\search_history_layout.xml",

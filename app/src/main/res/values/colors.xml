@@ -84,4 +84,16 @@
     <color name="glass_accent_dark">#4DD0E1</color>
     <color name="material_accent_light">#FF4081</color>
     <color name="material_accent_dark">#FF80AB</color>
+
+    <!-- 添加悬浮窗WebView相关的颜色资源 -->
+    <color name="floating_background_light">#FFFFFF</color>
+    <color name="floating_background_dark">#121212</color>
+    <color name="search_bar_background">#F5F5F5</color>
+    <color name="navigation_bar_background">#F5F5F5</color>
+    <color name="text_color_light">#212121</color>
+    <color name="text_color_dark">#EEEEEE</color>
+    <color name="icon_color_light">#757575</color>
+    <color name="icon_color_dark">#BBBBBB</color>
+    <color name="progress_color_light">@color/colorAccent</color>
+    <color name="progress_color_dark">@color/colorAccent</color>
 </resources> 
