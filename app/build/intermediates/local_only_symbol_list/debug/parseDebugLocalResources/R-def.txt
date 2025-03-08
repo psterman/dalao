@@ -91,6 +91,8 @@ dimen activity_vertical_margin
 dimen card_spacing
 dimen drawer_width
 dimen engine_list_width
+dimen floating_card_corner_radius
+dimen floating_card_elevation
 dimen floating_webview_collapsed_height
 dimen floating_webview_min_height
 dimen floating_webview_min_width
@@ -200,6 +202,7 @@ drawable popup_background
 drawable preview_background
 drawable progress_bar_drawable
 drawable quick_menu_background
+drawable resize_handle_background
 drawable search_background
 drawable search_bar_background
 drawable search_input_background
@@ -246,6 +249,7 @@ id engine_name
 id engine_title
 id floating_ball_icon
 id floating_ball_text
+id floating_title
 id floating_webview
 id gesture_hint
 id history_list
@@ -278,6 +282,7 @@ id preview_icon
 id preview_name
 id progressBar
 id progress_bar
+id resize_handle
 id right_buttons
 id search_bar
 id search_bar_container

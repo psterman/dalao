@@ -31,4 +31,8 @@
     <dimen name="floating_webview_collapsed_height">200dp</dimen>
     <dimen name="floating_webview_min_width">240dp</dimen>
     <dimen name="floating_webview_min_height">160dp</dimen>
+    
+    <!-- 悬浮窗卡片样式 -->
+    <dimen name="floating_card_corner_radius">12dp</dimen>
+    <dimen name="floating_card_elevation">6dp</dimen>
 </resources> 

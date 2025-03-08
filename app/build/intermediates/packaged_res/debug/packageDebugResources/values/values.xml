@@ -114,6 +114,8 @@
     <dimen name="card_spacing">8dp</dimen>
     <dimen name="drawer_width">280dp</dimen>
     <dimen name="engine_list_width">280dp</dimen>
+    <dimen name="floating_card_corner_radius">12dp</dimen>
+    <dimen name="floating_card_elevation">6dp</dimen>
     <dimen name="floating_webview_collapsed_height">200dp</dimen>
     <dimen name="floating_webview_min_height">160dp</dimen>
     <dimen name="floating_webview_min_width">240dp</dimen>

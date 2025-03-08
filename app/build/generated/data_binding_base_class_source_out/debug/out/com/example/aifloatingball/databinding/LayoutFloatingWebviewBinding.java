@@ -46,6 +46,9 @@ public final class LayoutFloatingWebviewBinding implements ViewBinding {
   public final LinearLayout dragHandle;
 
   @NonNull
+  public final TextView floatingTitle;
+
+  @NonNull
   public final WebView floatingWebview;
 
   @NonNull
@@ -58,6 +61,9 @@ public final class LayoutFloatingWebviewBinding implements ViewBinding {
   public final ProgressBar progressBar;
 
   @NonNull
+  public final View resizeHandle;
+
+  @NonNull
   public final LinearLayout searchBar;
 
   @NonNull
@@ -67,9 +73,10 @@ public final class LayoutFloatingWebviewBinding implements ViewBinding {
       @NonNull ImageButton btnClose, @NonNull ImageButton btnExpand,
       @NonNull ImageButton btnForward, @NonNull ImageButton btnRefresh,
       @NonNull ImageButton btnSearch, @NonNull LinearLayout dragHandle,
-      @NonNull WebView floatingWebview, @NonNull TextView gestureHint,
-      @NonNull LinearLayout navigationBar, @NonNull ProgressBar progressBar,
-      @NonNull LinearLayout searchBar, @NonNull EditText searchInput) {
+      @NonNull TextView floatingTitle, @NonNull WebView floatingWebview,
+      @NonNull TextView gestureHint, @NonNull LinearLayout navigationBar,
+      @NonNull ProgressBar progressBar, @NonNull View resizeHandle, @NonNull LinearLayout searchBar,
+      @NonNull EditText searchInput) {
     this.rootView = rootView;
     this.btnBack = btnBack;
     this.btnClose = btnClose;
@@ -78,10 +85,12 @@ public final class LayoutFloatingWebviewBinding implements ViewBinding {
     this.btnRefresh = btnRefresh;
     this.btnSearch = btnSearch;
     this.dragHandle = dragHandle;
+    this.floatingTitle = floatingTitle;
     this.floatingWebview = floatingWebview;
     this.gestureHint = gestureHint;
     this.navigationBar = navigationBar;
     this.progressBar = progressBar;
+    this.resizeHandle = resizeHandle;
     this.searchBar = searchBar;
     this.searchInput = searchInput;
   }
@@ -155,6 +164,12 @@ public final class LayoutFloatingWebviewBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.floating_title;
+      TextView floatingTitle = ViewBindings.findChildViewById(rootView, id);
+      if (floatingTitle == null) {
+        break missingId;
+      }
+
       id = R.id.floating_webview;
       WebView floatingWebview = ViewBindings.findChildViewById(rootView, id);
       if (floatingWebview == null) {
@@ -179,6 +194,12 @@ public final class LayoutFloatingWebviewBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.resize_handle;
+      View resizeHandle = ViewBindings.findChildViewById(rootView, id);
+      if (resizeHandle == null) {
+        break missingId;
+      }
+
       id = R.id.search_bar;
       LinearLayout searchBar = ViewBindings.findChildViewById(rootView, id);
       if (searchBar == null) {
@@ -192,8 +213,8 @@ public final class LayoutFloatingWebviewBinding implements ViewBinding {
       }
 
       return new LayoutFloatingWebviewBinding((CardView) rootView, btnBack, btnClose, btnExpand,
-          btnForward, btnRefresh, btnSearch, dragHandle, floatingWebview, gestureHint,
-          navigationBar, progressBar, searchBar, searchInput);
+          btnForward, btnRefresh, btnSearch, dragHandle, floatingTitle, floatingWebview,
+          gestureHint, navigationBar, progressBar, resizeHandle, searchBar, searchInput);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

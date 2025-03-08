@@ -2429,6 +2429,8 @@ dimen engine_list_width
 dimen fastscroll_default_thickness
 dimen fastscroll_margin
 dimen fastscroll_minimum_range
+dimen floating_card_corner_radius
+dimen floating_card_elevation
 dimen floating_webview_collapsed_height
 dimen floating_webview_min_height
 dimen floating_webview_min_width
@@ -3380,6 +3382,7 @@ drawable preference_list_divider_material
 drawable preview_background
 drawable progress_bar_drawable
 drawable quick_menu_background
+drawable resize_handle_background
 drawable search_background
 drawable search_bar_background
 drawable search_input_background
@@ -3631,6 +3634,7 @@ id flip
 id floating
 id floating_ball_icon
 id floating_ball_text
+id floating_title
 id floating_webview
 id forever
 id fragment_container_view_tag
@@ -3837,6 +3841,7 @@ id ratio
 id rectangles
 id recycler_view
 id report_drawn
+id resize_handle
 id restart
 id reverse
 id reverseSawtooth

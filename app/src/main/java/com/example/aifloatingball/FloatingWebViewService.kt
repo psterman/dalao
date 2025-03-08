@@ -35,6 +35,7 @@ import androidx.cardview.widget.CardView
 import com.example.aifloatingball.model.SearchEngine
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
+import android.graphics.Color
 
 class FloatingWebViewService : Service() {
     private var windowManager: WindowManager? = null
@@ -49,6 +50,8 @@ class FloatingWebViewService : Service() {
     private var backButton: ImageButton? = null
     private var forwardButton: ImageButton? = null
     private var refreshButton: ImageButton? = null
+    private var floatingTitle: TextView? = null
+    private var resizeHandle: View? = null
     
     private var initialX = 0
     private var initialY = 0
@@ -73,6 +76,13 @@ class FloatingWebViewService : Service() {
     
     private lateinit var settingsManager: SettingsManager
     
+    private var initialWidth = 0
+    private var initialHeight = 0
+    private var minWidth = 0
+    private var minHeight = 0
+    
+    private var isResizing = false
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -92,6 +102,13 @@ class FloatingWebViewService : Service() {
         
         // 初始化手势检测器
         initGestureDetectors()
+        
+        // 确保布局正确应用
+        Handler(Looper.getMainLooper()).postDelayed({
+            floatingView?.requestLayout()
+            webView?.requestLayout()
+            webView?.invalidate()
+        }, 100)
     }
     
     private fun createFloatingView() {
@@ -109,6 +126,8 @@ class FloatingWebViewService : Service() {
         backButton = floatingView?.findViewById(R.id.btn_back)
         forwardButton = floatingView?.findViewById(R.id.btn_forward)
         refreshButton = floatingView?.findViewById(R.id.btn_refresh)
+        floatingTitle = floatingView?.findViewById(R.id.floating_title)
+        resizeHandle = floatingView?.findViewById(R.id.resize_handle)
         
         // 设置初始状态
         progressBar?.visibility = View.GONE
@@ -122,6 +141,13 @@ class FloatingWebViewService : Service() {
         
         // 设置拖动处理
         setupDragHandling()
+        
+        // 设置调整大小处理
+        setupResizeHandling()
+        
+        // 获取最小尺寸
+        minWidth = resources.getDimensionPixelSize(R.dimen.floating_webview_min_width)
+        minHeight = resources.getDimensionPixelSize(R.dimen.floating_webview_min_height)
         
         // 创建窗口参数
         val params = createWindowLayoutParams()
@@ -140,18 +166,27 @@ class FloatingWebViewService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
         
+        // 获取屏幕尺寸
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        // 计算初始宽高（屏幕宽度的90%，高度为屏幕高度的60%）
+        val initialWidth = (screenWidth * 0.9).toInt()
+        val initialHeight = (screenHeight * 0.6).toInt()
+        
         return WindowManager.LayoutParams(
-            if (isExpanded) WindowManager.LayoutParams.MATCH_PARENT else WindowManager.LayoutParams.WRAP_CONTENT,
-            if (isExpanded) WindowManager.LayoutParams.MATCH_PARENT else WindowManager.LayoutParams.WRAP_CONTENT,
+            if (isExpanded) WindowManager.LayoutParams.MATCH_PARENT else initialWidth,
+            if (isExpanded) WindowManager.LayoutParams.MATCH_PARENT else initialHeight,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or 
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
+            // 设置初始位置为屏幕中央
+            gravity = Gravity.CENTER
             x = 0
-            y = 100
+            y = 0
         }
     }
     
@@ -174,19 +209,50 @@ class FloatingWebViewService : Service() {
                 // 设置缓存模式
                 cacheMode = WebSettings.LOAD_DEFAULT
                 
-                // 设置UA
-                userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
+                // 设置移动版UA
+                userAgentString = "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36"
+                
+                // 文本缩放比例适合移动设备
+                textZoom = 100
+                
+                // 启用数据库存储API
+                databaseEnabled = true
+                
+                // 启用地理位置
+                setGeolocationEnabled(true)
+                
+                // 设置默认文本编码
+                defaultTextEncodingName = "UTF-8"
+                
+                // 允许混合内容
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                }
+                
+                // 设置默认背景色为白色，避免黑屏
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    forceDark = WebSettings.FORCE_DARK_OFF
+                }
             }
+            
+            // 设置WebView背景为白色
+            setBackgroundColor(Color.WHITE)
             
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     progressBar?.visibility = View.VISIBLE
+                    
+                    // 更新搜索框文本
+                    searchInput?.setText(url ?: "")
                 }
                 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     progressBar?.visibility = View.GONE
+                    
+                    // 确保WebView可见
+                    view?.visibility = View.VISIBLE
                     
                     // 根据无图模式状态应用滤镜
                     if (isNoImageMode) {
@@ -197,6 +263,21 @@ class FloatingWebViewService : Service() {
                     
                     // 更新导航按钮状态
                     updateNavigationButtons()
+                    
+                    // 注入JavaScript以确保内容正确显示
+                    val js = """
+                        javascript:(function() {
+                            document.body.style.backgroundColor = 'white';
+                            var meta = document.querySelector('meta[name="viewport"]');
+                            if (!meta) {
+                                meta = document.createElement('meta');
+                                meta.name = 'viewport';
+                                document.head.appendChild(meta);
+                            }
+                            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
+                        })()
+                    """.trimIndent()
+                    view?.evaluateJavascript(js, null)
                 }
                 
                 override fun shouldInterceptRequest(
@@ -209,12 +290,24 @@ class FloatingWebViewService : Service() {
                     }
                     return super.shouldInterceptRequest(view, request)
                 }
+                
+                // 处理所有链接在WebView内打开
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    return false
+                }
             }
             
             webChromeClient = object : WebChromeClient() {
                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                     super.onProgressChanged(view, newProgress)
                     progressBar?.progress = newProgress
+                }
+                
+                // 处理网页标题变化
+                override fun onReceivedTitle(view: WebView?, title: String?) {
+                    super.onReceivedTitle(view, title)
+                    // 更新悬浮窗标题
+                    floatingTitle?.text = title ?: getString(R.string.app_name)
                 }
             }
             
@@ -329,6 +422,47 @@ class FloatingWebViewService : Service() {
         }
     }
     
+    private fun setupResizeHandling() {
+        resizeHandle?.setOnTouchListener { _, event ->
+            val params = floatingView?.layoutParams as? WindowManager.LayoutParams
+            
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    // 记录初始尺寸和触摸位置
+                    initialWidth = params?.width ?: 0
+                    initialHeight = params?.height ?: 0
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    isResizing = true
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isResizing && params != null) {
+                        // 计算新的宽高
+                        val newWidth = (initialWidth + (event.rawX - initialTouchX)).toInt()
+                        val newHeight = (initialHeight + (event.rawY - initialTouchY)).toInt()
+                        
+                        // 确保不小于最小尺寸
+                        params.width = maxOf(newWidth, minWidth)
+                        params.height = maxOf(newHeight, minHeight)
+                        
+                        // 更新布局
+                        windowManager?.updateViewLayout(floatingView, params)
+                        
+                        // 显示尺寸提示
+                        showGestureHint("${params.width} x ${params.height}")
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    isResizing = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+    
     private fun toggleExpandState() {
         isExpanded = !isExpanded
         
@@ -340,37 +474,64 @@ class FloatingWebViewService : Service() {
         // 更新窗口大小
         val params = floatingView?.layoutParams as? WindowManager.LayoutParams
         if (params != null) {
-            params.width = if (isExpanded) WindowManager.LayoutParams.MATCH_PARENT else WindowManager.LayoutParams.WRAP_CONTENT
-            params.height = if (isExpanded) WindowManager.LayoutParams.MATCH_PARENT else WindowManager.LayoutParams.WRAP_CONTENT
+            // 获取屏幕尺寸
+            val displayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
             
-            // 展开时移除FLAG_NOT_FOCUSABLE，使WebView可以接收输入
             if (isExpanded) {
+                // 全屏模式 - 使用屏幕实际尺寸而不是MATCH_PARENT
+                params.width = screenWidth
+                params.height = screenHeight
+                
+                // 重置位置到屏幕左上角
+                params.gravity = Gravity.TOP or Gravity.START
+                params.x = 0
+                params.y = 0
+                
+                // 展开时移除FLAG_NOT_FOCUSABLE，使WebView可以接收输入
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                
+                // 隐藏调整大小控制点
+                resizeHandle?.visibility = View.GONE
+                
+                // 显示搜索栏和导航栏
+                val searchBar = floatingView?.findViewById<LinearLayout>(R.id.search_bar)
+                searchBar?.visibility = View.VISIBLE
+                
+                val navigationBar = floatingView?.findViewById<LinearLayout>(R.id.navigation_bar)
+                navigationBar?.visibility = View.VISIBLE
             } else {
+                // 恢复到默认大小
+                params.width = (screenWidth * 0.9).toInt()
+                params.height = (screenHeight * 0.6).toInt()
+                
+                // 恢复到屏幕中央
+                params.gravity = Gravity.CENTER
+                params.x = 0
+                params.y = 0
+                
+                // 非全屏模式添加FLAG_NOT_FOCUSABLE
                 params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                
+                // 显示调整大小控制点
+                resizeHandle?.visibility = View.VISIBLE
+                
+                // 隐藏搜索栏和导航栏
+                val searchBar = floatingView?.findViewById<LinearLayout>(R.id.search_bar)
+                searchBar?.visibility = View.GONE
+                
+                val navigationBar = floatingView?.findViewById<LinearLayout>(R.id.navigation_bar)
+                navigationBar?.visibility = View.GONE
             }
             
+            // 更新布局
             windowManager?.updateViewLayout(floatingView, params)
-        }
-        
-        // 更新UI元素可见性
-        updateUIForExpandState()
-    }
-    
-    private fun updateUIForExpandState() {
-        // 搜索栏
-        searchInput?.visibility = if (isExpanded) View.VISIBLE else View.GONE
-        
-        // 导航按钮
-        val navigationBar = floatingView?.findViewById<LinearLayout>(R.id.navigation_bar)
-        navigationBar?.visibility = if (isExpanded) View.VISIBLE else View.GONE
-        
-        // 更新WebView大小
-        val webViewParams = webView?.layoutParams
-        if (webViewParams != null) {
-            webViewParams.width = ViewGroup.LayoutParams.MATCH_PARENT
-            webViewParams.height = if (isExpanded) ViewGroup.LayoutParams.MATCH_PARENT else resources.getDimensionPixelSize(R.dimen.floating_webview_collapsed_height)
-            webView?.layoutParams = webViewParams
+            
+            // 强制重新布局并刷新WebView
+            floatingView?.requestLayout()
+            webView?.requestLayout()
+            webView?.invalidate()
         }
     }
     
@@ -533,31 +694,77 @@ class FloatingWebViewService : Service() {
     }
     
     private fun applyTheme() {
+        // 获取当前主题模式
         val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         
-        // 设置背景颜色
-        floatingView?.setBackgroundColor(
-            ContextCompat.getColor(this, if (isDarkMode) R.color.floating_background_dark else R.color.floating_background_light)
-        )
-        
-        // 设置文本颜色
-        searchInput?.setTextColor(
-            ContextCompat.getColor(this, if (isDarkMode) R.color.text_color_dark else R.color.text_color_light)
-        )
-        
-        // 设置图标颜色
+        // 获取主题颜色
+        val primaryColor = ContextCompat.getColor(this, if (isDarkMode) R.color.colorPrimaryDark else R.color.colorPrimary)
+        val accentColor = ContextCompat.getColor(this, R.color.colorAccent)
+        val backgroundColor = ContextCompat.getColor(this, if (isDarkMode) R.color.floating_background_dark else R.color.floating_background_light)
+        val textColor = ContextCompat.getColor(this, if (isDarkMode) R.color.text_color_dark else R.color.text_color_light)
         val iconColor = ContextCompat.getColor(this, if (isDarkMode) R.color.icon_color_dark else R.color.icon_color_light)
-        closeButton?.setColorFilter(iconColor)
-        expandButton?.setColorFilter(iconColor)
-        searchButton?.setColorFilter(iconColor)
-        backButton?.setColorFilter(iconColor)
-        forwardButton?.setColorFilter(iconColor)
-        refreshButton?.setColorFilter(iconColor)
         
-        // 设置进度条颜色
-        progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(
-            ContextCompat.getColor(this, if (isDarkMode) R.color.progress_color_dark else R.color.progress_color_light)
-        )
+        // 应用到CardView背景
+        val cardView = floatingView as? androidx.cardview.widget.CardView
+        cardView?.setCardBackgroundColor(backgroundColor)
+        cardView?.cardElevation = resources.getDimension(R.dimen.floating_card_elevation)
+        cardView?.radius = resources.getDimension(R.dimen.floating_card_corner_radius)
+        
+        // 应用到拖动区域
+        val dragHandle = floatingView?.findViewById<View>(R.id.drag_handle)
+        dragHandle?.setBackgroundColor(primaryColor)
+        
+        // 应用到搜索栏
+        val searchBar = floatingView?.findViewById<View>(R.id.search_bar)
+        searchBar?.setBackgroundColor(if (isDarkMode) primaryColor else ContextCompat.getColor(this, R.color.search_bar_background))
+        
+        // 应用到搜索输入框
+        searchInput?.setTextColor(textColor)
+        searchInput?.setHintTextColor(textColor.withAlpha(0.6f))
+        val searchInputBackground = searchInput?.background
+        if (searchInputBackground is GradientDrawable) {
+            searchInputBackground.setColor(backgroundColor.withAlpha(0.8f))
+            searchInputBackground.setStroke(1, textColor.withAlpha(0.2f))
+        }
+        
+        // 应用到导航栏
+        val navigationBar = floatingView?.findViewById<View>(R.id.navigation_bar)
+        navigationBar?.setBackgroundColor(if (isDarkMode) primaryColor else ContextCompat.getColor(this, R.color.navigation_bar_background))
+        
+        // 应用到按钮图标
+        val buttons = listOf(closeButton, expandButton, searchButton, backButton, forwardButton, refreshButton)
+        buttons.forEach { button ->
+            button?.setColorFilter(iconColor)
+            button?.background = createRippleDrawable(iconColor.withAlpha(0.1f))
+        }
+        
+        // 应用到进度条
+        progressBar?.progressTintList = android.content.res.ColorStateList.valueOf(accentColor)
+        
+        // 应用到WebView
+        webView?.setBackgroundColor(backgroundColor)
+    }
+    
+    // 创建水波纹效果背景
+    private fun createRippleDrawable(rippleColor: Int): android.graphics.drawable.RippleDrawable? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            val mask = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(android.graphics.Color.WHITE)
+            }
+            return android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(rippleColor),
+                null,
+                mask
+            )
+        }
+        return null
+    }
+    
+    // 颜色透明度调整
+    private fun Int.withAlpha(alpha: Float): Int {
+        val a = (alpha * 255).toInt()
+        return this and 0x00FFFFFF or (a shl 24)
     }
     
     private fun applyImageFilter() {
@@ -607,14 +814,24 @@ class FloatingWebViewService : Service() {
             // 处理传入的URL
             val url = it.getStringExtra("url")
             if (!url.isNullOrEmpty()) {
-                webView?.loadUrl(url)
+                // 确保WebView可见
+                webView?.visibility = View.VISIBLE
+                
+                // 延迟加载URL，确保WebView已经初始化完成
+                Handler(Looper.getMainLooper()).postDelayed({
+                    webView?.loadUrl(url)
+                }, 100)
             }
             
             // 处理传入的搜索查询
             val query = it.getStringExtra("query")
             if (!query.isNullOrEmpty()) {
                 searchInput?.setText(query)
-                performSearch(query)
+                
+                // 延迟执行搜索，确保WebView已经初始化完成
+                Handler(Looper.getMainLooper()).postDelayed({
+                    performSearch(query)
+                }, 100)
             }
         }
         
