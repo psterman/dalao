@@ -10,6 +10,13 @@
             app:defaultValue="true"
             app:iconSpaceReserved="false" />
 
+        <SwitchPreferenceCompat
+            app:key="auto_paste_clipboard"
+            app:title="自动粘贴剪贴板"
+            app:summary="打开AI搜索时自动粘贴剪贴板内容并发送"
+            app:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
         <ListPreference
             app:key="default_search_engine"
             app:title="默认搜索引擎"

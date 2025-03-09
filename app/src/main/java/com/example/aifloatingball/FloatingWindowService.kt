@@ -65,7 +65,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         private const val REQUEST_SCREENSHOT = 1001
         private const val EDGE_SNAP_THRESHOLD = 32f // dp
         private const val FLING_MIN_VELOCITY = 500f // 最小甩动速度
-        private const val ANIMATION_DURATION = 300L // 动画持续时间
+        private const val ANIMATION_DURATION = 250L // 动画时长
     }
 
     private var windowManager: WindowManager? = null
@@ -173,6 +173,28 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
     
+    // 修改AI搜索引擎配置，确保有明确的logo
+    private val aiEngines = listOf(
+        AIEngine("ChatGPT", R.drawable.ic_chatgpt, "https://chat.openai.com"),
+        AIEngine("Claude", R.drawable.ic_claude, "https://claude.ai"),
+        AIEngine("文心一言", R.drawable.ic_wenxin, "https://yiyan.baidu.com"),
+        AIEngine("通义千问", R.drawable.ic_qianwen, "https://qianwen.aliyun.com"),
+        AIEngine("讯飞星火", R.drawable.ic_xinghuo, "https://xinghuo.xfyun.cn")
+    )
+    
+    data class AIEngine(
+        val name: String,
+        val iconRes: Int,
+        val url: String
+    )
+    
+    private var isMenuVisible = false
+    private val menuItems = mutableListOf<View>()
+    private var menuContainer: View? = null
+    private val MENU_ITEM_SIZE_DP = 56 // 增大菜单项尺寸
+    private val MENU_SPACING_DP = 8 // 菜单项间距
+    private val MENU_MARGIN_DP = 16 // 菜单与悬浮球的距离
+
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -263,6 +285,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 return
             }
             
+            // 创建菜单容器
+            createMenuContainer()
+            
             // Initialize GestureDetector
             gestureDetector = GestureDetector(this, object : GestureDetector.OnGestureListener {
                 override fun onDown(e: MotionEvent): Boolean {
@@ -281,7 +306,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 }
 
                 override fun onLongPress(e: MotionEvent) {
-                    floatingBallView?.let { startScreenshotMode(it) }
+                    // 长按时显示AI菜单而不是截图模式
+                    vibrate(200)
+                    showAIMenu()
                 }
 
                 override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
@@ -505,6 +532,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 添加触摸事件监听
             floatingBallView?.setOnTouchListener { view, event ->
+                // 先让GestureDetector处理事件，以便检测长按
+                gestureDetector.onTouchEvent(event)
+                
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         initialX = params.x
@@ -899,17 +929,19 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             windowManager?.let { wm ->
                 floatingBallView?.let { wm.removeView(it) }
                 voiceAnimationView?.let { wm.removeView(it) }
+                menuContainer?.let { wm.removeView(it) }
             }
             
             // 清理缓存
             thumbnailCache.clear()
             thumbnailViews.clear()
             cachedCardViews.clear()
+            menuItems.clear()
             
             System.gc()
             
             super.onDestroy()
-                    } catch (e: Exception) {
+        } catch (e: Exception) {
             Log.e("FloatingService", "服务销毁时发生错误", e)
         }
     }
@@ -1278,6 +1310,232 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         } catch (e: Exception) {
             Log.e("FloatingService", "打开默认页面失败", e)
             Toast.makeText(this, "打开默认页面失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 添加震动函数
+    private fun vibrate(duration: Long) {
+        try {
+            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(android.os.VibrationEffect.createOneShot(duration, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(duration)
+            }
+            Log.d("FloatingService", "执行震动: $duration ms")
+        } catch (e: Exception) {
+            Log.e("FloatingService", "震动失败", e)
+        }
+    }
+    
+    // 创建菜单容器
+    private fun createMenuContainer() {
+        try {
+            val container = FrameLayout(this)
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            )
+            
+            container.visibility = View.GONE
+            
+            // 创建菜单项
+            aiEngines.forEachIndexed { index, engine ->
+                val menuItem = createMenuItem(engine, index)
+                menuItems.add(menuItem)
+                container.addView(menuItem)
+            }
+            
+            // 设置点击外部区域关闭菜单
+            container.setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_DOWN) {
+                    hideAIMenu()
+                    true
+                } else false
+            }
+            
+            menuContainer = container
+            windowManager?.addView(container, params)
+            
+            Log.d("FloatingService", "菜单容器创建成功")
+        } catch (e: Exception) {
+            Log.e("FloatingService", "创建菜单容器失败", e)
+        }
+    }
+    
+    // 创建菜单项
+    private fun createMenuItem(engine: AIEngine, index: Int): View {
+        val menuItem = LayoutInflater.from(this).inflate(R.layout.menu_item, null)
+        
+        // 设置布局参数
+        menuItem.layoutParams = FrameLayout.LayoutParams(
+            MENU_ITEM_SIZE_DP.dpToPx(),
+            MENU_ITEM_SIZE_DP.dpToPx()
+        )
+        
+        // 设置图标和文字
+        val icon = menuItem.findViewById<ImageView>(R.id.icon)
+        val name = menuItem.findViewById<TextView>(R.id.name)
+        
+        icon.setImageResource(engine.iconRes)
+        name.text = engine.name
+        
+        // 初始状态
+        menuItem.visibility = View.GONE
+        menuItem.alpha = 0f
+        menuItem.scaleX = 0f
+        menuItem.scaleY = 0f
+        
+        // 点击事件
+        menuItem.setOnClickListener {
+            // 添加点击反馈动画
+            menuItem.animate()
+                .scaleX(0.85f)
+                .scaleY(0.85f)
+                .setDuration(100)
+                .withEndAction {
+                    menuItem.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .withEndAction {
+                            hideAIMenu()
+                            openAIEngine(engine)
+                        }
+                        .start()
+                }
+                .start()
+        }
+        
+        return menuItem
+    }
+    
+    // 显示AI菜单
+    private fun showAIMenu() {
+        if (isMenuVisible) return
+        isMenuVisible = true
+        
+        Log.d("FloatingService", "显示AI菜单")
+        
+        menuContainer?.visibility = View.VISIBLE
+        
+        // 获取悬浮球位置
+        val ballLocation = IntArray(2)
+        floatingBallView?.getLocationOnScreen(ballLocation)
+        
+        val ballCenterX = ballLocation[0] + (floatingBallView?.width ?: 0) / 2
+        val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
+        
+        // 确定菜单显示在悬浮球的哪一侧（左侧或右侧）
+        val showOnRight = ballCenterX < screenWidth / 2
+        
+        // 计算菜单起始位置
+        val menuMargin = MENU_MARGIN_DP.dpToPx()
+        val menuItemSize = MENU_ITEM_SIZE_DP.dpToPx()
+        val menuSpacing = MENU_SPACING_DP.dpToPx()
+        
+        // 计算菜单项总高度
+        val totalMenuHeight = menuItems.size * menuItemSize + (menuItems.size - 1) * menuSpacing
+        
+        // 计算菜单顶部位置，使菜单垂直居中对齐悬浮球
+        var menuTopY = ballCenterY - totalMenuHeight / 2
+        
+        // 确保菜单不超出屏幕边界
+        menuTopY = menuTopY.coerceIn(0, screenHeight - totalMenuHeight)
+        
+        // 计算菜单水平位置
+        val menuX = if (showOnRight) {
+            ballCenterX + (floatingBallView?.width ?: 0) / 2 + menuMargin
+        } else {
+            ballCenterX - (floatingBallView?.width ?: 0) / 2 - menuMargin - menuItemSize
+        }
+        
+        // 显示菜单项
+        menuItems.forEachIndexed { index, item ->
+            val itemY = menuTopY + index * (menuItemSize + menuSpacing)
+            
+            // 设置初始位置（从悬浮球位置开始）
+            item.visibility = View.VISIBLE
+            item.alpha = 0f
+            item.scaleX = 0.5f
+            item.scaleY = 0.5f
+            item.x = (ballCenterX - menuItemSize / 2).toFloat()
+            item.y = (ballCenterY - menuItemSize / 2).toFloat()
+            
+            // 执行显示动画
+            item.animate()
+                .x(menuX.toFloat())
+                .y(itemY.toFloat())
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(ANIMATION_DURATION)
+                .setInterpolator(OvershootInterpolator(1.2f))
+                .setStartDelay((index * 50).toLong())
+                .start()
+        }
+    }
+    
+    // 隐藏AI菜单
+    private fun hideAIMenu() {
+        if (!isMenuVisible) return
+        isMenuVisible = false
+        
+        Log.d("FloatingService", "隐藏AI菜单")
+        
+        // 获取悬浮球位置
+        val ballLocation = IntArray(2)
+        floatingBallView?.getLocationOnScreen(ballLocation)
+        
+        val ballCenterX = ballLocation[0] + (floatingBallView?.width ?: 0) / 2
+        val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
+        
+        menuItems.forEachIndexed { index, item ->
+            // 执行收起动画，回到悬浮球位置
+            item.animate()
+                .x((ballCenterX - item.width / 2).toFloat())
+                .y((ballCenterY - item.height / 2).toFloat())
+                .alpha(0f)
+                .scaleX(0.5f)
+                .scaleY(0.5f)
+                .setDuration(ANIMATION_DURATION)
+                .setInterpolator(DecelerateInterpolator())
+                .setStartDelay((menuItems.size - 1 - index) * 30L) // 反向延迟，使菜单项按相反顺序收起
+                .withEndAction {
+                    item.visibility = View.GONE
+                }
+                .start()
+        }
+        
+        Handler(Looper.getMainLooper()).postDelayed({
+            menuContainer?.visibility = View.GONE
+        }, ANIMATION_DURATION + menuItems.size * 30L)
+    }
+    
+    // 打开AI引擎
+    private fun openAIEngine(engine: AIEngine) {
+        try {
+            Log.d("FloatingService", "打开AI引擎: ${engine.name}")
+            
+            // 检查是否需要自动粘贴剪贴板内容
+            val autoPaste = settingsManager.getBoolean("auto_paste_clipboard", false)
+            
+            val intent = Intent(this, FullscreenWebViewActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra("url", engine.url)
+                putExtra("auto_paste", autoPaste)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("FloatingService", "打开AI引擎失败", e)
+            Toast.makeText(this, "打开AI引擎失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }

@@ -151,6 +151,7 @@ drawable ic_chatgpt
 drawable ic_claude
 drawable ic_close
 drawable ic_collapse
+drawable ic_default_ai
 drawable ic_desktop
 drawable ic_doubao
 drawable ic_drag_handle
@@ -201,6 +202,7 @@ drawable ic_wifi
 drawable ic_xiaohongshu
 drawable ic_xinghuo
 drawable loading_background
+drawable menu_item_bg
 drawable paste_button_background
 drawable popup_background
 drawable preview_background
@@ -259,6 +261,7 @@ id gesture_hint
 id history_list
 id history_text
 id home_content
+id icon
 id icon_ad_block
 id icon_bookmark
 id icon_desktop_mode
@@ -277,6 +280,7 @@ id letter_index_bar
 id letter_title
 id loading_view
 id message
+id name
 id nav_drawer
 id navigation_bar
 id options_button
@@ -346,6 +350,7 @@ layout layout_floating_webview
 layout layout_floating_window
 layout layout_menu_panel
 layout letter_index_layout
+layout menu_item
 layout overlay_dialog
 layout quick_menu_layout
 layout search_engine_card

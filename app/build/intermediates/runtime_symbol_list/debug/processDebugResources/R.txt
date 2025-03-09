@@ -3248,6 +3248,7 @@ int drawable ic_clear_black_24 0x7f0800a8
 int drawable ic_clock_black_24dp 0x7f0800a9
 int drawable ic_close 0x7f0800aa
 int drawable ic_collapse 0x7f0800ab
+int drawable ic_default_ai 0x7f08013e
 int drawable ic_desktop 0x7f0800ac
 int drawable ic_doubao 0x7f0800ad
 int drawable ic_drag_handle 0x7f0800ae
@@ -3328,6 +3329,7 @@ int drawable material_ic_keyboard_arrow_previous_black_24dp 0x7f0800f8
 int drawable material_ic_keyboard_arrow_right_black_24dp 0x7f0800f9
 int drawable material_ic_menu_arrow_down_black_24dp 0x7f0800fa
 int drawable material_ic_menu_arrow_up_black_24dp 0x7f0800fb
+int drawable menu_item_bg 0x7f08013d
 int drawable mtrl_bottomsheet_drag_handle 0x7f0800fc
 int drawable mtrl_checkbox_button 0x7f0800fd
 int drawable mtrl_checkbox_button_checked_unchecked 0x7f0800fe
@@ -3771,6 +3773,7 @@ int id mtrl_picker_text_input_range_start 0x7f090176
 int id mtrl_picker_title_text 0x7f090177
 int id mtrl_view_tag_bottom_padding 0x7f090178
 int id multiply 0x7f090179
+int id name 0x7f090279
 int id nav_drawer 0x7f09017a
 int id navigation_bar 0x7f09017b
 int id navigation_bar_item_active_indicator_view 0x7f09017c
@@ -4203,6 +4206,7 @@ int layout material_time_input 0x7f0c0055
 int layout material_timepicker 0x7f0c0056
 int layout material_timepicker_dialog 0x7f0c0057
 int layout material_timepicker_textinput_display 0x7f0c0058
+int layout menu_item 0x7f0c009c
 int layout mtrl_alert_dialog 0x7f0c0059
 int layout mtrl_alert_dialog_actions 0x7f0c005a
 int layout mtrl_alert_dialog_title 0x7f0c005b
