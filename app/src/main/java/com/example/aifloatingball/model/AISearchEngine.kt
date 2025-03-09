@@ -36,7 +36,73 @@ class AISearchEngine(
                 AISearchEngine("通义千问", "https://qianwen.aliyun.com", R.drawable.ic_search, "阿里AI大模型"),
                 AISearchEngine("Perplexity", "https://www.perplexity.ai", R.drawable.ic_search, "AI搜索引擎"),
                 AISearchEngine("Anthropic Claude", "https://www.anthropic.com/claude", R.drawable.ic_claude, "Anthropic Claude AI"),
-                AISearchEngine("Poe", "https://poe.com", R.drawable.ic_search, "集成多种AI的平台")
+                AISearchEngine("Poe", "https://poe.com", R.drawable.ic_search, "集成多种AI的平台"),
+                AISearchEngine(
+                    name = "豆包",
+                    url = "https://www.doubao.com/chat",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为豆包图标
+                    description = "字节跳动豆包AI"
+                ),
+                AISearchEngine(
+                    name = "DeepSeek",
+                    url = "https://chat.deepseek.com",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为DeepSeek图标
+                    description = "DeepSeek AI对话"
+                ),
+                AISearchEngine(
+                    name = "华为小艺",
+                    url = "https://xiaoyi.huawei.com/chat/",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为华为小艺图标
+                    description = "华为小艺AI助手"
+                ),
+                AISearchEngine(
+                    name = "腾讯混沌",
+                    url = "https://hunyuan.tencent.com",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为腾讯混沌图标
+                    description = "腾讯混沌大模型"
+                ),
+                AISearchEngine(
+                    name = "秘塔写作",
+                    url = "https://xiezuocat.com",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为秘塔图标
+                    description = "秘塔AI写作助手"
+                ),
+                AISearchEngine(
+                    name = "海螺AI",
+                    url = "https://chat.conch.ai",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为海螺图标
+                    description = "海螺AI对话"
+                ),
+                AISearchEngine(
+                    name = "天工AI",
+                    url = "https://chat.tiangong.cn",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为天工图标
+                    description = "昆仑万维天工AI"
+                ),
+                AISearchEngine(
+                    name = "纳米AI",
+                    url = "https://www.nami.ai",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为纳米图标
+                    description = "纳米AI助手"
+                ),
+                AISearchEngine(
+                    name = "Grok",
+                    url = "https://grok.x.ai",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为Grok图标
+                    description = "X.AI Grok"
+                ),
+                AISearchEngine(
+                    name = "GitHub Copilot",
+                    url = "https://github.com/features/copilot",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为Copilot图标
+                    description = "GitHub AI编程助手"
+                ),
+                AISearchEngine(
+                    name = "问小白",
+                    url = "https://www.wenxiaobai.com/chat/",
+                    iconResId = R.drawable.ic_chatgpt, // 需要替换为问小白图标
+                    description = "问小白AI助手"
+                )
             ).also {
                 Log.d("AISearchEngine", "AI搜索引擎列表初始化完成，共有${it.size}个引擎")
             }

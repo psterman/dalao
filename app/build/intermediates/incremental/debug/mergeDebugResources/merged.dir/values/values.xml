@@ -2207,6 +2207,7 @@
     <string name="collapse">收起</string>
     <string name="copy">Copy</string>
     <string name="drag_to_sort">长按拖动排序</string>
+    <string name="engine_icon">搜索引擎图标</string>
     <string description="Screen reader announcement for when a checkbox is on error. [CHAR LIMIT=NONE]" name="error_a11y_label">
     Error: invalid
   </string>

@@ -363,6 +363,7 @@ string back
 string close
 string collapse
 string drag_to_sort
+string engine_icon
 string expand
 string floating_ball_description
 string floating_ball_service_description

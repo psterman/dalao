@@ -153,6 +153,7 @@
     <string name="close">关闭</string>
     <string name="collapse">收起</string>
     <string name="drag_to_sort">长按拖动排序</string>
+    <string name="engine_icon">搜索引擎图标</string>
     <string name="expand">展开</string>
     <string name="floating_ball_description">AI悬浮球图标</string>
     <string name="floating_ball_service_description">提供多个AI助手的快速访问</string>

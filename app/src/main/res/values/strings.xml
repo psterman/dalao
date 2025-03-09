@@ -34,4 +34,5 @@
     <string name="refresh">刷新</string>
     <string name="floating_mode">悬浮窗模式</string>
     <string name="open_in_floating_mode">在悬浮窗中打开</string>
+    <string name="engine_icon">搜索引擎图标</string>
 </resources> 

@@ -4327,6 +4327,7 @@ string close
 string collapse
 string copy
 string drag_to_sort
+string engine_icon
 string error_a11y_label
 string error_icon_content_description
 string expand

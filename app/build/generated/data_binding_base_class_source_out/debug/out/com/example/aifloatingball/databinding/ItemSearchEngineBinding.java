@@ -21,14 +21,19 @@ public final class ItemSearchEngineBinding implements ViewBinding {
   private final LinearLayout rootView;
 
   @NonNull
+  public final TextView engineDescription;
+
+  @NonNull
   public final ImageView engineIcon;
 
   @NonNull
   public final TextView engineName;
 
-  private ItemSearchEngineBinding(@NonNull LinearLayout rootView, @NonNull ImageView engineIcon,
+  private ItemSearchEngineBinding(@NonNull LinearLayout rootView,
+      @NonNull TextView engineDescription, @NonNull ImageView engineIcon,
       @NonNull TextView engineName) {
     this.rootView = rootView;
+    this.engineDescription = engineDescription;
     this.engineIcon = engineIcon;
     this.engineName = engineName;
   }
@@ -60,6 +65,12 @@ public final class ItemSearchEngineBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
+      id = R.id.engine_description;
+      TextView engineDescription = ViewBindings.findChildViewById(rootView, id);
+      if (engineDescription == null) {
+        break missingId;
+      }
+
       id = R.id.engine_icon;
       ImageView engineIcon = ViewBindings.findChildViewById(rootView, id);
       if (engineIcon == null) {
@@ -72,7 +83,8 @@ public final class ItemSearchEngineBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ItemSearchEngineBinding((LinearLayout) rootView, engineIcon, engineName);
+      return new ItemSearchEngineBinding((LinearLayout) rootView, engineDescription, engineIcon,
+          engineName);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));
