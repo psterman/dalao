@@ -3,6 +3,7 @@ package com.example.aifloatingball
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.util.Log
 import android.widget.Switch
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -132,7 +133,7 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             // 左手模式开关
-            findPreference<SwitchPreferenceCompat>(PREF_LEFT_HANDED_MODE)?.setOnPreferenceChangeListener { _, newValue ->
+            findPreference<SwitchPreferenceCompat>(PREF_LEFT_HANDED_MODE)?.setOnPreferenceChangeListener { _, _ ->
                 val intent = Intent(ACTION_SETTINGS_CHANGED).apply {
                     putExtra(EXTRA_LEFT_HANDED_MODE_CHANGED, true)
                 }
@@ -141,9 +142,59 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             // 默认搜索模式
-            findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.setOnPreferenceChangeListener { _, newValue ->
-                updateDefaultSearchEngineList(newValue as Boolean)
-                true
+            findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.apply {
+                // 确保开关显示正确的初始状态
+                isChecked = settingsManager.isDefaultAIMode()
+                
+                setOnPreferenceChangeListener { _, newValue ->
+                    // 当用户切换默认搜索模式（AI或普通）时，保存设置并通知其他组件
+                    val isAIMode = newValue as Boolean
+                    
+                    // 记录切换
+                    Log.d("SettingsActivity", "用户切换默认搜索模式: ${if (isAIMode) "AI模式" else "普通模式"}")
+                    
+                    // 保存设置（使用公共方法而不是直接访问私有字段）
+                    settingsManager.setDefaultAIMode(isAIMode)
+                    
+                    // 再次检查设置是否保存成功
+                    val saved = settingsManager.isDefaultAIMode()
+                    Log.d("SettingsActivity", "设置保存后的状态: ${if (saved) "AI模式" else "普通模式"}")
+                    
+                    // 提示用户如何查看更改
+                    Toast.makeText(requireContext(), 
+                        if (isAIMode) "已设置为AI搜索模式，请重新打开搜索或点击下方按钮应用更改" 
+                        else "已设置为普通搜索模式，请重新打开搜索或点击下方按钮应用更改", 
+                        Toast.LENGTH_LONG
+                    ).show()
+                    true
+                }
+            }
+            
+            // 添加一个应用更改的按钮
+            findPreference<Preference>("apply_search_mode_changes")?.apply {
+                isVisible = true
+                title = "应用搜索模式更改"
+                summary = "点击此处立即应用搜索模式更改"
+                
+                setOnPreferenceClickListener {
+                    // 创建启动SearchActivity的Intent - 更新为aifloatingball包
+                    val intent = Intent()
+                    intent.setClassName(requireContext().packageName, "com.example.aifloatingball.SearchActivity")
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    intent.putExtra("refresh_mode", true)
+                    intent.putExtra("is_ai_mode", settingsManager.isDefaultAIMode())
+                    
+                    try {
+                        Log.d("SettingsActivity", "正在启动SearchActivity刷新搜索模式...")
+                        requireContext().startActivity(intent)
+                        Toast.makeText(requireContext(), "正在刷新搜索界面...", Toast.LENGTH_SHORT).show()
+                        true
+                    } catch (e: Exception) {
+                        Log.e("SettingsActivity", "启动SearchActivity失败", e)
+                        Toast.makeText(requireContext(), "应用更改失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        false
+                    }
+                }
             }
 
             // 默认搜索引擎
@@ -162,22 +213,20 @@ class SettingsActivity : AppCompatActivity() {
 
         private fun setupDefaultSearchEnginePreference() {
             val defaultSearchPref = findPreference<ListPreference>(PREF_DEFAULT_SEARCH_ENGINE)
-            val isAIMode = findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.isChecked ?: true
+            val defaultSearchModePref = findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)
             
-            // 设置默认搜索引擎列表
-            updateDefaultSearchEngineList(isAIMode)
+            // 初始化所有搜索引擎列表（包括AI和普通搜索引擎）
+            updateAllSearchEngineList()
             
-            // 设置当前值
+            // 设置搜索引擎选择监听器
             defaultSearchPref?.apply {
                 setOnPreferenceChangeListener { _, newValue ->
                     try {
-                        val (engineName, engineUrl, isAI) = (newValue as String).split("|")
+                        // 解析选择的搜索引擎信息：引擎名称、URL
+                        val engineInfo = (newValue as String).split("|")
+                        val engineName = engineInfo[0]
                         // 保存设置
                         settingsManager.putString(PREF_DEFAULT_SEARCH_ENGINE, newValue)
-                        settingsManager.putBoolean(PREF_DEFAULT_SEARCH_MODE, isAI.toBoolean())
-                        
-                        // 更新UI
-                        findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.isChecked = isAI.toBoolean()
                         
                         Toast.makeText(requireContext(), "已设置 $engineName 为默认搜索引擎", Toast.LENGTH_SHORT).show()
                         true
@@ -188,39 +237,89 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             
-            // 监听搜索模式变化
-            findPreference<SwitchPreferenceCompat>(PREF_DEFAULT_SEARCH_MODE)?.apply {
+            // 监听默认AI模式变化
+            defaultSearchModePref?.apply {
                 setOnPreferenceChangeListener { _, newValue ->
-                    updateDefaultSearchEngineList(newValue as Boolean)
+                    val useAIMode = newValue as Boolean
+                    // 仅保存AI模式设置，不改变搜索引擎列表
+                    settingsManager.putBoolean(PREF_DEFAULT_SEARCH_MODE, useAIMode)
+                    Toast.makeText(requireContext(), 
+                        if (useAIMode) "已设置为AI搜索模式" else "已设置为普通搜索模式", 
+                        Toast.LENGTH_SHORT
+                    ).show()
                     true
                 }
             }
         }
 
-        private fun updateDefaultSearchEngineList(isAIMode: Boolean) {
+        private fun updateAllSearchEngineList() {
             val defaultSearchPref = findPreference<ListPreference>(PREF_DEFAULT_SEARCH_ENGINE)
-            val engines = if (isAIMode) {
-                AISearchEngine.DEFAULT_AI_ENGINES
+            
+            // 合并AI和普通搜索引擎列表
+            val allEngines = mutableListOf<Any>()
+            
+            // 添加AI搜索引擎
+            try {
+                val aiEngines = AISearchEngine.DEFAULT_AI_ENGINES
+                if (aiEngines.isNotEmpty()) {
+                    allEngines.addAll(aiEngines)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "加载AI搜索引擎失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            
+            // 添加普通搜索引擎
+            // 确保功能主页在普通搜索引擎列表的第一位
+            val homeEngine = SearchActivity.NORMAL_SEARCH_ENGINES.find { it.name == "功能主页" }
+            if (homeEngine != null) {
+                allEngines.add(homeEngine)
+                allEngines.addAll(SearchActivity.NORMAL_SEARCH_ENGINES.filter { it.name != "功能主页" })
             } else {
-                // 确保功能主页总是在普通搜索引擎列表的第一位
-                val homeEngine = SearchActivity.NORMAL_SEARCH_ENGINES.find { it.name == "功能主页" }
-                if (homeEngine != null) {
-                    listOf(homeEngine) + SearchActivity.NORMAL_SEARCH_ENGINES.filter { it.name != "功能主页" }
-                } else {
-                    SearchActivity.NORMAL_SEARCH_ENGINES
+                allEngines.addAll(SearchActivity.NORMAL_SEARCH_ENGINES)
+            }
+
+            // 准备搜索引擎的显示名称和值
+            val engineNames = ArrayList<CharSequence>()
+            val engineValues = ArrayList<CharSequence>()
+            
+            // 填充名称和值列表
+            allEngines.forEach { engine ->
+                when (engine) {
+                    is AISearchEngine -> {
+                        engineNames.add("${engine.name} (AI)")
+                        engineValues.add("${engine.name}|${engine.url}")
+                    }
+                    is SearchEngine -> {
+                        engineNames.add(engine.name)
+                        engineValues.add("${engine.name}|${engine.url}")
+                    }
                 }
             }
 
-            val engineNames = engines.map { it.name }.toTypedArray()
-            val engineValues = engines.map { "${it.name}|${it.url}|$isAIMode" }.toTypedArray()
-
             defaultSearchPref?.apply {
-                entries = engineNames
-                entryValues = engineValues
+                entries = engineNames.toTypedArray()
+                entryValues = engineValues.toTypedArray()
                 
-                // 保持当前选中的搜索引擎（如果它在新列表中存在）
-                if (value == null || !engineValues.contains(value)) {
-                    value = engineValues.firstOrNull()
+                // 获取当前选中的搜索引擎
+                val currentValue = value
+                if (currentValue == null || !engineValues.contains(currentValue)) {
+                    // 如果当前没有选中的搜索引擎或者选中的搜索引擎不在列表中
+                    // 选择列表中的第一个搜索引擎
+                    if (engineValues.isNotEmpty()) {
+                        value = engineValues[0].toString()
+                        // 通知用户搜索引擎已更改
+                        if (allEngines.isNotEmpty()) {
+                            val engineName = when (val firstEngine = allEngines.first()) {
+                                is AISearchEngine -> "${firstEngine.name} (AI)"
+                                is SearchEngine -> firstEngine.name
+                                else -> "未知搜索引擎"
+                            }
+                            Toast.makeText(requireContext(), 
+                                "已将默认搜索引擎设置为: $engineName", 
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
                 }
             }
         }
@@ -269,5 +368,6 @@ class SettingsActivity : AppCompatActivity() {
         const val PREF_LEFT_HANDED_MODE = "left_handed_mode"
         const val PREF_DEFAULT_SEARCH_ENGINE = "default_search_engine"
         const val PREF_DEFAULT_SEARCH_MODE = "default_search_mode"
+        const val KEY_DEFAULT_SEARCH_MODE = "default_search_mode"
     }
 } 

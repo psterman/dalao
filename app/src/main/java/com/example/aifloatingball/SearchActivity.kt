@@ -45,6 +45,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.provider.Settings
+import android.graphics.Color
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
@@ -63,6 +64,11 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var searchEngineButton: ImageButton
     private lateinit var clearSearchButton: ImageButton
     private var currentSearchEngine: SearchEngine? = null
+    
+    // 添加搜索引擎集合和相关处理器
+    private val searchEngines = mutableListOf<Any>()
+    private var modeToastView: View? = null
+    private val handler = Handler(Looper.getMainLooper())
     
     // Add flags to track receiver registration
     private var isSettingsReceiverRegistered = false
@@ -91,6 +97,70 @@ class SearchActivity : AppCompatActivity() {
     private var touchCount = 0
     private var lastTouchTime = 0L
     private val DOUBLE_TAP_TIMEOUT_TOUCH = 300L // 双指轻点的时间窗口
+    
+    // 添加搜索模式变更接收器
+    private val searchModeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            // 记录收到的所有广播，帮助调试
+            Log.d("SearchActivity", "【广播接收器】收到广播: ${intent?.action}")
+            Log.d("SearchActivity", "【广播接收器】Intent extras: ${intent?.extras?.keySet()?.joinToString()}")
+            
+            try {
+                // 检查是否是测试广播
+                if (intent?.getBooleanExtra("test", false) == true) {
+                    Log.d("SearchActivity", "【广播接收器】收到测试广播，接收器工作正常")
+                    Toast.makeText(context, "搜索模式广播接收器工作正常", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                
+                // 处理搜索模式变更广播
+                if (intent?.action == "com.example.aifloatingball.SEARCH_MODE_CHANGED") {
+                    val isAIMode = intent.getBooleanExtra("is_ai_mode", false)
+                    Log.d("SearchActivity", "【广播接收器】收到搜索模式变更广播: ${if (isAIMode) "AI模式" else "普通模式"}")
+                    
+                    // 获取当前设置中的模式
+                    val currentMode = settingsManager.isDefaultAIMode()
+                    Log.d("SearchActivity", "【广播接收器】当前设置中的模式: ${if (currentMode) "AI模式" else "普通模式"}")
+                    
+                    // 确保设置和广播一致
+                    if (isAIMode != currentMode) {
+                        Log.d("SearchActivity", "【广播接收器】广播模式与设置不一致，使用广播中的模式")
+                    }
+                    
+                    // 显示模式变更提示
+                    showModeChangeToast(isAIMode)
+                    
+                    // 强制刷新搜索引擎列表
+                    searchEngines.clear()
+                    loadSearchEngines(forceRefresh = true)
+                    
+                    // 刷新字母索引栏和搜索引擎列表
+                    val currentLetter = letterTitle.text?.toString()?.firstOrNull() ?: 'A'
+                    Log.d("SearchActivity", "【广播接收器】重新初始化字母索引栏和引擎列表，当前字母: $currentLetter")
+                    
+                    // 重新初始化字母索引栏
+                    runOnUiThread {
+                        try {
+                            // 更新字母标题
+                            letterTitle.text = currentLetter.toString()
+                            
+                            // 加载与当前字母匹配的搜索引擎
+                            showSearchEnginesByLetter(currentLetter)
+                            
+                            Log.d("SearchActivity", "【广播接收器】UI更新完成，模式: ${if (isAIMode) "AI模式" else "普通模式"}")
+                        } catch (e: Exception) {
+                            Log.e("SearchActivity", "【广播接收器】更新UI时出错", e)
+                            Toast.makeText(context, "更新搜索引擎列表失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // 记录接收器中的任何异常
+                Log.e("SearchActivity", "【广播接收器】处理广播时出错", e)
+                Toast.makeText(context, "处理模式变更广播失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     
     companion object {
         val NORMAL_SEARCH_ENGINES = listOf(
@@ -179,6 +249,9 @@ class SearchActivity : AppCompatActivity() {
                 description = "X搜索"
             )
         )
+
+        // Add the missing constant
+        const val ACTION_SHOW_SEARCH = "com.example.aifloatingball.ACTION_SHOW_SEARCH"
     }
     
     private val settingsReceiver = object : BroadcastReceiver() {
@@ -227,6 +300,23 @@ class SearchActivity : AppCompatActivity() {
             setupDrawer()
             updateLayoutForHandedness()
 
+            // 检查是否是通过"应用更改"按钮启动的
+            val shouldRefreshMode = intent.getBooleanExtra("refresh_mode", false)
+            if (shouldRefreshMode) {
+                // 从Intent获取AI模式设置
+                val isAIMode = intent.getBooleanExtra("is_ai_mode", settingsManager.isDefaultAIMode())
+                Log.d("SearchActivity", "通过Intent启动并刷新，设置模式为: ${if (isAIMode) "AI模式" else "普通模式"}")
+                
+                // 确保设置与Intent一致
+                if (isAIMode != settingsManager.isDefaultAIMode()) {
+                    Log.d("SearchActivity", "Intent中的模式与设置不一致，更新设置")
+                    settingsManager.setDefaultAIMode(isAIMode)
+                }
+                
+                // 显示模式切换提示
+                showModeChangeToast(isAIMode)
+            }
+
             // Load default search engine if opened from floating ball
             if (intent.getBooleanExtra("from_floating_ball", false)) {
                 loadDefaultSearchEngine()
@@ -235,9 +325,16 @@ class SearchActivity : AppCompatActivity() {
             // Apply initial themes
             updateLetterIndexBarTheme()
             updateEngineListTheme()
+            
+            // 在初始化完成后加载搜索引擎列表
+            loadSearchEngines(forceRefresh = true)
 
             // Check clipboard after initialization
             checkClipboard()
+            
+            // 打印日志，记录启动状态
+            val isAIMode = settingsManager.isDefaultAIMode()
+            Log.d("SearchActivity", "SearchActivity启动完成，当前模式: ${if (isAIMode) "AI模式" else "普通模式"}")
         } catch (e: Exception) {
             Log.e("SearchActivity", "Error initializing views", e)
             Toast.makeText(this, "初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -275,10 +372,17 @@ class SearchActivity : AppCompatActivity() {
         setupSearchViews()
 
         setupEngineList()
-        updateEngineList()
         
-        // Initialize letter index bar with engines
+        // 获取当前搜索模式
+        val isAIMode = settingsManager.isDefaultAIMode()
+        Log.d("SearchActivity", "初始化视图，当前搜索模式: ${if (isAIMode) "AI模式" else "普通模式"}")
+        
+        // 强制更新搜索引擎列表
+        loadSearchEngines(forceRefresh = true)
+        
+        // Initialize letter index bar - 始终使用普通搜索引擎列表以满足类型要求
         letterIndexBar.engines = NORMAL_SEARCH_ENGINES
+        Log.d("SearchActivity", "字母索引栏设置了 ${NORMAL_SEARCH_ENGINES.size} 个搜索引擎")
         
         // Set initial search engine
         currentSearchEngine = NORMAL_SEARCH_ENGINES.firstOrNull()
@@ -738,51 +842,35 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun setupLetterIndexBar() {
+        // 获取当前搜索模式
+        val isAIMode = settingsManager.isDefaultAIMode()
+        Log.d("SearchActivity", "设置字母索引栏，当前模式=${if (isAIMode) "AI模式" else "普通模式"}")
+        
+        // 根据当前模式设置引擎列表
+        try {
+            // 始终使用普通搜索引擎列表，因为字母索引栏需要的是SearchEngine类型
+            letterIndexBar.engines = NORMAL_SEARCH_ENGINES
+            
+            if (isAIMode) {
+                Log.d("SearchActivity", "当前为AI模式，但字母索引栏仍使用普通搜索引擎作为数据源")
+            } else {
+                Log.d("SearchActivity", "字母索引栏设置为普通搜索引擎列表: ${letterIndexBar.engines?.size}个")
+            }
+        } catch (e: Exception) {
+            // 如果加载失败，使用普通搜索引擎列表
+            Log.e("SearchActivity", "设置字母索引栏引擎列表失败", e)
+            letterIndexBar.engines = NORMAL_SEARCH_ENGINES
+        }
+
         letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
             override fun onLetterSelected(view: View, letter: Char) {
                 val letterStr = letter.toString()
                 letterTitle.text = letterStr
                 letterTitle.visibility = View.VISIBLE
-                showEnginesByLetter(letterStr)
+                
+                // 更新搜索引擎列表，显示选中字母的搜索引擎
+                showSearchEnginesByLetter(letter)
             }
-        }
-    }
-
-    private fun showEnginesByLetter(selectedLetter: String) {
-        previewEngineList.removeAllViews()
-
-        val engines = NORMAL_SEARCH_ENGINES
-        
-        val filteredEngines = engines.filter { engine ->
-            val firstChar = engine.name.first()
-            when {
-                firstChar.toString().matches(Regex("[A-Za-z]")) -> 
-                    firstChar.uppercaseChar() == selectedLetter[0].uppercaseChar()
-                firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
-                    val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
-                    pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == selectedLetter[0].uppercaseChar()
-                }
-                else -> false
-            }
-        }
-
-        for (engine in filteredEngines) {
-            val engineItem = LayoutInflater.from(this)
-                .inflate(R.layout.item_engine, previewEngineList, false)
-
-            val icon = engineItem.findViewById<ImageView>(R.id.engine_icon)
-            val name = engineItem.findViewById<TextView>(R.id.engine_name)
-
-            icon.setImageResource(engine.iconResId)
-            name.text = engine.name
-
-            // 设置点击事件
-            engineItem.setOnClickListener {
-                openSearchEngine(engine)
-                drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
-            }
-
-            previewEngineList.addView(engineItem)
         }
     }
 
@@ -802,11 +890,68 @@ class SearchActivity : AppCompatActivity() {
 
         previewEngineList.removeAllViews()
 
-        val engines = NORMAL_SEARCH_ENGINES
+        // 获取当前搜索模式
+        val isAIMode = settingsManager.isDefaultAIMode()
+        Log.d("SearchActivity", "正在加载搜索引擎列表，当前模式=${if (isAIMode) "AI模式" else "普通模式"}")
+        
+        val engines: List<Any> = if (isAIMode) {
+            // 加载AI搜索引擎列表
+            try {
+                val aiEngines = com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES
+                Log.d("SearchActivity", "加载AI搜索引擎列表: ${aiEngines.size}个")
+                // 添加日志显示每个AI搜索引擎
+                aiEngines.forEachIndexed { index, engine ->
+                    Log.d("SearchActivity", "AI引擎 $index: ${engine.name} - ${engine.url}")
+                }
+                aiEngines
+            } catch (e: Exception) {
+                Log.e("SearchActivity", "加载AI搜索引擎列表失败", e)
+                // 加载失败时显示提示
+                Toast.makeText(this, "加载AI搜索引擎列表失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                // 返回空列表
+                NORMAL_SEARCH_ENGINES
+            }
+        } else {
+            // 加载普通搜索引擎列表
+            Log.d("SearchActivity", "加载普通搜索引擎列表: ${NORMAL_SEARCH_ENGINES.size}个")
+            NORMAL_SEARCH_ENGINES
+        }
+        
+        // 在界面顶部添加当前模式提示
+        val modeInfoText = TextView(this).apply {
+            text = if (isAIMode) "当前模式: AI搜索" else "当前模式: 普通搜索"
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(this@SearchActivity,
+                if (isDarkMode) R.color.letter_index_text_dark
+                else R.color.letter_index_text_light))
+            gravity = Gravity.CENTER
+            setPadding(16, 16, 16, 16)
+        }
+        previewEngineList.addView(modeInfoText)
+        
+        // 添加分隔线
+        View(this).apply {
+            setBackgroundColor(ContextCompat.getColor(this@SearchActivity,
+                if (isDarkMode) R.color.divider_dark
+                else R.color.divider_light))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1
+            )
+            previewEngineList.addView(this)
+        }
         
         val filteredEngines = if (selectedLetter != null) {
             engines.filter { engine ->
-                val firstChar = engine.name.first()
+                val engineName = when (engine) {
+                    is com.example.aifloatingball.model.AISearchEngine -> engine.name
+                    is SearchEngine -> engine.name
+                    else -> ""
+                }
+                
+                if (engineName.isEmpty()) return@filter false
+                
+                val firstChar = engineName.first()
                 when {
                     firstChar.toString().matches(Regex("[A-Za-z]")) -> 
                         firstChar.uppercaseChar() == selectedLetter.uppercaseChar()
@@ -824,51 +969,133 @@ class SearchActivity : AppCompatActivity() {
         // 确保引擎列表可见
         previewEngineList.visibility = View.VISIBLE
         
+        // 如果没有匹配的搜索引擎，显示提示信息
+        if (filteredEngines.isEmpty()) {
+            val noEngineText = TextView(this).apply {
+                text = if (selectedLetter != null) 
+                    "没有以 $selectedLetter 开头的搜索引擎"
+                else
+                    "当前没有可用的搜索引擎"
+                textSize = 16f
+                setTextColor(ContextCompat.getColor(this@SearchActivity,
+                    if (isDarkMode) R.color.letter_index_text_dark
+                    else R.color.letter_index_text_light))
+                gravity = Gravity.CENTER
+                setPadding(16, 32, 16, 32)
+            }
+            previewEngineList.addView(noEngineText)
+            return
+        }
+        
+        // 显示符合条件的搜索引擎列表
         filteredEngines.forEach { engine ->
             val engineItem = LayoutInflater.from(this)
                 .inflate(R.layout.item_ai_engine, previewEngineList, false)
 
-            // 设置引擎图标
-            engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
-                setImageResource(engine.iconResId)
-                visibility = View.VISIBLE
-                setColorFilter(ContextCompat.getColor(this@SearchActivity,
-                    if (isDarkMode) R.color.engine_icon_dark
-                    else R.color.engine_icon_light))
-            }
-            
-            // 设置引擎名称
-            engineItem.findViewById<TextView>(R.id.engine_name).apply {
-                text = engine.name
-                visibility = View.VISIBLE
-                setTextColor(ContextCompat.getColor(this@SearchActivity,
-                    if (isDarkMode) R.color.engine_name_text_dark
-                    else R.color.engine_name_text_light))
-            }
-            
-            // 设置引擎描述
-            engineItem.findViewById<TextView>(R.id.engine_description).apply {
-                text = engine.description
-                visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
-                setTextColor(ContextCompat.getColor(this@SearchActivity,
-                    if (isDarkMode) R.color.engine_description_text_dark
-                    else R.color.engine_description_text_light))
-            }
+            when (engine) {
+                is com.example.aifloatingball.model.AISearchEngine -> {
+                    // 设置AI搜索引擎图标
+                    engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                        setImageResource(engine.iconResId)
+                        visibility = View.VISIBLE
+                        setColorFilter(ContextCompat.getColor(this@SearchActivity,
+                            if (isDarkMode) R.color.engine_icon_dark
+                            else R.color.engine_icon_light))
+                    }
+                    
+                    // 设置AI搜索引擎名称
+                    engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                        text = "${engine.name} (AI)"
+                        visibility = View.VISIBLE
+                        setTextColor(ContextCompat.getColor(this@SearchActivity,
+                            if (isDarkMode) R.color.engine_name_text_dark
+                            else R.color.engine_name_text_light))
+                    }
+                    
+                    // 设置AI搜索引擎描述
+                    engineItem.findViewById<TextView>(R.id.engine_description).apply {
+                        text = engine.description
+                        visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
+                        setTextColor(ContextCompat.getColor(this@SearchActivity,
+                            if (isDarkMode) R.color.engine_description_text_dark
+                            else R.color.engine_description_text_light))
+                    }
 
-            // 设置项目背景
-            engineItem.setBackgroundColor(ContextCompat.getColor(this,
-                if (isDarkMode) R.color.engine_list_background_dark
-                else R.color.engine_list_background_light))
+                    // 设置AI搜索引擎项目背景
+                    engineItem.setBackgroundColor(ContextCompat.getColor(this,
+                        if (isDarkMode) R.color.engine_list_background_dark
+                        else R.color.engine_list_background_light))
 
-            // 设置点击事件
-            engineItem.setOnClickListener {
-                    openSearchEngine(engine)
-                    drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
-            }
+                    // 设置AI搜索引擎点击事件
+                    engineItem.setOnClickListener {
+                        // 为AI搜索引擎创建一个SearchEngine对象
+                        val searchEngine = SearchEngine(
+                            name = engine.name,
+                            url = engine.url,
+                            iconResId = engine.iconResId,
+                            description = engine.description
+                        )
+                        openSearchEngine(searchEngine)
+                        drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
+                    }
 
-            engineItem.setOnLongClickListener {
-                showEngineSettings(engine)
-                true
+                    engineItem.setOnLongClickListener {
+                        // 为AI搜索引擎创建一个SearchEngine对象
+                        val searchEngine = SearchEngine(
+                            name = engine.name,
+                            url = engine.url,
+                            iconResId = engine.iconResId,
+                            description = engine.description
+                        )
+                        showEngineSettings(searchEngine)
+                        true
+                    }
+                }
+                
+                is SearchEngine -> {
+                    // 设置普通搜索引擎图标
+                    engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                        setImageResource(engine.iconResId)
+                        visibility = View.VISIBLE
+                        setColorFilter(ContextCompat.getColor(this@SearchActivity,
+                            if (isDarkMode) R.color.engine_icon_dark
+                            else R.color.engine_icon_light))
+                    }
+                    
+                    // 设置普通搜索引擎名称
+                    engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                        text = engine.name
+                        visibility = View.VISIBLE
+                        setTextColor(ContextCompat.getColor(this@SearchActivity,
+                            if (isDarkMode) R.color.engine_name_text_dark
+                            else R.color.engine_name_text_light))
+                    }
+                    
+                    // 设置普通搜索引擎描述
+                    engineItem.findViewById<TextView>(R.id.engine_description).apply {
+                        text = engine.description
+                        visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
+                        setTextColor(ContextCompat.getColor(this@SearchActivity,
+                            if (isDarkMode) R.color.engine_description_text_dark
+                            else R.color.engine_description_text_light))
+                    }
+
+                    // 设置普通搜索引擎项目背景
+                    engineItem.setBackgroundColor(ContextCompat.getColor(this,
+                        if (isDarkMode) R.color.engine_list_background_dark
+                        else R.color.engine_list_background_light))
+
+                    // 设置普通搜索引擎点击事件
+                    engineItem.setOnClickListener {
+                        openSearchEngine(engine)
+                        drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
+                    }
+
+                    engineItem.setOnLongClickListener {
+                        showEngineSettings(engine)
+                        true
+                    }
+                }
             }
 
             // 添加到列表中
@@ -1120,6 +1347,13 @@ class SearchActivity : AppCompatActivity() {
                 unregisterReceiver(layoutThemeReceiver)
                 isLayoutThemeReceiverRegistered = false
             }
+            // 取消注册搜索模式变更接收器
+            try {
+                unregisterReceiver(searchModeReceiver)
+            } catch (e: Exception) {
+                // 如果接收器未注册，忽略异常
+                Log.e("SearchActivity", "取消注册searchModeReceiver失败", e)
+            }
         } catch (e: Exception) {
             Log.e("SearchActivity", "Error unregistering receivers", e)
         }
@@ -1228,15 +1462,49 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun setupEngineList() {
+        // Set layout manager
         engineList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        
+        // Initialize adapter with empty list
         engineAdapter = EngineAdapter(
-            engines = NORMAL_SEARCH_ENGINES,
+            engines = emptyList(),
             onEngineClick = { engine ->
                 openSearchEngine(engine)
                 drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
             }
         )
+        
+        // Attach adapter to RecyclerView
         engineList.adapter = engineAdapter
+        
+        // Load initial engines
+        updateEngineAdapter()
+        
+        // Register for search mode changes
+        settingsManager.registerOnSettingChangeListener<Boolean>("default_search_mode") { _, isAIMode ->
+            // Update adapter when search mode changes
+            updateEngineAdapter()
+        }
+    }
+    
+    private fun updateEngineAdapter() {
+        val isAIMode = settingsManager.isDefaultAIMode()
+        val engines = if (isAIMode) {
+            // Convert AI engines to SearchEngine type for adapter
+            com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES.map { aiEngine ->
+                SearchEngine(
+                    name = "${aiEngine.name} (AI)",
+                    url = aiEngine.url,
+                    iconResId = aiEngine.iconResId,
+                    description = aiEngine.description
+                )
+            }
+        } else {
+            NORMAL_SEARCH_ENGINES
+        }
+        
+        Log.d("SearchActivity", "更新引擎适配器: ${if (isAIMode) "AI模式" else "普通模式"}, ${engines.size}个引擎")
+        engineAdapter.updateEngines(engines)
     }
 
     private fun checkClipboard() {
@@ -1336,6 +1604,24 @@ class SearchActivity : AppCompatActivity() {
                 registerReceiver(layoutThemeReceiver, themeFilter)
             }
             isLayoutThemeReceiverRegistered = true
+            
+            // 注册搜索模式变更广播接收器
+            val searchModeFilter = IntentFilter()
+            searchModeFilter.addAction("com.example.aifloatingball.SEARCH_MODE_CHANGED")
+            searchModeFilter.priority = IntentFilter.SYSTEM_HIGH_PRIORITY
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(searchModeReceiver, searchModeFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(searchModeReceiver, searchModeFilter)
+            }
+            
+            // 发送测试广播以验证接收器是否正常工作
+            val testIntent = Intent("com.example.aifloatingball.SEARCH_MODE_CHANGED")
+            testIntent.putExtra("test", true)
+            sendBroadcast(testIntent)
+            
+            Log.d("SearchActivity", "搜索模式变更广播接收器注册成功, 当前类: ${this.javaClass.name}, 包名: ${this.packageName}")
+            Log.d("SearchActivity", "当前AI模式状态: ${if(settingsManager.isDefaultAIMode()) "开启" else "关闭"}")
         } catch (e: Exception) {
             Log.e("SearchActivity", "Error registering receivers", e)
         }
@@ -1396,6 +1682,293 @@ class SearchActivity : AppCompatActivity() {
         currentSearchEngine?.let { engine ->
             val searchUrl = engine.url.replace("{query}", Uri.encode(query))
             webView.loadUrl(searchUrl)
+        }
+    }
+
+    // 添加加载搜索引擎的方法
+    private fun loadSearchEngines(forceRefresh: Boolean = false) {
+        // 如果强制刷新，则清空现有列表
+        if (forceRefresh) {
+            searchEngines.clear()
+            Log.d("SearchActivity", "强制刷新，已清空搜索引擎列表")
+        }
+        
+        // 如果列表不为空且不是强制刷新，则无需重新加载
+        if (searchEngines.isNotEmpty() && !forceRefresh) {
+            Log.d("SearchActivity", "搜索引擎列表已存在，无需重新加载")
+            return
+        }
+        
+        try {
+            // 获取当前搜索模式
+            val isAIMode = settingsManager.isDefaultAIMode()
+            Log.d("SearchActivity", "正在加载搜索引擎列表，当前模式=${if (isAIMode) "AI模式" else "普通模式"}")
+            
+            // 清空现有列表
+            searchEngines.clear()
+            
+            // 手动判断加载哪种列表
+            if (isAIMode) {
+                // 直接加载AI搜索引擎列表
+                val aiEngines = com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES
+                Log.d("SearchActivity", "加载AI搜索引擎列表: ${aiEngines.size}个")
+                searchEngines.addAll(aiEngines)
+                
+                // 添加日志显示每个AI搜索引擎
+                aiEngines.forEachIndexed { index, engine ->
+                    Log.d("SearchActivity", "AI引擎 $index: ${engine.name} - ${engine.url}")
+                }
+            } else {
+                // 直接加载普通搜索引擎列表
+                Log.d("SearchActivity", "加载普通搜索引擎列表: ${NORMAL_SEARCH_ENGINES.size}个")
+                searchEngines.addAll(NORMAL_SEARCH_ENGINES)
+            }
+        } catch (e: Exception) {
+            // 如果加载失败，显示错误信息
+            Log.e("SearchActivity", "加载搜索引擎列表失败: ${e.message}", e)
+            Toast.makeText(this, "加载搜索引擎列表失败: ${e.message}", Toast.LENGTH_LONG).show()
+            
+            // 加载一个默认引擎，确保应用不会崩溃
+            val isAIMode = settingsManager.isDefaultAIMode()
+            if (isAIMode) {
+                searchEngines.add(com.example.aifloatingball.model.AISearchEngine("ChatGPT", "https://chat.openai.com", R.drawable.ic_chatgpt, "ChatGPT AI聊天"))
+                Toast.makeText(this, "已加载默认AI搜索引擎: ChatGPT", Toast.LENGTH_SHORT).show()
+            } else {
+                searchEngines.add(SearchEngine("百度", "https://www.baidu.com/s?wd=", R.drawable.ic_search, "百度搜索"))
+                Toast.makeText(this, "已加载默认搜索引擎: 百度", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // 添加模式切换提示
+    private fun showModeChangeToast(isAIMode: Boolean) {
+        try {
+            // 移除旧的Toast视图
+            removeModeToast()
+            
+            // 创建自定义Toast视图
+            val inflater = LayoutInflater.from(this)
+            val toastView = inflater.inflate(R.layout.toast_mode_change, null)
+            
+            // 设置Toast的图标和文本
+            val iconView = toastView.findViewById<ImageView>(R.id.toast_icon)
+            val messageView = toastView.findViewById<TextView>(R.id.toast_message)
+            
+            if (isAIMode) {
+                iconView.setImageResource(R.drawable.ic_chatgpt) // 使用已存在的图标
+                messageView.text = "AI搜索模式已启用"
+                toastView.setBackgroundResource(R.color.ai_mode_background)
+            } else {
+                iconView.setImageResource(R.drawable.ic_search)
+                messageView.text = "普通搜索模式已启用"
+                toastView.setBackgroundResource(R.color.normal_mode_background)
+            }
+            
+            // 创建并显示自定义Toast
+            val toast = Toast(applicationContext)
+            toast.setGravity(Gravity.TOP or Gravity.CENTER_HORIZONTAL, 0, 150)
+            toast.duration = Toast.LENGTH_LONG
+            toast.view = toastView
+            toast.show()
+            
+            // 保存Toast视图引用
+            modeToastView = toastView
+            
+            // 设置定时器移除Toast
+            handler.postDelayed({
+                removeModeToast()
+            }, 3000)
+            
+            Log.d("SearchActivity", "显示模式切换提示: ${if (isAIMode) "AI模式" else "普通模式"}")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "显示模式切换提示失败", e)
+            // 使用系统Toast作为备选
+            Toast.makeText(
+                this,
+                if (isAIMode) "已切换到AI搜索模式" else "已切换到普通搜索模式",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    private fun removeModeToast() {
+        modeToastView?.let {
+            // 如果存在旧的Toast视图，尝试移除
+            try {
+                (it.parent as? ViewGroup)?.removeView(it)
+            } catch (e: Exception) {
+                Log.e("SearchActivity", "移除Toast视图失败", e)
+            }
+            modeToastView = null
+        }
+    }
+
+    // 添加显示特定字母搜索引擎的方法
+    private fun showSearchEnginesByLetter(letter: Char) {
+        // Update letter title
+        letterTitle.text = letter.toString()
+        
+        // Get theme colors
+        val isDarkMode = when (settingsManager.getThemeMode()) {
+            "dark" -> true
+            "light" -> false
+            else -> resources.configuration.uiMode and 
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK == 
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
+        
+        val layoutTheme = settingsManager.getLayoutTheme()
+        val textColor = when (layoutTheme) {
+            "fold" -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
+            "material" -> if (isDarkMode) R.color.material_text_dark else R.color.material_text_light
+            "glass" -> if (isDarkMode) R.color.glass_text_dark else R.color.glass_text_light
+            else -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
+        }
+
+        // Clear engine list
+        previewEngineList.removeAllViews()
+
+        // 显示搜索模式信息
+        val isAIMode = settingsManager.isDefaultAIMode()
+        val modeInfoText = TextView(this).apply {
+            text = if (isAIMode) "当前模式: AI搜索" else "当前模式: 普通搜索"
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, textColor))
+            gravity = Gravity.CENTER
+            setPadding(16, 16, 16, 16)
+            
+            // 设置背景颜色指示当前模式
+            setBackgroundResource(if (isAIMode) R.color.ai_mode_indicator_bg else R.color.normal_mode_indicator_bg)
+        }
+        previewEngineList.addView(modeInfoText)
+        
+        // 添加分隔线
+        val modeDivider = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
+            setBackgroundColor(ContextCompat.getColor(context, R.color.divider))
+        }
+        previewEngineList.addView(modeDivider)
+
+        // 记录搜索引擎列表中的引擎类型，用于调试
+        val aiCount = searchEngines.count { it is com.example.aifloatingball.model.AISearchEngine }
+        val normalCount = searchEngines.count { it is SearchEngine }
+        Log.d("SearchActivity", "搜索引擎列表: AI引擎=${aiCount}个, 普通引擎=${normalCount}个, 总计=${searchEngines.size}个")
+        Log.d("SearchActivity", "当前搜索模式: ${if (isAIMode) "AI模式" else "普通模式"}")
+
+        // 查找所有匹配该字母的搜索引擎
+        val matchingEngines = searchEngines.filter { engine ->
+            val engineName = when (engine) {
+                is com.example.aifloatingball.model.AISearchEngine -> engine.name
+                is SearchEngine -> engine.name
+                else -> ""
+            }
+            
+            if (engineName.isEmpty()) return@filter false
+            
+            val firstChar = engineName.first()
+            if (firstChar.toString().matches(Regex("[\\u4e00-\\u9fa5]"))) {
+                val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                pinyinArray?.firstOrNull()?.firstOrNull() == letter.lowercaseChar()
+            } else {
+                firstChar.lowercaseChar() == letter.lowercaseChar()
+            }
+        }
+
+        Log.d("SearchActivity", "匹配字母 '$letter' 的引擎数量: ${matchingEngines.size}")
+
+        if (matchingEngines.isEmpty()) {
+            // 如果没有匹配的搜索引擎，显示提示信息
+            val noEngineText = TextView(this).apply {
+                text = "没有以 $letter 开头的搜索引擎"
+                textSize = 16f
+                setTextColor(Color.GRAY)
+                gravity = Gravity.CENTER
+                setPadding(16, 32, 16, 32)
+            }
+            previewEngineList.addView(noEngineText)
+        } else {
+            // 添加匹配的搜索引擎
+            matchingEngines.forEach { engine ->
+                val engineItem = LayoutInflater.from(this).inflate(
+                    R.layout.item_search_engine,
+                    previewEngineList,
+                    false
+                )
+
+                // 获取引擎信息
+                val engineName: String
+                val engineUrl: String
+                val engineIcon: Int
+                val engineDesc: String
+                
+                when (engine) {
+                    is com.example.aifloatingball.model.AISearchEngine -> {
+                        engineName = engine.name
+                        engineUrl = engine.url
+                        engineIcon = engine.iconResId
+                        engineDesc = engine.description
+                    }
+                    is SearchEngine -> {
+                        engineName = engine.name
+                        engineUrl = engine.url
+                        engineIcon = engine.iconResId
+                        engineDesc = engine.description
+                    }
+                    else -> {
+                        engineName = "未知引擎"
+                        engineUrl = ""
+                        engineIcon = R.drawable.ic_search
+                        engineDesc = "未知引擎"
+                    }
+                }
+
+                // Set search engine icon with theme color
+                engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                    setImageResource(engineIcon)
+                    setColorFilter(ContextCompat.getColor(context, textColor))
+                }
+
+                // Set search engine name with theme color
+                engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                    // 在AI模式下显示引擎名称时添加"(AI)"标记
+                    val displayName = if (engine is com.example.aifloatingball.model.AISearchEngine) "$engineName (AI)" else engineName
+                    text = displayName
+                    setTextColor(ContextCompat.getColor(context, textColor))
+                }
+
+                // 设置描述文本（如果存在）
+                engineItem.findViewById<TextView>(R.id.engine_description)?.apply {
+                    text = engineDesc
+                    setTextColor(ContextCompat.getColor(context, textColor))
+                }
+
+                // 添加点击事件
+                engineItem.setOnClickListener {
+                    val intent = Intent(this, FloatingWindowService::class.java).apply {
+                        action = ACTION_SHOW_SEARCH
+                        putExtra("ENGINE_NAME", engineName)
+                        putExtra("ENGINE_URL", engineUrl)
+                        putExtra("ENGINE_ICON", engineIcon)
+                        putExtra("SEARCH_QUERY", searchInput.text.toString())
+                    }
+                    startService(intent)
+                    finish()
+                }
+
+                previewEngineList.addView(engineItem)
+
+                // 在每个搜索引擎项之间添加分隔线
+                if (engine != matchingEngines.last()) {
+                    val itemDivider = View(this).apply {
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            1
+                        )
+                        setBackgroundColor(ContextCompat.getColor(context, R.color.divider))
+                    }
+                    previewEngineList.addView(itemDivider)
+                }
+            }
         }
     }
 } 

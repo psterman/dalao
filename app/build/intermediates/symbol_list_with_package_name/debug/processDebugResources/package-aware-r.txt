@@ -1460,6 +1460,8 @@ color abc_tint_switch_track
 color accent
 color accent_material_dark
 color accent_material_light
+color ai_mode_background
+color ai_mode_indicator_bg
 color androidx_core_ripple_material_light
 color androidx_core_secondary_text_default_material_light
 color background
@@ -2234,6 +2236,8 @@ color mtrl_textinput_filled_box_default_background_color
 color mtrl_textinput_focused_box_stroke_color
 color mtrl_textinput_hovered_box_stroke_color
 color navigation_bar_background
+color normal_mode_background
+color normal_mode_indicator_bg
 color notification_action_color_filter
 color notification_icon_bg_color
 color preference_fallback_accent_color
@@ -3975,6 +3979,9 @@ id title
 id titleDividerNoCustom
 id title_bar
 id title_template
+id toast_card
+id toast_icon
+id toast_message
 id toggle
 id top
 id topPanel
@@ -4262,6 +4269,7 @@ layout select_dialog_multichoice_material
 layout select_dialog_singlechoice_material
 layout settings_activity
 layout support_simple_spinner_dropdown_item
+layout toast_mode_change
 layout voice_search_animation
 mipmap ic_launcher
 plurals mtrl_badge_content_description

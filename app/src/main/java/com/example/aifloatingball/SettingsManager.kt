@@ -5,6 +5,11 @@ import android.content.SharedPreferences
 import androidx.preference.PreferenceManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.SearchActivity
+import android.util.Log
+import android.content.Intent
 
 class SettingsManager private constructor(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -111,10 +116,84 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putStringSet(KEY_ENABLED_ENGINES, enabledEngines).apply()
     }
 
-    // 获取经过筛选的搜索引擎列表（只返回启用的引擎）
-    fun getFilteredEngineOrder(): List<AIEngine> {
-        val enabledEngines = getEnabledEngines()
-        return getEngineOrder().filter { it.name in enabledEngines }
+    // 获取经过筛选的搜索引擎列表（根据当前模式返回AI或普通搜索引擎）
+    fun getFilteredEngineOrder(): List<Any> {
+        val isAIMode = isDefaultAIMode()
+        
+        Log.d("SettingsManager", "开始获取搜索引擎列表，当前模式=${if (isAIMode) "AI模式" else "普通模式"}")
+        
+        return try {
+            if (isAIMode) {
+                // AI模式下返回AI搜索引擎列表
+                val aiEngines = AISearchEngine.DEFAULT_AI_ENGINES
+                
+                if (aiEngines.isEmpty()) {
+                    Log.e("SettingsManager", "AI搜索引擎列表为空")
+                    throw Exception("AI搜索引擎列表为空")
+                }
+                
+                // 添加日志，帮助调试
+                Log.d("SettingsManager", "成功获取AI搜索引擎列表: ${aiEngines.size}个引擎")
+                
+                // 遍历并打印每个AI引擎
+                aiEngines.forEachIndexed { index, engine ->
+                    Log.d("SettingsManager", "AI引擎 $index: ${engine.name} - ${engine.url}")
+                }
+                
+                return aiEngines
+            } else {
+                // 普通模式下返回普通搜索引擎列表
+                val normalEngines = SearchActivity.NORMAL_SEARCH_ENGINES
+                
+                if (normalEngines.isEmpty()) {
+                    Log.e("SettingsManager", "普通搜索引擎列表为空")
+                    throw Exception("普通搜索引擎列表为空")
+                }
+                
+                // 添加日志，帮助调试
+                Log.d("SettingsManager", "成功获取普通搜索引擎列表: ${normalEngines.size}个引擎")
+                
+                // 遍历并打印每个普通引擎
+                normalEngines.forEachIndexed { index, engine ->
+                    Log.d("SettingsManager", "普通引擎 $index: ${engine.name} - ${engine.url}")
+                }
+                
+                return normalEngines
+            }
+        } catch (e: Exception) {
+            // 出错时返回至少一个默认搜索引擎
+            Log.e("SettingsManager", "加载搜索引擎列表失败: ${e.message}", e)
+            if (isAIMode) {
+                listOf(AISearchEngine("ChatGPT", "https://chat.openai.com", R.drawable.ic_chatgpt, "ChatGPT AI聊天"))
+            } else {
+                listOf(SearchEngine("百度", "https://www.baidu.com/s?wd=", R.drawable.ic_search, "百度搜索"))
+            }
+        }
+    }
+    
+    // 默认AI模式设置
+    fun isDefaultAIMode(): Boolean {
+        val isAIMode = prefs.getBoolean(KEY_DEFAULT_SEARCH_MODE, false)
+        Log.d("SettingsManager", "检查当前搜索模式: ${if (isAIMode) "AI模式" else "普通模式"}")
+        return isAIMode
+    }
+    
+    fun setDefaultAIMode(enabled: Boolean) {
+        Log.d("SettingsManager", "设置AI搜索模式=${enabled}")
+        // 使用commit()而不是apply()，确保立即生效
+        prefs.edit().putBoolean(KEY_DEFAULT_SEARCH_MODE, enabled).commit()
+        
+        // 发送全局广播通知SearchActivity
+        val intent = Intent()
+        // 设置明确的action
+        intent.action = "com.example.aifloatingball.SEARCH_MODE_CHANGED"
+        // 添加包名，确保广播能被正确路由
+        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+        // 设置明确的组件 - 更新为aifloatingball包路径
+        intent.setClassName("com.example.aifloatingball", "com.example.aifloatingball.SearchActivity")
+        intent.putExtra("is_ai_mode", enabled)
+        Log.d("SettingsManager", "向SearchActivity发送搜索模式变更广播: is_ai_mode=$enabled")
+        appContext.sendBroadcast(intent)
     }
 
     var isLeftHandedMode: Boolean
@@ -143,7 +222,27 @@ class SettingsManager private constructor(context: Context) {
 
     // Combined putBoolean method with notification functionality
     fun putBoolean(key: String, value: Boolean) {
-        prefs.edit().putBoolean(key, value).apply()
+        // 使用commit()而不是apply()，确保立即生效
+        prefs.edit().putBoolean(key, value).commit()
+        
+        // 记录设置变更
+        Log.d("SettingsManager", "更新布尔值设置: $key = $value")
+        
+        // 如果是默认搜索模式设置，发送广播通知
+        if (key == KEY_DEFAULT_SEARCH_MODE) {
+            Log.d("SettingsManager", "检测到默认搜索模式变更，发送广播")
+            val intent = Intent()
+            // 设置明确的action
+            intent.action = "com.example.aifloatingball.SEARCH_MODE_CHANGED"
+            // 添加包名，确保广播能被正确路由
+            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
+            // 设置明确的组件 - 更新为aifloatingball包路径
+            intent.setClassName("com.example.aifloatingball", "com.example.aifloatingball.SearchActivity")
+            intent.putExtra("is_ai_mode", value)
+            Log.d("SettingsManager", "向SearchActivity发送搜索模式变更广播: is_ai_mode=$value")
+            appContext.sendBroadcast(intent)
+        }
+        
         notifyListeners(key, value)
     }
 

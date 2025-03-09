@@ -47,10 +47,14 @@
         </activity>
 
         <activity
-            android:name=".SearchActivity"
-            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
-            android:windowSoftInputMode="adjustResize"
-            android:exported="false" />
+            android:name="com.example.aifloatingball.SearchActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AIFloatingBall">
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".SettingsActivity"

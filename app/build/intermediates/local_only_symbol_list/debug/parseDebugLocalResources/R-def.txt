@@ -13,6 +13,8 @@ array layout_theme_values
 array theme_entries
 array theme_values
 color accent
+color ai_mode_background
+color ai_mode_indicator_bg
 color background
 color black
 color colorAccent
@@ -68,6 +70,8 @@ color material_background_light
 color material_text_dark
 color material_text_light
 color navigation_bar_background
+color normal_mode_background
+color normal_mode_indicator_bg
 color primary
 color primary_dark
 color progress_color_dark
@@ -308,6 +312,9 @@ id text_night_mode
 id text_no_image
 id text_share
 id title_bar
+id toast_card
+id toast_icon
+id toast_message
 id voice_animation_container
 id voice_animation_view
 id voice_input_button
@@ -346,6 +353,7 @@ layout search_history_item
 layout search_history_layout
 layout search_input_layout
 layout settings_activity
+layout toast_mode_change
 layout voice_search_animation
 mipmap ic_launcher
 string app_name

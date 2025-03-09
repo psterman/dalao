@@ -25,6 +25,11 @@
             app:entries="@array/home_page_entries"
             app:entryValues="@array/home_page_values"
             app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:key="apply_search_mode_changes"
+            app:title="应用搜索模式更改"
+            app:summary="点击此处立即应用搜索模式更改" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="基本设置">
