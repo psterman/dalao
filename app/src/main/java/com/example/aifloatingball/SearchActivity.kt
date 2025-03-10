@@ -279,10 +279,22 @@ class SearchActivity : AppCompatActivity() {
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // 检查是否需要使用悬浮窗模式
+        if (intent.getBooleanExtra("use_floating_window", false)) {
+            val url = intent.getStringExtra("url")
+            if (!url.isNullOrEmpty()) {
+                // 使用字母列表的悬浮窗方式打开URL
+                openInLetterListFloatingWindow(url)
+                finish() // 关闭当前Activity
+                return
+            }
+        }
+        
         val currentNightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
         val isDarkMode = currentNightMode == Configuration.UI_MODE_NIGHT_YES
         
-        super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
         
         settingsManager = SettingsManager.getInstance(this)
@@ -1963,6 +1975,20 @@ class SearchActivity : AppCompatActivity() {
                     previewEngineList.addView(itemDivider)
                 }
             }
+        }
+    }
+
+    private fun openInLetterListFloatingWindow(url: String) {
+        try {
+            // 创建与字母列表长按相同的悬浮窗Intent
+            val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                putExtra("url", url)
+                putExtra("from_ai_menu", true) // 标记来源，以便特殊处理
+            }
+            startService(intent)
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "打开悬浮窗失败", e)
+            Toast.makeText(this, "打开悬浮窗失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 } 

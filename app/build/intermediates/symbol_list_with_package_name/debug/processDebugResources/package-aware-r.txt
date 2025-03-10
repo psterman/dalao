@@ -3224,6 +3224,7 @@ drawable design_snackbar_background
 drawable dialog_background
 drawable drawer_background
 drawable floating_ball_background
+drawable floating_window_background
 drawable gesture_hint_background
 drawable ic_arrow_back
 drawable ic_arrow_back_black_24
@@ -3389,6 +3390,7 @@ drawable preview_background
 drawable progress_bar_drawable
 drawable quick_menu_background
 drawable resize_handle_background
+drawable ripple_effect
 drawable search_background
 drawable search_bar_background
 drawable search_input_background
@@ -4177,6 +4179,7 @@ layout engine_item
 layout expand_button
 layout floating_ball
 layout floating_ball_layout
+layout floating_webview
 layout image_frame
 layout ime_base_split_test_activity
 layout ime_secondary_split_test_activity

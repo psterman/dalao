@@ -3223,6 +3223,7 @@ int drawable design_snackbar_background 0x7f08008f
 int drawable dialog_background 0x7f080090
 int drawable drawer_background 0x7f080091
 int drawable floating_ball_background 0x7f080092
+int drawable floating_window_background 0x7f08013f
 int drawable gesture_hint_background 0x7f080093
 int drawable ic_arrow_back 0x7f080094
 int drawable ic_arrow_back_black_24 0x7f080095
@@ -3388,6 +3389,7 @@ int drawable preview_background 0x7f080132
 int drawable progress_bar_drawable 0x7f080133
 int drawable quick_menu_background 0x7f080134
 int drawable resize_handle_background 0x7f080135
+int drawable ripple_effect 0x7f080140
 int drawable search_background 0x7f080136
 int drawable search_bar_background 0x7f080137
 int drawable search_input_background 0x7f080138
@@ -4176,6 +4178,7 @@ int layout engine_item 0x7f0c0037
 int layout expand_button 0x7f0c0038
 int layout floating_ball 0x7f0c0039
 int layout floating_ball_layout 0x7f0c003a
+int layout floating_webview 0x7f0c009d
 int layout image_frame 0x7f0c003b
 int layout ime_base_split_test_activity 0x7f0c003c
 int layout ime_secondary_split_test_activity 0x7f0c003d

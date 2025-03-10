@@ -136,6 +136,7 @@ drawable circle_ripple_active
 drawable dialog_background
 drawable drawer_background
 drawable floating_ball_background
+drawable floating_window_background
 drawable gesture_hint_background
 drawable ic_arrow_back
 drawable ic_arrow_forward
@@ -209,6 +210,7 @@ drawable preview_background
 drawable progress_bar_drawable
 drawable quick_menu_background
 drawable resize_handle_background
+drawable ripple_effect
 drawable search_background
 drawable search_bar_background
 drawable search_input_background
@@ -342,6 +344,7 @@ layout clipboard_dialog
 layout engine_item
 layout floating_ball
 layout floating_ball_layout
+layout floating_webview
 layout item_ai_engine
 layout item_engine
 layout item_engine_setting

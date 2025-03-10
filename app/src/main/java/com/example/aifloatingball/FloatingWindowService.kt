@@ -195,6 +195,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private val MENU_SPACING_DP = 8 // 菜单项间距
     private val MENU_MARGIN_DP = 16 // 菜单与悬浮球的距离
 
+    private var webViewContainer: View? = null
+    private var webView: WebView? = null
+    private var isWebViewVisible = false
+    private val WEBVIEW_WIDTH_DP = 300  // 悬浮窗宽度
+    private val WEBVIEW_HEIGHT_DP = 500 // 悬浮窗高度
+
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -531,10 +537,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             params.y = screenHeight / 2
             
             // 添加触摸事件监听
+            var isLongPress = false
+            var longPressHandler = Handler(Looper.getMainLooper())
+            var longPressRunnable: Runnable? = null
+            
             floatingBallView?.setOnTouchListener { view, event ->
-                // 先让GestureDetector处理事件，以便检测长按
-                gestureDetector.onTouchEvent(event)
-                
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         initialX = params.x
@@ -543,45 +550,69 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         initialTouchY = event.rawY
                         lastTouchX = event.rawX
                         lastTouchY = event.rawY
+                        isLongPress = false
+                        
+                        // 设置长按检测
+                        longPressRunnable = Runnable {
+                            isLongPress = true
+                            vibrate(200)
+                            showAIMenu()
+                        }
+                        longPressHandler.postDelayed(longPressRunnable!!, 500) // 500ms长按阈值
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val deltaX = event.rawX - initialTouchX
                         val deltaY = event.rawY - initialTouchY
                         
-                        params.x = (initialX + deltaX).toInt()
-                        params.y = (initialY + deltaY).toInt()
+                        // 如果移动距离超过阈值，取消长按
+                        if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
+                            longPressHandler.removeCallbacks(longPressRunnable!!)
+                        }
                         
-                        params.x = params.x.coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
-                        params.y = params.y.coerceIn(0, screenHeight - view.height)
-                        
-                        try {
-                            windowManager?.updateViewLayout(floatingBallView, params)
-                        } catch (e: Exception) {
-                            Log.e("FloatingService", "更新悬浮球位置失败", e)
+                        if (!isLongPress) {
+                            params.x = (initialX + deltaX).toInt()
+                            params.y = (initialY + deltaY).toInt()
+                            
+                            params.x = params.x.coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
+                            params.y = params.y.coerceIn(0, screenHeight - view.height)
+                            
+                            try {
+                                windowManager?.updateViewLayout(floatingBallView, params)
+                            } catch (e: Exception) {
+                                Log.e("FloatingService", "更新悬浮球位置失败", e)
+                            }
                         }
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
-                            // 点击事件，打开悬浮窗并加载默认主页
-                            val intent = Intent(this@FloatingWindowService, SearchActivity::class.java).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                                // 添加标记，表示从悬浮球打开
-                                putExtra("from_floating_ball", true)
-                            }
-                            startActivity(intent)
-                        } else {
-                            // 处理边缘吸附
-                            val distanceToLeftEdge = params.x + view.width / 3
-                            val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
-                            
-                            when {
-                                distanceToLeftEdge <= edgeSnapThresholdPx -> snapToEdge(params, true)
-                                distanceToRightEdge <= edgeSnapThresholdPx -> snapToEdge(params, false)
+                        longPressHandler.removeCallbacks(longPressRunnable!!)
+                        
+                        if (!isLongPress) {
+                            if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
+                                // 点击事件，打开悬浮窗并加载默认主页
+                                val intent = Intent(this@FloatingWindowService, SearchActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                                    // 添加标记，表示从悬浮球打开
+                                    putExtra("from_floating_ball", true)
+                                }
+                                startActivity(intent)
+                            } else {
+                                // 处理边缘吸附
+                                val distanceToLeftEdge = params.x + view.width / 3
+                                val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
+                                
+                                when {
+                                    distanceToLeftEdge <= edgeSnapThresholdPx -> snapToEdge(params, true)
+                                    distanceToRightEdge <= edgeSnapThresholdPx -> snapToEdge(params, false)
+                                }
                             }
                         }
+                        true
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        longPressHandler.removeCallbacks(longPressRunnable!!)
                         true
                     }
                     else -> false
@@ -1524,15 +1555,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         try {
             Log.d("FloatingService", "打开AI引擎: ${engine.name}")
             
-            // 检查是否需要自动粘贴剪贴板内容
-            val autoPaste = settingsManager.getBoolean("auto_paste_clipboard", false)
-            
-            val intent = Intent(this, FullscreenWebViewActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // 直接使用FloatingWebViewService打开URL
+            val intent = Intent(this, FloatingWebViewService::class.java).apply {
                 putExtra("url", engine.url)
-                putExtra("auto_paste", autoPaste)
+                putExtra("from_ai_menu", true)  // 标记来源，以便特殊处理
             }
-            startActivity(intent)
+            startService(intent)
+            
         } catch (e: Exception) {
             Log.e("FloatingService", "打开AI引擎失败", e)
             Toast.makeText(this, "打开AI引擎失败: ${e.message}", Toast.LENGTH_SHORT).show()
