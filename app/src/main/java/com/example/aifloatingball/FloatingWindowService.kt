@@ -57,6 +57,7 @@ import kotlin.math.sqrt
 import android.content.ClipboardManager
 import android.webkit.URLUtil
 import android.app.AlertDialog
+import android.app.usage.UsageStatsManager
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -179,7 +180,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         AIEngine("Claude", R.drawable.ic_claude, "https://claude.ai"),
         AIEngine("文心一言", R.drawable.ic_wenxin, "https://yiyan.baidu.com"),
         AIEngine("通义千问", R.drawable.ic_qianwen, "https://qianwen.aliyun.com"),
-        AIEngine("讯飞星火", R.drawable.ic_xinghuo, "https://xinghuo.xfyun.cn")
+        AIEngine("讯飞星火", R.drawable.ic_xinghuo, "https://xinghuo.xfyun.cn"),
+        AIEngine("返回", R.drawable.ic_back, "back://last_app") // 添加返回功能
     )
     
     data class AIEngine(
@@ -1553,18 +1555,89 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     // 打开AI引擎
     private fun openAIEngine(engine: AIEngine) {
         try {
-            Log.d("FloatingService", "打开AI引擎: ${engine.name}")
+            Log.d("FloatingService", "打开: ${engine.name}")
             
-            // 直接使用FloatingWebViewService打开URL
-            val intent = Intent(this, FloatingWebViewService::class.java).apply {
-                putExtra("url", engine.url)
-                putExtra("from_ai_menu", true)  // 标记来源，以便特殊处理
+            when {
+                engine.url == "back://last_app" -> {
+                    // 处理返回功能
+                    handleBackToLastApp()
+                }
+                else -> {
+                    // 原有的网页打开逻辑
+                    val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                        putExtra("url", engine.url)
+                        putExtra("from_ai_menu", true)
+                    }
+                    startService(intent)
+                }
             }
-            startService(intent)
             
         } catch (e: Exception) {
-            Log.e("FloatingService", "打开AI引擎失败", e)
-            Toast.makeText(this, "打开AI引擎失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e("FloatingService", "打开失败", e)
+            Toast.makeText(this, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // 添加处理返回功能的方法
+    private fun handleBackToLastApp() {
+        try {
+            val lastApp = getForegroundAppPackage()
+            if (lastApp != null && lastApp != packageName) {
+                val intent = packageManager.getLaunchIntentForPackage(lastApp)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                    startActivity(intent)
+                    
+                    // 使用振动反馈
+                    vibrate(50) // 使用较短的振动时间，模拟轻触反馈
+                    
+                    // 显示提示
+                    val appName = getAppName(lastApp)
+                    Toast.makeText(this, "返回到: $appName", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "无法返回到上一个应用", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "没有上一个应用记录", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "返回上一个应用失败", e)
+            Toast.makeText(this, "返回失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 添加获取应用名称的方法
+    private fun getAppName(packageName: String): String {
+        try {
+            val packageManager = applicationContext.packageManager
+            val applicationInfo = packageManager.getApplicationInfo(packageName, 0)
+            return packageManager.getApplicationLabel(applicationInfo).toString()
+        } catch (e: Exception) {
+            return packageName
+        }
+    }
+
+    // 添加获取前台应用的方法
+    private fun getForegroundAppPackage(): String? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+                val time = System.currentTimeMillis()
+                val stats = usageStatsManager.queryUsageStats(
+                    UsageStatsManager.INTERVAL_DAILY,
+                    time - 1000 * 60,
+                    time
+                )
+                
+                return stats
+                    ?.filter { it.packageName != packageName } // 排除自己
+                    ?.maxByOrNull { it.lastTimeUsed }
+                    ?.packageName
+            } catch (e: Exception) {
+                Log.e("FloatingService", "获取前台应用失败", e)
+            }
+        }
+        return null
     }
 }
