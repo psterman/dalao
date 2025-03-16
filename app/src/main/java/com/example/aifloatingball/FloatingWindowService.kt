@@ -58,6 +58,8 @@ import android.content.ClipboardManager
 import android.webkit.URLUtil
 import android.app.AlertDialog
 import android.app.usage.UsageStatsManager
+import com.example.aifloatingball.model.MenuItem
+import com.example.aifloatingball.model.MenuCategory
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -175,14 +177,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     // 修改AI搜索引擎配置，确保有明确的logo
-    private val aiEngines = listOf(
-        AIEngine("ChatGPT", R.drawable.ic_chatgpt, "https://chat.openai.com"),
-        AIEngine("Claude", R.drawable.ic_claude, "https://claude.ai"),
-        AIEngine("文心一言", R.drawable.ic_wenxin, "https://yiyan.baidu.com"),
-        AIEngine("通义千问", R.drawable.ic_qianwen, "https://qianwen.aliyun.com"),
-        AIEngine("讯飞星火", R.drawable.ic_xinghuo, "https://xinghuo.xfyun.cn"),
-        AIEngine("返回", R.drawable.ic_back, "back://last_app") // 添加返回功能
-    )
+    private var menuItemsList: List<MenuItem> = emptyList()
+    private val menuViews = mutableListOf<View>()
     
     data class AIEngine(
         val name: String,
@@ -191,7 +187,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     )
     
     private var isMenuVisible = false
-    private val menuItems = mutableListOf<View>()
     private var menuContainer: View? = null
     private val MENU_ITEM_SIZE_DP = 56 // 增大菜单项尺寸
     private val MENU_SPACING_DP = 8 // 菜单项间距
@@ -202,6 +197,17 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var isWebViewVisible = false
     private val WEBVIEW_WIDTH_DP = 300  // 悬浮窗宽度
     private val WEBVIEW_HEIGHT_DP = 500 // 悬浮窗高度
+
+    private val menuUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.ACTION_UPDATE_MENU") {
+                // 重新加载菜单项
+                menuItemsList = settingsManager.getMenuItems()
+                // 重新创建菜单
+                recreateMenuContainer()
+            }
+        }
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -232,15 +238,15 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             
             // 注册截图完成广播接收器
-            val filter = IntentFilter(ScreenshotActivity.ACTION_SCREENSHOT_COMPLETED)
+            val screenshotFilter = IntentFilter(ScreenshotActivity.ACTION_SCREENSHOT_COMPLETED)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 registerReceiver(
                     screenshotReceiver,
-                    filter,
+                    screenshotFilter,
                     Context.RECEIVER_NOT_EXPORTED
                 )
             } else {
-                registerReceiver(screenshotReceiver, filter)
+                registerReceiver(screenshotReceiver, screenshotFilter)
             }
             Log.d("FloatingService", "广播接收器注册成功")
             
@@ -293,6 +299,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 return
             }
             
+            // 加载保存的菜单项
+            menuItemsList = settingsManager.getMenuItems()
+            if (menuItemsList.isEmpty()) {
+                menuItemsList = getDefaultMenuItems()
+            }
+            
             // 创建菜单容器
             createMenuContainer()
             
@@ -340,6 +352,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             } catch (e: Exception) {
                 Log.e("FloatingService", "启动前台服务失败", e)
                 // 即使前台服务启动失败，也继续运行
+            }
+            
+            // 注册菜单更新广播接收器
+            val menuUpdateFilter = IntentFilter("com.example.aifloatingball.ACTION_UPDATE_MENU")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(menuUpdateReceiver, menuUpdateFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(menuUpdateReceiver, menuUpdateFilter)
             }
             
             Log.d("FloatingService", "服务创建完成")
@@ -956,6 +976,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             unregisterReceiver(screenshotReceiver)
             unregisterReceiver(themeReceiver)
+            unregisterReceiver(menuUpdateReceiver)
             memoryCheckHandler?.removeCallbacksAndMessages(null)
             recognizer?.destroy()
             
@@ -969,7 +990,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             thumbnailCache.clear()
             thumbnailViews.clear()
             cachedCardViews.clear()
-            menuItems.clear()
+            menuViews.clear()
             
             System.gc()
             
@@ -1380,10 +1401,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             container.visibility = View.GONE
             
             // 创建菜单项
-            aiEngines.forEachIndexed { index, engine ->
-                val menuItem = createMenuItem(engine, index)
-                menuItems.add(menuItem)
-                container.addView(menuItem)
+            menuViews.clear()
+            menuItemsList.forEach { menuItem ->
+                if (menuItem.isEnabled) {
+                    val menuItemView = createMenuItem(menuItem)
+                    menuViews.add(menuItemView)
+                    container.addView(menuItemView)
+                }
             }
             
             // 设置点击外部区域关闭菜单
@@ -1404,50 +1428,46 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     // 创建菜单项
-    private fun createMenuItem(engine: AIEngine, index: Int): View {
-        val menuItem = LayoutInflater.from(this).inflate(R.layout.menu_item, null)
+    private fun createMenuItem(menuItem: MenuItem): View {
+        val menuItemView = LayoutInflater.from(this).inflate(R.layout.menu_item, null)
         
-        // 设置布局参数
-        menuItem.layoutParams = FrameLayout.LayoutParams(
+        menuItemView.layoutParams = FrameLayout.LayoutParams(
             MENU_ITEM_SIZE_DP.dpToPx(),
             MENU_ITEM_SIZE_DP.dpToPx()
         )
         
-        // 设置图标和文字
-        val icon = menuItem.findViewById<ImageView>(R.id.icon)
-        val name = menuItem.findViewById<TextView>(R.id.name)
+        // 使用正确的属性访问
+        val icon = menuItemView.findViewById<ImageView>(R.id.icon)
+        val name = menuItemView.findViewById<TextView>(R.id.name)
         
-        icon.setImageResource(engine.iconRes)
-        name.text = engine.name
+        icon.setImageResource(menuItem.iconRes)
+        name.text = menuItem.name
         
-        // 初始状态
-        menuItem.visibility = View.GONE
-        menuItem.alpha = 0f
-        menuItem.scaleX = 0f
-        menuItem.scaleY = 0f
+        menuItemView.visibility = View.GONE
+        menuItemView.alpha = 0f
+        menuItemView.scaleX = 0f
+        menuItemView.scaleY = 0f
         
-        // 点击事件
-        menuItem.setOnClickListener {
-            // 添加点击反馈动画
-            menuItem.animate()
+        menuItemView.setOnClickListener {
+            menuItemView.animate()
                 .scaleX(0.85f)
                 .scaleY(0.85f)
                 .setDuration(100)
                 .withEndAction {
-                    menuItem.animate()
+                    menuItemView.animate()
                         .scaleX(1f)
                         .scaleY(1f)
                         .setDuration(100)
                         .withEndAction {
                             hideAIMenu()
-                            openAIEngine(engine)
+                            openAIEngine(menuItem)
                         }
                         .start()
                 }
                 .start()
         }
         
-        return menuItem
+        return menuItemView
     }
     
     // 显示AI菜单
@@ -1470,29 +1490,50 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val showOnRight = ballCenterX < screenWidth / 2
         
         // 计算菜单起始位置
-        val menuMargin = MENU_MARGIN_DP.dpToPx()
-        val menuItemSize = MENU_ITEM_SIZE_DP.dpToPx()
-        val menuSpacing = MENU_SPACING_DP.dpToPx()
+        val menuMargin = MENU_MARGIN_DP.dpToPx().toInt()
+        val menuItemSize = MENU_ITEM_SIZE_DP.dpToPx().toInt()
+        val menuSpacing = MENU_SPACING_DP.dpToPx().toInt()
         
         // 计算菜单项总高度
-        val totalMenuHeight = menuItems.size * menuItemSize + (menuItems.size - 1) * menuSpacing
+        val totalMenuHeight = menuViews.size * menuItemSize + 
+            (menuViews.size - 1) * menuSpacing
+        
+        // 安全检查：确保总高度不超过屏幕高度
+        val safeMenuHeight = minOf(totalMenuHeight, screenHeight - menuItemSize)
         
         // 计算菜单顶部位置，使菜单垂直居中对齐悬浮球
-        var menuTopY = ballCenterY - totalMenuHeight / 2
-        
-        // 确保菜单不超出屏幕边界
-        menuTopY = menuTopY.coerceIn(0, screenHeight - totalMenuHeight)
+        val menuTopY = (ballCenterY - safeMenuHeight / 2)
+            .coerceIn(0, screenHeight - safeMenuHeight)
         
         // 计算菜单水平位置
         val menuX = if (showOnRight) {
-            ballCenterX + (floatingBallView?.width ?: 0) / 2 + menuMargin
+            minOf(
+                ballCenterX + (floatingBallView?.width ?: 0) / 2 + menuMargin,
+                screenWidth - menuItemSize
+            ).toFloat()
         } else {
-            ballCenterX - (floatingBallView?.width ?: 0) / 2 - menuMargin - menuItemSize
+            maxOf(
+                0,
+                ballCenterX - (floatingBallView?.width ?: 0) / 2 - menuMargin - menuItemSize
+            ).toFloat()
+        }
+        
+        // 计算每个菜单项可用的垂直空间
+        val availableHeight = screenHeight - menuTopY
+        val itemSpacing = if (menuViews.size > 1) {
+            minOf(
+                menuSpacing,
+                ((availableHeight - menuViews.size * menuItemSize) / (menuViews.size - 1))
+            )
+        } else {
+            menuSpacing
         }
         
         // 显示菜单项
-        menuItems.forEachIndexed { index, item ->
-            val itemY = menuTopY + index * (menuItemSize + menuSpacing)
+        menuViews.forEachIndexed { index, item ->
+            // 计算每个项目的Y位置，确保在屏幕范围内
+            val itemY = (menuTopY + index * (menuItemSize + itemSpacing))
+                .coerceIn(0, screenHeight - menuItemSize).toFloat()
             
             // 设置初始位置（从悬浮球位置开始）
             item.visibility = View.VISIBLE
@@ -1504,8 +1545,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 执行显示动画
             item.animate()
-                .x(menuX.toFloat())
-                .y(itemY.toFloat())
+                .x(menuX)
+                .y(itemY)
                 .alpha(1f)
                 .scaleX(1f)
                 .scaleY(1f)
@@ -1530,7 +1571,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val ballCenterX = ballLocation[0] + (floatingBallView?.width ?: 0) / 2
         val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
         
-        menuItems.forEachIndexed { index, item ->
+        menuViews.forEachIndexed { index, item ->
             // 执行收起动画，回到悬浮球位置
             item.animate()
                 .x((ballCenterX - item.width / 2).toFloat())
@@ -1540,7 +1581,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 .scaleY(0.5f)
                 .setDuration(ANIMATION_DURATION)
                 .setInterpolator(DecelerateInterpolator())
-                .setStartDelay((menuItems.size - 1 - index) * 30L) // 反向延迟，使菜单项按相反顺序收起
+                .setStartDelay((menuViews.size - 1 - index) * 30L) // 反向延迟，使菜单项按相反顺序收起
                 .withEndAction {
                     item.visibility = View.GONE
                 }
@@ -1549,23 +1590,34 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         Handler(Looper.getMainLooper()).postDelayed({
             menuContainer?.visibility = View.GONE
-        }, ANIMATION_DURATION + menuItems.size * 30L)
+        }, ANIMATION_DURATION + menuViews.size * 30L)
     }
     
     // 打开AI引擎
-    private fun openAIEngine(engine: AIEngine) {
+    private fun openAIEngine(menuItem: MenuItem) {
         try {
-            Log.d("FloatingService", "打开: ${engine.name}")
+            Log.d("FloatingService", "打开: ${menuItem.name}")
             
             when {
-                engine.url == "back://last_app" -> {
-                    // 处理返回功能
+                menuItem.url == "back://last_app" -> {
                     handleBackToLastApp()
                 }
+                menuItem.url == "action://screenshot" -> {
+                    startScreenshotMode(floatingBallView!!)
+                }
+                menuItem.url == "action://settings" -> {
+                    val intent = Intent(this, SettingsActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(intent)
+                }
+                menuItem.url == "action://share" -> {
+                    // 实现分享功能
+                    handleShare()
+                }
                 else -> {
-                    // 原有的网页打开逻辑
                     val intent = Intent(this, FloatingWebViewService::class.java).apply {
-                        putExtra("url", engine.url)
+                        putExtra("url", menuItem.url)
                         putExtra("from_ai_menu", true)
                     }
                     startService(intent)
@@ -1576,6 +1628,17 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             Log.e("FloatingService", "打开失败", e)
             Toast.makeText(this, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun handleShare() {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, "分享自AI悬浮球")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(Intent.createChooser(intent, "分享到").apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
     }
 
     // 添加处理返回功能的方法
@@ -1639,5 +1702,42 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
         }
         return null
+    }
+
+    private fun getDefaultMenuItems(): List<MenuItem> {
+        return listOf(
+            // AI 搜索引擎
+            MenuItem("ChatGPT", R.drawable.ic_chatgpt, "https://chat.openai.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Claude", R.drawable.ic_claude, "https://claude.ai", MenuCategory.AI_SEARCH, true),
+            MenuItem("文心一言", R.drawable.ic_wenxin, "https://yiyan.baidu.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("通义千问", R.drawable.ic_qianwen, "https://qianwen.aliyun.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("讯飞星火", R.drawable.ic_xinghuo, "https://xinghuo.xfyun.cn", MenuCategory.AI_SEARCH, true),
+            MenuItem("Gemini", R.drawable.ic_gemini, "https://gemini.google.com", MenuCategory.AI_SEARCH, true),
+            
+            // 普通搜索引擎 - 使用正确的图标资源
+            MenuItem("百度", R.drawable.ic_baidu, "https://www.baidu.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("Google", R.drawable.ic_google, "https://www.google.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("必应", R.drawable.ic_bing, "https://www.bing.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("搜狗", R.drawable.ic_sogou, "https://www.sogou.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("360搜索", R.drawable.ic_360, "https://www.so.com", MenuCategory.NORMAL_SEARCH, true),
+            
+            // 功能
+            MenuItem("返回", R.drawable.ic_back, "back://last_app", MenuCategory.FUNCTION, true),
+            MenuItem("截图", R.drawable.ic_screenshot, "action://screenshot", MenuCategory.FUNCTION, true),
+            MenuItem("设置", R.drawable.ic_settings, "action://settings", MenuCategory.FUNCTION, true),
+            MenuItem("分享", R.drawable.ic_share, "action://share", MenuCategory.FUNCTION, true)
+        )
+    }
+
+    private fun recreateMenuContainer() {
+        // 移除旧的菜单容器
+        menuContainer?.let {
+            windowManager?.removeView(it)
+            menuContainer = null
+        }
+        menuViews.clear()
+        
+        // 创建新的菜单容器
+        createMenuContainer()
     }
 }

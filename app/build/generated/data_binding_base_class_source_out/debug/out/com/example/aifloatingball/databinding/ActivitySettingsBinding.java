@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import androidx.annotation.NonNull;
@@ -32,18 +33,23 @@ public final class ActivitySettingsBinding implements ViewBinding {
   public final RecyclerView engineList;
 
   @NonNull
+  public final LinearLayout menuSettingsContainer;
+
+  @NonNull
   public final FrameLayout settings;
 
   @NonNull
   public final Switch switchLeftHandedMode;
 
   private ActivitySettingsBinding(@NonNull ScrollView rootView, @NonNull Switch autoStartSwitch,
-      @NonNull Button backButton, @NonNull RecyclerView engineList, @NonNull FrameLayout settings,
+      @NonNull Button backButton, @NonNull RecyclerView engineList,
+      @NonNull LinearLayout menuSettingsContainer, @NonNull FrameLayout settings,
       @NonNull Switch switchLeftHandedMode) {
     this.rootView = rootView;
     this.autoStartSwitch = autoStartSwitch;
     this.backButton = backButton;
     this.engineList = engineList;
+    this.menuSettingsContainer = menuSettingsContainer;
     this.settings = settings;
     this.switchLeftHandedMode = switchLeftHandedMode;
   }
@@ -93,6 +99,12 @@ public final class ActivitySettingsBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.menu_settings_container;
+      LinearLayout menuSettingsContainer = ViewBindings.findChildViewById(rootView, id);
+      if (menuSettingsContainer == null) {
+        break missingId;
+      }
+
       id = R.id.settings;
       FrameLayout settings = ViewBindings.findChildViewById(rootView, id);
       if (settings == null) {
@@ -106,7 +118,7 @@ public final class ActivitySettingsBinding implements ViewBinding {
       }
 
       return new ActivitySettingsBinding((ScrollView) rootView, autoStartSwitch, backButton,
-          engineList, settings, switchLeftHandedMode);
+          engineList, menuSettingsContainer, settings, switchLeftHandedMode);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

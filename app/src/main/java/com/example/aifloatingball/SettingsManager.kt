@@ -10,6 +10,7 @@ import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.SearchActivity
 import android.util.Log
 import android.content.Intent
+import com.example.aifloatingball.model.MenuItem
 
 class SettingsManager private constructor(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -279,5 +280,23 @@ class SettingsManager private constructor(context: Context) {
 
     private fun notifyListeners(key: String, value: Any?) {
         listeners[key]?.forEach { it(key, value) }
+    }
+
+    fun saveMenuItems(items: List<MenuItem>) {
+        val editor = prefs.edit()
+        editor.putString("menu_items", gson.toJson(items))
+        editor.apply()
+    }
+
+    fun getMenuItems(): List<MenuItem> {
+        val json = prefs.getString("menu_items", "")
+        if (json.isNullOrEmpty()) return emptyList()
+        
+        return try {
+            val type = object : TypeToken<List<MenuItem>>() {}.type
+            gson.fromJson(json, type)
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 }

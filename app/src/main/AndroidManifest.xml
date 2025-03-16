@@ -92,5 +92,11 @@
             android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
             android:windowSoftInputMode="adjustResize"
             android:exported="false" />
+
+        <activity
+            android:name=".MenuSettingsActivity"
+            android:label="悬浮菜单设置"
+            android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
+            android:exported="false" />
     </application>
 </manifest> 

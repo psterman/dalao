@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:2:1-96:12
-INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:2:1-96:12
-INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:2:1-96:12
-INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:2:1-96:12
+ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:2:1-102:12
+INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:2:1-102:12
+INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:2:1-102:12
+INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:2:1-102:12
 MERGED from [androidx.databinding:viewbinding:8.8.1] C:\.gradle\caches\8.10.2\transforms\83d4b2d1f6aadfd522bcdba2e38d9a08\transformed\jetified-viewbinding-8.8.1\AndroidManifest.xml:2:1-7:12
 MERGED from [com.google.android.material:material:1.11.0] C:\.gradle\caches\8.10.2\transforms\f2155e37e819f599ea2ce0aab864215c\transformed\material-1.11.0\AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.4] C:\.gradle\caches\8.10.2\transforms\4e3563512972407db3df27b0b53b22fd\transformed\constraintlayout-2.1.4\AndroidManifest.xml:2:1-11:12
@@ -119,8 +119,8 @@ ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:17:5-66
 	android:name
 		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:17:22-63
 application
-ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:19:5-95:19
-INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:19:5-95:19
+ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:19:5-101:19
+INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:19:5-101:19
 MERGED from [com.google.android.material:material:1.11.0] C:\.gradle\caches\8.10.2\transforms\f2155e37e819f599ea2ce0aab864215c\transformed\material-1.11.0\AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.11.0] C:\.gradle\caches\8.10.2\transforms\f2155e37e819f599ea2ce0aab864215c\transformed\material-1.11.0\AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.1.4] C:\.gradle\caches\8.10.2\transforms\4e3563512972407db3df27b0b53b22fd\transformed\constraintlayout-2.1.4\AndroidManifest.xml:9:5-20
@@ -275,6 +275,16 @@ ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:90:9-94:40
 		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:92:13-78
 	android:name
 		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:91:13-67
+activity#com.example.aifloatingball.MenuSettingsActivity
+ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:96:9-100:40
+	android:label
+		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:98:13-35
+	android:exported
+		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:100:13-37
+	android:theme
+		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:99:13-71
+	android:name
+		ADDED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:97:13-49
 uses-sdk
 INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Switch
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -46,6 +47,11 @@ class SettingsActivity : AppCompatActivity() {
         
         // 设置返回按钮
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
+        // 添加悬浮菜单设置点击事件
+        findViewById<View>(R.id.menu_settings_container).setOnClickListener {
+            startActivity(Intent(this, MenuSettingsActivity::class.java))
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {
