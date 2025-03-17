@@ -36,9 +36,19 @@ import com.example.aifloatingball.model.SearchEngine
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
 import android.graphics.Color
+import android.animation.ValueAnimator
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
+import android.util.DisplayMetrics
 
 class FloatingWebViewService : Service() {
-    private var windowManager: WindowManager? = null
+    companion object {
+        private const val TAG = "FloatingWebViewService"
+    }
+    
+    private lateinit var windowManager: WindowManager
     private var floatingView: View? = null
     private var webView: WebView? = null
     private var searchInput: EditText? = null
@@ -83,6 +93,15 @@ class FloatingWebViewService : Service() {
     
     private var isResizing = false
     
+    // 添加贴边隐藏相关变量
+    private var isHidden = false
+    private var lastVisibleX = 0
+    private val EDGE_DETECTION_THRESHOLD = 24f // dp
+    private val ANIMATION_DURATION = 250L
+    private var screenWidth = 0
+    private var screenHeight = 0
+    private var edgeSnapAnimator: ValueAnimator? = null
+    
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -93,6 +112,19 @@ class FloatingWebViewService : Service() {
         
         // 初始化窗口管理器
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        
+        // 获取屏幕尺寸
+        val displayMetrics = DisplayMetrics()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val windowMetrics = windowManager.currentWindowMetrics
+            screenWidth = windowMetrics.bounds.width()
+            screenHeight = windowMetrics.bounds.height()
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+            screenWidth = displayMetrics.widthPixels
+            screenHeight = displayMetrics.heightPixels
+        }
         
         // 创建悬浮窗布局
         createFloatingView()
@@ -112,51 +144,55 @@ class FloatingWebViewService : Service() {
     }
     
     private fun createFloatingView() {
-        // 加载悬浮窗布局
-        floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_webview, null)
-        
-        // 初始化视图组件
-        webView = floatingView?.findViewById(R.id.floating_webview)
-        searchInput = floatingView?.findViewById(R.id.search_input)
-        progressBar = floatingView?.findViewById(R.id.progress_bar)
-        gestureHintView = floatingView?.findViewById(R.id.gesture_hint)
-        closeButton = floatingView?.findViewById(R.id.btn_close)
-        expandButton = floatingView?.findViewById(R.id.btn_expand)
-        searchButton = floatingView?.findViewById(R.id.btn_search)
-        backButton = floatingView?.findViewById(R.id.btn_back)
-        forwardButton = floatingView?.findViewById(R.id.btn_forward)
-        refreshButton = floatingView?.findViewById(R.id.btn_refresh)
-        floatingTitle = floatingView?.findViewById(R.id.floating_title)
-        resizeHandle = floatingView?.findViewById(R.id.resize_handle)
-        
-        // 设置初始状态
-        progressBar?.visibility = View.GONE
-        gestureHintView?.visibility = View.GONE
-        
-        // 设置搜索框
-        setupSearchInput()
-        
-        // 设置按钮点击事件
-        setupButtons()
-        
-        // 设置拖动处理
-        setupDragHandling()
-        
-        // 设置调整大小处理
-        setupResizeHandling()
-        
-        // 获取最小尺寸
-        minWidth = resources.getDimensionPixelSize(R.dimen.floating_webview_min_width)
-        minHeight = resources.getDimensionPixelSize(R.dimen.floating_webview_min_height)
-        
-        // 创建窗口参数
-        val params = createWindowLayoutParams()
-        
-        // 添加到窗口
-        windowManager?.addView(floatingView, params)
-        
-        // 应用主题
-        applyTheme()
+        try {
+            // 加载悬浮窗布局
+            floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_webview, null)
+            
+            // 初始化视图组件
+            webView = floatingView?.findViewById(R.id.floating_webview)
+            searchInput = floatingView?.findViewById(R.id.search_input)
+            progressBar = floatingView?.findViewById(R.id.progress_bar)
+            gestureHintView = floatingView?.findViewById(R.id.gesture_hint)
+            closeButton = floatingView?.findViewById(R.id.btn_close)
+            expandButton = floatingView?.findViewById(R.id.btn_expand)
+            searchButton = floatingView?.findViewById(R.id.btn_search)
+            backButton = floatingView?.findViewById(R.id.btn_back)
+            forwardButton = floatingView?.findViewById(R.id.btn_forward)
+            refreshButton = floatingView?.findViewById(R.id.btn_refresh)
+            floatingTitle = floatingView?.findViewById(R.id.floating_title)
+            resizeHandle = floatingView?.findViewById(R.id.resize_handle)
+            
+            // 设置初始状态
+            progressBar?.visibility = View.GONE
+            gestureHintView?.visibility = View.GONE
+            
+            // 设置搜索框
+            setupSearchInput()
+            
+            // 设置按钮点击事件
+            setupButtons()
+            
+            // 设置拖动处理
+            setupDragHandling()
+            
+            // 设置调整大小处理
+            setupResizeHandling()
+            
+            // 获取最小尺寸
+            minWidth = resources.getDimensionPixelSize(R.dimen.floating_webview_min_width)
+            minHeight = resources.getDimensionPixelSize(R.dimen.floating_webview_min_height)
+            
+            // 创建窗口参数
+            val params = createWindowLayoutParams()
+            
+            // 添加到窗口
+            windowManager.addView(floatingView, params)
+            
+            // 应用主题
+            applyTheme()
+        } catch (e: Exception) {
+            Log.e(TAG, "创建悬浮窗失败", e)
+        }
     }
     
     private fun createWindowLayoutParams(): WindowManager.LayoutParams {
@@ -165,11 +201,6 @@ class FloatingWebViewService : Service() {
         } else {
             WindowManager.LayoutParams.TYPE_PHONE
         }
-        
-        // 获取屏幕尺寸
-        val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
         
         // 计算初始宽高（屏幕宽度的90%，高度为屏幕高度的60%）
         val initialWidth = (screenWidth * 0.9).toInt()
@@ -389,7 +420,7 @@ class FloatingWebViewService : Service() {
                     if (isMoving && params != null) {
                         params.x = initialX + deltaX.toInt()
                         params.y = initialY + deltaY.toInt()
-                        windowManager?.updateViewLayout(floatingView, params)
+                        windowManager.updateViewLayout(floatingView, params)
                     }
                     true
                 }
@@ -410,7 +441,7 @@ class FloatingWebViewService : Service() {
             val params = floatingView?.layoutParams as? WindowManager.LayoutParams
             if (params != null && params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0) {
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                windowManager?.updateViewLayout(floatingView, params)
+                windowManager.updateViewLayout(floatingView, params)
             }
             
             // 处理手势
@@ -447,7 +478,7 @@ class FloatingWebViewService : Service() {
                         params.height = maxOf(newHeight, minHeight)
                         
                         // 更新布局
-                        windowManager?.updateViewLayout(floatingView, params)
+                        windowManager.updateViewLayout(floatingView, params)
                         
                         // 显示尺寸提示
                         showGestureHint("${params.width} x ${params.height}")
@@ -526,7 +557,7 @@ class FloatingWebViewService : Service() {
             }
             
             // 更新布局
-            windowManager?.updateViewLayout(floatingView, params)
+            windowManager.updateViewLayout(floatingView, params)
             
             // 强制重新布局并刷新WebView
             floatingView?.requestLayout()
@@ -839,17 +870,108 @@ class FloatingWebViewService : Service() {
     }
     
     override fun onDestroy() {
-        // 移除悬浮窗
-        windowManager?.removeView(floatingView)
-        
-        // 清理WebView
-        webView?.apply {
-            clearHistory()
-            clearCache(true)
-            clearFormData()
-            destroy()
+        try {
+            floatingView?.let { view ->
+                windowManager.removeView(view)
+            }
+            
+            // 清理WebView
+            webView?.apply {
+                clearHistory()
+                clearCache(true)
+                clearFormData()
+                destroy()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "销毁悬浮窗失败", e)
         }
         
         super.onDestroy()
+    }
+
+    private fun checkEdgeAndSnap(params: WindowManager.LayoutParams) {
+        val edgeThresholdPx = EDGE_DETECTION_THRESHOLD * resources.displayMetrics.density
+        val viewWidth = floatingView?.width ?: 0
+        
+        // 检查是否靠近左边缘
+        if (params.x < edgeThresholdPx) {
+            animateToEdge(true) // 贴左边
+        } 
+        // 检查是否靠近右边缘
+        else if (params.x + viewWidth > screenWidth - edgeThresholdPx) {
+            animateToEdge(false) // 贴右边
+        }
+    }
+    
+    private fun animateToEdge(isLeft: Boolean) {
+        edgeSnapAnimator?.cancel()
+        
+        val params = floatingView?.layoutParams as WindowManager.LayoutParams
+        val startX = params.x
+        
+        // 保存最后可见位置，用于恢复
+        if (!isHidden) {
+            lastVisibleX = startX
+        }
+        
+        // 计算目标位置（隐藏时只留下一小部分可见）
+        val containerWidth = floatingView?.width ?: 0
+        val visiblePortion = (containerWidth * 0.1f).toInt() // 留下10%可见
+        val targetX = if (isLeft) -containerWidth + visiblePortion else screenWidth - visiblePortion
+        
+        edgeSnapAnimator = ValueAnimator.ofInt(startX, targetX).apply {
+            duration = ANIMATION_DURATION
+            interpolator = DecelerateInterpolator()
+            
+            addUpdateListener { animator ->
+                params.x = animator.animatedValue as Int
+                try {
+                    windowManager.updateViewLayout(floatingView, params)
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新悬浮窗位置失败", e)
+                }
+            }
+            
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    isHidden = true
+                }
+            })
+            
+            start()
+        }
+    }
+    
+    private fun animateShow() {
+        edgeSnapAnimator?.cancel()
+        
+        val params = floatingView?.layoutParams as WindowManager.LayoutParams
+        val startX = params.x
+        val viewWidth = floatingView?.width ?: 0
+        
+        // 计算目标位置（完全显示）
+        val targetX = if (params.x < 0) 0 else screenWidth - viewWidth
+        
+        edgeSnapAnimator = ValueAnimator.ofInt(startX, targetX).apply {
+            duration = ANIMATION_DURATION
+            interpolator = OvershootInterpolator(0.8f)
+            
+            addUpdateListener { animator ->
+                params.x = animator.animatedValue as Int
+                try {
+                    windowManager.updateViewLayout(floatingView, params)
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新悬浮窗位置失败", e)
+                }
+            }
+            
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    isHidden = false
+                }
+            })
+            
+            start()
+        }
     }
 } 

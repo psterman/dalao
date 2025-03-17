@@ -17,6 +17,11 @@ import android.view.LayoutInflater
 import android.view.Gravity
 import android.graphics.Color
 import android.util.Log
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 
 class SearchWebViewActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText

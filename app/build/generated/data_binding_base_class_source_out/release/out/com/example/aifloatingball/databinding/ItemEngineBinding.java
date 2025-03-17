@@ -21,18 +21,14 @@ public final class ItemEngineBinding implements ViewBinding {
   private final CardView rootView;
 
   @NonNull
-  public final ImageView dragHandle;
-
-  @NonNull
   public final ImageView engineIcon;
 
   @NonNull
   public final TextView engineName;
 
-  private ItemEngineBinding(@NonNull CardView rootView, @NonNull ImageView dragHandle,
-      @NonNull ImageView engineIcon, @NonNull TextView engineName) {
+  private ItemEngineBinding(@NonNull CardView rootView, @NonNull ImageView engineIcon,
+      @NonNull TextView engineName) {
     this.rootView = rootView;
-    this.dragHandle = dragHandle;
     this.engineIcon = engineIcon;
     this.engineName = engineName;
   }
@@ -64,12 +60,6 @@ public final class ItemEngineBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.drag_handle;
-      ImageView dragHandle = ViewBindings.findChildViewById(rootView, id);
-      if (dragHandle == null) {
-        break missingId;
-      }
-
       id = R.id.engine_icon;
       ImageView engineIcon = ViewBindings.findChildViewById(rootView, id);
       if (engineIcon == null) {
@@ -82,7 +72,7 @@ public final class ItemEngineBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ItemEngineBinding((CardView) rootView, dragHandle, engineIcon, engineName);
+      return new ItemEngineBinding((CardView) rootView, engineIcon, engineName);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

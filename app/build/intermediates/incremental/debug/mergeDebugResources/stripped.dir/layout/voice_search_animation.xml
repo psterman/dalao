@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <View
+        android:id="@+id/voice_ripple"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:background="@drawable/voice_ripple_background"/>
+
+</FrameLayout> 

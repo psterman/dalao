@@ -26,6 +26,6 @@
       type="INSTRUMENTATION_TEST"
       applicationId="com.example.aifloatingball.test"
       generatedResourceFolders="build\generated\res\resValues\androidTest\debug"
-      desugaredMethodsFiles="C:\Users\Administrator\.gradle\caches\8.10.2\transforms\088a03cc0ed3bc3fc5c742a15311d8ec\transformed\D8BackportedDesugaredMethods.txt">
+      desugaredMethodsFiles="C:\Users\Administrator\.gradle\caches\8.10.2\transforms\93d6903bc2fb989f179b52e7215866fc\transformed\D8BackportedDesugaredMethods.txt">
   </artifact>
 </variant>
