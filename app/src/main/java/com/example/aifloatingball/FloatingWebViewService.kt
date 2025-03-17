@@ -46,6 +46,9 @@ import android.util.DisplayMetrics
 class FloatingWebViewService : Service() {
     companion object {
         private const val TAG = "FloatingWebViewService"
+        private const val EDGE_DETECTION_THRESHOLD = 24f // dp
+        private const val EDGE_SCALE_RATIO = 0.2f // 贴边后缩放到20%
+        private const val ANIMATION_DURATION = 250L
     }
     
     private lateinit var windowManager: WindowManager
@@ -96,11 +99,15 @@ class FloatingWebViewService : Service() {
     // 添加贴边隐藏相关变量
     private var isHidden = false
     private var lastVisibleX = 0
-    private val EDGE_DETECTION_THRESHOLD = 24f // dp
-    private val ANIMATION_DURATION = 250L
     private var screenWidth = 0
     private var screenHeight = 0
     private var edgeSnapAnimator: ValueAnimator? = null
+    
+    // 添加变量保存原始状态
+    private var originalWidth = 0
+    private var originalHeight = 0
+    private var originalX = 0
+    private var originalY = 0
     
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -269,15 +276,20 @@ class FloatingWebViewService : Service() {
             // 设置WebView背景为白色
             setBackgroundColor(Color.WHITE)
             
-            webViewClient = object : WebViewClient() {
-                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                    super.onPageStarted(view, url, favicon)
-                    progressBar?.visibility = View.VISIBLE
-                    
-                    // 更新搜索框文本
-                    searchInput?.setText(url ?: "")
+            // 修改触摸事件处理
+            setOnTouchListener { view, event ->
+                if (isHidden) {
+                    // 如果悬浮窗是隐藏状态，阻止所有触摸事件并传递给悬浮窗
+                    floatingView?.onTouchEvent(event)
+                    true
+                } else {
+                    // 正常状态下不拦截触摸事件
+                    false
                 }
-                
+            }
+
+            // 修改 WebViewClient 设置，避免 null 赋值错误
+            webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     progressBar?.visibility = View.GONE
@@ -295,8 +307,26 @@ class FloatingWebViewService : Service() {
                     // 更新导航按钮状态
                     updateNavigationButtons()
                     
+                    // 根据悬浮窗状态设置网页是否可滚动
+                    val js = if (isHidden) {
+                        """
+                        javascript:(function() {
+                            document.body.style.overflow = 'hidden';
+                            document.documentElement.style.overflow = 'hidden';
+                        })()
+                        """
+                    } else {
+                        """
+                        javascript:(function() {
+                            document.body.style.overflow = '';
+                            document.documentElement.style.overflow = '';
+                        })()
+                        """
+                    }
+                    view?.evaluateJavascript(js, null)
+                    
                     // 注入JavaScript以确保内容正确显示
-                    val js = """
+                    val displayJs = """
                         javascript:(function() {
                             document.body.style.backgroundColor = 'white';
                             var meta = document.querySelector('meta[name="viewport"]');
@@ -308,7 +338,7 @@ class FloatingWebViewService : Service() {
                             meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
                         })()
                     """.trimIndent()
-                    view?.evaluateJavascript(js, null)
+                    view?.evaluateJavascript(displayJs, null)
                 }
                 
                 override fun shouldInterceptRequest(
@@ -361,7 +391,7 @@ class FloatingWebViewService : Service() {
     private fun setupButtons() {
         // 关闭按钮
         closeButton?.setOnClickListener {
-            stopSelf()
+            safelyStopService()
         }
         
         // 展开/收起按钮
@@ -397,22 +427,31 @@ class FloatingWebViewService : Service() {
     private fun setupDragHandling() {
         val dragHandle = floatingView?.findViewById<View>(R.id.drag_handle)
         
-        dragHandle?.setOnTouchListener { _, event ->
+        // 为整个悬浮窗添加触摸监听
+        floatingView?.setOnTouchListener { view, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    // 记录初始位置
                     initialX = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.x ?: 0
                     initialY = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.y ?: 0
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isMoving = false
+
+                    // 取消任何正在进行的动画
+                    edgeSnapAnimator?.cancel()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    // 如果是隐藏状态，不处理移动
+                    if (isHidden) {
+                        return@setOnTouchListener true
+                    }
+
                     val params = floatingView?.layoutParams as? WindowManager.LayoutParams
                     val deltaX = event.rawX - initialTouchX
                     val deltaY = event.rawY - initialTouchY
                     
-                    // 如果移动距离超过阈值，则认为是拖动
                     if (abs(deltaX) > 5 || abs(deltaY) > 5) {
                         isMoving = true
                     }
@@ -420,36 +459,41 @@ class FloatingWebViewService : Service() {
                     if (isMoving && params != null) {
                         params.x = initialX + deltaX.toInt()
                         params.y = initialY + deltaY.toInt()
-                        windowManager.updateViewLayout(floatingView, params)
+                        
+                        // 限制在屏幕范围内
+                        params.x = params.x.coerceIn(
+                            -params.width / 3,
+                            screenWidth - params.width * 2 / 3
+                        )
+                        params.y = params.y.coerceIn(0, screenHeight - params.height)
+                        
+                        try {
+                            windowManager.updateViewLayout(floatingView, params)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "更新悬浮窗位置失败", e)
+                        }
                     }
                     true
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isMoving) {
-                        // 如果没有移动，则视为点击
-                        toggleExpandState()
+                        // 如果是点击（没有移动）且是隐藏状态，恢复显示并移动到屏幕中央
+                        if (isHidden) {
+                            animateShowToCenter()
+                            return@setOnTouchListener true
+                        }
+                    } else {
+                        // 如果是拖动结束且不是隐藏状态，检查是否需要贴边
+                        val params = floatingView?.layoutParams as? WindowManager.LayoutParams
+                        if (params != null && !isHidden) {
+                            checkEdgeAndSnap(params)
+                        }
                     }
+                    isMoving = false
                     true
                 }
                 else -> false
             }
-        }
-        
-        // 设置WebView的触摸事件，使其可以接收焦点
-        webView?.setOnTouchListener { v, event ->
-            // 当触摸WebView时，使悬浮窗可以接收焦点
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams
-            if (params != null && params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0) {
-                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                windowManager.updateViewLayout(floatingView, params)
-            }
-            
-            // 处理手势
-            gestureDetector.onTouchEvent(event)
-            scaleGestureDetector.onTouchEvent(event)
-            
-            // 继续传递事件给WebView
-            v.onTouchEvent(event)
         }
     }
     
@@ -871,22 +915,98 @@ class FloatingWebViewService : Service() {
     
     override fun onDestroy() {
         try {
-            floatingView?.let { view ->
-                windowManager.removeView(view)
-            }
+            // 1. 首先停止所有正在进行的动画
+            edgeSnapAnimator?.cancel()
             
-            // 清理WebView
+            // 2. 移除 WebView 的父视图引用
+            (webView?.parent as? ViewGroup)?.removeView(webView)
+            
+            // 3. 安全地清理 WebView
             webView?.apply {
+                // 停止加载
+                stopLoading()
+                
+                // 清除回调 - 使用空对象而不是 null
+                webChromeClient = WebChromeClient()
+                webViewClient = object : WebViewClient() {}
+                
+                // 加载空白页面
+                loadUrl("about:blank")
+                
+                // 清理数据
                 clearHistory()
                 clearCache(true)
                 clearFormData()
-                destroy()
+                clearSslPreferences()
+                
+                // 移除所有 JavaScript 接口
+                removeJavascriptInterface("android")
+                
+                // 销毁 WebView
+                onPause()
+                Handler(Looper.getMainLooper()).post {
+                    destroy()
+                }
             }
+            
+            // 4. 从窗口管理器中移除视图
+            if (floatingView?.isAttachedToWindow == true) {
+                try {
+                    windowManager.removeView(floatingView)
+                } catch (e: Exception) {
+                    Log.e(TAG, "移除悬浮窗失败", e)
+                }
+            }
+            
+            // 5. 清理其他资源
+            gestureHintHandler.removeCallbacksAndMessages(null)
+            lastGestureHintRunnable = null
+            
+            // 6. 解除引用
+            webView = null
+            floatingView = null
+            
         } catch (e: Exception) {
             Log.e(TAG, "销毁悬浮窗失败", e)
+        } finally {
+            // 确保调用父类的 onDestroy
+            super.onDestroy()
         }
-        
-        super.onDestroy()
+    }
+
+    // 添加一个新的方法来安全地关闭服务
+    private fun safelyStopService() {
+        try {
+            // 1. 如果悬浮窗处于隐藏状态，先恢复它
+            if (isHidden) {
+                // 取消当前动画
+                edgeSnapAnimator?.cancel()
+                
+                // 恢复原始状态
+                val params = floatingView?.layoutParams as? WindowManager.LayoutParams
+                if (params != null) {
+                    params.width = originalWidth
+                    params.height = originalHeight
+                    params.x = originalX
+                    params.y = originalY
+                    try {
+                        windowManager.updateViewLayout(floatingView, params)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "恢复悬浮窗状态失败", e)
+                    }
+                }
+            }
+            
+            // 2. 延迟一帧后停止服务
+            Handler(Looper.getMainLooper()).post {
+                stopSelf()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "安全停止服务失败", e)
+            // 如果出现异常，直接停止服务
+            stopSelf()
+        }
     }
 
     private fun checkEdgeAndSnap(params: WindowManager.LayoutParams) {
@@ -904,37 +1024,83 @@ class FloatingWebViewService : Service() {
     }
     
     private fun animateToEdge(isLeft: Boolean) {
+        if (!::windowManager.isInitialized || floatingView == null) return
+        
         edgeSnapAnimator?.cancel()
         
-        val params = floatingView?.layoutParams as WindowManager.LayoutParams
+        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
         val startX = params.x
+        val startWidth = params.width
+        val startHeight = params.height
         
-        // 保存最后可见位置，用于恢复
+        // 保存原始状态（仅在首次隐藏时保存）
         if (!isHidden) {
+            originalWidth = startWidth
+            originalHeight = startHeight
+            originalX = startX
+            originalY = params.y
+            
+            // 记录最后可见位置，用于恢复
             lastVisibleX = startX
         }
         
-        // 计算目标位置（隐藏时只留下一小部分可见）
-        val containerWidth = floatingView?.width ?: 0
-        val visiblePortion = (containerWidth * 0.1f).toInt() // 留下10%可见
-        val targetX = if (isLeft) -containerWidth + visiblePortion else screenWidth - visiblePortion
+        // 计算目标尺寸（缩小到原始尺寸的20%）
+        val targetWidth = (originalWidth * EDGE_SCALE_RATIO).toInt().coerceAtLeast(minWidth / 2)
+        val targetHeight = (originalHeight * EDGE_SCALE_RATIO).toInt().coerceAtLeast(minHeight / 2)
         
-        edgeSnapAnimator = ValueAnimator.ofInt(startX, targetX).apply {
+        // 计算目标位置（完全贴边）
+        val targetX = if (isLeft) 0 else screenWidth - targetWidth
+        
+        edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = ANIMATION_DURATION
             interpolator = DecelerateInterpolator()
             
             addUpdateListener { animator ->
-                params.x = animator.animatedValue as Int
+                if (!::windowManager.isInitialized || floatingView == null) {
+                    cancel()
+                    return@addUpdateListener
+                }
+
+                val fraction = animator.animatedValue as Float
+                
                 try {
+                    params.x = lerp(startX, targetX, fraction)
+                    params.width = lerp(startWidth, targetWidth, fraction)
+                    params.height = lerp(startHeight, targetHeight, fraction)
+                    
                     windowManager.updateViewLayout(floatingView, params)
+                    updateViewsAlpha(1f - fraction * 0.5f) // 减少透明度变化，保持更好的可见性
                 } catch (e: Exception) {
-                    Log.e(TAG, "更新悬浮窗位置失败", e)
+                    Log.e(TAG, "更新悬浮窗失败", e)
+                    cancel()
                 }
             }
             
             addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationStart(animation: Animator) {
+                    // 动画开始时不立即设置隐藏状态
+                }
+
                 override fun onAnimationEnd(animation: Animator) {
-                    isHidden = true
+                    if (!animation.isRunning) {
+                        isHidden = true
+                        // 禁用 WebView 的滚动
+                        disableWebViewScroll()
+                    }
+                }
+
+                override fun onAnimationCancel(animation: Animator) {
+                    // 动画取消时恢复原始状态
+                    try {
+                        params.width = originalWidth
+                        params.height = originalHeight
+                        updateViewsAlpha(1f)
+                        windowManager.updateViewLayout(floatingView, params)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "恢复原始状态失败", e)
+                    }
+                    isHidden = false
+                    enableWebViewScroll()
                 }
             })
             
@@ -942,36 +1108,113 @@ class FloatingWebViewService : Service() {
         }
     }
     
-    private fun animateShow() {
+    private fun animateShowToCenter() {
+        if (!::windowManager.isInitialized || floatingView == null) return
+        
         edgeSnapAnimator?.cancel()
         
-        val params = floatingView?.layoutParams as WindowManager.LayoutParams
+        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
         val startX = params.x
-        val viewWidth = floatingView?.width ?: 0
+        val startY = params.y
+        val startWidth = params.width
+        val startHeight = params.height
         
-        // 计算目标位置（完全显示）
-        val targetX = if (params.x < 0) 0 else screenWidth - viewWidth
+        // 使用保存的原始尺寸
+        val targetWidth = originalWidth.coerceAtLeast(minWidth)
+        val targetHeight = originalHeight.coerceAtLeast(minHeight)
         
-        edgeSnapAnimator = ValueAnimator.ofInt(startX, targetX).apply {
+        // 计算屏幕中央位置
+        val targetX = (screenWidth - targetWidth) / 2
+        val targetY = (screenHeight - targetHeight) / 2
+        
+        edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = ANIMATION_DURATION
             interpolator = OvershootInterpolator(0.8f)
             
             addUpdateListener { animator ->
-                params.x = animator.animatedValue as Int
+                if (!::windowManager.isInitialized || floatingView == null) {
+                    cancel()
+                    return@addUpdateListener
+                }
+
+                val fraction = animator.animatedValue as Float
+                
                 try {
+                    params.x = lerp(startX, targetX, fraction)
+                    params.y = lerp(startY, targetY, fraction)
+                    params.width = lerp(startWidth, targetWidth, fraction)
+                    params.height = lerp(startHeight, targetHeight, fraction)
+                    
                     windowManager.updateViewLayout(floatingView, params)
+                    updateViewsAlpha(0.5f + fraction * 0.5f) // 从半透明恢复到完全不透明
                 } catch (e: Exception) {
-                    Log.e(TAG, "更新悬浮窗位置失败", e)
+                    Log.e(TAG, "更新悬浮窗失败", e)
+                    cancel()
                 }
             }
             
             addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) {
+                override fun onAnimationStart(animation: Animator) {
                     isHidden = false
+                }
+
+                override fun onAnimationEnd(animation: Animator) {
+                    if (!animation.isRunning) {
+                        isHidden = false
+                        updateViewsAlpha(1f)
+                        enableWebViewScroll()
+                    }
+                }
+
+                override fun onAnimationCancel(animation: Animator) {
+                    isHidden = false
+                    updateViewsAlpha(1f)
+                    enableWebViewScroll()
                 }
             })
             
             start()
         }
+    }
+    
+    // 添加线性插值方法
+    private fun lerp(start: Int, end: Int, fraction: Float): Int {
+        return start + ((end - start) * fraction).toInt()
+    }
+    
+    // 更新内部视图的透明度
+    private fun updateViewsAlpha(alpha: Float) {
+        webView?.alpha = alpha
+        searchInput?.alpha = alpha
+        progressBar?.alpha = alpha
+        closeButton?.alpha = alpha
+        expandButton?.alpha = alpha
+        searchButton?.alpha = alpha
+        backButton?.alpha = alpha
+        forwardButton?.alpha = alpha
+        refreshButton?.alpha = alpha
+        floatingTitle?.alpha = alpha
+        
+        // 保持拖动手柄始终可见，但略微透明
+        floatingView?.findViewById<View>(R.id.drag_handle)?.alpha = maxOf(0.3f, alpha)
+    }
+
+    // 添加辅助方法来控制 WebView 的滚动
+    private fun enableWebViewScroll() {
+        webView?.evaluateJavascript("""
+            (function() {
+                document.body.style.overflow = '';
+                document.documentElement.style.overflow = '';
+            })()
+        """, null)
+    }
+
+    private fun disableWebViewScroll() {
+        webView?.evaluateJavascript("""
+            (function() {
+                document.body.style.overflow = 'hidden';
+                document.documentElement.style.overflow = 'hidden';
+            })()
+        """, null)
     }
 } 
