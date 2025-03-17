@@ -1550,6 +1550,8 @@ color floating_background_dark
 color floating_background_light
 color floating_ball_icon_dark
 color floating_ball_icon_light
+color floating_window_background
+color floating_window_border
 color fold_accent_dark
 color fold_accent_light
 color fold_background_dark
@@ -2365,6 +2367,7 @@ dimen abc_text_size_title_material_toolbar
 dimen activity_horizontal_margin
 dimen activity_vertical_margin
 dimen appcompat_dialog_background_inset
+dimen button_margin
 dimen card_spacing
 dimen cardview_compat_inset_shadow
 dimen cardview_default_elevation
@@ -2429,15 +2432,19 @@ dimen design_textinput_caption_translate_y
 dimen disabled_alpha_material_dark
 dimen disabled_alpha_material_light
 dimen drawer_width
+dimen edge_button_margin
+dimen edge_snap_threshold
 dimen engine_list_width
 dimen fastscroll_default_thickness
 dimen fastscroll_margin
 dimen fastscroll_minimum_range
 dimen floating_card_corner_radius
+dimen floating_card_edge_elevation
 dimen floating_card_elevation
 dimen floating_webview_collapsed_height
 dimen floating_webview_min_height
 dimen floating_webview_min_width
+dimen floating_window_corner_radius
 dimen highlight_alpha_material_colored
 dimen highlight_alpha_material_dark
 dimen highlight_alpha_material_light

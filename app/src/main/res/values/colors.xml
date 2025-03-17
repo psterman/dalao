@@ -102,4 +102,7 @@
     <color name="normal_mode_background">#00796B</color>
     <color name="ai_mode_indicator_bg">#E3F2FD</color>
     <color name="normal_mode_indicator_bg">#E0F2F1</color>
+
+    <color name="floating_window_background">#FFFFFF</color>
+    <color name="floating_window_border">#CCCCCC</color>
 </resources> 

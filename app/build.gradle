@@ -72,4 +72,7 @@ dependencies {
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'com.belerweb:pinyin4j:2.5.1'
     implementation 'com.airbnb.android:lottie:6.1.0'
+    
+    // 添加 PathInterpolatorCompat 支持
+    implementation "androidx.interpolator:interpolator:1.0.0"
 } 

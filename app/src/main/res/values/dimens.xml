@@ -35,4 +35,17 @@
     <!-- 悬浮窗卡片样式 -->
     <dimen name="floating_card_corner_radius">12dp</dimen>
     <dimen name="floating_card_elevation">6dp</dimen>
+
+    <!-- 贴边状态下的阴影深度 -->
+    <dimen name="floating_card_edge_elevation">4dp</dimen>
+
+    <!-- 贴边状态下按钮边距 -->
+    <dimen name="edge_button_margin">8dp</dimen>
+
+    <!-- 普通状态下按钮边距 -->
+    <dimen name="button_margin">12dp</dimen>
+
+    <dimen name="floating_window_corner_radius">16dp</dimen>
+
+    <dimen name="edge_snap_threshold">24dp</dimen>
 </resources> 
