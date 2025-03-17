@@ -13,6 +13,7 @@ android {
         targetSdk 34  // 降低目标SDK版本
         versionCode 1  // 版本号
         versionName "1.0"  // 版本名称
+        resourcePrefix 'app_'
     }
     
     buildTypes {

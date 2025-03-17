@@ -41,7 +41,7 @@
     <color name="ai_mode_indicator_bg">#E3F2FD</color>
     <color name="background">#FFFFFF</color>
     <color name="black">#FF000000</color>
-    <color name="colorAccent">#2196F3</color>
+    <color name="colorAccent">#FF4081</color>
     <color name="colorPrimary">#2196F3</color>
     <color name="colorPrimaryDark">#1976D2</color>
     <color name="divider">#BDBDBD</color>
@@ -59,12 +59,12 @@
     <color name="engine_list_background_light">#FFFFFF</color>
     <color name="engine_name_text_dark">#FFFFFF</color>
     <color name="engine_name_text_light">#000000</color>
-    <color name="floating_background_dark">#121212</color>
+    <color name="floating_background_dark">#2C2C2C</color>
     <color name="floating_background_light">#FFFFFF</color>
     <color name="floating_ball_icon_dark">#E0E0E0</color>
     <color name="floating_ball_icon_light">#757575</color>
     <color name="floating_window_background">#FFFFFF</color>
-    <color name="floating_window_border">#CCCCCC</color>
+    <color name="floating_window_border">#1A000000</color>
     <color name="fold_accent_dark">#64B5F6</color>
     <color name="fold_accent_light">#2196F3</color>
     <color name="fold_background_dark">#1A1A1A</color>
@@ -78,7 +78,7 @@
     <color name="glass_text_dark">#FFFFFF</color>
     <color name="glass_text_light">#000000</color>
     <color name="ic_launcher_background">#3DDC84</color>
-    <color name="icon_color_dark">#BBBBBB</color>
+    <color name="icon_color_dark">#BDBDBD</color>
     <color name="icon_color_light">#757575</color>
     <color name="letter_index_background_dark">#212121</color>
     <color name="letter_index_background_light">#FFFFFF</color>
@@ -109,8 +109,8 @@
     <color name="search_input_stroke">#E0E0E0</color>
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_700">#FF018786</color>
-    <color name="text_color_dark">#EEEEEE</color>
-    <color name="text_color_light">#212121</color>
+    <color name="text_color_dark">#FFFFFF</color>
+    <color name="text_color_light">#000000</color>
     <color name="text_primary">#212121</color>
     <color name="text_secondary">#757575</color>
     <color name="transparent_black">#80000000</color>
@@ -125,10 +125,10 @@
     <dimen name="engine_list_width">280dp</dimen>
     <dimen name="floating_card_corner_radius">12dp</dimen>
     <dimen name="floating_card_edge_elevation">4dp</dimen>
-    <dimen name="floating_card_elevation">6dp</dimen>
+    <dimen name="floating_card_elevation">4dp</dimen>
     <dimen name="floating_webview_collapsed_height">200dp</dimen>
-    <dimen name="floating_webview_min_height">160dp</dimen>
-    <dimen name="floating_webview_min_width">240dp</dimen>
+    <dimen name="floating_webview_min_height">150dp</dimen>
+    <dimen name="floating_webview_min_width">200dp</dimen>
     <dimen name="floating_window_corner_radius">16dp</dimen>
     <dimen name="letter_index_bar_margin">8dp</dimen>
     <dimen name="letter_index_bar_width">24dp</dimen>

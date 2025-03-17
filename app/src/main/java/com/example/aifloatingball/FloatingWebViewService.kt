@@ -46,6 +46,8 @@ import android.view.animation.PathInterpolator
 import android.graphics.Rect
 import androidx.core.graphics.ColorUtils
 import android.view.animation.Interpolator
+import android.graphics.drawable.Drawable
+import com.example.aifloatingball.R
 
 class FloatingWebViewService : Service() {
     companion object {
@@ -58,6 +60,10 @@ class FloatingWebViewService : Service() {
         private const val EDGE_NONE = 0
         private const val EDGE_LEFT = 1
         private const val EDGE_RIGHT = 2
+        private const val DEFAULT_EDGE_THRESHOLD = 24f // dp
+        private const val DEFAULT_CORNER_RADIUS = 16f // dp
+        private const val DEFAULT_BACKGROUND_COLOR = 0xFFFFFFFF.toInt() // 白色
+        private const val DEFAULT_BORDER_COLOR = 0x1A000000.toInt() // 半透明黑色
     }
     
     private lateinit var windowManager: WindowManager
@@ -130,6 +136,41 @@ class FloatingWebViewService : Service() {
     
     // 在类的成员变量部分添加
     private lateinit var halfCircleWindow: HalfCircleFloatingWindow
+    
+    // 修改成员变量声明
+    private var originalBackground: android.graphics.drawable.Drawable? = null
+    
+    private fun getEdgeThreshold(): Int {
+        return try {
+            resources.getDimensionPixelSize(R.dimen.edge_snap_threshold)
+        } catch (e: Exception) {
+            (24 * resources.displayMetrics.density).toInt()
+        }
+    }
+
+    private fun getCornerRadius(): Float {
+        return try {
+            resources.getDimensionPixelSize(R.dimen.floating_window_corner_radius).toFloat()
+        } catch (e: Exception) {
+            12f * resources.displayMetrics.density
+        }
+    }
+
+    private fun getBackgroundColor(): Int {
+        return try {
+            ContextCompat.getColor(this, R.color.floating_window_background)
+        } catch (e: Exception) {
+            Color.WHITE
+        }
+    }
+
+    private fun getBorderColor(): Int {
+        return try {
+            ContextCompat.getColor(this, R.color.floating_window_border)
+        } catch (e: Exception) {
+            Color.parseColor("#1A000000")
+        }
+    }
     
     override fun onBind(intent: Intent?): IBinder? = null
     
@@ -221,6 +262,9 @@ class FloatingWebViewService : Service() {
             }, 500)
         
         halfCircleWindow = HalfCircleFloatingWindow(this)
+        
+        // 保存原始背景
+        originalBackground = floatingView?.background
         } catch (e: Exception) {
             Log.e(TAG, "onCreate失败", e)
         }
@@ -460,7 +504,7 @@ class FloatingWebViewService : Service() {
                 }
             }
             
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+           
         }
     }
     
@@ -1316,7 +1360,7 @@ class FloatingWebViewService : Service() {
     private fun checkEdgeAndSnap(x: Int, y: Int) {
         if (isHidden || isAnimating) return
         
-        val edgeThreshold = resources.getDimensionPixelSize(R.dimen.edge_snap_threshold)
+        val edgeThreshold = getEdgeThreshold()
         
         // 检查是否靠近左边缘
         if (x <= edgeThreshold) {
@@ -1426,7 +1470,7 @@ class FloatingWebViewService : Service() {
             shape.shape = GradientDrawable.RECTANGLE
             
             // 设置圆角 - 只在一侧设置圆角，形成半圆
-            val cornerRadius = view.height / 2f
+            val cornerRadius = getCornerRadius()
             if (isLeft) {
                 // 左侧靠边，右侧为半圆
                 shape.cornerRadii = floatArrayOf(
@@ -1446,12 +1490,11 @@ class FloatingWebViewService : Service() {
             }
             
             // 设置背景颜色 - 使用当前主题颜色，并根据进度调整透明度
-            val backgroundColor = ContextCompat.getColor(this, R.color.floating_window_background)
+            val backgroundColor = getBackgroundColor()
             val alpha = (255 * (0.7f + 0.3f * (1f - progress))).toInt()
             shape.setColor(ColorUtils.setAlphaComponent(backgroundColor, alpha))
             
-            // 设置边框
-            shape.setStroke(2, ContextCompat.getColor(this, R.color.floating_window_border))
+            shape.setStroke(2, getBorderColor())
             
             // 应用形状到视图背景
             view.background = shape
@@ -1574,33 +1617,20 @@ class FloatingWebViewService : Service() {
             shape.shape = GradientDrawable.RECTANGLE
             
             // 设置统一的圆角
-            val cornerRadius = resources.getDimensionPixelSize(R.dimen.floating_window_corner_radius).toFloat()
+            val cornerRadius = getCornerRadius()
             shape.cornerRadius = cornerRadius
             
             // 设置背景颜色
-            val backgroundColor = ContextCompat.getColor(this, R.color.floating_window_background)
+            val backgroundColor = getBackgroundColor()
             shape.setColor(backgroundColor)
             
-            // 设置边框
-            shape.setStroke(2, ContextCompat.getColor(this, R.color.floating_window_border))
+            shape.setStroke(2, getBorderColor())
             
             // 应用形状到视图背景
             view.background = shape
             
-            // 逐渐显示内部视图
-            webView?.alpha = progress
-            searchInput?.alpha = progress
-            searchButton?.alpha = progress
-            closeButton?.alpha = progress
-            expandButton?.alpha = 1f  // 展开按钮始终可见
-            
-            // 当进度超过一半时，显示内部视图
-            if (progress > 0.5f) {
-                webView?.visibility = View.VISIBLE
-                searchInput?.visibility = View.VISIBLE
-                searchButton?.visibility = View.VISIBLE
-                closeButton?.visibility = View.VISIBLE
-            }
+            // 保存为原始背景
+            originalBackground = shape
         } catch (e: Exception) {
             Log.e(TAG, "恢复正常形状失败", e)
         }
@@ -1761,7 +1791,15 @@ class FloatingWebViewService : Service() {
             
             // 恢复正常形状
             val view = floatingView ?: return
-            view.background = originalBackground
+            
+            // 创建新的背景
+            val shape = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = getCornerRadius()
+                setColor(getBackgroundColor())
+                setStroke(2, getBorderColor())
+            }
+            view.background = shape
             
             // 启用WebView滚动
             enableWebViewScrolling()

@@ -48,7 +48,7 @@ class HalfCircleFloatingWindow(private val context: Context) {
     private var originalY = 0
     
     // 边缘检测阈值
-    private val edgeThreshold = context.resources.getDimensionPixelSize(R.dimen.floating_window_corner_radius) * 2
+    private val edgeThreshold = context.resources.getDimensionPixelSize(R.dimen.edge_snap_threshold)
     
     /**
      * 检查是否靠近边缘并执行相应动画
