@@ -4,14 +4,14 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Switch;
+import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.example.aifloatingball.R;
@@ -24,34 +24,74 @@ public final class ActivitySettingsBinding implements ViewBinding {
   private final ScrollView rootView;
 
   @NonNull
-  public final Switch autoStartSwitch;
+  public final LinearLayout ballSizeContainer;
 
   @NonNull
-  public final Button backButton;
+  public final ImageView handModeIcon;
 
   @NonNull
-  public final RecyclerView engineList;
+  public final LinearLayout searchEngineSettings;
 
   @NonNull
-  public final LinearLayout menuSettingsContainer;
+  public final ImageView searchModeIcon;
 
   @NonNull
-  public final FrameLayout settings;
+  public final TextView searchModeText;
+
+  @NonNull
+  public final SeekBar seekBarBallSize;
+
+  @NonNull
+  public final Switch switchAutoStart;
+
+  @NonNull
+  public final Switch switchDefaultSearchMode;
 
   @NonNull
   public final Switch switchLeftHandedMode;
 
-  private ActivitySettingsBinding(@NonNull ScrollView rootView, @NonNull Switch autoStartSwitch,
-      @NonNull Button backButton, @NonNull RecyclerView engineList,
-      @NonNull LinearLayout menuSettingsContainer, @NonNull FrameLayout settings,
-      @NonNull Switch switchLeftHandedMode) {
+  @NonNull
+  public final Switch switchPrivacyMode;
+
+  @NonNull
+  public final TextView textHandMode;
+
+  @NonNull
+  public final TextView textTheme;
+
+  @NonNull
+  public final TextView textVersion;
+
+  @NonNull
+  public final LinearLayout themeContainer;
+
+  @NonNull
+  public final LinearLayout updateContainer;
+
+  private ActivitySettingsBinding(@NonNull ScrollView rootView,
+      @NonNull LinearLayout ballSizeContainer, @NonNull ImageView handModeIcon,
+      @NonNull LinearLayout searchEngineSettings, @NonNull ImageView searchModeIcon,
+      @NonNull TextView searchModeText, @NonNull SeekBar seekBarBallSize,
+      @NonNull Switch switchAutoStart, @NonNull Switch switchDefaultSearchMode,
+      @NonNull Switch switchLeftHandedMode, @NonNull Switch switchPrivacyMode,
+      @NonNull TextView textHandMode, @NonNull TextView textTheme, @NonNull TextView textVersion,
+      @NonNull LinearLayout themeContainer, @NonNull LinearLayout updateContainer) {
     this.rootView = rootView;
-    this.autoStartSwitch = autoStartSwitch;
-    this.backButton = backButton;
-    this.engineList = engineList;
-    this.menuSettingsContainer = menuSettingsContainer;
-    this.settings = settings;
+    this.ballSizeContainer = ballSizeContainer;
+    this.handModeIcon = handModeIcon;
+    this.searchEngineSettings = searchEngineSettings;
+    this.searchModeIcon = searchModeIcon;
+    this.searchModeText = searchModeText;
+    this.seekBarBallSize = seekBarBallSize;
+    this.switchAutoStart = switchAutoStart;
+    this.switchDefaultSearchMode = switchDefaultSearchMode;
     this.switchLeftHandedMode = switchLeftHandedMode;
+    this.switchPrivacyMode = switchPrivacyMode;
+    this.textHandMode = textHandMode;
+    this.textTheme = textTheme;
+    this.textVersion = textVersion;
+    this.themeContainer = themeContainer;
+    this.updateContainer = updateContainer;
   }
 
   @Override
@@ -81,33 +121,51 @@ public final class ActivitySettingsBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.auto_start_switch;
-      Switch autoStartSwitch = ViewBindings.findChildViewById(rootView, id);
-      if (autoStartSwitch == null) {
+      id = R.id.ball_size_container;
+      LinearLayout ballSizeContainer = ViewBindings.findChildViewById(rootView, id);
+      if (ballSizeContainer == null) {
         break missingId;
       }
 
-      id = R.id.back_button;
-      Button backButton = ViewBindings.findChildViewById(rootView, id);
-      if (backButton == null) {
+      id = R.id.handModeIcon;
+      ImageView handModeIcon = ViewBindings.findChildViewById(rootView, id);
+      if (handModeIcon == null) {
         break missingId;
       }
 
-      id = R.id.engine_list;
-      RecyclerView engineList = ViewBindings.findChildViewById(rootView, id);
-      if (engineList == null) {
+      id = R.id.searchEngineSettings;
+      LinearLayout searchEngineSettings = ViewBindings.findChildViewById(rootView, id);
+      if (searchEngineSettings == null) {
         break missingId;
       }
 
-      id = R.id.menu_settings_container;
-      LinearLayout menuSettingsContainer = ViewBindings.findChildViewById(rootView, id);
-      if (menuSettingsContainer == null) {
+      id = R.id.searchModeIcon;
+      ImageView searchModeIcon = ViewBindings.findChildViewById(rootView, id);
+      if (searchModeIcon == null) {
         break missingId;
       }
 
-      id = R.id.settings;
-      FrameLayout settings = ViewBindings.findChildViewById(rootView, id);
-      if (settings == null) {
+      id = R.id.searchModeText;
+      TextView searchModeText = ViewBindings.findChildViewById(rootView, id);
+      if (searchModeText == null) {
+        break missingId;
+      }
+
+      id = R.id.seekBarBallSize;
+      SeekBar seekBarBallSize = ViewBindings.findChildViewById(rootView, id);
+      if (seekBarBallSize == null) {
+        break missingId;
+      }
+
+      id = R.id.switchAutoStart;
+      Switch switchAutoStart = ViewBindings.findChildViewById(rootView, id);
+      if (switchAutoStart == null) {
+        break missingId;
+      }
+
+      id = R.id.switchDefaultSearchMode;
+      Switch switchDefaultSearchMode = ViewBindings.findChildViewById(rootView, id);
+      if (switchDefaultSearchMode == null) {
         break missingId;
       }
 
@@ -117,8 +175,46 @@ public final class ActivitySettingsBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivitySettingsBinding((ScrollView) rootView, autoStartSwitch, backButton,
-          engineList, menuSettingsContainer, settings, switchLeftHandedMode);
+      id = R.id.switchPrivacyMode;
+      Switch switchPrivacyMode = ViewBindings.findChildViewById(rootView, id);
+      if (switchPrivacyMode == null) {
+        break missingId;
+      }
+
+      id = R.id.textHandMode;
+      TextView textHandMode = ViewBindings.findChildViewById(rootView, id);
+      if (textHandMode == null) {
+        break missingId;
+      }
+
+      id = R.id.textTheme;
+      TextView textTheme = ViewBindings.findChildViewById(rootView, id);
+      if (textTheme == null) {
+        break missingId;
+      }
+
+      id = R.id.textVersion;
+      TextView textVersion = ViewBindings.findChildViewById(rootView, id);
+      if (textVersion == null) {
+        break missingId;
+      }
+
+      id = R.id.theme_container;
+      LinearLayout themeContainer = ViewBindings.findChildViewById(rootView, id);
+      if (themeContainer == null) {
+        break missingId;
+      }
+
+      id = R.id.update_container;
+      LinearLayout updateContainer = ViewBindings.findChildViewById(rootView, id);
+      if (updateContainer == null) {
+        break missingId;
+      }
+
+      return new ActivitySettingsBinding((ScrollView) rootView, ballSizeContainer, handModeIcon,
+          searchEngineSettings, searchModeIcon, searchModeText, seekBarBallSize, switchAutoStart,
+          switchDefaultSearchMode, switchLeftHandedMode, switchPrivacyMode, textHandMode, textTheme,
+          textVersion, themeContainer, updateContainer);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

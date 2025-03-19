@@ -1560,11 +1560,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     private fun animateMenuItem(item: View, targetX: Float, targetY: Float, index: Int) {
-        // 设置初始位置（从悬浮球位置开始）
-        item.visibility = View.VISIBLE
-        item.alpha = 0f
-        item.scaleX = 0.5f
-        item.scaleY = 0.5f
+            // 设置初始位置（从悬浮球位置开始）
+            item.visibility = View.VISIBLE
+            item.alpha = 0f
+            item.scaleX = 0.5f
+            item.scaleY = 0.5f
         
         // 获取悬浮球中心位置
         val ballLocation = IntArray(2)
@@ -1576,16 +1576,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         item.y = (ballCenterY - item.height / 2).toFloat()
         
         // 执行显示动画，减少动画时间和延迟
-        item.animate()
+            item.animate()
             .x(targetX)
             .y(targetY)
-            .alpha(1f)
-            .scaleX(1f)
-            .scaleY(1f)
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
             .setDuration(150) // 减少动画时间
             .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()) // 使用加速减速插值器
             .setStartDelay((index * 20).toLong()) // 减少每个项目的延迟时间
-            .start()
+                .start()
     }
     
     // 隐藏AI菜单
