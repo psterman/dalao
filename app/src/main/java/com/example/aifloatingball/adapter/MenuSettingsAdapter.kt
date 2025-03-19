@@ -10,9 +10,11 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.MenuItem
 import com.example.aifloatingball.model.MenuCategory
+import com.example.aifloatingball.utils.IconLoader
 
 class MenuSettingsAdapter(
-    private val items: MutableList<MenuItem>
+    private val items: MutableList<MenuItem>,
+    private val iconLoader: IconLoader
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private companion object {
@@ -113,7 +115,7 @@ class MenuSettingsAdapter(
         }
     }
 
-    class ItemViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+    inner class ItemViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         private val checkbox: CheckBox = view.findViewById(R.id.checkbox)
         private val icon: ImageView = view.findViewById(R.id.icon)
         private val name: TextView = view.findViewById(R.id.name)
@@ -121,8 +123,17 @@ class MenuSettingsAdapter(
 
         fun bind(item: MenuItem) {
             checkbox.isChecked = item.isEnabled
-            icon.setImageResource(item.iconRes)
             name.text = item.name
+            
+            // 如果是搜索引擎，尝试加载网站图标
+            if ((item.category == MenuCategory.NORMAL_SEARCH || 
+                 item.category == MenuCategory.AI_SEARCH) &&
+                !item.url.startsWith("action://") && 
+                !item.url.startsWith("back://")) {
+                iconLoader.loadIcon(item.url, icon, item.iconRes)
+            } else {
+                icon.setImageResource(item.iconRes)
+            }
             
             checkbox.setOnCheckedChangeListener { _, isChecked ->
                 item.copy(isEnabled = isChecked)

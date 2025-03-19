@@ -1473,12 +1473,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             menuItemView.animate()
                 .scaleX(0.85f)
                 .scaleY(0.85f)
-                .setDuration(100)
+                .setDuration(50) // 减少按下动画时间
                 .withEndAction {
                     menuItemView.animate()
                         .scaleX(1f)
                         .scaleY(1f)
-                        .setDuration(100)
+                        .setDuration(50) // 减少弹起动画时间
                         .withEndAction {
                             hideAIMenu()
                             openAIEngine(menuItem)
@@ -1575,16 +1575,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         item.x = (ballCenterX - item.width / 2).toFloat()
         item.y = (ballCenterY - item.height / 2).toFloat()
         
-        // 执行显示动画
+        // 执行显示动画，减少动画时间和延迟
         item.animate()
             .x(targetX)
             .y(targetY)
             .alpha(1f)
             .scaleX(1f)
             .scaleY(1f)
-            .setDuration(ANIMATION_DURATION)
-            .setInterpolator(OvershootInterpolator(1.2f))
-            .setStartDelay((index * 50).toLong())
+            .setDuration(150) // 减少动画时间
+            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()) // 使用加速减速插值器
+            .setStartDelay((index * 20).toLong()) // 减少每个项目的延迟时间
             .start()
     }
     
@@ -1603,25 +1603,26 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
         
         menuViews.forEachIndexed { index, item ->
-            // 执行收起动画，回到悬浮球位置
+            // 执行收起动画，减少动画时间和延迟
             item.animate()
                 .x((ballCenterX - item.width / 2).toFloat())
                 .y((ballCenterY - item.height / 2).toFloat())
                 .alpha(0f)
                 .scaleX(0.5f)
                 .scaleY(0.5f)
-                .setDuration(ANIMATION_DURATION)
-                .setInterpolator(DecelerateInterpolator())
-                .setStartDelay((menuViews.size - 1 - index) * 30L) // 反向延迟，使菜单项按相反顺序收起
+                .setDuration(100) // 减少动画时间
+                .setInterpolator(android.view.animation.AccelerateInterpolator()) // 使用加速插值器
+                .setStartDelay((menuViews.size - 1 - index) * 10L) // 减少每个项目的延迟时间
                 .withEndAction {
                     item.visibility = View.GONE
                 }
                 .start()
         }
         
+        // 减少等待时间
         Handler(Looper.getMainLooper()).postDelayed({
             menuContainer?.visibility = View.GONE
-        }, ANIMATION_DURATION + menuViews.size * 30L)
+        }, 150) // 减少延迟时间
     }
     
     // 打开AI引擎

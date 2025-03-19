@@ -11,11 +11,13 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.MenuSettingsAdapter
 import com.example.aifloatingball.model.MenuItem
 import com.example.aifloatingball.model.MenuCategory
+import com.example.aifloatingball.utils.IconLoader
 
 class MenuSettingsActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: MenuSettingsAdapter
     private lateinit var settingsManager: SettingsManager
+    private lateinit var iconLoader: IconLoader
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -28,31 +30,28 @@ class MenuSettingsActivity : AppCompatActivity() {
         }
 
         settingsManager = SettingsManager.getInstance(this)
+        iconLoader = IconLoader(this)
         
         // 初始化RecyclerView
-        recyclerView = findViewById(R.id.menu_items_recycler)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        
-        // 获取已保存的菜单项配置并转换为 MutableList
-        val savedMenuItems = settingsManager.getMenuItems().toMutableList()
-        
-        // 如果没有保存的配置，使用默认配置
-        val menuItems = if (savedMenuItems.isEmpty()) {
-            getDefaultMenuItems().toMutableList()
-        } else {
-            savedMenuItems
-        }
-
-        adapter = MenuSettingsAdapter(menuItems)
-        recyclerView.adapter = adapter
-
-        // 设置拖拽排序
-        setupDragAndDrop()
+        setupRecyclerView()
 
         // 保存按钮点击事件
         findViewById<Button>(R.id.btn_save).setOnClickListener {
             saveSettings()
         }
+    }
+
+    private fun setupRecyclerView() {
+        recyclerView = findViewById(R.id.menu_items_recycler)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+
+        // 从 SharedPreferences 加载菜单项
+        val menuItems = loadMenuItems().toMutableList()
+        adapter = MenuSettingsAdapter(menuItems, iconLoader)
+        recyclerView.adapter = adapter
+
+        // 设置拖拽排序
+        setupDragAndDrop()
     }
 
     private fun setupDragAndDrop() {
@@ -91,6 +90,18 @@ class MenuSettingsActivity : AppCompatActivity() {
         return true
     }
 
+    private fun loadMenuItems(): List<MenuItem> {
+        // 获取已保存的菜单项配置并转换为 MutableList
+        val savedMenuItems = settingsManager.getMenuItems().toMutableList()
+        
+        // 如果没有保存的配置，使用默认配置
+        return if (savedMenuItems.isEmpty()) {
+            getDefaultMenuItems().toMutableList()
+        } else {
+            savedMenuItems
+        }
+    }
+
     private fun getDefaultMenuItems(): List<MenuItem> {
         return listOf(
             // AI 搜索引擎
@@ -100,6 +111,12 @@ class MenuSettingsActivity : AppCompatActivity() {
             MenuItem("通义千问", R.drawable.ic_qianwen, "https://qianwen.aliyun.com", MenuCategory.AI_SEARCH, true),
             MenuItem("讯飞星火", R.drawable.ic_xinghuo, "https://xinghuo.xfyun.cn", MenuCategory.AI_SEARCH, true),
             MenuItem("Gemini", R.drawable.ic_gemini, "https://gemini.google.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Bard", R.drawable.ic_floating_ball, "https://bard.google.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Copilot", R.drawable.ic_floating_ball, "https://copilot.microsoft.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Poe", R.drawable.ic_floating_ball, "https://poe.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Anthropic", R.drawable.ic_floating_ball, "https://anthropic.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Character", R.drawable.ic_floating_ball, "https://character.ai", MenuCategory.AI_SEARCH, true),
+            MenuItem("Pi", R.drawable.ic_floating_ball, "https://pi.ai", MenuCategory.AI_SEARCH, true),
             
             // 普通搜索引擎
             MenuItem("百度", R.drawable.ic_baidu, "https://www.baidu.com", MenuCategory.NORMAL_SEARCH, true),
@@ -107,6 +124,13 @@ class MenuSettingsActivity : AppCompatActivity() {
             MenuItem("必应", R.drawable.ic_bing, "https://www.bing.com", MenuCategory.NORMAL_SEARCH, true),
             MenuItem("搜狗", R.drawable.ic_sogou, "https://www.sogou.com", MenuCategory.NORMAL_SEARCH, true),
             MenuItem("360搜索", R.drawable.ic_360, "https://www.so.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("头条搜索", R.drawable.ic_floating_ball, "https://so.toutiao.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("夸克搜索", R.drawable.ic_floating_ball, "https://quark.sm.cn", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("神马搜索", R.drawable.ic_floating_ball, "https://m.sm.cn", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("Yandex", R.drawable.ic_floating_ball, "https://yandex.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("DuckDuckGo", R.drawable.ic_floating_ball, "https://duckduckgo.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("Yahoo", R.drawable.ic_floating_ball, "https://search.yahoo.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("Ecosia", R.drawable.ic_floating_ball, "https://www.ecosia.org", MenuCategory.NORMAL_SEARCH, true),
             
             // 功能
             MenuItem("返回", R.drawable.ic_back, "back://last_app", MenuCategory.FUNCTION, true),
