@@ -60,6 +60,7 @@ import android.app.AlertDialog
 import android.app.usage.UsageStatsManager
 import com.example.aifloatingball.model.MenuItem
 import com.example.aifloatingball.model.MenuCategory
+import com.example.aifloatingball.utils.IconLoader
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -76,6 +77,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private lateinit var gestureManager: GestureManager
     private lateinit var quickMenuManager: QuickMenuManager
     private lateinit var systemSettingsHelper: SystemSettingsHelper
+    private lateinit var iconLoader: IconLoader
     private var screenWidth = 0
     private var screenHeight = 0
     private var currentEngineIndex = 0
@@ -217,6 +219,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             setupMemoryMonitoring()
             Log.d("FloatingService", "服务开始创建")
             super.onCreate()
+            
+            // 初始化图标加载器
+            iconLoader = IconLoader(this)
+            iconLoader.cleanupOldCache()
             
             // 初始化剪贴板管理器并立即开始监听
             clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -994,6 +1000,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             cachedCardViews.clear()
             menuViews.clear()
             
+            // 清理图标加载器
+            if (::iconLoader.isInitialized) {
+                iconLoader.clearCache()
+            }
+            
             System.gc()
             
             super.onDestroy()
@@ -1438,12 +1449,20 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             MENU_ITEM_SIZE_DP.dpToPx()
         )
         
-        // 使用正确的属性访问
         val icon = menuItemView.findViewById<ImageView>(R.id.icon)
         val name = menuItemView.findViewById<TextView>(R.id.name)
         
-        icon.setImageResource(menuItem.iconRes)
         name.text = menuItem.name
+        
+        // 如果是搜索引擎，尝试加载网站图标
+        if ((menuItem.category == MenuCategory.NORMAL_SEARCH || 
+             menuItem.category == MenuCategory.AI_SEARCH) &&
+            !menuItem.url.startsWith("action://") && 
+            !menuItem.url.startsWith("back://")) {
+            iconLoader.loadIcon(menuItem.url, icon, menuItem.iconRes)
+        } else {
+            icon.setImageResource(menuItem.iconRes)
+        }
         
         menuItemView.visibility = View.GONE
         menuItemView.alpha = 0f
@@ -1488,75 +1507,85 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val ballCenterX = ballLocation[0] + (floatingBallView?.width ?: 0) / 2
         val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
         
-        // 确定菜单显示在悬浮球的哪一侧（左侧或右侧）
-        val showOnRight = ballCenterX < screenWidth / 2
+        // 将菜单项按类别分组
+        val normalSearchItems = menuViews.filterIndexed { index, _ -> 
+            menuItemsList[index].category == MenuCategory.NORMAL_SEARCH 
+        }
+        val aiSearchItems = menuViews.filterIndexed { index, _ -> 
+            menuItemsList[index].category == MenuCategory.AI_SEARCH 
+        }
+        val functionItems = menuViews.filterIndexed { index, _ -> 
+            menuItemsList[index].category == MenuCategory.FUNCTION 
+        }
         
-        // 计算菜单起始位置
-        val menuMargin = MENU_MARGIN_DP.dpToPx().toInt()
+        // 计算每列的宽度和间距
         val menuItemSize = MENU_ITEM_SIZE_DP.dpToPx().toInt()
         val menuSpacing = MENU_SPACING_DP.dpToPx().toInt()
+        val columnSpacing = (menuSpacing * 2).toInt() // 列间距是普通间距的2倍
         
-        // 计算菜单项总高度
-        val totalMenuHeight = menuViews.size * menuItemSize + 
-            (menuViews.size - 1) * menuSpacing
+        // 计算整个菜单的总宽度
+        val totalWidth = menuItemSize * 3 + columnSpacing * 2
         
-        // 安全检查：确保总高度不超过屏幕高度
-        val safeMenuHeight = minOf(totalMenuHeight, screenHeight - menuItemSize)
+        // 确定菜单的起始X坐标（水平居中）
+        val startX = (screenWidth - totalWidth) / 2
         
-        // 计算菜单顶部位置，使菜单垂直居中对齐悬浮球
-        val menuTopY = (ballCenterY - safeMenuHeight / 2)
-            .coerceIn(0, screenHeight - safeMenuHeight)
+        // 计算三列的X坐标
+        val column1X = startX.toFloat()
+        val column2X = (startX + menuItemSize + columnSpacing).toFloat()
+        val column3X = (startX + (menuItemSize + columnSpacing) * 2).toFloat()
         
-        // 计算菜单水平位置
-        val menuX = if (showOnRight) {
-            minOf(
-                ballCenterX + (floatingBallView?.width ?: 0) / 2 + menuMargin,
-                screenWidth - menuItemSize
-            ).toFloat()
-        } else {
-            maxOf(
-                0,
-                ballCenterX - (floatingBallView?.width ?: 0) / 2 - menuMargin - menuItemSize
-            ).toFloat()
+        // 计算每列的最大项目数
+        val maxItems = maxOf(normalSearchItems.size, aiSearchItems.size, functionItems.size)
+        
+        // 计算菜单的总高度
+        val totalHeight = (maxItems * menuItemSize + (maxItems - 1) * menuSpacing)
+        
+        // 计算起始Y坐标（垂直居中）
+        val startY = (screenHeight - totalHeight) / 2
+        
+        // 显示普通搜索列
+        normalSearchItems.forEachIndexed { index, item ->
+            animateMenuItem(item, column1X, startY + index * (menuItemSize + menuSpacing).toFloat(), index)
         }
         
-        // 计算每个菜单项可用的垂直空间
-        val availableHeight = screenHeight - menuTopY
-        val itemSpacing = if (menuViews.size > 1) {
-            minOf(
-                menuSpacing,
-                ((availableHeight - menuViews.size * menuItemSize) / (menuViews.size - 1))
-            )
-        } else {
-            menuSpacing
+        // 显示AI搜索列
+        aiSearchItems.forEachIndexed { index, item ->
+            animateMenuItem(item, column2X, startY + index * (menuItemSize + menuSpacing).toFloat(), index)
         }
         
-        // 显示菜单项
-        menuViews.forEachIndexed { index, item ->
-            // 计算每个项目的Y位置，确保在屏幕范围内
-            val itemY = (menuTopY + index * (menuItemSize + itemSpacing))
-                .coerceIn(0, screenHeight - menuItemSize).toFloat()
-            
-            // 设置初始位置（从悬浮球位置开始）
-            item.visibility = View.VISIBLE
-            item.alpha = 0f
-            item.scaleX = 0.5f
-            item.scaleY = 0.5f
-            item.x = (ballCenterX - menuItemSize / 2).toFloat()
-            item.y = (ballCenterY - menuItemSize / 2).toFloat()
-            
-            // 执行显示动画
-            item.animate()
-                .x(menuX)
-                .y(itemY)
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-                .setDuration(ANIMATION_DURATION)
-                .setInterpolator(OvershootInterpolator(1.2f))
-                .setStartDelay((index * 50).toLong())
-                .start()
+        // 显示功能列
+        functionItems.forEachIndexed { index, item ->
+            animateMenuItem(item, column3X, startY + index * (menuItemSize + menuSpacing).toFloat(), index)
         }
+    }
+    
+    private fun animateMenuItem(item: View, targetX: Float, targetY: Float, index: Int) {
+        // 设置初始位置（从悬浮球位置开始）
+        item.visibility = View.VISIBLE
+        item.alpha = 0f
+        item.scaleX = 0.5f
+        item.scaleY = 0.5f
+        
+        // 获取悬浮球中心位置
+        val ballLocation = IntArray(2)
+        floatingBallView?.getLocationOnScreen(ballLocation)
+        val ballCenterX = ballLocation[0] + (floatingBallView?.width ?: 0) / 2
+        val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
+        
+        item.x = (ballCenterX - item.width / 2).toFloat()
+        item.y = (ballCenterY - item.height / 2).toFloat()
+        
+        // 执行显示动画
+        item.animate()
+            .x(targetX)
+            .y(targetY)
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(ANIMATION_DURATION)
+            .setInterpolator(OvershootInterpolator(1.2f))
+            .setStartDelay((index * 50).toLong())
+            .start()
     }
     
     // 隐藏AI菜单
@@ -1614,8 +1643,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     startActivity(intent)
                 }
                 menuItem.url == "action://share" -> {
-                    // 实现分享功能
                     handleShare()
+                }
+                // 检查是否是普通搜索引擎
+                menuItem.category == MenuCategory.NORMAL_SEARCH -> {
+                    handleNormalSearch(menuItem)
                 }
                 else -> {
                     val intent = Intent(this, FloatingWebViewService::class.java).apply {
@@ -1629,6 +1661,82 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         } catch (e: Exception) {
             Log.e("FloatingService", "打开失败", e)
             Toast.makeText(this, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun handleNormalSearch(menuItem: MenuItem) {
+        try {
+            Log.d("FloatingService", "开始处理普通搜索: ${menuItem.name}")
+            
+            // 获取剪贴板内容
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clipText = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+            
+            Log.d("FloatingService", "剪贴板内容: $clipText")
+
+            if (!clipText.isNullOrEmpty()) {
+                // 对搜索词进行 URL 编码
+                val encodedQuery = java.net.URLEncoder.encode(clipText, "UTF-8")
+                Log.d("FloatingService", "编码后的搜索词: $encodedQuery")
+                
+                // 构建搜索URL，确保使用正确的搜索参数
+                val searchUrl = when (menuItem.name) {
+                    "百度" -> "https://www.baidu.com/s?wd=$encodedQuery"
+                    "Google" -> "https://www.google.com/search?q=$encodedQuery"
+                    "必应" -> "https://www.bing.com/search?q=$encodedQuery"
+                    "搜狗" -> "https://www.sogou.com/web?query=$encodedQuery"
+                    "360搜索" -> "https://www.so.com/s?q=$encodedQuery"
+                    "头条搜索" -> "https://so.toutiao.com/search?keyword=$encodedQuery"
+                    "夸克搜索" -> "https://quark.sm.cn/s?q=$encodedQuery"
+                    "神马搜索" -> "https://m.sm.cn/s?q=$encodedQuery"
+                    "Yandex" -> "https://yandex.com/search/?text=$encodedQuery"
+                    "DuckDuckGo" -> "https://duckduckgo.com/?q=$encodedQuery"
+                    "Yahoo" -> "https://search.yahoo.com/search?p=$encodedQuery"
+                    "Ecosia" -> "https://www.ecosia.org/search?q=$encodedQuery"
+                    else -> "${menuItem.url}/search?q=$encodedQuery"
+                }
+                
+                Log.d("FloatingService", "构建的搜索URL: $searchUrl")
+
+                // 使用 WebView 打开搜索结果页面
+                val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                    putExtra("url", searchUrl)
+                    putExtra("from_ai_menu", true)
+                    putExtra("search_query", clipText) // 添加搜索词，方便调试
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                
+                // 启动服务
+                startService(intent)
+                
+                // 提供反馈
+                vibrate(50)
+                Toast.makeText(this, "正在搜索: $clipText", Toast.LENGTH_SHORT).show()
+                
+                Log.d("FloatingService", "搜索服务已启动")
+            } else {
+                Log.d("FloatingService", "剪贴板为空，打开搜索主页")
+                
+                // 如果没有剪贴板内容，打开搜索引擎主页
+                val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                    putExtra("url", menuItem.url)
+                    putExtra("from_ai_menu", true)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startService(intent)
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "处理普通搜索失败", e)
+            e.printStackTrace() // 打印详细错误堆栈
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            
+            // 发生错误时打开搜索引擎主页
+            val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                putExtra("url", menuItem.url)
+                putExtra("from_ai_menu", true)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startService(intent)
         }
     }
 
@@ -1715,13 +1823,26 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             MenuItem("通义千问", R.drawable.ic_qianwen, "https://qianwen.aliyun.com", MenuCategory.AI_SEARCH, true),
             MenuItem("讯飞星火", R.drawable.ic_xinghuo, "https://xinghuo.xfyun.cn", MenuCategory.AI_SEARCH, true),
             MenuItem("Gemini", R.drawable.ic_gemini, "https://gemini.google.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Bard", R.drawable.ic_floating_ball, "https://bard.google.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Copilot", R.drawable.ic_floating_ball, "https://copilot.microsoft.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Poe", R.drawable.ic_floating_ball, "https://poe.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Anthropic", R.drawable.ic_floating_ball, "https://anthropic.com", MenuCategory.AI_SEARCH, true),
+            MenuItem("Character", R.drawable.ic_floating_ball, "https://character.ai", MenuCategory.AI_SEARCH, true),
+            MenuItem("Pi", R.drawable.ic_floating_ball, "https://pi.ai", MenuCategory.AI_SEARCH, true),
             
-            // 普通搜索引擎 - 使用正确的图标资源
+            // 普通搜索引擎
             MenuItem("百度", R.drawable.ic_baidu, "https://www.baidu.com", MenuCategory.NORMAL_SEARCH, true),
             MenuItem("Google", R.drawable.ic_google, "https://www.google.com", MenuCategory.NORMAL_SEARCH, true),
             MenuItem("必应", R.drawable.ic_bing, "https://www.bing.com", MenuCategory.NORMAL_SEARCH, true),
             MenuItem("搜狗", R.drawable.ic_sogou, "https://www.sogou.com", MenuCategory.NORMAL_SEARCH, true),
             MenuItem("360搜索", R.drawable.ic_360, "https://www.so.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("头条搜索", R.drawable.ic_floating_ball, "https://so.toutiao.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("夸克搜索", R.drawable.ic_floating_ball, "https://quark.sm.cn", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("神马搜索", R.drawable.ic_floating_ball, "https://m.sm.cn", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("Yandex", R.drawable.ic_floating_ball, "https://yandex.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("DuckDuckGo", R.drawable.ic_floating_ball, "https://duckduckgo.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("Yahoo", R.drawable.ic_floating_ball, "https://search.yahoo.com", MenuCategory.NORMAL_SEARCH, true),
+            MenuItem("Ecosia", R.drawable.ic_floating_ball, "https://www.ecosia.org", MenuCategory.NORMAL_SEARCH, true),
             
             // 功能
             MenuItem("返回", R.drawable.ic_back, "back://last_app", MenuCategory.FUNCTION, true),

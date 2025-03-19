@@ -45,6 +45,7 @@ class HalfCircleFloatingWindow(private val context: Context) {
     private var originalWidth = 0
     private var originalHeight = 0
     private var originalX = 0
+    
     private var originalY = 0
     
     // 边缘检测阈值
