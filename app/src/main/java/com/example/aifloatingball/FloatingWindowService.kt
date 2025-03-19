@@ -578,7 +578,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         longPressRunnable = Runnable {
                             isLongPress = true
                             vibrate(200)
-                            showAIMenu()
+                            // 长按打开搜索界面
+                            val intent = Intent(this@FloatingWindowService, SearchActivity::class.java).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                                // 添加标记，表示从悬浮球打开
+                                putExtra("from_floating_ball", true)
+                            }
+                            startActivity(intent)
                         }
                         longPressHandler.postDelayed(longPressRunnable!!, 500) // 500ms长按阈值
                         true
@@ -612,14 +619,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         
                         if (!isLongPress) {
                             if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
-                                // 点击事件，打开悬浮窗并加载默认主页
-                                val intent = Intent(this@FloatingWindowService, SearchActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                                    // 添加标记，表示从悬浮球打开
-                                    putExtra("from_floating_ball", true)
-                                }
-                                startActivity(intent)
+                                // 短按显示AI菜单
+                                vibrate(50)
+                                showAIMenu()
                             } else {
                                 // 处理边缘吸附
                                 val distanceToLeftEdge = params.x + view.width / 3
