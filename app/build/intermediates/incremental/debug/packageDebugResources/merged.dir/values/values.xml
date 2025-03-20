@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="home_page_entries">
+        <item>功能主页</item>
+        <item>百度</item>
+        <item>Google</item>
+        <item>必应</item>
+        <item>DeepSeek</item>
+        <item>空白页</item>
+    </string-array>
+    <string-array name="home_page_values">
+        <item>function_home</item>
+        <item>https://www.baidu.com</item>
+        <item>https://www.google.com</item>
+        <item>https://www.bing.com</item>
+        <item>https://deepseek.com</item>
+        <item>about:blank</item>
+    </string-array>
+    <string-array name="layout_theme_entries">
+        <item>折叠式布局</item>
+        <item>卡片式布局</item>
+        <item>列表式布局</item>
+    </string-array>
+    <string-array name="layout_theme_values">
+        <item>fold</item>
+        <item>card</item>
+        <item>list</item>
+    </string-array>
+    <string-array name="theme_entries">
+        <item>跟随系统</item>
+        <item>浅色模式</item>
+        <item>深色模式</item>
+    </string-array>
+    <string-array name="theme_values">
+        <item>system</item>
+        <item>light</item>
+        <item>dark</item>
+    </string-array>
+    <color name="accent">#FF4081</color>
+    <color name="ai_mode_background">#2962FF</color>
+    <color name="ai_mode_indicator_bg">#E3F2FD</color>
+    <color name="background">#FFFFFF</color>
+    <color name="black">#FF000000</color>
+    <color name="colorAccent">#FF4081</color>
+    <color name="colorPrimary">#2196F3</color>
+    <color name="colorPrimaryDark">#1976D2</color>
+    <color name="divider">#BDBDBD</color>
+    <color name="divider_dark">#1AFFFFFF</color>
+    <color name="divider_light">#1A000000</color>
+    <color name="drawer_background_dark">#1F1F1F</color>
+    <color name="drawer_background_light">#FFFFFF</color>
+    <color name="drawer_text_dark">#FFFFFF</color>
+    <color name="drawer_text_light">#000000</color>
+    <color name="engine_description_text_dark">#99FFFFFF</color>
+    <color name="engine_description_text_light">#99000000</color>
+    <color name="engine_icon_dark">#CCFFFFFF</color>
+    <color name="engine_icon_light">#CC000000</color>
+    <color name="engine_list_background_dark">#1A1A1A</color>
+    <color name="engine_list_background_light">#FFFFFF</color>
+    <color name="engine_name_text_dark">#FFFFFF</color>
+    <color name="engine_name_text_light">#000000</color>
+    <color name="floating_background_dark">#2C2C2C</color>
+    <color name="floating_background_light">#FFFFFF</color>
+    <color name="floating_ball_icon_dark">#E0E0E0</color>
+    <color name="floating_ball_icon_light">#757575</color>
+    <color name="floating_window_background">#FFFFFF</color>
+    <color name="floating_window_border">#1A000000</color>
+    <color name="fold_accent_dark">#64B5F6</color>
+    <color name="fold_accent_light">#2196F3</color>
+    <color name="fold_background_dark">#1A1A1A</color>
+    <color name="fold_background_light">#FFFFFF</color>
+    <color name="fold_text_dark">#FFFFFF</color>
+    <color name="fold_text_light">#000000</color>
+    <color name="glass_accent_dark">#4DD0E1</color>
+    <color name="glass_accent_light">#00BCD4</color>
+    <color name="glass_background_dark">#000000</color>
+    <color name="glass_background_light">#FFFFFF</color>
+    <color name="glass_text_dark">#FFFFFF</color>
+    <color name="glass_text_light">#000000</color>
+    <color name="ic_launcher_background">#3DDC84</color>
+    <color name="icon_color_dark">#BDBDBD</color>
+    <color name="icon_color_light">#757575</color>
+    <color name="letter_index_background_dark">#212121</color>
+    <color name="letter_index_background_light">#FFFFFF</color>
+    <color name="letter_index_selected_background_dark">#1AFFFFFF</color>
+    <color name="letter_index_selected_background_light">#1A000000</color>
+    <color name="letter_index_text">#99000000</color>
+    <color name="letter_index_text_dark">#99FFFFFF</color>
+    <color name="letter_index_text_light">#99000000</color>
+    <color name="letter_index_text_selected">#FF000000</color>
+    <color name="material_accent_dark">#FF80AB</color>
+    <color name="material_accent_light">#FF4081</color>
+    <color name="material_background_dark">#212121</color>
+    <color name="material_background_light">#F5F5F5</color>
+    <color name="material_text_dark">#FFFFFF</color>
+    <color name="material_text_light">#212121</color>
+    <color name="navigation_bar_background">#F5F5F5</color>
+    <color name="normal_mode_background">#00796B</color>
+    <color name="normal_mode_indicator_bg">#E0F2F1</color>
+    <color name="primary">#2196F3</color>
+    <color name="primary_dark">#1976D2</color>
+    <color name="progress_color_dark">@color/colorAccent</color>
+    <color name="progress_color_light">@color/colorAccent</color>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="search_bar_background">#F5F5F5</color>
+    <color name="search_input_background">#F5F5F5</color>
+    <color name="search_input_stroke">#E0E0E0</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="text_color_dark">#FFFFFF</color>
+    <color name="text_color_light">#000000</color>
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="transparent_black">#80000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <dimen name="activity_horizontal_margin">16dp</dimen>
+    <dimen name="activity_vertical_margin">16dp</dimen>
+    <dimen name="button_margin">12dp</dimen>
+    <dimen name="card_spacing">8dp</dimen>
+    <dimen name="drawer_width">280dp</dimen>
+    <dimen name="edge_button_margin">8dp</dimen>
+    <dimen name="edge_snap_threshold">24dp</dimen>
+    <dimen name="engine_list_width">280dp</dimen>
+    <dimen name="floating_card_corner_radius">12dp</dimen>
+    <dimen name="floating_card_edge_elevation">4dp</dimen>
+    <dimen name="floating_card_elevation">4dp</dimen>
+    <dimen name="floating_webview_collapsed_height">200dp</dimen>
+    <dimen name="floating_webview_min_height">150dp</dimen>
+    <dimen name="floating_webview_min_width">200dp</dimen>
+    <dimen name="floating_window_corner_radius">16dp</dimen>
+    <dimen name="letter_index_bar_margin">8dp</dimen>
+    <dimen name="letter_index_bar_width">24dp</dimen>
+    <dimen name="letter_index_padding">4dp</dimen>
+    <dimen name="letter_index_text_size">12sp</dimen>
+    <dimen name="letter_index_width">32dp</dimen>
+    <dimen name="letter_text_size">14sp</dimen>
+    <dimen name="letter_title_height">48dp</dimen>
+    <dimen name="preview_padding">16dp</dimen>
+    <dimen name="preview_text_size">18sp</dimen>
+    <dimen name="preview_width">200dp</dimen>
+    <dimen name="search_bar_margin">16dp</dimen>
+    <dimen name="search_bar_margin_left_handed">48dp</dimen>
+    <dimen name="search_history_margin">16dp</dimen>
+    <dimen name="search_input_margin">64dp</dimen>
+    <dimen name="toolbar_button_size">48dp</dimen>
+    <dimen name="toolbar_edge_margin">16dp</dimen>
+    <dimen name="toolbar_edge_margin_left_handed">24dp</dimen>
+    <dimen name="toolbar_group_spacing">8dp</dimen>
+    <dimen name="toolbar_height">56dp</dimen>
+    <dimen name="toolbar_icon_margin">8dp</dimen>
+    <dimen name="toolbar_icon_size">24dp</dimen>
+    <dimen name="toolbar_icon_spacing">16dp</dimen>
+    <dimen name="toolbar_padding">8dp</dimen>
+    <string name="app_name">AI悬浮球</string>
+    <string name="appearance">外观</string>
+    <string name="auto_hide">自动隐藏悬浮球</string>
+    <string name="back">后退</string>
+    <string name="close">关闭</string>
+    <string name="collapse">收起</string>
+    <string name="drag_to_sort">长按拖动排序</string>
+    <string name="engine_icon">搜索引擎图标</string>
+    <string name="expand">展开</string>
+    <string name="floating_ball_description">AI悬浮球图标</string>
+    <string name="floating_ball_service_description">提供多个AI助手的快速访问</string>
+    <string name="floating_ball_service_name">AI悬浮球服务</string>
+    <string name="floating_mode">悬浮窗模式</string>
+    <string name="forward">前进</string>
+    <string name="left_handed_mode">左手模式</string>
+    <string name="left_handed_mode_description">调整界面布局以适应左手使用习惯</string>
+    <string name="menu">菜单</string>
+    <string name="notification_channel_description">保持AI悬浮球服务在后台运行</string>
+    <string name="notification_channel_name">AI悬浮球服务</string>
+    <string name="open_in_floating_mode">在悬浮窗中打开</string>
+    <string name="permission_required">需要权限</string>
+    <string name="refresh">刷新</string>
+    <string name="save">保存</string>
+    <string name="search">搜索</string>
+    <string name="search_engine_settings">搜索引擎排序</string>
+    <string name="search_hint">输入搜索内容</string>
+    <string name="service_running">AI悬浮球服务正在运行</string>
+    <string name="settings">设置</string>
+    <string name="settings_about">关于</string>
+    <string name="settings_display">显示与外观</string>
+    <string name="settings_general">通用</string>
+    <string name="settings_privacy">隐私与安全</string>
+    <string name="settings_title">设置</string>
+    <string name="voice_recognition_failed">语音识别失败，请重试</string>
+    <string name="voice_search">语音搜索</string>
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        
+    </style>
+    <style name="BottomBarButton">
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+        <item name="android:padding">12dp</item>
+        <item name="android:tint">?android:attr/textColorSecondary</item>
+    </style>
+    <style name="FloatingCardDialog" parent="Theme.AppCompat.Dialog">
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+    <style name="Theme.AIFloatingBall" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+        
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorSecondaryVariant">@color/teal_700</item>
+        <item name="colorOnSecondary">@color/black</item>
+        
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        
+        <item name="materialCardViewStyle">@style/Widget.MaterialComponents.CardView</item>
+    </style>
+    <style name="TransparentDialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:background">@android:color/transparent</item>
+    </style>
+    <style name="TransparentTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+</resources>

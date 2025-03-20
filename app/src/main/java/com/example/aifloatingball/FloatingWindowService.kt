@@ -211,6 +211,33 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
 
+    // 添加配置变更监听器
+    private val configurationChangeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_CONFIGURATION_CHANGED) {
+                // 处理配置变更（如屏幕旋转或折叠屏状态变化）
+                handleConfigurationChange()
+            }
+        }
+    }
+    
+    // 边缘位置枚举
+    private enum class EdgePosition {
+        LEFT,           // 左边缘
+        RIGHT,          // 右边缘
+        TOP,            // 上边缘
+        BOTTOM,         // 下边缘
+        TOP_LEFT,       // 左上角
+        TOP_RIGHT,      // 右上角
+        BOTTOM_LEFT,    // 左下角
+        BOTTOM_RIGHT    // 右下角
+    }
+
+    // 添加HalfCircleFloatingWindow变量，但暂时不初始化
+    private var halfCircleWindow: HalfCircleFloatingWindow? = null
+    // 折叠屏设备检测标志
+    private var isFoldableDevice = false
+
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -367,6 +394,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             } else {
                 registerReceiver(menuUpdateReceiver, menuUpdateFilter)
             }
+            
+            // 注册配置变更监听器
+            val filter = IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED)
+            registerReceiver(configurationChangeReceiver, filter)
             
             Log.d("FloatingService", "服务创建完成")
         } catch (e: Exception) {
@@ -606,11 +637,21 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         }
                         
                         if (!isLongPress) {
+                            // 计算新位置
                             params.x = (initialX + deltaX).toInt()
                             params.y = (initialY + deltaY).toInt()
                             
-                            params.x = params.x.coerceIn(-view.width / 3, screenWidth - view.width * 2 / 3)
-                            params.y = params.y.coerceIn(0, screenHeight - view.height)
+                            // 获取悬浮球的宽高
+                            val ballWidth = view.width
+                            val ballHeight = view.height
+                            
+                            // 确保悬浮球至少有一部分保持在屏幕内
+                            // 允许移动到边缘，但不能完全超出屏幕
+                            val marginX = ballWidth / 4  // 只需保持1/4的宽度在屏幕内
+                            val marginY = ballHeight / 4 // 只需保持1/4的高度在屏幕内
+                            
+                            params.x = params.x.coerceIn(-ballWidth + marginX, screenWidth - marginX)
+                            params.y = params.y.coerceIn(-ballHeight + marginY, screenHeight - marginY)
                             
                             try {
                                 windowManager?.updateViewLayout(floatingBallView, params)
@@ -629,13 +670,67 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                                 vibrate(50)
                                 showAIMenu()
                             } else {
-                                // 处理边缘吸附
-                                val distanceToLeftEdge = params.x + view.width / 3
-                                val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
+                                // 获取屏幕方向
+                                val orientation = resources.configuration.orientation
                                 
+                                // 计算悬浮球中心点
+                                val ballWidth = view.width
+                                val ballHeight = view.height
+                                val centerX = params.x + ballWidth / 2
+                                val centerY = params.y + ballHeight / 2
+                                
+                                // 计算到各边的距离
+                                val distanceToLeftEdge = params.x
+                                val distanceToRightEdge = screenWidth - (params.x + ballWidth)
+                                val distanceToTopEdge = params.y
+                                val distanceToBottomEdge = screenHeight - (params.y + ballHeight)
+                                
+                                // 是否在各个边缘附近
+                                val nearLeft = distanceToLeftEdge <= edgeSnapThresholdPx
+                                val nearRight = distanceToRightEdge <= edgeSnapThresholdPx
+                                val nearTop = distanceToTopEdge <= edgeSnapThresholdPx
+                                val nearBottom = distanceToBottomEdge <= edgeSnapThresholdPx
+                                
+                                if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                                    // 横屏：优先处理左右边缘，然后考虑四角
                                 when {
-                                    distanceToLeftEdge <= edgeSnapThresholdPx -> snapToEdge(params, true)
-                                    distanceToRightEdge <= edgeSnapThresholdPx -> snapToEdge(params, false)
+                                        // 左上角
+                                        nearLeft && nearTop -> snapToEdge(params, EdgePosition.TOP_LEFT)
+                                        // 左下角
+                                        nearLeft && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_LEFT)
+                                        // 右上角
+                                        nearRight && nearTop -> snapToEdge(params, EdgePosition.TOP_RIGHT)
+                                        // 右下角
+                                        nearRight && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_RIGHT)
+                                        // 左边
+                                        nearLeft -> snapToEdge(params, EdgePosition.LEFT)
+                                        // 右边
+                                        nearRight -> snapToEdge(params, EdgePosition.RIGHT)
+                                        // 上边
+                                        nearTop -> snapToEdge(params, EdgePosition.TOP)
+                                        // 下边
+                                        nearBottom -> snapToEdge(params, EdgePosition.BOTTOM)
+                                    }
+                                } else {
+                                    // 竖屏：优先考虑左右边缘，然后考虑上下边缘
+                                    when {
+                                        // 左上角
+                                        nearLeft && nearTop -> snapToEdge(params, EdgePosition.TOP_LEFT)
+                                        // 左下角
+                                        nearLeft && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_LEFT)
+                                        // 右上角
+                                        nearRight && nearTop -> snapToEdge(params, EdgePosition.TOP_RIGHT)
+                                        // 右下角
+                                        nearRight && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_RIGHT)
+                                        // 左边缘
+                                        nearLeft -> snapToEdge(params, EdgePosition.LEFT)
+                                        // 右边缘
+                                        nearRight -> snapToEdge(params, EdgePosition.RIGHT)
+                                        // 上边缘
+                                        nearTop -> snapToEdge(params, EdgePosition.TOP)
+                                        // 下边缘 - 通常避免吸附到下边缘，可能与导航栏冲突
+                                        nearBottom && centerY > screenHeight * 0.7 -> snapToEdge(params, EdgePosition.BOTTOM)
+                                    }
                                 }
                             }
                         }
@@ -1007,6 +1102,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             System.gc()
             
+            // 注销配置变更监听器
+            try {
+                unregisterReceiver(configurationChangeReceiver)
+            } catch (e: Exception) {
+                Log.e("FloatingWindowService", "Error unregistering receiver", e)
+            }
+            
             super.onDestroy()
         } catch (e: Exception) {
             Log.e("FloatingService", "服务销毁时发生错误", e)
@@ -1086,13 +1188,48 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 return
             }
             
-            // 只处理水平方向的边缘吸附
-            val distanceToLeftEdge = params.x + view.width / 3
-            val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
+            // 获取屏幕方向
+            val orientation = resources.configuration.orientation
             
+            // 计算悬浮球中心点和各个边缘的距离
+            val ballWidth = view.width
+            val ballHeight = view.height
+            val distanceToLeftEdge = params.x
+            val distanceToRightEdge = screenWidth - (params.x + ballWidth)
+            val distanceToTopEdge = params.y
+            val distanceToBottomEdge = screenHeight - (params.y + ballHeight)
+            
+            // 是否在各个边缘附近
+            val nearLeft = distanceToLeftEdge <= edgeSnapThresholdPx * 1.5f
+            val nearRight = distanceToRightEdge <= edgeSnapThresholdPx * 1.5f
+            val nearTop = distanceToTopEdge <= edgeSnapThresholdPx * 1.5f
+            val nearBottom = distanceToBottomEdge <= edgeSnapThresholdPx * 1.5f
+            
+            // 根据当前屏幕方向和位置选择适合的边缘
+            if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                // 横屏优先考虑左右边缘
             when {
-                distanceToLeftEdge <= edgeSnapThresholdPx -> snapToEdge(params, true)
-                distanceToRightEdge <= edgeSnapThresholdPx -> snapToEdge(params, false)
+                    nearLeft && nearTop -> snapToEdge(params, EdgePosition.TOP_LEFT)
+                    nearLeft && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_LEFT)
+                    nearRight && nearTop -> snapToEdge(params, EdgePosition.TOP_RIGHT)
+                    nearRight && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_RIGHT)
+                    nearLeft -> snapToEdge(params, EdgePosition.LEFT)
+                    nearRight -> snapToEdge(params, EdgePosition.RIGHT)
+                    nearTop -> snapToEdge(params, EdgePosition.TOP)
+                    nearBottom -> snapToEdge(params, EdgePosition.BOTTOM)
+                }
+            } else {
+                // 竖屏也优先考虑左右边缘
+                when {
+                    nearLeft && nearTop -> snapToEdge(params, EdgePosition.TOP_LEFT)
+                    nearLeft && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_LEFT)
+                    nearRight && nearTop -> snapToEdge(params, EdgePosition.TOP_RIGHT)
+                    nearRight && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_RIGHT)
+                    nearLeft -> snapToEdge(params, EdgePosition.LEFT)
+                    nearRight -> snapToEdge(params, EdgePosition.RIGHT)
+                    nearTop -> snapToEdge(params, EdgePosition.TOP)
+                    nearBottom && params.y > screenHeight * 0.6 -> snapToEdge(params, EdgePosition.BOTTOM)
+                }
             }
         }
     }
@@ -1142,13 +1279,48 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             addListener(object : Animator.AnimatorListener {
                 override fun onAnimationStart(animation: Animator) {}
                 override fun onAnimationEnd(animation: Animator) {
-                    // 只检查水平方向的边缘吸附
-                    val distanceToLeftEdge = params.x + view.width / 3
-                    val distanceToRightEdge = screenWidth - (params.x + view.width * 2 / 3)
+                    // 获取屏幕方向
+                    val orientation = resources.configuration.orientation
                     
+                    // 计算到各边的距离
+                    val ballWidth = view.width
+                    val ballHeight = view.height
+                    val distanceToLeftEdge = params.x
+                    val distanceToRightEdge = screenWidth - (params.x + ballWidth)
+                    val distanceToTopEdge = params.y
+                    val distanceToBottomEdge = screenHeight - (params.y + ballHeight)
+                    
+                    // 是否在各个边缘附近
+                    val nearLeft = distanceToLeftEdge <= edgeSnapThresholdPx * 1.5f
+                    val nearRight = distanceToRightEdge <= edgeSnapThresholdPx * 1.5f
+                    val nearTop = distanceToTopEdge <= edgeSnapThresholdPx * 1.5f
+                    val nearBottom = distanceToBottomEdge <= edgeSnapThresholdPx * 1.5f
+                    
+                    // 根据当前屏幕方向智能选择边缘
+                    if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                        // 横屏优先考虑左右边缘
                     when {
-                        distanceToLeftEdge <= edgeSnapThresholdPx * 1.5f -> snapToEdge(params, true)
-                        distanceToRightEdge <= edgeSnapThresholdPx * 1.5f -> snapToEdge(params, false)
+                            nearLeft && nearTop -> snapToEdge(params, EdgePosition.TOP_LEFT)
+                            nearLeft && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_LEFT)
+                            nearRight && nearTop -> snapToEdge(params, EdgePosition.TOP_RIGHT)
+                            nearRight && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_RIGHT)
+                            nearLeft -> snapToEdge(params, EdgePosition.LEFT)
+                            nearRight -> snapToEdge(params, EdgePosition.RIGHT)
+                            nearTop -> snapToEdge(params, EdgePosition.TOP)
+                            nearBottom -> snapToEdge(params, EdgePosition.BOTTOM)
+                        }
+                    } else {
+                        // 竖屏也优先考虑左右边缘
+                        when {
+                            nearLeft && nearTop -> snapToEdge(params, EdgePosition.TOP_LEFT)
+                            nearLeft && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_LEFT)
+                            nearRight && nearTop -> snapToEdge(params, EdgePosition.TOP_RIGHT)
+                            nearRight && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_RIGHT)
+                            nearLeft -> snapToEdge(params, EdgePosition.LEFT)
+                            nearRight -> snapToEdge(params, EdgePosition.RIGHT)
+                            nearTop -> snapToEdge(params, EdgePosition.TOP)
+                            nearBottom && params.y > screenHeight * 0.6 -> snapToEdge(params, EdgePosition.BOTTOM)
+                        }
                     }
                 }
                 override fun onAnimationCancel(animation: Animator) {}
@@ -1159,22 +1331,62 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         }
     }
     
-    private fun snapToEdge(params: WindowManager.LayoutParams, toLeft: Boolean) {
+    private fun snapToEdge(params: WindowManager.LayoutParams, position: EdgePosition) {
         edgeSnapAnimator?.cancel()
         
         val view = floatingBallView ?: return
         val startX = params.x
-        val targetX = if (toLeft) -view.width / 3 else screenWidth - view.width * 2 / 3
+        val startY = params.y
+        var targetX = startX
+        var targetY = startY
+        
+        // 根据不同位置计算目标坐标
+        when (position) {
+            EdgePosition.LEFT -> {
+                targetX = -view.width / 4
+                // Y轴保持不变
+            }
+            EdgePosition.RIGHT -> {
+                targetX = screenWidth - view.width * 3 / 4
+                // Y轴保持不变
+            }
+            EdgePosition.TOP -> {
+                targetY = 0
+                // X轴保持不变
+            }
+            EdgePosition.BOTTOM -> {
+                targetY = screenHeight - view.height
+                // X轴保持不变
+            }
+            EdgePosition.TOP_LEFT -> {
+                targetX = -view.width / 4
+                targetY = 0
+            }
+            EdgePosition.TOP_RIGHT -> {
+                targetX = screenWidth - view.width * 3 / 4
+                targetY = 0
+            }
+            EdgePosition.BOTTOM_LEFT -> {
+                targetX = -view.width / 4
+                targetY = screenHeight - view.height
+            }
+            EdgePosition.BOTTOM_RIGHT -> {
+                targetX = screenWidth - view.width * 3 / 4
+                targetY = screenHeight - view.height
+            }
+        }
         
         // 计算移动距离，用于调整动画参数
-        val distance = abs(targetX - startX)
+        val distanceX = abs(targetX - startX)
+        val distanceY = abs(targetY - startY)
+        val distance = sqrt((distanceX * distanceX + distanceY * distanceY).toDouble()).toFloat()
         
-        edgeSnapAnimator = ValueAnimator.ofInt(startX, targetX).apply {
+        edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             // 根据距离调整动画时长，距离越长动画越慢
-            duration = min(150L + (distance / 3), 300L)
+            duration = min(150L + (distance / 3).toLong(), 300L)
             
             // 根据距离选择合适的插值器
-            interpolator = if (distance > screenWidth / 4) {
+            interpolator = if (distance > screenWidth / 6) {
                 // 大距离使用减速插值器，更平滑
                 DecelerateInterpolator(1.5f)
             } else {
@@ -1183,7 +1395,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             }
             
             addUpdateListener { animator ->
-                params.x = animator.animatedValue as Int
+                val fraction = animator.animatedValue as Float
+                params.x = lerp(startX, targetX, fraction)
+                params.y = lerp(startY, targetY, fraction)
                 try {
                     windowManager?.updateViewLayout(view, params)
                 } catch (e: Exception) {
@@ -1193,6 +1407,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             start()
         }
+    }
+    
+    // 为兼容已有代码，保留之前的方法签名
+    private fun snapToEdge(params: WindowManager.LayoutParams, toLeft: Boolean) {
+        snapToEdge(params, if (toLeft) EdgePosition.LEFT else EdgePosition.RIGHT)
+    }
+    
+    // 线性插值辅助方法
+    private fun lerp(start: Int, end: Int, fraction: Float): Int {
+        return (start + fraction * (end - start)).toInt()
     }
 
     private fun updateFloatingBallTheme() {
@@ -1877,5 +2101,116 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         // 创建新的菜单容器
         createMenuContainer()
+    }
+    
+    // 处理配置变更
+    private fun handleConfigurationChange() {
+        try {
+            // 更新屏幕尺寸
+            updateScreenDimensions()
+            
+            // 确保悬浮球在屏幕范围内
+            adjustFloatingBallPosition()
+            
+            // 如果有展开的菜单，重新定位菜单
+            if (menuContainer != null && menuContainer?.visibility == View.VISIBLE) {
+                repositionMenu()
+            }
+            
+            // 暂时禁用半圆窗口功能，因为HalfCircleFloatingWindow类中的属性无法访问
+            // 当HalfCircleFloatingWindow类添加公开方法后可以重新启用
+            // if (halfCircleWindow != null && halfCircleWindow?.isHidden == true) {
+            //     updateEdgePosition()
+            // }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "Error handling configuration change", e)
+        }
+    }
+    
+    // 更新屏幕尺寸
+    private fun updateScreenDimensions() {
+        try {
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val windowMetrics = windowManager.currentWindowMetrics
+                screenWidth = windowMetrics.bounds.width()
+                screenHeight = windowMetrics.bounds.height()
+            } else {
+                val display = windowManager.defaultDisplay
+                val metrics = DisplayMetrics()
+                display.getMetrics(metrics)
+                screenWidth = metrics.widthPixels
+                screenHeight = metrics.heightPixels
+            }
+            
+            // 检测折叠屏状态
+            val isFoldable = checkFoldableDevice()
+            // 更新折叠状态
+            isFoldableDevice = isFoldable
+            
+            if (isFoldable) {
+                Log.d("FloatingWindowService", "设备是折叠屏")
+                // 检查设备是否处于折叠状态的代码待实现
+                if (checkDeviceFolded()) {
+                    updateFoldedScreenSafeArea()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "更新屏幕尺寸失败", e)
+        }
+    }
+    
+    // 检查设备是否为折叠屏
+    private fun checkFoldableDevice(): Boolean {
+        // 这里应该实现检测设备是否为折叠屏的逻辑
+        // 目前简单返回false，后续可以根据实际需求实现
+        return false
+    }
+    
+    // 检查设备是否处于折叠状态
+    private fun checkDeviceFolded(): Boolean {
+        // 这里应该实现检测设备折叠状态的逻辑
+        // 目前简单返回false，后续可以根据实际需求实现
+        return false
+    }
+    
+    // 更新折叠屏安全区域
+    private fun updateFoldedScreenSafeArea() {
+        // 这里应该实现更新折叠屏安全区域的逻辑
+        // 目前仅打印日志，后续可以根据实际需求实现
+        Log.d("FloatingWindowService", "更新折叠屏安全区域")
+    }
+    
+    // 调整悬浮球位置确保在屏幕范围内
+    private fun adjustFloatingBallPosition() {
+        if (floatingBallView == null || windowManager == null) return
+        
+        try {
+            val params = floatingBallView?.layoutParams as? WindowManager.LayoutParams ?: return
+            val ballWidth = floatingBallView?.width ?: 0
+            val ballHeight = floatingBallView?.height ?: 0
+            
+            // 确保悬浮球在屏幕范围内
+            params.x = params.x.coerceIn(-ballWidth/3, screenWidth - ballWidth*2/3)
+            params.y = params.y.coerceIn(0, screenHeight - ballHeight)
+            
+            windowManager?.updateViewLayout(floatingBallView, params)
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "调整悬浮球位置失败", e)
+        }
+    }
+    
+    // 重新定位菜单
+    private fun repositionMenu() {
+        // 暂时留空，后续实现
+        Log.d("FloatingWindowService", "重新定位菜单")
+    }
+
+    // 更新半圆状态下的位置
+    private fun updateEdgePosition() {
+        // 由于HalfCircleFloatingWindow的isHidden和edgePosition是私有属性
+        // 我们需要等待HalfCircleFloatingWindow类添加公开方法后再实现此功能
+        Log.d("FloatingWindowService", "半圆位置更新功能暂未启用")
     }
 }
