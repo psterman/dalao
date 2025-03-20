@@ -1,15 +1,15 @@
 [
     {
-        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_drag_handle.xml.flat",
-        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_drag_handle.xml"
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\layout_activity_fullscreen_webview.xml.flat",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\activity_fullscreen_webview.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_floating_ball.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_floating_ball.xml"
     },
     {
-        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\layout_activity_fullscreen_webview.xml.flat",
-        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\activity_fullscreen_webview.xml"
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_drag_handle.xml.flat",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_drag_handle.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\anim_window_hide.xml.flat",
@@ -60,12 +60,12 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\activity_search_engine_settings.xml"
     },
     {
-        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_menu_help.xml.flat",
-        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_menu_help.xml"
-    },
-    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_paste_button_background.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\paste_button_background.xml"
+    },
+    {
+        "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_menu_help.xml.flat",
+        "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_menu_help.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_expand.xml.flat",
@@ -78,6 +78,10 @@
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_menu_agenda.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_menu_agenda.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_zhipu.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_zhipu.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_xiaohongshu.xml.flat",
@@ -114,6 +118,10 @@
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\layout_item_search_engine.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\item_search_engine.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_kimi.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_kimi.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_default_ai.xml.flat",
@@ -184,6 +192,10 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\layout_menu_panel.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_grok.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_grok.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\layout_floating_ball.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\layout\\floating_ball.xml"
     },
@@ -252,6 +264,10 @@
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_update.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_deepseek.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_deepseek.xml"
+    },
+    {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_bg_floating_ball_light.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\bg_floating_ball_light.xml"
     },
@@ -282,10 +298,6 @@
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_menu_item_bg.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\menu_item_bg.xml"
-    },
-    {
-        "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_hand_left.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_hand_left.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_hand.xml.flat",
@@ -358,6 +370,10 @@
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_mic.xml.flat",
         "source": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-main-47:\\drawable\\ic_mic.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_perplexity.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_perplexity.xml"
     },
     {
         "merged": "C:\\.gradle\\daemon\\8.10.2\\com.example.aifloatingball.app-debug-45:\\drawable_ic_google.xml.flat",

@@ -164,6 +164,7 @@ drawable ic_chatgpt
 drawable ic_claude
 drawable ic_close
 drawable ic_collapse
+drawable ic_deepseek
 drawable ic_default_ai
 drawable ic_desktop
 drawable ic_doubao
@@ -177,6 +178,7 @@ drawable ic_floating_mode
 drawable ic_forward
 drawable ic_gemini
 drawable ic_google
+drawable ic_grok
 drawable ic_hand
 drawable ic_hand_left
 drawable ic_hand_right
@@ -184,6 +186,7 @@ drawable ic_history
 drawable ic_home
 drawable ic_image
 drawable ic_incognito
+drawable ic_kimi
 drawable ic_launcher_foreground
 drawable ic_menu
 drawable ic_menu_agenda
@@ -206,6 +209,7 @@ drawable ic_minimize
 drawable ic_mode_switch
 drawable ic_more
 drawable ic_night
+drawable ic_perplexity
 drawable ic_privacy
 drawable ic_qianwen
 drawable ic_recent
@@ -225,6 +229,7 @@ drawable ic_wenxin
 drawable ic_wifi
 drawable ic_xiaohongshu
 drawable ic_xinghuo
+drawable ic_zhipu
 drawable loading_background
 drawable menu_item_bg
 drawable paste_button_background

@@ -3261,6 +3261,7 @@ int drawable ic_clear_black_24 0x7f0800ae
 int drawable ic_clock_black_24dp 0x7f0800af
 int drawable ic_close 0x7f0800b0
 int drawable ic_collapse 0x7f0800b1
+int drawable ic_deepseek 0x7f080152
 int drawable ic_default_ai 0x7f0800b2
 int drawable ic_desktop 0x7f0800b3
 int drawable ic_doubao 0x7f0800b4
@@ -3274,6 +3275,7 @@ int drawable ic_floating_mode 0x7f0800bb
 int drawable ic_forward 0x7f0800bc
 int drawable ic_gemini 0x7f0800bd
 int drawable ic_google 0x7f0800be
+int drawable ic_grok 0x7f080153
 int drawable ic_hand 0x7f0800bf
 int drawable ic_hand_left 0x7f0800c0
 int drawable ic_hand_right 0x7f0800c1
@@ -3282,6 +3284,7 @@ int drawable ic_home 0x7f0800c3
 int drawable ic_image 0x7f0800c4
 int drawable ic_incognito 0x7f0800c5
 int drawable ic_keyboard_black_24dp 0x7f0800c6
+int drawable ic_kimi 0x7f080154
 int drawable ic_launcher_foreground 0x7f0800c7
 int drawable ic_m3_chip_check 0x7f0800c8
 int drawable ic_m3_chip_checked_circle 0x7f0800c9
@@ -3311,6 +3314,7 @@ int drawable ic_mtrl_chip_checked_black 0x7f0800e0
 int drawable ic_mtrl_chip_checked_circle 0x7f0800e1
 int drawable ic_mtrl_chip_close_circle 0x7f0800e2
 int drawable ic_night 0x7f0800e3
+int drawable ic_perplexity 0x7f080155
 int drawable ic_privacy 0x7f0800e4
 int drawable ic_qianwen 0x7f0800e5
 int drawable ic_recent 0x7f0800e6
@@ -3331,6 +3335,7 @@ int drawable ic_wenxin 0x7f0800f4
 int drawable ic_wifi 0x7f0800f5
 int drawable ic_xiaohongshu 0x7f0800f6
 int drawable ic_xinghuo 0x7f0800f7
+int drawable ic_zhipu 0x7f080156
 int drawable loading_background 0x7f0800f8
 int drawable m3_avd_hide_password 0x7f0800f9
 int drawable m3_avd_show_password 0x7f0800fa
