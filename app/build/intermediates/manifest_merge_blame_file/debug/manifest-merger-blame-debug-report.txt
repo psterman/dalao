@@ -1,0 +1,295 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.example.aifloatingball"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="24"
+8-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml
+9        android:targetSdkVersion="34" />
+9-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml
+10
+11    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+11-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:4:5-78
+11-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:4:22-75
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:5:5-67
+12-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:5:22-64
+13    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+13-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:6:5-71
+13-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:6:22-68
+14    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+14-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:7:5-79
+14-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:7:22-76
+15    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+15-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:8:5-77
+15-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:8:22-74
+16    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+16-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:9:5-77
+16-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:9:22-74
+17    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+17-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:10:5-89
+17-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:10:22-86
+18    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+18-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:11:5-94
+18-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:11:22-91
+19    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+19-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:12:5-80
+19-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:12:22-77
+20    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+20-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:13:5-81
+20-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:13:22-78
+21    <uses-permission android:name="android.permission.READ_CLIPBOARD" />
+21-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:14:5-73
+21-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:14:22-70
+22    <uses-permission android:name="android.permission.WRITE_CLIPBOARD" />
+22-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:15:5-74
+22-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:15:22-71
+23    <uses-permission android:name="android.permission.VIBRATE" />
+23-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:16:5-66
+23-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:16:22-63
+24
+25    <permission
+25-->[androidx.core:core:1.12.0] C:\.gradle\caches\8.9\transforms\001d792cb173412474620367680892a4\transformed\core-1.12.0\AndroidManifest.xml:22:5-24:47
+26        android:name="com.example.aifloatingball.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+26-->[androidx.core:core:1.12.0] C:\.gradle\caches\8.9\transforms\001d792cb173412474620367680892a4\transformed\core-1.12.0\AndroidManifest.xml:23:9-81
+27        android:protectionLevel="signature" />
+27-->[androidx.core:core:1.12.0] C:\.gradle\caches\8.9\transforms\001d792cb173412474620367680892a4\transformed\core-1.12.0\AndroidManifest.xml:24:9-44
+28
+29    <uses-permission android:name="com.example.aifloatingball.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+29-->[androidx.core:core:1.12.0] C:\.gradle\caches\8.9\transforms\001d792cb173412474620367680892a4\transformed\core-1.12.0\AndroidManifest.xml:26:5-97
+29-->[androidx.core:core:1.12.0] C:\.gradle\caches\8.9\transforms\001d792cb173412474620367680892a4\transformed\core-1.12.0\AndroidManifest.xml:26:22-94
+30
+31    <application
+31-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:18:5-100:19
+32        android:name="com.example.aifloatingball.App"
+32-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:19:9-28
+33        android:allowBackup="true"
+33-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:20:9-35
+34        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+34-->[androidx.core:core:1.12.0] C:\.gradle\caches\8.9\transforms\001d792cb173412474620367680892a4\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
+35        android:debuggable="true"
+36        android:extractNativeLibs="false"
+37        android:icon="@mipmap/ic_launcher"
+37-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:21:9-43
+38        android:label="@string/app_name"
+38-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:22:9-41
+39        android:supportsRtl="true"
+39-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:23:9-35
+40        android:testOnly="true"
+41        android:theme="@style/Theme.AIFloatingBall"
+41-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:24:9-52
+42        android:usesCleartextTraffic="true" >
+42-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:25:9-44
+43        <service
+43-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:27:9-32:44
+44            android:name="com.example.aifloatingball.FloatingWindowService"
+44-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:28:13-50
+45            android:enabled="true"
+45-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:29:13-35
+46            android:exported="false"
+46-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:30:13-37
+47            android:foregroundServiceType="specialUse"
+47-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:31:13-55
+48            android:stopWithTask="false" />
+48-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:32:13-41
+49        <service
+49-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:34:9-38:60
+50            android:name="com.example.aifloatingball.FloatingWebViewService"
+50-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:35:13-51
+51            android:enabled="true"
+51-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:36:13-35
+52            android:exported="false"
+52-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:37:13-37
+53            android:theme="@style/Theme.AppCompat.Light" />
+53-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:38:13-57
+54
+55        <activity
+55-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:40:9-48:20
+56            android:name="com.example.aifloatingball.PermissionActivity"
+56-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:41:13-47
+57            android:exported="true"
+57-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:42:13-36
+58            android:theme="@style/Theme.AppCompat.Light" >
+58-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:43:13-57
+59            <intent-filter>
+59-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:44:13-47:29
+60                <action android:name="android.intent.action.MAIN" />
+60-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:45:17-69
+60-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:45:25-66
+61
+62                <category android:name="android.intent.category.LAUNCHER" />
+62-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:46:17-77
+62-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:46:27-74
+63            </intent-filter>
+64        </activity>
+65        <activity
+65-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:50:9-58:20
+66            android:name="com.example.aifloatingball.SearchActivity"
+66-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:51:13-69
+67            android:exported="true"
+67-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:52:13-36
+68            android:theme="@style/Theme.AIFloatingBall" >
+68-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:53:13-56
+69            <intent-filter>
+69-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:54:13-57:29
+70                <action android:name="android.intent.action.SEARCH" />
+70-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:55:17-71
+70-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:55:25-68
+71
+72                <category android:name="android.intent.category.DEFAULT" />
+72-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:56:17-76
+72-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:56:27-73
+73            </intent-filter>
+74        </activity>
+75        <activity
+75-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:60:9-64:40
+76            android:name="com.example.aifloatingball.SettingsActivity"
+76-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:61:13-45
+77            android:exported="false"
+77-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:64:13-37
+78            android:label="@string/settings_title"
+78-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:62:13-51
+79            android:theme="@style/Theme.AIFloatingBall" />
+79-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:63:13-56
+80        <activity
+80-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:66:9-69:40
+81            android:name="com.example.aifloatingball.ScreenshotActivity"
+81-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:67:13-47
+82            android:exported="false"
+82-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:69:13-37
+83            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+83-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:68:13-72
+84        <activity
+84-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:71:9-75:39
+85            android:name="com.example.aifloatingball.FullscreenWebViewActivity"
+85-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:72:13-54
+86            android:configChanges="orientation|keyboardHidden|screenSize"
+86-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:74:13-74
+87            android:exported="false"
+87-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:75:13-37
+88            android:theme="@style/Theme.AppCompat.NoActionBar" />
+88-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:73:13-63
+89        <activity
+89-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:77:9-81:74
+90            android:name="com.example.aifloatingball.SearchEngineSettingsActivity"
+90-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:78:13-57
+91            android:exported="false"
+91-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:79:13-37
+92            android:label="@string/search_engine_settings"
+92-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:80:13-59
+93            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
+93-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:81:13-71
+94        <activity
+94-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:83:9-87:40
+95            android:name="com.example.aifloatingball.SearchWebViewActivity"
+95-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:84:13-50
+96            android:exported="false"
+96-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:87:13-37
+97            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+97-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:85:13-69
+98            android:windowSoftInputMode="adjustResize" />
+98-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:86:13-55
+99        <activity
+99-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:89:9-93:40
+100            android:name="com.example.aifloatingball.HomeActivity"
+100-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:90:13-67
+101            android:exported="false"
+101-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:93:13-37
+102            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
+102-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:91:13-78
+103            android:windowSoftInputMode="adjustResize" />
+103-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:92:13-55
+104        <activity
+104-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:95:9-99:40
+105            android:name="com.example.aifloatingball.MenuSettingsActivity"
+105-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:96:13-49
+106            android:exported="false"
+106-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:99:13-37
+107            android:label="悬浮菜单设置"
+107-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:97:13-35
+108            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
+108-->C:\D-drive-503984\dalao\app\src\main\AndroidManifest.xml:98:13-71
+109
+110        <uses-library
+110-->[androidx.window:window:1.2.0] C:\.gradle\caches\8.9\transforms\c092e0964bc12995e89a705163d88566\transformed\jetified-window-1.2.0\AndroidManifest.xml:23:9-25:40
+111            android:name="androidx.window.extensions"
+111-->[androidx.window:window:1.2.0] C:\.gradle\caches\8.9\transforms\c092e0964bc12995e89a705163d88566\transformed\jetified-window-1.2.0\AndroidManifest.xml:24:13-54
+112            android:required="false" />
+112-->[androidx.window:window:1.2.0] C:\.gradle\caches\8.9\transforms\c092e0964bc12995e89a705163d88566\transformed\jetified-window-1.2.0\AndroidManifest.xml:25:13-37
+113        <uses-library
+113-->[androidx.window:window:1.2.0] C:\.gradle\caches\8.9\transforms\c092e0964bc12995e89a705163d88566\transformed\jetified-window-1.2.0\AndroidManifest.xml:26:9-28:40
+114            android:name="androidx.window.sidecar"
+114-->[androidx.window:window:1.2.0] C:\.gradle\caches\8.9\transforms\c092e0964bc12995e89a705163d88566\transformed\jetified-window-1.2.0\AndroidManifest.xml:27:13-51
+115            android:required="false" />
+115-->[androidx.window:window:1.2.0] C:\.gradle\caches\8.9\transforms\c092e0964bc12995e89a705163d88566\transformed\jetified-window-1.2.0\AndroidManifest.xml:28:13-37
+116
+117        <provider
+117-->[androidx.emoji2:emoji2:1.2.0] C:\.gradle\caches\8.9\transforms\b629d249430a4dcbeed62b0feebc2977\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:24:9-32:20
+118            android:name="androidx.startup.InitializationProvider"
+118-->[androidx.emoji2:emoji2:1.2.0] C:\.gradle\caches\8.9\transforms\b629d249430a4dcbeed62b0feebc2977\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:25:13-67
+119            android:authorities="com.example.aifloatingball.androidx-startup"
+119-->[androidx.emoji2:emoji2:1.2.0] C:\.gradle\caches\8.9\transforms\b629d249430a4dcbeed62b0feebc2977\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:26:13-68
+120            android:exported="false" >
+120-->[androidx.emoji2:emoji2:1.2.0] C:\.gradle\caches\8.9\transforms\b629d249430a4dcbeed62b0feebc2977\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:27:13-37
+121            <meta-data
+121-->[androidx.emoji2:emoji2:1.2.0] C:\.gradle\caches\8.9\transforms\b629d249430a4dcbeed62b0feebc2977\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:29:13-31:52
+122                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+122-->[androidx.emoji2:emoji2:1.2.0] C:\.gradle\caches\8.9\transforms\b629d249430a4dcbeed62b0feebc2977\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:30:17-75
+123                android:value="androidx.startup" />
+123-->[androidx.emoji2:emoji2:1.2.0] C:\.gradle\caches\8.9\transforms\b629d249430a4dcbeed62b0feebc2977\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:31:17-49
+124            <meta-data
+124-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\.gradle\caches\8.9\transforms\5e026dfcfe7c1ef5917dc948969b8278\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:29:13-31:52
+125                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+125-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\.gradle\caches\8.9\transforms\5e026dfcfe7c1ef5917dc948969b8278\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:30:17-78
+126                android:value="androidx.startup" />
+126-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\.gradle\caches\8.9\transforms\5e026dfcfe7c1ef5917dc948969b8278\transformed\jetified-lifecycle-process-2.7.0\AndroidManifest.xml:31:17-49
+127            <meta-data
+127-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:29:13-31:52
+128                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+128-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:30:17-85
+129                android:value="androidx.startup" />
+129-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:31:17-49
+130        </provider>
+131
+132        <receiver
+132-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:34:9-52:20
+133            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+133-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:35:13-76
+134            android:directBootAware="false"
+134-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:36:13-44
+135            android:enabled="true"
+135-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:37:13-35
+136            android:exported="true"
+136-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:38:13-36
+137            android:permission="android.permission.DUMP" >
+137-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:39:13-57
+138            <intent-filter>
+138-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:40:13-42:29
+139                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+139-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:41:17-91
+139-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:41:25-88
+140            </intent-filter>
+141            <intent-filter>
+141-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:43:13-45:29
+142                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+142-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:44:17-85
+142-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:44:25-82
+143            </intent-filter>
+144            <intent-filter>
+144-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:46:13-48:29
+145                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+145-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:47:17-88
+145-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:47:25-85
+146            </intent-filter>
+147            <intent-filter>
+147-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:49:13-51:29
+148                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+148-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:50:17-95
+148-->[androidx.profileinstaller:profileinstaller:1.3.0] C:\.gradle\caches\8.9\transforms\0797e8e7dc3d5a3ff5c8b74ba47d09f4\transformed\jetified-profileinstaller-1.3.0\AndroidManifest.xml:50:25-92
+149            </intent-filter>
+150        </receiver>
+151    </application>
+152
+153</manifest>

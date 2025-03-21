@@ -8,6 +8,7 @@ import android.webkit.WebView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -16,7 +17,7 @@ import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.airbnb.lottie.LottieAnimationView;
 import com.example.aifloatingball.R;
-import com.example.aifloatingball.view.LetterIndexBar;
+import com.example.aifloatingball.views.LetterIndexBar;
 import java.lang.NullPointerException;
 import java.lang.Override;
 import java.lang.String;
@@ -35,13 +36,25 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
   public final LinearLayout engineListPopup;
 
   @NonNull
+  public final LinearLayout flymeEdgeLetterBar;
+
+  @NonNull
+  public final LinearLayout flymeEnginePreview;
+
+  @NonNull
   public final LetterIndexBar letterIndexBar;
 
   @NonNull
   public final TextView letterTitle;
 
   @NonNull
+  public final ImageView previewEngineIcon;
+
+  @NonNull
   public final LinearLayout previewEngineList;
+
+  @NonNull
+  public final TextView previewEngineName;
 
   @NonNull
   public final EditText searchInput;
@@ -57,17 +70,23 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
 
   private ActivitySearchWebviewBinding(@NonNull FrameLayout rootView, @NonNull ImageButton btnClose,
       @NonNull ImageButton btnSearch, @NonNull LinearLayout engineListPopup,
+      @NonNull LinearLayout flymeEdgeLetterBar, @NonNull LinearLayout flymeEnginePreview,
       @NonNull LetterIndexBar letterIndexBar, @NonNull TextView letterTitle,
-      @NonNull LinearLayout previewEngineList, @NonNull EditText searchInput,
+      @NonNull ImageView previewEngineIcon, @NonNull LinearLayout previewEngineList,
+      @NonNull TextView previewEngineName, @NonNull EditText searchInput,
       @NonNull FrameLayout voiceAnimationContainer, @NonNull LottieAnimationView voiceAnimationView,
       @NonNull WebView webview) {
     this.rootView = rootView;
     this.btnClose = btnClose;
     this.btnSearch = btnSearch;
     this.engineListPopup = engineListPopup;
+    this.flymeEdgeLetterBar = flymeEdgeLetterBar;
+    this.flymeEnginePreview = flymeEnginePreview;
     this.letterIndexBar = letterIndexBar;
     this.letterTitle = letterTitle;
+    this.previewEngineIcon = previewEngineIcon;
     this.previewEngineList = previewEngineList;
+    this.previewEngineName = previewEngineName;
     this.searchInput = searchInput;
     this.voiceAnimationContainer = voiceAnimationContainer;
     this.voiceAnimationView = voiceAnimationView;
@@ -119,6 +138,18 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.flyme_edge_letter_bar;
+      LinearLayout flymeEdgeLetterBar = ViewBindings.findChildViewById(rootView, id);
+      if (flymeEdgeLetterBar == null) {
+        break missingId;
+      }
+
+      id = R.id.flyme_engine_preview;
+      LinearLayout flymeEnginePreview = ViewBindings.findChildViewById(rootView, id);
+      if (flymeEnginePreview == null) {
+        break missingId;
+      }
+
       id = R.id.letter_index_bar;
       LetterIndexBar letterIndexBar = ViewBindings.findChildViewById(rootView, id);
       if (letterIndexBar == null) {
@@ -131,9 +162,21 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.preview_engine_icon;
+      ImageView previewEngineIcon = ViewBindings.findChildViewById(rootView, id);
+      if (previewEngineIcon == null) {
+        break missingId;
+      }
+
       id = R.id.preview_engine_list;
       LinearLayout previewEngineList = ViewBindings.findChildViewById(rootView, id);
       if (previewEngineList == null) {
+        break missingId;
+      }
+
+      id = R.id.preview_engine_name;
+      TextView previewEngineName = ViewBindings.findChildViewById(rootView, id);
+      if (previewEngineName == null) {
         break missingId;
       }
 
@@ -162,7 +205,8 @@ public final class ActivitySearchWebviewBinding implements ViewBinding {
       }
 
       return new ActivitySearchWebviewBinding((FrameLayout) rootView, btnClose, btnSearch,
-          engineListPopup, letterIndexBar, letterTitle, previewEngineList, searchInput,
+          engineListPopup, flymeEdgeLetterBar, flymeEnginePreview, letterIndexBar, letterTitle,
+          previewEngineIcon, previewEngineList, previewEngineName, searchInput,
           voiceAnimationContainer, voiceAnimationView, webview);
     }
     String missingId = rootView.getResources().getResourceName(id);

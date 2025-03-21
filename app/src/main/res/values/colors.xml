@@ -105,4 +105,8 @@
 
     <color name="floating_window_background">#FFFFFF</color>
     <color name="floating_window_border">#1A000000</color>
+
+    <!-- Flyme 风格颜色 -->
+    <color name="flyme_preview_text_color">#333333</color>
+    <color name="flyme_preview_text_color_dark">#FFFFFF</color>
 </resources> 

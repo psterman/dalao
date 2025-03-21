@@ -36,6 +36,10 @@
         "source": "com.example.aifloatingball.app-main-47:/xml/root_preferences.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_flyme_preview_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/flyme_preview_background.xml"
+    },
+    {
         "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_history.xml.flat",
         "source": "com.example.aifloatingball.app-main-47:/drawable/ic_history.xml"
     },
@@ -138,6 +142,10 @@
     {
         "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_search_mode.xml.flat",
         "source": "com.example.aifloatingball.app-main-47:/drawable/ic_search_mode.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-debug-45:/drawable_flyme_edge_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-47:/drawable/flyme_edge_background.xml"
     },
     {
         "merged": "com.example.aifloatingball.app-debug-45:/drawable_ic_kimi.xml.flat",

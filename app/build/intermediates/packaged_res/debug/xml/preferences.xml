@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory android:title="字母索引栏设置">
+        <SwitchPreference
+            android:key="enable_letter_index_bar"
+            android:title="启用字母索引栏"
+            android:summary="允许从屏幕边缘滑动显示字母索引栏"
+            android:defaultValue="true" />
+            
+        <ListPreference
+            android:key="letter_index_bar_position"
+            android:title="字母索引栏位置"
+            android:summary="选择字母索引栏的显示位置"
+            android:entries="@array/letter_index_bar_positions"
+            android:entryValues="@array/letter_index_bar_position_values"
+            android:defaultValue="left"
+            android:dependency="enable_letter_index_bar" />
+            
+        <SeekBarPreference
+            android:key="letter_index_bar_display_time"
+            android:title="显示时间"
+            android:summary="设置字母索引栏自动隐藏的时间（秒）"
+            android:defaultValue="5"
+            android:min="2"
+            android:max="10"
+            android:dependency="enable_letter_index_bar" />
+            
+        <SwitchPreference
+            android:key="letter_index_bar_haptic_feedback"
+            android:title="触觉反馈"
+            android:summary="在滑动字母索引栏时提供振动反馈"
+            android:defaultValue="true"
+            android:dependency="enable_letter_index_bar" />
+    </PreferenceCategory>
+</PreferenceScreen> 

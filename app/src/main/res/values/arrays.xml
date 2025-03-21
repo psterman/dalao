@@ -41,4 +41,14 @@
         <item>https://deepseek.com</item>
         <item>about:blank</item>
     </string-array>
+
+    <string-array name="letter_index_bar_positions">
+        <item>左侧</item>
+        <item>右侧</item>
+    </string-array>
+
+    <string-array name="letter_index_bar_position_values">
+        <item>left</item>
+        <item>right</item>
+    </string-array>
 </resources>

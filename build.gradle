@@ -1,25 +1,40 @@
 // Top-level build file
 buildscript {
     ext {
-        kotlin_version = '1.9.20'
-        gradle_version = '8.8.1'
+        kotlin_version = '1.8.0'
+        gradle_version = '8.9'
+        java_version = JavaVersion.VERSION_17
     }
     repositories {
         // 阿里云 Maven 仓库
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
         google()
         mavenCentral()
     }
     dependencies {
-
-    
-        classpath "com.android.tools.build:gradle:$gradle_version"
+        classpath 'com.android.tools.build:gradle:7.4.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }
 }
 
-task clean(type: Delete) {
-    delete rootProject.buildDir
-} 
+// 应用 Java 插件
+apply plugin: 'java-library'
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+// 更新 Java 编译任务
+task compileCustomJava(type: JavaCompile) {
+    sourceCompatibility = '17'
+    targetCompatibility = '17'
+    source = fileTree(dir: 'src/main/java', include: '**/*.java')
+    destinationDirectory = file("$buildDir/classes/java/main")
+    classpath = files()
+}
+
+// Clean 任务已由 Gradle 自动添加，不需要再次定义 

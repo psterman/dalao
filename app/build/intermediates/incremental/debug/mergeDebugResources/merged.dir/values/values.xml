@@ -26,6 +26,14 @@
         <item>card</item>
         <item>list</item>
     </string-array>
+    <string-array name="letter_index_bar_position_values">
+        <item>left</item>
+        <item>right</item>
+    </string-array>
+    <string-array name="letter_index_bar_positions">
+        <item>左侧</item>
+        <item>右侧</item>
+    </string-array>
     <string-array name="theme_entries">
         <item>跟随系统</item>
         <item>浅色模式</item>
@@ -812,6 +820,8 @@
     <color name="floating_ball_icon_light">#757575</color>
     <color name="floating_window_background">#FFFFFF</color>
     <color name="floating_window_border">#1A000000</color>
+    <color name="flyme_preview_text_color">#333333</color>
+    <color name="flyme_preview_text_color_dark">#FFFFFF</color>
     <color name="fold_accent_dark">#64B5F6</color>
     <color name="fold_accent_light">#2196F3</color>
     <color name="fold_background_dark">#1A1A1A</color>
@@ -1288,6 +1298,19 @@
     <dimen name="floating_webview_min_height">150dp</dimen>
     <dimen name="floating_webview_min_width">200dp</dimen>
     <dimen name="floating_window_corner_radius">16dp</dimen>
+    <dimen name="flyme_edge_elevation">8dp</dimen>
+    <dimen name="flyme_edge_peek_width">2dp</dimen>
+    <dimen name="flyme_edge_trigger_threshold">24dp</dimen>
+    <dimen name="flyme_edge_vertical_margin">80dp</dimen>
+    <dimen name="flyme_edge_width">40dp</dimen>
+    <dimen name="flyme_letter_padding">12dp</dimen>
+    <dimen name="flyme_letter_size">16sp</dimen>
+    <dimen name="flyme_preview_elevation">12dp</dimen>
+    <dimen name="flyme_preview_icon_size">48dp</dimen>
+    <dimen name="flyme_preview_margin_end">60dp</dimen>
+    <dimen name="flyme_preview_padding">16dp</dimen>
+    <dimen name="flyme_preview_text_margin">8dp</dimen>
+    <dimen name="flyme_preview_text_size">14sp</dimen>
     <item format="float" name="highlight_alpha_material_colored" type="dimen">0.26</item>
     <item format="float" name="highlight_alpha_material_dark" type="dimen">0.20</item>
     <item format="float" name="highlight_alpha_material_light" type="dimen">0.12</item>
@@ -1299,7 +1322,8 @@
     <dimen name="item_touch_helper_swipe_escape_max_velocity">800dp</dimen>
     <dimen name="item_touch_helper_swipe_escape_velocity">120dp</dimen>
     <dimen name="letter_index_bar_margin">8dp</dimen>
-    <dimen name="letter_index_bar_width">24dp</dimen>
+    <dimen name="letter_index_bar_width">48dp</dimen>
+    <dimen name="letter_index_item_height">36dp</dimen>
     <dimen name="letter_index_padding">4dp</dimen>
     <dimen name="letter_index_text_size">12sp</dimen>
     <dimen name="letter_index_width">32dp</dimen>

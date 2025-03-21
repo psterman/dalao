@@ -6,7 +6,7 @@
     <dimen name="preview_padding">16dp</dimen>
     <dimen name="letter_index_width">32dp</dimen>
     <dimen name="preview_width">200dp</dimen>
-    <dimen name="letter_index_bar_width">24dp</dimen>
+    <dimen name="letter_index_bar_width">48dp</dimen>
     <dimen name="letter_index_bar_margin">8dp</dimen>
     <dimen name="search_history_margin">16dp</dimen>
     <dimen name="engine_list_width">280dp</dimen>
@@ -48,4 +48,20 @@
     <dimen name="floating_window_corner_radius">16dp</dimen>
 
     <dimen name="edge_snap_threshold">24dp</dimen>
+
+    <!-- Flyme 风格边缘手势相关尺寸 -->
+    <dimen name="flyme_edge_width">40dp</dimen>
+    <dimen name="flyme_edge_elevation">8dp</dimen>
+    <dimen name="flyme_edge_vertical_margin">80dp</dimen>
+    <dimen name="flyme_letter_size">16sp</dimen>
+    <dimen name="flyme_letter_padding">12dp</dimen>
+    <dimen name="flyme_preview_margin_end">60dp</dimen>
+    <dimen name="flyme_preview_elevation">12dp</dimen>
+    <dimen name="flyme_preview_padding">16dp</dimen>
+    <dimen name="flyme_preview_icon_size">48dp</dimen>
+    <dimen name="flyme_preview_text_margin">8dp</dimen>
+    <dimen name="flyme_preview_text_size">14sp</dimen>
+    <dimen name="flyme_edge_trigger_threshold">24dp</dimen>
+    <dimen name="flyme_edge_peek_width">2dp</dimen>
+    <dimen name="letter_index_item_height">36dp</dimen>
 </resources> 

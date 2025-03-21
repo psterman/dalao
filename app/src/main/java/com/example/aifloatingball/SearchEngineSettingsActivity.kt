@@ -36,6 +36,7 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
                 putExtra("ENGINE_URL", engine.url)
                 putExtra("ENGINE_ICON", engine.iconResId)
                 putExtra("SHOULD_OPEN_URL", true)
+
             }
             startService(intent)
             finish() // 关闭设置页面

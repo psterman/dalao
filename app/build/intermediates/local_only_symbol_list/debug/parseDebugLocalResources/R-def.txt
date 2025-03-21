@@ -41,6 +41,8 @@ color floating_ball_icon_dark
 color floating_ball_icon_light
 color floating_window_background
 color floating_window_border
+color flyme_preview_text_color
+color flyme_preview_text_color_dark
 color fold_accent_dark
 color fold_accent_light
 color fold_background_dark
@@ -107,6 +109,19 @@ dimen floating_webview_collapsed_height
 dimen floating_webview_min_height
 dimen floating_webview_min_width
 dimen floating_window_corner_radius
+dimen flyme_edge_elevation
+dimen flyme_edge_peek_width
+dimen flyme_edge_trigger_threshold
+dimen flyme_edge_vertical_margin
+dimen flyme_edge_width
+dimen flyme_letter_padding
+dimen flyme_letter_size
+dimen flyme_preview_elevation
+dimen flyme_preview_icon_size
+dimen flyme_preview_margin_end
+dimen flyme_preview_padding
+dimen flyme_preview_text_margin
+dimen flyme_preview_text_size
 dimen letter_index_bar_margin
 dimen letter_index_bar_width
 dimen letter_index_padding
@@ -144,6 +159,8 @@ drawable dialog_background
 drawable drawer_background
 drawable floating_ball_background
 drawable floating_window_background
+drawable flyme_edge_background
+drawable flyme_preview_background
 drawable gesture_hint_background
 drawable ic_360
 drawable ic_ai_search
@@ -288,6 +305,8 @@ id floating_ball_icon
 id floating_ball_text
 id floating_title
 id floating_webview
+id flyme_edge_letter_bar
+id flyme_engine_preview
 id gesture_hint
 id handModeIcon
 id history_list
@@ -318,7 +337,9 @@ id nav_drawer
 id navigation_bar
 id options_button
 id preview_container
+id preview_engine_icon
 id preview_engine_list
+id preview_engine_name
 id preview_icon
 id preview_name
 id progressBar
