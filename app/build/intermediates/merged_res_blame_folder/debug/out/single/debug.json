@@ -1,670 +1,670 @@
 [
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_item_menu_setting.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/item_menu_setting.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/xml_root_preferences.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/xml/root_preferences.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_chatgpt.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_chatgpt.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_block.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_block.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_incognito.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_incognito.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_launcher_foreground.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_paste_button_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/paste_button_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_kimi.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_kimi.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_edit.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_edit.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_collapse.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_collapse.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ripple_effect.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ripple_effect.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_grok.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_grok.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_home.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_home.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_deepseek.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_deepseek.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_floating_webview.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/floating_webview.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_card_search_engine.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/card_search_engine.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_layout_menu_panel.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/layout_menu_panel.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_bg_floating_ball_light.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/bg_floating_ball_light.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_send.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_send.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_ai_search.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_ai_search.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_toast_mode_change.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/toast_mode_change.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_wenxin.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_wenxin.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_wenxin.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_wenxin.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_quick_menu_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/quick_menu_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_wifi.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_wifi.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_arrow_forward.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_arrow_forward.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/xml_preferences.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/xml/preferences.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_clipboard_dialog.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/clipboard_dialog.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_voice_ripple_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/voice_ripple_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_overlay_dialog.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/overlay_dialog.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_expand_more.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_expand_more.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_layout_floating_window.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/layout_floating_window.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_circle_ripple.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/circle_ripple.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/anim_window_show.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/anim/window_show.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_bing.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_bing.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_search_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/search_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_back.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_back.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_mode_switch.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_mode_switch.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_brightness.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_brightness.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_settings.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_settings.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_manage.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_manage.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_loading_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/loading_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_menu_item_bg.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/menu_item_bg.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_hand_right.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_hand_right.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_quick_menu_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/quick_menu_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_xiaohongshu.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_xiaohongshu.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_info_details.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_info_details.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_baidu.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_baidu.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_mode_switch.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_mode_switch.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_recent.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_recent.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_card_layout_theme.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/card_layout_theme.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/anim_menu_show.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/anim/menu_show.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_drawer_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/drawer_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_button_background_confirm.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/button_background_confirm.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_search.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_search.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_send.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_send.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_perplexity.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_perplexity.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_voice_search_animation.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/voice_search_animation.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_more.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_more.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_quick_menu_layout.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/quick_menu_layout.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_camera.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_camera.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_dialog_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/dialog_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_update.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_update.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_refresh.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_refresh.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/anim_voice_ripple.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/anim/voice_ripple.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_gesture_hint_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/gesture_hint_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_gallery.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_gallery.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_search_web_view.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_search_web_view.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_floating_ball_layout.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/floating_ball_layout.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_search_engine.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_search_engine.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_image.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_image.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/mipmap-anydpi-v26/ic_launcher.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_baseline_search_24.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_baseline_search_24.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_layout_floating_webview.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/layout_floating_webview.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_floating_ball.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/floating_ball.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_incognito.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_incognito.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_search_settings.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_search_settings.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_menu_item.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/menu_item.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_item_search_engine.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/item_search_engine.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_menu_item_bg.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/menu_item_bg.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_hand.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_hand.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_image.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_image.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_search_bar_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/search_bar_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_hand_left.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_hand_left.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_preview_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/preview_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_settings.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_settings.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_edit.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_edit.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_bg_floating_ball_dark.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/bg_floating_ball_dark.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_directions.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_directions.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_search.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_search.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_search_mode.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_search_mode.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_camera.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_camera.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_quick_menu_layout.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/quick_menu_layout.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_bg_letter_index_bar.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/bg_letter_index_bar.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_baseline_close_24.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_baseline_close_24.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_perplexity.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_perplexity.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_floating_mode.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_floating_mode.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_fullscreen_webview.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_fullscreen_webview.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_kimi.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_kimi.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_sogou.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_sogou.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_search.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_search.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_hand.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_hand.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_resize.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_resize.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_zhipu.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_zhipu.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/xml_root_preferences.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/xml/root_preferences.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_autostart.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_autostart.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_settings_activity.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/settings_activity.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_letter_index_layout.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/letter_index_layout.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_floating_window_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/floating_window_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_flyme_edge_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/flyme_edge_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_settings_item_bg.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/settings_item_bg.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_brightness.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_brightness.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_night.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_night.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/anim_voice_ripple.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/anim/voice_ripple.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_bg_letter_index_bar.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/bg_letter_index_bar.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_card_layout_theme.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/card_layout_theme.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_ai_search.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_ai_search.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_popup_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/popup_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_menu_settings.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_menu_settings.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_resize_handle_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/resize_handle_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_search.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_search.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_directions.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_directions.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/anim_menu_show.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/anim/menu_show.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_baseline_menu_24.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_baseline_menu_24.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_hand_left.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_hand_left.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_drag_handle.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_drag_handle.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_resize_handle_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/resize_handle_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_bing.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_bing.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_xinghuo.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_xinghuo.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ripple_effect.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ripple_effect.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_clipboard_dialog.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/clipboard_dialog.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_layout_letter_index_bar.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/layout_letter_index_bar.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_bg_floating_ball_dark.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/bg_floating_ball_dark.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_settings_activity.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/settings_activity.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_claude.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_claude.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_minimize.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_minimize.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_circle_ripple_active.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/circle_ripple_active.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_item_engine_setting.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_engine_setting.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_bg_letter_preview.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/bg_letter_preview.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_chatgpt.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_chatgpt.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_rotate.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_rotate.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_baseline_search_24.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_baseline_search_24.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_minimize.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_minimize.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_search_webview.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_search_webview.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_item_engine.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/item_engine.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_button_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/button_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_theme.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_theme.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_voice_ripple_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/voice_ripple_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_search_engine_card.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/search_engine_card.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_update.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_update.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_desktop.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_desktop.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_search.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_search.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_gemini.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_gemini.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_search_bar_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/search_bar_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_item_engine_setting.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/item_engine_setting.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_wifi.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_wifi.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_search_engine.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_search_engine.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_close.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_close.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_flyme_preview_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/flyme_preview_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_flyme_preview_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/flyme_preview_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_qianwen.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_qianwen.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_expand_less.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_expand_less.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_recent.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_recent.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_gallery.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_gallery.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_search_history_item.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/search_history_item.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_doubao.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_doubao.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_item_category_header.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/item_category_header.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_manage.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_manage.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_button_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/button_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_floating_window_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/floating_window_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_button_background_confirm.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/button_background_confirm.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_forward.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_forward.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/anim_letter_wave.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/anim/letter_wave.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_zoom.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_zoom.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_search_engine_settings.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_search_engine_settings.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_item_search_engine.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_search_engine.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_layout_floating_window.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/layout_floating_window.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_settings_item_bg.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/settings_item_bg.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/anim_menu_hide.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/anim/menu_hide.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_search_input_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/search_input_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_launcher_foreground.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_launcher_foreground.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_search_history_layout.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/search_history_layout.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_voice_search_animation.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/voice_search_animation.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_bg_letter_preview.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/bg_letter_preview.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_search_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/search_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_help.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_help.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_loading_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/loading_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_search_history_item.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/search_history_item.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_360.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_360.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_more.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_more.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_mic.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_mic.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_privacy.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_privacy.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/anim_window_hide.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/anim/window_hide.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_qianwen.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_qianwen.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_dialog_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/dialog_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_history.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_history.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_share.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_share.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_search_mode.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_search_mode.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_gesture_hint_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/gesture_hint_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_item_category_header.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_category_header.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_search_web_view.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_search_web_view.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_item_letter.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_letter.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_search_input_layout.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/search_input_layout.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_preview_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/preview_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_refresh.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_refresh.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_item_menu_setting.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_menu_setting.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_menu_item.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/menu_item.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_layout_menu_panel.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/layout_menu_panel.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_button_background_cancel.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/button_background_cancel.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_floating_ball_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/floating_ball_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_card_search_engine.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/card_search_engine.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_xinghuo.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_xinghuo.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_block.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_block.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_floating_mode.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_floating_mode.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_agenda.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_agenda.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_google.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_google.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/anim_window_show.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/anim/window_show.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_floating_ball_layout.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/floating_ball_layout.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_progress_bar_drawable.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/progress_bar_drawable.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_expand.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_expand.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_google.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_google.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_arrow_back.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_arrow_back.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_expand.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_expand.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_call.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_call.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_engine_item.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/engine_item.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_engine_item.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/engine_item.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_privacy.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_privacy.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_drawer_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/drawer_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_popup_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/popup_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_home.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_home.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_zhipu.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_zhipu.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_night.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_night.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_call.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_call.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_paste_button_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/paste_button_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_sogou.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_sogou.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_baseline_close_24.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_baseline_close_24.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/mipmap-anydpi-v26_ic_launcher.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/mipmap-anydpi-v26/ic_launcher.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_button_background_cancel.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/button_background_cancel.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_search_history_layout.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/search_history_layout.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_floating_ball.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/floating_ball.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_autostart.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_autostart.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_info_details.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_info_details.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_search_input_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/search_input_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_floating_ball.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_floating_ball.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_home.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_home.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_home.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_home.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_item_ai_engine.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/item_ai_engine.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_permission.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_permission.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_xiaohongshu.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_xiaohongshu.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/xml_preferences.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/xml/preferences.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_bluetooth.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_bluetooth.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_circle_ripple.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/circle_ripple.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_history.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_history.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_edit.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_edit.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_permission.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_permission.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_progress_bar_drawable.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/progress_bar_drawable.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_grok.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_grok.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_today.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_today.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_help.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_help.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/anim_letter_wave.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/anim/letter_wave.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_floating_ball_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/floating_ball_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_bg_floating_window.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/bg_floating_window.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_bg_floating_window.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/bg_floating_window.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_compass.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_compass.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_forward.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_forward.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_menu_settings.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_menu_settings.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_default_ai.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_default_ai.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_back.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_back.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_letter_index_layout.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/letter_index_layout.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/anim_menu_hide.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/anim/menu_hide.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_bg_letter_selected.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/bg_letter_selected.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_search_engine_card.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/search_engine_card.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_search_webview.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_search_webview.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_search_settings.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_search_settings.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_doubao.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_doubao.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/anim_window_hide.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/anim/window_hide.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_layout_floating_webview.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/layout_floating_webview.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_floating_webview.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/floating_webview.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_settings.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_settings.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_resize.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_resize.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_deepseek.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_deepseek.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_search.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_search.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_baidu.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_baidu.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_edit.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_edit.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_screenshot.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_screenshot.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_share.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_share.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_bookmark.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_bookmark.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_circle_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/circle_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_layout_letter_index_bar.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/layout_letter_index_bar.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_gemini.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_gemini.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_fullscreen_webview.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_fullscreen_webview.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_mic.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_mic.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_expand_less.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_expand_less.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_toast_mode_change.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/toast_mode_change.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_card_header_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/card_header_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_360.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_360.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_overlay_dialog.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/overlay_dialog.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_desktop.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_desktop.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_bg_floating_ball_light.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/bg_floating_ball_light.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_expand_more.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_expand_more.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_arrow_back.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_arrow_back.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_agenda.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_agenda.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_drag_handle.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_drag_handle.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_item_ai_engine.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_ai_engine.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_arrow_forward.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_arrow_forward.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_claude.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_claude.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_collapse.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_collapse.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_menu_rotate.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_menu_rotate.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_close.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_close.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_card_ai_engine.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/card_ai_engine.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_today.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_today.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_bookmark.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_bookmark.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_hand_right.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_hand_right.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_activity_search_engine_settings.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/activity_search_engine_settings.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_circle_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/circle_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_search_input_layout.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/search_input_layout.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_card_ai_engine.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/card_ai_engine.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/layout_item_engine.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/layout/item_engine.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_zoom.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_zoom.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_theme.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_theme.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_flyme_edge_background.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/flyme_edge_background.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_card_header_background.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/card_header_background.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_activity_settings.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/activity_settings.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_bg_letter_selected.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/bg_letter_selected.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_baseline_menu_24.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_baseline_menu_24.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_bluetooth.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_bluetooth.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_floating_ball.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_floating_ball.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_default_ai.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_default_ai.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/layout_item_letter.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/layout/item_letter.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_circle_ripple_active.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/circle_ripple_active.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-merged_res-45:/drawable_ic_menu_compass.xml.flat",
-        "source": "com.example.aifloatingball.app-main-47:/drawable/ic_menu_compass.xml"
+        "merged": "com.example.aifloatingball.app-merged_res-4:/drawable_ic_screenshot.xml.flat",
+        "source": "com.example.aifloatingball.app-main-6:/drawable/ic_screenshot.xml"
     }
 ]

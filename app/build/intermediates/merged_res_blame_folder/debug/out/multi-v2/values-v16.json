@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.example.aifloatingball.app-mergeDebugResources-43:/values-v16/values-v16.xml",
+            "outputFile": "com.example.aifloatingball.app-mergeDebugResources-2:/values-v16/values-v16.xml",
             "map": [
                 {
-                    "source": "C:\\.gradle\\caches\\8.9\\transforms\\943ebe790dc1c56e7284cf4147897c5c\\transformed\\appcompat-1.6.1\\res\\values-v16\\values-v16.xml",
+                    "source": "C:\\Users\\Administrator\\.gradle\\caches\\8.10.2\\transforms\\b03592863ba5b41a8652972a41e606f9\\transformed\\appcompat-1.6.1\\res\\values-v16\\values-v16.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",
@@ -23,7 +23,7 @@
                     }
                 },
                 {
-                    "source": "C:\\.gradle\\caches\\8.9\\transforms\\001d792cb173412474620367680892a4\\transformed\\core-1.12.0\\res\\values-v16\\values-v16.xml",
+                    "source": "C:\\Users\\Administrator\\.gradle\\caches\\8.10.2\\transforms\\9c2b0a05fb3a0c2425c9879404696301\\transformed\\core-1.12.0\\res\\values-v16\\values-v16.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",

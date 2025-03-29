@@ -1,0 +1,19 @@
+<lint-module
+    format="1"
+    dir="C:\D-drive-503984\dalao\app"
+    name=":app"
+    type="APP"
+    maven="AIFloatingBall:app:"
+    agpVersion="8.1.0"
+    buildFolder="build"
+    resourcePrefix="app_"
+    bootClassPath="C:\Users\Administrator\AppData\Local\Android\Sdk\platforms\android-34\android.jar;C:\Users\Administrator\AppData\Local\Android\Sdk\build-tools\33.0.1\core-lambda-stubs.jar"
+    javaSourceLevel="17"
+    compileTarget="android-34"
+    neverShrinking="true">
+  <lintOptions
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true"/>
+  <variant name="debug"/>
+</lint-module>

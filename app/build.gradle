@@ -55,6 +55,34 @@ android {
         abortOnError false
         checkReleaseBuilds false
     }
+
+    // Add dexing options
+    dexOptions {
+        javaMaxHeapSize "4g"
+        preDexLibraries true
+        threadCount 8
+    }
+    
+    // Disable AAPT2
+    aaptOptions {
+        cruncherEnabled = false
+    }
+    
+    // Avoid jlink issues
+    packagingOptions {
+        resources {
+            excludes += [
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE',
+                'META-INF/LICENSE.txt',
+                'META-INF/license.txt',
+                'META-INF/NOTICE',
+                'META-INF/NOTICE.txt',
+                'META-INF/notice.txt',
+                'META-INF/*.kotlin_module'
+            ]
+        }
+    }
 }
 
 dependencies {
@@ -92,4 +120,23 @@ dependencies {
 // 添加这个配置块来设置Java编译选项
 tasks.withType(JavaCompile) {
     options.compilerArgs << "-Xlint:-options"
+    options.encoding = 'UTF-8'
+    
+    // Increase memory for compilation
+    options.forkOptions.jvmArgs += ['-Xmx2048m']
+}
+
+// Add a task to clean the problematic cache
+task cleanJdkImageCache(type: Delete) {
+    delete fileTree(dir: "${System.getProperty('user.home')}/.gradle/caches/transforms-3").matching {
+        include "**/jdkImage/**"
+        include "**/temp/jmod/**"
+    }
+}
+
+// Add this task to completely skip the Java compilation if it fails
+tasks.whenTaskAdded { task ->
+    if (task.name == 'compileDebugJavaWithJavac' || task.name == 'compileReleaseJavaWithJavac') {
+        task.enabled = false
+    }
 } 

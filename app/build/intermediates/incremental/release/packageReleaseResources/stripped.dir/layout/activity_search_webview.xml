@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp">
+
+            <EditText
+                android:id="@+id/search_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:hint="输入搜索内容"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:maxLines="1" />
+
+            <ImageButton
+                android:id="@+id/btn_search"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="搜索"
+                android:src="@drawable/ic_search" />
+
+            <ImageButton
+                android:id="@+id/btn_close"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="关闭"
+                android:src="@drawable/ic_close" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <!-- WebView容器 -->
+            <WebView
+                android:id="@+id/webview"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1" />
+
+            <!-- 字母索引栏 -->
+            <com.example.aifloatingball.views.LetterIndexBar
+                android:id="@+id/letter_index_bar"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_gravity="start" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 语音动画容器 -->
+    <FrameLayout
+        android:id="@+id/voice_animation_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <com.airbnb.lottie.LottieAnimationView
+            android:id="@+id/voice_animation_view"
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:layout_gravity="center"/>
+    </FrameLayout>
+
+    <!-- 搜索引擎列表悬浮窗 -->
+    <LinearLayout
+        android:id="@+id/engine_list_popup"
+        android:layout_width="280dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="40dp"
+        android:background="@drawable/popup_background"
+        android:elevation="8dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- 字母标题 -->
+        <TextView
+            android:id="@+id/letter_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:padding="8dp"/>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@color/divider"
+            android:layout_marginHorizontal="8dp"/>
+
+        <!-- 搜索引擎列表容器 -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="400dp">
+
+            <LinearLayout
+                android:id="@+id/preview_engine_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp"/>
+        </ScrollView>
+    </LinearLayout>
+
+    <!-- 添加 Flyme 风格的边缘字母条 -->
+    <LinearLayout
+        android:id="@+id/flyme_edge_letter_bar"
+        android:layout_width="@dimen/flyme_edge_width"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:background="@drawable/flyme_edge_background"
+        android:elevation="@dimen/flyme_edge_elevation"
+        android:layout_marginVertical="@dimen/flyme_edge_vertical_margin"/>
+
+    <!-- 添加搜索引擎预览窗 -->
+    <LinearLayout
+        android:id="@+id/flyme_engine_preview"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="@dimen/flyme_preview_margin_end"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:background="@drawable/flyme_preview_background"
+        android:elevation="@dimen/flyme_preview_elevation"
+        android:padding="@dimen/flyme_preview_padding">
+
+        <ImageView
+            android:id="@+id/preview_engine_icon"
+            android:layout_width="@dimen/flyme_preview_icon_size"
+            android:layout_height="@dimen/flyme_preview_icon_size"
+            android:layout_gravity="center"/>
+
+        <TextView
+            android:id="@+id/preview_engine_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginTop="@dimen/flyme_preview_text_margin"
+            android:textSize="@dimen/flyme_preview_text_size"
+            android:textColor="?android:attr/textColorPrimary"/>
+    </LinearLayout>
+</FrameLayout> 

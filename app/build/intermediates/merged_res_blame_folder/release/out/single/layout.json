@@ -1,0 +1,158 @@
+[
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/settings_activity.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/settings_activity.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/layout_letter_index_bar.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/layout_letter_index_bar.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/card_layout_theme.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/card_layout_theme.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/card_search_engine.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/card_search_engine.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_search_webview.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_search_webview.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/search_engine_card.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/search_engine_card.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/floating_webview.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/floating_webview.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/clipboard_dialog.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/clipboard_dialog.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/search_input_layout.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/search_input_layout.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/floating_ball_layout.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/floating_ball_layout.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/engine_item.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/engine_item.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/layout_floating_window.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/layout_floating_window.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/layout_menu_panel.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/layout_menu_panel.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_home.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_home.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_category_header.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_category_header.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/voice_search_animation.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/voice_search_animation.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/quick_menu_layout.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/quick_menu_layout.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_engine_setting.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_engine_setting.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_settings.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_settings.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_search_engine.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_search_engine.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_menu_settings.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_menu_settings.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/toast_mode_change.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/toast_mode_change.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_letter.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_letter.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/menu_item.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/menu_item.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_fullscreen_webview.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_fullscreen_webview.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_search.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_search.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_menu_setting.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_menu_setting.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/overlay_dialog.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/overlay_dialog.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/card_ai_engine.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/card_ai_engine.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_engine.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_engine.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_search_web_view.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_search_web_view.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/letter_index_layout.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/letter_index_layout.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/search_history_layout.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/search_history_layout.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_search_engine_settings.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_search_engine_settings.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/floating_ball.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/floating_ball.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_permission.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_permission.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/layout_floating_webview.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/layout_floating_webview.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/search_history_item.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/search_history_item.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_ai_engine.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_ai_engine.xml"
+    }
+]

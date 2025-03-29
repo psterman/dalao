@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="搜索设置">
+        <SwitchPreferenceCompat
+            app:key="default_search_mode"
+            app:title="默认AI模式"
+            app:summary="打开悬浮窗时默认使用AI搜索引擎"
+            app:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            app:key="auto_paste_clipboard"
+            app:title="自动粘贴剪贴板"
+            app:summary="打开AI搜索时自动粘贴剪贴板内容并发送"
+            app:defaultValue="false"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            app:key="default_search_engine"
+            app:title="默认搜索引擎"
+            app:summary="选择打开悬浮窗时使用的搜索引擎"
+            app:useSimpleSummaryProvider="true"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            app:key="home_page_url"
+            app:title="默认主页"
+            app:summary="选择打开悬浮窗时默认加载的页面"
+            app:iconSpaceReserved="false"
+            app:entries="@array/home_page_entries"
+            app:entryValues="@array/home_page_values"
+            app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:key="apply_search_mode_changes"
+            app:title="应用搜索模式更改"
+            app:summary="点击此处立即应用搜索模式更改" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="基本设置">
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="left_handed_mode"
+            android:title="左手模式"
+            android:summary="将悬浮球和菜单调整为左手使用习惯"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="通用">
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="search_engine_settings"
+            app:title="搜索引擎排序"
+            app:summary="自定义AI搜索引擎的排序和显示"/>
+
+        <SwitchPreferenceCompat
+            app:iconSpaceReserved="false"
+            app:key="auto_start"
+            app:title="开机自启动"
+            app:summary="允许应用在开机时自动启动"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="显示与外观">
+
+        <SeekBarPreference
+            app:iconSpaceReserved="false"
+            app:key="floating_ball_size"
+            app:title="悬浮球大小"
+            app:summary="调整悬浮球的显示大小"
+            android:max="100"
+            app:min="30"
+            app:defaultValue="50"
+            app:showSeekBarValue="true"/>
+
+        <ListPreference
+            app:iconSpaceReserved="false"
+            app:key="layout_theme"
+            app:title="布局主题"
+            app:summary="选择AI窗口的排版样式"
+            app:entries="@array/layout_theme_entries"
+            app:entryValues="@array/layout_theme_values"
+            app:defaultValue="fold"/>
+
+        <ListPreference
+            app:iconSpaceReserved="false"
+            app:key="theme_mode"
+            app:title="主题设置"
+            app:summary="选择应用的显示主题"
+            app:entries="@array/theme_entries"
+            app:entryValues="@array/theme_values"
+            app:defaultValue="system"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="隐私与安全">
+
+        <SwitchPreferenceCompat
+            app:iconSpaceReserved="false"
+            app:key="privacy_mode"
+            app:title="隐私模式"
+            app:summary="增强应用的隐私保护"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
+        app:title="关于">
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="app_version"
+            app:title="版本信息"
+            app:summary="1.0.0"/>
+
+        <Preference
+            app:iconSpaceReserved="false"
+            app:key="check_update"
+            app:title="检查更新"
+            app:summary="检查是否有新版本可用"/>
+    </PreferenceCategory>
+
+</PreferenceScreen>
