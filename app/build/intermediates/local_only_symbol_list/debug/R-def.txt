@@ -175,6 +175,7 @@ drawable ic_arrow_forward
 drawable ic_autostart
 drawable ic_back
 drawable ic_baidu
+drawable ic_bard
 drawable ic_baseline_close_24
 drawable ic_baseline_menu_24
 drawable ic_baseline_search_24
@@ -211,6 +212,7 @@ drawable ic_image
 drawable ic_incognito
 drawable ic_kimi
 drawable ic_launcher_foreground
+drawable ic_layout
 drawable ic_menu
 drawable ic_menu_agenda
 drawable ic_menu_call
@@ -299,8 +301,13 @@ id content_container
 id control_bar
 id dialog_message
 id dialog_title
+id dragHandle
 id drag_handle
 id drawer_layout
+id engineDescription
+id engineEnable
+id engineIcon
+id engineName
 id engine_description
 id engine_icon
 id engine_list
@@ -328,6 +335,7 @@ id icon_incognito
 id icon_night_mode
 id icon_no_image
 id icon_share
+id layoutIcon
 id layout_ad_block
 id layout_desktop_mode
 id layout_incognito
@@ -336,6 +344,7 @@ id left_buttons
 id letter_index_bar
 id letter_title
 id loading_view
+id menuLayoutSettings
 id menu_items_recycler
 id message
 id name
@@ -350,6 +359,7 @@ id preview_icon
 id preview_name
 id progressBar
 id progress_bar
+id recyclerViewSearchEngines
 id resize_handle
 id right_buttons
 id rv_letters
@@ -375,6 +385,7 @@ id switch_desktop_mode
 id switch_incognito
 id switch_no_image
 id textHandMode
+id textMenuLayout
 id textTheme
 id textVersion
 id text_ad_block

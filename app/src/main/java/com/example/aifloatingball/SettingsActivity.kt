@@ -19,12 +19,17 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import android.widget.ImageView
 import android.widget.LinearLayout
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.LinearLayoutManager
 
 class SettingsActivity : AppCompatActivity() {
     
     private lateinit var settingsManager: SettingsManager
     private lateinit var textTheme: TextView
     private var currentTheme = AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+    private lateinit var searchEngineAdapter: SearchEngineAdapter
+    private lateinit var recyclerView: RecyclerView
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +47,62 @@ class SettingsActivity : AppCompatActivity() {
         setupSettings()
         // 加载保存的主题设置
         loadThemeSetting()
+        // 初始化搜索引擎列表
+        setupSearchEngineList()
+    }
+
+    private fun setupSearchEngineList() {
+        recyclerView = findViewById(R.id.recyclerViewSearchEngines)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        
+        // 获取搜索引擎列表
+        val engines = if (settingsManager.isDefaultAIMode()) {
+            AISearchEngine.DEFAULT_AI_ENGINES
+        } else {
+            SearchEngine.NORMAL_SEARCH_ENGINES
+        }
+        val enabledEngines = settingsManager.getEnabledEngines()
+        
+        // 初始化适配器
+        searchEngineAdapter = SearchEngineAdapter(engines.toMutableList(), enabledEngines.toMutableSet()) { engine, isEnabled ->
+            // 处理引擎启用/禁用状态变化
+            if (isEnabled) {
+                settingsManager.saveEnabledEngines(settingsManager.getEnabledEngines() + engine.name)
+            } else {
+                settingsManager.saveEnabledEngines(settingsManager.getEnabledEngines() - engine.name)
+            }
+        }
+        
+        recyclerView.adapter = searchEngineAdapter
+
+        // 设置拖拽排序
+        val itemTouchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
+            
+            override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, 
+                              target: RecyclerView.ViewHolder): Boolean {
+                val fromPos = viewHolder.adapterPosition
+                val toPos = target.adapterPosition
+                searchEngineAdapter.moveItem(fromPos, toPos)
+                return true
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                // 不实现滑动删除
+            }
+
+            override fun onMoved(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, 
+                               fromPos: Int, target: RecyclerView.ViewHolder, toPos: Int, x: Int, y: Int) {
+                super.onMoved(recyclerView, viewHolder, fromPos, target, toPos, x, y)
+                // 保存新的排序
+                settingsManager.saveEngineOrder(searchEngineAdapter.getEngines())
+            }
+        })
+        
+        itemTouchHelper.attachToRecyclerView(recyclerView)
+        
+        // 显示RecyclerView
+        recyclerView.visibility = View.VISIBLE
     }
 
     private fun setupSettings() {
@@ -125,9 +186,11 @@ class SettingsActivity : AppCompatActivity() {
             }
         }
 
-        // 搜索引擎设置
-        findViewById<LinearLayout>(R.id.searchEngineSettings).setOnClickListener {
-            startActivity(Intent(this, MenuSettingsActivity::class.java))
+        // 搜索引擎管理入口
+        findViewById<LinearLayout>(R.id.searchEngineSettings).apply {
+            setOnClickListener {
+                showSearchEngineFilterDialog()
+            }
         }
 
         // 检查更新
@@ -147,6 +210,20 @@ class SettingsActivity : AppCompatActivity() {
         // 设置主题容器的点击事件
         findViewById<View>(R.id.theme_container).setOnClickListener {
             showThemeDialog()
+        }
+
+        // 在搜索设置部分添加布局选项
+        findViewById<LinearLayout>(R.id.menuLayoutSettings).apply {
+            val layoutText = findViewById<TextView>(R.id.textMenuLayout)
+            // 设置当前布局文本
+            layoutText.text = when(settingsManager.getMenuLayout()) {
+                "alphabetical" -> "字母索引排列"
+                else -> "混合排列"
+            }
+            
+            setOnClickListener {
+                showLayoutDialog()
+            }
         }
     }
 
@@ -218,6 +295,59 @@ class SettingsActivity : AppCompatActivity() {
             else -> "跟随系统"
         }
         textTheme.text = themeText
+    }
+
+    private fun showLayoutDialog() {
+        val layouts = arrayOf("混合排列", "字母索引排列")
+        val currentLayout = when(settingsManager.getMenuLayout()) {
+            "alphabetical" -> 1
+            else -> 0
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("选择悬浮菜单布局")
+            .setSingleChoiceItems(layouts, currentLayout) { dialog, which ->
+                val newLayout = when(which) {
+                    1 -> "alphabetical"
+                    else -> "mixed"
+                }
+                settingsManager.setMenuLayout(newLayout)
+                
+                // 更新显示的文本
+                findViewById<TextView>(R.id.textMenuLayout).text = layouts[which]
+                
+                // 发送广播通知悬浮窗服务更新布局
+                val intent = Intent(this, FloatingWindowService::class.java).apply {
+                    action = "UPDATE_MENU_LAYOUT"
+                    putExtra("layout", newLayout)
+                }
+                startService(intent)
+                
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun showSearchEngineFilterDialog() {
+        val engines = searchEngineAdapter.getEngines()
+        val enabledEngines = settingsManager.getEnabledEngines()
+        val checkedItems = engines.map { it.name in enabledEngines }.toBooleanArray()
+        val engineNames = engines.map { it.name }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("选择搜索引擎")
+            .setMultiChoiceItems(engineNames, checkedItems) { _, which, isChecked ->
+                val engineName = engineNames[which]
+                if (isChecked) {
+                    settingsManager.saveEnabledEngines(settingsManager.getEnabledEngines() + engineName)
+                } else {
+                    settingsManager.saveEnabledEngines(settingsManager.getEnabledEngines() - engineName)
+                }
+                searchEngineAdapter.updateEnabledEngines(settingsManager.getEnabledEngines())
+            }
+            .setPositiveButton("确定", null)
+            .show()
     }
 
     override fun onSupportNavigateUp(): Boolean {

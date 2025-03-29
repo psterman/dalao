@@ -1,39 +1,37 @@
-// Top-level build file
 buildscript {
     ext {
-        kotlin_version = '1.8.0'
-        gradle_version = '8.5'
-        java_version = JavaVersion.VERSION_17
-    }
-    repositories {
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/public' }
-        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
-        google()
-        mavenCentral()
-    }
-    dependencies {
-        classpath "com.android.tools.build:gradle:8.1.0"
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.0"
+        kotlin_version = '1.8.20'
+        agp_version = '8.0.0'
     }
 }
 
-// 应用 Java 插件
-apply plugin: 'java-library'
-
-tasks.withType(JavaCompile) {
-    options.encoding = 'UTF-8'
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+plugins {
+    id 'com.android.application' version "$agp_version" apply false
+    id 'org.jetbrains.kotlin.android' version "$kotlin_version" apply false
 }
 
-// 更新 Java 编译任务
-task compileCustomJava(type: JavaCompile) {
-    sourceCompatibility = '17'
-    targetCompatibility = '17'
-    source = fileTree(dir: 'src/main/java', include: '**/*.java')
-    destinationDirectory = file("$buildDir/classes/java/main")
-    classpath = files()
+subprojects {
+    tasks.withType(JavaCompile).configureEach {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        options.encoding = 'UTF-8'
+    }
+
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = '17'
+        }
+    }
 }
 
 // Clean 任务已由 Gradle 自动添加，不需要再次定义 
+
+allprojects {
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/jcenter' }
+        google()
+        mavenCentral()
+    }
+} 

@@ -33,6 +33,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_DEFAULT_SEARCH_ENGINE = "default_search_engine"
         private const val KEY_DEFAULT_SEARCH_MODE = "default_search_mode"
         private const val KEY_HOME_PAGE_URL = "home_page_url"
+        private const val KEY_MENU_LAYOUT = "menu_layout"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -73,23 +74,31 @@ class SettingsManager private constructor(context: Context) {
     }
     
     // 搜索引擎排序设置
-    fun getEngineOrder(): List<AIEngine> {
+    fun saveEngineOrder(engines: List<SearchEngine>) {
+        val json = gson.toJson(engines)
+        prefs.edit().putString(KEY_ENGINE_ORDER, json).apply()
+    }
+    
+    fun getEngineOrder(): List<SearchEngine> {
         val json = prefs.getString(KEY_ENGINE_ORDER, null)
         return if (json != null) {
             try {
-                val type = object : TypeToken<List<AIEngine>>() {}.type
+                val type = object : TypeToken<List<SearchEngine>>() {}.type
                 gson.fromJson(json, type)
             } catch (e: Exception) {
-                AIEngineConfig.engines
+                if (isDefaultAIMode()) {
+                    AISearchEngine.DEFAULT_AI_ENGINES
+                } else {
+                    SearchEngine.NORMAL_SEARCH_ENGINES
+                }
             }
         } else {
-            AIEngineConfig.engines
+            if (isDefaultAIMode()) {
+                AISearchEngine.DEFAULT_AI_ENGINES
+            } else {
+                SearchEngine.NORMAL_SEARCH_ENGINES
+            }
         }
-    }
-    
-    fun saveEngineOrder(engines: List<AIEngine>) {
-        val json = gson.toJson(engines)
-        prefs.edit().putString(KEY_ENGINE_ORDER, json).apply()
     }
     
     // 自动隐藏设置
@@ -298,5 +307,14 @@ class SettingsManager private constructor(context: Context) {
         } catch (e: Exception) {
             emptyList()
         }
+    }
+
+    // 添加菜单布局设置方法
+    fun getMenuLayout(): String {
+        return prefs.getString(KEY_MENU_LAYOUT, "mixed") ?: "mixed"
+    }
+
+    fun setMenuLayout(layout: String) {
+        prefs.edit().putString(KEY_MENU_LAYOUT, layout).apply()
     }
 }

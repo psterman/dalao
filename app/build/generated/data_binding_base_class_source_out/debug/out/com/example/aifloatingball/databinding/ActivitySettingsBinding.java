@@ -12,6 +12,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.example.aifloatingball.R;
@@ -28,6 +29,15 @@ public final class ActivitySettingsBinding implements ViewBinding {
 
   @NonNull
   public final ImageView handModeIcon;
+
+  @NonNull
+  public final ImageView layoutIcon;
+
+  @NonNull
+  public final LinearLayout menuLayoutSettings;
+
+  @NonNull
+  public final RecyclerView recyclerViewSearchEngines;
 
   @NonNull
   public final LinearLayout searchEngineSettings;
@@ -57,6 +67,9 @@ public final class ActivitySettingsBinding implements ViewBinding {
   public final TextView textHandMode;
 
   @NonNull
+  public final TextView textMenuLayout;
+
+  @NonNull
   public final TextView textTheme;
 
   @NonNull
@@ -70,15 +83,20 @@ public final class ActivitySettingsBinding implements ViewBinding {
 
   private ActivitySettingsBinding(@NonNull ScrollView rootView,
       @NonNull LinearLayout ballSizeContainer, @NonNull ImageView handModeIcon,
-      @NonNull LinearLayout searchEngineSettings, @NonNull ImageView searchModeIcon,
-      @NonNull TextView searchModeText, @NonNull SeekBar seekBarBallSize,
-      @NonNull Switch switchAutoStart, @NonNull Switch switchDefaultSearchMode,
-      @NonNull Switch switchLeftHandedMode, @NonNull Switch switchPrivacyMode,
-      @NonNull TextView textHandMode, @NonNull TextView textTheme, @NonNull TextView textVersion,
+      @NonNull ImageView layoutIcon, @NonNull LinearLayout menuLayoutSettings,
+      @NonNull RecyclerView recyclerViewSearchEngines, @NonNull LinearLayout searchEngineSettings,
+      @NonNull ImageView searchModeIcon, @NonNull TextView searchModeText,
+      @NonNull SeekBar seekBarBallSize, @NonNull Switch switchAutoStart,
+      @NonNull Switch switchDefaultSearchMode, @NonNull Switch switchLeftHandedMode,
+      @NonNull Switch switchPrivacyMode, @NonNull TextView textHandMode,
+      @NonNull TextView textMenuLayout, @NonNull TextView textTheme, @NonNull TextView textVersion,
       @NonNull LinearLayout themeContainer, @NonNull LinearLayout updateContainer) {
     this.rootView = rootView;
     this.ballSizeContainer = ballSizeContainer;
     this.handModeIcon = handModeIcon;
+    this.layoutIcon = layoutIcon;
+    this.menuLayoutSettings = menuLayoutSettings;
+    this.recyclerViewSearchEngines = recyclerViewSearchEngines;
     this.searchEngineSettings = searchEngineSettings;
     this.searchModeIcon = searchModeIcon;
     this.searchModeText = searchModeText;
@@ -88,6 +106,7 @@ public final class ActivitySettingsBinding implements ViewBinding {
     this.switchLeftHandedMode = switchLeftHandedMode;
     this.switchPrivacyMode = switchPrivacyMode;
     this.textHandMode = textHandMode;
+    this.textMenuLayout = textMenuLayout;
     this.textTheme = textTheme;
     this.textVersion = textVersion;
     this.themeContainer = themeContainer;
@@ -130,6 +149,24 @@ public final class ActivitySettingsBinding implements ViewBinding {
       id = R.id.handModeIcon;
       ImageView handModeIcon = ViewBindings.findChildViewById(rootView, id);
       if (handModeIcon == null) {
+        break missingId;
+      }
+
+      id = R.id.layoutIcon;
+      ImageView layoutIcon = ViewBindings.findChildViewById(rootView, id);
+      if (layoutIcon == null) {
+        break missingId;
+      }
+
+      id = R.id.menuLayoutSettings;
+      LinearLayout menuLayoutSettings = ViewBindings.findChildViewById(rootView, id);
+      if (menuLayoutSettings == null) {
+        break missingId;
+      }
+
+      id = R.id.recyclerViewSearchEngines;
+      RecyclerView recyclerViewSearchEngines = ViewBindings.findChildViewById(rootView, id);
+      if (recyclerViewSearchEngines == null) {
         break missingId;
       }
 
@@ -187,6 +224,12 @@ public final class ActivitySettingsBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.textMenuLayout;
+      TextView textMenuLayout = ViewBindings.findChildViewById(rootView, id);
+      if (textMenuLayout == null) {
+        break missingId;
+      }
+
       id = R.id.textTheme;
       TextView textTheme = ViewBindings.findChildViewById(rootView, id);
       if (textTheme == null) {
@@ -212,8 +255,9 @@ public final class ActivitySettingsBinding implements ViewBinding {
       }
 
       return new ActivitySettingsBinding((ScrollView) rootView, ballSizeContainer, handModeIcon,
-          searchEngineSettings, searchModeIcon, searchModeText, seekBarBallSize, switchAutoStart,
-          switchDefaultSearchMode, switchLeftHandedMode, switchPrivacyMode, textHandMode, textTheme,
+          layoutIcon, menuLayoutSettings, recyclerViewSearchEngines, searchEngineSettings,
+          searchModeIcon, searchModeText, seekBarBallSize, switchAutoStart, switchDefaultSearchMode,
+          switchLeftHandedMode, switchPrivacyMode, textHandMode, textMenuLayout, textTheme,
           textVersion, themeContainer, updateContainer);
     }
     String missingId = rootView.getResources().getResourceName(id);

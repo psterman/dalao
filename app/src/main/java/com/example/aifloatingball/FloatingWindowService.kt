@@ -527,6 +527,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 val size = intent.getIntExtra("size", 50)
                 updateFloatingBallSize(size)
             }
+            "UPDATE_MENU_LAYOUT" -> {
+                val layout = intent.getStringExtra("layout") ?: "mixed"
+                updateMenuLayout(layout)
+            }
             else -> {
                 // 创建悬浮球
                 if (floatingBallView == null) {
@@ -2212,5 +2216,21 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         // 由于HalfCircleFloatingWindow的isHidden和edgePosition是私有属性
         // 我们需要等待HalfCircleFloatingWindow类添加公开方法后再实现此功能
         Log.d("FloatingWindowService", "半圆位置更新功能暂未启用")
+    }
+
+    private fun updateMenuLayout(layout: String) {
+        // 根据布局类型更新悬浮菜单的显示方式
+        when(layout) {
+            "alphabetical" -> {
+                // 实现字母索引排列布局
+                // 1. 对菜单项按照首字母分组
+                // 2. 显示字母索引列表
+                // 3. 根据选中的字母显示对应的图标
+            }
+            else -> {
+                // 实现混合排列布局（默认布局）
+                // 直接显示所有图标
+            }
+        }
     }
 }

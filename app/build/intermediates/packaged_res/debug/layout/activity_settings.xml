@@ -213,7 +213,7 @@
                     </LinearLayout>
 
                     <!-- 搜索引擎设置 -->
-        <LinearLayout
+                    <LinearLayout
                         android:id="@+id/searchEngineSettings"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
@@ -236,6 +236,61 @@
                             android:layout_marginTop="8dp"
                             android:layout_gravity="center_horizontal"
                             android:text="搜索引擎设置" />
+
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/recyclerViewSearchEngines"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:visibility="gone" />
+
+                    </LinearLayout>
+
+                    <!-- 菜单布局设置 -->
+                    <LinearLayout
+                        android:id="@+id/menuLayoutSettings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:padding="16dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:clickable="true"
+                        android:focusable="true">
+
+                        <ImageView
+                            android:id="@+id/layoutIcon"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="center_vertical"
+                            android:src="@drawable/ic_layout"/>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginStart="16dp"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="悬浮菜单布局"
+                                android:textSize="16sp"/>
+
+                            <TextView
+                                android:id="@+id/textMenuLayout"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:textSize="14sp"
+                                android:textColor="@android:color/darker_gray"/>
+                        </LinearLayout>
+
+                        <ImageView
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:layout_gravity="center_vertical"
+                            android:src="@drawable/ic_arrow_forward"/>
                     </LinearLayout>
                 </GridLayout>
             </LinearLayout>

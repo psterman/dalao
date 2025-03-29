@@ -8,19 +8,13 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.aifloatingball"  // 应用包名
+        applicationId "com.example.aifloatingball"
         minSdk 24
-        targetSdk 34  // 降低目标SDK版本
-        versionCode 1  // 版本号
-        versionName "1.0"  // 版本名称
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
         resourcePrefix 'app_'
-        
-        // 添加 Java 选项
-        javaCompileOptions {
-            annotationProcessorOptions {
-                arguments = [:]
-            }
-        }
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     
     buildTypes {
@@ -55,21 +49,8 @@ android {
         abortOnError false
         checkReleaseBuilds false
     }
-
-    // Add dexing options
-    dexOptions {
-        javaMaxHeapSize "4g"
-        preDexLibraries true
-        threadCount 8
-    }
     
-    // Disable AAPT2
-    aaptOptions {
-        cruncherEnabled = false
-    }
-    
-    // Avoid jlink issues
-    packagingOptions {
+    packaging {
         resources {
             excludes += [
                 'META-INF/DEPENDENCIES',
@@ -96,39 +77,34 @@ dependencies {
     implementation 'androidx.webkit:webkit:1.8.0'
     implementation 'androidx.annotation:annotation:1.7.1'
     
-    // 动画支持
     implementation 'androidx.dynamicanimation:dynamicanimation:1.1.0-alpha03'
     implementation 'androidx.window:window:1.2.0'
     
-    // UI 组件
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     
-    // Lifecycle components
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
     implementation 'androidx.lifecycle:lifecycle-service:2.7.0'
     
-    // Preferences
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'com.belerweb:pinyin4j:2.5.1'
     implementation 'com.airbnb.android:lottie:6.1.0'
     
-    // 添加 PathInterpolatorCompat 支持
     implementation "androidx.interpolator:interpolator:1.0.0"
+
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
 
-// 添加这个配置块来设置Java编译选项
-tasks.withType(JavaCompile) {
-    options.compilerArgs << "-Xlint:-options"
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs.add("-Xlint:-options")
     options.encoding = 'UTF-8'
-    
-    // Increase memory for compilation
-    options.forkOptions.jvmArgs += ['-Xmx2048m']
+    options.forkOptions.jvmArgs.add('-Xmx2048m')
 }
 
-// Add a task to clean the problematic cache
-task cleanJdkImageCache(type: Delete) {
-    delete fileTree(dir: "${System.getProperty('user.home')}/.gradle/caches/transforms-3").matching {
+tasks.register('cleanJdkImageCache', Delete) {
+    delete fileTree(dir: "${System.getProperty('user.home')}/.gradle/caches/transforms-3") {
         include "**/jdkImage/**"
         include "**/temp/jmod/**"
     }

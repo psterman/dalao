@@ -3265,6 +3265,7 @@ drawable ic_arrow_forward
 drawable ic_autostart
 drawable ic_back
 drawable ic_baidu
+drawable ic_bard
 drawable ic_baseline_close_24
 drawable ic_baseline_menu_24
 drawable ic_baseline_search_24
@@ -3310,6 +3311,7 @@ drawable ic_incognito
 drawable ic_keyboard_black_24dp
 drawable ic_kimi
 drawable ic_launcher_foreground
+drawable ic_layout
 drawable ic_m3_chip_check
 drawable ic_m3_chip_checked_circle
 drawable ic_m3_chip_close
@@ -3649,6 +3651,7 @@ id dragAnticlockwise
 id dragClockwise
 id dragDown
 id dragEnd
+id dragHandle
 id dragLeft
 id dragRight
 id dragStart
@@ -3668,6 +3671,10 @@ id embed
 id enabled
 id end
 id endToStart
+id engineDescription
+id engineEnable
+id engineIcon
+id engineName
 id engine_description
 id engine_icon
 id engine_list
@@ -3752,6 +3759,7 @@ id jumpToEnd
 id jumpToStart
 id labeled
 id layout
+id layoutIcon
 id layout_ad_block
 id layout_desktop_mode
 id layout_incognito
@@ -3797,6 +3805,7 @@ id material_timepicker_ok_button
 id material_timepicker_view
 id material_value_index
 id matrix
+id menuLayoutSettings
 id menu_items_recycler
 id message
 id middle
@@ -3906,6 +3915,7 @@ id progress_horizontal
 id radio
 id ratio
 id rectangles
+id recyclerViewSearchEngines
 id recycler_view
 id report_drawn
 id resize_handle
@@ -4024,6 +4034,7 @@ id text
 id text2
 id textEnd
 id textHandMode
+id textMenuLayout
 id textSpacerNoButtons
 id textSpacerNoTitle
 id textStart
