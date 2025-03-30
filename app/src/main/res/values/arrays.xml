@@ -1,45 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string-array name="theme_entries">
-        <item>跟随系统</item>
-        <item>浅色模式</item>
-        <item>深色模式</item>
+    <!-- 默认页面选项 -->
+    <string-array name="default_page_entries">
+        <item>搜索页面</item>
+        <item>主页</item>
+    </string-array>
+    
+    <string-array name="default_page_values">
+        <item>search</item>
+        <item>home</item>
     </string-array>
 
+    <!-- 菜单布局选项 -->
+    <string-array name="menu_layout_entries">
+        <item>混合排列</item>
+        <item>字母索引排列</item>
+    </string-array>
+    
+    <string-array name="menu_layout_values">
+        <item>mixed</item>
+        <item>alphabetical</item>
+    </string-array>
+
+    <!-- 主题选项 -->
+    <string-array name="theme_entries">
+        <item>跟随系统</item>
+        <item>浅色主题</item>
+        <item>深色主题</item>
+    </string-array>
+    
     <string-array name="theme_values">
         <item>system</item>
         <item>light</item>
         <item>dark</item>
     </string-array>
 
+    <!-- 布局主题选项 -->
     <string-array name="layout_theme_entries">
         <item>折叠式布局</item>
         <item>卡片式布局</item>
         <item>列表式布局</item>
     </string-array>
-
+    
     <string-array name="layout_theme_values">
         <item>fold</item>
         <item>card</item>
         <item>list</item>
     </string-array>
-    
+
+    <!-- 主页选项 -->
     <string-array name="home_page_entries">
-        <item>功能主页</item>
+        <item>默认主页</item>
         <item>百度</item>
         <item>Google</item>
         <item>必应</item>
-        <item>DeepSeek</item>
-        <item>空白页</item>
     </string-array>
-
+    
     <string-array name="home_page_values">
-        <item>function_home</item>
+        <item>default</item>
         <item>https://www.baidu.com</item>
         <item>https://www.google.com</item>
         <item>https://www.bing.com</item>
-        <item>https://deepseek.com</item>
-        <item>about:blank</item>
     </string-array>
 
     <string-array name="letter_index_bar_positions">

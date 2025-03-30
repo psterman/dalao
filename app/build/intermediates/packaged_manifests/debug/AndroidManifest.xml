@@ -74,8 +74,7 @@
         </activity>
         <activity
             android:name="com.example.aifloatingball.SettingsActivity"
-            android:exported="false"
-            android:label="@string/settings_title"
+            android:label="@string/settings"
             android:theme="@style/Theme.AIFloatingBall" />
         <activity
             android:name="com.example.aifloatingball.ScreenshotActivity"
@@ -106,6 +105,10 @@
             android:exported="false"
             android:label="悬浮菜单设置"
             android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
+        <activity
+            android:name="com.example.aifloatingball.MenuManagerActivity"
+            android:label="菜单管理"
+            android:theme="@style/Theme.AIFloatingBall" />
 
         <uses-library
             android:name="androidx.window.extensions"

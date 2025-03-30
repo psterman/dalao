@@ -59,9 +59,8 @@
 
         <activity
             android:name=".SettingsActivity"
-            android:label="@string/settings_title"
-            android:theme="@style/Theme.AIFloatingBall"
-            android:exported="false" />
+            android:label="@string/settings"
+            android:theme="@style/Theme.AIFloatingBall" />
 
         <activity
             android:name=".ScreenshotActivity"
@@ -97,5 +96,10 @@
             android:label="悬浮菜单设置"
             android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
             android:exported="false" />
+
+        <activity
+            android:name=".MenuManagerActivity"
+            android:label="菜单管理"
+            android:theme="@style/Theme.AIFloatingBall" />
     </application>
 </manifest> 

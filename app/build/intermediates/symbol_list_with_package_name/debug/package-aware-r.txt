@@ -83,12 +83,16 @@ animator mtrl_fab_hide_motion_spec
 animator mtrl_fab_show_motion_spec
 animator mtrl_fab_transformation_sheet_collapse_spec
 animator mtrl_fab_transformation_sheet_expand_spec
+array default_page_entries
+array default_page_values
 array home_page_entries
 array home_page_values
 array layout_theme_entries
 array layout_theme_values
 array letter_index_bar_position_values
 array letter_index_bar_positions
+array menu_layout_entries
+array menu_layout_values
 array theme_entries
 array theme_values
 attr SharedValue
@@ -3545,7 +3549,6 @@ id autoComplete
 id autoCompleteToEnd
 id autoCompleteToStart
 id automatic
-id ball_size_container
 id barrier
 id baseline
 id beginOnFirstDraw
@@ -3718,7 +3721,6 @@ id graph_wrap
 id group_divider
 id grouping
 id groups
-id handModeIcon
 id hardware
 id header_title
 id hide_ime_id
@@ -3759,7 +3761,6 @@ id jumpToEnd
 id jumpToStart
 id labeled
 id layout
-id layoutIcon
 id layout_ad_block
 id layout_desktop_mode
 id layout_incognito
@@ -3805,7 +3806,8 @@ id material_timepicker_ok_button
 id material_timepicker_view
 id material_value_index
 id matrix
-id menuLayoutSettings
+id menuIcon
+id menuName
 id menu_items_recycler
 id message
 id middle
@@ -3941,9 +3943,6 @@ id scrollIndicatorDown
 id scrollIndicatorUp
 id scrollView
 id scrollable
-id searchEngineSettings
-id searchModeIcon
-id searchModeText
 id search_badge
 id search_bar
 id search_bar_container
@@ -3958,7 +3957,6 @@ id search_mag_icon
 id search_plate
 id search_src_text
 id search_voice_btn
-id seekBarBallSize
 id seekbar
 id seekbar_value
 id select_dialog_listview
@@ -4007,15 +4005,13 @@ id stretch
 id submenuarrow
 id submit_area
 id supportScrollUp
-id switchAutoStart
-id switchDefaultSearchMode
-id switchLeftHandedMode
-id switchPrivacyMode
+id switchEnabled
 id switchWidget
 id switch_ad_block
 id switch_desktop_mode
 id switch_incognito
 id switch_no_image
+id tabLayout
 id tabMode
 id tag_accessibility_actions
 id tag_accessibility_clickable_spans
@@ -4033,14 +4029,10 @@ id tag_window_insets_animation_callback
 id text
 id text2
 id textEnd
-id textHandMode
-id textMenuLayout
 id textSpacerNoButtons
 id textSpacerNoTitle
 id textStart
-id textTheme
 id textTop
-id textVersion
 id text_ad_block
 id text_bookmark
 id text_desktop_mode
@@ -4059,7 +4051,6 @@ id textinput_helper_text
 id textinput_placeholder
 id textinput_prefix_text
 id textinput_suffix_text
-id theme_container
 id time
 id title
 id titleDividerNoCustom
@@ -4069,6 +4060,7 @@ id toast_card
 id toast_icon
 id toast_message
 id toggle
+id toolbar
 id top
 id topPanel
 id topToBottom
@@ -4087,9 +4079,9 @@ id unchecked
 id uniform
 id unlabeled
 id up
-id update_container
 id useLogo
 id vertical_only
+id viewPager
 id view_offset_helper
 id view_transition
 id view_tree_lifecycle_owner
@@ -4234,6 +4226,7 @@ layout abc_select_dialog_material
 layout abc_tooltip
 layout activity_fullscreen_webview
 layout activity_home
+layout activity_menu_manager
 layout activity_menu_settings
 layout activity_permission
 layout activity_search
@@ -4274,6 +4267,7 @@ layout item_category_header
 layout item_engine
 layout item_engine_setting
 layout item_letter
+layout item_menu_manager
 layout item_menu_setting
 layout item_search_engine
 layout layout_floating_webview

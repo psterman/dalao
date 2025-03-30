@@ -5,7 +5,7 @@ data class MenuItem(
     val iconRes: Int,
     val url: String,
     val category: MenuCategory,
-    val isEnabled: Boolean
+    var isEnabled: Boolean
 )
 
 enum class MenuCategory {

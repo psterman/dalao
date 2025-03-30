@@ -20,12 +20,12 @@ public final class ActivitySearchEngineSettingsBinding implements ViewBinding {
   private final FrameLayout rootView;
 
   @NonNull
-  public final RecyclerView engineList;
+  public final RecyclerView recyclerViewSearchEngines;
 
   private ActivitySearchEngineSettingsBinding(@NonNull FrameLayout rootView,
-      @NonNull RecyclerView engineList) {
+      @NonNull RecyclerView recyclerViewSearchEngines) {
     this.rootView = rootView;
-    this.engineList = engineList;
+    this.recyclerViewSearchEngines = recyclerViewSearchEngines;
   }
 
   @Override
@@ -55,13 +55,14 @@ public final class ActivitySearchEngineSettingsBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.engine_list;
-      RecyclerView engineList = ViewBindings.findChildViewById(rootView, id);
-      if (engineList == null) {
+      id = R.id.recyclerViewSearchEngines;
+      RecyclerView recyclerViewSearchEngines = ViewBindings.findChildViewById(rootView, id);
+      if (recyclerViewSearchEngines == null) {
         break missingId;
       }
 
-      return new ActivitySearchEngineSettingsBinding((FrameLayout) rootView, engineList);
+      return new ActivitySearchEngineSettingsBinding((FrameLayout) rootView,
+          recyclerViewSearchEngines);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));
