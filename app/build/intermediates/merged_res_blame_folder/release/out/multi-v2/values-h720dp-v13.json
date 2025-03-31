@@ -4,7 +4,7 @@
             "outputFile": "com.example.aifloatingball.app-mergeReleaseResources-2:/values-h720dp-v13/values-h720dp-v13.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\Administrator\\.gradle\\caches\\8.10.2\\transforms\\b03592863ba5b41a8652972a41e606f9\\transformed\\appcompat-1.6.1\\res\\values-h720dp-v13\\values-h720dp-v13.xml",
+                    "source": "C:\\Users\\Administrator\\.gradle\\caches\\8.10.2\\transforms\\ae2b58325ff91d4caf3174f1bcd8ecfa\\transformed\\appcompat-1.6.1\\res\\values-h720dp-v13\\values-h720dp-v13.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",

@@ -11,6 +11,7 @@ import com.example.aifloatingball.SearchActivity
 import android.util.Log
 import android.content.Intent
 import com.example.aifloatingball.model.MenuItem
+import androidx.appcompat.app.AppCompatDelegate
 
 class SettingsManager private constructor(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -20,20 +21,9 @@ class SettingsManager private constructor(context: Context) {
     
     companion object {
         private const val PREFS_NAME = "settings"
-        private const val KEY_FLOATING_BALL_SIZE = "floating_ball_size"
-        private const val KEY_THEME_MODE = "theme_mode"
-        private const val KEY_PRIVACY_MODE = "privacy_mode"
-        private const val KEY_AUTO_START = "auto_start"
-        private const val KEY_ENGINE_ORDER = "engine_order"
-        private const val KEY_AUTO_HIDE = "auto_hide"
-        private const val KEY_LAYOUT_THEME = "layout_theme"
-        private const val KEY_ENABLED_ENGINES = "enabled_engines"
-        private const val KEY_LEFT_HANDED_MODE = "left_handed_mode"
-        private const val KEY_SEARCH_MODE = "search_mode"
-        private const val KEY_DEFAULT_SEARCH_ENGINE = "default_search_engine"
-        private const val KEY_DEFAULT_SEARCH_MODE = "default_search_mode"
-        private const val KEY_HOME_PAGE_URL = "home_page_url"
-        private const val KEY_MENU_LAYOUT = "menu_layout"
+        private const val DEFAULT_BALL_SIZE = 100
+        private const val DEFAULT_LAYOUT_THEME = 0
+        private const val DEFAULT_PAGE = "home"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -43,44 +33,126 @@ class SettingsManager private constructor(context: Context) {
                 instance ?: SettingsManager(context.applicationContext).also { instance = it }
             }
         }
+        
+        // 默认值常量
+        private const val DEFAULT_THEME_MODE = 0 // 默认主题模式
+        
+        // 主题模式常量
+        const val THEME_MODE_DEFAULT = 0
+        const val THEME_MODE_LIGHT = 1
+        const val THEME_MODE_DARK = 2
     }
     
-    // 悬浮球大小设置 (30-100)
-    fun getFloatingBallSize(): Int = prefs.getInt(KEY_FLOATING_BALL_SIZE, 50)
+    // 悬浮球大小设置
+    fun getBallSize(): Int {
+        return prefs.getInt("ball_size", DEFAULT_BALL_SIZE)
+    }
     
-    fun setFloatingBallSize(size: Int) {
-        prefs.edit().putInt(KEY_FLOATING_BALL_SIZE, size).apply()
+    fun setBallSize(size: Int) {
+        prefs.edit().putInt("ball_size", size).apply()
     }
 
     // 主题设置
-    fun getThemeMode(): String = prefs.getString(KEY_THEME_MODE, "system") ?: "system"
+    fun getLayoutTheme(): Int {
+        return prefs.getInt("layout_theme", DEFAULT_LAYOUT_THEME)
+    }
     
-    fun setThemeMode(mode: String) {
-        prefs.edit().putString(KEY_THEME_MODE, mode).apply()
+    fun saveLayoutTheme(theme: Int) {
+        prefs.edit().putInt("layout_theme", theme).apply()
+    }
+    
+    // 深色模式设置
+    fun getDarkMode(): Int {
+        return prefs.getInt("dark_mode", 0)
+    }
+    
+    fun setDarkMode(mode: Int) {
+        prefs.edit().putInt("dark_mode", mode).apply()
     }
 
     // 隐私模式设置
-    fun getPrivacyMode(): Boolean = prefs.getBoolean(KEY_PRIVACY_MODE, false)
-    
-    fun setPrivacyMode(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_PRIVACY_MODE, enabled).apply()
+    fun isPrivacyModeEnabled(): Boolean {
+        return prefs.getBoolean("privacy_mode", false)
     }
-
-    // 开机自启动设置
-    fun getAutoStart(): Boolean = prefs.getBoolean(KEY_AUTO_START, false)
     
-    fun setAutoStart(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
+    fun setPrivacyModeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("privacy_mode", enabled).apply()
+    }
+    
+    // 搜索引擎设置
+    fun getDefaultSearchEngine(): String {
+        return prefs.getString("default_search_engine", "baidu") ?: "baidu"
+    }
+    
+    fun setDefaultSearchEngine(engine: String) {
+        prefs.edit().putString("default_search_engine", engine).apply()
+    }
+    
+    // 清除所有设置
+    fun clearAllSettings() {
+        prefs.edit().clear().apply()
+    }
+    
+    // 默认页面设置
+    fun getDefaultPage(): String {
+        return prefs.getString("default_page", DEFAULT_PAGE) ?: DEFAULT_PAGE
+    }
+    
+    fun saveDefaultPage(page: String) {
+        prefs.edit().putString("default_page", page).apply()
+    }
+    
+    // 剪贴板监听设置
+    fun isClipboardListenerEnabled(): Boolean {
+        return prefs.getBoolean("clipboard_listener", true)
+    }
+    
+    fun setClipboardListenerEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("clipboard_listener", enabled).apply()
+    }
+    
+    // 左手模式设置
+    fun isLeftHandedMode(): Boolean {
+        return prefs.getBoolean("left_handed_mode", false)
+    }
+    
+    fun setLeftHandedMode(enabled: Boolean) {
+        prefs.edit().putBoolean("left_handed_mode", enabled).apply()
+    }
+    
+    // AI模式设置
+    fun isDefaultAIMode(): Boolean {
+        return prefs.getBoolean("default_search_mode", false)
+    }
+    
+    fun setDefaultAIMode(enabled: Boolean) {
+        prefs.edit().putBoolean("default_search_mode", enabled).apply()
+    }
+    
+    // 自动粘贴设置
+    fun isAutoPasteEnabled(): Boolean {
+        return prefs.getBoolean("auto_paste", true)
+    }
+    
+    fun setAutoPasteEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("auto_paste", enabled).apply()
+    }
+    
+    // 自动隐藏设置
+    fun getAutoHide(): Boolean = prefs.getBoolean("auto_hide", false)
+    
+    fun setAutoHide(autoHide: Boolean) {
+        prefs.edit().putBoolean("auto_hide", autoHide).apply()
     }
     
     // 搜索引擎排序设置
     fun saveEngineOrder(engines: List<SearchEngine>) {
         val json = gson.toJson(engines)
-        prefs.edit().putString(KEY_ENGINE_ORDER, json).apply()
+        prefs.edit().putString("engine_order", json).apply()
     }
     
     fun getEngineOrder(): List<SearchEngine> {
-        val json = prefs.getString(KEY_ENGINE_ORDER, null)
+        val json = prefs.getString("engine_order", null)
         return if (json != null) {
             try {
                 val type = object : TypeToken<List<SearchEngine>>() {}.type
@@ -99,31 +171,6 @@ class SettingsManager private constructor(context: Context) {
                 SearchEngine.NORMAL_SEARCH_ENGINES
             }
         }
-    }
-    
-    // 自动隐藏设置
-    fun setAutoHide(autoHide: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_HIDE, autoHide).apply()
-    }
-    
-    fun getAutoHide(): Boolean = prefs.getBoolean(KEY_AUTO_HIDE, false)
-
-    // 布局主题设置
-    fun getLayoutTheme(): String = prefs.getString(KEY_LAYOUT_THEME, "fold") ?: "fold"
-    
-    fun setLayoutTheme(theme: String) {
-        prefs.edit().putString(KEY_LAYOUT_THEME, theme).apply()
-    }
-
-    // 获取启用的搜索引擎列表
-    fun getEnabledEngines(): Set<String> {
-        return prefs.getStringSet(KEY_ENABLED_ENGINES, null) ?: 
-               getEngineOrder().map { it.name }.toSet() // 默认全部启用
-    }
-    
-    // 保存启用的搜索引擎列表
-    fun saveEnabledEngines(enabledEngines: Set<String>) {
-        prefs.edit().putStringSet(KEY_ENABLED_ENGINES, enabledEngines).apply()
     }
 
     // 获取经过筛选的搜索引擎列表（根据当前模式返回AI或普通搜索引擎）
@@ -181,102 +228,15 @@ class SettingsManager private constructor(context: Context) {
         }
     }
     
-    // 默认AI模式设置
-    fun isDefaultAIMode(): Boolean {
-        val isAIMode = prefs.getBoolean(KEY_DEFAULT_SEARCH_MODE, false)
-        Log.d("SettingsManager", "检查当前搜索模式: ${if (isAIMode) "AI模式" else "普通模式"}")
-        return isAIMode
+    // 获取启用的搜索引擎列表
+    fun getEnabledEngines(): Set<String> {
+        return prefs.getStringSet("enabled_engines", null) ?: 
+               getEngineOrder().map { it.name }.toSet() // 默认全部启用
     }
     
-    fun setDefaultAIMode(enabled: Boolean) {
-        Log.d("SettingsManager", "设置AI搜索模式=${enabled}")
-        // 使用commit()而不是apply()，确保立即生效
-        prefs.edit().putBoolean(KEY_DEFAULT_SEARCH_MODE, enabled).commit()
-        
-        // 发送全局广播通知SearchActivity
-        val intent = Intent()
-        // 设置明确的action
-        intent.action = "com.example.aifloatingball.SEARCH_MODE_CHANGED"
-        // 添加包名，确保广播能被正确路由
-        intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
-        // 设置明确的组件 - 更新为aifloatingball包路径
-        intent.setClassName("com.example.aifloatingball", "com.example.aifloatingball.SearchActivity")
-        intent.putExtra("is_ai_mode", enabled)
-        Log.d("SettingsManager", "向SearchActivity发送搜索模式变更广播: is_ai_mode=$enabled")
-        appContext.sendBroadcast(intent)
-    }
-
-    var isLeftHandedMode: Boolean
-        get() = prefs.getBoolean(KEY_LEFT_HANDED_MODE, false)
-        set(value) = prefs.edit().putBoolean(KEY_LEFT_HANDED_MODE, value).apply()
-
-    fun setSearchMode(isAIMode: Boolean) {
-        prefs.edit().putBoolean(KEY_SEARCH_MODE, isAIMode).apply()
-    }
-
-    fun getSearchMode(): Boolean {
-        return prefs.getBoolean(KEY_SEARCH_MODE, true)
-    }
-
-    fun getString(key: String, defaultValue: String): String {
-        return prefs.getString(key, defaultValue) ?: defaultValue
-    }
-
-    fun getBoolean(key: String, defaultValue: Boolean): Boolean {
-        return prefs.getBoolean(key, defaultValue)
-    }
-
-    fun putString(key: String, value: String) {
-        prefs.edit().putString(key, value).apply()
-    }
-
-    // Combined putBoolean method with notification functionality
-    fun putBoolean(key: String, value: Boolean) {
-        // 使用commit()而不是apply()，确保立即生效
-        prefs.edit().putBoolean(key, value).commit()
-        
-        // 记录设置变更
-        Log.d("SettingsManager", "更新布尔值设置: $key = $value")
-        
-        // 如果是默认搜索模式设置，发送广播通知
-        if (key == KEY_DEFAULT_SEARCH_MODE) {
-            Log.d("SettingsManager", "检测到默认搜索模式变更，发送广播")
-            val intent = Intent()
-            // 设置明确的action
-            intent.action = "com.example.aifloatingball.SEARCH_MODE_CHANGED"
-            // 添加包名，确保广播能被正确路由
-            intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
-            // 设置明确的组件 - 更新为aifloatingball包路径
-            intent.setClassName("com.example.aifloatingball", "com.example.aifloatingball.SearchActivity")
-            intent.putExtra("is_ai_mode", value)
-            Log.d("SettingsManager", "向SearchActivity发送搜索模式变更广播: is_ai_mode=$value")
-            appContext.sendBroadcast(intent)
-        }
-        
-        notifyListeners(key, value)
-    }
-
-    // 主页URL设置
-    fun getHomePageUrl(): String {
-        return prefs.getString(KEY_HOME_PAGE_URL, "") ?: ""
-    }
-
-    fun setHomePageUrl(url: String) {
-        prefs.edit().putString(KEY_HOME_PAGE_URL, url).apply()
-    }
-
-    // 获取默认页面设置
-    fun getDefaultPage(): String {
-        return try {
-            prefs.getString(KEY_DEFAULT_SEARCH_MODE, "home")
-        } catch (e: ClassCastException) {
-            // 如果存储的是布尔值，则转换为对应的字符串
-            if (prefs.getBoolean(KEY_DEFAULT_SEARCH_MODE, false)) "search" else "home"
-        } ?: "home"
-    }
-
-    fun setDefaultPage(page: String) {
-        prefs.edit().putString(KEY_DEFAULT_SEARCH_MODE, page).apply()
+    // 保存启用的搜索引擎列表
+    fun saveEnabledEngines(enabledEngines: Set<String>) {
+        prefs.edit().putStringSet("enabled_engines", enabledEngines).apply()
     }
 
     fun <T> registerOnSettingChangeListener(key: String, listener: (String, T) -> Unit) {
@@ -311,10 +271,36 @@ class SettingsManager private constructor(context: Context) {
 
     // 添加菜单布局设置方法
     fun getMenuLayout(): String {
-        return prefs.getString(KEY_MENU_LAYOUT, "mixed") ?: "mixed"
+        return prefs.getString("menu_layout", "mixed") ?: "mixed"
     }
 
     fun setMenuLayout(layout: String) {
-        prefs.edit().putString(KEY_MENU_LAYOUT, layout).apply()
+        prefs.edit().putString("menu_layout", layout).apply()
+    }
+
+    // 主题模式设置
+    fun getThemeMode(): Int {
+        return prefs.getInt("theme_mode", DEFAULT_THEME_MODE)
+    }
+    
+    fun setThemeMode(mode: Int) {
+        prefs.edit().putInt("theme_mode", mode).apply()
+    }
+
+    // SharedPreferences 辅助方法
+    fun getBoolean(key: String, defaultValue: Boolean): Boolean {
+        return prefs.getBoolean(key, defaultValue)
+    }
+    
+    fun putBoolean(key: String, value: Boolean) {
+        prefs.edit().putBoolean(key, value).apply()
+    }
+    
+    fun getString(key: String, defaultValue: String?): String? {
+        return prefs.getString(key, defaultValue)
+    }
+    
+    fun putString(key: String, value: String?) {
+        prefs.edit().putString(key, value).apply()
     }
 }

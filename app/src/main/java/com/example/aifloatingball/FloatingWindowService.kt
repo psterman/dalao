@@ -61,6 +61,15 @@ import android.app.usage.UsageStatsManager
 import com.example.aifloatingball.model.MenuItem
 import com.example.aifloatingball.model.MenuCategory
 import com.example.aifloatingball.utils.IconLoader
+import android.graphics.Color
+import android.text.Editable
+import android.text.TextWatcher
+import android.widget.GridLayout
+import kotlin.math.ceil
+import java.net.URLEncoder
+import android.text.InputType
+import android.view.inputmethod.EditorInfo
+import android.graphics.Typeface
 
 class FloatingWindowService : Service(), GestureManager.GestureCallback {
     companion object {
@@ -70,6 +79,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         private const val EDGE_SNAP_THRESHOLD = 32f // dp
         private const val FLING_MIN_VELOCITY = 500f // 最小甩动速度
         private const val ANIMATION_DURATION = 250L // 动画时长
+        private const val TAG = "FloatingService" // 添加 TAG 常量
     }
 
     private var windowManager: WindowManager? = null
@@ -193,6 +203,19 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private val MENU_ITEM_SIZE_DP = 56 // 增大菜单项尺寸
     private val MENU_SPACING_DP = 8 // 菜单项间距
     private val MENU_MARGIN_DP = 16 // 菜单与悬浮球的距离
+
+    private val menuParams = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT,
+        WindowManager.LayoutParams.MATCH_PARENT,
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            WindowManager.LayoutParams.TYPE_PHONE,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        PixelFormat.TRANSLUCENT
+    )
 
     private var webViewContainer: View? = null
     private var webView: WebView? = null
@@ -590,7 +613,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 else
                     WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             )
             
@@ -603,6 +627,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             var isLongPress = false
             var longPressHandler = Handler(Looper.getMainLooper())
             var longPressRunnable: Runnable? = null
+            var isDragging = false
             
             floatingBallView?.setOnTouchListener { view, event ->
                 when (event.action) {
@@ -614,6 +639,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         lastTouchX = event.rawX
                         lastTouchY = event.rawY
                         isLongPress = false
+                        isDragging = false
                         
                         // 设置长按检测
                         longPressRunnable = Runnable {
@@ -623,24 +649,24 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             val intent = Intent(this@FloatingWindowService, SearchActivity::class.java).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                                // 添加标记，表示从悬浮球打开
                                 putExtra("from_floating_ball", true)
                             }
                             startActivity(intent)
                         }
-                        longPressHandler.postDelayed(longPressRunnable!!, 500) // 500ms长按阈值
+                        longPressHandler.postDelayed(longPressRunnable!!, 500)
                         true
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val deltaX = event.rawX - initialTouchX
                         val deltaY = event.rawY - initialTouchY
                         
-                        // 如果移动距离超过阈值，取消长按
+                        // 如果移动距离超过阈值，取消长按并开始拖动
                         if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
                             longPressHandler.removeCallbacks(longPressRunnable!!)
+                            isDragging = true
                         }
                         
-                        if (!isLongPress) {
+                        if (isDragging) {
                             // 计算新位置
                             params.x = (initialX + deltaX).toInt()
                             params.y = (initialY + deltaY).toInt()
@@ -650,9 +676,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                             val ballHeight = view.height
                             
                             // 确保悬浮球至少有一部分保持在屏幕内
-                            // 允许移动到边缘，但不能完全超出屏幕
-                            val marginX = ballWidth / 4  // 只需保持1/4的宽度在屏幕内
-                            val marginY = ballHeight / 4 // 只需保持1/4的高度在屏幕内
+                            val marginX = ballWidth / 4
+                            val marginY = ballHeight / 4
                             
                             params.x = params.x.coerceIn(-ballWidth + marginX, screenWidth - marginX)
                             params.y = params.y.coerceIn(-ballHeight + marginY, screenHeight - marginY)
@@ -668,75 +693,17 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     MotionEvent.ACTION_UP -> {
                         longPressHandler.removeCallbacks(longPressRunnable!!)
                         
-                        if (!isLongPress) {
+                        if (!isLongPress && !isDragging) {
                             if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
                                 // 短按显示AI菜单
                                 vibrate(50)
                                 showAIMenu()
-                            } else {
-                                // 获取屏幕方向
-                                val orientation = resources.configuration.orientation
-                                
-                                // 计算悬浮球中心点
-                                val ballWidth = view.width
-                                val ballHeight = view.height
-                                val centerX = params.x + ballWidth / 2
-                                val centerY = params.y + ballHeight / 2
-                                
-                                // 计算到各边的距离
-                                val distanceToLeftEdge = params.x
-                                val distanceToRightEdge = screenWidth - (params.x + ballWidth)
-                                val distanceToTopEdge = params.y
-                                val distanceToBottomEdge = screenHeight - (params.y + ballHeight)
-                                
-                                // 是否在各个边缘附近
-                                val nearLeft = distanceToLeftEdge <= edgeSnapThresholdPx
-                                val nearRight = distanceToRightEdge <= edgeSnapThresholdPx
-                                val nearTop = distanceToTopEdge <= edgeSnapThresholdPx
-                                val nearBottom = distanceToBottomEdge <= edgeSnapThresholdPx
-                                
-                                if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                                    // 横屏：优先处理左右边缘，然后考虑四角
-                                when {
-                                        // 左上角
-                                        nearLeft && nearTop -> snapToEdge(params, EdgePosition.TOP_LEFT)
-                                        // 左下角
-                                        nearLeft && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_LEFT)
-                                        // 右上角
-                                        nearRight && nearTop -> snapToEdge(params, EdgePosition.TOP_RIGHT)
-                                        // 右下角
-                                        nearRight && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_RIGHT)
-                                        // 左边
-                                        nearLeft -> snapToEdge(params, EdgePosition.LEFT)
-                                        // 右边
-                                        nearRight -> snapToEdge(params, EdgePosition.RIGHT)
-                                        // 上边
-                                        nearTop -> snapToEdge(params, EdgePosition.TOP)
-                                        // 下边
-                                        nearBottom -> snapToEdge(params, EdgePosition.BOTTOM)
-                                    }
-                                } else {
-                                    // 竖屏：优先考虑左右边缘，然后考虑上下边缘
-                                    when {
-                                        // 左上角
-                                        nearLeft && nearTop -> snapToEdge(params, EdgePosition.TOP_LEFT)
-                                        // 左下角
-                                        nearLeft && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_LEFT)
-                                        // 右上角
-                                        nearRight && nearTop -> snapToEdge(params, EdgePosition.TOP_RIGHT)
-                                        // 右下角
-                                        nearRight && nearBottom -> snapToEdge(params, EdgePosition.BOTTOM_RIGHT)
-                                        // 左边缘
-                                        nearLeft -> snapToEdge(params, EdgePosition.LEFT)
-                                        // 右边缘
-                                        nearRight -> snapToEdge(params, EdgePosition.RIGHT)
-                                        // 上边缘
-                                        nearTop -> snapToEdge(params, EdgePosition.TOP)
-                                        // 下边缘 - 通常避免吸附到下边缘，可能与导航栏冲突
-                                        nearBottom && centerY > screenHeight * 0.7 -> snapToEdge(params, EdgePosition.BOTTOM)
-                                    }
-                                }
                             }
+                        } else if (isDragging) {
+                            // 处理拖动结束后的边缘吸附
+                            val velocityX = event.rawX - lastTouchX
+                            val velocityY = event.rawY - lastTouchY
+                            onDragEnd(event.rawX, event.rawY, velocityX, velocityY)
                         }
                         true
                     }
@@ -1625,238 +1592,188 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     // 创建菜单容器
-    private fun createMenuContainer() {
+    private fun createMenuContainer(): View? {
         try {
-            val container = FrameLayout(this)
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                else
-                    WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT
-            )
-            
-            container.visibility = View.GONE
-            
-            // 创建菜单项
-            menuViews.clear()
-            menuItemsList.forEach { menuItem ->
-                if (menuItem.isEnabled) {
-                    val menuItemView = createMenuItem(menuItem)
-                    menuViews.add(menuItemView)
-                    container.addView(menuItemView)
+            val container = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            }
+
+            // 主菜单布局
+            val mainMenuLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setBackgroundColor(Color.parseColor("#80000000"))
+                setPadding(16, 16, 16, 16)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.TOP
                 }
             }
-            
-            // 设置点击外部区域关闭菜单
-            container.setOnTouchListener { _, event ->
-                if (event.action == MotionEvent.ACTION_DOWN) {
-                    hideAIMenu()
-                    true
-                } else false
+
+            // 搜索框布局
+            val searchLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setBackgroundResource(R.drawable.search_background)
+                setPadding(8, 8, 8, 8)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = 16
+                }
             }
-            
-            menuContainer = container
-            windowManager?.addView(container, params)
-            
-            Log.d("FloatingService", "菜单容器创建成功")
-        } catch (e: Exception) {
-            Log.e("FloatingService", "创建菜单容器失败", e)
-        }
-    }
-    
-    // 创建菜单项
-    private fun createMenuItem(menuItem: MenuItem): View {
-        val menuItemView = LayoutInflater.from(this).inflate(R.layout.menu_item, null)
-        
-        menuItemView.layoutParams = FrameLayout.LayoutParams(
-            MENU_ITEM_SIZE_DP.dpToPx(),
-            MENU_ITEM_SIZE_DP.dpToPx()
-        )
-        
-        val icon = menuItemView.findViewById<ImageView>(R.id.icon)
-        val name = menuItemView.findViewById<TextView>(R.id.name)
-        
-        name.text = menuItem.name
-        
-        // 如果是搜索引擎，尝试加载网站图标
-        if ((menuItem.category == MenuCategory.NORMAL_SEARCH || 
-             menuItem.category == MenuCategory.AI_SEARCH) &&
-            !menuItem.url.startsWith("action://") && 
-            !menuItem.url.startsWith("back://")) {
-            iconLoader.loadIcon(menuItem.url, icon, menuItem.iconRes)
-        } else {
-            icon.setImageResource(menuItem.iconRes)
-        }
-        
-        menuItemView.visibility = View.GONE
-        menuItemView.alpha = 0f
-        menuItemView.scaleX = 0f
-        menuItemView.scaleY = 0f
-        
-        menuItemView.setOnClickListener {
-            menuItemView.animate()
-                .scaleX(0.85f)
-                .scaleY(0.85f)
-                .setDuration(50) // 减少按下动画时间
-                .withEndAction {
-                    menuItemView.animate()
-                        .scaleX(1f)
-                        .scaleY(1f)
-                        .setDuration(50) // 减少弹起动画时间
-                        .withEndAction {
-                            hideAIMenu()
-                            openAIEngine(menuItem)
+
+            // 搜索输入框
+            val searchEditText = EditText(this).apply {
+                id = R.id.search_edit_text
+                hint = "搜索..."
+                setTextColor(Color.WHITE)
+                setHintTextColor(Color.parseColor("#80FFFFFF"))
+                background = null
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                imeOptions = EditorInfo.IME_ACTION_SEARCH
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f
+                )
+                setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                        val query = text.toString()
+                        if (query.isNotEmpty()) {
+                            // 获取默认搜索引擎
+                            val defaultSearchEngine = menuItemsList
+                                .filter { it.category == MenuCategory.NORMAL_SEARCH && it.isEnabled }
+                                .firstOrNull()
+                            
+                            if (defaultSearchEngine != null) {
+                                performSearch(query, defaultSearchEngine)
+                            }
                         }
-                        .start()
+                        true
+                    } else {
+                        false
+                    }
                 }
-                .start()
-        }
-        
-        return menuItemView
-    }
-    
-    // 显示AI菜单
-    private fun showAIMenu() {
-        if (isMenuVisible) return
-        isMenuVisible = true
-        
-        Log.d("FloatingService", "显示AI菜单")
-        
-        menuContainer?.visibility = View.VISIBLE
-        
-        // 获取悬浮球位置
-        val ballLocation = IntArray(2)
-        floatingBallView?.getLocationOnScreen(ballLocation)
-        
-        val ballCenterX = ballLocation[0] + (floatingBallView?.width ?: 0) / 2
-        val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
-        
-        // 将菜单项按类别分组
-        val normalSearchItems = menuViews.filterIndexed { index, _ -> 
-            menuItemsList[index].category == MenuCategory.NORMAL_SEARCH 
-        }
-        val aiSearchItems = menuViews.filterIndexed { index, _ -> 
-            menuItemsList[index].category == MenuCategory.AI_SEARCH 
-        }
-        val functionItems = menuViews.filterIndexed { index, _ -> 
-            menuItemsList[index].category == MenuCategory.FUNCTION 
-        }
-        
-        // 计算每列的宽度和间距
-        val menuItemSize = MENU_ITEM_SIZE_DP.dpToPx().toInt()
-        val menuSpacing = MENU_SPACING_DP.dpToPx().toInt()
-        val columnSpacing = (menuSpacing * 2).toInt() // 列间距是普通间距的2倍
-        
-        // 计算整个菜单的总宽度
-        val totalWidth = menuItemSize * 3 + columnSpacing * 2
-        
-        // 确定菜单的起始X坐标（水平居中）
-        val startX = (screenWidth - totalWidth) / 2
-        
-        // 计算三列的X坐标
-        val column1X = startX.toFloat()
-        val column2X = (startX + menuItemSize + columnSpacing).toFloat()
-        val column3X = (startX + (menuItemSize + columnSpacing) * 2).toFloat()
-        
-        // 计算每列的最大项目数
-        val maxItems = maxOf(normalSearchItems.size, aiSearchItems.size, functionItems.size)
-        
-        // 计算菜单的总高度
-        val totalHeight = (maxItems * menuItemSize + (maxItems - 1) * menuSpacing)
-        
-        // 计算起始Y坐标（垂直居中）
-        val startY = (screenHeight - totalHeight) / 2
-        
-        // 显示普通搜索列
-        normalSearchItems.forEachIndexed { index, item ->
-            animateMenuItem(item, column1X, startY + index * (menuItemSize + menuSpacing).toFloat(), index)
-        }
-        
-        // 显示AI搜索列
-        aiSearchItems.forEachIndexed { index, item ->
-            animateMenuItem(item, column2X, startY + index * (menuItemSize + menuSpacing).toFloat(), index)
-        }
-        
-        // 显示功能列
-        functionItems.forEachIndexed { index, item ->
-            animateMenuItem(item, column3X, startY + index * (menuItemSize + menuSpacing).toFloat(), index)
+            }
+
+            searchLayout.addView(searchEditText)
+
+            // 菜单内容滚动视图
+            val scrollView = ScrollView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val menuContent = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            // 添加各个分类的菜单项
+            val enabledItems = menuItemsList.filter { it.isEnabled }
+            
+            // AI助手分类
+            val aiItems = enabledItems.filter { it.category == MenuCategory.AI_SEARCH }
+            if (aiItems.isNotEmpty()) {
+                addMenuSection(menuContent, "AI助手", aiItems)
+            }
+
+            // 搜索引擎分类
+            val searchItems = enabledItems.filter { it.category == MenuCategory.NORMAL_SEARCH }
+            if (searchItems.isNotEmpty()) {
+                addMenuSection(menuContent, "搜索引擎", searchItems)
+            }
+
+            // 功能分类
+            val functionItems = enabledItems.filter { it.category == MenuCategory.FUNCTION }
+            if (functionItems.isNotEmpty()) {
+                addMenuSection(menuContent, "功能", functionItems)
+            }
+
+            scrollView.addView(menuContent)
+            mainMenuLayout.addView(searchLayout)
+            mainMenuLayout.addView(scrollView)
+            container.addView(mainMenuLayout)
+
+            // 点击空白处关闭菜单
+            container.setOnClickListener { hideAIMenu() }
+
+            return container
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating menu container: ${e.message}")
+            return null
         }
     }
-    
-    private fun animateMenuItem(item: View, targetX: Float, targetY: Float, index: Int) {
-            // 设置初始位置（从悬浮球位置开始）
-            item.visibility = View.VISIBLE
-            item.alpha = 0f
-            item.scaleX = 0.5f
-            item.scaleY = 0.5f
-        
-        // 获取悬浮球中心位置
-        val ballLocation = IntArray(2)
-        floatingBallView?.getLocationOnScreen(ballLocation)
-        val ballCenterX = ballLocation[0] + (floatingBallView?.width ?: 0) / 2
-        val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
-        
-        item.x = (ballCenterX - item.width / 2).toFloat()
-        item.y = (ballCenterY - item.height / 2).toFloat()
-        
-        // 执行显示动画，减少动画时间和延迟
-            item.animate()
-            .x(targetX)
-            .y(targetY)
-                .alpha(1f)
-                .scaleX(1f)
-                .scaleY(1f)
-            .setDuration(150) // 减少动画时间
-            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()) // 使用加速减速插值器
-            .setStartDelay((index * 20).toLong()) // 减少每个项目的延迟时间
-                .start()
-    }
-    
-    // 隐藏AI菜单
-    private fun hideAIMenu() {
-        if (!isMenuVisible) return
-        isMenuVisible = false
-        
-        Log.d("FloatingService", "隐藏AI菜单")
-        
-        // 获取悬浮球位置
-        val ballLocation = IntArray(2)
-        floatingBallView?.getLocationOnScreen(ballLocation)
-        
-        val ballCenterX = ballLocation[0] + (floatingBallView?.width ?: 0) / 2
-        val ballCenterY = ballLocation[1] + (floatingBallView?.height ?: 0) / 2
-        
-        menuViews.forEachIndexed { index, item ->
-            // 执行收起动画，减少动画时间和延迟
-            item.animate()
-                .x((ballCenterX - item.width / 2).toFloat())
-                .y((ballCenterY - item.height / 2).toFloat())
-                .alpha(0f)
-                .scaleX(0.5f)
-                .scaleY(0.5f)
-                .setDuration(100) // 减少动画时间
-                .setInterpolator(android.view.animation.AccelerateInterpolator()) // 使用加速插值器
-                .setStartDelay((menuViews.size - 1 - index) * 10L) // 减少每个项目的延迟时间
-                .withEndAction {
-                    item.visibility = View.GONE
-                }
-                .start()
+
+    private fun addMenuSection(parent: LinearLayout, title: String, items: List<MenuItem>) {
+        if (items.isEmpty()) return
+
+        val titleView = TextView(this).apply {
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            setTypeface(null, Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 8
+            }
         }
-        
-        // 减少等待时间
-        Handler(Looper.getMainLooper()).postDelayed({
-            menuContainer?.visibility = View.GONE
-        }, 150) // 减少延迟时间
+        parent.addView(titleView)
+
+        val gridLayout = GridLayout(this).apply {
+            columnCount = 4
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 16
+            }
+        }
+
+        items.forEach { menuItem ->
+            val itemView = LayoutInflater.from(this).inflate(R.layout.menu_item, gridLayout, false)
+            val icon = itemView.findViewById<ImageView>(R.id.icon)
+            val name = itemView.findViewById<TextView>(R.id.name)
+
+            name.text = menuItem.name
+
+            // 如果是搜索引擎，尝试加载网站图标
+            if ((menuItem.category == MenuCategory.NORMAL_SEARCH || 
+                 menuItem.category == MenuCategory.AI_SEARCH) &&
+                !menuItem.url.startsWith("action://") && 
+                !menuItem.url.startsWith("back://")) {
+                iconLoader.loadIcon(menuItem.url, icon, menuItem.iconResId)
+            } else {
+                icon.setImageResource(menuItem.iconResId)
+            }
+
+            itemView.setOnClickListener {
+                menuItem.action()
+                hideAIMenu()
+                handleMenuItemClick(menuItem)
+            }
+
+            gridLayout.addView(itemView)
+        }
+
+        parent.addView(gridLayout)
     }
-    
-    // 打开AI引擎
-    private fun openAIEngine(menuItem: MenuItem) {
+
+    private fun handleMenuItemClick(menuItem: MenuItem) {
         try {
-            Log.d("FloatingService", "打开: ${menuItem.name}")
+            Log.d(TAG, "处理菜单项点击: ${menuItem.name}")
             
             when {
                 menuItem.url == "back://last_app" -> {
@@ -1879,6 +1796,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     handleNormalSearch(menuItem)
                 }
                 else -> {
+                    // 打开对应的URL
                     val intent = Intent(this, FloatingWebViewService::class.java).apply {
                         putExtra("url", menuItem.url)
                         putExtra("from_ai_menu", true)
@@ -1886,10 +1804,38 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     startService(intent)
                 }
             }
-            
         } catch (e: Exception) {
-            Log.e("FloatingService", "打开失败", e)
+            Log.e(TAG, "处理菜单项点击失败", e)
             Toast.makeText(this, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun performSearch(query: String, searchEngine: MenuItem) {
+        try {
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val searchUrl = when (searchEngine.name) {
+                "百度" -> "https://www.baidu.com/s?wd=$encodedQuery"
+                "Google" -> "https://www.google.com/search?q=$encodedQuery"
+                "必应" -> "https://www.bing.com/search?q=$encodedQuery"
+                "搜狗" -> "https://www.sogou.com/web?query=$encodedQuery"
+                "360搜索" -> "https://www.so.com/s?q=$encodedQuery"
+                else -> "${searchEngine.url}/search?q=$encodedQuery"
+            }
+
+            // 使用悬浮窗打开搜索结果
+            val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                putExtra("url", searchUrl)
+                putExtra("from_ai_menu", true)
+                putExtra("search_query", query)
+            }
+            startService(intent)
+            
+            // 提供反馈
+            vibrate(50)
+            Toast.makeText(this, "正在搜索: $query", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "执行搜索失败", e)
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -2232,5 +2178,76 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 // 直接显示所有图标
             }
         }
+    }
+
+    // 添加缺失的菜单项获取方法
+    private fun getRecentItems(): List<MenuItem> {
+        return menuItemsList.filter { it.isEnabled }
+            .sortedByDescending { it.lastUsed }
+            .take(8)
+    }
+
+    private fun getAIAssistants(): List<MenuItem> {
+        return menuItemsList.filter { it.category == MenuCategory.AI_SEARCH && it.isEnabled }
+    }
+
+    private fun getSearchEngines(): List<MenuItem> {
+        return menuItemsList.filter { it.category == MenuCategory.NORMAL_SEARCH && it.isEnabled }
+    }
+
+    private fun getFunctions(): List<MenuItem> {
+        return menuItemsList.filter { it.category == MenuCategory.FUNCTION && it.isEnabled }
+    }
+
+    // 添加菜单项动画方法
+    private fun animateMenuItem(item: View, targetX: Float, targetY: Float, delay: Int) {
+        item.animate()
+            .x(targetX)
+            .y(targetY)
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(200)
+            .setStartDelay(delay * 50L)
+            .setInterpolator(OvershootInterpolator())
+            .start()
+    }
+
+    // 显示AI菜单
+    private fun showAIMenu() {
+        try {
+            if (menuContainer == null) {
+                menuContainer = createMenuContainer()
+                if (menuContainer != null) {
+                    windowManager?.addView(menuContainer, menuParams)
+                }
+            }
+            menuContainer?.visibility = View.VISIBLE
+            menuContainer?.bringToFront()
+            isMenuVisible = true
+            
+            // 显示输入法
+            val searchEditText = menuContainer?.findViewById<EditText>(R.id.search_edit_text)
+            searchEditText?.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(searchEditText, InputMethodManager.SHOW_IMPLICIT)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing menu: ${e.message}")
+        }
+    }
+
+    // 隐藏AI菜单
+    private fun hideAIMenu() {
+        if (!isMenuVisible) return
+        isMenuVisible = false
+        
+        Log.d(TAG, "隐藏AI菜单")
+        
+        // 隐藏输入法
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(menuContainer?.windowToken, 0)
+        
+        // 隐藏菜单容器
+        menuContainer?.visibility = View.GONE
     }
 }

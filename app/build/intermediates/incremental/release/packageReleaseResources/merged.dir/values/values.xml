@@ -1,20 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string-array name="default_page_entries">
+        <item>主页</item>
+        <item>搜索</item>
+        <item>上次访问</item>
+    </string-array>
+    <string-array name="default_page_values">
+        <item>home</item>
+        <item>search</item>
+        <item>last</item>
+    </string-array>
     <string-array name="home_page_entries">
-        <item>功能主页</item>
+        <item>默认主页</item>
         <item>百度</item>
         <item>Google</item>
         <item>必应</item>
-        <item>DeepSeek</item>
-        <item>空白页</item>
     </string-array>
     <string-array name="home_page_values">
-        <item>function_home</item>
+        <item>default</item>
         <item>https://www.baidu.com</item>
         <item>https://www.google.com</item>
         <item>https://www.bing.com</item>
-        <item>https://deepseek.com</item>
-        <item>about:blank</item>
     </string-array>
     <string-array name="layout_theme_entries">
         <item>折叠式布局</item>
@@ -34,15 +40,37 @@
         <item>左侧</item>
         <item>右侧</item>
     </string-array>
+    <string-array name="menu_layout_entries">
+        <item>混合排列</item>
+        <item>字母索引排列</item>
+    </string-array>
+    <string-array name="menu_layout_values">
+        <item>mixed</item>
+        <item>alphabetical</item>
+    </string-array>
+    <string-array name="search_engine_entries">
+        <item>百度</item>
+        <item>Google</item>
+        <item>必应</item>
+        <item>搜狗</item>
+        <item>ChatGPT</item>
+    </string-array>
+    <string-array name="search_engine_values">
+        <item>baidu</item>
+        <item>google</item>
+        <item>bing</item>
+        <item>sogou</item>
+        <item>chatgpt</item>
+    </string-array>
     <string-array name="theme_entries">
         <item>跟随系统</item>
-        <item>浅色模式</item>
-        <item>深色模式</item>
+        <item>浅色</item>
+        <item>深色</item>
     </string-array>
     <string-array name="theme_values">
-        <item>system</item>
-        <item>light</item>
-        <item>dark</item>
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
     </string-array>
     <color name="accent">#FF4081</color>
     <color name="ai_mode_background">#2962FF</color>
@@ -50,6 +78,11 @@
     <color name="background">#FFFFFF</color>
     <color name="black">#FF000000</color>
     <color name="colorAccent">#FF4081</color>
+    <color name="colorBackground">#F5F5F5</color>
+    <color name="colorDarkBackground">#121212</color>
+    <color name="colorDarkPrimaryDark">#0D47A1</color>
+    <color name="colorLightBackground">#FFFFFF</color>
+    <color name="colorLightPrimaryDark">#42A5F5</color>
     <color name="colorPrimary">#2196F3</color>
     <color name="colorPrimaryDark">#1976D2</color>
     <color name="divider">#BDBDBD</color>
@@ -229,6 +262,31 @@
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowAnimationStyle">@null</item>
+    </style>
+    <style name="SettingsGridItem">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_columnWeight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+    </style>
+    <style name="SettingsIcon">
+        <item name="android:layout_width">32dp</item>
+        <item name="android:layout_height">32dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:tint">?attr/colorPrimary</item>
+    </style>
+    <style name="SettingsText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:ellipsize">end</item>
     </style>
     <style name="Theme.AIFloatingBall" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         

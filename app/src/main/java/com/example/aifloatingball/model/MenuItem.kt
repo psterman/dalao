@@ -2,11 +2,17 @@ package com.example.aifloatingball.model
 
 data class MenuItem(
     val name: String,
-    val iconRes: Int,
+    val iconResId: Int,
     val url: String,
     val category: MenuCategory,
-    var isEnabled: Boolean
-)
+    var isEnabled: Boolean = true,
+    var lastUsed: Long = 0
+) {
+    fun action() {
+        // 更新最后使用时间
+        lastUsed = System.currentTimeMillis()
+    }
+}
 
 enum class MenuCategory {
     AI_SEARCH,      // AI搜索引擎

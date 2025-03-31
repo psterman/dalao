@@ -272,8 +272,8 @@ class SearchWebViewActivity : AppCompatActivity() {
 
             // Get theme colors
             val isDarkMode = when (settingsManager.getThemeMode()) {
-                "dark" -> true
-                "light" -> false
+                SettingsManager.THEME_MODE_DARK -> true
+                SettingsManager.THEME_MODE_LIGHT -> false
                 else -> resources.configuration.uiMode and 
                         android.content.res.Configuration.UI_MODE_NIGHT_MASK == 
                         android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -281,9 +281,9 @@ class SearchWebViewActivity : AppCompatActivity() {
             
             val layoutTheme = settingsManager.getLayoutTheme()
             val textColor = when (layoutTheme) {
-                "fold" -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
-                "material" -> if (isDarkMode) R.color.material_text_dark else R.color.material_text_light
-                "glass" -> if (isDarkMode) R.color.glass_text_dark else R.color.glass_text_light
+                0 -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
+                1 -> if (isDarkMode) R.color.material_text_dark else R.color.material_text_light
+                2 -> if (isDarkMode) R.color.glass_text_dark else R.color.glass_text_light
                 else -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
             }
 
@@ -416,8 +416,8 @@ class SearchWebViewActivity : AppCompatActivity() {
 
     private fun applyTheme() {
         val isDarkMode = when (settingsManager.getThemeMode()) {
-            "dark" -> true
-            "light" -> false
+            SettingsManager.THEME_MODE_DARK -> true
+            SettingsManager.THEME_MODE_LIGHT -> false
             else -> resources.configuration.uiMode and 
                     android.content.res.Configuration.UI_MODE_NIGHT_MASK == 
                     android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -427,16 +427,16 @@ class SearchWebViewActivity : AppCompatActivity() {
         
         // Apply theme colors based on layout theme
         val backgroundColor = when (layoutTheme) {
-            "fold" -> if (isDarkMode) R.color.fold_background_dark else R.color.fold_background_light
-            "material" -> if (isDarkMode) R.color.material_background_dark else R.color.material_background_light
-            "glass" -> if (isDarkMode) R.color.glass_background_dark else R.color.glass_background_light
+            0 -> if (isDarkMode) R.color.fold_background_dark else R.color.fold_background_light
+            1 -> if (isDarkMode) R.color.material_background_dark else R.color.material_background_light
+            2 -> if (isDarkMode) R.color.glass_background_dark else R.color.glass_background_light
             else -> if (isDarkMode) R.color.fold_background_dark else R.color.fold_background_light
         }
 
         val textColor = when (layoutTheme) {
-            "fold" -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
-            "material" -> if (isDarkMode) R.color.material_text_dark else R.color.material_text_light
-            "glass" -> if (isDarkMode) R.color.glass_text_dark else R.color.glass_text_light
+            0 -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
+            1 -> if (isDarkMode) R.color.material_text_dark else R.color.material_text_light
+            2 -> if (isDarkMode) R.color.glass_text_dark else R.color.glass_text_light
             else -> if (isDarkMode) R.color.fold_text_dark else R.color.fold_text_light
         }
 
@@ -454,12 +454,34 @@ class SearchWebViewActivity : AppCompatActivity() {
         )
     }
 
-    // Add method to update theme
+    // 更新主题
     private fun updateTheme() {
-        applyTheme()
-        // Refresh the current letter's engine list to apply new colors
-        letterTitle.text?.firstOrNull()?.let { letter ->
-            showSearchEnginesByLetter(letter)
+        try {
+            when (settingsManager.getThemeMode()) {
+                SettingsManager.THEME_MODE_DEFAULT -> {
+                    // 使用默认主题
+                    window.statusBarColor = getColor(R.color.colorPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorPrimaryDark)
+                    webView.setBackgroundColor(getColor(R.color.colorBackground))
+                }
+                SettingsManager.THEME_MODE_LIGHT -> {
+                    // 使用浅色主题
+                    window.statusBarColor = getColor(R.color.colorLightPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorLightPrimaryDark)
+                    webView.setBackgroundColor(getColor(R.color.colorLightBackground))
+                }
+                SettingsManager.THEME_MODE_DARK -> {
+                    // 使用深色主题
+                    window.statusBarColor = getColor(R.color.colorDarkPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorDarkPrimaryDark)
+                    webView.setBackgroundColor(getColor(R.color.colorDarkBackground))
+                }
+            }
+        } catch (e: android.content.res.Resources.NotFoundException) {
+            // 如果颜色资源不存在，使用默认颜色
+            Log.e("SearchWebViewActivity", "Error applying theme: ${e.message}")
+            window.statusBarColor = Color.parseColor("#1976D2") // Default blue
+            webView.setBackgroundColor(Color.WHITE)
         }
     }
 

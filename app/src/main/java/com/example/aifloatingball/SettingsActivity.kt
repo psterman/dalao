@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.*
-import android.view.MenuItem
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -31,26 +30,93 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
-            onBackPressed()
-            return true
-        }
-        return super.onOptionsItemSelected(item)
-    }
-
-    companion object {
-        const val ACTION_SETTINGS_CHANGED = "com.example.aifloatingball.SETTINGS_CHANGED"
-        const val EXTRA_LEFT_HANDED_MODE_CHANGED = "left_handed_mode_changed"
-        const val PREF_LEFT_HANDED_MODE = "left_handed_mode"
-        const val PREF_DEFAULT_SEARCH_ENGINE = "default_search_engine"
-        const val PREF_DEFAULT_SEARCH_MODE = "default_search_mode"
-        const val KEY_DEFAULT_SEARCH_MODE = "default_search_mode"
-    }
-
     class SettingsFragment : PreferenceFragmentCompat() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
+
+            // 获取SettingsManager实例
+            val settingsManager = SettingsManager.getInstance(requireContext())
+
+            // 设置各个选项的初始值
+            findPreference<ListPreference>("default_page")?.apply {
+                value = settingsManager.getDefaultPage()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.saveDefaultPage(newValue.toString())
+                    true
+                }
+            }
+
+            findPreference<SwitchPreferenceCompat>("clipboard_listener")?.apply {
+                isChecked = settingsManager.isClipboardListenerEnabled()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setClipboardListenerEnabled(newValue as Boolean)
+                    true
+                }
+            }
+
+            findPreference<SwitchPreferenceCompat>("left_handed_mode")?.apply {
+                isChecked = settingsManager.isLeftHandedMode()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setLeftHandedMode(newValue as Boolean)
+                    true
+                }
+            }
+
+            findPreference<ListPreference>("default_search_engine")?.apply {
+                value = settingsManager.getDefaultSearchEngine()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setDefaultSearchEngine(newValue.toString())
+                    true
+                }
+            }
+
+            findPreference<SwitchPreferenceCompat>("default_search_mode")?.apply {
+                isChecked = settingsManager.isDefaultAIMode()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setDefaultAIMode(newValue as Boolean)
+                    true
+                }
+            }
+
+            findPreference<SwitchPreferenceCompat>("auto_paste")?.apply {
+                isChecked = settingsManager.isAutoPasteEnabled()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setAutoPasteEnabled(newValue as Boolean)
+                    true
+                }
+            }
+
+            findPreference<SeekBarPreference>("ball_size")?.apply {
+                value = settingsManager.getBallSize()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setBallSize(newValue as Int)
+                    true
+                }
+            }
+
+            findPreference<ListPreference>("layout_theme")?.apply {
+                value = settingsManager.getLayoutTheme().toString()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.saveLayoutTheme(newValue.toString().toInt())
+                    true
+                }
+            }
+
+            findPreference<SwitchPreferenceCompat>("dark_mode")?.apply {
+                isChecked = settingsManager.getDarkMode() == 2
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setDarkMode(if (newValue as Boolean) 2 else 1)
+                    true
+                }
+            }
+
+            findPreference<SwitchPreferenceCompat>("privacy_mode")?.apply {
+                isChecked = settingsManager.isPrivacyModeEnabled()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setPrivacyModeEnabled(newValue as Boolean)
+                    true
+                }
+            }
 
             // 添加菜单管理入口
             findPreference<Preference>("menu_manager")?.setOnPreferenceClickListener {

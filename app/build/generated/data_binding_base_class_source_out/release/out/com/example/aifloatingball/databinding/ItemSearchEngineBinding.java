@@ -4,11 +4,12 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import com.example.aifloatingball.R;
@@ -18,10 +19,16 @@ import java.lang.String;
 
 public final class ItemSearchEngineBinding implements ViewBinding {
   @NonNull
-  private final LinearLayout rootView;
+  private final ConstraintLayout rootView;
+
+  @NonNull
+  public final ImageView dragHandle;
 
   @NonNull
   public final TextView engineDescription;
+
+  @NonNull
+  public final CheckBox engineEnable;
 
   @NonNull
   public final ImageView engineIcon;
@@ -29,18 +36,20 @@ public final class ItemSearchEngineBinding implements ViewBinding {
   @NonNull
   public final TextView engineName;
 
-  private ItemSearchEngineBinding(@NonNull LinearLayout rootView,
-      @NonNull TextView engineDescription, @NonNull ImageView engineIcon,
-      @NonNull TextView engineName) {
+  private ItemSearchEngineBinding(@NonNull ConstraintLayout rootView, @NonNull ImageView dragHandle,
+      @NonNull TextView engineDescription, @NonNull CheckBox engineEnable,
+      @NonNull ImageView engineIcon, @NonNull TextView engineName) {
     this.rootView = rootView;
+    this.dragHandle = dragHandle;
     this.engineDescription = engineDescription;
+    this.engineEnable = engineEnable;
     this.engineIcon = engineIcon;
     this.engineName = engineName;
   }
 
   @Override
   @NonNull
-  public LinearLayout getRoot() {
+  public ConstraintLayout getRoot() {
     return rootView;
   }
 
@@ -65,26 +74,38 @@ public final class ItemSearchEngineBinding implements ViewBinding {
     // This is done to optimize the compiled bytecode for size and performance.
     int id;
     missingId: {
-      id = R.id.engine_description;
+      id = R.id.dragHandle;
+      ImageView dragHandle = ViewBindings.findChildViewById(rootView, id);
+      if (dragHandle == null) {
+        break missingId;
+      }
+
+      id = R.id.engineDescription;
       TextView engineDescription = ViewBindings.findChildViewById(rootView, id);
       if (engineDescription == null) {
         break missingId;
       }
 
-      id = R.id.engine_icon;
+      id = R.id.engineEnable;
+      CheckBox engineEnable = ViewBindings.findChildViewById(rootView, id);
+      if (engineEnable == null) {
+        break missingId;
+      }
+
+      id = R.id.engineIcon;
       ImageView engineIcon = ViewBindings.findChildViewById(rootView, id);
       if (engineIcon == null) {
         break missingId;
       }
 
-      id = R.id.engine_name;
+      id = R.id.engineName;
       TextView engineName = ViewBindings.findChildViewById(rootView, id);
       if (engineName == null) {
         break missingId;
       }
 
-      return new ItemSearchEngineBinding((LinearLayout) rootView, engineDescription, engineIcon,
-          engineName);
+      return new ItemSearchEngineBinding((ConstraintLayout) rootView, dragHandle, engineDescription,
+          engineEnable, engineIcon, engineName);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

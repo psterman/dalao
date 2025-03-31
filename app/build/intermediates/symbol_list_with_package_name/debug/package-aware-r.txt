@@ -93,6 +93,8 @@ array letter_index_bar_position_values
 array letter_index_bar_positions
 array menu_layout_entries
 array menu_layout_values
+array search_engine_entries
+array search_engine_values
 array theme_entries
 array theme_values
 attr SharedValue
@@ -1491,6 +1493,11 @@ color cardview_light_background
 color cardview_shadow_end_color
 color cardview_shadow_start_color
 color colorAccent
+color colorBackground
+color colorDarkBackground
+color colorDarkPrimaryDark
+color colorLightBackground
+color colorLightPrimaryDark
 color colorPrimary
 color colorPrimaryDark
 color design_bottom_navigation_shadow_color
@@ -3261,14 +3268,18 @@ drawable flyme_edge_background
 drawable flyme_preview_background
 drawable gesture_hint_background
 drawable ic_360
+drawable ic_about
+drawable ic_ai_mode
 drawable ic_ai_search
 drawable ic_arrow_back
 drawable ic_arrow_back_black_24
 drawable ic_arrow_down_24dp
 drawable ic_arrow_forward
+drawable ic_auto_paste
 drawable ic_autostart
 drawable ic_back
 drawable ic_baidu
+drawable ic_ball_size
 drawable ic_bard
 drawable ic_baseline_close_24
 drawable ic_baseline_menu_24
@@ -3287,11 +3298,14 @@ drawable ic_call_decline_low
 drawable ic_chatgpt
 drawable ic_claude
 drawable ic_clear_black_24
+drawable ic_clipboard
 drawable ic_clock_black_24dp
 drawable ic_close
 drawable ic_collapse
+drawable ic_dark_mode
 drawable ic_deepseek
 drawable ic_default_ai
+drawable ic_default_page
 drawable ic_desktop
 drawable ic_doubao
 drawable ic_drag_handle
@@ -3316,6 +3330,7 @@ drawable ic_keyboard_black_24dp
 drawable ic_kimi
 drawable ic_launcher_foreground
 drawable ic_layout
+drawable ic_left_handed
 drawable ic_m3_chip_check
 drawable ic_m3_chip_checked_circle
 drawable ic_m3_chip_close
@@ -3388,6 +3403,7 @@ drawable material_ic_keyboard_arrow_previous_black_24dp
 drawable material_ic_keyboard_arrow_right_black_24dp
 drawable material_ic_menu_arrow_down_black_24dp
 drawable material_ic_menu_arrow_up_black_24dp
+drawable menu_item_background
 drawable menu_item_bg
 drawable mtrl_bottomsheet_drag_handle
 drawable mtrl_checkbox_button
@@ -3470,6 +3486,7 @@ id SHOW_PROGRESS
 id SYM
 id TOP_END
 id TOP_START
+id aboutSetting
 id accelerate
 id accessibility_action_clickable_span
 id accessibility_custom_action_0
@@ -3528,6 +3545,7 @@ id actions
 id activity_chooser_view_content
 id add
 id adjacent
+id aiModeSetting
 id alertTitle
 id aligned
 id all
@@ -3548,7 +3566,11 @@ id auto
 id autoComplete
 id autoCompleteToEnd
 id autoCompleteToStart
+id autoPasteSetting
+id auto_hide_switch
+id auto_paste_switch
 id automatic
+id ballSizeSetting
 id barrier
 id baseline
 id beginOnFirstDraw
@@ -3604,6 +3626,8 @@ id circle_center
 id clear_text
 id clip_horizontal
 id clip_vertical
+id clipboardSetting
+id clipboard_switch
 id clockwise
 id closeButton
 id closest
@@ -3627,10 +3651,13 @@ id currentState
 id custom
 id customPanel
 id cut
+id darkModeSetting
 id date_picker_actions
 id decelerate
 id decelerateAndComplete
 id decor_content_parent
+id defaultPageSetting
+id defaultSearchEngineSetting
 id default_activity_button
 id deltaRelative
 id dependency_ordering
@@ -3766,6 +3793,7 @@ id layout_desktop_mode
 id layout_incognito
 id layout_no_image
 id left
+id leftHandedSetting
 id leftToRight
 id left_buttons
 id legacy
@@ -3807,6 +3835,7 @@ id material_timepicker_view
 id material_value_index
 id matrix
 id menuIcon
+id menuManageSetting
 id menuName
 id menu_items_recycler
 id message
@@ -3910,6 +3939,7 @@ id preview_engine_list
 id preview_engine_name
 id preview_icon
 id preview_name
+id privacySetting
 id progressBar
 id progress_bar
 id progress_circular
@@ -3950,7 +3980,9 @@ id search_button
 id search_close_btn
 id search_content
 id search_edit_frame
+id search_edit_text
 id search_go_btn
+id search_history_switch
 id search_icon
 id search_input
 id search_mag_icon
@@ -3964,6 +3996,8 @@ id selected
 id selection_type
 id settings
 id settingsButton
+id settings_container
+id settings_switches
 id sharedValueSet
 id sharedValueUnset
 id shortcut
@@ -3972,6 +4006,7 @@ id showCustom
 id showHome
 id showTitle
 id sin
+id sizeSlider
 id skipCollapsed
 id skipped
 id slide
@@ -4051,6 +4086,7 @@ id textinput_helper_text
 id textinput_placeholder
 id textinput_prefix_text
 id textinput_suffix_text
+id themeSetting
 id time
 id title
 id titleDividerNoCustom
@@ -4234,6 +4270,7 @@ layout activity_search_engine_settings
 layout activity_search_web_view
 layout activity_search_webview
 layout activity_settings
+layout activity_settings_grid
 layout card_ai_engine
 layout card_layout_theme
 layout card_search_engine
@@ -4254,6 +4291,7 @@ layout design_navigation_menu
 layout design_navigation_menu_item
 layout design_text_input_end_icon
 layout design_text_input_start_icon
+layout dialog_ball_size
 layout engine_item
 layout expand_button
 layout floating_ball
@@ -4274,6 +4312,7 @@ layout layout_floating_webview
 layout layout_floating_window
 layout layout_letter_index_bar
 layout layout_menu_panel
+layout layout_settings_menu
 layout letter_index_layout
 layout m3_alert_dialog
 layout m3_alert_dialog_actions
@@ -4948,6 +4987,9 @@ style RtlOverlay_Widget_AppCompat_Search_DropDown_Text
 style RtlOverlay_Widget_AppCompat_SearchView_MagIcon
 style RtlUnderlay_Widget_AppCompat_ActionButton
 style RtlUnderlay_Widget_AppCompat_ActionButton_Overflow
+style SettingsGridItem
+style SettingsIcon
+style SettingsText
 style ShapeAppearance_M3_Comp_Badge_Large_Shape
 style ShapeAppearance_M3_Comp_Badge_Shape
 style ShapeAppearance_M3_Comp_BottomAppBar_Container_Shape

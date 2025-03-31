@@ -206,6 +206,34 @@
 
         </LinearLayout>
 
+        <!-- Add settings switches -->
+        <LinearLayout
+            android:id="@+id/settings_switches"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="visible"
+            android:layout_gravity="bottom">
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/search_history_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="搜索历史"
+                android:textSize="16sp" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/auto_paste_switch"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                android:text="自动粘贴"
+                android:textSize="16sp" />
+
+        </LinearLayout>
+
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
     <!-- Drawer Content -->

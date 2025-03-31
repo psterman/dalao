@@ -56,8 +56,16 @@ import com.example.aifloatingball.view.LetterIndexBar
 import android.view.Gravity
 import androidx.cardview.widget.CardView
 import android.provider.Settings
+import androidx.appcompat.widget.SwitchCompat
+import android.graphics.Color
+import android.util.Log
+import android.content.res.Resources
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
+    companion object {
+        private const val TAG = "HomeActivity"
+    }
+
     private lateinit var searchInput: EditText
     private lateinit var voiceSearchButton: ImageButton
     private lateinit var shortcutsGrid: RecyclerView
@@ -115,12 +123,16 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var isAIMode = true
     private var edgeGravity = GravityCompat.START
 
+    private lateinit var rootLayout: View
+    private var autoHideSwitch: SwitchCompat? = null
+    private var clipboardSwitch: SwitchCompat? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
-
-        // 初始化设置管理器
         settingsManager = SettingsManager.getInstance(this)
+        
+        rootLayout = findViewById(R.id.webview_container)
 
         // 计算边缘区域大小
         val density = resources.displayMetrics.density
@@ -169,6 +181,13 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         window.decorView.post {
             checkClipboard()
         }
+
+        // 尝试查找开关
+        autoHideSwitch = findViewById<SwitchCompat>(R.id.auto_hide_switch)
+        clipboardSwitch = findViewById<SwitchCompat>(R.id.clipboard_switch)
+        
+        // 设置开关状态
+        updateSwitchStates()
     }
 
     private fun setupDrawer() {
@@ -344,8 +363,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             if (isDarkMode) R.color.drawer_text_dark else R.color.drawer_text_light)
         val accentColor = ContextCompat.getColor(this,
             when (layoutTheme) {
-                "fold" -> if (isDarkMode) R.color.fold_accent_dark else R.color.fold_accent_light
-                "glass" -> if (isDarkMode) R.color.glass_accent_dark else R.color.glass_accent_light
+                0 -> if (isDarkMode) R.color.fold_accent_dark else R.color.fold_accent_light
+                2 -> if (isDarkMode) R.color.glass_accent_dark else R.color.glass_accent_light
                 else -> if (isDarkMode) R.color.material_accent_dark else R.color.material_accent_light
             }
         )
@@ -764,11 +783,24 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         if (!::menuDialog.isInitialized) {
             menuDialog = BottomSheetDialog(this)
             val view = layoutInflater.inflate(R.layout.layout_menu_panel, null)
+            
+            // Inflate and add settings menu
+            val settingsMenu = layoutInflater.inflate(R.layout.layout_settings_menu, null)
+            val settingsContainer = view.findViewById<FrameLayout>(R.id.settings_container)
+            settingsContainer?.addView(settingsMenu)
+            
             menuDialog.setContentView(view)
 
             // 设置开关状态和监听器
             setupSwitches(view)
             setupButtons(view)
+            
+            // 初始化设置菜单中的开关
+            autoHideSwitch = settingsMenu.findViewById(R.id.auto_hide_switch)
+            clipboardSwitch = settingsMenu.findViewById(R.id.clipboard_switch)
+            
+            // 更新开关状态
+            updateSwitchStates()
         }
         menuDialog.show()
     }
@@ -1309,6 +1341,72 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             webView.visibility = View.GONE
             homeContent.visibility = View.VISIBLE
             webView.loadUrl("about:blank")
+        }
+    }
+
+    // 更新主题
+    private fun updateTheme() {
+        try {
+            when (settingsManager.getThemeMode()) {
+                SettingsManager.THEME_MODE_DEFAULT -> {
+                    // 使用默认主题
+                    window.statusBarColor = getColor(R.color.colorPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorPrimaryDark)
+                    rootLayout?.setBackgroundColor(getColor(R.color.colorBackground))
+                }
+                SettingsManager.THEME_MODE_LIGHT -> {
+                    // 使用浅色主题
+                    window.statusBarColor = getColor(R.color.colorLightPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorLightPrimaryDark)
+                    rootLayout?.setBackgroundColor(getColor(R.color.colorLightBackground))
+                }
+                SettingsManager.THEME_MODE_DARK -> {
+                    // 使用深色主题
+                    window.statusBarColor = getColor(R.color.colorDarkPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorDarkPrimaryDark)
+                    rootLayout?.setBackgroundColor(getColor(R.color.colorDarkBackground))
+                }
+            }
+        } catch (e: Resources.NotFoundException) {
+            // 如果颜色资源不存在，使用默认颜色
+            Log.e("HomeActivity", "Error applying theme: ${e.message}")
+            window.statusBarColor = Color.parseColor("#1976D2") // Default blue
+            rootLayout?.setBackgroundColor(Color.WHITE)
+        }
+    }
+
+    // 保存设置
+    private fun saveSettings() {
+        // 使用 SettingsManager 直接保存设置，不依赖 UI 组件
+        val autoHideEnabled = autoHideSwitch?.isChecked ?: settingsManager.getBoolean("auto_hide", false)
+        val clipboardEnabled = clipboardSwitch?.isChecked ?: settingsManager.getBoolean("clipboard_enabled", true)
+        
+        settingsManager.putBoolean("auto_hide", autoHideEnabled)
+        settingsManager.putBoolean("clipboard_enabled", clipboardEnabled)
+    }
+
+    // 加载设置
+    private fun loadSettings() {
+        // 如果 UI 组件存在，则将设置值加载到它们上
+        autoHideSwitch?.isChecked = settingsManager.getBoolean("auto_hide", false)
+        clipboardSwitch?.isChecked = settingsManager.getBoolean("clipboard_enabled", true)
+    }
+
+    private fun updateSwitchStates() {
+        try {
+            // 更新自动隐藏开关状态
+            autoHideSwitch?.isChecked = settingsManager.getBoolean("auto_hide_enabled", true)
+            autoHideSwitch?.setOnCheckedChangeListener { _, isChecked ->
+                settingsManager.putBoolean("auto_hide_enabled", isChecked)
+            }
+            
+            // 更新剪贴板监听开关状态
+            clipboardSwitch?.isChecked = settingsManager.isClipboardListenerEnabled()
+            clipboardSwitch?.setOnCheckedChangeListener { _, isChecked ->
+                settingsManager.setClipboardListenerEnabled(isChecked)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新开关状态时出错", e)
         }
     }
 } 

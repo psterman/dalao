@@ -109,4 +109,11 @@
     <!-- Flyme 风格颜色 -->
     <color name="flyme_preview_text_color">#333333</color>
     <color name="flyme_preview_text_color_dark">#FFFFFF</color>
+
+    <!-- Theme Dark/Light Colors -->
+    <color name="colorBackground">#F5F5F5</color>
+    <color name="colorLightBackground">#FFFFFF</color>
+    <color name="colorDarkBackground">#121212</color>
+    <color name="colorLightPrimaryDark">#42A5F5</color>
+    <color name="colorDarkPrimaryDark">#0D47A1</color>
 </resources> 

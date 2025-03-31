@@ -47,6 +47,8 @@ import android.view.ScaleGestureDetector
 import android.provider.Settings
 import android.graphics.Color
 import com.example.aifloatingball.model.AISearchEngine
+import androidx.appcompat.widget.SwitchCompat
+import android.content.res.Resources
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
@@ -66,8 +68,8 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var clearSearchButton: ImageButton
     private var currentSearchEngine: SearchEngine? = null
     
-    // 添加搜索引擎集合和相关处理器
-    private val searchEngines = mutableListOf<Any>()
+    // 修改搜索引擎集合的类型定义
+    private val searchEngines = mutableListOf<SearchEngine>()
     private var modeToastView: View? = null
     private val handler = Handler(Looper.getMainLooper())
     
@@ -98,6 +100,29 @@ class SearchActivity : AppCompatActivity() {
     private var touchCount = 0
     private var lastTouchTime = 0L
     private val DOUBLE_TAP_TIMEOUT_TOUCH = 300L // 双指轻点的时间窗口
+    
+    private var searchLayout: FrameLayout? = null
+    private var searchHistorySwitch: SwitchCompat? = null
+    private var autoPasteSwitch: SwitchCompat? = null
+    
+    // 更新开关状态
+    private fun updateSwitchStates() {
+        try {
+            // 更新搜索历史开关状态
+            searchHistorySwitch?.isChecked = settingsManager.getBoolean("search_history_enabled", true)
+            searchHistorySwitch?.setOnCheckedChangeListener { _, isChecked ->
+                settingsManager.putBoolean("search_history_enabled", isChecked)
+            }
+            
+            // 更新自动粘贴开关状态
+            autoPasteSwitch?.isChecked = settingsManager.isAutoPasteEnabled()
+            autoPasteSwitch?.setOnCheckedChangeListener { _, isChecked ->
+                settingsManager.setAutoPasteEnabled(isChecked)
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "更新开关状态时出错", e)
+        }
+    }
     
     // 添加搜索模式变更接收器
     private val searchModeReceiver = object : BroadcastReceiver() {
@@ -257,8 +282,8 @@ class SearchActivity : AppCompatActivity() {
     
     private val settingsReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == SettingsActivity.ACTION_SETTINGS_CHANGED &&
-                intent.getBooleanExtra(SettingsActivity.EXTRA_LEFT_HANDED_MODE_CHANGED, false)) {
+            if (intent?.action == Constants.ACTION_SETTINGS_CHANGED &&
+                intent.getBooleanExtra(Constants.EXTRA_LEFT_HANDED_MODE_CHANGED, false)) {
                 updateLayoutForHandedness()
             }
         }
@@ -298,6 +323,14 @@ class SearchActivity : AppCompatActivity() {
         setContentView(R.layout.activity_search)
         
         settingsManager = SettingsManager.getInstance(this)
+        
+        // 尝试查找布局和开关
+        searchLayout = findViewById(R.id.webview_container) as? FrameLayout
+        searchHistorySwitch = findViewById<SwitchCompat>(R.id.search_history_switch)
+        autoPasteSwitch = findViewById<SwitchCompat>(R.id.auto_paste_switch)
+        
+        // 更新开关状态
+        updateSwitchStates()
         
         try {
             // Initialize views and gesture detectors
@@ -564,7 +597,7 @@ class SearchActivity : AppCompatActivity() {
     private fun setupBasicClickListeners() {
         // 设置菜单按钮点击事件
         menuButton.setOnClickListener {
-            val isLeftHanded = settingsManager.isLeftHandedMode
+            val isLeftHanded = settingsManager.isLeftHandedMode()
             if (isLeftHanded) {
                 if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
                     drawerLayout.closeDrawer(GravityCompat.END)
@@ -893,7 +926,13 @@ class SearchActivity : AppCompatActivity() {
         letterTitle.visibility = if (selectedLetter != null) View.VISIBLE else View.GONE
         
         // 设置字母标题的颜色和背景
-        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val isDarkMode = when (settingsManager.getThemeMode()) {
+            SettingsManager.THEME_MODE_DARK -> true
+            SettingsManager.THEME_MODE_LIGHT -> false
+            else -> resources.configuration.uiMode and 
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK == 
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
         letterTitle.setTextColor(ContextCompat.getColor(this,
             if (isDarkMode) R.color.letter_index_text_dark
             else R.color.letter_index_text_light))
@@ -1049,7 +1088,7 @@ class SearchActivity : AppCompatActivity() {
                             description = engine.description
                         )
                         openSearchEngine(searchEngine)
-                        drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
+                        drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode()) GravityCompat.END else GravityCompat.START)
                     }
 
                     engineItem.setOnLongClickListener {
@@ -1101,7 +1140,7 @@ class SearchActivity : AppCompatActivity() {
                     // 设置普通搜索引擎点击事件
                     engineItem.setOnClickListener {
                         openSearchEngine(engine)
-                        drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
+                        drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode()) GravityCompat.END else GravityCompat.START)
                     }
 
                     engineItem.setOnLongClickListener {
@@ -1214,7 +1253,7 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun loadDefaultSearchEngine() {
-        val defaultEngine = settingsManager.getString(SettingsActivity.PREF_DEFAULT_SEARCH_ENGINE, "") ?: ""
+        val defaultEngine = settingsManager.getString(Constants.PREF_DEFAULT_SEARCH_ENGINE, "") ?: ""
         if (defaultEngine.isNotEmpty()) {
             val parts = defaultEngine.split("|")
             if (parts.size >= 2) {
@@ -1308,7 +1347,7 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun updateLayoutForHandedness() {
-        val isLeftHanded = settingsManager.isLeftHandedMode
+        val isLeftHanded = settingsManager.isLeftHandedMode()
         
         // 更新抽屉位置
         (drawerLayout.getChildAt(1) as? LinearLayout)?.let { drawer ->
@@ -1465,7 +1504,7 @@ class SearchActivity : AppCompatActivity() {
         })
 
         // 根据当前模式设置初始抽屉位置
-        val isLeftHanded = settingsManager.isLeftHandedMode
+        val isLeftHanded = settingsManager.isLeftHandedMode()
         (drawerLayout.getChildAt(1) as? LinearLayout)?.let { drawer ->
             drawer.layoutParams = (drawer.layoutParams as DrawerLayout.LayoutParams).apply {
                 gravity = if (isLeftHanded) Gravity.END else Gravity.START
@@ -1483,7 +1522,7 @@ class SearchActivity : AppCompatActivity() {
             engines = emptyList(),
             onEngineClick = { engine ->
                 openSearchEngine(engine)
-                drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode) GravityCompat.END else GravityCompat.START)
+                drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode()) GravityCompat.END else GravityCompat.START)
             }
         )
         
@@ -1601,7 +1640,7 @@ class SearchActivity : AppCompatActivity() {
     private fun registerReceivers() {
         try {
             // Register settings change receiver
-            val settingsFilter = IntentFilter(SettingsActivity.ACTION_SETTINGS_CHANGED)
+            val settingsFilter = IntentFilter(Constants.ACTION_SETTINGS_CHANGED)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 registerReceiver(settingsReceiver, settingsFilter, Context.RECEIVER_NOT_EXPORTED)
             } else {
@@ -1692,10 +1731,10 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun performSearch(query: String) {
-        currentSearchEngine?.let { engine ->
-            val searchUrl = engine.url.replace("{query}", Uri.encode(query))
-            webView.loadUrl(searchUrl)
-        }
+        val searchEngine = currentSearchEngine ?: return
+        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+        val searchUrl = searchEngine.url.replace("{query}", encodedQuery)
+        webView.loadUrl(searchUrl)
     }
 
     // 添加加载搜索引擎的方法
@@ -1720,16 +1759,19 @@ class SearchActivity : AppCompatActivity() {
             // 清空现有列表
             searchEngines.clear()
             
-            // 手动判断加载哪种列表
             if (isAIMode) {
-                // 直接加载AI搜索引擎列表
+                // 将AI搜索引擎转换为SearchEngine对象
                 val aiEngines = com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES
                 Log.d("SearchActivity", "加载AI搜索引擎列表: ${aiEngines.size}个")
-                searchEngines.addAll(aiEngines)
                 
-                // 添加日志显示每个AI搜索引擎
-                aiEngines.forEachIndexed { index, engine ->
-                    Log.d("SearchActivity", "AI引擎 $index: ${engine.name} - ${engine.url}")
+                aiEngines.forEach { aiEngine ->
+                    searchEngines.add(SearchEngine(
+                        name = "${aiEngine.name} (AI)",
+                        url = aiEngine.url,
+                        iconResId = aiEngine.iconResId,
+                        description = aiEngine.description
+                    ))
+                    Log.d("SearchActivity", "已添加AI引擎: ${aiEngine.name}")
                 }
             } else {
                 // 直接加载普通搜索引擎列表
@@ -1742,14 +1784,13 @@ class SearchActivity : AppCompatActivity() {
             Toast.makeText(this, "加载搜索引擎列表失败: ${e.message}", Toast.LENGTH_LONG).show()
             
             // 加载一个默认引擎，确保应用不会崩溃
-            val isAIMode = settingsManager.isDefaultAIMode()
-            if (isAIMode) {
-                searchEngines.add(com.example.aifloatingball.model.AISearchEngine("ChatGPT", "https://chat.openai.com", R.drawable.ic_chatgpt, "ChatGPT AI聊天"))
-                Toast.makeText(this, "已加载默认AI搜索引擎: ChatGPT", Toast.LENGTH_SHORT).show()
-            } else {
-                searchEngines.add(SearchEngine("百度", "https://www.baidu.com/s?wd=", R.drawable.ic_search, "百度搜索"))
-                Toast.makeText(this, "已加载默认搜索引擎: 百度", Toast.LENGTH_SHORT).show()
-            }
+            searchEngines.add(SearchEngine(
+                name = "百度",
+                url = "https://www.baidu.com/s?wd={query}",
+                iconResId = R.drawable.ic_search,
+                description = "百度搜索"
+            ))
+            Toast.makeText(this, "已加载默认搜索引擎: 百度", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1823,8 +1864,8 @@ class SearchActivity : AppCompatActivity() {
         
         // Get theme colors
         val isDarkMode = when (settingsManager.getThemeMode()) {
-            "dark" -> true
-            "light" -> false
+            SettingsManager.THEME_MODE_DARK -> true
+            SettingsManager.THEME_MODE_LIGHT -> false
             else -> resources.configuration.uiMode and 
                     android.content.res.Configuration.UI_MODE_NIGHT_MASK == 
                     android.content.res.Configuration.UI_MODE_NIGHT_YES
@@ -1872,11 +1913,7 @@ class SearchActivity : AppCompatActivity() {
 
         // 查找所有匹配该字母的搜索引擎
         val matchingEngines = searchEngines.filter { engine ->
-            val engineName = when (engine) {
-                is AISearchEngine -> engine.name
-                is SearchEngine -> engine.name
-                else -> ""
-            }
+            val engineName = engine.name
             
             if (engineName.isEmpty()) return@filter false
             
@@ -1910,11 +1947,9 @@ class SearchActivity : AppCompatActivity() {
                 )
 
                 // 获取引擎信息
-                val (engineName, engineUrl, engineIcon) = when (engine) {
-                    is AISearchEngine -> Triple(engine.name, engine.url, engine.iconResId)
-                    is SearchEngine -> Triple(engine.name, engine.url, engine.iconResId)
-                    else -> Triple("未知引擎", "", R.drawable.ic_search)
-                }
+                val engineName = engine.name
+                val engineUrl = engine.url
+                val engineIcon = engine.iconResId
 
                 // Set search engine icon with theme color
                 engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
@@ -1924,21 +1959,14 @@ class SearchActivity : AppCompatActivity() {
 
                 // Set search engine name with theme color
                 engineItem.findViewById<TextView>(R.id.engine_name).apply {
-                    // 在AI模式下显示引擎名称时添加"(AI)"标记
-                    val displayName = if (engine is AISearchEngine) "$engineName (AI)" else engineName
-                    text = displayName
+                    text = engineName
                     setTextColor(textColor) // 使用正确的文本颜色
                 }
 
                 // 设置引擎描述文本（如果有）
                 engineItem.findViewById<TextView>(R.id.engine_description)?.apply {
-                    val description = when (engine) {
-                        is AISearchEngine -> engine.description
-                        is SearchEngine -> engine.description
-                        else -> ""
-                    }
-                    text = description
-                    visibility = if (description.isNotEmpty()) View.VISIBLE else View.GONE
+                    text = engine.description
+                    visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
                     setTextColor(textColor) // 使用正确的文本颜色
                 }
 
@@ -1990,5 +2018,116 @@ class SearchActivity : AppCompatActivity() {
             Log.e("SearchActivity", "打开悬浮窗失败", e)
             Toast.makeText(this, "打开悬浮窗失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // 更新布局位置
+    private fun updateLayoutPosition() {
+        val isLeftHanded = settingsManager.isLeftHandedMode()
+        val layoutParams = searchLayout?.layoutParams as? FrameLayout.LayoutParams
+        
+        layoutParams?.gravity = if (isLeftHanded) Gravity.START else Gravity.END
+        searchLayout?.layoutParams = layoutParams
+    }
+
+    // 保存设置
+    private fun saveSettings() {
+        // 使用 SettingsManager 直接保存设置，不依赖 UI 组件
+        val searchHistoryEnabled = searchHistorySwitch?.isChecked ?: settingsManager.getBoolean("search_history_enabled", true)
+        val autoPasteEnabled = autoPasteSwitch?.isChecked ?: settingsManager.getBoolean("auto_paste_enabled", true)
+        
+        settingsManager.putBoolean("search_history_enabled", searchHistoryEnabled)
+        settingsManager.putBoolean("auto_paste_enabled", autoPasteEnabled)
+    }
+
+    // 加载设置
+    private fun loadSettings() {
+        // 如果 UI 组件存在，则将设置值加载到它们上
+        searchHistorySwitch?.isChecked = settingsManager.getBoolean("search_history_enabled", true)
+        autoPasteSwitch?.isChecked = settingsManager.getBoolean("auto_paste_enabled", true)
+        
+        // 加载默认搜索引擎
+        val defaultEngine = settingsManager.getString("default_search_engine", "baidu")
+        updateDefaultSearchEngine(defaultEngine ?: "baidu")
+    }
+
+    // 更新主题
+    private fun updateTheme() {
+        try {
+            when (settingsManager.getThemeMode()) {
+                SettingsManager.THEME_MODE_DEFAULT -> {
+                    // 使用默认主题
+                    window.statusBarColor = getColor(R.color.colorPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorPrimaryDark)
+                    searchLayout?.setBackgroundColor(getColor(R.color.colorBackground))
+                }
+                SettingsManager.THEME_MODE_LIGHT -> {
+                    // 使用浅色主题
+                    window.statusBarColor = getColor(R.color.colorLightPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorLightPrimaryDark)
+                    searchLayout?.setBackgroundColor(getColor(R.color.colorLightBackground))
+                }
+                SettingsManager.THEME_MODE_DARK -> {
+                    // 使用深色主题
+                    window.statusBarColor = getColor(R.color.colorDarkPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorDarkPrimaryDark)
+                    searchLayout?.setBackgroundColor(getColor(R.color.colorDarkBackground))
+                }
+            }
+        } catch (e: Resources.NotFoundException) {
+            // 如果颜色资源不存在，使用默认颜色
+            Log.e("SearchActivity", "Error applying theme: ${e.message}")
+            window.statusBarColor = Color.parseColor("#1976D2") // Default blue
+            searchLayout?.setBackgroundColor(Color.WHITE)
+        }
+    }
+
+    // 更新默认搜索引擎
+    private fun updateDefaultSearchEngine(engine: String) {
+        try {
+            // 保存设置
+            settingsManager.setDefaultSearchEngine(engine)
+            
+            // 查找匹配的搜索引擎并更新当前搜索引擎
+            val searchEngine = NORMAL_SEARCH_ENGINES.find { it.name == engine }
+            if (searchEngine != null) {
+                currentSearchEngine = searchEngine
+                updateSearchEngineIcon()
+                
+                // 显示提示
+                Toast.makeText(this, "默认搜索引擎已设置为: ${searchEngine.name}", Toast.LENGTH_SHORT).show()
+            } else {
+                // 如果找不到匹配的搜索引擎，使用第一个
+                currentSearchEngine = NORMAL_SEARCH_ENGINES.firstOrNull()
+                updateSearchEngineIcon()
+                
+                // 显示错误提示
+                Toast.makeText(this, "无法找到搜索引擎: $engine，已使用默认值", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "更新默认搜索引擎失败", e)
+            Toast.makeText(this, "更新默认搜索引擎失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Update default search engine
+    private fun updateDefaultSearchEngine() {
+        val defaultEngine = settingsManager.getString(Constants.PREF_DEFAULT_SEARCH_ENGINE, Constants.DEFAULT_SEARCH_ENGINE)
+        currentSearchEngine = searchEngines.find { engine ->
+            when (engine) {
+                is AISearchEngine -> engine.name == defaultEngine
+                is SearchEngine -> engine.name == defaultEngine
+                else -> false
+            }
+        } ?: searchEngines.firstOrNull()
+        
+        updateSearchEngineIcon()
+    }
+
+    // Send settings changed broadcast
+    private fun notifySettingsChanged(leftHandedModeChanged: Boolean = false) {
+        val intent = Intent(Constants.ACTION_SETTINGS_CHANGED).apply {
+            putExtra(Constants.EXTRA_LEFT_HANDED_MODE_CHANGED, leftHandedModeChanged)
+        }
+        sendBroadcast(intent)
     }
 } 

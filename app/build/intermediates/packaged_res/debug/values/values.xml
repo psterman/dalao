@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="default_page_entries">
-        <item>搜索页面</item>
         <item>主页</item>
+        <item>搜索</item>
+        <item>上次访问</item>
     </string-array>
     <string-array name="default_page_values">
-        <item>search</item>
         <item>home</item>
+        <item>search</item>
+        <item>last</item>
     </string-array>
     <string-array name="home_page_entries">
         <item>默认主页</item>
@@ -46,15 +48,29 @@
         <item>mixed</item>
         <item>alphabetical</item>
     </string-array>
+    <string-array name="search_engine_entries">
+        <item>百度</item>
+        <item>Google</item>
+        <item>必应</item>
+        <item>搜狗</item>
+        <item>ChatGPT</item>
+    </string-array>
+    <string-array name="search_engine_values">
+        <item>baidu</item>
+        <item>google</item>
+        <item>bing</item>
+        <item>sogou</item>
+        <item>chatgpt</item>
+    </string-array>
     <string-array name="theme_entries">
         <item>跟随系统</item>
-        <item>浅色主题</item>
-        <item>深色主题</item>
+        <item>浅色</item>
+        <item>深色</item>
     </string-array>
     <string-array name="theme_values">
-        <item>system</item>
-        <item>light</item>
-        <item>dark</item>
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
     </string-array>
     <color name="accent">#FF4081</color>
     <color name="ai_mode_background">#2962FF</color>
@@ -62,6 +78,11 @@
     <color name="background">#FFFFFF</color>
     <color name="black">#FF000000</color>
     <color name="colorAccent">#FF4081</color>
+    <color name="colorBackground">#F5F5F5</color>
+    <color name="colorDarkBackground">#121212</color>
+    <color name="colorDarkPrimaryDark">#0D47A1</color>
+    <color name="colorLightBackground">#FFFFFF</color>
+    <color name="colorLightPrimaryDark">#42A5F5</color>
     <color name="colorPrimary">#2196F3</color>
     <color name="colorPrimaryDark">#1976D2</color>
     <color name="divider">#BDBDBD</color>
@@ -189,6 +210,7 @@
     <dimen name="toolbar_icon_size">24dp</dimen>
     <dimen name="toolbar_icon_spacing">16dp</dimen>
     <dimen name="toolbar_padding">8dp</dimen>
+    <item name="search_edit_text" type="id"/>
     <string name="app_name">AI悬浮球</string>
     <string name="appearance">外观</string>
     <string name="auto_hide">自动隐藏悬浮球</string>
@@ -241,6 +263,31 @@
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowAnimationStyle">@null</item>
+    </style>
+    <style name="SettingsGridItem">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_columnWeight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+    </style>
+    <style name="SettingsIcon">
+        <item name="android:layout_width">32dp</item>
+        <item name="android:layout_height">32dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:tint">?attr/colorPrimary</item>
+    </style>
+    <style name="SettingsText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:maxLines">2</item>
+        <item name="android:ellipsize">end</item>
     </style>
     <style name="Theme.AIFloatingBall" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         

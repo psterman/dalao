@@ -4,7 +4,7 @@
             "outputFile": "com.example.aifloatingball.app-mergeReleaseResources-2:/values-sw360dp-v13/values-sw360dp-v13.xml",
             "map": [
                 {
-                    "source": "C:\\Users\\Administrator\\.gradle\\caches\\8.10.2\\transforms\\a5eb54cb164b5a95f006d30980745057\\transformed\\preference-1.2.1\\res\\values-sw360dp-v13\\values-sw360dp-v13.xml",
+                    "source": "C:\\Users\\Administrator\\.gradle\\caches\\8.10.2\\transforms\\deb0e852207cf427893472519e4cef19\\transformed\\preference-1.2.1\\res\\values-sw360dp-v13\\values-sw360dp-v13.xml",
                     "from": {
                         "startLines": "2",
                         "startColumns": "4",

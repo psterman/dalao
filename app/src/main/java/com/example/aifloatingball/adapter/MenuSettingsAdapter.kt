@@ -130,9 +130,9 @@ class MenuSettingsAdapter(
                  item.category == MenuCategory.AI_SEARCH) &&
                 !item.url.startsWith("action://") && 
                 !item.url.startsWith("back://")) {
-                iconLoader.loadIcon(item.url, icon, item.iconRes)
+                iconLoader.loadIcon(item.url, icon, item.iconResId)
             } else {
-                icon.setImageResource(item.iconRes)
+                icon.setImageResource(item.iconResId)
             }
             
             checkbox.setOnCheckedChangeListener { _, isChecked ->

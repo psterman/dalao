@@ -2,128 +2,115 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <PreferenceCategory app:title="搜索设置">
-        <SwitchPreferenceCompat
-            app:key="default_search_mode"
-            app:title="默认AI模式"
-            app:summary="打开悬浮窗时默认使用AI搜索引擎"
-            app:defaultValue="true"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            app:key="auto_paste_clipboard"
-            app:title="自动粘贴剪贴板"
-            app:summary="打开AI搜索时自动粘贴剪贴板内容并发送"
-            app:defaultValue="false"
-            app:iconSpaceReserved="false" />
+    <PreferenceCategory
+        android:title="基本设置"
+        app:iconSpaceReserved="false">
 
         <ListPreference
-            app:key="default_search_engine"
-            app:title="默认搜索引擎"
-            app:summary="选择打开悬浮窗时使用的搜索引擎"
-            app:useSimpleSummaryProvider="true"
+            android:defaultValue="home"
+            android:key="default_page"
+            android:title="默认页面"
+            android:summary="选择应用启动时显示的页面"
+            android:entries="@array/default_page_entries"
+            android:entryValues="@array/default_page_values"
             app:iconSpaceReserved="false" />
 
-        <ListPreference
-            app:key="home_page_url"
-            app:title="默认主页"
-            app:summary="选择打开悬浮窗时默认加载的页面"
-            app:iconSpaceReserved="false"
-            app:entries="@array/home_page_entries"
-            app:entryValues="@array/home_page_values"
-            app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="clipboard_listener"
+            android:title="剪贴板监听"
+            android:summary="检测到网址时自动弹出提示"
+            app:iconSpaceReserved="false" />
 
-        <Preference
-            app:key="apply_search_mode_changes"
-            app:title="应用搜索模式更改"
-            app:summary="点击此处立即应用搜索模式更改" />
-    </PreferenceCategory>
-
-    <PreferenceCategory app:title="基本设置">
         <SwitchPreferenceCompat
             android:defaultValue="false"
             android:key="left_handed_mode"
             android:title="左手模式"
-            android:summary="将悬浮球和菜单调整为左手使用习惯"
+            android:summary="将菜单按钮移到右侧"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
-        app:iconSpaceReserved="false"
-        app:title="通用">
+        android:title="搜索设置"
+        app:iconSpaceReserved="false">
 
-        <Preference
-            app:iconSpaceReserved="false"
-            app:key="search_engine_settings"
-            app:title="搜索引擎排序"
-            app:summary="自定义AI搜索引擎的排序和显示"/>
+        <ListPreference
+            android:defaultValue="baidu"
+            android:key="default_search_engine"
+            android:title="默认搜索引擎"
+            android:summary="选择默认使用的搜索引擎"
+            android:entries="@array/search_engine_entries"
+            android:entryValues="@array/search_engine_values"
+            app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
-            app:iconSpaceReserved="false"
-            app:key="auto_start"
-            app:title="开机自启动"
-            app:summary="允许应用在开机时自动启动"/>
+            android:defaultValue="false"
+            android:key="default_search_mode"
+            android:title="AI模式"
+            android:summary="默认使用AI搜索引擎"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="auto_paste"
+            android:title="自动粘贴"
+            android:summary="打开搜索页面时自动粘贴剪贴板内容"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
-        app:iconSpaceReserved="false"
-        app:title="显示与外观">
+        android:title="显示设置"
+        app:iconSpaceReserved="false">
 
         <SeekBarPreference
-            app:iconSpaceReserved="false"
-            app:key="floating_ball_size"
-            app:title="悬浮球大小"
-            app:summary="调整悬浮球的显示大小"
-            android:max="100"
-            app:min="30"
-            app:defaultValue="50"
-            app:showSeekBarValue="true"/>
+            android:defaultValue="100"
+            android:key="ball_size"
+            android:title="悬浮球大小"
+            android:summary="调整悬浮球的显示大小"
+            android:max="200"
+            android:min="50"
+            app:showSeekBarValue="true"
+            app:iconSpaceReserved="false" />
 
         <ListPreference
-            app:iconSpaceReserved="false"
-            app:key="layout_theme"
-            app:title="布局主题"
-            app:summary="选择AI窗口的排版样式"
-            app:entries="@array/layout_theme_entries"
-            app:entryValues="@array/layout_theme_values"
-            app:defaultValue="fold"/>
-
-        <ListPreference
-            app:iconSpaceReserved="false"
-            app:key="theme_mode"
-            app:title="主题设置"
-            app:summary="选择应用的显示主题"
-            app:entries="@array/theme_entries"
-            app:entryValues="@array/theme_values"
-            app:defaultValue="system"/>
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        app:iconSpaceReserved="false"
-        app:title="隐私与安全">
+            android:defaultValue="0"
+            android:key="layout_theme"
+            android:title="主题风格"
+            android:summary="选择应用的主题风格"
+            android:entries="@array/theme_entries"
+            android:entryValues="@array/theme_values"
+            app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
-            app:iconSpaceReserved="false"
-            app:key="privacy_mode"
-            app:title="隐私模式"
-            app:summary="增强应用的隐私保护"/>
+            android:defaultValue="false"
+            android:key="dark_mode"
+            android:title="深色模式"
+            android:summary="启用深色主题"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory
-        app:iconSpaceReserved="false"
-        app:title="关于">
+        android:title="其他设置"
+        app:iconSpaceReserved="false">
 
         <Preference
-            app:iconSpaceReserved="false"
-            app:key="app_version"
-            app:title="版本信息"
-            app:summary="1.0.0"/>
+            android:key="menu_manager"
+            android:title="菜单管理"
+            android:summary="自定义菜单项目和顺序"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="privacy_mode"
+            android:title="隐私模式"
+            android:summary="不保存浏览记录和搜索历史"
+            app:iconSpaceReserved="false" />
 
         <Preference
-            app:iconSpaceReserved="false"
-            app:key="check_update"
-            app:title="检查更新"
-            app:summary="检查是否有新版本可用"/>
+            android:key="about"
+            android:title="关于"
+            android:summary="版本信息和开源协议"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
 </PreferenceScreen>

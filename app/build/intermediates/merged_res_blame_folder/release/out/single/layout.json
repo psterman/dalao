@@ -4,6 +4,10 @@
         "source": "com.example.aifloatingball.app-main-5:/layout/settings_activity.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_menu_manager.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_menu_manager.xml"
+    },
+    {
         "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/layout_letter_index_bar.xml",
         "source": "com.example.aifloatingball.app-main-5:/layout/layout_letter_index_bar.xml"
     },
@@ -48,6 +52,10 @@
         "source": "com.example.aifloatingball.app-main-5:/layout/layout_floating_window.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/layout_settings_menu.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/layout_settings_menu.xml"
+    },
+    {
         "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/layout_menu_panel.xml",
         "source": "com.example.aifloatingball.app-main-5:/layout/layout_menu_panel.xml"
     },
@@ -84,12 +92,20 @@
         "source": "com.example.aifloatingball.app-main-5:/layout/activity_menu_settings.xml"
     },
     {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/dialog_ball_size.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/dialog_ball_size.xml"
+    },
+    {
         "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/toast_mode_change.xml",
         "source": "com.example.aifloatingball.app-main-5:/layout/toast_mode_change.xml"
     },
     {
         "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_letter.xml",
         "source": "com.example.aifloatingball.app-main-5:/layout/item_letter.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_settings_grid.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_settings_grid.xml"
     },
     {
         "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/menu_item.xml",
@@ -116,12 +132,12 @@
         "source": "com.example.aifloatingball.app-main-5:/layout/card_ai_engine.xml"
     },
     {
-        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_engine.xml",
-        "source": "com.example.aifloatingball.app-main-5:/layout/item_engine.xml"
-    },
-    {
         "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_search_web_view.xml",
         "source": "com.example.aifloatingball.app-main-5:/layout/activity_search_web_view.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_engine.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/item_engine.xml"
     },
     {
         "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/letter_index_layout.xml",
@@ -154,5 +170,9 @@
     {
         "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/item_ai_engine.xml",
         "source": "com.example.aifloatingball.app-main-5:/layout/item_ai_engine.xml"
+    },
+    {
+        "merged": "com.example.aifloatingball.app-mergeReleaseResources-3:/layout/activity_menu_manager.xml",
+        "source": "com.example.aifloatingball.app-main-5:/layout/activity_menu_manager.xml"
     }
 ]

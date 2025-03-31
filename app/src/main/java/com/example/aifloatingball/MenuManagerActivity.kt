@@ -20,10 +20,12 @@ import androidx.appcompat.widget.SwitchCompat
 import com.example.aifloatingball.model.MenuItem
 import com.example.aifloatingball.model.MenuCategory
 import java.util.*
+import androidx.appcompat.widget.Toolbar
 
 class MenuManagerActivity : AppCompatActivity() {
     private lateinit var viewPager: ViewPager2
     private lateinit var tabLayout: TabLayout
+    private lateinit var toolbar: Toolbar
     private lateinit var settingsManager: SettingsManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,10 +37,17 @@ class MenuManagerActivity : AppCompatActivity() {
         // 初始化视图
         viewPager = findViewById(R.id.viewPager)
         tabLayout = findViewById(R.id.tabLayout)
-        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+        toolbar = findViewById(R.id.toolbar)
+
+        // 设置工具栏
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
+        // 设置ViewPager和TabLayout
+        setupViewPager()
+    }
+
+    private fun setupViewPager() {
         // 设置ViewPager适配器
         viewPager.adapter = MenuPagerAdapter(this)
 
@@ -184,7 +193,7 @@ class MenuAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         
-        holder.icon.setImageResource(item.iconRes)
+        holder.icon.setImageResource(item.iconResId)
         holder.name.text = item.name
         holder.switch.isChecked = item.isEnabled
         

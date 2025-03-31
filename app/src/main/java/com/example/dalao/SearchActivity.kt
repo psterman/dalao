@@ -22,7 +22,7 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var previewEngineList: LinearLayout
     private lateinit var settingsManager: SettingsManager
     private lateinit var searchInput: TextView
-    private val searchEngines = mutableListOf<Any>()
+    private val searchEngines = mutableListOf<SearchEngine>()
 
     companion object {
         const val ACTION_SHOW_SEARCH = "com.example.aifloatingball.ACTION_SHOW_SEARCH"
@@ -34,8 +34,8 @@ class SearchActivity : AppCompatActivity() {
         
         // Get theme colors
         val isDarkMode = when (settingsManager.getThemeMode()) {
-            "dark" -> true
-            "light" -> false
+            SettingsManager.THEME_MODE_DARK -> true
+            SettingsManager.THEME_MODE_LIGHT -> false
             else -> resources.configuration.uiMode and 
                     android.content.res.Configuration.UI_MODE_NIGHT_MASK == 
                     android.content.res.Configuration.UI_MODE_NIGHT_YES

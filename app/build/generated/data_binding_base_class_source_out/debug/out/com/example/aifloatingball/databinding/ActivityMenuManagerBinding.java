@@ -4,10 +4,10 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.Toolbar;
-import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.viewbinding.ViewBinding;
 import androidx.viewbinding.ViewBindings;
 import androidx.viewpager2.widget.ViewPager2;
@@ -19,7 +19,7 @@ import java.lang.String;
 
 public final class ActivityMenuManagerBinding implements ViewBinding {
   @NonNull
-  private final ConstraintLayout rootView;
+  private final LinearLayout rootView;
 
   @NonNull
   public final TabLayout tabLayout;
@@ -30,8 +30,8 @@ public final class ActivityMenuManagerBinding implements ViewBinding {
   @NonNull
   public final ViewPager2 viewPager;
 
-  private ActivityMenuManagerBinding(@NonNull ConstraintLayout rootView,
-      @NonNull TabLayout tabLayout, @NonNull Toolbar toolbar, @NonNull ViewPager2 viewPager) {
+  private ActivityMenuManagerBinding(@NonNull LinearLayout rootView, @NonNull TabLayout tabLayout,
+      @NonNull Toolbar toolbar, @NonNull ViewPager2 viewPager) {
     this.rootView = rootView;
     this.tabLayout = tabLayout;
     this.toolbar = toolbar;
@@ -40,7 +40,7 @@ public final class ActivityMenuManagerBinding implements ViewBinding {
 
   @Override
   @NonNull
-  public ConstraintLayout getRoot() {
+  public LinearLayout getRoot() {
     return rootView;
   }
 
@@ -83,8 +83,7 @@ public final class ActivityMenuManagerBinding implements ViewBinding {
         break missingId;
       }
 
-      return new ActivityMenuManagerBinding((ConstraintLayout) rootView, tabLayout, toolbar,
-          viewPager);
+      return new ActivityMenuManagerBinding((LinearLayout) rootView, tabLayout, toolbar, viewPager);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

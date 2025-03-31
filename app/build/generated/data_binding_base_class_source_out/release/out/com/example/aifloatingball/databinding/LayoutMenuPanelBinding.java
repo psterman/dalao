@@ -4,6 +4,7 @@ package com.example.aifloatingball.databinding;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -76,6 +77,9 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
   public final LinearLayout layoutNoImage;
 
   @NonNull
+  public final FrameLayout settingsContainer;
+
+  @NonNull
   public final SwitchMaterial switchAdBlock;
 
   @NonNull
@@ -123,13 +127,13 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
       @NonNull ImageView iconNightMode, @NonNull ImageView iconNoImage,
       @NonNull ImageView iconShare, @NonNull LinearLayout layoutAdBlock,
       @NonNull LinearLayout layoutDesktopMode, @NonNull LinearLayout layoutIncognito,
-      @NonNull LinearLayout layoutNoImage, @NonNull SwitchMaterial switchAdBlock,
-      @NonNull SwitchMaterial switchDesktopMode, @NonNull SwitchMaterial switchIncognito,
-      @NonNull SwitchMaterial switchNoImage, @NonNull TextView textAdBlock,
-      @NonNull TextView textBookmark, @NonNull TextView textDesktopMode,
-      @NonNull TextView textFloatingMode, @NonNull TextView textHistory,
-      @NonNull TextView textIncognito, @NonNull TextView textNightMode,
-      @NonNull TextView textNoImage, @NonNull TextView textShare) {
+      @NonNull LinearLayout layoutNoImage, @NonNull FrameLayout settingsContainer,
+      @NonNull SwitchMaterial switchAdBlock, @NonNull SwitchMaterial switchDesktopMode,
+      @NonNull SwitchMaterial switchIncognito, @NonNull SwitchMaterial switchNoImage,
+      @NonNull TextView textAdBlock, @NonNull TextView textBookmark,
+      @NonNull TextView textDesktopMode, @NonNull TextView textFloatingMode,
+      @NonNull TextView textHistory, @NonNull TextView textIncognito,
+      @NonNull TextView textNightMode, @NonNull TextView textNoImage, @NonNull TextView textShare) {
     this.rootView = rootView;
     this.btnBookmark = btnBookmark;
     this.btnFloatingMode = btnFloatingMode;
@@ -149,6 +153,7 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
     this.layoutDesktopMode = layoutDesktopMode;
     this.layoutIncognito = layoutIncognito;
     this.layoutNoImage = layoutNoImage;
+    this.settingsContainer = settingsContainer;
     this.switchAdBlock = switchAdBlock;
     this.switchDesktopMode = switchDesktopMode;
     this.switchIncognito = switchIncognito;
@@ -299,6 +304,12 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
         break missingId;
       }
 
+      id = R.id.settings_container;
+      FrameLayout settingsContainer = ViewBindings.findChildViewById(rootView, id);
+      if (settingsContainer == null) {
+        break missingId;
+      }
+
       id = R.id.switch_ad_block;
       SwitchMaterial switchAdBlock = ViewBindings.findChildViewById(rootView, id);
       if (switchAdBlock == null) {
@@ -380,10 +391,10 @@ public final class LayoutMenuPanelBinding implements ViewBinding {
       return new LayoutMenuPanelBinding((LinearLayout) rootView, btnBookmark, btnFloatingMode,
           btnHistory, btnNightMode, btnShare, iconAdBlock, iconBookmark, iconDesktopMode,
           iconFloatingMode, iconHistory, iconIncognito, iconNightMode, iconNoImage, iconShare,
-          layoutAdBlock, layoutDesktopMode, layoutIncognito, layoutNoImage, switchAdBlock,
-          switchDesktopMode, switchIncognito, switchNoImage, textAdBlock, textBookmark,
-          textDesktopMode, textFloatingMode, textHistory, textIncognito, textNightMode, textNoImage,
-          textShare);
+          layoutAdBlock, layoutDesktopMode, layoutIncognito, layoutNoImage, settingsContainer,
+          switchAdBlock, switchDesktopMode, switchIncognito, switchNoImage, textAdBlock,
+          textBookmark, textDesktopMode, textFloatingMode, textHistory, textIncognito,
+          textNightMode, textNoImage, textShare);
     }
     String missingId = rootView.getResources().getResourceName(id);
     throw new NullPointerException("Missing required view with ID: ".concat(missingId));

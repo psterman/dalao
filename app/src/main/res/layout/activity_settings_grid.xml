@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?android:attr/colorBackground">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <!-- 基本设置卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:text="基本设置"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:columnCount="3">
+
+                    <!-- 默认页面 -->
+                    <LinearLayout
+                        android:id="@+id/defaultPageSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_default_page" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="默认页面" />
+                    </LinearLayout>
+
+                    <!-- 剪贴板监听 -->
+                    <LinearLayout
+                        android:id="@+id/clipboardSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_clipboard" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="剪贴板监听" />
+                    </LinearLayout>
+
+                    <!-- 左手模式 -->
+                    <LinearLayout
+                        android:id="@+id/leftHandedSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_left_handed" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="左手模式" />
+                    </LinearLayout>
+                </GridLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 搜索设置卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:text="搜索设置"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:columnCount="3">
+
+                    <!-- 默认搜索引擎 -->
+                    <LinearLayout
+                        android:id="@+id/defaultSearchEngineSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_search_engine" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="默认搜索引擎" />
+                    </LinearLayout>
+
+                    <!-- AI模式 -->
+                    <LinearLayout
+                        android:id="@+id/aiModeSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_ai_mode" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="AI模式" />
+                    </LinearLayout>
+
+                    <!-- 自动粘贴 -->
+                    <LinearLayout
+                        android:id="@+id/autoPasteSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_auto_paste" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="自动粘贴" />
+                    </LinearLayout>
+                </GridLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 显示设置卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:text="显示设置"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:columnCount="3">
+
+                    <!-- 悬浮球大小 -->
+                    <LinearLayout
+                        android:id="@+id/ballSizeSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_ball_size" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="悬浮球大小" />
+                    </LinearLayout>
+
+                    <!-- 主题设置 -->
+                    <LinearLayout
+                        android:id="@+id/themeSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_theme" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="主题设置" />
+                    </LinearLayout>
+
+                    <!-- 暗色模式 -->
+                    <LinearLayout
+                        android:id="@+id/darkModeSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_dark_mode" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="暗色模式" />
+                    </LinearLayout>
+                </GridLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- 其他设置卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    android:text="其他设置"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:columnCount="3">
+
+                    <!-- 菜单管理 -->
+                    <LinearLayout
+                        android:id="@+id/menuManageSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_menu_manage" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="菜单管理" />
+                    </LinearLayout>
+
+                    <!-- 隐私设置 -->
+                    <LinearLayout
+                        android:id="@+id/privacySetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_privacy" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="隐私设置" />
+                    </LinearLayout>
+
+                    <!-- 关于 -->
+                    <LinearLayout
+                        android:id="@+id/aboutSetting"
+                        style="@style/SettingsGridItem">
+                        <ImageView
+                            style="@style/SettingsIcon"
+                            android:src="@drawable/ic_about" />
+                        <TextView
+                            style="@style/SettingsText"
+                            android:text="关于" />
+                    </LinearLayout>
+                </GridLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+    </LinearLayout>
+</ScrollView> 

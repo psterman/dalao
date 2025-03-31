@@ -5,13 +5,12 @@ library {
   maven_library {
     groupId: "androidx.databinding"
     artifactId: "viewbinding"
-    version: "8.1.0"
+    version: "8.0.0"
   }
   digests {
-    sha256: "\306\306^)\301ko\002.I\b\227\355,\322\024z \001\f\036\003\250\210\273\255\327\274\276\316{\320"
+    sha256: "$%\330i\274\222\245\336\347\n\343\334D\374\350p\177B\352a\302\'\0062\211\364\t\036o\230ik"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -21,7 +20,6 @@ library {
     version: "1.7.1"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -34,7 +32,6 @@ library {
     sha256: "\343k\216K\203\223\244\255\307N=J\262*\325\243c\226\360\316\242\344\vW4\352\341I7\337\322$"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -86,7 +83,6 @@ library {
     sha256: "\225\263\355\257x\"{|\310\330\002\321\037\207\223\251\256\322\222\345+\217\277\214\b\326\023L\313\027\026\323"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -99,7 +95,6 @@ library {
     sha256: "B\377\247\312G\327\272\217\341\330t\305~\371\307\021\033\304\032+\f\f!Q\2129\340}\"-\355\213"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -173,7 +168,6 @@ library {
     sha256: "\201\306\373\035\273j<\327\334\202}{\b\341\310\024.\323\244\000\243B$A\020\204\200\342/\2117\304"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -210,7 +204,6 @@ library {
     sha256: "S=\355\216\340dZ\030\366e=\245?\341\354Z\025C\016\1776\2477\324^A\0051\363\0173\030"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -295,7 +288,6 @@ library {
     sha256: "\232\377\242La`\334\214\255\252\311B-OqNP\tS}\002C\257\304\274t\265\267\317\r\344\255"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -308,7 +300,6 @@ library {
     sha256: "\257\216\021\270~\003\rn1\a\3559\255\317\001\372\020\326%\236\261\\C\313\246\347\264\343\377\256\337\'"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -321,7 +312,6 @@ library {
     sha256: "\251\177L!\221\353\3352\371\232\302)Y{\321\251$F\260\034\321\240\210\3214\224\314\005\312\277\r\357"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -334,7 +324,6 @@ library {
     sha256: "o\263=\224s\244\223=\251\331\212\v\022\266\006\022~\200h\033\331\271\003\t\314\322\302#\bc\2719"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -371,7 +360,6 @@ library {
     sha256: "\357p3\261]\262uiw\034<\n\353o\2229+VT!a\225\376t\023n\243\341\b\221*\324"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -384,7 +372,6 @@ library {
     sha256: "\343\033\320\351+\320\263\0336\004H\312Z[\200\374\037cP{\264\356\216\233\323\000CtI\321x\233"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -397,7 +384,6 @@ library {
     sha256: "N\035\222\342\211\222\f\327\265\0166q\271\031\033\324\023@sI\315\246\366\002\260(Td\364\034\034\202"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -410,7 +396,6 @@ library {
     sha256: "W\305x\206.!\2366\fiW\377\v\312o\026\227\a\261\345X-O\245\223\342\204\367\366>3\366"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -447,7 +432,6 @@ library {
     sha256: "\264\222\333\374\205\222dq6q\022\366\320\345\322\311\231\036\205\\T!\25379\223\226\314\001#\342\257"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -509,7 +493,6 @@ library {
     sha256: "\323\246vp\235\352\004\362\250Pn*\350PR\377\367c\333Rj\307\361k\004\336P\375\320[\a "
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -522,7 +505,6 @@ library {
     sha256: "\277\356\022\301\310\214?t\225O\277ngf\274\0309V\363tx\267\300$\372\347\365\263\204\223\327\245"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -679,7 +661,6 @@ library {
     sha256: "\216\257\1779\236\340\224\334\023I\\6\347\324\357G\036\247\357\2129\236My\311kP\375O\202E\f"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -775,7 +756,6 @@ library {
     sha256: "\000\\\365\025\020I:$\372H\272\256\032EZRXQS\2215\032qq}\323<\272\225!\031f"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -800,7 +780,6 @@ library {
     sha256: "\272\372\303\312\231\036\326\212,|\246\3775)f\322\000\261.f\243B\321\017I|\270\026\217Y\005J"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -838,7 +817,6 @@ library {
     sha256: "\241\230\035\252\213\370B6\231|C\261\204\3400\000\231\"\v\211\347Ke\201\353F\213\243|tEy"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -851,7 +829,6 @@ library {
     sha256: "\2504\302\027\331s\021\'wS=\257\022\201\332\263;\327x\372\335-f\276\2749\265\376\201\250\220\254"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -864,7 +841,6 @@ library {
     sha256: "1\000\205K-\300\336\\M\210\264~\034]\263\b\001w\f\202\035\312(\030\224C\267bO@\b\256"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -877,7 +853,6 @@ library {
     sha256: "\207*^>\a\300\270\322\034\267wi\253/F\213 \232\266\354\b#\030t@\032\354\376\243\004\250\034"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -890,7 +865,6 @@ library {
     sha256: "@\312\212\337\333~\377\266\037\254\263\233\331\312./:@\321\006t;\f\326\334\236!\350\276\335O\205"
   }
   repo_index {
-    value: 3
   }
 }
 library {
@@ -1585,6 +1559,16 @@ module_dependencies {
 }
 repositories {
   maven_repo {
+    url: "https://dl.google.com/dl/android/maven2/"
+  }
+}
+repositories {
+  maven_repo {
+    url: "https://repo.maven.apache.org/maven2/"
+  }
+}
+repositories {
+  maven_repo {
     url: "https://maven.aliyun.com/repository/google"
   }
 }
@@ -1596,15 +1580,5 @@ repositories {
 repositories {
   maven_repo {
     url: "https://maven.aliyun.com/repository/jcenter"
-  }
-}
-repositories {
-  maven_repo {
-    url: "https://dl.google.com/dl/android/maven2/"
-  }
-}
-repositories {
-  maven_repo {
-    url: "https://repo.maven.apache.org/maven2/"
   }
 }
