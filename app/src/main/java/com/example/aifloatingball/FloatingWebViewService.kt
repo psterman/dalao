@@ -52,6 +52,17 @@ import com.example.aifloatingball.R
 class FloatingWebViewService : Service() {
     companion object {
         private const val TAG = "FloatingWebViewService"
+        private const val PREFS_NAME = "floating_window_prefs"
+        private const val KEY_WINDOW_WIDTH = "window_width"
+        private const val KEY_WINDOW_HEIGHT = "window_height"
+        private const val KEY_WINDOW_X = "window_x"
+        private const val KEY_WINDOW_Y = "window_y"
+        private const val DEFAULT_WIDTH_RATIO = 0.9f
+        private const val DEFAULT_HEIGHT_RATIO = 0.6f
+        private const val MIN_WIDTH_DP = 200
+        private const val MIN_HEIGHT_DP = 300
+        private const val EDGE_ANIMATION_DURATION = 300L
+        private const val DOUBLE_TAP_TIMEOUT = 300L
         private const val EDGE_DETECTION_THRESHOLD = 24f // 边缘检测阈值（dp）
         private const val EDGE_SCALE_RATIO = 0.2f // 贴边时缩小比例
         private const val ANIMATION_DURATION = 350L // 动画持续时间
@@ -80,6 +91,8 @@ class FloatingWebViewService : Service() {
     private var refreshButton: ImageButton? = null
     private var floatingTitle: TextView? = null
     private var resizeHandle: View? = null
+    
+    private val halfCircleWindow by lazy { HalfCircleFloatingWindow(this) }
     
     private var initialX = 0
     private var initialY = 0
@@ -134,139 +147,94 @@ class FloatingWebViewService : Service() {
     private var isAnimating = false
     private var edgePosition = EDGE_NONE
     
-    // 在类的成员变量部分添加
-    private lateinit var halfCircleWindow: HalfCircleFloatingWindow
-    
     // 修改成员变量声明
     private var originalBackground: android.graphics.drawable.Drawable? = null
     
-    private fun getEdgeThreshold(): Int {
-        return try {
-            resources.getDimensionPixelSize(R.dimen.edge_snap_threshold)
-        } catch (e: Exception) {
-            (24 * resources.displayMetrics.density).toInt()
+    private var lastTapTime = 0L
+    private var lastWindowState: WindowState? = null
+    private var searchBar: View? = null
+    private var navigationBar: View? = null
+    
+    private data class WindowState(
+        val width: Int,
+        val height: Int,
+        val x: Int,
+        val y: Int,
+        val isExpanded: Boolean
+    )
+
+    private val sharedPrefs by lazy {
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    private fun saveWindowState() {
+        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
+        sharedPrefs.edit().apply {
+            putInt(KEY_WINDOW_WIDTH, params.width)
+            putInt(KEY_WINDOW_HEIGHT, params.height)
+            putInt(KEY_WINDOW_X, params.x)
+            putInt(KEY_WINDOW_Y, params.y)
+            apply()
         }
     }
 
-    private fun getCornerRadius(): Float {
-        return try {
-            resources.getDimensionPixelSize(R.dimen.floating_window_corner_radius).toFloat()
-        } catch (e: Exception) {
-            12f * resources.displayMetrics.density
-        }
+    private fun loadWindowState(): WindowState {
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        val defaultWidth = (screenWidth * DEFAULT_WIDTH_RATIO).toInt()
+        val defaultHeight = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
+
+        return WindowState(
+            width = sharedPrefs.getInt(KEY_WINDOW_WIDTH, defaultWidth),
+            height = sharedPrefs.getInt(KEY_WINDOW_HEIGHT, defaultHeight),
+            x = sharedPrefs.getInt(KEY_WINDOW_X, 0),
+            y = sharedPrefs.getInt(KEY_WINDOW_Y, 0),
+            isExpanded = false
+        )
     }
 
-    private fun getBackgroundColor(): Int {
-        return try {
-            ContextCompat.getColor(this, R.color.floating_window_background)
-        } catch (e: Exception) {
-            Color.WHITE
-        }
-    }
-
-    private fun getBorderColor(): Int {
-        return try {
-            ContextCompat.getColor(this, R.color.floating_window_border)
-        } catch (e: Exception) {
-            Color.parseColor("#1A000000")
-        }
-    }
+    private fun getMinWidth(): Int = (MIN_WIDTH_DP * resources.displayMetrics.density).toInt()
+    private fun getMinHeight(): Int = (MIN_HEIGHT_DP * resources.displayMetrics.density).toInt()
     
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
-        try {
         super.onCreate()
-        
-        // 初始化设置管理器
-        settingsManager = SettingsManager.getInstance(this)
-        
-        // 初始化窗口管理器
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        try {
+            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
             
             // 获取屏幕尺寸
-            val displayMetrics = DisplayMetrics()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val windowMetrics = windowManager.currentWindowMetrics
-                screenWidth = windowMetrics.bounds.width()
-                screenHeight = windowMetrics.bounds.height()
-            } else {
-                @Suppress("DEPRECATION")
-                windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+            val displayMetrics = resources.displayMetrics
                 screenWidth = displayMetrics.widthPixels
                 screenHeight = displayMetrics.heightPixels
-            }
             
-            // 设置默认尺寸
-            defaultWidth = (screenWidth * 0.9f).toInt()
-            defaultHeight = (screenHeight * 0.6f).toInt()
-        
-        // 创建悬浮窗布局
+            // 创建浮动窗口
         createFloatingView()
         
-        // 初始化WebView
-        setupWebView()
-        
-        // 初始化手势检测器
-        initGestureDetectors()
-        
-        // 确保布局正确应用
-        Handler(Looper.getMainLooper()).postDelayed({
-                try {
-            floatingView?.requestLayout()
-            webView?.requestLayout()
-            webView?.invalidate()
-                } catch (e: Exception) {
-                    Log.e(TAG, "布局刷新失败", e)
-                }
-        }, 100)
-            
-            // 添加全局错误处理
-            Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-                Log.e(TAG, "未捕获的异常: ${throwable.message}", throwable)
-                try {
-                    // 尝试恢复状态
-                    isHidden = false
-                    
-                    // 如果是在动画过程中崩溃，尝试直接恢复
-                    if (edgeSnapAnimator?.isRunning == true) {
-                        edgeSnapAnimator?.cancel()
-                        recoverFromFailure()
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "错误恢复失败", e)
-                }
+            // 加载上次的窗口状态
+            val savedState = loadWindowState()
+            val params = floatingView?.layoutParams as? WindowManager.LayoutParams
+            if (params != null) {
+                // 应用保存的状态
+                params.width = maxOf(savedState.width, getMinWidth())
+                params.height = maxOf(savedState.height, getMinHeight())
+                params.x = savedState.x
+                params.y = savedState.y
                 
-                // 调用原始的异常处理器
-                Thread.getDefaultUncaughtExceptionHandler()?.uncaughtException(thread, throwable)
+                try {
+                    windowManager.updateViewLayout(floatingView, params)
+                } catch (e: Exception) {
+                    Log.e(TAG, "恢复窗口状态失败", e)
+                }
             }
             
-            // 添加一个全局点击监听器，确保在任何情况下点击都能恢复
-            Handler(Looper.getMainLooper()).postDelayed({
-                try {
-                    floatingView?.setOnClickListener {
-                        try {
-                            if (isHidden) {
-                                Log.d(TAG, "通过全局点击监听器恢复悬浮窗")
-                                animateShowToCenter()
-                            }
+            // 设置双击标题栏最大化
+            setupTitleBarDoubleTap()
+            
                         } catch (e: Exception) {
-                            Log.e(TAG, "全局点击恢复失败", e)
-                            // 尝试直接恢复
-                            recoverFromFailure()
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "设置全局点击监听器失败", e)
-                }
-            }, 500)
-        
-        halfCircleWindow = HalfCircleFloatingWindow(this)
-        
-        // 保存原始背景
-        originalBackground = floatingView?.background
-        } catch (e: Exception) {
-            Log.e(TAG, "onCreate失败", e)
+            Log.e(TAG, "创建服务失败", e)
+            stopSelf()
         }
     }
     
@@ -276,49 +244,27 @@ class FloatingWebViewService : Service() {
         floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_webview, null)
         
         // 初始化视图组件
-        webView = floatingView?.findViewById(R.id.floating_webview)
-        searchInput = floatingView?.findViewById(R.id.search_input)
-        progressBar = floatingView?.findViewById(R.id.progress_bar)
-        gestureHintView = floatingView?.findViewById(R.id.gesture_hint)
-        closeButton = floatingView?.findViewById(R.id.btn_close)
-        expandButton = floatingView?.findViewById(R.id.btn_expand)
-        searchButton = floatingView?.findViewById(R.id.btn_search)
-        backButton = floatingView?.findViewById(R.id.btn_back)
-        forwardButton = floatingView?.findViewById(R.id.btn_forward)
-        refreshButton = floatingView?.findViewById(R.id.btn_refresh)
-        floatingTitle = floatingView?.findViewById(R.id.floating_title)
-        resizeHandle = floatingView?.findViewById(R.id.resize_handle)
-        
-        // 设置初始状态
-        progressBar?.visibility = View.GONE
-        gestureHintView?.visibility = View.GONE
-        
-        // 设置搜索框
-        setupSearchInput()
-        
-        // 设置按钮点击事件
-        setupButtons()
-        
-        // 设置拖动处理
-        setupDragHandling()
-        
-        // 设置调整大小处理
-        setupResizeHandling()
-        
-        // 获取最小尺寸
-        minWidth = resources.getDimensionPixelSize(R.dimen.floating_webview_min_width)
-        minHeight = resources.getDimensionPixelSize(R.dimen.floating_webview_min_height)
+            initializeViews()
         
         // 创建窗口参数
         val params = createWindowLayoutParams()
+            
+            // 应用最小尺寸限制
+            params.width = maxOf(params.width, getMinWidth())
+            params.height = maxOf(params.height, getMinHeight())
         
         // 添加到窗口
             windowManager.addView(floatingView, params)
         
-        // 应用主题
-        applyTheme()
+            // 保存初始状态
+            originalWidth = params.width
+            originalHeight = params.height
+            originalX = params.x
+            originalY = params.y
+            
         } catch (e: Exception) {
             Log.e(TAG, "创建悬浮窗失败", e)
+            stopSelf()
         }
     }
     
@@ -655,11 +601,11 @@ class FloatingWebViewService : Service() {
                         edgeSnapAnimator?.cancel()
                         
                         // 如果当前是隐藏状态，点击时恢复
-                        if (halfCircleWindow.isHidden()) {
+                        if (isHidden) {
                             halfCircleWindow.animateShowToCenter(
                                 floatingView ?: return@setOnTouchListener false,
                                 floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false,
-                                windowManager ?: return@setOnTouchListener false,
+                                windowManager,
                                 {
                                     // 启用 WebView 滚动回调
                                     enableWebViewScrolling()
@@ -726,7 +672,7 @@ class FloatingWebViewService : Service() {
                                     halfCircleWindow.restoreFromEdgeImmediately(
                                         floatingView ?: return@setOnTouchListener false,
                                         floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false,
-                                        windowManager ?: return@setOnTouchListener false,
+                                        windowManager,
                                         {
                                             // 启用 WebView 滚动回调
                                             enableWebViewScrolling()
@@ -847,119 +793,177 @@ class FloatingWebViewService : Service() {
     
     private fun setupResizeHandling() {
         resizeHandle?.setOnTouchListener { _, event ->
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams
+            try {
+                val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
             
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    // 记录初始尺寸和触摸位置
-                    initialWidth = params?.width ?: 0
-                    initialHeight = params?.height ?: 0
+                        // 记录初始状态
+                        initialWidth = params.width
+                        initialHeight = params.height
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isResizing = true
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (isResizing && params != null) {
-                        // 计算新的宽高
-                        val newWidth = (initialWidth + (event.rawX - initialTouchX)).toInt()
-                        val newHeight = (initialHeight + (event.rawY - initialTouchY)).toInt()
-                        
-                        // 确保不小于最小尺寸
-                        params.width = maxOf(newWidth, minWidth)
-                        params.height = maxOf(newHeight, minHeight)
-                        
-                        // 更新布局
+                        if (isResizing) {
+                            // 计算新的尺寸
+                            var newWidth = (initialWidth + (event.rawX - initialTouchX)).toInt()
+                            var newHeight = (initialHeight + (event.rawY - initialTouchY)).toInt()
+                            
+                            // 应用最小尺寸限制
+                            newWidth = maxOf(newWidth, getMinWidth())
+                            newHeight = maxOf(newHeight, getMinHeight())
+                            
+                            // 应用最大尺寸限制
+                            val maxWidth = screenWidth
+                            val maxHeight = screenHeight
+                            newWidth = minOf(newWidth, maxWidth)
+                            newHeight = minOf(newHeight, maxHeight)
+                            
+                            // 更新布局参数
+                            params.width = newWidth
+                            params.height = newHeight
+                            
+                            try {
                         windowManager.updateViewLayout(floatingView, params)
                         
                         // 显示尺寸提示
-                        showGestureHint("${params.width} x ${params.height}")
+                                showSizeHint(newWidth, newHeight)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "更新窗口大小失败", e)
+                            }
                     }
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (isResizing) {
                     isResizing = false
+                            hideSizeHint()
+                            
+                            // 保存新的窗口状态
+                            saveWindowState()
+                        }
                     true
                 }
                 else -> false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "处理调整大小失败", e)
+                isResizing = false
+                hideSizeHint()
+                false
             }
         }
     }
     
+    private fun showSizeHint(width: Int, height: Int) {
+        gestureHintView?.apply {
+            text = "${width}x${height}"
+            visibility = View.VISIBLE
+            
+            // 移除之前的延迟隐藏
+            removeCallbacks(hideHintRunnable)
+            // 3秒后自动隐藏
+            postDelayed(hideHintRunnable, 3000)
+        }
+    }
+
+    private val hideHintRunnable = Runnable {
+        hideSizeHint()
+    }
+
+    private fun hideSizeHint() {
+        gestureHintView?.visibility = View.GONE
+    }
+    
     private fun toggleExpandState() {
+        try {
         isExpanded = !isExpanded
         
-        // 更新展开/收起按钮图标
-        expandButton?.setImageResource(
-            if (isExpanded) R.drawable.ic_collapse else R.drawable.ic_expand
-        )
-        
-        // 更新窗口大小
-        val params = floatingView?.layoutParams as? WindowManager.LayoutParams
-        if (params != null) {
-            // 获取屏幕尺寸
+            // 保存当前状态用于还原
+            if (isExpanded) {
+                lastWindowState = WindowState(
+                    width = originalWidth,
+                    height = originalHeight,
+                    x = originalX,
+                    y = originalY,
+                    isExpanded = false
+                )
+            }
+            
+            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
             val displayMetrics = resources.displayMetrics
             val screenWidth = displayMetrics.widthPixels
             val screenHeight = displayMetrics.heightPixels
             
             if (isExpanded) {
-                // 全屏模式 - 使用屏幕实际尺寸而不是MATCH_PARENT
+                // 全屏模式
+                expandButton?.setImageResource(R.drawable.ic_collapse)
                 params.width = screenWidth
                 params.height = screenHeight
-                
-                // 重置位置到屏幕左上角
-                params.gravity = Gravity.TOP or Gravity.START
                 params.x = 0
                 params.y = 0
-                
-                // 展开时移除FLAG_NOT_FOCUSABLE，使WebView可以接收输入
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
                 
-                // 隐藏调整大小控制点
-                resizeHandle?.visibility = View.GONE
-                
-                // 显示搜索栏和导航栏
-                val searchBar = floatingView?.findViewById<LinearLayout>(R.id.search_bar)
-                searchBar?.visibility = View.VISIBLE
-                
-                val navigationBar = floatingView?.findViewById<LinearLayout>(R.id.navigation_bar)
-                navigationBar?.visibility = View.VISIBLE
+                // 显示所有控件
+                showAllControls()
             } else {
-                // 恢复到默认大小
-                params.width = (screenWidth * 0.9).toInt()
-                params.height = (screenHeight * 0.6).toInt()
-                
-                // 恢复到屏幕中央
-                params.gravity = Gravity.CENTER
-                params.x = 0
-                params.y = 0
-                
-                // 非全屏模式添加FLAG_NOT_FOCUSABLE
+                // 还原模式
+                expandButton?.setImageResource(R.drawable.ic_expand)
+                lastWindowState?.let { state ->
+                    params.width = state.width
+                    params.height = state.height
+                    params.x = state.x
+                    params.y = state.y
+                } ?: run {
+                    // 如果没有保存状态，使用默认值
+                    params.width = (screenWidth * DEFAULT_WIDTH_RATIO).toInt()
+                    params.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
+                    params.x = (screenWidth - params.width) / 2
+                    params.y = (screenHeight - params.height) / 3
+                }
                 params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 
-                // 显示调整大小控制点
-                resizeHandle?.visibility = View.VISIBLE
-                
-                // 隐藏搜索栏和导航栏
-                val searchBar = floatingView?.findViewById<LinearLayout>(R.id.search_bar)
-                searchBar?.visibility = View.GONE
-                
-                val navigationBar = floatingView?.findViewById<LinearLayout>(R.id.navigation_bar)
-                navigationBar?.visibility = View.GONE
+                // 隐藏部分控件
+                hideOptionalControls()
             }
+            
+            // 确保尺寸不小于最小值
+            params.width = maxOf(params.width, getMinWidth())
+            params.height = maxOf(params.height, getMinHeight())
             
             // 更新布局
             windowManager.updateViewLayout(floatingView, params)
             
-            // 强制重新布局并刷新WebView
-            floatingView?.requestLayout()
-            webView?.requestLayout()
-            webView?.invalidate()
+            // 保存状态
+            if (!isExpanded) {
+                saveWindowState()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "切换全屏状态失败", e)
+            // 重置状态
+            isExpanded = !isExpanded
         }
+    }
+
+    private fun showAllControls() {
+        searchBar?.visibility = View.VISIBLE
+        navigationBar?.visibility = View.VISIBLE
+        resizeHandle?.visibility = View.GONE
+    }
+
+    private fun hideOptionalControls() {
+        searchBar?.visibility = View.GONE
+        navigationBar?.visibility = View.GONE
+        resizeHandle?.visibility = View.VISIBLE
     }
     
     private fun initGestureDetectors() {
-        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+        val context = this
+        gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
                 if (e1 == null) return false
                 
@@ -1007,7 +1011,7 @@ class FloatingWebViewService : Service() {
             }
         })
 
-        scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             private var baseScale = 1f
             private var lastSpan = 0f
             
@@ -1263,63 +1267,26 @@ class FloatingWebViewService : Service() {
     
     override fun onDestroy() {
         try {
-            // 1. 首先停止所有正在进行的动画
+            // 保存当前窗口状态
+            if (!isExpanded && !isHidden) {
+                saveWindowState()
+            }
+            
+            // 移除浮动窗口
+            floatingView?.let {
+                windowManager.removeView(it)
+                floatingView = null
+            }
+            
+            // 清理动画
             edgeSnapAnimator?.cancel()
-        
-            // 2. 移除 WebView 的父视图引用
-            (webView?.parent as? ViewGroup)?.removeView(webView)
-            
-            // 3. 安全地清理 WebView
-        webView?.apply {
-                // 停止加载
-                stopLoading()
-                
-                // 清除回调 - 使用空对象而不是 null
-                webChromeClient = WebChromeClient()
-                webViewClient = object : WebViewClient() {}
-                
-                // 加载空白页面
-                loadUrl("about:blank")
-                
-                // 清理数据
-            clearHistory()
-            clearCache(true)
-            clearFormData()
-                clearSslPreferences()
-                
-                // 移除所有 JavaScript 接口
-                removeJavascriptInterface("android")
-                
-                // 销毁 WebView
-                onPause()
-                Handler(Looper.getMainLooper()).post {
-            destroy()
-                }
-            }
-            
-            // 4. 从窗口管理器中移除视图
-            if (floatingView?.isAttachedToWindow == true) {
-                try {
-                    windowManager.removeView(floatingView)
-                } catch (e: Exception) {
-                    Log.e(TAG, "移除悬浮窗失败", e)
-                }
-            }
-            
-            // 5. 清理其他资源
-            gestureHintHandler.removeCallbacksAndMessages(null)
-            lastGestureHintRunnable = null
-            
-            // 6. 解除引用
-            webView = null
-            floatingView = null
+            edgeSnapAnimator = null
             
         } catch (e: Exception) {
-            Log.e(TAG, "销毁悬浮窗失败", e)
-        } finally {
-            // 确保调用父类的 onDestroy
-        super.onDestroy()
+            Log.e(TAG, "销毁服务失败", e)
         }
+        
+        super.onDestroy()
     }
 
     // 添加一个新的方法来安全地关闭服务
@@ -1380,558 +1347,212 @@ class FloatingWebViewService : Service() {
             // 取消之前的动画
             edgeSnapAnimator?.cancel()
             
-            // 获取当前布局参数
             val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
             
-            // 记录原始尺寸，用于恢复
+            // 保存原始状态
+            if (!isHidden) {
             originalWidth = params.width
             originalHeight = params.height
+                originalX = params.x
+                originalY = params.y
+            }
             
-            // 计算半圆形的尺寸 - 高度不变，宽度变为高度的一半
-            val targetWidth = params.height / 2
-            val targetHeight = params.height
-            
-            // 计算目标位置 - 靠边
+            // 计算目标位置和大小
+            val targetWidth = (originalWidth * 0.2f).toInt()
             val targetX = if (isLeft) 0 else screenWidth - targetWidth
-            val targetY = params.y
             
             // 创建动画
             edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = ANIMATION_DURATION
-                interpolator = appleInterpolation()
+                duration = EDGE_ANIMATION_DURATION
+                interpolator = OvershootInterpolator(1.2f)
                 
                 addUpdateListener { animator ->
-                    val progress = animator.animatedValue as Float
+                    val fraction = animator.animatedFraction
+                    params.width = lerpInt(originalWidth, targetWidth, fraction)
+                    params.x = lerpInt(originalX, targetX, fraction)
                     
                     try {
-                        // 更新布局参数
-                        val currentParams = floatingView?.layoutParams as? WindowManager.LayoutParams
-                        if (currentParams != null) {
-                            // 计算当前宽度、高度和位置
-                            currentParams.width = lerp(params.width, targetWidth, progress)
-                            currentParams.height = lerp(params.height, targetHeight, progress)
-                            currentParams.x = lerp(params.x, targetX, progress)
-                            currentParams.y = lerp(params.y, targetY, progress)
-                            
-                            // 更新悬浮窗
-                            windowManager?.updateViewLayout(floatingView, currentParams)
-                            
-                            // 更新视图透明度
-                            updateViewsAlpha(1f - progress * 0.5f)
-                            
-                            // 应用半圆形状
-                            applyHalfCircleShape(isLeft, progress)
-                        }
+                        windowManager.updateViewLayout(floatingView, params)
+                        updateViewsAlpha(1f - fraction)
                     } catch (e: Exception) {
-                        Log.e(TAG, "更新布局参数失败", e)
+                        Log.e(TAG, "更新布局失败", e)
                     }
                 }
                 
                 addListener(object : AnimatorListenerAdapter() {
                     override fun onAnimationStart(animation: Animator) {
                         isAnimating = true
-                        isHidden = true
-                        edgePosition = if (isLeft) EDGE_LEFT else EDGE_RIGHT
-                        
-                        // 禁用 WebView 的滚动，但保留缩放功能
                         disableWebViewScrolling()
                     }
                     
                     override fun onAnimationEnd(animation: Animator) {
-                        if (!animation.isRunning) {
                             isAnimating = false
-                            Log.d(TAG, "动画结束，悬浮窗已靠边")
-                        }
-                    }
-                    
-                    override fun onAnimationCancel(animation: Animator) {
-                        isAnimating = false
-                        isHidden = false
-                        enableWebViewScrolling()
+                        isHidden = true
+                        edgePosition = if (isLeft) EDGE_LEFT else EDGE_RIGHT
+                        hideViews()
                     }
                 })
                 
                 start()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "靠边动画失败", e)
-            recoverFromFailure()
+            Log.e(TAG, "创建边缘动画失败", e)
+            // 确保状态正确
+            isAnimating = false
+            isHidden = false
         }
     }
 
-    // 添加应用半圆形状的方法
-    private fun applyHalfCircleShape(isLeft: Boolean, progress: Float) {
-        try {
-            // 获取悬浮窗视图
-            val view = floatingView ?: return
-            
-            // 创建半圆形状
-            val shape = GradientDrawable()
-            shape.shape = GradientDrawable.RECTANGLE
-            
-            // 设置圆角 - 只在一侧设置圆角，形成半圆
-            val cornerRadius = getCornerRadius()
-            if (isLeft) {
-                // 左侧靠边，右侧为半圆
-                shape.cornerRadii = floatArrayOf(
-                    0f, 0f,                    // 左上角
-                    cornerRadius, cornerRadius, // 右上角
-                    cornerRadius, cornerRadius, // 右下角
-                    0f, 0f                     // 左下角
-                )
+    private fun setupTitleBarDoubleTap() {
+        val titleBar = floatingView?.findViewById<View>(R.id.title_bar)
+        titleBar?.setOnClickListener {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastTapTime < DOUBLE_TAP_TIMEOUT) {
+                // 双击，切换全屏状态
+                toggleExpandState()
+                lastTapTime = 0
             } else {
-                // 右侧靠边，左侧为半圆
-                shape.cornerRadii = floatArrayOf(
-                    cornerRadius, cornerRadius, // 左上角
-                    0f, 0f,                    // 右上角
-                    0f, 0f,                    // 右下角
-                    cornerRadius, cornerRadius  // 左下角
-                )
+                lastTapTime = currentTime
             }
-            
-            // 设置背景颜色 - 使用当前主题颜色，并根据进度调整透明度
-            val backgroundColor = getBackgroundColor()
-            val alpha = (255 * (0.7f + 0.3f * (1f - progress))).toInt()
-            shape.setColor(ColorUtils.setAlphaComponent(backgroundColor, alpha))
-            
-            shape.setStroke(2, getBorderColor())
-            
-            // 应用形状到视图背景
-            view.background = shape
-            
-            // 调整内部视图的可见性
-            val fadeProgress = Math.min(1f, progress * 1.5f)  // 加速淡出效果
-            webView?.alpha = 1f - fadeProgress
-            searchInput?.alpha = 1f - fadeProgress
-            searchButton?.alpha = 1f - fadeProgress
-            closeButton?.alpha = 1f - fadeProgress
-            expandButton?.alpha = 1f  // 展开按钮始终可见
-            
-            // 当进度超过一半时，隐藏内部视图
-            val visibility = if (fadeProgress > 0.5f) View.GONE else View.VISIBLE
-            webView?.visibility = visibility
-            searchInput?.visibility = visibility
-            searchButton?.visibility = visibility
-            closeButton?.visibility = visibility
-            
-            // 保持展开按钮可见
-            expandButton?.visibility = View.VISIBLE
-        } catch (e: Exception) {
-            Log.e(TAG, "应用半圆形状失败", e)
         }
     }
 
-    // 修改 animateShowToCenter 方法，从半圆形恢复
-    private fun animateShowToCenter() {
+    private fun hideViews() {
+        // Implementation of hideViews method
+    }
+
+    private fun lerpInt(start: Int, end: Int, fraction: Float): Int {
+        return (start + (end - start) * fraction).toInt()
+    }
+
+    private fun disableWebViewScrolling() {
+        // Implementation of disableWebViewScrolling method
+    }
+
+    private fun enableWebViewScrolling() {
+        // Implementation of enableWebViewScrolling method
+    }
+
+    private fun updateViewsAlpha(alpha: Float) {
+        // Implementation of updateViewsAlpha method
+    }
+
+    private fun toggleWindowFocusableFlag(focusable: Boolean) {
+        // Implementation of toggleWindowFocusableFlag method
+    }
+
+    private fun getEdgeThreshold(): Float {
+        return DEFAULT_EDGE_THRESHOLD * resources.displayMetrics.density
+    }
+
+    private fun resetToDefaultSizeAndCenter() {
+        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        // Set default size
+        params.width = (screenWidth * DEFAULT_WIDTH_RATIO).toInt()
+        params.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
+        
+        // Center the window
+        params.x = (screenWidth - params.width) / 2
+        params.y = (screenHeight - params.height) / 3
+        
         try {
-            // 取消之前的动画
+            windowManager.updateViewLayout(floatingView, params)
+            saveWindowState()
+        } catch (e: Exception) {
+            Log.e(TAG, "重置窗口大小和位置失败", e)
+        }
+    }
+
+    private fun animateShowToCenter() {
+        if (isAnimating) return
+        
+        try {
+        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
+        
+            // 取消当前动画
             edgeSnapAnimator?.cancel()
-            
-            // 获取当前布局参数
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
-            
-            // 计算目标位置和尺寸
-            val targetWidth = originalWidth
-            val targetHeight = originalHeight
-            val targetX = (screenWidth - targetWidth) / 2
-            val targetY = (screenHeight - targetHeight) / 3
             
             // 创建动画
             edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = ANIMATION_DURATION
-                interpolator = appleInterpolation()
-                
-                addUpdateListener { animator ->
-                    val progress = animator.animatedValue as Float
-                    
-                    try {
-                        // 更新布局参数
-                        val currentParams = floatingView?.layoutParams as? WindowManager.LayoutParams
-                        if (currentParams != null) {
-                            // 计算当前宽度、高度和位置
-                            currentParams.width = lerp(params.width, targetWidth, progress)
-                            currentParams.height = lerp(params.height, targetHeight, progress)
-                            currentParams.x = lerp(params.x, targetX, progress)
-                            currentParams.y = lerp(params.y, targetY, progress)
-                            
-                            // 更新悬浮窗
-                            windowManager?.updateViewLayout(floatingView, currentParams)
-                            
-                            // 更新视图透明度
-                            updateViewsAlpha(0.5f + progress * 0.5f)
-                            
-                            // 恢复正常形状
-                            restoreNormalShape(progress)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "更新布局参数失败", e)
-                    }
-                }
-                
-                addListener(object : AnimatorListenerAdapter() {
-                    override fun onAnimationStart(animation: Animator) {
-                        isAnimating = true
-                        
-                        // 启用 WebView 的滚动和缩放
-                        enableWebViewScrolling()
-                    }
-                    
-                    override fun onAnimationEnd(animation: Animator) {
-                        isAnimating = false
-                        isHidden = false
-                        edgePosition = EDGE_NONE
-                        
-                        // 显示所有控件
-                        webView?.visibility = View.VISIBLE
-                        searchInput?.visibility = View.VISIBLE
-                        searchButton?.visibility = View.VISIBLE
-                        closeButton?.visibility = View.VISIBLE
-                        expandButton?.visibility = View.VISIBLE
-                        
-                        enableWebViewScrolling()
-                    }
-                    
-                    override fun onAnimationCancel(animation: Animator) {
-                        isAnimating = false
-                        
-                        enableWebViewScrolling()
-                    }
-                })
-                
-                start()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "恢复动画失败", e)
-            recoverFromFailure()
-        }
-    }
-
-    // 添加恢复正常形状的方法
-    private fun restoreNormalShape(progress: Float) {
-        try {
-            // 获取悬浮窗视图
-            val view = floatingView ?: return
-            
-            // 创建正常矩形形状，带圆角
-            val shape = GradientDrawable()
-            shape.shape = GradientDrawable.RECTANGLE
-            
-            // 设置统一的圆角
-            val cornerRadius = getCornerRadius()
-            shape.cornerRadius = cornerRadius
-            
-            // 设置背景颜色
-            val backgroundColor = getBackgroundColor()
-            shape.setColor(backgroundColor)
-            
-            shape.setStroke(2, getBorderColor())
-            
-            // 应用形状到视图背景
-            view.background = shape
-            
-            // 保存为原始背景
-            originalBackground = shape
-        } catch (e: Exception) {
-            Log.e(TAG, "恢复正常形状失败", e)
-        }
-    }
-
-    // 添加重置悬浮窗到默认尺寸并居中的方法
-    private fun resetToDefaultSizeAndCenter() {
-        if (!::windowManager.isInitialized || floatingView == null) return
-        
-        edgeSnapAnimator?.cancel()
-        
-        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
-        
-        val startX = params.x
-        val startY = params.y
-        val startWidth = params.width
-        val startHeight = params.height
-        
-        // 使用默认尺寸
-        val targetWidth = defaultWidth
-        val targetHeight = defaultHeight
-        
-        // 计算屏幕中央位置
-        val targetX = (screenWidth - targetWidth) / 2
-        val targetY = (screenHeight - targetHeight) / 3 // 靠上1/3位置
-        
-        Log.d(TAG, "重置动画: 从 ($startX, $startY, $startWidth, $startHeight) 到 ($targetX, $targetY, $targetWidth, $targetHeight)")
-        
-        // 使用属性动画实现平滑过渡
-        val resetAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
             duration = ANIMATION_DURATION
-            interpolator = DecelerateInterpolator()
+                interpolator = OvershootInterpolator(1.2f)
             
             addUpdateListener { animator ->
-                if (!::windowManager.isInitialized || floatingView == null) {
-                    cancel()
-                    return@addUpdateListener
-                }
-
-                val fraction = animator.animatedValue as Float
-                
-                try {
-                    // 计算当前位置和尺寸
-                    params.x = lerp(startX, targetX, fraction)
-                    params.y = lerp(startY, targetY, fraction)
-                    params.width = lerp(startWidth, targetWidth, fraction)
-                    params.height = lerp(startHeight, targetHeight, fraction)
+                    val fraction = animator.animatedFraction
+                    params.width = lerpInt(params.width, originalWidth, fraction)
+                    params.x = lerpInt(params.x, originalX, fraction)
                     
+                    try {
                     windowManager.updateViewLayout(floatingView, params)
+                        updateViewsAlpha(fraction)
                 } catch (e: Exception) {
-                    Log.e(TAG, "更新悬浮窗失败", e)
-                    cancel()
+                        Log.e(TAG, "更新布局失败", e)
                 }
             }
             
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationStart(animation: Animator) {
-                    Log.d(TAG, "重置动画开始")
-                    
-                    if (isHidden) {
-                        isHidden = false
-                        
-                        // 显示所有控件
-                        webView?.visibility = View.VISIBLE
-                        searchInput?.visibility = View.VISIBLE
-                        searchButton?.visibility = View.VISIBLE
-                        closeButton?.visibility = View.VISIBLE
-                        expandButton?.visibility = View.VISIBLE
-                        
+                        isAnimating = true
                         enableWebViewScrolling()
-                    }
                 }
 
                 override fun onAnimationEnd(animation: Animator) {
-                    if (!animation.isRunning) {
-                        Log.d(TAG, "重置动画结束")
-                        
-                        // 更新原始尺寸
-                        originalWidth = targetWidth
-                        originalHeight = targetHeight
-                        originalX = targetX
-                        originalY = targetY
-                    }
+                        isAnimating = false
+                        isHidden = false
+                        edgePosition = EDGE_NONE
+                        showViews()
                 }
             })
             
             start()
         }
-    }
-
-    // 添加线性插值方法
-    private fun lerp(start: Float, end: Float, fraction: Float): Float {
-        return start + fraction * (end - start)
-    }
-
-    private fun lerp(start: Int, end: Int, fraction: Float): Int {
-        return (start + fraction * (end - start)).toInt()
-    }
-
-    // 添加唯一的 disableWebViewScrolling 方法
-    private fun disableWebViewScrolling() {
-        webView?.evaluateJavascript("""
-            (function() {
-                // 禁用页面滚动
-                document.body.style.overflow = 'hidden';
-                
-                // 保存当前缩放级别
-                if (!window._originalZoom) {
-                    window._originalZoom = document.documentElement.style.zoom || '100%';
-                }
-                
-                // 禁用触摸事件
-                document.addEventListener('touchmove', function(e) {
-                    e.preventDefault();
-                }, { passive: false });
-            })();
-        """, null)
-    }
-
-    // 添加唯一的 enableWebViewScrolling 方法
-    private fun enableWebViewScrolling() {
-        webView?.evaluateJavascript("""
-            (function() {
-                // 恢复页面滚动
-                document.body.style.overflow = '';
-                
-                // 恢复原始缩放级别
-                if (window._originalZoom) {
-                    document.documentElement.style.zoom = window._originalZoom;
-                }
-                
-                // 移除触摸事件限制
-                document.removeEventListener('touchmove', function(e) {
-                    e.preventDefault();
-                }, { passive: false });
-            })();
-        """, null)
-    }
-
-    // 添加一个额外的恢复方法，用于在动画失败时直接恢复
-    private fun recoverFromFailure() {
-        try {
-            // 获取当前布局参数
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
-            
-            // 重置状态
+        } catch (e: Exception) {
+            Log.e(TAG, "创建恢复动画失败", e)
+            // 确保状态正确
             isAnimating = false
             isHidden = false
-            
-            // 恢复默认尺寸和位置
-            params.width = defaultWidth
-            params.height = defaultHeight
-            params.x = screenWidth / 2 - defaultWidth / 2
-            params.y = screenHeight / 2 - defaultHeight / 2
-            
-            // 更新窗口布局
-            windowManager?.updateViewLayout(floatingView, params)
-            
-            // 恢复正常形状
-            val view = floatingView ?: return
-            
-            // 创建新的背景
-            val shape = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = getCornerRadius()
-                setColor(getBackgroundColor())
-                setStroke(2, getBorderColor())
-            }
-            view.background = shape
-            
-            // 启用WebView滚动
-            enableWebViewScrolling()
-        } catch (e: Exception) {
-            Log.e(TAG, "从失败中恢复失败", e)
         }
     }
 
-    // 添加新方法：立即从边缘状态恢复（不使用动画）
-    private fun restoreFromEdgeImmediately() {
-        try {
-            // 取消之前的动画
-            edgeSnapAnimator?.cancel()
-            
-            // 获取当前布局参数
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
-            
-            // 恢复到原始尺寸和位置
-            params.width = originalWidth
-            params.height = originalHeight
-            params.x = (screenWidth - originalWidth) / 2
-            params.y = (screenHeight - originalHeight) / 3
-            
-            // 更新布局
-            windowManager?.updateViewLayout(floatingView, params)
-            
-            // 重置状态
-            isHidden = false
-            edgePosition = EDGE_NONE
-            
-            // 恢复控件可见性
+    private fun initializeViews() {
+        // Initialize all view references
+        webView = floatingView?.findViewById(R.id.floating_webview)
+        searchInput = floatingView?.findViewById(R.id.search_input)
+        progressBar = floatingView?.findViewById(R.id.progress_bar)
+        gestureHintView = floatingView?.findViewById(R.id.gesture_hint)
+        closeButton = floatingView?.findViewById(R.id.btn_close)
+        expandButton = floatingView?.findViewById(R.id.btn_expand)
+        searchButton = floatingView?.findViewById(R.id.btn_search)
+        backButton = floatingView?.findViewById(R.id.btn_back)
+        forwardButton = floatingView?.findViewById(R.id.btn_forward)
+        refreshButton = floatingView?.findViewById(R.id.btn_refresh)
+        floatingTitle = floatingView?.findViewById(R.id.floating_title)
+        resizeHandle = floatingView?.findViewById(R.id.resize_handle)
+        searchBar = floatingView?.findViewById(R.id.search_bar)
+        navigationBar = floatingView?.findViewById(R.id.navigation_bar)
+
+        // Setup components
+        setupWebView()
+        setupSearchInput()
+        setupButtons()
+        setupDragHandling()
+        setupResizeHandling()
+        initGestureDetectors()
+        applyTheme()
+    }
+
+    private fun showViews() {
             webView?.visibility = View.VISIBLE
             searchInput?.visibility = View.VISIBLE
             searchButton?.visibility = View.VISIBLE
             closeButton?.visibility = View.VISIBLE
             expandButton?.visibility = View.VISIBLE
-            
-            // 恢复透明度
-            updateViewsAlpha(1f)
-            
-            // 启用WebView滚动和缩放
-            enableWebViewScrolling()
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "立即恢复失败", e)
-        }
-    }
-
-    // 添加一个新方法，用于重置悬浮窗到默认状态
-    private fun resetToDefaultSize() {
-        try {
-            Log.d(TAG, "重置悬浮窗到默认尺寸")
-            
-            // 取消任何正在进行的动画
-            edgeSnapAnimator?.cancel()
-            
-            // 确保状态正确
-            isHidden = false
-            
-            // 恢复控件可见性
-            searchInput?.visibility = View.VISIBLE
-            backButton?.visibility = View.VISIBLE
-            forwardButton?.visibility = View.VISIBLE
-            refreshButton?.visibility = View.VISIBLE
-            expandButton?.visibility = View.VISIBLE
-            
-            // 恢复原始圆角
-            if (floatingView is CardView) {
-                val cardView = floatingView as CardView
-                cardView.radius = resources.getDimension(R.dimen.floating_card_corner_radius)
-            }
-            
-            // 设置默认尺寸和位置
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams
-            if (params != null) {
-                params.width = defaultWidth
-                params.height = defaultHeight
-                params.x = (screenWidth - defaultWidth) / 2
-                params.y = (screenHeight - defaultHeight) / 2
-                
-                try {
-                    windowManager.updateViewLayout(floatingView, params)
-                    updateViewsAlpha(1f)
-                    
-                    // 更新原始尺寸记录
-                    originalWidth = defaultWidth
-                    originalHeight = defaultHeight
-                    originalX = params.x
-                    originalY = params.y
-                } catch (e: Exception) {
-                    Log.e(TAG, "更新悬浮窗布局失败", e)
-                }
-            }
-            
-            // 启用WebView滚动
-            enableWebViewScrolling()
-        } catch (e: Exception) {
-            Log.e(TAG, "重置到默认尺寸失败", e)
-        }
-    }
-
-    // 添加苹果风格的插值器
-    private fun appleInterpolation(): Interpolator {
-        return PathInterpolator(0.42f, 0f, 0.58f, 1f)
-    }
-
-    // 添加视图透明度更新方法
-    private fun updateViewsAlpha(alpha: Float) {
-        webView?.alpha = alpha
-        searchInput?.alpha = alpha
-        searchButton?.alpha = alpha
-        closeButton?.alpha = alpha
-        expandButton?.alpha = alpha
-    }
-
-    // 添加窗口焦点控制方法
-    private fun toggleWindowFocusableFlag(focusable: Boolean) {
-        try {
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
-            
-            if (focusable) {
-                // 启用窗口焦点
-                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-            } else {
-                // 禁用窗口焦点
-                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            }
-            
-            // 更新窗口布局
-            windowManager?.updateViewLayout(floatingView, params)
-        } catch (e: Exception) {
-            Log.e(TAG, "切换窗口焦点状态失败", e)
+        if (!isExpanded) {
+            resizeHandle?.visibility = View.VISIBLE
         }
     }
 } 

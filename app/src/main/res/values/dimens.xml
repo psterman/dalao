@@ -64,4 +64,12 @@
     <dimen name="flyme_edge_trigger_threshold">24dp</dimen>
     <dimen name="flyme_edge_peek_width">2dp</dimen>
     <dimen name="letter_index_item_height">36dp</dimen>
+
+    <!-- 浮动窗口相关尺寸 -->
+    <dimen name="floating_window_min_width">200dp</dimen>
+    <dimen name="floating_window_min_height">300dp</dimen>
+    <dimen name="resize_handle_size">24dp</dimen>
+    <dimen name="title_bar_height">48dp</dimen>
+    <dimen name="gesture_hint_text_size">14sp</dimen>
+    <dimen name="gesture_hint_padding">8dp</dimen>
 </resources> 
