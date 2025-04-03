@@ -1348,7 +1348,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private fun updateTheme() {
         try {
             when (settingsManager.getThemeMode()) {
-                SettingsManager.THEME_MODE_DEFAULT -> {
+                SettingsManager.THEME_MODE_SYSTEM -> {
                     // 使用默认主题
                     window.statusBarColor = getColor(R.color.colorPrimaryDark)
                     window.navigationBarColor = getColor(R.color.colorPrimaryDark)

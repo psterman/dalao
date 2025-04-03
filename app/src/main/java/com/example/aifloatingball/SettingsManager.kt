@@ -25,6 +25,12 @@ class SettingsManager private constructor(context: Context) {
         private const val DEFAULT_LAYOUT_THEME = 0
         private const val DEFAULT_PAGE = "home"
         
+        // 主题模式常量
+        const val THEME_MODE_SYSTEM = 0    // 跟随系统
+        const val THEME_MODE_LIGHT = 1     // 浅色主题
+        const val THEME_MODE_DARK = 2      // 深色主题
+        const val THEME_MODE_DEFAULT = THEME_MODE_SYSTEM  // 默认主题模式
+        
         @Volatile
         private var instance: SettingsManager? = null
         
@@ -33,14 +39,6 @@ class SettingsManager private constructor(context: Context) {
                 instance ?: SettingsManager(context.applicationContext).also { instance = it }
             }
         }
-        
-        // 默认值常量
-        private const val DEFAULT_THEME_MODE = 0 // 默认主题模式
-        
-        // 主题模式常量
-        const val THEME_MODE_DEFAULT = 0
-        const val THEME_MODE_LIGHT = 1
-        const val THEME_MODE_DARK = 2
     }
     
     // 悬浮球大小设置
@@ -52,22 +50,19 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putInt("ball_size", size).apply()
     }
 
-    // 主题设置
-    fun getLayoutTheme(): Int {
-        return prefs.getInt("layout_theme", DEFAULT_LAYOUT_THEME)
+    // 统一主题设置
+    fun getThemeMode(): Int {
+        return prefs.getInt("theme_mode", THEME_MODE_SYSTEM)
     }
     
-    fun saveLayoutTheme(theme: Int) {
-        prefs.edit().putInt("layout_theme", theme).apply()
-    }
-    
-    // 深色模式设置
-    fun getDarkMode(): Int {
-        return prefs.getInt("dark_mode", 0)
-    }
-    
-    fun setDarkMode(mode: Int) {
-        prefs.edit().putInt("dark_mode", mode).apply()
+    fun setThemeMode(mode: Int) {
+        prefs.edit().putInt("theme_mode", mode).apply()
+        // 根据主题模式设置应用主题
+        when (mode) {
+            THEME_MODE_LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            THEME_MODE_DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        }
     }
 
     // 隐私模式设置
@@ -86,6 +81,52 @@ class SettingsManager private constructor(context: Context) {
     
     fun setDefaultSearchEngine(engine: String) {
         prefs.edit().putString("default_search_engine", engine).apply()
+    }
+    
+    // 获取当前模式下的搜索引擎列表
+    fun getCurrentSearchEngines(): List<Any> {
+        val isAIMode = isDefaultAIMode()
+        val enabledEngines = getEnabledEngines()
+        
+        return try {
+            val engines = if (isAIMode) {
+                AISearchEngine.DEFAULT_AI_ENGINES
+            } else {
+                SearchEngine.NORMAL_SEARCH_ENGINES
+            }
+            
+            // 只返回已启用的搜索引擎
+            engines.filter { engine -> enabledEngines.contains(engine.name) }
+        } catch (e: Exception) {
+            Log.e("SettingsManager", "加载搜索引擎列表失败: ${e.message}", e)
+            // 返回默认搜索引擎
+            if (isAIMode) {
+                listOf(AISearchEngine("ChatGPT", "https://chat.openai.com", R.drawable.ic_chatgpt, "ChatGPT AI聊天"))
+            } else {
+                listOf(SearchEngine("百度", "https://www.baidu.com/s?wd=", R.drawable.ic_search, "百度搜索"))
+            }
+        }
+    }
+    
+    // 获取和保存启用的搜索引擎
+    fun getEnabledEngines(): Set<String> {
+        return prefs.getStringSet("enabled_engines", null) ?: 
+               SearchEngine.NORMAL_SEARCH_ENGINES.map { it.name }.toSet()
+    }
+    
+    fun saveEnabledEngines(enabledEngines: Set<String>) {
+        prefs.edit().putStringSet("enabled_engines", enabledEngines).apply()
+    }
+    
+    @Deprecated("Use getCurrentSearchEngines() instead", ReplaceWith("getCurrentSearchEngines()"))
+    fun getFilteredEngineOrder(): List<Any> = getCurrentSearchEngines()
+    
+    @Deprecated("Use getCurrentSearchEngines() instead", ReplaceWith("getCurrentSearchEngines()"))
+    fun getEngineOrder(): List<SearchEngine> = getCurrentSearchEngines() as List<SearchEngine>
+    
+    @Deprecated("Use saveEnabledEngines() instead", ReplaceWith("saveEnabledEngines(engines.map { it.name }.toSet())"))
+    fun saveEngineOrder(engines: List<SearchEngine>) {
+        saveEnabledEngines(engines.map { it.name }.toSet())
     }
     
     // 清除所有设置
@@ -145,100 +186,6 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putBoolean("auto_hide", autoHide).apply()
     }
     
-    // 搜索引擎排序设置
-    fun saveEngineOrder(engines: List<SearchEngine>) {
-        val json = gson.toJson(engines)
-        prefs.edit().putString("engine_order", json).apply()
-    }
-    
-    fun getEngineOrder(): List<SearchEngine> {
-        val json = prefs.getString("engine_order", null)
-        return if (json != null) {
-            try {
-                val type = object : TypeToken<List<SearchEngine>>() {}.type
-                gson.fromJson(json, type)
-            } catch (e: Exception) {
-                if (isDefaultAIMode()) {
-                    AISearchEngine.DEFAULT_AI_ENGINES
-                } else {
-                    SearchEngine.NORMAL_SEARCH_ENGINES
-                }
-            }
-        } else {
-            if (isDefaultAIMode()) {
-                AISearchEngine.DEFAULT_AI_ENGINES
-            } else {
-                SearchEngine.NORMAL_SEARCH_ENGINES
-            }
-        }
-    }
-
-    // 获取经过筛选的搜索引擎列表（根据当前模式返回AI或普通搜索引擎）
-    fun getFilteredEngineOrder(): List<Any> {
-        val isAIMode = isDefaultAIMode()
-        
-        Log.d("SettingsManager", "开始获取搜索引擎列表，当前模式=${if (isAIMode) "AI模式" else "普通模式"}")
-        
-        return try {
-            if (isAIMode) {
-                // AI模式下返回AI搜索引擎列表
-                val aiEngines = AISearchEngine.DEFAULT_AI_ENGINES
-                
-                if (aiEngines.isEmpty()) {
-                    Log.e("SettingsManager", "AI搜索引擎列表为空")
-                    throw Exception("AI搜索引擎列表为空")
-                }
-                
-                // 添加日志，帮助调试
-                Log.d("SettingsManager", "成功获取AI搜索引擎列表: ${aiEngines.size}个引擎")
-                
-                // 遍历并打印每个AI引擎
-                aiEngines.forEachIndexed { index, engine ->
-                    Log.d("SettingsManager", "AI引擎 $index: ${engine.name} - ${engine.url}")
-                }
-                
-                return aiEngines
-            } else {
-                // 普通模式下返回普通搜索引擎列表
-                val normalEngines = SearchActivity.NORMAL_SEARCH_ENGINES
-                
-                if (normalEngines.isEmpty()) {
-                    Log.e("SettingsManager", "普通搜索引擎列表为空")
-                    throw Exception("普通搜索引擎列表为空")
-                }
-                
-                // 添加日志，帮助调试
-                Log.d("SettingsManager", "成功获取普通搜索引擎列表: ${normalEngines.size}个引擎")
-                
-                // 遍历并打印每个普通引擎
-                normalEngines.forEachIndexed { index, engine ->
-                    Log.d("SettingsManager", "普通引擎 $index: ${engine.name} - ${engine.url}")
-                }
-                
-                return normalEngines
-            }
-        } catch (e: Exception) {
-            // 出错时返回至少一个默认搜索引擎
-            Log.e("SettingsManager", "加载搜索引擎列表失败: ${e.message}", e)
-            if (isAIMode) {
-                listOf(AISearchEngine("ChatGPT", "https://chat.openai.com", R.drawable.ic_chatgpt, "ChatGPT AI聊天"))
-            } else {
-                listOf(SearchEngine("百度", "https://www.baidu.com/s?wd=", R.drawable.ic_search, "百度搜索"))
-            }
-        }
-    }
-    
-    // 获取启用的搜索引擎列表
-    fun getEnabledEngines(): Set<String> {
-        return prefs.getStringSet("enabled_engines", null) ?: 
-               getEngineOrder().map { it.name }.toSet() // 默认全部启用
-    }
-    
-    // 保存启用的搜索引擎列表
-    fun saveEnabledEngines(enabledEngines: Set<String>) {
-        prefs.edit().putStringSet("enabled_engines", enabledEngines).apply()
-    }
-
     fun <T> registerOnSettingChangeListener(key: String, listener: (String, T) -> Unit) {
         if (!listeners.containsKey(key)) {
             listeners[key] = mutableListOf()
@@ -278,15 +225,6 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putString("menu_layout", layout).apply()
     }
 
-    // 主题模式设置
-    fun getThemeMode(): Int {
-        return prefs.getInt("theme_mode", DEFAULT_THEME_MODE)
-    }
-    
-    fun setThemeMode(mode: Int) {
-        prefs.edit().putInt("theme_mode", mode).apply()
-    }
-
     // SharedPreferences 辅助方法
     fun getBoolean(key: String, defaultValue: Boolean): Boolean {
         return prefs.getBoolean(key, defaultValue)
@@ -303,4 +241,17 @@ class SettingsManager private constructor(context: Context) {
     fun putString(key: String, value: String?) {
         prefs.edit().putString(key, value).apply()
     }
+
+    // 移除旧的主题相关方法
+    @Deprecated("Use getThemeMode() instead", ReplaceWith("getThemeMode()"))
+    fun getLayoutTheme(): Int = getThemeMode()
+    
+    @Deprecated("Use setThemeMode() instead", ReplaceWith("setThemeMode(theme)"))
+    fun saveLayoutTheme(theme: Int) = setThemeMode(theme)
+    
+    @Deprecated("Use getThemeMode() instead", ReplaceWith("getThemeMode()"))
+    fun getDarkMode(): Int = getThemeMode()
+    
+    @Deprecated("Use setThemeMode() instead", ReplaceWith("setThemeMode(mode)"))
+    fun setDarkMode(mode: Int) = setThemeMode(mode)
 }

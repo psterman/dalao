@@ -37,7 +37,16 @@ class SettingsActivity : AppCompatActivity() {
             // 获取SettingsManager实例
             val settingsManager = SettingsManager.getInstance(requireContext())
 
-            // 设置各个选项的初始值
+            // 主题设置
+            findPreference<ListPreference>("theme_mode")?.apply {
+                value = settingsManager.getThemeMode().toString()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setThemeMode(newValue.toString().toInt())
+                    true
+                }
+            }
+
+            // 默认页面设置
             findPreference<ListPreference>("default_page")?.apply {
                 value = settingsManager.getDefaultPage()
                 setOnPreferenceChangeListener { _, newValue ->
@@ -46,6 +55,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 剪贴板监听设置
             findPreference<SwitchPreferenceCompat>("clipboard_listener")?.apply {
                 isChecked = settingsManager.isClipboardListenerEnabled()
                 setOnPreferenceChangeListener { _, newValue ->
@@ -54,6 +64,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 左手模式设置
             findPreference<SwitchPreferenceCompat>("left_handed_mode")?.apply {
                 isChecked = settingsManager.isLeftHandedMode()
                 setOnPreferenceChangeListener { _, newValue ->
@@ -62,6 +73,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 默认搜索引擎设置
             findPreference<ListPreference>("default_search_engine")?.apply {
                 value = settingsManager.getDefaultSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
@@ -70,6 +82,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 默认搜索模式设置
             findPreference<SwitchPreferenceCompat>("default_search_mode")?.apply {
                 isChecked = settingsManager.isDefaultAIMode()
                 setOnPreferenceChangeListener { _, newValue ->
@@ -78,6 +91,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 自动粘贴设置
             findPreference<SwitchPreferenceCompat>("auto_paste")?.apply {
                 isChecked = settingsManager.isAutoPasteEnabled()
                 setOnPreferenceChangeListener { _, newValue ->
@@ -86,6 +100,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 悬浮球大小设置
             findPreference<SeekBarPreference>("ball_size")?.apply {
                 value = settingsManager.getBallSize()
                 setOnPreferenceChangeListener { _, newValue ->
@@ -94,22 +109,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
-            findPreference<ListPreference>("layout_theme")?.apply {
-                value = settingsManager.getLayoutTheme().toString()
-                setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.saveLayoutTheme(newValue.toString().toInt())
-                    true
-                }
-            }
-
-            findPreference<SwitchPreferenceCompat>("dark_mode")?.apply {
-                isChecked = settingsManager.getDarkMode() == 2
-                setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setDarkMode(if (newValue as Boolean) 2 else 1)
-                    true
-                }
-            }
-
+            // 隐私模式设置
             findPreference<SwitchPreferenceCompat>("privacy_mode")?.apply {
                 isChecked = settingsManager.isPrivacyModeEnabled()
                 setOnPreferenceChangeListener { _, newValue ->
@@ -118,7 +118,7 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
-            // 添加菜单管理入口
+            // 菜单管理入口
             findPreference<Preference>("menu_manager")?.setOnPreferenceClickListener {
                 startActivity(Intent(requireContext(), MenuManagerActivity::class.java))
                 true

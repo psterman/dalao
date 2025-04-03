@@ -105,6 +105,8 @@ class SearchActivity : AppCompatActivity() {
     private var searchHistorySwitch: SwitchCompat? = null
     private var autoPasteSwitch: SwitchCompat? = null
     
+    private lateinit var rootLayout: View
+    
     // 更新开关状态
     private fun updateSwitchStates() {
         try {
@@ -323,6 +325,9 @@ class SearchActivity : AppCompatActivity() {
         setContentView(R.layout.activity_search)
         
         settingsManager = SettingsManager.getInstance(this)
+        
+        // Initialize rootLayout
+        rootLayout = findViewById(android.R.id.content)
         
         // 尝试查找布局和开关
         searchLayout = findViewById(R.id.webview_container) as? FrameLayout
@@ -2054,6 +2059,12 @@ class SearchActivity : AppCompatActivity() {
     private fun updateTheme() {
         try {
             when (settingsManager.getThemeMode()) {
+                SettingsManager.THEME_MODE_SYSTEM -> {
+                    // 使用默认主题
+                    window.statusBarColor = getColor(R.color.colorPrimaryDark)
+                    window.navigationBarColor = getColor(R.color.colorPrimaryDark)
+                    rootLayout?.setBackgroundColor(getColor(R.color.colorBackground))
+                }
                 SettingsManager.THEME_MODE_DEFAULT -> {
                     // 使用默认主题
                     window.statusBarColor = getColor(R.color.colorPrimaryDark)

@@ -73,12 +73,17 @@ class SearchWebViewActivity : AppCompatActivity() {
     private var isEdgeTouch = false
     private val hideLetterBarHandler = Handler(Looper.getMainLooper())
 
+    private lateinit var rootLayout: View
+
     override fun onCreate(savedInstanceState: Bundle?) {
         try {
             super.onCreate(savedInstanceState)
             setContentView(R.layout.activity_search_webview)
 
             settingsManager = SettingsManager.getInstance(this)
+            
+            // Initialize rootLayout
+            rootLayout = findViewById(android.R.id.content)
             
             setupViews()
             setupWebView()
@@ -458,30 +463,30 @@ class SearchWebViewActivity : AppCompatActivity() {
     private fun updateTheme() {
         try {
             when (settingsManager.getThemeMode()) {
-                SettingsManager.THEME_MODE_DEFAULT -> {
+                SettingsManager.THEME_MODE_SYSTEM -> {
                     // 使用默认主题
                     window.statusBarColor = getColor(R.color.colorPrimaryDark)
                     window.navigationBarColor = getColor(R.color.colorPrimaryDark)
-                    webView.setBackgroundColor(getColor(R.color.colorBackground))
+                    rootLayout?.setBackgroundColor(getColor(R.color.colorBackground))
                 }
                 SettingsManager.THEME_MODE_LIGHT -> {
                     // 使用浅色主题
                     window.statusBarColor = getColor(R.color.colorLightPrimaryDark)
                     window.navigationBarColor = getColor(R.color.colorLightPrimaryDark)
-                    webView.setBackgroundColor(getColor(R.color.colorLightBackground))
+                    rootLayout?.setBackgroundColor(getColor(R.color.colorLightBackground))
                 }
                 SettingsManager.THEME_MODE_DARK -> {
                     // 使用深色主题
                     window.statusBarColor = getColor(R.color.colorDarkPrimaryDark)
                     window.navigationBarColor = getColor(R.color.colorDarkPrimaryDark)
-                    webView.setBackgroundColor(getColor(R.color.colorDarkBackground))
+                    rootLayout?.setBackgroundColor(getColor(R.color.colorDarkBackground))
                 }
             }
         } catch (e: android.content.res.Resources.NotFoundException) {
             // 如果颜色资源不存在，使用默认颜色
             Log.e("SearchWebViewActivity", "Error applying theme: ${e.message}")
             window.statusBarColor = Color.parseColor("#1976D2") // Default blue
-            webView.setBackgroundColor(Color.WHITE)
+            rootLayout?.setBackgroundColor(Color.WHITE)
         }
     }
 
