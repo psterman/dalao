@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/search_box_background"
+    android:padding="8dp"
+    android:orientation="horizontal">
+
+    <EditText
+        android:id="@+id/search_edit_text"
+        android:layout_width="240dp"
+        android:layout_height="wrap_content"
+        android:background="@null"
+        android:hint="输入搜索内容..."
+        android:textColorHint="#80FFFFFF"
+        android:textColor="#FFFFFF"
+        android:textSize="16sp"
+        android:singleLine="true"
+        android:imeOptions="actionSearch"
+        android:inputType="text"/>
+
+</LinearLayout> 

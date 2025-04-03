@@ -92,6 +92,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     private var screenHeight = 0
     private var currentEngineIndex = 0
     
+    private var searchBoxView: View? = null
+    private var isSearchBoxVisible = false
+    
     private var recognizer: SpeechRecognizer? = null
     
     private var isCardViewMode = false
@@ -604,6 +607,56 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         try {
             floatingBallView = LayoutInflater.from(this).inflate(R.layout.floating_ball, null)
             
+            // 创建搜索框视图
+            searchBoxView = LayoutInflater.from(this).inflate(R.layout.search_box, null)
+            
+            // 设置搜索框的布局参数
+            val searchBoxParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            )
+            
+            // 设置搜索框的初始位置
+            searchBoxParams.gravity = Gravity.TOP or Gravity.START
+            searchBoxParams.x = screenWidth / 4
+            searchBoxParams.y = screenHeight / 4
+
+            // 设置搜索框的输入事件处理
+            val searchEditText = searchBoxView?.findViewById<EditText>(R.id.search_edit_text)
+            searchEditText?.setOnEditorActionListener { v, actionId, event ->
+                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                    val query = v.text.toString()
+                    if (query.isNotEmpty()) {
+                        performSearch(query)
+                    }
+                    hideSearchBox()
+                    true
+                } else {
+                    false
+                }
+            }
+            
+            // 设置搜索框外部点击事件，用于隐藏搜索框
+            searchBoxView?.setOnTouchListener { v, event ->
+                if (event.action == MotionEvent.ACTION_DOWN) {
+                    val x = event.x
+                    val y = event.y
+                    if (x < 0 || x > v.width || y < 0 || y > v.height) {
+                        hideSearchBox()
+                        return@setOnTouchListener true
+                    }
+                }
+                false
+            }
+
             // 设置悬浮球布局参数
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -613,11 +666,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 else
                     WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             )
-            
+
             // 设置初始位置
             params.gravity = Gravity.TOP or Gravity.START
             params.x = screenWidth - 100
@@ -645,13 +698,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         longPressRunnable = Runnable {
                             isLongPress = true
                             vibrate(200)
-                            // 长按打开搜索界面
-                            val intent = Intent(this@FloatingWindowService, SearchActivity::class.java).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                                putExtra("from_floating_ball", true)
-                            }
-                            startActivity(intent)
+                            showSearchBox()
                         }
                         longPressHandler.postDelayed(longPressRunnable!!, 500)
                         true
@@ -695,9 +742,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                         
                         if (!isLongPress && !isDragging) {
                             if (abs(event.rawX - initialTouchX) < 5 && abs(event.rawY - initialTouchY) < 5) {
-                                // 短按显示AI菜单
+                                // 修改这里：单击显示搜索框而不是AI菜单
+                                showSearchBox()
                                 vibrate(50)
-                                showAIMenu()
                             }
                         } else if (isDragging) {
                             // 处理拖动结束后的边缘吸附
@@ -717,6 +764,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 添加到窗口
             windowManager?.addView(floatingBallView, params)
+            windowManager?.addView(searchBoxView, searchBoxParams)
+            searchBoxView?.visibility = View.GONE
             
             // 初始化时应用主题
             updateFloatingBallTheme()
@@ -725,6 +774,84 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             Log.e("FloatingService", "创建悬浮球失败", e)
             Toast.makeText(this, "创建悬浮球失败: ${e.message}", Toast.LENGTH_LONG).show()
             stopSelf()
+        }
+    }
+    
+    private fun showSearchBox() {
+        if (!isSearchBoxVisible) {
+            // 更新搜索框参数，使其可以获取焦点
+            val params = searchBoxView?.layoutParams as? WindowManager.LayoutParams
+            params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) ?: 0
+            searchBoxView?.let { windowManager?.updateViewLayout(it, params) }
+            
+            searchBoxView?.visibility = View.VISIBLE
+            isSearchBoxVisible = true
+            
+            // 获取搜索框的EditText并设置焦点
+            val searchEditText = searchBoxView?.findViewById<EditText>(R.id.search_edit_text)
+            searchEditText?.let {
+                it.requestFocus()
+                it.setSelection(it.text.length)
+                
+                // 显示软键盘
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
+    }
+
+    private fun hideSearchBox() {
+        if (isSearchBoxVisible) {
+            // 更新搜索框参数，使其不可获取焦点
+            val params = searchBoxView?.layoutParams as? WindowManager.LayoutParams
+            params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) ?: 0
+            searchBoxView?.let { windowManager?.updateViewLayout(it, params) }
+            
+            searchBoxView?.visibility = View.GONE
+            isSearchBoxVisible = false
+            
+            // 隐藏软键盘
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            searchBoxView?.let {
+                imm.hideSoftInputFromWindow(it.windowToken, 0)
+            }
+        }
+    }
+
+    private fun performSearch(query: String) {
+        try {
+            // 获取默认搜索引擎
+            val defaultSearchEngine = menuItemsList
+                .filter { it.category == MenuCategory.NORMAL_SEARCH && it.isEnabled }
+                .firstOrNull()
+                
+            if (defaultSearchEngine != null) {
+                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                val searchUrl = when (defaultSearchEngine.name) {
+                    "百度" -> "https://www.baidu.com/s?wd=$encodedQuery"
+                    "Google" -> "https://www.google.com/search?q=$encodedQuery"
+                    "必应" -> "https://www.bing.com/search?q=$encodedQuery"
+                    "搜狗" -> "https://www.sogou.com/web?query=$encodedQuery"
+                    "360搜索" -> "https://www.so.com/s?q=$encodedQuery"
+                    else -> "${defaultSearchEngine.url}/search?q=$encodedQuery"
+                }
+                
+                // 使用FloatingWebViewService加载搜索结果
+                val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                    putExtra("url", searchUrl)
+                    putExtra("search_query", query)
+                }
+                startService(intent)
+                
+                // 提供反馈
+                vibrate(50)
+                Toast.makeText(this, "正在搜索: $query", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "未设置默认搜索引擎", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "执行搜索失败", e)
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
