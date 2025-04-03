@@ -82,14 +82,14 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         private const val TAG = "FloatingService" // 添加 TAG 常量
     }
 
-    private var windowManager: WindowManager? = null
+    protected var windowManager: WindowManager? = null
     private var floatingBallView: View? = null
-    private lateinit var gestureManager: GestureManager
-    private lateinit var quickMenuManager: QuickMenuManager
-    private lateinit var systemSettingsHelper: SystemSettingsHelper
-    private lateinit var iconLoader: IconLoader
-    private var screenWidth = 0
-    private var screenHeight = 0
+    protected lateinit var gestureManager: GestureManager
+    protected lateinit var quickMenuManager: QuickMenuManager
+    protected lateinit var systemSettingsHelper: SystemSettingsHelper
+    protected lateinit var iconLoader: IconLoader
+    protected var screenWidth = 0
+    protected var screenHeight = 0
     private var currentEngineIndex = 0
     
     private var searchBoxView: View? = null
@@ -264,6 +264,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     // 折叠屏设备检测标志
     private var isFoldableDevice = false
 
+    private var isAISearchMode = true
+    private var currentSearchEngines = mutableListOf<MenuItem>()
+
     override fun onBind(intent: Intent?): IBinder? = null
     
     override fun onCreate() {
@@ -272,6 +275,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             setupMemoryMonitoring()
             Log.d("FloatingService", "服务开始创建")
             super.onCreate()
+
+            // 立即启动前台服务
+            startForegroundOrNormal()
             
             // 初始化图标加载器
             iconLoader = IconLoader(this)
@@ -280,45 +286,6 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             // 初始化剪贴板管理器并立即开始监听
             clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboardManager.addPrimaryClipChangedListener(clipboardListener)
-            
-            // 检查初始剪贴板内容
-            Handler(Looper.getMainLooper()).post {
-                try {
-                    val clipData = clipboardManager.primaryClip
-                    val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
-                    
-                    if (!clipText.isNullOrEmpty()) {
-                        Log.d("FloatingService", "检测到初始剪贴板内容: $clipText")
-                        showOverlayDialog(clipText)
-                    }
-                } catch (e: Exception) {
-                    Log.e("FloatingService", "检查初始剪贴板内容失败", e)
-                }
-            }
-            
-            // 注册截图完成广播接收器
-            val screenshotFilter = IntentFilter(ScreenshotActivity.ACTION_SCREENSHOT_COMPLETED)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                registerReceiver(
-                    screenshotReceiver,
-                    screenshotFilter,
-                    Context.RECEIVER_NOT_EXPORTED
-                )
-            } else {
-                registerReceiver(screenshotReceiver, screenshotFilter)
-            }
-            Log.d("FloatingService", "广播接收器注册成功")
-            
-            // 初始化 SettingsManager
-            settingsManager = SettingsManager.getInstance(this)
-            
-            // 注册主题变化的广播接收器
-            val themeFilter = IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                registerReceiver(themeReceiver, themeFilter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                registerReceiver(themeReceiver, themeFilter)
-            }
             
             // 检查必要的权限
             if (!Settings.canDrawOverlays(this)) {
@@ -330,7 +297,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 初始化窗口管理器
             try {
-            initWindowManager()
+                initWindowManager()
             } catch (e: Exception) {
                 Log.e("FloatingService", "初始化窗口管理器失败", e)
                 Toast.makeText(this, "初始化窗口管理器失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -340,7 +307,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 获取屏幕尺寸
             try {
-            initScreenSize()
+                initScreenSize()
             } catch (e: Exception) {
                 Log.e("FloatingService", "获取屏幕尺寸失败", e)
                 Toast.makeText(this, "获取屏幕尺寸失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -350,7 +317,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             
             // 初始化所有管理器
             try {
-            initManagers()
+                initManagers()
             } catch (e: Exception) {
                 Log.e("FloatingService", "初始化管理器失败", e)
                 Toast.makeText(this, "初始化管理器失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -367,37 +334,9 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             // 创建菜单容器
             createMenuContainer()
             
-            // Initialize GestureDetector
-            gestureDetector = GestureDetector(this, object : GestureDetector.OnGestureListener {
-                override fun onDown(e: MotionEvent): Boolean {
-                    return true
-                }
-
-                override fun onShowPress(e: MotionEvent) {
-                }
-
-                override fun onSingleTapUp(e: MotionEvent): Boolean {
-                    return false
-                }
-
-                override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-                    return false
-                }
-
-                override fun onLongPress(e: MotionEvent) {
-                    // 长按时显示AI菜单而不是截图模式
-                    vibrate(200)
-                    showAIMenu()
-                }
-
-                override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-                    return false
-                }
-            })
-            
             // 创建并显示悬浮球
             try {
-            createFloatingBall()
+                createFloatingBall()
             } catch (e: Exception) {
                 Log.e("FloatingService", "创建悬浮球失败", e)
                 Toast.makeText(this, "创建悬浮球失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -405,25 +344,8 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 return
             }
             
-            // 尝试启动前台服务
-            try {
-            startForegroundOrNormal()
-            } catch (e: Exception) {
-                Log.e("FloatingService", "启动前台服务失败", e)
-                // 即使前台服务启动失败，也继续运行
-            }
-            
-            // 注册菜单更新广播接收器
-            val menuUpdateFilter = IntentFilter("com.example.aifloatingball.ACTION_UPDATE_MENU")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                registerReceiver(menuUpdateReceiver, menuUpdateFilter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                registerReceiver(menuUpdateReceiver, menuUpdateFilter)
-            }
-            
-            // 注册配置变更监听器
-            val filter = IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED)
-            registerReceiver(configurationChangeReceiver, filter)
+            // 注册广播接收器
+            registerReceivers()
             
             Log.d("FloatingService", "服务创建完成")
         } catch (e: Exception) {
@@ -432,59 +354,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             stopSelf()
         }
     }
-    
-    private fun initWindowManager() {
-        try {
-            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-            if (windowManager == null) {
-                throw IllegalStateException("无法获取WindowManager服务")
-            }
-            Log.d("FloatingService", "窗口管理器初始化成功")
-        } catch (e: Exception) {
-            Log.e("FloatingService", "窗口管理器初始化失败", e)
-            throw e
-        }
-    }
-    
-    private fun initScreenSize() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val windowMetrics = windowManager?.currentWindowMetrics
-                windowMetrics?.bounds?.let {
-                    screenWidth = it.width()
-                    screenHeight = it.height()
-                }
-            } else {
-                val displayMetrics = DisplayMetrics()
-                @Suppress("DEPRECATION")
-                windowManager?.defaultDisplay?.getRealMetrics(displayMetrics)
-                screenWidth = displayMetrics.widthPixels
-                screenHeight = displayMetrics.heightPixels
-            }
-            
-            if (screenWidth == 0 || screenHeight == 0) {
-                throw IllegalStateException("无法获取屏幕尺寸")
-            }
-            Log.d("FloatingService", "屏幕尺寸: ${screenWidth}x${screenHeight}")
-            cardSpacing = 60.dpToPx()
-        } catch (e: Exception) {
-            Log.e("FloatingService", "获取屏幕尺寸失败", e)
-            throw e
-        }
-    }
-    
-    private fun initManagers() {
-        try {
-            systemSettingsHelper = SystemSettingsHelper(this)
-            gestureManager = GestureManager(this, this)
-            quickMenuManager = QuickMenuManager(this, windowManager!!)
-            Log.d("FloatingService", "所有管理器初始化成功")
-        } catch (e: Exception) {
-            Log.e("FloatingService", "初始化管理器失败", e)
-            throw e
-        }
-    }
-    
+
     private fun startForegroundOrNormal() {
         try {
             val channelId = "floating_ball_service"
@@ -512,7 +382,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 this,
                 0,
                 Intent(this, PermissionActivity::class.java),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
                 
             val notification = NotificationCompat.Builder(this, channelId)
@@ -524,26 +394,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build()
             
+            // 立即启动前台服务
             startForeground(NOTIFICATION_ID, notification)
             Log.d("FloatingService", "前台服务启动成功")
         } catch (e: Exception) {
             Log.e("FloatingService", "前台服务启动失败", e)
-            
-            // 显示错误提示
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(
-                    this, 
-                    "前台服务启动失败：${e.message}\n将以普通服务运行", 
-                    Toast.LENGTH_LONG
-                ).show()
-                
-                // 尝试以普通服务启动
-                try {
-                    startService(Intent(this, FloatingWindowService::class.java))
-                } catch (serviceStartException: Exception) {
-                    Log.e("FloatingService", "普通服务启动失败", serviceStartException)
-                }
-            }
+            Toast.makeText(this, "前台服务启动失败：${e.message}", Toast.LENGTH_LONG).show()
         }
     }
     
@@ -787,18 +643,124 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             searchBoxView?.visibility = View.VISIBLE
             isSearchBoxVisible = true
             
+            // 初始化搜索引擎列表
+            updateSearchEnginesList()
+            
+            // 设置切换按钮点击事件
+            searchBoxView?.findViewById<ImageView>(R.id.toggle_search_mode)?.setOnClickListener {
+                isAISearchMode = !isAISearchMode
+                updateSearchMode()
+                vibrate(50)
+            }
+            
             // 获取搜索框的EditText并设置焦点
             val searchEditText = searchBoxView?.findViewById<EditText>(R.id.search_edit_text)
-            searchEditText?.let {
-                it.requestFocus()
-                it.setSelection(it.text.length)
+            searchEditText?.let { editText ->
+                editText.requestFocus()
+                editText.setSelection(editText.text.length)
+                
+                // 设置文本变化监听
+                editText.addTextChangedListener(object : TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                    override fun afterTextChanged(s: Editable?) {
+                        // 当输入框有内容时显示搜索引擎列表，否则隐藏
+                        searchBoxView?.findViewById<HorizontalScrollView>(R.id.search_engines_scroll)?.visibility =
+                            if (s?.isNotEmpty() == true) View.VISIBLE else View.GONE
+                    }
+                })
+                
+                // 设置搜索动作监听
+                editText.setOnEditorActionListener { v, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                        val query = v.text.toString()
+                        if (query.isNotEmpty()) {
+                            // 使用默认搜索引擎执行搜索
+                            performSearchWithDefaultEngine(query)
+                        }
+                        hideSearchBox()
+                        true
+                    } else {
+                        false
+                    }
+                }
                 
                 // 延迟100毫秒后显示软键盘，确保视图已完全显示
                 Handler(Looper.getMainLooper()).postDelayed({
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showSoftInput(it, InputMethodManager.SHOW_FORCED)
+                    imm.showSoftInput(editText, InputMethodManager.SHOW_FORCED)
                 }, 100)
             }
+            
+            // 初始化搜索模式
+            updateSearchMode()
+        }
+    }
+    
+    private fun updateSearchMode() {
+        val toggleButton = searchBoxView?.findViewById<ImageView>(R.id.toggle_search_mode)
+        toggleButton?.setImageResource(
+            if (isAISearchMode) R.drawable.ic_ai_search else R.drawable.ic_normal_search
+        )
+        
+        // 更新搜索引擎列表
+        updateSearchEnginesList()
+    }
+    
+    private fun updateSearchEnginesList() {
+        val container = searchBoxView?.findViewById<LinearLayout>(R.id.search_engines_container)
+        container?.removeAllViews()
+        
+        // 根据当前模式获取搜索引擎列表
+        currentSearchEngines = menuItemsList
+            .filter { 
+                when {
+                    isAISearchMode -> it.category == MenuCategory.AI_SEARCH
+                    else -> it.category == MenuCategory.NORMAL_SEARCH
+                }
+            }
+            .filter { it.isEnabled }
+            .toMutableList()
+            
+        // 创建并添加搜索引擎图标
+        currentSearchEngines.forEach { menuItem ->
+            val engineView = LayoutInflater.from(this)
+                .inflate(R.layout.search_engine_item, container, false) as ImageView
+            
+            // 加载图标
+            if ((menuItem.category == MenuCategory.NORMAL_SEARCH || 
+                 menuItem.category == MenuCategory.AI_SEARCH) &&
+                !menuItem.url.startsWith("action://")) {
+                iconLoader.loadIcon(menuItem.url, engineView, menuItem.iconResId)
+            } else {
+                engineView.setImageResource(menuItem.iconResId)
+            }
+            
+            // 设置点击事件
+            engineView.setOnClickListener {
+                val searchEditText = searchBoxView?.findViewById<EditText>(R.id.search_edit_text)
+                val query = searchEditText?.text?.toString()
+                if (!query.isNullOrEmpty()) {
+                    performSearch(query, menuItem)
+                    hideSearchBox()
+                }
+                vibrate(50)
+            }
+            
+            container?.addView(engineView)
+        }
+        
+        // 根据是否有输入内容决定是否显示搜索引擎列表
+        val searchEditText = searchBoxView?.findViewById<EditText>(R.id.search_edit_text)
+        searchBoxView?.findViewById<HorizontalScrollView>(R.id.search_engines_scroll)?.visibility =
+            if (searchEditText?.text?.isNotEmpty() == true) View.VISIBLE else View.GONE
+    }
+    
+    private fun performSearchWithDefaultEngine(query: String) {
+        // 获取默认搜索引擎
+        val defaultEngine = currentSearchEngines.firstOrNull()
+        if (defaultEngine != null) {
+            performSearch(query, defaultEngine)
         }
     }
 
@@ -1881,8 +1843,7 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
             // 如果是搜索引擎，尝试加载网站图标
             if ((menuItem.category == MenuCategory.NORMAL_SEARCH || 
                  menuItem.category == MenuCategory.AI_SEARCH) &&
-                !menuItem.url.startsWith("action://") && 
-                !menuItem.url.startsWith("back://")) {
+                !menuItem.url.startsWith("action://")) {
                 iconLoader.loadIcon(menuItem.url, icon, menuItem.iconResId)
             } else {
                 icon.setImageResource(menuItem.iconResId)
@@ -2378,5 +2339,85 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         
         // 隐藏菜单容器
         menuContainer?.visibility = View.GONE
+    }
+
+    private fun registerReceivers() {
+        try {
+            // 注册截图完成广播接收器
+            val screenshotFilter = IntentFilter(ScreenshotActivity.ACTION_SCREENSHOT_COMPLETED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(
+                    screenshotReceiver,
+                    screenshotFilter,
+                    Context.RECEIVER_NOT_EXPORTED
+                )
+            } else {
+                registerReceiver(screenshotReceiver, screenshotFilter)
+            }
+            
+            // 注册主题变化的广播接收器
+            val themeFilter = IntentFilter("com.example.aifloatingball.LAYOUT_THEME_CHANGED")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(themeReceiver, themeFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(themeReceiver, themeFilter)
+            }
+            
+            // 注册菜单更新广播接收器
+            val menuUpdateFilter = IntentFilter("com.example.aifloatingball.ACTION_UPDATE_MENU")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                registerReceiver(menuUpdateReceiver, menuUpdateFilter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(menuUpdateReceiver, menuUpdateFilter)
+            }
+            
+            // 注册配置变更监听器
+            val configFilter = IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED)
+            registerReceiver(configurationChangeReceiver, configFilter)
+            
+            Log.d("FloatingService", "所有广播接收器注册成功")
+        } catch (e: Exception) {
+            Log.e("FloatingService", "注册广播接收器失败", e)
+        }
+    }
+
+    // 添加初始化方法
+    private fun initWindowManager() {
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        if (windowManager == null) {
+            throw IllegalStateException("无法初始化窗口管理器")
+        }
+    }
+    
+    private fun initScreenSize() {
+        val displayMetrics = DisplayMetrics()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = windowManager?.currentWindowMetrics
+            screenWidth = metrics?.bounds?.width() ?: 0
+            screenHeight = metrics?.bounds?.height() ?: 0
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager?.defaultDisplay?.getMetrics(displayMetrics)
+            screenWidth = displayMetrics.widthPixels
+            screenHeight = displayMetrics.heightPixels
+        }
+        
+        if (screenWidth == 0 || screenHeight == 0) {
+            throw IllegalStateException("无法获取屏幕尺寸")
+        }
+    }
+    
+    private fun initManagers() {
+        // 初始化设置管理器
+        settingsManager = SettingsManager.getInstance(this)
+        
+        // 初始化手势管理器
+        gestureManager = GestureManager(this, this)
+        
+        // 初始化快捷菜单管理器
+        quickMenuManager = QuickMenuManager(this, windowManager!!)
+        
+        // 初始化系统设置助手
+        systemSettingsHelper = SystemSettingsHelper(this)
     }
 }
