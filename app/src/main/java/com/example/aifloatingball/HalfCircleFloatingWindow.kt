@@ -2,9 +2,12 @@ package com.example.aifloatingball
 
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.Bitmap
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.view.animation.Interpolator
 import android.animation.ValueAnimator
 import android.animation.AnimatorListenerAdapter
@@ -12,6 +15,8 @@ import android.animation.Animator
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
+import android.widget.ImageView
+import android.webkit.WebView
 
 /**
  * 半圆形悬浮窗管理类
@@ -20,14 +25,19 @@ import androidx.core.graphics.ColorUtils
 class HalfCircleFloatingWindow(private val context: Context) {
     
     companion object {
-        private const val TAG = "HalfCircleWindow"
-        private const val ANIMATION_DURATION = 350L
+        private const val TAG = "HalfCircleFloatingWindow"
+        private const val ANIMATION_DURATION = 300L
         
         // 边缘位置常量
         const val EDGE_NONE = 0
         const val EDGE_LEFT = 1
         const val EDGE_RIGHT = 2
+        
+        private const val BALL_SIZE = 48 // dp
     }
+    
+    // 添加 floatingView 属性
+    private var floatingView: View? = null
     
     // 屏幕尺寸
     private val screenWidth = context.resources.displayMetrics.widthPixels
@@ -50,6 +60,15 @@ class HalfCircleFloatingWindow(private val context: Context) {
     
     // 边缘检测阈值
     private val edgeThreshold = context.resources.getDimensionPixelSize(R.dimen.edge_snap_threshold)
+    
+    private var currentFavicon: Bitmap? = null
+    private var defaultIcon: Drawable? = null
+    
+    private var edgeSnapAnimator: ValueAnimator? = null
+    
+    init {
+        defaultIcon = ContextCompat.getDrawable(context, R.drawable.ic_web_default)
+    }
     
     /**
      * 检查是否靠近边缘并执行相应动画
@@ -78,74 +97,69 @@ class HalfCircleFloatingWindow(private val context: Context) {
      * 将悬浮窗动画到边缘并变为半圆形
      */
     fun animateToEdge(isLeft: Boolean, view: View, params: WindowManager.LayoutParams, windowManager: WindowManager, onWebViewScrollDisable: () -> Unit) {
+        if (isAnimating) return
+        
         try {
+            // 保存 view 引用
+            floatingView = view
+            
             // 取消之前的动画
-            animator?.cancel()
+            edgeSnapAnimator?.cancel()
             
-            // 记录原始尺寸，用于恢复
-            originalWidth = params.width
-            originalHeight = params.height
+            // 保存原始状态
+            if (!isHidden) {
+                originalWidth = params.width
+                originalHeight = params.height
+                originalX = params.x
+                originalY = params.y
+            }
             
-            // 计算半圆形的尺寸 - 高度不变，宽度变为高度的一半
-            val targetWidth = params.height / 2
-            val targetHeight = params.height
-            
-            // 计算目标位置 - 靠边
-            val targetX = if (isLeft) 0 else screenWidth - targetWidth
-            val targetY = params.y
+            val ballSize = (BALL_SIZE * context.resources.displayMetrics.density).toInt()
             
             // 创建动画
-            animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = ANIMATION_DURATION
                 interpolator = DecelerateInterpolator()
                 
                 addUpdateListener { animator ->
-                    val progress = animator.animatedValue as Float
+                    val fraction = animator.animatedFraction
+                    params.width = lerpInt(originalWidth, ballSize, fraction)
+                    params.height = lerpInt(originalHeight, ballSize, fraction)
+                    params.x = lerpInt(originalX, if (isLeft) 0 else (screenWidth - ballSize), fraction)
                     
                     try {
-                        // 计算当前宽度、高度和位置
-                        params.width = lerpInt(params.width, targetWidth, progress)
-                        params.height = lerpInt(params.height, targetHeight, progress)
-                        params.x = lerpInt(params.x, targetX, progress)
-                        params.y = lerpInt(params.y, targetY, progress)
-                        
-                        // 更新悬浮窗
                         windowManager.updateViewLayout(view, params)
-                        
-                        // 应用半圆形状
-                        applyHalfCircleShape(view, isLeft, progress)
+                        updateViewsAlpha(view, 1f - fraction)
                     } catch (e: Exception) {
-                        Log.e(TAG, "更新布局参数失败", e)
+                        Log.e(TAG, "更新布局失败", e)
                     }
                 }
                 
                 addListener(object : AnimatorListenerAdapter() {
                     override fun onAnimationStart(animation: Animator) {
                         isAnimating = true
-                        isHidden = true
-                        edgePosition = if (isLeft) EDGE_LEFT else EDGE_RIGHT
-                        
-                        // 禁用 WebView 的滚动
                         onWebViewScrollDisable()
+                        // 显示悬浮球
+                        getFloatingBallView()?.visibility = View.VISIBLE
+                        // 设置当前图标
+                        updateFloatingBallIcon(currentFavicon)
                     }
                     
                     override fun onAnimationEnd(animation: Animator) {
-                        if (!animation.isRunning) {
-                            isAnimating = false
-                            Log.d(TAG, "动画结束，悬浮窗已靠边")
-                        }
-                    }
-                    
-                    override fun onAnimationCancel(animation: Animator) {
                         isAnimating = false
-                        isHidden = false
+                        isHidden = true
+                        // 隐藏主要内容视图
+                        view.findViewById<WebView>(R.id.floating_webview)?.visibility = View.GONE
+                        view.findViewById<View>(R.id.title_bar)?.visibility = View.GONE
+                        view.findViewById<View>(R.id.search_bar)?.visibility = View.GONE
+                        view.findViewById<View>(R.id.navigation_bar)?.visibility = View.GONE
                     }
                 })
                 
                 start()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "靠边动画失败", e)
+            Log.e(TAG, "创建边缘动画失败", e)
             isAnimating = false
             isHidden = false
         }
@@ -199,71 +213,61 @@ class HalfCircleFloatingWindow(private val context: Context) {
     /**
      * 从边缘恢复到中心
      */
-    fun animateShowToCenter(view: View, params: WindowManager.LayoutParams, windowManager: WindowManager, onWebViewScrollEnable: () -> Unit, onViewsShow: () -> Unit) {
+    fun animateShowToCenter(view: View, params: WindowManager.LayoutParams, windowManager: WindowManager, onWebViewScrollEnable: () -> Unit) {
+        if (isAnimating) return
+        
         try {
-            // 取消之前的动画
-            animator?.cancel()
+            // 保存 view 引用
+            floatingView = view
             
-            // 计算目标位置和尺寸
-            val targetWidth = originalWidth
-            val targetHeight = originalHeight
-            val targetX = (screenWidth - targetWidth) / 2
-            val targetY = (screenHeight - targetHeight) / 3
+            // 取消当前动画
+            edgeSnapAnimator?.cancel()
+            
+            // 显示主视图
+            view.visibility = View.VISIBLE
+            
+            val ballSize = (BALL_SIZE * context.resources.displayMetrics.density).toInt()
             
             // 创建动画
-            animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
                 duration = ANIMATION_DURATION
-                interpolator = DecelerateInterpolator()
+                interpolator = OvershootInterpolator(1.2f)
                 
                 addUpdateListener { animator ->
-                    val progress = animator.animatedValue as Float
+                    val fraction = animator.animatedFraction
+                    params.width = lerpInt(ballSize, originalWidth, fraction)
+                    params.height = lerpInt(ballSize, originalHeight, fraction)
+                    params.x = lerpInt(params.x, originalX, fraction)
                     
                     try {
-                        // 计算当前宽度、高度和位置
-                        params.width = lerpInt(params.width, targetWidth, progress)
-                        params.height = lerpInt(params.height, targetHeight, progress)
-                        params.x = lerpInt(params.x, targetX, progress)
-                        params.y = lerpInt(params.y, targetY, progress)
-                        
-                        // 更新悬浮窗
                         windowManager.updateViewLayout(view, params)
-                        
-                        // 恢复正常形状
-                        restoreNormalShape(view, progress)
+                        updateViewsAlpha(view, fraction)
                     } catch (e: Exception) {
-                        Log.e(TAG, "更新布局参数失败", e)
+                        Log.e(TAG, "更新布局失败", e)
                     }
                 }
                 
                 addListener(object : AnimatorListenerAdapter() {
                     override fun onAnimationStart(animation: Animator) {
                         isAnimating = true
-                        
-                        // 启用 WebView 的滚动和缩放
                         onWebViewScrollEnable()
+                        // 显示主要内容视图
+                        view.findViewById<WebView>(R.id.floating_webview)?.visibility = View.VISIBLE
+                        view.findViewById<View>(R.id.title_bar)?.visibility = View.VISIBLE
                     }
                     
                     override fun onAnimationEnd(animation: Animator) {
                         isAnimating = false
                         isHidden = false
-                        edgePosition = EDGE_NONE
-                        
-                        // 显示所有控件
-                        onViewsShow()
-                        
-                        onWebViewScrollEnable()
-                    }
-                    
-                    override fun onAnimationCancel(animation: Animator) {
-                        isAnimating = false
-                        onWebViewScrollEnable()
+                        // 隐藏悬浮球
+                        getFloatingBallView()?.visibility = View.GONE
                     }
                 })
                 
                 start()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "恢复动画失败", e)
+            Log.e(TAG, "创建恢复动画失败", e)
             isAnimating = false
             isHidden = false
         }
@@ -347,4 +351,35 @@ class HalfCircleFloatingWindow(private val context: Context) {
     fun isAnimating(): Boolean = isAnimating
     
     fun getEdgePosition(): Int = edgePosition
+    
+    fun setFavicon(favicon: Bitmap?) {
+        currentFavicon = favicon
+        if (isHidden) {
+            // 如果当前是隐藏状态，更新浮动球的图标
+            updateFloatingBallIcon(favicon)
+        }
+    }
+    
+    private fun updateFloatingBallIcon(favicon: Bitmap?) {
+        val floatingBall = getFloatingBallView()
+        if (floatingBall != null) {
+            if (favicon != null) {
+                floatingBall.setImageBitmap(favicon)
+            } else {
+                floatingBall.setImageResource(R.drawable.ic_web_default)
+            }
+        }
+    }
+    
+    private fun getFloatingBallView(): ImageView? {
+        return floatingView?.findViewById(R.id.floating_ball)
+    }
+    
+    private fun updateViewsAlpha(view: View, alpha: Float) {
+        view.findViewById<WebView>(R.id.floating_webview)?.alpha = alpha
+        view.findViewById<View>(R.id.title_bar)?.alpha = alpha
+        view.findViewById<View>(R.id.search_bar)?.alpha = alpha
+        view.findViewById<View>(R.id.navigation_bar)?.alpha = alpha
+        getFloatingBallView()?.alpha = 1f - alpha
+    }
 } 

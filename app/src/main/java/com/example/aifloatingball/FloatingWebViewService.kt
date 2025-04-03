@@ -48,6 +48,7 @@ import androidx.core.graphics.ColorUtils
 import android.view.animation.Interpolator
 import android.graphics.drawable.Drawable
 import com.example.aifloatingball.R
+import android.graphics.Bitmap
 
 class FloatingWebViewService : Service() {
     companion object {
@@ -75,6 +76,7 @@ class FloatingWebViewService : Service() {
         private const val DEFAULT_CORNER_RADIUS = 16f // dp
         private const val DEFAULT_BACKGROUND_COLOR = 0xFFFFFFFF.toInt() // 白色
         private const val DEFAULT_BORDER_COLOR = 0x1A000000.toInt() // 半透明黑色
+        private const val FAVICON_SIZE_DP = 40 // 悬浮球大小
     }
     
     private lateinit var windowManager: WindowManager
@@ -154,6 +156,9 @@ class FloatingWebViewService : Service() {
     private var lastWindowState: WindowState? = null
     private var searchBar: View? = null
     private var navigationBar: View? = null
+    
+    private var faviconView: ImageView? = null
+    private var currentFavicon: Bitmap? = null
     
     private data class WindowState(
         val width: Int,
@@ -240,22 +245,34 @@ class FloatingWebViewService : Service() {
     
     private fun createFloatingView() {
         try {
-        // 加载悬浮窗布局
-        floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_webview, null)
-        
-        // 初始化视图组件
+            // 加载悬浮窗布局
+            floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_webview, null)
+            
+            // 创建favicon视图
+            faviconView = ImageView(this).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    (FAVICON_SIZE_DP * resources.displayMetrics.density).toInt(),
+                    (FAVICON_SIZE_DP * resources.displayMetrics.density).toInt()
+                )
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setBackgroundResource(R.drawable.favicon_background) // 需要创建圆形背景drawable
+                visibility = View.GONE
+            }
+            
+            // 初始化视图组件
             initializeViews()
-        
-        // 创建窗口参数
-        val params = createWindowLayoutParams()
+            
+            // 创建窗口参数
+            val params = createWindowLayoutParams()
             
             // 应用最小尺寸限制
             params.width = maxOf(params.width, getMinWidth())
             params.height = maxOf(params.height, getMinHeight())
-        
-        // 添加到窗口
+            
+            // 添加到窗口
             windowManager.addView(floatingView, params)
-        
+            windowManager.addView(faviconView, createFaviconLayoutParams())
+            
             // 保存初始状态
             originalWidth = params.width
             originalHeight = params.height
@@ -286,6 +303,26 @@ class FloatingWebViewService : Service() {
             gravity = Gravity.CENTER
             x = 0
             y = 0
+        }
+    }
+    
+    private fun createFaviconLayoutParams(): WindowManager.LayoutParams {
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        
+        return WindowManager.LayoutParams(
+            (FAVICON_SIZE_DP * resources.displayMetrics.density).toInt(),
+            (FAVICON_SIZE_DP * resources.displayMetrics.density).toInt(),
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.START or Gravity.TOP
+            x = 0
+            y = screenHeight / 3
         }
     }
     
@@ -332,10 +369,91 @@ class FloatingWebViewService : Service() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     forceDark = WebSettings.FORCE_DARK_OFF
                 }
+                
+                // 启用文件访问
+                allowFileAccess = true
+                
+                // 启用 DOM storage API
+                domStorageEnabled = true
+                
+                // 设置默认字体大小
+                defaultFontSize = 16
+                
+                // 启用 JavaScript 接口
+                javaScriptCanOpenWindowsAutomatically = true
             }
             
             // 设置WebView背景为白色
             setBackgroundColor(Color.WHITE)
+            
+            // 设置 WebViewClient
+            webViewClient = object : WebViewClient() {
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    progressBar?.visibility = View.VISIBLE
+                }
+                
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    progressBar?.visibility = View.GONE
+                    
+                    // 确保WebView可见
+                    view?.visibility = View.VISIBLE
+                    
+                    // 更新导航按钮状态
+                    updateNavigationButtons()
+                    
+                    // 注入JavaScript以确保内容正确显示
+                    val js = """
+                        javascript:(function() {
+                            document.body.style.backgroundColor = 'white';
+                            var meta = document.querySelector('meta[name="viewport"]');
+                            if (!meta) {
+                                meta = document.createElement('meta');
+                                meta.name = 'viewport';
+                                document.head.appendChild(meta);
+                            }
+                            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
+                            
+                            // 确保所有链接在WebView内打开
+                            var links = document.getElementsByTagName('a');
+                            for(var i = 0; i < links.length; i++) {
+                                links[i].target = '_self';
+                            }
+                        })()
+                    """.trimIndent()
+                    view?.evaluateJavascript(js, null)
+                }
+                
+                override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                    super.onReceivedError(view, errorCode, description, failingUrl)
+                    progressBar?.visibility = View.GONE
+                    Toast.makeText(this@FloatingWebViewService, "页面加载失败: $description", Toast.LENGTH_SHORT).show()
+                }
+                
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    url?.let {
+                        if (URLUtil.isNetworkUrl(it) || URLUtil.isAssetUrl(it) || URLUtil.isContentUrl(it)) {
+                            view?.loadUrl(it)
+                            return true
+                        }
+                    }
+                    return false
+                }
+            }
+            
+            // 设置 WebChromeClient
+            webChromeClient = object : WebChromeClient() {
+                override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                    super.onProgressChanged(view, newProgress)
+                    progressBar?.progress = newProgress
+                }
+                
+                override fun onReceivedTitle(view: WebView?, title: String?) {
+                    super.onReceivedTitle(view, title)
+                    floatingTitle?.text = title
+                }
+            }
             
             // 修改触摸事件处理
             setOnTouchListener { view, event ->
@@ -353,104 +471,6 @@ class FloatingWebViewService : Service() {
                 // 正常状态下不拦截触摸事件
                 false
             }
-
-            // 修改 WebViewClient 设置，避免 null 赋值错误
-            webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    progressBar?.visibility = View.GONE
-                    
-                    // 确保WebView可见
-                    view?.visibility = View.VISIBLE
-                    
-                    // 根据无图模式状态应用滤镜
-                    if (isNoImageMode) {
-                        applyImageFilter()
-                    } else {
-                        removeImageFilter()
-                    }
-                    
-                    // 更新导航按钮状态
-                    updateNavigationButtons()
-                    
-                    // 根据悬浮窗状态设置网页是否可滚动，但保留缩放功能
-                    val js = if (isHidden) {
-                        """
-                        javascript:(function() {
-                            document.body.style.overflow = 'hidden';
-                            document.documentElement.style.overflow = 'hidden';
-                            
-                            // 确保缩放功能可用
-                            var meta = document.querySelector('meta[name="viewport"]');
-                            if (meta) {
-                                meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
-                            }
-                        })()
-                        """
-                    } else {
-                        """
-                        javascript:(function() {
-                            document.body.style.overflow = '';
-                            document.documentElement.style.overflow = '';
-                            
-                            // 确保缩放功能可用
-                            var meta = document.querySelector('meta[name="viewport"]');
-                            if (meta) {
-                                meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
-                            }
-                        })()
-                        """
-                    }
-                    view?.evaluateJavascript(js, null)
-                    
-                    // 注入JavaScript以确保内容正确显示，并保留缩放功能
-                    val displayJs = """
-                        javascript:(function() {
-                            document.body.style.backgroundColor = 'white';
-                            var meta = document.querySelector('meta[name="viewport"]');
-                            if (!meta) {
-                                meta = document.createElement('meta');
-                                meta.name = 'viewport';
-                                document.head.appendChild(meta);
-                            }
-                            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
-                        })()
-                    """.trimIndent()
-                    view?.evaluateJavascript(displayJs, null)
-                }
-                
-                override fun shouldInterceptRequest(
-                    view: WebView?,
-                    request: WebResourceRequest?
-                ): WebResourceResponse? {
-                    // 实现广告过滤
-                    if (isAdBlockEnabled && request?.url?.toString()?.containsAdUrl() == true) {
-                        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream("".toByteArray()))
-                    }
-                    return super.shouldInterceptRequest(view, request)
-                }
-                
-                // 处理所有链接在WebView内打开
-                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                    return false
-                }
-            }
-            
-            webChromeClient = object : WebChromeClient() {
-                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                    super.onProgressChanged(view, newProgress)
-                    progressBar?.progress = newProgress
-                }
-                
-                // 处理网页标题变化
-                override fun onReceivedTitle(view: WebView?, title: String?) {
-                    super.onReceivedTitle(view, title)
-                    // 更新悬浮窗标题
-                    floatingTitle?.text = title ?: getString(R.string.app_name)
-                }
-            }
-            
-           
         }
     }
     
@@ -577,14 +597,14 @@ class FloatingWebViewService : Service() {
                     }
                 }
                 
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
                         // 记录初始位置
-                    initialX = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.x ?: 0
-                    initialY = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.y ?: 0
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    isMoving = false
+                        initialX = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.x ?: 0
+                        initialY = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.y ?: 0
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        isMoving = false
                         lastActionDownTime = System.currentTimeMillis()
                         
                         // 检测双击
@@ -596,7 +616,7 @@ class FloatingWebViewService : Service() {
                             return@setOnTouchListener true
                         }
                         lastClickTime = clickTime
-
+                        
                         // 取消任何正在进行的动画
                         edgeSnapAnimator?.cancel()
                         
@@ -606,39 +626,28 @@ class FloatingWebViewService : Service() {
                                 floatingView ?: return@setOnTouchListener false,
                                 floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false,
                                 windowManager,
-                                {
-                                    // 启用 WebView 滚动回调
-                                    enableWebViewScrolling()
-                                },
-                                {
-                                    // 显示所有控件回调
-                                    webView?.visibility = View.VISIBLE
-                                    searchInput?.visibility = View.VISIBLE
-                                    searchButton?.visibility = View.VISIBLE
-                                    closeButton?.visibility = View.VISIBLE
-                                    expandButton?.visibility = View.VISIBLE
-                                }
+                                { enableWebViewScrolling() }
                             )
                             return@setOnTouchListener true
                         }
                         
                         return@setOnTouchListener true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val deltaX = event.rawX - initialTouchX
-                    val deltaY = event.rawY - initialTouchY
-                    
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val deltaX = event.rawX - initialTouchX
+                        val deltaY = event.rawY - initialTouchY
+                        
                         // 如果移动距离超过阈值，标记为拖动
                         if (abs(deltaX) > 10 || abs(deltaY) > 10) {
-                        isMoving = true
-                    }
-                    
+                            isMoving = true
+                        }
+                        
                         // 处理拖动状态
                         val params = floatingView?.layoutParams as? WindowManager.LayoutParams
-                    if (isMoving && params != null) {
+                        if (isMoving && params != null) {
                             // 更新位置
-                        params.x = initialX + deltaX.toInt()
-                        params.y = initialY + deltaY.toInt()
+                            params.x = initialX + deltaX.toInt()
+                            params.y = initialY + deltaY.toInt()
                             
                             // 限制在屏幕范围内
                             params.x = params.x.coerceIn(
@@ -700,8 +709,8 @@ class FloatingWebViewService : Service() {
                         }
                         
                         return@setOnTouchListener true
-                }
-                MotionEvent.ACTION_UP -> {
+                    }
+                    MotionEvent.ACTION_UP -> {
                         val currentTime = System.currentTimeMillis()
                         val isClick = !isMoving && (currentTime - lastActionDownTime < 300)
                         
@@ -750,9 +759,9 @@ class FloatingWebViewService : Service() {
                         isMoving = false
                         
                         // 拖动结束后，移除 FLAG_NOT_FOCUSABLE 标志，以便输入框可以获取焦点
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams
+                        val params = floatingView?.layoutParams as? WindowManager.LayoutParams
                         if (params != null) {
-                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
                             try {
                                 windowManager.updateViewLayout(floatingView, params)
                             } catch (e: Exception) {
@@ -1241,13 +1250,24 @@ class FloatingWebViewService : Service() {
             // 处理传入的URL
             val url = it.getStringExtra("url")
             if (!url.isNullOrEmpty()) {
-                // 确保WebView可见
+                // 确保 WebView 已经初始化
+                if (webView == null) {
+                    initializeViews()
+                }
+                
+                // 确保 WebView 可见
                 webView?.visibility = View.VISIBLE
                 
-                // 延迟加载URL，确保WebView已经初始化完成
+                // 延迟加载URL，确保WebView已经完全初始化完成
                 Handler(Looper.getMainLooper()).postDelayed({
-                    webView?.loadUrl(url)
-                }, 100)
+                    try {
+                        Log.d(TAG, "Loading URL: $url")
+                        webView?.loadUrl(url)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to load URL: $url", e)
+                        Toast.makeText(this, "加载页面失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }, 500) // 增加延迟时间到500ms
             }
             
             // 处理传入的搜索查询
@@ -1255,10 +1275,15 @@ class FloatingWebViewService : Service() {
             if (!query.isNullOrEmpty()) {
                 searchInput?.setText(query)
                 
-                // 延迟执行搜索，确保WebView已经初始化完成
+                // 延迟执行搜索，确保WebView已经完全初始化完成
                 Handler(Looper.getMainLooper()).postDelayed({
-                    performSearch(query)
-                }, 100)
+                    try {
+                        performSearch(query)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to perform search: $query", e)
+                        Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }, 500) // 增加延迟时间到500ms
             }
         }
         
@@ -1276,6 +1301,12 @@ class FloatingWebViewService : Service() {
             floatingView?.let {
                 windowManager.removeView(it)
                 floatingView = null
+            }
+            
+            // 移除favicon视图
+            faviconView?.let {
+                windowManager.removeView(it)
+                faviconView = null
             }
             
             // 清理动画
@@ -1343,61 +1374,20 @@ class FloatingWebViewService : Service() {
     }
     
     private fun animateToEdge(isLeft: Boolean) {
+        if (isAnimating) return
+        
         try {
-            // 取消之前的动画
-            edgeSnapAnimator?.cancel()
-            
             val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
             
-            // 保存原始状态
-            if (!isHidden) {
-            originalWidth = params.width
-            originalHeight = params.height
-                originalX = params.x
-                originalY = params.y
-            }
-            
-            // 计算目标位置和大小
-            val targetWidth = (originalWidth * 0.2f).toInt()
-            val targetX = if (isLeft) 0 else screenWidth - targetWidth
-            
-            // 创建动画
-            edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-                duration = EDGE_ANIMATION_DURATION
-                interpolator = OvershootInterpolator(1.2f)
-                
-                addUpdateListener { animator ->
-                    val fraction = animator.animatedFraction
-                    params.width = lerpInt(originalWidth, targetWidth, fraction)
-                    params.x = lerpInt(originalX, targetX, fraction)
-                    
-                    try {
-                        windowManager.updateViewLayout(floatingView, params)
-                        updateViewsAlpha(1f - fraction)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "更新布局失败", e)
-                    }
-                }
-                
-                addListener(object : AnimatorListenerAdapter() {
-                    override fun onAnimationStart(animation: Animator) {
-                        isAnimating = true
-                        disableWebViewScrolling()
-                    }
-                    
-                    override fun onAnimationEnd(animation: Animator) {
-                            isAnimating = false
-                        isHidden = true
-                        edgePosition = if (isLeft) EDGE_LEFT else EDGE_RIGHT
-                        hideViews()
-                    }
-                })
-                
-                start()
-            }
+            halfCircleWindow.animateToEdge(
+                isLeft,
+                floatingView ?: return,
+                params,
+                windowManager,
+                { disableWebViewScrolling() }
+            )
         } catch (e: Exception) {
             Log.e(TAG, "创建边缘动画失败", e)
-            // 确保状态正确
             isAnimating = false
             isHidden = false
         }
@@ -1471,48 +1461,16 @@ class FloatingWebViewService : Service() {
         if (isAnimating) return
         
         try {
-        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
-        
-            // 取消当前动画
-            edgeSnapAnimator?.cancel()
+            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
             
-            // 创建动画
-            edgeSnapAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = ANIMATION_DURATION
-                interpolator = OvershootInterpolator(1.2f)
-            
-            addUpdateListener { animator ->
-                    val fraction = animator.animatedFraction
-                    params.width = lerpInt(params.width, originalWidth, fraction)
-                    params.x = lerpInt(params.x, originalX, fraction)
-                    
-                    try {
-                    windowManager.updateViewLayout(floatingView, params)
-                        updateViewsAlpha(fraction)
-                } catch (e: Exception) {
-                        Log.e(TAG, "更新布局失败", e)
-                }
-            }
-            
-            addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationStart(animation: Animator) {
-                        isAnimating = true
-                        enableWebViewScrolling()
-                }
-
-                override fun onAnimationEnd(animation: Animator) {
-                        isAnimating = false
-                        isHidden = false
-                        edgePosition = EDGE_NONE
-                        showViews()
-                }
-            })
-            
-            start()
-        }
+            halfCircleWindow.animateShowToCenter(
+                floatingView ?: return,
+                params,
+                windowManager,
+                { enableWebViewScrolling() }
+            )
         } catch (e: Exception) {
             Log.e(TAG, "创建恢复动画失败", e)
-            // 确保状态正确
             isAnimating = false
             isHidden = false
         }
@@ -1553,6 +1511,60 @@ class FloatingWebViewService : Service() {
             expandButton?.visibility = View.VISIBLE
         if (!isExpanded) {
             resizeHandle?.visibility = View.VISIBLE
+        }
+    }
+
+    private fun setupFaviconTouchListener() {
+        faviconView?.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    isMoving = false
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = event.rawX - initialTouchX
+                    val deltaY = event.rawY - initialTouchY
+                    
+                    if (abs(deltaX) > 10 || abs(deltaY) > 10) {
+                        isMoving = true
+                        val params = view.layoutParams as WindowManager.LayoutParams
+                        params.x += deltaX.toInt()
+                        params.y += deltaY.toInt()
+                        
+                        // 限制在屏幕范围内
+                        params.x = params.x.coerceIn(0, screenWidth - view.width)
+                        params.y = params.y.coerceIn(0, screenHeight - view.height)
+                        
+                        try {
+                            windowManager.updateViewLayout(view, params)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "更新favicon位置失败", e)
+                        }
+                        
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!isMoving) {
+                        // 点击时恢复悬浮窗
+                        animateShowToCenter()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun updateFaviconView() {
+        currentFavicon?.let { favicon ->
+            faviconView?.setImageBitmap(favicon)
+        } ?: run {
+            faviconView?.setImageResource(R.drawable.ic_web_default)
         }
     }
 } 
