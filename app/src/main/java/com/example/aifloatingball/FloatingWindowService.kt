@@ -793,9 +793,11 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 it.requestFocus()
                 it.setSelection(it.text.length)
                 
-                // 显示软键盘
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT)
+                // 延迟100毫秒后显示软键盘，确保视图已完全显示
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.showSoftInput(it, InputMethodManager.SHOW_FORCED)
+                }, 100)
             }
         }
     }
