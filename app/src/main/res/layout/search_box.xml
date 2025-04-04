@@ -1,59 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="300dp"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@drawable/search_background_frosted"
-    android:padding="12dp">
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
 
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/search_input_background">
-
-        <ImageView
-            android:id="@+id/toggle_search_mode"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:padding="6dp"
-            android:layout_marginStart="6dp"
-            android:src="@drawable/ic_ai_search"
-            android:clickable="true"
-            android:focusable="true"
-            android:background="?android:attr/selectableItemBackgroundBorderless" />
-
-        <EditText
-            android:id="@+id/search_edit_text"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@null"
-            android:hint="输入搜索内容..."
-            android:textColor="#000000"
-            android:textColorHint="#757575"
-            android:textSize="16sp"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:singleLine="true"
-            android:imeOptions="actionSearch"
-            android:inputType="text" />
-    </LinearLayout>
-
-    <HorizontalScrollView
-        android:id="@+id/search_engines_scroll"
-        android:layout_width="match_parent"
+        android:layout_width="300dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:scrollbars="none">
+        android:orientation="vertical"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="100dp"
+        android:background="@drawable/search_background_frosted"
+        android:padding="12dp">
 
         <LinearLayout
-            android:id="@+id/search_engines_container"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
             android:orientation="horizontal"
-            android:gravity="center_vertical" />
+            android:gravity="center_vertical"
+            android:background="@drawable/search_input_background">
 
-    </HorizontalScrollView>
-</LinearLayout> 
+            <ImageView
+                android:id="@+id/toggle_search_mode"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
+                android:layout_marginStart="6dp"
+                android:src="@drawable/ic_ai_search"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="?android:attr/selectableItemBackgroundBorderless" />
+
+            <EditText
+                android:id="@+id/search_edit_text"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="输入搜索内容..."
+                android:textColor="#000000"
+                android:textColorHint="#757575"
+                android:textSize="16sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:imeOptions="actionSearch"
+                android:inputType="text" />
+        </LinearLayout>
+
+        <HorizontalScrollView
+            android:id="@+id/search_engines_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/search_engines_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <GridLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:columnCount="5"
+                    android:useDefaultMargins="true" />
+
+            </LinearLayout>
+
+        </HorizontalScrollView>
+    </LinearLayout>
+</FrameLayout> 

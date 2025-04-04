@@ -711,6 +711,12 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         val container = searchBoxView?.findViewById<LinearLayout>(R.id.search_engines_container)
         container?.removeAllViews()
         
+        // 创建GridLayout
+        val gridLayout = GridLayout(this).apply {
+            columnCount = 6
+            useDefaultMargins = true
+        }
+        
         // 根据当前模式获取搜索引擎列表
         currentSearchEngines = menuItemsList
             .filter { 
@@ -725,7 +731,16 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
         // 创建并添加搜索引擎图标
         currentSearchEngines.forEach { menuItem ->
             val engineView = LayoutInflater.from(this)
-                .inflate(R.layout.search_engine_item, container, false) as ImageView
+                .inflate(R.layout.search_engine_item, null, false) as ImageView
+            
+            // 设置图标大小和边距
+            val size = resources.getDimensionPixelSize(R.dimen.search_engine_icon_size)
+            val params = GridLayout.LayoutParams().apply {
+                width = size
+                height = size
+                setMargins(8, 8, 8, 8)
+            }
+            engineView.layoutParams = params
             
             // 加载图标
             if ((menuItem.category == MenuCategory.NORMAL_SEARCH || 
@@ -747,8 +762,10 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 vibrate(50)
             }
             
-            container?.addView(engineView)
+            gridLayout.addView(engineView)
         }
+        
+        container?.addView(gridLayout)
         
         // 根据是否有输入内容决定是否显示搜索引擎列表
         val searchEditText = searchBoxView?.findViewById<EditText>(R.id.search_edit_text)
