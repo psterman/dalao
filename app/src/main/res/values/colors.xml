@@ -116,4 +116,11 @@
     <color name="colorDarkBackground">#121212</color>
     <color name="colorLightPrimaryDark">#42A5F5</color>
     <color name="colorDarkPrimaryDark">#0D47A1</color>
+
+    <!-- 搜索框颜色 - 浅色主题 -->
+    <color name="search_background_light">#F5F5F5</color>
+    <color name="search_stroke_light">#1F1F1F</color>
+    <color name="search_text_light">#1F1F1F</color>
+    <color name="search_hint_light">#757575</color>
+    <color name="search_icon_light">#1F1F1F</color>
 </resources> 

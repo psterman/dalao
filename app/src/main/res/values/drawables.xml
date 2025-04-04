@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <drawable name="google_icon">@drawable/ic_google</drawable>
+    <drawable name="bing_icon">@drawable/ic_bing</drawable>
+    <drawable name="baidu_icon">@drawable/ic_baidu</drawable>
+    <drawable name="duckduckgo_icon">@drawable/ic_duckduckgo</drawable>
+</resources> 

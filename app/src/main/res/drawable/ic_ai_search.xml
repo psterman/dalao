@@ -4,7 +4,22 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    
+    <!-- 大脑外轮廓 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10s10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8s8,3.59 8,8S16.41,20 12,20zM11,16h2v2h-2zM12.61,6.04c-2.06,-0.3 -3.88,0.97 -4.43,2.79c-0.18,0.58 0.26,1.17 0.87,1.17h0.2c0.41,0 0.74,-0.29 0.88,-0.67c0.32,-0.89 1.27,-1.5 2.3,-1.28c0.95,0.2 1.65,1.13 1.57,2.1c-0.1,1.34 -1.62,1.63 -2.45,2.88c0,0.01 -0.01,0.01 -0.01,0.02c-0.01,0.02 -0.02,0.03 -0.03,0.05c-0.09,0.15 -0.18,0.32 -0.25,0.5c-0.01,0.03 -0.03,0.05 -0.04,0.08c-0.01,0.02 -0.01,0.04 -0.02,0.07l-0.17,0.67c-0.17,0.35 -0.03,0.78 0.32,0.98c0.34,0.2 0.78,0.08 1.01,-0.26c0.01,-0.02 0.03,-0.04 0.04,-0.06c0.43,-0.77 0.69,-1.23 0.91,-1.58c0.03,-0.04 0.05,-0.09 0.08,-0.13C13.69,13.55 14,13.03 14,12.43C14,9.36 11.83,6.44 12.61,6.04z"/>
+        android:strokeColor="?android:attr/textColorPrimary"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M12,4C7.582,4 4,7.582 4,12C4,16.418 7.582,20 12,20C16.418,20 20,16.418 20,12C20,7.582 16.418,4 12,4Z" />
+
+    <!-- 大脑内部纹路 -->
+    <path
+        android:strokeColor="?android:attr/textColorPrimary"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,12C8,12 9,10 12,10C15,10 16,12 16,12M10,14C10,14 11,16 12,16C13,16 14,14 14,14M12,7V9M7,12H9M15,12H17M12,15V17" />
 </vector> 

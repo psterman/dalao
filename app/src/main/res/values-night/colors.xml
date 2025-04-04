@@ -12,4 +12,11 @@
     <color name="engine_description_text_dark">#CCCCCC</color>
     <color name="engine_icon_dark">#CCCCCC</color>
     <color name="divider_dark">#333333</color>
+
+    <!-- 搜索框颜色 - 深色主题 -->
+    <color name="search_background_dark">#1F1F1F</color>
+    <color name="search_stroke_dark">#E0E0E0</color>
+    <color name="search_text_dark">#E0E0E0</color>
+    <color name="search_hint_dark">#9E9E9E</color>
+    <color name="search_icon_dark">#E0E0E0</color>
 </resources> 

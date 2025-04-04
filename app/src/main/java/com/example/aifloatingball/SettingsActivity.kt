@@ -3,6 +3,7 @@ package com.example.aifloatingball
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.*
 
 class SettingsActivity : AppCompatActivity() {
@@ -41,7 +42,10 @@ class SettingsActivity : AppCompatActivity() {
             findPreference<ListPreference>("theme_mode")?.apply {
                 value = settingsManager.getThemeMode().toString()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setThemeMode(newValue.toString().toInt())
+                    val mode = newValue.toString().toInt()
+                    settingsManager.setThemeMode(mode)
+                    AppCompatDelegate.setDefaultNightMode(mode)
+                    activity?.recreate()
                     true
                 }
             }
