@@ -653,21 +653,50 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 vibrate(50)
             }
             
-            // 获取搜索框的EditText并设置焦点
+            // 获取搜索框的EditText和剪贴板提示视图
             val searchEditText = searchBoxView?.findViewById<EditText>(R.id.search_edit_text)
+            val clipboardSuggestion = searchBoxView?.findViewById<TextView>(R.id.clipboard_suggestion)
+            
+            // 获取剪贴板内容
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clipText = if (clipboardManager.hasPrimaryClip()) {
+                clipboardManager.primaryClip?.getItemAt(0)?.text?.toString()?.trim()
+            } else null
+            
+            // 如果剪贴板有内容，显示提示
+            if (!clipText.isNullOrEmpty()) {
+                clipboardSuggestion?.apply {
+                    text = "粘贴: $clipText"
+                    visibility = View.VISIBLE
+                    setOnClickListener {
+                        searchEditText?.setText(clipText)
+                        searchEditText?.setSelection(clipText.length)
+                        visibility = View.GONE
+                        vibrate(50) // 添加触感反馈
+                    }
+                }
+            } else {
+                clipboardSuggestion?.visibility = View.GONE
+            }
+            
             searchEditText?.let { editText ->
+                // 清空之前的输入
+                editText.setText("")
                 editText.requestFocus()
-                editText.setSelection(editText.text.length)
                 
                 // 设置文本变化监听
                 editText.addTextChangedListener(object : TextWatcher {
                     override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                    override fun afterTextChanged(s: Editable?) {
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                        // 当用户开始输入时，隐藏剪贴板提示
+                        if (s?.isNotEmpty() == true) {
+                            clipboardSuggestion?.visibility = View.GONE
+                        }
                         // 当输入框有内容时显示搜索引擎列表，否则隐藏
                         searchBoxView?.findViewById<HorizontalScrollView>(R.id.search_engines_scroll)?.visibility =
                             if (s?.isNotEmpty() == true) View.VISIBLE else View.GONE
                     }
+                    override fun afterTextChanged(s: Editable?) {}
                 })
                 
                 // 设置搜索动作监听
