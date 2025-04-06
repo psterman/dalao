@@ -803,10 +803,46 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
     }
     
     private fun performSearchWithDefaultEngine(query: String) {
-        // 获取默认搜索引擎
-        val defaultEngine = currentSearchEngines.firstOrNull()
-        if (defaultEngine != null) {
-            performSearch(query, defaultEngine)
+        try {
+            // 获取默认搜索引擎
+            val defaultEngine = currentSearchEngines.firstOrNull()
+            if (defaultEngine != null) {
+                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                val searchUrl = when (defaultEngine.name) {
+                    "百度" -> "https://www.baidu.com/s?wd=$encodedQuery"
+                    "Google" -> "https://www.google.com/search?q=$encodedQuery"
+                    "必应" -> "https://www.bing.com/search?q=$encodedQuery"
+                    "搜狗" -> "https://www.sogou.com/web?query=$encodedQuery"
+                    "360搜索" -> "https://www.so.com/s?q=$encodedQuery"
+                    else -> "${defaultEngine.url}/search?q=$encodedQuery"
+                }
+                
+                // 判断是否使用双窗口模式
+                val useDualMode = settingsManager.getBoolean("use_dual_window_mode", true)
+                
+                // 根据设置决定使用哪个服务
+                val serviceClass = if (useDualMode) {
+                    DualFloatingWebViewService::class.java
+                } else {
+                    FloatingWebViewService::class.java
+                }
+                
+                // 启动相应的服务
+                val intent = Intent(this, serviceClass).apply {
+                    putExtra("url", searchUrl)
+                    putExtra("search_query", query)
+                }
+                startService(intent)
+                
+                // 提供反馈
+                vibrate(50)
+                Toast.makeText(this, "正在搜索: $query", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "未设置默认搜索引擎", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingService", "执行搜索失败", e)
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -846,8 +882,18 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                     else -> "${defaultSearchEngine.url}/search?q=$encodedQuery"
                 }
                 
-                // 使用FloatingWebViewService加载搜索结果
-                val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                // 判断是否使用双窗口模式
+                val useDualMode = settingsManager.getBoolean("use_dual_window_mode", true)
+                
+                // 根据设置决定使用哪个服务
+                val serviceClass = if (useDualMode) {
+                    DualFloatingWebViewService::class.java
+                } else {
+                    FloatingWebViewService::class.java
+                }
+                
+                // 启动相应的服务
+                val intent = Intent(this, serviceClass).apply {
                     putExtra("url", searchUrl)
                     putExtra("search_query", query)
                 }

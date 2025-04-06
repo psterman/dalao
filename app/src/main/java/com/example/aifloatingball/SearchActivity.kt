@@ -644,7 +644,7 @@ class SearchActivity : AppCompatActivity() {
         }
 
         // 有权限，启动悬浮窗服务
-        val intent = Intent(this, FloatingWebViewService::class.java)
+        val intent = Intent(this, DualFloatingWebViewService::class.java)
         
         // 获取当前URL
         val currentUrl = webView.url
@@ -1311,7 +1311,7 @@ class SearchActivity : AppCompatActivity() {
             }
             
             // 有权限，启动悬浮窗服务
-            val intent = Intent(this, FloatingWebViewService::class.java)
+            val intent = Intent(this, DualFloatingWebViewService::class.java)
             
             // 获取当前搜索词
             val query = searchInput.text.toString().trim()

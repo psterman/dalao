@@ -1238,7 +1238,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
             
             // 有权限，启动悬浮窗服务
-            val intent = Intent(this, FloatingWebViewService::class.java)
+            val intent = Intent(this, DualFloatingWebViewService::class.java)
             
             if (query.isEmpty()) {
                 // 如果没有查询文本，直接打开搜索引擎主页
@@ -1322,7 +1322,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
 
         // 有权限，启动悬浮窗服务
-        val intent = Intent(this, FloatingWebViewService::class.java)
+        val intent = Intent(this, DualFloatingWebViewService::class.java)
         
         // 如果WebView可见，传递当前URL
         if (webView.visibility == View.VISIBLE) {

@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="8dp">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- 主内容区域 - 双WebView容器 -->
+        <LinearLayout
+            android:id="@+id/dual_webview_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_above="@+id/dual_control_panel"
+            android:orientation="horizontal">
+
+            <!-- 左侧/顶部容器 -->
+            <RelativeLayout
+                android:id="@+id/first_webview_container"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+
+                <!-- 标题栏 -->
+                <LinearLayout
+                    android:id="@+id/first_title_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_alignParentTop="true"
+                    android:background="@color/colorPrimary"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:id="@+id/first_drag_handle"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1" />
+
+                    <TextView
+                        android:id="@+id/first_floating_title"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="4"
+                        android:ellipsize="end"
+                        android:gravity="center_vertical"
+                        android:maxLines="1"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:text="百度"
+                        android:textColor="@android:color/white"
+                        android:textSize="16sp" />
+                </LinearLayout>
+
+                <!-- WebView -->
+                <WebView
+                    android:id="@+id/first_floating_webview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_below="@id/first_title_bar" />
+
+            </RelativeLayout>
+
+            <!-- 分隔线 -->
+            <View
+                android:id="@+id/divider"
+                android:layout_width="4dp"
+                android:layout_height="match_parent"
+                android:background="@color/colorPrimary" />
+
+            <!-- 右侧/底部容器 -->
+            <RelativeLayout
+                android:id="@+id/second_webview_container"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1">
+
+                <!-- 标题栏 -->
+                <LinearLayout
+                    android:id="@+id/second_title_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_alignParentTop="true"
+                    android:background="@color/colorPrimary"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:id="@+id/second_drag_handle"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1" />
+
+                    <TextView
+                        android:id="@+id/second_floating_title"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="4"
+                        android:ellipsize="end"
+                        android:gravity="center_vertical"
+                        android:maxLines="1"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:text="Google"
+                        android:textColor="@android:color/white"
+                        android:textSize="16sp" />
+                </LinearLayout>
+
+                <!-- WebView -->
+                <WebView
+                    android:id="@+id/second_floating_webview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:layout_below="@id/second_title_bar" />
+
+            </RelativeLayout>
+        </LinearLayout>
+
+        <!-- 控制面板 -->
+        <LinearLayout
+            android:id="@+id/dual_control_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:background="@color/navigation_bar_background"
+            android:orientation="horizontal"
+            android:padding="8dp">
+
+            <!-- 布局切换按钮 -->
+            <ImageButton
+                android:id="@+id/btn_toggle_layout"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="切换布局"
+                android:src="@drawable/ic_screen_rotation" />
+
+            <!-- 单窗口模式按钮 -->
+            <ImageButton
+                android:id="@+id/btn_single_window"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="单窗口模式"
+                android:src="@drawable/ic_single_window" />
+
+            <!-- 搜索框 -->
+            <EditText
+                android:id="@+id/dual_search_input"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:background="@drawable/search_input_background"
+                android:hint="@string/search_hint"
+                android:imeOptions="actionSearch"
+                android:inputType="textUri"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
+                android:textSize="14sp" />
+
+            <!-- 搜索按钮 -->
+            <ImageButton
+                android:id="@+id/btn_dual_search"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/search"
+                android:src="@drawable/ic_search" />
+
+            <!-- 关闭按钮 -->
+            <ImageButton
+                android:id="@+id/btn_dual_close"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="8dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/close"
+                android:src="@drawable/ic_close" />
+        </LinearLayout>
+
+        <!-- 调整大小的手柄 -->
+        <View
+            android:id="@+id/dual_resize_handle"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentBottom="true"
+            android:background="@drawable/resize_handle" />
+
+    </RelativeLayout>
+</androidx.cardview.widget.CardView> 

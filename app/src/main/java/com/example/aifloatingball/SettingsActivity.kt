@@ -95,6 +95,15 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 双窗口模式设置
+            findPreference<SwitchPreferenceCompat>("use_dual_window_mode")?.apply {
+                isChecked = settingsManager.getBoolean("use_dual_window_mode", true)
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.putBoolean("use_dual_window_mode", newValue as Boolean)
+                    true
+                }
+            }
+
             // 自动粘贴设置
             findPreference<SwitchPreferenceCompat>("auto_paste")?.apply {
                 isChecked = settingsManager.isAutoPasteEnabled()

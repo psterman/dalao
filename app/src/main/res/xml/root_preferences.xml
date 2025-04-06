@@ -54,6 +54,13 @@
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
+            app:key="use_dual_window_mode"
+            app:title="双窗口模式"
+            app:summary="同时显示百度和Google两个搜索引擎结果"
+            app:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
             app:key="auto_paste"
             app:title="自动粘贴"
             app:summary="打开搜索框时自动粘贴剪贴板内容"

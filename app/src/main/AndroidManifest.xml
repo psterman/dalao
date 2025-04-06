@@ -37,6 +37,12 @@
             android:exported="false"
             android:theme="@style/Theme.AppCompat.Light" />
             
+        <service
+            android:name=".DualFloatingWebViewService"
+            android:enabled="true"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.Light" />
+            
         <activity
             android:name=".PermissionActivity"
             android:exported="true"
