@@ -517,21 +517,27 @@ class DualFloatingWebViewService : Service() {
         // 设置容器方向
         container?.orientation = orientationValue
         
-        // 更新分割线
+        // 更新分割线和窗口权重
+        val params = container?.layoutParams as? LinearLayout.LayoutParams
         if (isHorizontalLayout) {
             // 水平分割线
-            divider?.layoutParams?.width = 4
-            divider?.layoutParams?.height = ViewGroup.LayoutParams.MATCH_PARENT
+            divider?.layoutParams = LinearLayout.LayoutParams(4, ViewGroup.LayoutParams.MATCH_PARENT)
+            
+            // 更新左右窗口权重
+            container?.getChildAt(0)?.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
+            container?.getChildAt(2)?.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
         } else {
             // 垂直分割线
-            divider?.layoutParams?.width = ViewGroup.LayoutParams.MATCH_PARENT
-            divider?.layoutParams?.height = 4
+            divider?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 4)
+            
+            // 更新上下窗口权重
+            container?.getChildAt(0)?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+            container?.getChildAt(2)?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         }
         
-        // 如果需要更新分割线布局，应用更改
-        divider?.layoutParams?.let { params ->
-            divider?.layoutParams = params
-        }
+        // 应用布局参数
+        divider?.requestLayout()
+        container?.requestLayout()
         
         // 返回方向值
         return orientationValue
