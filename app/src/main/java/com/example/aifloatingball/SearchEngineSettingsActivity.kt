@@ -6,7 +6,7 @@ import android.view.MenuItem
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.aifloatingball.adapter.EngineAdapter
+import com.example.aifloatingball.adapter.SearchEngineAdapter
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.AISearchEngine
 
@@ -14,6 +14,7 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: SearchEngineAdapter
     private lateinit var settingsManager: SettingsManager
+    private val enabledEngines = mutableSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,30 +27,26 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
         }
 
         settingsManager = SettingsManager.getInstance(this)
+        
+        // 获取已启用的搜索引擎
+        enabledEngines.addAll(settingsManager.getEnabledSearchEngines())
 
-        // 初始化RecyclerView
         recyclerView = findViewById(R.id.recyclerViewSearchEngines)
         recyclerView.layoutManager = LinearLayoutManager(this)
-
-        // 获取搜索引擎列表
-        val engines = if (settingsManager.isDefaultAIMode()) {
-            AISearchEngine.DEFAULT_AI_ENGINES
-        } else {
-            SearchEngine.NORMAL_SEARCH_ENGINES
-        }
-
-        // 获取已启用的搜索引擎
-        val enabledEngines = settingsManager.getEnabledEngines()
-
-        // 初始化适配器
-        adapter = SearchEngineAdapter(engines.toMutableList(), enabledEngines.toMutableSet()) { engine, isEnabled ->
-            if (isEnabled) {
-                settingsManager.saveEnabledEngines(settingsManager.getEnabledEngines() + engine.name)
-            } else {
-                settingsManager.saveEnabledEngines(settingsManager.getEnabledEngines() - engine.name)
+        
+        adapter = SearchEngineAdapter(
+            engines = SearchEngine.DEFAULT_ENGINES,
+            onEngineSelected = { engine -> 
+                // 处理搜索引擎选择
+                if (enabledEngines.contains(engine.name)) {
+                    enabledEngines.remove(engine.name)
+                } else {
+                    enabledEngines.add(engine.name)
+                }
+                settingsManager.setEnabledSearchEngines(enabledEngines)
             }
-        }
-
+        )
+        
         recyclerView.adapter = adapter
     }
 

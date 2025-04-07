@@ -3,7 +3,10 @@ package com.example.aifloatingball
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.graphics.PixelFormat
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -16,6 +19,10 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.aifloatingball.adapter.SearchEngineAdapter
+import com.example.aifloatingball.model.SearchEngine
 import java.net.URLEncoder
 
 class DualFloatingWebViewService : Service() {
@@ -47,6 +54,12 @@ class DualFloatingWebViewService : Service() {
     private var singleWindowButton: ImageButton? = null
     private var firstTitle: TextView? = null
     private var secondTitle: TextView? = null
+    private var firstEngineSelector: ImageButton? = null
+    private var secondEngineSelector: ImageButton? = null
+    private var searchEnginePopupWindow: PopupWindow? = null
+    private var currentEngineKey: String = "baidu"
+    private var currentWebView: WebView? = null
+    private var currentTitle: TextView? = null
     
     private lateinit var settingsManager: SettingsManager
     private var leftEngineKey: String = "baidu"
@@ -92,6 +105,9 @@ class DualFloatingWebViewService : Service() {
             
             // 设置控件事件
             setupControls()
+            
+            // 初始化搜索引擎选择器
+            setupEngineSelectors()
             
         } catch (e: Exception) {
             Log.e(TAG, "创建服务失败", e)
@@ -169,6 +185,8 @@ class DualFloatingWebViewService : Service() {
         singleWindowButton = floatingView?.findViewById(R.id.btn_single_window)
         firstTitle = floatingView?.findViewById(R.id.first_floating_title)
         secondTitle = floatingView?.findViewById(R.id.second_floating_title)
+        firstEngineSelector = floatingView?.findViewById(R.id.first_engine_selector)
+        secondEngineSelector = floatingView?.findViewById(R.id.second_engine_selector)
     }
 
     private fun createWindowLayoutParams(): WindowManager.LayoutParams {
@@ -535,6 +553,103 @@ class DualFloatingWebViewService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "切换到单窗口模式失败", e)
             Toast.makeText(this, "切换到单窗口模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setupEngineSelectors() {
+        firstEngineSelector?.setOnClickListener {
+            showEngineSelector(firstWebView, firstTitle, leftEngineKey) { engine ->
+                leftEngineKey = engine.name.toLowerCase()
+                settingsManager.setLeftWindowSearchEngine(leftEngineKey)
+                firstTitle?.text = engine.name
+                loadCurrentPage(firstWebView, leftEngineKey)
+            }
+        }
+
+        secondEngineSelector?.setOnClickListener {
+            showEngineSelector(secondWebView, secondTitle, rightEngineKey) { engine ->
+                rightEngineKey = engine.name.toLowerCase()
+                settingsManager.setRightWindowSearchEngine(rightEngineKey)
+                secondTitle?.text = engine.name
+                loadCurrentPage(secondWebView, rightEngineKey)
+            }
+        }
+    }
+
+    private fun showEngineSelector(webView: WebView?, titleView: TextView?, currentEngine: String, onSelected: (SearchEngine) -> Unit) {
+        currentWebView = webView
+        currentTitle = titleView
+        currentEngineKey = currentEngine
+
+        // 创建搜索引擎列表视图
+        val recyclerView = RecyclerView(this).apply {
+            layoutManager = LinearLayoutManager(this@DualFloatingWebViewService)
+            adapter = SearchEngineAdapter(
+                engines = SearchEngine.DEFAULT_ENGINES,
+                onEngineSelected = { engine -> 
+                    onSelected(engine)
+                    searchEnginePopupWindow?.dismiss()
+                }
+            )
+            setBackgroundColor(Color.WHITE)
+        }
+
+        // 创建 PopupWindow
+        searchEnginePopupWindow = PopupWindow(recyclerView).apply {
+            width = ViewGroup.LayoutParams.WRAP_CONTENT
+            height = ViewGroup.LayoutParams.WRAP_CONTENT
+            isFocusable = true
+            elevation = 10f
+            setBackgroundDrawable(ColorDrawable(Color.WHITE))
+            
+            // 设置动画
+            animationStyle = android.R.style.Animation_Dialog
+        }
+
+        // 显示 PopupWindow
+        titleView?.let { title ->
+            searchEnginePopupWindow?.showAsDropDown(title)
+        }
+    }
+
+    private fun loadCurrentPage(webView: WebView?, engineKey: String) {
+        webView?.url?.let { currentUrl ->
+            // 如果当前页面是搜索结果页面，则使用新的搜索引擎重新搜索
+            val query = extractSearchQuery(currentUrl, engineKey)
+            if (query != null) {
+                val newUrl = getSearchEngineSearchUrl(engineKey, query)
+                webView.loadUrl(newUrl)
+            } else {
+                // 如果不是搜索结果页面，则加载搜索引擎主页
+                webView.loadUrl(getSearchEngineHomeUrl(engineKey))
+            }
+        }
+    }
+
+    private fun extractSearchQuery(url: String, engineKey: String): String? {
+        return try {
+            when (engineKey) {
+                "baidu" -> {
+                    val uri = Uri.parse(url)
+                    uri.getQueryParameter("wd")
+                }
+                "google" -> {
+                    val uri = Uri.parse(url)
+                    uri.getQueryParameter("q")
+                }
+                "bing" -> {
+                    val uri = Uri.parse(url)
+                    uri.getQueryParameter("q")
+                }
+                "sogou" -> {
+                    val uri = Uri.parse(url)
+                    uri.getQueryParameter("query")
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "提取搜索关键词失败", e)
+            null
         }
     }
 

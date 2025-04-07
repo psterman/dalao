@@ -41,19 +41,38 @@
                         android:layout_height="match_parent"
                         android:layout_weight="1" />
 
-                    <TextView
-                        android:id="@+id/first_floating_title"
+                    <LinearLayout
+                        android:id="@+id/first_title_container"
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="4"
-                        android:ellipsize="end"
-                        android:gravity="center_vertical"
-                        android:maxLines="1"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:text="百度"
-                        android:textColor="@android:color/white"
-                        android:textSize="16sp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/first_floating_title"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:gravity="center_vertical"
+                            android:maxLines="1"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:text="百度"
+                            android:textColor="@android:color/white"
+                            android:textSize="16sp" />
+
+                        <ImageButton
+                            android:id="@+id/first_engine_selector"
+                            android:layout_width="48dp"
+                            android:layout_height="match_parent"
+                            android:background="?android:attr/selectableItemBackground"
+                            android:src="@drawable/ic_arrow_drop_down"
+                            android:contentDescription="选择搜索引擎"
+                            android:padding="12dp"
+                            android:tint="@android:color/white" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <!-- WebView -->
@@ -94,19 +113,38 @@
                         android:layout_height="match_parent"
                         android:layout_weight="1" />
 
-                    <TextView
-                        android:id="@+id/second_floating_title"
+                    <LinearLayout
+                        android:id="@+id/second_title_container"
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="4"
-                        android:ellipsize="end"
-                        android:gravity="center_vertical"
-                        android:maxLines="1"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp"
-                        android:text="Google"
-                        android:textColor="@android:color/white"
-                        android:textSize="16sp" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:id="@+id/second_floating_title"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:gravity="center_vertical"
+                            android:maxLines="1"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:text="Google"
+                            android:textColor="@android:color/white"
+                            android:textSize="16sp" />
+
+                        <ImageButton
+                            android:id="@+id/second_engine_selector"
+                            android:layout_width="48dp"
+                            android:layout_height="match_parent"
+                            android:background="?android:attr/selectableItemBackground"
+                            android:src="@drawable/ic_arrow_drop_down"
+                            android:contentDescription="选择搜索引擎"
+                            android:padding="12dp"
+                            android:tint="@android:color/white" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <!-- WebView -->

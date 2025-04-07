@@ -92,7 +92,7 @@ class SettingsManager private constructor(context: Context) {
             val engines = if (isAIMode) {
                 AISearchEngine.DEFAULT_AI_ENGINES
             } else {
-                SearchEngine.NORMAL_SEARCH_ENGINES
+                SearchEngine.DEFAULT_ENGINES
             }
             
             // 只返回已启用的搜索引擎
@@ -111,7 +111,7 @@ class SettingsManager private constructor(context: Context) {
     // 获取和保存启用的搜索引擎
     fun getEnabledEngines(): Set<String> {
         return prefs.getStringSet("enabled_engines", null) ?: 
-               SearchEngine.NORMAL_SEARCH_ENGINES.map { it.name }.toSet()
+               SearchEngine.DEFAULT_ENGINES.map { it.name }.toSet()
     }
     
     fun saveEnabledEngines(enabledEngines: Set<String>) {
@@ -270,5 +270,13 @@ class SettingsManager private constructor(context: Context) {
     
     fun setRightWindowSearchEngine(engine: String) {
         prefs.edit().putString("right_window_search_engine", engine).apply()
+    }
+
+    fun getEnabledSearchEngines(): Set<String> {
+        return prefs.getStringSet("enabled_search_engines", setOf("baidu", "google")) ?: setOf("baidu", "google")
+    }
+
+    fun setEnabledSearchEngines(engines: Set<String>) {
+        prefs.edit().putStringSet("enabled_search_engines", engines).apply()
     }
 }

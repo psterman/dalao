@@ -18,44 +18,62 @@ open class SearchEngine(
 ) {
     companion object {
         /**
-         * 默认普通搜索引擎列表
+         * 默认搜索引擎列表
          */
-        val NORMAL_SEARCH_ENGINES = listOf(
-            SearchEngine("百度", "https://www.baidu.com/s?wd=", R.drawable.ic_search, "百度搜索"),
-            SearchEngine("Google", "https://www.google.com/search?q=", R.drawable.ic_search, "Google搜索"),
-            SearchEngine("必应", "https://www.bing.com/search?q=", R.drawable.ic_search, "Microsoft Bing"),
-            SearchEngine("搜狗", "https://www.sogou.com/web?query=", R.drawable.ic_search, "搜狗搜索"),
-            SearchEngine("360搜索", "https://www.so.com/s?q=", R.drawable.ic_search, "360搜索"),
-            SearchEngine("夸克搜索", "https://quark.sm.cn/s?q=", R.drawable.ic_search, "夸克搜索"),
-            SearchEngine("头条搜索", "https://so.toutiao.com/search?keyword=", R.drawable.ic_search, "头条搜索"),
-            SearchEngine("知乎", "https://www.zhihu.com/search?type=content&q=", R.drawable.ic_search, "知乎搜索"),
-            SearchEngine("哔哩哔哩", "https://search.bilibili.com/all?keyword=", R.drawable.ic_search, "哔哩哔哩搜索")
-        )
-
         val DEFAULT_ENGINES = listOf(
             SearchEngine(
                 "百度",
                 "https://www.baidu.com/s?wd=",
-                com.example.aifloatingball.R.drawable.ic_baidu,
+                R.drawable.ic_search,
                 "百度搜索"
             ),
             SearchEngine(
                 "Google",
                 "https://www.google.com/search?q=",
-                com.example.aifloatingball.R.drawable.ic_google,
+                R.drawable.ic_search,
                 "Google搜索"
             ),
             SearchEngine(
                 "必应",
                 "https://www.bing.com/search?q=",
-                com.example.aifloatingball.R.drawable.ic_bing,
+                R.drawable.ic_search,
                 "Microsoft Bing"
             ),
             SearchEngine(
                 "搜狗",
                 "https://www.sogou.com/web?query=",
-                com.example.aifloatingball.R.drawable.ic_sogou,
+                R.drawable.ic_search,
                 "搜狗搜索"
+            ),
+            SearchEngine(
+                "360搜索",
+                "https://www.so.com/s?q=",
+                R.drawable.ic_search,
+                "360搜索"
+            ),
+            SearchEngine(
+                "夸克搜索",
+                "https://quark.sm.cn/s?q=",
+                R.drawable.ic_search,
+                "夸克搜索"
+            ),
+            SearchEngine(
+                "头条搜索",
+                "https://so.toutiao.com/search?keyword=",
+                R.drawable.ic_search,
+                "头条搜索"
+            ),
+            SearchEngine(
+                "知乎",
+                "https://www.zhihu.com/search?type=content&q=",
+                R.drawable.ic_search,
+                "知乎搜索"
+            ),
+            SearchEngine(
+                "哔哩哔哩",
+                "https://search.bilibili.com/all?keyword=",
+                R.drawable.ic_search,
+                "哔哩哔哩搜索"
             )
         )
     }
@@ -64,7 +82,7 @@ open class SearchEngine(
         return if (url.contains("{query}")) {
             url.replace("{query}", android.net.Uri.encode(query))
         } else {
-            url
+            url + android.net.Uri.encode(query)
         }
     }
 } 
