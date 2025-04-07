@@ -103,6 +103,24 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
             }
+            
+            // 左侧窗口搜索引擎设置
+            findPreference<ListPreference>("left_window_search_engine")?.apply {
+                value = settingsManager.getLeftWindowSearchEngine()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setLeftWindowSearchEngine(newValue.toString())
+                    true
+                }
+            }
+            
+            // 右侧窗口搜索引擎设置
+            findPreference<ListPreference>("right_window_search_engine")?.apply {
+                value = settingsManager.getRightWindowSearchEngine()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setRightWindowSearchEngine(newValue.toString())
+                    true
+                }
+            }
 
             // 自动粘贴设置
             findPreference<SwitchPreferenceCompat>("auto_paste")?.apply {

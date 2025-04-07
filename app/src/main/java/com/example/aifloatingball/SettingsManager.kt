@@ -254,4 +254,21 @@ class SettingsManager private constructor(context: Context) {
     
     @Deprecated("Use setThemeMode() instead", ReplaceWith("setThemeMode(mode)"))
     fun setDarkMode(mode: Int) = setThemeMode(mode)
+    
+    // 双窗口搜索引擎设置
+    fun getLeftWindowSearchEngine(): String {
+        return prefs.getString("left_window_search_engine", "baidu") ?: "baidu"
+    }
+    
+    fun setLeftWindowSearchEngine(engine: String) {
+        prefs.edit().putString("left_window_search_engine", engine).apply()
+    }
+    
+    fun getRightWindowSearchEngine(): String {
+        return prefs.getString("right_window_search_engine", "google") ?: "google"
+    }
+    
+    fun setRightWindowSearchEngine(engine: String) {
+        prefs.edit().putString("right_window_search_engine", engine).apply()
+    }
 }

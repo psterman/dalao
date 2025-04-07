@@ -47,6 +47,10 @@ class DualFloatingWebViewService : Service() {
     private var singleWindowButton: ImageButton? = null
     private var firstTitle: TextView? = null
     private var secondTitle: TextView? = null
+    
+    private lateinit var settingsManager: SettingsManager
+    private var leftEngineKey: String = "baidu"
+    private var rightEngineKey: String = "google"
 
     private var isHorizontalLayout = true // 默认为水平布局
 
@@ -63,16 +67,19 @@ class DualFloatingWebViewService : Service() {
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    // 百度和Google的基础URL
-    private val baiduBaseUrl = "https://www.baidu.com/s?wd="
-    private val googleBaseUrl = "https://www.google.com/search?q="
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         try {
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+            
+            // 初始化设置管理器
+            settingsManager = SettingsManager.getInstance(this)
+            
+            // 获取用户设置的搜索引擎
+            leftEngineKey = settingsManager.getLeftWindowSearchEngine()
+            rightEngineKey = settingsManager.getRightWindowSearchEngine()
             
             // 创建浮动窗口
             createFloatingView()
@@ -225,7 +232,7 @@ class DualFloatingWebViewService : Service() {
     }
 
     private fun setupWebViews() {
-        // 设置第一个WebView（百度）
+        // 设置第一个WebView（左侧窗口）
         firstWebView?.apply {
             settings.apply {
                 javaScriptEnabled = true
@@ -241,11 +248,15 @@ class DualFloatingWebViewService : Service() {
             
             webViewClient = WebViewClient()
             
-            // 加载百度首页
-            loadUrl("https://www.baidu.com")
+            // 根据设置的搜索引擎加载首页
+            val leftHomeUrl = getSearchEngineHomeUrl(leftEngineKey)
+            loadUrl(leftHomeUrl)
+            
+            // 设置标题
+            firstTitle?.text = getSearchEngineName(leftEngineKey)
         }
         
-        // 设置第二个WebView（谷歌）
+        // 设置第二个WebView（右侧窗口）
         secondWebView?.apply {
             settings.apply {
                 javaScriptEnabled = true
@@ -261,8 +272,44 @@ class DualFloatingWebViewService : Service() {
             
             webViewClient = WebViewClient()
             
-            // 加载谷歌首页
-            loadUrl("https://www.google.com")
+            // 根据设置的搜索引擎加载首页
+            val rightHomeUrl = getSearchEngineHomeUrl(rightEngineKey)
+            loadUrl(rightHomeUrl)
+            
+            // 设置标题
+            secondTitle?.text = getSearchEngineName(rightEngineKey)
+        }
+    }
+
+    // 获取搜索引擎首页URL
+    private fun getSearchEngineHomeUrl(engineKey: String): String {
+        return when(engineKey) {
+            "baidu" -> "https://www.baidu.com"
+            "google" -> "https://www.google.com"
+            "bing" -> "https://www.bing.com"
+            "sogou" -> "https://www.sogou.com"
+            "360" -> "https://www.so.com"
+            "quark" -> "https://quark.sm.cn"
+            "toutiao" -> "https://so.toutiao.com"
+            "zhihu" -> "https://www.zhihu.com"
+            "bilibili" -> "https://www.bilibili.com"
+            else -> "https://www.baidu.com"
+        }
+    }
+    
+    // 获取搜索引擎名称
+    private fun getSearchEngineName(engineKey: String): String {
+        return when(engineKey) {
+            "baidu" -> "百度"
+            "google" -> "Google"
+            "bing" -> "必应"
+            "sogou" -> "搜狗"
+            "360" -> "360搜索"
+            "quark" -> "夸克搜索"
+            "toutiao" -> "头条搜索"
+            "zhihu" -> "知乎"
+            "bilibili" -> "哔哩哔哩"
+            else -> "搜索"
         }
     }
 
@@ -396,17 +443,20 @@ class DualFloatingWebViewService : Service() {
         val query = searchInput?.text?.toString()?.trim() ?: ""
         if (query.isNotEmpty()) {
             try {
-                // 在两个搜索引擎中同时搜索相同关键词
+                // 对查询进行URL编码
                 val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                val baiduSearchUrl = baiduBaseUrl + encodedQuery
-                val googleSearchUrl = googleBaseUrl + encodedQuery
                 
-                firstWebView?.loadUrl(baiduSearchUrl)
-                secondWebView?.loadUrl(googleSearchUrl)
+                // 使用左侧搜索引擎
+                val leftUrl = getSearchEngineSearchUrl(leftEngineKey, encodedQuery)
+                firstWebView?.loadUrl(leftUrl)
+                
+                // 使用右侧搜索引擎
+                val rightUrl = getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
+                secondWebView?.loadUrl(rightUrl)
                 
                 // 更新标题
-                firstTitle?.text = "百度: $query"
-                secondTitle?.text = "Google: $query"
+                firstTitle?.text = "${getSearchEngineName(leftEngineKey)}: $query"
+                secondTitle?.text = "${getSearchEngineName(rightEngineKey)}: $query"
                 
                 // 关闭键盘
                 val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -415,6 +465,22 @@ class DualFloatingWebViewService : Service() {
                 Log.e(TAG, "执行搜索失败", e)
                 Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+    
+    // 根据搜索引擎和查询构建搜索URL
+    private fun getSearchEngineSearchUrl(engineKey: String, query: String): String {
+        return when(engineKey) {
+            "baidu" -> "https://www.baidu.com/s?wd=$query"
+            "google" -> "https://www.google.com/search?q=$query"
+            "bing" -> "https://www.bing.com/search?q=$query"
+            "sogou" -> "https://www.sogou.com/web?query=$query"
+            "360" -> "https://www.so.com/s?q=$query"
+            "quark" -> "https://quark.sm.cn/s?q=$query"
+            "toutiao" -> "https://so.toutiao.com/search?keyword=$query"
+            "zhihu" -> "https://www.zhihu.com/search?type=content&q=$query"
+            "bilibili" -> "https://search.bilibili.com/all?keyword=$query"
+            else -> "https://www.baidu.com/s?wd=$query"
         }
     }
 
