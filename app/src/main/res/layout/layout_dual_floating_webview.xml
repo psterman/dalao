@@ -44,7 +44,7 @@
                 android:layout_height="32dp"
                 android:layout_marginStart="8dp"
                 android:background="@android:color/transparent"
-                android:contentDescription="@string/search"
+                android:contentDescription="搜索"
                 android:src="@drawable/ic_search"
                 android:tint="@android:color/white" />
 
@@ -74,7 +74,7 @@
                 android:layout_height="32dp"
                 android:layout_marginStart="8dp"
                 android:background="@android:color/transparent"
-                android:contentDescription="@string/close"
+                android:contentDescription="关闭"
                 android:src="@drawable/ic_close"
                 android:tint="@android:color/white" />
         </LinearLayout>
@@ -97,31 +97,43 @@
                 <LinearLayout
                     android:id="@+id/first_title_bar"
                     android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:background="#F5F5F5"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp">
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/first_floating_title"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textColor="#333333"
-                        android:textSize="14sp" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:background="#F5F5F5"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp">
 
-                    <ImageButton
-                        android:id="@+id/first_engine_selector"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:background="@android:color/transparent"
-                        android:contentDescription="选择搜索引擎"
-                        android:src="@drawable/ic_arrow_drop_down"
-                        android:tint="#666666" />
+                        <TextView
+                            android:id="@+id/first_floating_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="#333333"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:background="#F5F5F5"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/first_engine_container"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp" />
+                    </HorizontalScrollView>
                 </LinearLayout>
 
                 <WebView
@@ -148,31 +160,43 @@
                 <LinearLayout
                     android:id="@+id/second_title_bar"
                     android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:background="#F5F5F5"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp">
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/second_floating_title"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textColor="#333333"
-                        android:textSize="14sp" />
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:background="#F5F5F5"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp">
 
-                    <ImageButton
-                        android:id="@+id/second_engine_selector"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:background="@android:color/transparent"
-                        android:contentDescription="选择搜索引擎"
-                        android:src="@drawable/ic_arrow_drop_down"
-                        android:tint="#666666" />
+                        <TextView
+                            android:id="@+id/second_floating_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="#333333"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="40dp"
+                        android:background="#F5F5F5"
+                        android:scrollbars="none">
+
+                        <LinearLayout
+                            android:id="@+id/second_engine_container"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp" />
+                    </HorizontalScrollView>
                 </LinearLayout>
 
                 <WebView

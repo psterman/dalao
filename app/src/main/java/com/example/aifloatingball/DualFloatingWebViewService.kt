@@ -3,6 +3,7 @@ package com.example.aifloatingball
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.PixelFormat
@@ -19,10 +20,12 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.SearchEngineAdapter
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.utils.FaviconManager
 import java.net.URLEncoder
 
 class DualFloatingWebViewService : Service() {
@@ -54,8 +57,8 @@ class DualFloatingWebViewService : Service() {
     private var singleWindowButton: ImageButton? = null
     private var firstTitle: TextView? = null
     private var secondTitle: TextView? = null
-    private var firstEngineSelector: ImageButton? = null
-    private var secondEngineSelector: ImageButton? = null
+    private var firstEngineContainer: LinearLayout? = null
+    private var secondEngineContainer: LinearLayout? = null
     private var searchEnginePopupWindow: PopupWindow? = null
     private var currentEngineKey: String = "baidu"
     private var currentWebView: WebView? = null
@@ -80,6 +83,8 @@ class DualFloatingWebViewService : Service() {
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    private lateinit var faviconManager: FaviconManager
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -89,6 +94,9 @@ class DualFloatingWebViewService : Service() {
             
             // 初始化设置管理器
             settingsManager = SettingsManager.getInstance(this)
+            
+            // 初始化Favicon管理器
+            faviconManager = FaviconManager.getInstance(this)
             
             // 获取用户设置的搜索引擎
             leftEngineKey = settingsManager.getLeftWindowSearchEngine()
@@ -106,8 +114,8 @@ class DualFloatingWebViewService : Service() {
             // 设置控件事件
             setupControls()
             
-            // 初始化搜索引擎选择器
-            setupEngineSelectors()
+            // 初始化搜索引擎图标
+            updateEngineIcons()
             
         } catch (e: Exception) {
             Log.e(TAG, "创建服务失败", e)
@@ -185,8 +193,8 @@ class DualFloatingWebViewService : Service() {
         singleWindowButton = floatingView?.findViewById(R.id.btn_single_window)
         firstTitle = floatingView?.findViewById(R.id.first_floating_title)
         secondTitle = floatingView?.findViewById(R.id.second_floating_title)
-        firstEngineSelector = floatingView?.findViewById(R.id.first_engine_selector)
-        secondEngineSelector = floatingView?.findViewById(R.id.second_engine_selector)
+        firstEngineContainer = floatingView?.findViewById(R.id.first_engine_container)
+        secondEngineContainer = floatingView?.findViewById(R.id.second_engine_container)
     }
 
     private fun createWindowLayoutParams(): WindowManager.LayoutParams {
@@ -562,95 +570,113 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
-    private fun setupEngineSelectors() {
-        firstEngineSelector?.setOnClickListener {
-            showEngineSelector(firstWebView, firstTitle, leftEngineKey) { engine ->
-                // 保存当前查询语句
-                val currentQuery = searchInput?.text?.toString()?.trim()
-                
-                // 更新搜索引擎
-                leftEngineKey = getEngineKey(engine.name)
-                settingsManager.setLeftWindowSearchEngine(leftEngineKey)
-                firstTitle?.text = engine.name
-                
-                // 使用当前查询语句加载新的搜索引擎
-                if (!currentQuery.isNullOrEmpty()) {
-                    try {
-                        val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
-                        val newUrl = getSearchEngineSearchUrl(leftEngineKey, encodedQuery)
-                        firstWebView?.loadUrl(newUrl)
-                        firstTitle?.text = "${engine.name}: $currentQuery"
-                    } catch (e: Exception) {
-                        Log.e(TAG, "切换搜索引擎时执行搜索失败", e)
-                        loadCurrentPage(firstWebView, leftEngineKey)
-                    }
-                } else {
-                    loadCurrentPage(firstWebView, leftEngineKey)
-                }
-            }
-        }
-
-        secondEngineSelector?.setOnClickListener {
-            showEngineSelector(secondWebView, secondTitle, rightEngineKey) { engine ->
-                // 保存当前查询语句
-                val currentQuery = searchInput?.text?.toString()?.trim()
-                
-                // 更新搜索引擎
-                rightEngineKey = getEngineKey(engine.name)
-                settingsManager.setRightWindowSearchEngine(rightEngineKey)
-                secondTitle?.text = engine.name
-                
-                // 使用当前查询语句加载新的搜索引擎
-                if (!currentQuery.isNullOrEmpty()) {
-                    try {
-                        val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
-                        val newUrl = getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
-                        secondWebView?.loadUrl(newUrl)
-                        secondTitle?.text = "${engine.name}: $currentQuery"
-                    } catch (e: Exception) {
-                        Log.e(TAG, "切换搜索引擎时执行搜索失败", e)
-                        loadCurrentPage(secondWebView, rightEngineKey)
-                    }
-                } else {
-                    loadCurrentPage(secondWebView, rightEngineKey)
-                }
-            }
+    private fun updateEngineIcons() {
+        // 清空容器
+        firstEngineContainer?.removeAllViews()
+        secondEngineContainer?.removeAllViews()
+        
+        // 为每个搜索引擎创建图标
+        SearchEngine.DEFAULT_ENGINES.forEach { engine ->
+            // 创建左侧搜索引擎图标
+            createEngineIcon(engine, firstEngineContainer, true)
+            // 创建右侧搜索引擎图标
+            createEngineIcon(engine, secondEngineContainer, false)
         }
     }
 
-    private fun showEngineSelector(webView: WebView?, titleView: TextView?, currentEngine: String, onSelected: (SearchEngine) -> Unit) {
-        currentWebView = webView
-        currentTitle = titleView
-        currentEngineKey = currentEngine
-
-        // 创建搜索引擎列表视图
-        val recyclerView = RecyclerView(this).apply {
-            layoutManager = LinearLayoutManager(this@DualFloatingWebViewService)
-            adapter = SearchEngineAdapter(
-                engines = SearchEngine.DEFAULT_ENGINES,
-                onEngineSelected = { engine -> 
-                    onSelected(engine)
-                    searchEnginePopupWindow?.dismiss()
-                }
-            )
-            setBackgroundColor(Color.WHITE)
-        }
-
-        // 创建 PopupWindow
-        searchEnginePopupWindow = PopupWindow(recyclerView).apply {
-            width = ViewGroup.LayoutParams.WRAP_CONTENT
-            height = ViewGroup.LayoutParams.WRAP_CONTENT
-            isFocusable = true
-            elevation = 10f
-            setBackgroundDrawable(ColorDrawable(Color.WHITE))
+    private fun createEngineIcon(engine: SearchEngine, container: LinearLayout?, isLeft: Boolean) {
+        val context = container?.context ?: return
+        
+        // 创建图标按钮
+        val iconButton = ImageButton(context).apply {
+            layoutParams = LinearLayout.LayoutParams(48, 48).apply {
+                marginStart = 8
+                marginEnd = 8
+            }
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(8, 8, 8, 8)
+            background = ContextCompat.getDrawable(context, R.drawable.engine_icon_background)
             
-            // 设置动画
-            animationStyle = android.R.style.Animation_Dialog
+            // 设置点击事件
+            setOnClickListener {
+                val engineKey = getEngineKey(engine.name)
+                if (isLeft) {
+                    leftEngineKey = engineKey
+                    settingsManager.setLeftWindowSearchEngine(engineKey)
+                    firstTitle?.text = engine.name
+                } else {
+                    rightEngineKey = engineKey
+                    settingsManager.setRightWindowSearchEngine(engineKey)
+                    secondTitle?.text = engine.name
+                }
+                
+                // 获取当前查询语句
+                val currentQuery = searchInput?.text?.toString()?.trim()
+                
+                // 使用当前查询语句加载新的搜索引擎
+                if (!currentQuery.isNullOrEmpty()) {
+                    try {
+                        val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
+                        val newUrl = getSearchEngineSearchUrl(if (isLeft) leftEngineKey else rightEngineKey, encodedQuery)
+                        if (isLeft) {
+                            firstWebView?.loadUrl(newUrl)
+                            firstTitle?.text = "${engine.name}: $currentQuery"
+                        } else {
+                            secondWebView?.loadUrl(newUrl)
+                            secondTitle?.text = "${engine.name}: $currentQuery"
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "切换搜索引擎时执行搜索失败", e)
+                        loadCurrentPage(if (isLeft) firstWebView else secondWebView, if (isLeft) leftEngineKey else rightEngineKey)
+                    }
+                } else {
+                    loadCurrentPage(if (isLeft) firstWebView else secondWebView, if (isLeft) leftEngineKey else rightEngineKey)
+                }
+                
+                // 更新所有图标的状态
+                updateEngineIconStates(container, engineKey)
+            }
         }
+        
+        // 加载图标
+        val domain = when(getEngineKey(engine.name)) {
+            "baidu" -> "baidu.com"
+            "google" -> "google.com"
+            "bing" -> "bing.com"
+            "sogou" -> "sogou.com"
+            "360" -> "so.com"
+            "quark" -> "quark.sm.cn"
+            "toutiao" -> "toutiao.com"
+            "zhihu" -> "zhihu.com"
+            "bilibili" -> "bilibili.com"
+            else -> "baidu.com"
+        }
+        
+        faviconManager.getFavicon(domain) { bitmap ->
+            iconButton.post {
+                if (bitmap != null) {
+                    iconButton.setImageBitmap(bitmap)
+                } else {
+                    iconButton.setImageResource(R.drawable.ic_search)
+                }
+            }
+        }
+        
+        // 添加到容器
+        container.addView(iconButton)
+        
+        // 更新初始状态
+        val currentKey = if (isLeft) leftEngineKey else rightEngineKey
+        if (getEngineKey(engine.name) == currentKey) {
+            updateEngineIconStates(container, currentKey)
+        }
+    }
 
-        // 显示 PopupWindow
-        titleView?.let { title ->
-            searchEnginePopupWindow?.showAsDropDown(title)
+    private fun updateEngineIconStates(container: LinearLayout, selectedEngineKey: String) {
+        // 更新所有图标的状态
+        for (i in 0 until container.childCount) {
+            val iconButton = container.getChildAt(i) as? ImageButton
+            iconButton?.isSelected = getEngineKey(SearchEngine.DEFAULT_ENGINES[i].name) == selectedEngineKey
         }
     }
 
