@@ -87,7 +87,7 @@
             android:layout_weight="1"
             android:orientation="horizontal">
 
-            <!-- 左侧窗口 -->
+            <!-- 左侧/上方窗口 -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -150,7 +150,7 @@
                 android:layout_height="match_parent"
                 android:background="#E0E0E0" />
 
-            <!-- 右侧窗口 -->
+            <!-- 右侧/下方窗口 -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"

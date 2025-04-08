@@ -515,6 +515,14 @@ class DualFloatingWebViewService : Service() {
      * @return 返回设置的方向值（HORIZONTAL 或 VERTICAL）
      */
     private fun updateLayoutOrientation(): Int {
+        // 获取屏幕尺寸
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+
+        // 获取窗口参数
+        val windowParams = floatingView?.layoutParams as? WindowManager.LayoutParams
+        
         // 首先保存要返回的方向值
         val orientationValue = if (isHorizontalLayout) {
             LinearLayout.HORIZONTAL
@@ -525,22 +533,41 @@ class DualFloatingWebViewService : Service() {
         // 设置容器方向
         container?.orientation = orientationValue
         
-        // 更新分割线和窗口权重
-        val params = container?.layoutParams as? LinearLayout.LayoutParams
         if (isHorizontalLayout) {
+            // 水平布局时的窗口大小
+            windowParams?.width = (screenWidth * DEFAULT_WIDTH_RATIO).toInt()
+            windowParams?.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
+            
             // 水平分割线
-            divider?.layoutParams = LinearLayout.LayoutParams(4, ViewGroup.LayoutParams.MATCH_PARENT)
+            divider?.layoutParams = LinearLayout.LayoutParams(4, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                setMargins(2, 0, 2, 0)
+            }
             
             // 更新左右窗口权重
             container?.getChildAt(0)?.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
             container?.getChildAt(2)?.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
         } else {
+            // 垂直布局时撑满屏幕
+            windowParams?.width = screenWidth
+            windowParams?.height = screenHeight
+            
             // 垂直分割线
-            divider?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 4)
+            divider?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 4).apply {
+                setMargins(0, 2, 0, 2)
+            }
             
             // 更新上下窗口权重
             container?.getChildAt(0)?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
             container?.getChildAt(2)?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+        
+        // 更新窗口布局
+        windowParams?.let { params ->
+            try {
+                windowManager.updateViewLayout(floatingView, params)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新窗口布局失败", e)
+            }
         }
         
         // 应用布局参数
