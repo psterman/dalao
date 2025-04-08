@@ -565,19 +565,55 @@ class DualFloatingWebViewService : Service() {
     private fun setupEngineSelectors() {
         firstEngineSelector?.setOnClickListener {
             showEngineSelector(firstWebView, firstTitle, leftEngineKey) { engine ->
-                leftEngineKey = engine.name.toLowerCase()
+                // 保存当前查询语句
+                val currentQuery = searchInput?.text?.toString()?.trim()
+                
+                // 更新搜索引擎
+                leftEngineKey = getEngineKey(engine.name)
                 settingsManager.setLeftWindowSearchEngine(leftEngineKey)
                 firstTitle?.text = engine.name
-                loadCurrentPage(firstWebView, leftEngineKey)
+                
+                // 使用当前查询语句加载新的搜索引擎
+                if (!currentQuery.isNullOrEmpty()) {
+                    try {
+                        val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
+                        val newUrl = getSearchEngineSearchUrl(leftEngineKey, encodedQuery)
+                        firstWebView?.loadUrl(newUrl)
+                        firstTitle?.text = "${engine.name}: $currentQuery"
+                    } catch (e: Exception) {
+                        Log.e(TAG, "切换搜索引擎时执行搜索失败", e)
+                        loadCurrentPage(firstWebView, leftEngineKey)
+                    }
+                } else {
+                    loadCurrentPage(firstWebView, leftEngineKey)
+                }
             }
         }
 
         secondEngineSelector?.setOnClickListener {
             showEngineSelector(secondWebView, secondTitle, rightEngineKey) { engine ->
-                rightEngineKey = engine.name.toLowerCase()
+                // 保存当前查询语句
+                val currentQuery = searchInput?.text?.toString()?.trim()
+                
+                // 更新搜索引擎
+                rightEngineKey = getEngineKey(engine.name)
                 settingsManager.setRightWindowSearchEngine(rightEngineKey)
                 secondTitle?.text = engine.name
-                loadCurrentPage(secondWebView, rightEngineKey)
+                
+                // 使用当前查询语句加载新的搜索引擎
+                if (!currentQuery.isNullOrEmpty()) {
+                    try {
+                        val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
+                        val newUrl = getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
+                        secondWebView?.loadUrl(newUrl)
+                        secondTitle?.text = "${engine.name}: $currentQuery"
+                    } catch (e: Exception) {
+                        Log.e(TAG, "切换搜索引擎时执行搜索失败", e)
+                        loadCurrentPage(secondWebView, rightEngineKey)
+                    }
+                } else {
+                    loadCurrentPage(secondWebView, rightEngineKey)
+                }
             }
         }
     }
@@ -620,13 +656,28 @@ class DualFloatingWebViewService : Service() {
 
     private fun loadCurrentPage(webView: WebView?, engineKey: String) {
         webView?.url?.let { currentUrl ->
-            // 如果当前页面是搜索结果页面，则使用新的搜索引擎重新搜索
+            // 从搜索框获取当前查询语句
+            val currentQuery = searchInput?.text?.toString()?.trim()
+            
+            // 如果搜索框有查询语句，优先使用搜索框的查询
+            if (!currentQuery.isNullOrEmpty()) {
+                try {
+                    val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
+                    val newUrl = getSearchEngineSearchUrl(engineKey, encodedQuery)
+                    webView.loadUrl(newUrl)
+                    return@let
+                } catch (e: Exception) {
+                    Log.e(TAG, "执行搜索失败", e)
+                }
+            }
+            
+            // 如果搜索框没有查询语句，尝试从当前URL提取查询语句
             val query = extractSearchQuery(currentUrl, engineKey)
             if (query != null) {
                 val newUrl = getSearchEngineSearchUrl(engineKey, query)
                 webView.loadUrl(newUrl)
             } else {
-                // 如果不是搜索结果页面，则加载搜索引擎主页
+                // 如果没有查询语句，则加载搜索引擎主页
                 webView.loadUrl(getSearchEngineHomeUrl(engineKey))
             }
         }
@@ -634,28 +685,46 @@ class DualFloatingWebViewService : Service() {
 
     private fun extractSearchQuery(url: String, engineKey: String): String? {
         return try {
-            when (engineKey) {
-                "baidu" -> {
-                    val uri = Uri.parse(url)
-                    uri.getQueryParameter("wd")
+            val uri = Uri.parse(url)
+            when (engineKey.toLowerCase()) {
+                "baidu" -> uri.getQueryParameter("wd")
+                "google" -> uri.getQueryParameter("q")
+                "bing" -> uri.getQueryParameter("q")
+                "sogou" -> uri.getQueryParameter("query")
+                "360" -> uri.getQueryParameter("q")
+                "quark" -> uri.getQueryParameter("q")
+                "toutiao" -> uri.getQueryParameter("keyword")
+                "zhihu" -> uri.getQueryParameter("q")
+                "bilibili" -> uri.getQueryParameter("keyword")
+                else -> {
+                    // 尝试常见的查询参数名
+                    uri.getQueryParameter("q") 
+                        ?: uri.getQueryParameter("query")
+                        ?: uri.getQueryParameter("keyword")
+                        ?: uri.getQueryParameter("wd")
+                        ?: uri.getQueryParameter("word")
+                        ?: uri.getQueryParameter("search")
                 }
-                "google" -> {
-                    val uri = Uri.parse(url)
-                    uri.getQueryParameter("q")
-                }
-                "bing" -> {
-                    val uri = Uri.parse(url)
-                    uri.getQueryParameter("q")
-                }
-                "sogou" -> {
-                    val uri = Uri.parse(url)
-                    uri.getQueryParameter("query")
-                }
-                else -> null
             }
         } catch (e: Exception) {
             Log.e(TAG, "提取搜索关键词失败", e)
             null
+        }
+    }
+
+    // 添加新的辅助方法来获取搜索引擎的键名
+    private fun getEngineKey(engineName: String): String {
+        return when(engineName) {
+            "百度" -> "baidu"
+            "Google" -> "google"
+            "必应" -> "bing"
+            "搜狗" -> "sogou"
+            "360搜索" -> "360"
+            "夸克搜索" -> "quark"
+            "头条搜索" -> "toutiao"
+            "知乎" -> "zhihu"
+            "哔哩哔哩" -> "bilibili"
+            else -> engineName.toLowerCase()
         }
     }
 
