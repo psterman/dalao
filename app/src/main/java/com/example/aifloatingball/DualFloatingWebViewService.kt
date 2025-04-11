@@ -202,7 +202,8 @@ class DualFloatingWebViewService : Service() {
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
         
-        val defaultWidth = (screenWidth * DEFAULT_WIDTH_RATIO).toInt()
+        // Set default width to match screen width for horizontal layout
+        val defaultWidth = WindowManager.LayoutParams.MATCH_PARENT
         val defaultHeight = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
         
         return WindowManager.LayoutParams().apply {
@@ -270,15 +271,31 @@ class DualFloatingWebViewService : Service() {
                 displayZoomControls = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 cacheMode = WebSettings.LOAD_DEFAULT
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                setInitialScale(0)
+                userAgentString = settings.userAgentString + " Mobile"
             }
             
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                    handler?.proceed()
+                }
+                
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    Log.d(TAG, "开始加载页面: $url")
+                }
+                
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "页面加载完成: $url")
+                    view?.requestLayout()
+                }
+            }
             
-            // 根据设置的搜索引擎加载首页
             val leftHomeUrl = getSearchEngineHomeUrl(leftEngineKey)
             loadUrl(leftHomeUrl)
             
-            // 设置标题
             firstTitle?.text = getSearchEngineName(leftEngineKey)
         }
         
@@ -294,15 +311,31 @@ class DualFloatingWebViewService : Service() {
                 displayZoomControls = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 cacheMode = WebSettings.LOAD_DEFAULT
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                setInitialScale(0)
+                userAgentString = settings.userAgentString + " Mobile"
             }
             
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                    handler?.proceed()
+                }
+                
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    Log.d(TAG, "开始加载页面: $url")
+                }
+                
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "页面加载完成: $url")
+                    view?.requestLayout()
+                }
+            }
             
-            // 根据设置的搜索引擎加载首页
             val rightHomeUrl = getSearchEngineHomeUrl(rightEngineKey)
             loadUrl(rightHomeUrl)
             
-            // 设置标题
             secondTitle?.text = getSearchEngineName(rightEngineKey)
         }
     }
@@ -515,66 +548,103 @@ class DualFloatingWebViewService : Service() {
      * @return 返回设置的方向值（HORIZONTAL 或 VERTICAL）
      */
     private fun updateLayoutOrientation(): Int {
-        // 获取屏幕尺寸
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
 
-        // 获取窗口参数
         val windowParams = floatingView?.layoutParams as? WindowManager.LayoutParams
         
-        // 首先保存要返回的方向值
         val orientationValue = if (isHorizontalLayout) {
             LinearLayout.HORIZONTAL
         } else {
             LinearLayout.VERTICAL
         }
         
-        // 设置容器方向
         container?.orientation = orientationValue
         
         if (isHorizontalLayout) {
-            // 水平布局时的窗口大小
-            windowParams?.width = (screenWidth * DEFAULT_WIDTH_RATIO).toInt()
+            // Set window width to match screen width
+            windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
             windowParams?.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
             
-            // 水平分割线
+            // Update divider
             divider?.layoutParams = LinearLayout.LayoutParams(4, ViewGroup.LayoutParams.MATCH_PARENT).apply {
                 setMargins(2, 0, 2, 0)
             }
             
-            // 更新左右窗口权重
-            container?.getChildAt(0)?.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-            container?.getChildAt(2)?.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
-        } else {
-            // 垂直布局时撑满屏幕
-            windowParams?.width = screenWidth
-            windowParams?.height = screenHeight
+            // Update container and WebView widths
+            if (container?.childCount ?: 0 >= 3) {
+                // Set each WebView container width to 320dp
+                container?.getChildAt(0)?.let { firstContainer ->
+                    val params = LinearLayout.LayoutParams(
+                        (320 * resources.displayMetrics.density).toInt(),
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    firstContainer.layoutParams = params
+                }
+                
+                container?.getChildAt(2)?.let { secondContainer ->
+                    val params = LinearLayout.LayoutParams(
+                        (320 * resources.displayMetrics.density).toInt(),
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    secondContainer.layoutParams = params
+                }
+                
+                // Set container width to wrap_content to enable scrolling
+                container?.layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            }
             
-            // 垂直分割线
+            // Update window layout
+            try {
+                windowManager.updateViewLayout(floatingView, windowParams)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update window layout", e)
+            }
+        } else {
+            // Vertical layout
+            windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
+            windowParams?.height = WindowManager.LayoutParams.MATCH_PARENT
+            
+            // Vertical divider
             divider?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 4).apply {
                 setMargins(0, 2, 0, 2)
             }
             
-            // 更新上下窗口权重
-            container?.getChildAt(0)?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-            container?.getChildAt(2)?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-        }
-        
-        // 更新窗口布局
-        windowParams?.let { params ->
+            // Update container layouts for vertical orientation
+            if (container?.childCount ?: 0 >= 3) {
+                container?.getChildAt(0)?.let { firstContainer ->
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                    firstContainer.layoutParams = params
+                }
+                
+                container?.getChildAt(2)?.let { secondContainer ->
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                    secondContainer.layoutParams = params
+                }
+                
+                // Set container to match parent in vertical mode
+                container?.layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            }
+            
+            // Update window layout
             try {
-                windowManager.updateViewLayout(floatingView, params)
+                windowManager.updateViewLayout(floatingView, windowParams)
             } catch (e: Exception) {
-                Log.e(TAG, "更新窗口布局失败", e)
+                Log.e(TAG, "Failed to update window layout", e)
             }
         }
         
-        // 应用布局参数
+        // Request layout updates
         divider?.requestLayout()
         container?.requestLayout()
         
-        // 返回方向值
         return orientationValue
     }
     
