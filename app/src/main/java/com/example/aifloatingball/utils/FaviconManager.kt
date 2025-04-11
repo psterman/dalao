@@ -36,12 +36,24 @@ class FaviconManager private constructor(private val context: Context) {
     private val cacheDir: File by lazy {
         File(context.cacheDir, FAVICON_CACHE_DIR).also { it.mkdirs() }
     }
+
+    interface FaviconCallback {
+        fun onFaviconLoaded(bitmap: Bitmap?)
+    }
     
-    fun getFavicon(domain: String, callback: (Bitmap?) -> Unit) {
+    fun loadFavicon(url: String, callback: FaviconCallback) {
+        val domain = try {
+            URL(url).host
+        } catch (e: Exception) {
+            Log.e(TAG, "Invalid URL: $url", e)
+            callback.onFaviconLoaded(null)
+            return
+        }
+        
         // 先从内存缓存获取
         val cachedBitmap = memoryCache.get(domain)
         if (cachedBitmap != null) {
-            callback(cachedBitmap)
+            callback.onFaviconLoaded(cachedBitmap)
             return
         }
         
@@ -52,7 +64,7 @@ class FaviconManager private constructor(private val context: Context) {
                 val bitmap = BitmapFactory.decodeFile(cacheFile.absolutePath)
                 if (bitmap != null) {
                     memoryCache.put(domain, bitmap)
-                    callback(bitmap)
+                    callback.onFaviconLoaded(bitmap)
                     return
                 }
             } catch (e: Exception) {
@@ -69,17 +81,17 @@ class FaviconManager private constructor(private val context: Context) {
                     saveFaviconToCache(domain, bitmap)
                     memoryCache.put(domain, bitmap)
                     withContext(Dispatchers.Main) {
-                        callback(bitmap)
+                        callback.onFaviconLoaded(bitmap)
                     }
                 } else {
                     withContext(Dispatchers.Main) {
-                        callback(null)
+                        callback.onFaviconLoaded(null)
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to download favicon: $domain", e)
                 withContext(Dispatchers.Main) {
-                    callback(null)
+                    callback.onFaviconLoaded(null)
                 }
             }
         }
