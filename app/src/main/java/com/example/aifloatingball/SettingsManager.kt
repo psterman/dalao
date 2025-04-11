@@ -264,6 +264,14 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putString("left_window_search_engine", engine).apply()
     }
     
+    fun getCenterWindowSearchEngine(): String {
+        return prefs.getString("center_window_search_engine", "bing") ?: "bing"
+    }
+    
+    fun setCenterWindowSearchEngine(engine: String) {
+        prefs.edit().putString("center_window_search_engine", engine).apply()
+    }
+    
     fun getRightWindowSearchEngine(): String {
         return prefs.getString("right_window_search_engine", "google") ?: "google"
     }
@@ -278,5 +286,33 @@ class SettingsManager private constructor(context: Context) {
 
     fun setEnabledSearchEngines(engines: Set<String>) {
         prefs.edit().putStringSet("enabled_search_engines", engines).apply()
+    }
+
+    // 窗口数量设置
+    fun getDefaultWindowCount(): Int {
+        return prefs.getString("default_window_count", "2")?.toIntOrNull() ?: 2
+    }
+    
+    fun setDefaultWindowCount(count: Int) {
+        prefs.edit().putString("default_window_count", count.toString()).apply()
+    }
+
+    // 获取指定位置的搜索引擎
+    fun getSearchEngineForPosition(position: Int): String {
+        return when (position) {
+            0 -> getLeftWindowSearchEngine()
+            1 -> getCenterWindowSearchEngine()
+            2 -> getRightWindowSearchEngine()
+            else -> getDefaultSearchEngine()
+        }
+    }
+
+    // 设置指定位置的搜索引擎
+    fun setSearchEngineForPosition(position: Int, engine: String) {
+        when (position) {
+            0 -> setLeftWindowSearchEngine(engine)
+            1 -> setCenterWindowSearchEngine(engine)
+            2 -> setRightWindowSearchEngine(engine)
+        }
     }
 }

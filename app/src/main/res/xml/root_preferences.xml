@@ -53,32 +53,47 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
-        <SwitchPreferenceCompat
-            app:key="use_dual_window_mode"
-            app:title="双窗口模式"
-            app:summary="同时显示两个搜索引擎结果"
-            app:defaultValue="true"
-            app:iconSpaceReserved="false" />
-            
-        <ListPreference
-            app:key="left_window_search_engine"
-            app:title="左侧窗口搜索引擎"
-            app:summary="选择左侧窗口使用的搜索引擎"
-            app:entries="@array/search_engine_entries"
-            app:entryValues="@array/search_engine_values"
-            app:defaultValue="baidu"
-            app:iconSpaceReserved="false"
-            app:dependency="use_dual_window_mode" />
+        <PreferenceCategory
+            app:title="多窗口设置"
+            app:iconSpaceReserved="false">
 
-        <ListPreference
-            app:key="right_window_search_engine"
-            app:title="右侧窗口搜索引擎"
-            app:summary="选择右侧窗口使用的搜索引擎"
-            app:entries="@array/search_engine_entries"
-            app:entryValues="@array/search_engine_values"
-            app:defaultValue="google"
-            app:iconSpaceReserved="false"
-            app:dependency="use_dual_window_mode" />
+            <ListPreference
+                app:key="default_window_count"
+                app:title="默认窗口数量"
+                app:summary="选择默认打开的WebView窗口数量"
+                app:entries="@array/window_count_entries"
+                app:entryValues="@array/window_count_values"
+                app:defaultValue="2"
+                app:iconSpaceReserved="false" />
+
+            <ListPreference
+                app:key="left_window_search_engine"
+                app:title="左侧窗口搜索引擎"
+                app:summary="选择左侧窗口使用的搜索引擎"
+                app:entries="@array/search_engine_entries"
+                app:entryValues="@array/search_engine_values"
+                app:defaultValue="baidu"
+                app:iconSpaceReserved="false" />
+
+            <ListPreference
+                app:key="center_window_search_engine"
+                app:title="中间窗口搜索引擎"
+                app:summary="选择中间窗口使用的搜索引擎"
+                app:entries="@array/search_engine_entries"
+                app:entryValues="@array/search_engine_values"
+                app:defaultValue="bing"
+                app:iconSpaceReserved="false" />
+
+            <ListPreference
+                app:key="right_window_search_engine"
+                app:title="右侧窗口搜索引擎"
+                app:summary="选择右侧窗口使用的搜索引擎"
+                app:entries="@array/search_engine_entries"
+                app:entryValues="@array/search_engine_values"
+                app:defaultValue="google"
+                app:iconSpaceReserved="false" />
+
+        </PreferenceCategory>
 
         <SwitchPreferenceCompat
             app:key="auto_paste"

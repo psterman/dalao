@@ -72,7 +72,7 @@
             android:fillViewport="true"
             android:scrollbars="none">
 
-            <!-- 双WebView容器 -->
+            <!-- 三WebView容器 -->
             <LinearLayout
                 android:id="@+id/dual_webview_container"
                 android:layout_width="wrap_content"
@@ -81,7 +81,7 @@
 
                 <!-- 第一个WebView容器 -->
                 <LinearLayout
-                    android:layout_width="320dp"
+                    android:layout_width="300dp"
                     android:layout_height="match_parent"
                     android:orientation="vertical">
 
@@ -92,10 +92,10 @@
                         android:orientation="vertical"
                         android:background="@color/colorPrimaryDark">
 
-                            <TextView
-                                android:id="@+id/first_floating_title"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
+                        <TextView
+                            android:id="@+id/first_floating_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
                                 android:padding="8dp"
                                 android:textColor="@android:color/white"
                                 android:text="搜索"
@@ -108,27 +108,27 @@
                             android:orientation="horizontal"
                             android:padding="4dp"
                             android:gravity="center"/>
-                    </LinearLayout>
-
-                    <WebView
-                        android:id="@+id/first_floating_webview"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"/>
                 </LinearLayout>
 
-                <!-- 分割线 -->
-                <View
-                    android:id="@+id/divider"
-                    android:layout_width="4dp"
-                    android:layout_height="match_parent"
+                <WebView
+                    android:id="@+id/first_floating_webview"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                        android:layout_weight="1"/>
+            </LinearLayout>
+
+                <!-- 第一个分割线 -->
+            <View
+                    android:id="@+id/divider1"
+                    android:layout_width="2dp"
+                android:layout_height="match_parent"
                     android:background="@color/colorPrimaryDark"
-                    android:layout_marginStart="2dp"
-                    android:layout_marginEnd="2dp"/>
+                    android:layout_marginStart="1dp"
+                    android:layout_marginEnd="1dp"/>
 
                 <!-- 第二个WebView容器 -->
                 <LinearLayout
-                    android:layout_width="320dp"
+                    android:layout_width="300dp"
                     android:layout_height="match_parent"
                     android:orientation="vertical">
 
@@ -139,10 +139,10 @@
                         android:orientation="vertical"
                         android:background="@color/colorPrimaryDark">
 
-                            <TextView
-                                android:id="@+id/second_floating_title"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
+                        <TextView
+                            android:id="@+id/second_floating_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
                                 android:padding="8dp"
                                 android:textColor="@android:color/white"
                                 android:text="搜索"
@@ -155,10 +155,57 @@
                             android:orientation="horizontal"
                             android:padding="4dp"
                             android:gravity="center"/>
+                </LinearLayout>
+
+                <WebView
+                    android:id="@+id/second_floating_webview"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                        android:layout_weight="1"/>
+                </LinearLayout>
+
+                <!-- 第二个分割线 -->
+                <View
+                    android:id="@+id/divider2"
+                    android:layout_width="2dp"
+                    android:layout_height="match_parent"
+                    android:background="@color/colorPrimaryDark"
+                    android:layout_marginStart="1dp"
+                    android:layout_marginEnd="1dp"/>
+
+                <!-- 第三个WebView容器 -->
+                <LinearLayout
+                    android:layout_width="300dp"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:id="@+id/third_title_bar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:background="@color/colorPrimaryDark">
+
+                            <TextView
+                                android:id="@+id/third_floating_title"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:padding="8dp"
+                                android:textColor="@android:color/white"
+                                android:text="搜索"
+                                android:gravity="center"/>
+
+                        <LinearLayout
+                            android:id="@+id/third_engine_container"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:padding="4dp"
+                            android:gravity="center"/>
                     </LinearLayout>
 
                     <WebView
-                        android:id="@+id/second_floating_webview"
+                        android:id="@+id/third_floating_webview"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1"/>

@@ -41,24 +41,29 @@ class DualFloatingWebViewService : Service() {
         private const val DEFAULT_HEIGHT_RATIO = 0.7f
         private const val MIN_WIDTH_DP = 300
         private const val MIN_HEIGHT_DP = 400
+        private const val WEBVIEW_WIDTH_DP = 300 // 每个WebView的宽度
     }
 
     private lateinit var windowManager: WindowManager
     private var floatingView: View? = null
     private var firstWebView: WebView? = null
     private var secondWebView: WebView? = null
+    private var thirdWebView: WebView? = null  // 添加第三个WebView
     private var searchInput: EditText? = null
     private var toggleLayoutButton: ImageButton? = null
     private var dualSearchButton: ImageButton? = null
     private var closeButton: ImageButton? = null
     private var resizeHandle: View? = null
     private var container: LinearLayout? = null
-    private var divider: View? = null
+    private var divider1: View? = null  // 重命名为divider1
+    private var divider2: View? = null  // 添加divider2
     private var singleWindowButton: ImageButton? = null
     private var firstTitle: TextView? = null
     private var secondTitle: TextView? = null
+    private var thirdTitle: TextView? = null  // 添加第三个标题
     private var firstEngineContainer: LinearLayout? = null
     private var secondEngineContainer: LinearLayout? = null
+    private var thirdEngineContainer: LinearLayout? = null  // 添加第三个引擎容器
     private var searchEnginePopupWindow: PopupWindow? = null
     private var currentEngineKey: String = "baidu"
     private var currentWebView: WebView? = null
@@ -66,6 +71,7 @@ class DualFloatingWebViewService : Service() {
     
     private lateinit var settingsManager: SettingsManager
     private var leftEngineKey: String = "baidu"
+    private var centerEngineKey: String = "bing"  // 添加中间引擎键
     private var rightEngineKey: String = "google"
 
     private var isHorizontalLayout = true // 默认为水平布局
@@ -100,6 +106,7 @@ class DualFloatingWebViewService : Service() {
             
             // 获取用户设置的搜索引擎
             leftEngineKey = settingsManager.getLeftWindowSearchEngine()
+            centerEngineKey = settingsManager.getCenterWindowSearchEngine()
             rightEngineKey = settingsManager.getRightWindowSearchEngine()
             
             // 创建浮动窗口
@@ -184,17 +191,21 @@ class DualFloatingWebViewService : Service() {
         container = floatingView?.findViewById(R.id.dual_webview_container)
         firstWebView = floatingView?.findViewById(R.id.first_floating_webview)
         secondWebView = floatingView?.findViewById(R.id.second_floating_webview)
+        thirdWebView = floatingView?.findViewById(R.id.third_floating_webview)  // 添加第三个WebView
         searchInput = floatingView?.findViewById(R.id.dual_search_input)
         toggleLayoutButton = floatingView?.findViewById(R.id.btn_toggle_layout)
         dualSearchButton = floatingView?.findViewById(R.id.btn_dual_search)
         closeButton = floatingView?.findViewById(R.id.btn_dual_close)
         resizeHandle = floatingView?.findViewById(R.id.dual_resize_handle)
-        divider = floatingView?.findViewById(R.id.divider)
+        divider1 = floatingView?.findViewById(R.id.divider1)  // 更新divider1
+        divider2 = floatingView?.findViewById(R.id.divider2)  // 添加divider2
         singleWindowButton = floatingView?.findViewById(R.id.btn_single_window)
         firstTitle = floatingView?.findViewById(R.id.first_floating_title)
         secondTitle = floatingView?.findViewById(R.id.second_floating_title)
+        thirdTitle = floatingView?.findViewById(R.id.third_floating_title)  // 添加第三个标题
         firstEngineContainer = floatingView?.findViewById(R.id.first_engine_container)
         secondEngineContainer = floatingView?.findViewById(R.id.second_engine_container)
+        thirdEngineContainer = floatingView?.findViewById(R.id.third_engine_container)  // 添加第三个引擎容器
     }
 
     private fun createWindowLayoutParams(): WindowManager.LayoutParams {
@@ -299,8 +310,48 @@ class DualFloatingWebViewService : Service() {
             firstTitle?.text = getSearchEngineName(leftEngineKey)
         }
         
-        // 设置第二个WebView（右侧窗口）
+        // 设置第二个WebView（中间窗口）
         secondWebView?.apply {
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                loadWithOverviewMode = true
+                useWideViewPort = true
+                setSupportZoom(true)
+                builtInZoomControls = true
+                displayZoomControls = false
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                cacheMode = WebSettings.LOAD_DEFAULT
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                setInitialScale(0)
+                userAgentString = settings.userAgentString + " Mobile"
+            }
+            
+            webViewClient = object : WebViewClient() {
+                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                    handler?.proceed()
+                }
+                
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    Log.d(TAG, "开始加载页面: $url")
+                }
+                
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "页面加载完成: $url")
+                    view?.requestLayout()
+                }
+            }
+            
+            val centerHomeUrl = getSearchEngineHomeUrl(centerEngineKey)
+            loadUrl(centerHomeUrl)
+            
+            secondTitle?.text = getSearchEngineName(centerEngineKey)
+        }
+        
+        // 设置第三个WebView（右侧窗口）
+        thirdWebView?.apply {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -336,7 +387,7 @@ class DualFloatingWebViewService : Service() {
             val rightHomeUrl = getSearchEngineHomeUrl(rightEngineKey)
             loadUrl(rightHomeUrl)
             
-            secondTitle?.text = getSearchEngineName(rightEngineKey)
+            thirdTitle?.text = getSearchEngineName(rightEngineKey)
         }
     }
 
@@ -401,7 +452,8 @@ class DualFloatingWebViewService : Service() {
         // 处理窗口拖动
         val titleBars = listOf(
             floatingView?.findViewById<View>(R.id.first_title_bar),
-            floatingView?.findViewById<View>(R.id.second_title_bar)
+            floatingView?.findViewById<View>(R.id.second_title_bar),
+            floatingView?.findViewById<View>(R.id.third_title_bar)
         )
         
         titleBars.forEach { titleBar ->
@@ -502,20 +554,24 @@ class DualFloatingWebViewService : Service() {
         val query = searchInput?.text?.toString()?.trim() ?: ""
         if (query.isNotEmpty()) {
             try {
-                // 对查询进行URL编码
                 val encodedQuery = URLEncoder.encode(query, "UTF-8")
                 
                 // 使用左侧搜索引擎
                 val leftUrl = getSearchEngineSearchUrl(leftEngineKey, encodedQuery)
                 firstWebView?.loadUrl(leftUrl)
                 
+                // 使用中间搜索引擎
+                val centerUrl = getSearchEngineSearchUrl(centerEngineKey, encodedQuery)
+                secondWebView?.loadUrl(centerUrl)
+                
                 // 使用右侧搜索引擎
                 val rightUrl = getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
-                secondWebView?.loadUrl(rightUrl)
+                thirdWebView?.loadUrl(rightUrl)
                 
                 // 更新标题
                 firstTitle?.text = "${getSearchEngineName(leftEngineKey)}: $query"
-                secondTitle?.text = "${getSearchEngineName(rightEngineKey)}: $query"
+                secondTitle?.text = "${getSearchEngineName(centerEngineKey)}: $query"
+                thirdTitle?.text = "${getSearchEngineName(rightEngineKey)}: $query"
                 
                 // 关闭键盘
                 val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -551,6 +607,7 @@ class DualFloatingWebViewService : Service() {
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
+        val isLandscape = screenWidth > screenHeight
 
         val windowParams = floatingView?.layoutParams as? WindowManager.LayoutParams
         
@@ -563,59 +620,65 @@ class DualFloatingWebViewService : Service() {
         container?.orientation = orientationValue
         
         if (isHorizontalLayout) {
-            // Set window width to match screen width
+            // 设置窗口宽度为屏幕宽度
             windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
             windowParams?.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
             
-            // Update divider
-            divider?.layoutParams = LinearLayout.LayoutParams(4, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                setMargins(2, 0, 2, 0)
+            // 更新分割线
+            divider1?.layoutParams = LinearLayout.LayoutParams(2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                setMargins(1, 0, 1, 0)
+            }
+            divider2?.layoutParams = LinearLayout.LayoutParams(2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                setMargins(1, 0, 1, 0)
             }
             
-            // Update container and WebView widths
-            if (container?.childCount ?: 0 >= 3) {
-                // Set each WebView container width to 320dp
+            // 更新容器和WebView宽度
+            if (container?.childCount ?: 0 >= 5) {
+                val webViewWidth = if (isLandscape) {
+                    // 横屏时，每个WebView宽度为屏幕宽度的一半减去分割线宽度
+                    (screenWidth / 2) - 2
+        } else {
+                    // 竖屏时，使用固定宽度
+                    (WEBVIEW_WIDTH_DP * resources.displayMetrics.density).toInt()
+                }
+                
+                // 设置每个WebView容器的宽度
                 container?.getChildAt(0)?.let { firstContainer ->
-                    val params = LinearLayout.LayoutParams(
-                        (320 * resources.displayMetrics.density).toInt(),
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
+                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
                     firstContainer.layoutParams = params
                 }
                 
                 container?.getChildAt(2)?.let { secondContainer ->
-                    val params = LinearLayout.LayoutParams(
-                        (320 * resources.displayMetrics.density).toInt(),
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
+                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
                     secondContainer.layoutParams = params
                 }
                 
-                // Set container width to wrap_content to enable scrolling
+                container?.getChildAt(4)?.let { thirdContainer ->
+                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
+                    thirdContainer.layoutParams = params
+                }
+                
+                // 设置容器宽度为wrap_content以启用滚动
                 container?.layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
             }
-            
-            // Update window layout
-            try {
-                windowManager.updateViewLayout(floatingView, windowParams)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to update window layout", e)
-            }
         } else {
-            // Vertical layout
+            // 垂直布局
             windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
             windowParams?.height = WindowManager.LayoutParams.MATCH_PARENT
             
-            // Vertical divider
-            divider?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 4).apply {
-                setMargins(0, 2, 0, 2)
+            // 垂直分割线
+            divider1?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
+                setMargins(0, 1, 0, 1)
+            }
+            divider2?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
+                setMargins(0, 1, 0, 1)
             }
             
-            // Update container layouts for vertical orientation
-            if (container?.childCount ?: 0 >= 3) {
+            // 更新容器布局为垂直方向
+            if (container?.childCount ?: 0 >= 5) {
                 container?.getChildAt(0)?.let { firstContainer ->
                     val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
                     firstContainer.layoutParams = params
@@ -626,23 +689,29 @@ class DualFloatingWebViewService : Service() {
                     secondContainer.layoutParams = params
                 }
                 
-                // Set container to match parent in vertical mode
+                container?.getChildAt(4)?.let { thirdContainer ->
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                    thirdContainer.layoutParams = params
+                }
+                
+                // 设置容器为match_parent
                 container?.layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
             }
-            
-            // Update window layout
-            try {
-                windowManager.updateViewLayout(floatingView, windowParams)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to update window layout", e)
-            }
         }
         
-        // Request layout updates
-        divider?.requestLayout()
+        // 更新窗口布局
+            try {
+            windowManager.updateViewLayout(floatingView, windowParams)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新窗口布局失败", e)
+        }
+        
+        // 请求布局更新
+        divider1?.requestLayout()
+        divider2?.requestLayout()
         container?.requestLayout()
         
         return orientationValue
@@ -671,13 +740,16 @@ class DualFloatingWebViewService : Service() {
         // 清空容器
         firstEngineContainer?.removeAllViews()
         secondEngineContainer?.removeAllViews()
+        thirdEngineContainer?.removeAllViews()
         
         // 为每个搜索引擎创建图标
         SearchEngine.DEFAULT_ENGINES.forEach { engine ->
             // 创建左侧搜索引擎图标
             createEngineIcon(engine, firstEngineContainer, true)
-            // 创建右侧搜索引擎图标
+            // 创建中间搜索引擎图标
             createEngineIcon(engine, secondEngineContainer, false)
+            // 创建右侧搜索引擎图标
+            createEngineIcon(engine, thirdEngineContainer, false)
         }
     }
 

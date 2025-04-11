@@ -90,4 +90,16 @@
         <item>sogou</item>
         <item>chatgpt</item>
     </string-array>
+
+    <string-array name="window_count_entries">
+        <item>单窗口</item>
+        <item>双窗口</item>
+        <item>三窗口</item>
+    </string-array>
+
+    <string-array name="window_count_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+    </string-array>
 </resources>

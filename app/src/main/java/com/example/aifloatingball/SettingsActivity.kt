@@ -95,11 +95,11 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
-            // 双窗口模式设置
-            findPreference<SwitchPreferenceCompat>("use_dual_window_mode")?.apply {
-                isChecked = settingsManager.getBoolean("use_dual_window_mode", true)
+            // 默认窗口数量设置
+            findPreference<ListPreference>("default_window_count")?.apply {
+                value = settingsManager.getDefaultWindowCount().toString()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.putBoolean("use_dual_window_mode", newValue as Boolean)
+                    settingsManager.setDefaultWindowCount(newValue.toString().toInt())
                     true
                 }
             }
@@ -109,6 +109,15 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getLeftWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setLeftWindowSearchEngine(newValue.toString())
+                    true
+                }
+            }
+            
+            // 中间窗口搜索引擎设置
+            findPreference<ListPreference>("center_window_search_engine")?.apply {
+                value = settingsManager.getCenterWindowSearchEngine()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setCenterWindowSearchEngine(newValue.toString())
                     true
                 }
             }
