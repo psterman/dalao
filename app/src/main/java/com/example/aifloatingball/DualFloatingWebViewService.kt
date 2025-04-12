@@ -3,7 +3,6 @@ package com.example.aifloatingball
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -14,7 +13,6 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
-import android.util.TypedValue
 import android.view.*
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -28,6 +26,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.SearchEngineAdapter
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.utils.FaviconManager
+import com.example.aifloatingball.utils.EngineUtil
 import java.net.URLEncoder
 
 class DualFloatingWebViewService : Service() {
@@ -66,6 +65,9 @@ class DualFloatingWebViewService : Service() {
     private var firstEngineContainer: LinearLayout? = null
     private var secondEngineContainer: LinearLayout? = null
     private var thirdEngineContainer: LinearLayout? = null  // 添加第三个引擎容器
+    private var firstAIEngineContainer: LinearLayout? = null
+    private var secondAIEngineContainer: LinearLayout? = null
+    private var thirdAIEngineContainer: LinearLayout? = null  // 添加AI引擎容器
     private var searchEnginePopupWindow: PopupWindow? = null
     private var currentEngineKey: String = "baidu"
     private var currentWebView: WebView? = null
@@ -127,9 +129,9 @@ class DualFloatingWebViewService : Service() {
             updateEngineIcons()
             
             // 更新所有搜索引擎图标状态
-            firstEngineContainer?.let { updateEngineIconStates(it, leftEngineKey) }
-            secondEngineContainer?.let { updateEngineIconStates(it, centerEngineKey) }
-            thirdEngineContainer?.let { updateEngineIconStates(it, rightEngineKey) }
+            firstEngineContainer?.let { updateEngineIconStates(it, leftEngineKey, false) }
+            secondEngineContainer?.let { updateEngineIconStates(it, centerEngineKey, false) }
+            thirdEngineContainer?.let { updateEngineIconStates(it, rightEngineKey, false) }
             
         } catch (e: Exception) {
             Log.e(TAG, "创建服务失败", e)
@@ -213,6 +215,9 @@ class DualFloatingWebViewService : Service() {
         firstEngineContainer = floatingView?.findViewById(R.id.first_engine_container)
         secondEngineContainer = floatingView?.findViewById(R.id.second_engine_container)
         thirdEngineContainer = floatingView?.findViewById(R.id.third_engine_container)  // 添加第三个引擎容器
+        firstAIEngineContainer = floatingView?.findViewById(R.id.first_ai_engine_container)
+        secondAIEngineContainer = floatingView?.findViewById(R.id.second_ai_engine_container)
+        thirdAIEngineContainer = floatingView?.findViewById(R.id.third_ai_engine_container)  // 添加AI引擎容器
     }
 
     private fun createWindowLayoutParams(): WindowManager.LayoutParams {
@@ -277,157 +282,205 @@ class DualFloatingWebViewService : Service() {
     }
 
     private fun setupWebViews() {
-        // 获取窗口容器
-        val container = floatingView?.findViewById<LinearLayout>(R.id.dual_webview_container)
-        
-        // 设置窗口数量
-        val windowCount = settingsManager.getDefaultWindowCount()
-        when (windowCount) {
-            1 -> {
-                // 单窗口模式
-                floatingView?.findViewById<View>(R.id.divider1)?.visibility = View.GONE
-                floatingView?.findViewById<View>(R.id.divider2)?.visibility = View.GONE
-                floatingView?.findViewById<LinearLayout>(R.id.second_title_bar)?.visibility = View.GONE
-                floatingView?.findViewById<LinearLayout>(R.id.third_title_bar)?.visibility = View.GONE
-            }
-            2 -> {
-                // 双窗口模式
-                floatingView?.findViewById<View>(R.id.divider1)?.visibility = View.VISIBLE
-                floatingView?.findViewById<View>(R.id.divider2)?.visibility = View.GONE
-                floatingView?.findViewById<LinearLayout>(R.id.second_title_bar)?.visibility = View.VISIBLE
-                floatingView?.findViewById<LinearLayout>(R.id.third_title_bar)?.visibility = View.GONE
-            }
-            3 -> {
-                // 三窗口模式
-                floatingView?.findViewById<View>(R.id.divider1)?.visibility = View.VISIBLE
-                floatingView?.findViewById<View>(R.id.divider2)?.visibility = View.VISIBLE
-                floatingView?.findViewById<LinearLayout>(R.id.second_title_bar)?.visibility = View.VISIBLE
-                floatingView?.findViewById<LinearLayout>(R.id.third_title_bar)?.visibility = View.VISIBLE
-            }
-        }
-
-        // 配置WebView设置
-        listOf(firstWebView, secondWebView, thirdWebView).forEach { webView ->
-            webView?.settings?.apply {
+        // 设置第一个WebView（左侧窗口）
+        firstWebView?.apply {
+            settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                databaseEnabled = true
+                loadWithOverviewMode = true
+                useWideViewPort = true
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                setSupportMultipleWindows(true)
-                javaScriptCanOpenWindowsAutomatically = true
-                allowFileAccess = true
-                allowContentAccess = true
-                setGeolocationEnabled(true)
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 cacheMode = WebSettings.LOAD_DEFAULT
-                setCacheMode(WebSettings.LOAD_DEFAULT)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                setInitialScale(0)
+                userAgentString = settings.userAgentString + " Mobile"
+            }
+            
+            webViewClient = object : WebViewClient() {
+                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                    handler?.proceed()
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    safeBrowsingEnabled = true
+                
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    Log.d(TAG, "开始加载页面: $url")
+                }
+                
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "页面加载完成: $url")
+                    view?.requestLayout()
                 }
             }
+            
+            val leftHomeUrl = EngineUtil.getSearchEngineHomeUrl(leftEngineKey)
+            loadUrl(leftHomeUrl)
+            
+            firstTitle?.text = EngineUtil.getSearchEngineName(leftEngineKey, false)
         }
-
-        // 设置搜索引擎
-        setupSearchEngines()
-
-        // 设置窗口大小和位置
-        updateWindowLayout()
-
-        // 设置拖拽和调整大小
-        setupDragAndResize()
-    }
-
-    private fun setupSearchEngines() {
-        // 设置左侧窗口搜索引擎
-        val leftEngine = settingsManager.getLeftWindowSearchEngine()
-        updateWebViewForEngine(R.id.first_floating_webview, leftEngine)
-        updateEngineIcons()  // 更新所有搜索引擎图标
-
-        // 设置中间窗口搜索引擎
-        val centerEngine = settingsManager.getCenterWindowSearchEngine()
-        updateWebViewForEngine(R.id.second_floating_webview, centerEngine)
-
-        // 设置右侧窗口搜索引擎
-        val rightEngine = settingsManager.getRightWindowSearchEngine()
-        updateWebViewForEngine(R.id.third_floating_webview, rightEngine)
-    }
-
-    private fun updateWindowLayout() {
-        val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-
-        // 根据屏幕方向调整窗口大小
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val windowCount = settingsManager.getDefaultWindowCount()
-
-        if (isLandscape && windowCount >= 2) {
-            // 横屏模式下，每个窗口宽度为屏幕宽度的一半（减去分割线宽度）
-            val windowWidth = (screenWidth - 4) / 2
-            floatingView?.findViewById<LinearLayout>(R.id.first_title_bar)?.layoutParams?.width = windowWidth
-            floatingView?.findViewById<LinearLayout>(R.id.second_title_bar)?.layoutParams?.width = windowWidth
-            if (windowCount == 3) {
-                floatingView?.findViewById<LinearLayout>(R.id.third_title_bar)?.layoutParams?.width = windowWidth
+        
+        // 设置第二个WebView（中间窗口）
+        secondWebView?.apply {
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                loadWithOverviewMode = true
+                useWideViewPort = true
+                setSupportZoom(true)
+                builtInZoomControls = true
+                displayZoomControls = false
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                cacheMode = WebSettings.LOAD_DEFAULT
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                setInitialScale(0)
+                userAgentString = settings.userAgentString + " Mobile"
             }
-        } else {
-            // 竖屏模式下，使用固定宽度
-            floatingView?.findViewById<LinearLayout>(R.id.first_title_bar)?.layoutParams?.width = 300.dp()
-            floatingView?.findViewById<LinearLayout>(R.id.second_title_bar)?.layoutParams?.width = 300.dp()
-            floatingView?.findViewById<LinearLayout>(R.id.third_title_bar)?.layoutParams?.width = 300.dp()
+            
+            webViewClient = object : WebViewClient() {
+                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                    handler?.proceed()
+                }
+                
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    Log.d(TAG, "开始加载页面: $url")
+                }
+                
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "页面加载完成: $url")
+                    view?.requestLayout()
+                }
+            }
+            
+            val centerHomeUrl = EngineUtil.getSearchEngineHomeUrl(centerEngineKey)
+            loadUrl(centerHomeUrl)
+            
+            secondTitle?.text = EngineUtil.getSearchEngineName(centerEngineKey, false)
         }
-
-        // 更新窗口位置
-        val params = floatingView?.layoutParams as WindowManager.LayoutParams
-        params.x = 0
-        params.y = 0
-        windowManager.updateViewLayout(floatingView, params)
+        
+        // 设置第三个WebView（右侧窗口）
+        thirdWebView?.apply {
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                loadWithOverviewMode = true
+                useWideViewPort = true
+                setSupportZoom(true)
+                builtInZoomControls = true
+                displayZoomControls = false
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                cacheMode = WebSettings.LOAD_DEFAULT
+                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+                setInitialScale(0)
+                userAgentString = settings.userAgentString + " Mobile"
+            }
+            
+            webViewClient = object : WebViewClient() {
+                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                    handler?.proceed()
+                }
+                
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    Log.d(TAG, "开始加载页面: $url")
+                }
+                
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "页面加载完成: $url")
+                    view?.requestLayout()
+                }
+            }
+            
+            val rightHomeUrl = EngineUtil.getSearchEngineHomeUrl(rightEngineKey)
+            loadUrl(rightHomeUrl)
+            
+            thirdTitle?.text = EngineUtil.getSearchEngineName(rightEngineKey, false)
+        }
     }
 
-    private fun setupDragAndResize() {
-        // 设置拖拽
-        floatingView?.setOnTouchListener { view, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.x ?: 0
-                    initialY = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.y ?: 0
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    isMoving = true
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (isMoving) {
-                        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
-                        params.x = initialX + (event.rawX - initialTouchX).toInt()
-                        params.y = initialY + (event.rawY - initialTouchY).toInt()
-                        try {
-                            windowManager.updateViewLayout(floatingView, params)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "更新窗口位置失败", e)
-                        }
+    private fun setupControls() {
+        // 设置移动和调整大小的触摸监听
+        setupTouchListeners()
+        
+        // 设置布局切换按钮
+        toggleLayoutButton?.setOnClickListener {
+            isHorizontalLayout = !isHorizontalLayout
+            updateLayoutOrientation()
+            saveWindowState()
+        }
+        
+        // 设置搜索功能
+        setupSearchFunctionality()
+        
+        // 设置关闭按钮
+        closeButton?.setOnClickListener {
+            stopSelf()
+        }
+        
+        // 设置单窗口模式按钮
+        singleWindowButton?.setOnClickListener {
+            switchToSingleWindowMode()
+        }
+    }
+
+    private fun setupTouchListeners() {
+        // 处理窗口拖动
+        val titleBars = listOf(
+            floatingView?.findViewById<View>(R.id.first_title_bar),
+            floatingView?.findViewById<View>(R.id.second_title_bar),
+            floatingView?.findViewById<View>(R.id.third_title_bar)
+        )
+        
+        titleBars.forEach { titleBar ->
+            titleBar?.setOnTouchListener { _, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.x ?: 0
+                        initialY = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.y ?: 0
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        isMoving = true
+                        return@setOnTouchListener true
                     }
-                    true
+                    MotionEvent.ACTION_MOVE -> {
+                        if (isMoving) {
+                            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
+                            params.x = initialX + (event.rawX - initialTouchX).toInt()
+                            params.y = initialY + (event.rawY - initialTouchY).toInt()
+                            try {
+                                windowManager.updateViewLayout(floatingView, params)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "更新窗口位置失败", e)
+                            }
+                        }
+                        return@setOnTouchListener true
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        isMoving = false
+                        saveWindowState()
+                        return@setOnTouchListener true
+                    }
+                    else -> return@setOnTouchListener false
                 }
-                else -> false
             }
         }
-
-        // 设置调整大小
-        floatingView?.findViewById<View>(R.id.dual_resize_handle)?.setOnTouchListener { view, event ->
+        
+        // 处理窗口大小调整
+        resizeHandle?.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    initialWidth = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.width ?: 0
-                    initialHeight = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.height ?: 0
+                    val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
+                    initialWidth = params.width
+                    initialHeight = params.height
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isResizing = true
-                    true
+                    return@setOnTouchListener true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (isResizing) {
@@ -449,97 +502,31 @@ class DualFloatingWebViewService : Service() {
                             Log.e(TAG, "调整窗口大小失败", e)
                         }
                     }
-                    true
+                    return@setOnTouchListener true
                 }
-                else -> false
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    isResizing = false
+                    saveWindowState()
+                    return@setOnTouchListener true
+                }
+                else -> return@setOnTouchListener false
             }
         }
     }
 
-    private fun updateWebViewForEngine(webViewId: Int, engineKey: String) {
-        val webView = floatingView?.findViewById<WebView>(webViewId)
-        val titleView = floatingView?.findViewById<TextView>(R.id.first_floating_title)
-        val containerId = when (webViewId) {
-            R.id.first_floating_webview -> R.id.first_engine_container
-            R.id.second_floating_webview -> R.id.second_engine_container
-            R.id.third_floating_webview -> R.id.third_engine_container
-            else -> R.id.first_engine_container
+    private fun setupSearchFunctionality() {
+        // 设置搜索输入框的回车键操作
+        searchInput?.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performDualSearch()
+                return@setOnEditorActionListener true
+            }
+            false
         }
         
-        try {
-            if (webView != null && titleView != null) {
-                val currentQuery = searchInput?.text?.toString()?.trim()
-                
-                if (!currentQuery.isNullOrEmpty()) {
-                    val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
-                    val newUrl = getSearchEngineSearchUrl(engineKey, encodedQuery)
-                    webView.loadUrl(newUrl)
-                    titleView.text = "${getSearchEngineName(engineKey)}: $currentQuery"
-                } else {
-                    val homeUrl = getSearchEngineHomeUrl(engineKey)
-                    webView.loadUrl(homeUrl)
-                    titleView.text = getSearchEngineName(engineKey)
-                    
-                    // 加载并设置favicon
-                    loadFaviconForEngine(webView, engineKey, containerId)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "切换搜索引擎失败", e)
-            webView?.loadUrl(getSearchEngineHomeUrl(engineKey))
-            titleView?.text = getSearchEngineName(engineKey)
-        }
-    }
-
-    private fun loadFaviconForEngine(webView: WebView?, engineKey: String, containerId: Int) {
-        webView?.let { view ->
-            val homeUrl = getSearchEngineHomeUrl(engineKey)
-            faviconManager.loadFavicon(homeUrl, object : FaviconManager.FaviconCallback {
-                override fun onFaviconLoaded(bitmap: Bitmap?) {
-                    if (bitmap != null) {
-                        // 只更新指定容器的图标
-                        updateEngineIcon(containerId, bitmap)
-                    }
-                }
-            })
-        }
-    }
-
-    private fun updateEngineIcon(containerId: Int, bitmap: Bitmap) {
-        val container = floatingView?.findViewById<LinearLayout>(containerId)
-        container?.let { parent ->
-            for (i in 0 until parent.childCount) {
-                val view = parent.getChildAt(i)
-                if (view is ImageButton) {
-                    view.setImageBitmap(bitmap)
-                }
-            }
-        }
-    }
-
-    private fun updateEngineIconStates(container: LinearLayout?, selectedEngineKey: String) {
-        container?.let { parent ->
-            for (i in 0 until parent.childCount) {
-                val view = parent.getChildAt(i)
-                if (view is ImageButton) {
-                    // 根据容器确定当前窗口的搜索引擎
-                    val currentEngineKey = when (container) {
-                        firstEngineContainer -> leftEngineKey
-                        secondEngineContainer -> centerEngineKey
-                        thirdEngineContainer -> rightEngineKey
-                        else -> selectedEngineKey
-                    }
-                    
-                    // 设置选中状态的视觉效果
-                    if (currentEngineKey == selectedEngineKey) {
-                        view.setBackgroundColor(Color.parseColor("#1A000000"))
-                        view.alpha = 1.0f
-                    } else {
-                        view.setBackgroundColor(Color.TRANSPARENT)
-                        view.alpha = 0.5f
-                    }
-                }
-            }
+        // 设置搜索按钮点击事件
+        dualSearchButton?.setOnClickListener {
+            performDualSearch()
         }
     }
 
@@ -550,21 +537,21 @@ class DualFloatingWebViewService : Service() {
                 val encodedQuery = URLEncoder.encode(query, "UTF-8")
                 
                 // 使用左侧搜索引擎
-                val leftUrl = getSearchEngineSearchUrl(leftEngineKey, encodedQuery)
+                val leftUrl = EngineUtil.getSearchEngineSearchUrl(leftEngineKey, encodedQuery)
                 firstWebView?.loadUrl(leftUrl)
                 
                 // 使用中间搜索引擎
-                val centerUrl = getSearchEngineSearchUrl(centerEngineKey, encodedQuery)
+                val centerUrl = EngineUtil.getSearchEngineSearchUrl(centerEngineKey, encodedQuery)
                 secondWebView?.loadUrl(centerUrl)
                 
                 // 使用右侧搜索引擎
-                val rightUrl = getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
+                val rightUrl = EngineUtil.getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
                 thirdWebView?.loadUrl(rightUrl)
                 
                 // 更新标题
-                firstTitle?.text = "${getSearchEngineName(leftEngineKey)}: $query"
-                secondTitle?.text = "${getSearchEngineName(centerEngineKey)}: $query"
-                thirdTitle?.text = "${getSearchEngineName(rightEngineKey)}: $query"
+                firstTitle?.text = "${EngineUtil.getSearchEngineName(leftEngineKey, false)}: $query"
+                secondTitle?.text = "${EngineUtil.getSearchEngineName(centerEngineKey, false)}: $query"
+                thirdTitle?.text = "${EngineUtil.getSearchEngineName(rightEngineKey, false)}: $query"
                 
                 // 关闭键盘
                 val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -576,22 +563,6 @@ class DualFloatingWebViewService : Service() {
         }
     }
     
-    // 根据搜索引擎和查询构建搜索URL
-    private fun getSearchEngineSearchUrl(engineKey: String, query: String): String {
-        return when(engineKey) {
-            "baidu" -> "https://www.baidu.com/s?wd=$query"
-            "google" -> "https://www.google.com/search?q=$query"
-            "bing" -> "https://www.bing.com/search?q=$query"
-            "sogou" -> "https://www.sogou.com/web?query=$query"
-            "360" -> "https://www.so.com/s?q=$query"
-            "quark" -> "https://quark.sm.cn/s?q=$query"
-            "toutiao" -> "https://so.toutiao.com/search?keyword=$query"
-            "zhihu" -> "https://www.zhihu.com/search?type=content&q=$query"
-            "bilibili" -> "https://search.bilibili.com/all?keyword=$query"
-            else -> "https://www.baidu.com/s?wd=$query"
-        }
-    }
-
     /**
      * 更新布局方向
      * @return 返回设置的方向值（HORIZONTAL 或 VERTICAL）
@@ -610,7 +581,7 @@ class DualFloatingWebViewService : Service() {
             LinearLayout.VERTICAL
         }
         
-        floatingView?.findViewById<LinearLayout>(R.id.dual_webview_container)?.orientation = orientationValue
+        container?.orientation = orientationValue
         
         if (isHorizontalLayout) {
             // 设置窗口宽度为屏幕宽度
@@ -618,68 +589,94 @@ class DualFloatingWebViewService : Service() {
             windowParams?.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
             
             // 更新分割线
-            floatingView?.findViewById<View>(R.id.divider1)?.layoutParams = LinearLayout.LayoutParams(2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+            divider1?.layoutParams = LinearLayout.LayoutParams(2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
                 setMargins(1, 0, 1, 0)
             }
-            floatingView?.findViewById<View>(R.id.divider2)?.layoutParams = LinearLayout.LayoutParams(2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+            divider2?.layoutParams = LinearLayout.LayoutParams(2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
                 setMargins(1, 0, 1, 0)
             }
             
             // 更新容器和WebView宽度
-            val webViewWidth = if (isLandscape) {
-                // 横屏时，每个WebView宽度为屏幕宽度的一半减去分割线宽度
-                (screenWidth / 2) - 2
-            } else {
-                // 竖屏时，使用固定宽度
-                300.dp()
+            if (container?.childCount ?: 0 >= 5) {
+                val webViewWidth = if (isLandscape) {
+                    // 横屏时，每个WebView宽度为屏幕宽度的一半减去分割线宽度
+                    (screenWidth / 2) - 2
+        } else {
+                    // 竖屏时，使用固定宽度
+                    (WEBVIEW_WIDTH_DP * resources.displayMetrics.density).toInt()
+                }
+                
+                // 设置每个WebView容器的宽度
+                container?.getChildAt(0)?.let { firstContainer ->
+                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
+                    firstContainer.layoutParams = params
+                }
+                
+                container?.getChildAt(2)?.let { secondContainer ->
+                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
+                    secondContainer.layoutParams = params
+                }
+                
+                container?.getChildAt(4)?.let { thirdContainer ->
+                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
+                    thirdContainer.layoutParams = params
+                }
+                
+                // 设置容器宽度为wrap_content以启用滚动
+                container?.layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
             }
-            
-            // 设置每个WebView容器的宽度
-            floatingView?.findViewById<LinearLayout>(R.id.first_title_bar)?.layoutParams?.width = webViewWidth
-            floatingView?.findViewById<LinearLayout>(R.id.second_title_bar)?.layoutParams?.width = webViewWidth
-            floatingView?.findViewById<LinearLayout>(R.id.third_title_bar)?.layoutParams?.width = webViewWidth
-            
-            // 设置容器宽度为wrap_content以启用滚动
-            floatingView?.layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
         } else {
             // 垂直布局
             windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
             windowParams?.height = WindowManager.LayoutParams.MATCH_PARENT
             
             // 垂直分割线
-            floatingView?.findViewById<View>(R.id.divider1)?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
+            divider1?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
                 setMargins(0, 1, 0, 1)
             }
-            floatingView?.findViewById<View>(R.id.divider2)?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
+            divider2?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
                 setMargins(0, 1, 0, 1)
             }
             
             // 更新容器布局为垂直方向
-            floatingView?.findViewById<LinearLayout>(R.id.first_title_bar)?.layoutParams?.width = ViewGroup.LayoutParams.MATCH_PARENT
-            floatingView?.findViewById<LinearLayout>(R.id.second_title_bar)?.layoutParams?.width = ViewGroup.LayoutParams.MATCH_PARENT
-            floatingView?.findViewById<LinearLayout>(R.id.third_title_bar)?.layoutParams?.width = ViewGroup.LayoutParams.MATCH_PARENT
-            
-            // 设置容器为match_parent
-            floatingView?.layoutParams = FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
+            if (container?.childCount ?: 0 >= 5) {
+                container?.getChildAt(0)?.let { firstContainer ->
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                    firstContainer.layoutParams = params
+                }
+                
+                container?.getChildAt(2)?.let { secondContainer ->
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                    secondContainer.layoutParams = params
+                }
+                
+                container?.getChildAt(4)?.let { thirdContainer ->
+                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                    thirdContainer.layoutParams = params
+                }
+                
+                // 设置容器为match_parent
+                container?.layoutParams = FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            }
         }
         
         // 更新窗口布局
-        try {
+            try {
             windowManager.updateViewLayout(floatingView, windowParams)
-        } catch (e: Exception) {
-            Log.e(TAG, "更新窗口布局失败", e)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新窗口布局失败", e)
         }
         
         // 请求布局更新
-        floatingView?.findViewById<View>(R.id.divider1)?.requestLayout()
-        floatingView?.findViewById<View>(R.id.divider2)?.requestLayout()
-        floatingView?.findViewById<LinearLayout>(R.id.dual_webview_container)?.requestLayout()
+        divider1?.requestLayout()
+        divider2?.requestLayout()
+        container?.requestLayout()
         
         return orientationValue
     }
@@ -708,138 +705,149 @@ class DualFloatingWebViewService : Service() {
         firstEngineContainer?.removeAllViews()
         secondEngineContainer?.removeAllViews()
         thirdEngineContainer?.removeAllViews()
+        firstAIEngineContainer?.removeAllViews()
+        secondAIEngineContainer?.removeAllViews()
+        thirdAIEngineContainer?.removeAllViews()
         
-        // 为每个搜索引擎创建图标
+        // 为每个普通搜索引擎创建图标
         SearchEngine.DEFAULT_ENGINES.forEach { engine ->
             // 创建左侧搜索引擎图标
-            createEngineIcon(engine, firstEngineContainer, true)
+            createEngineIcon(engine, firstEngineContainer, true, false)
             // 创建中间搜索引擎图标
-            createEngineIcon(engine, secondEngineContainer, false)
+            createEngineIcon(engine, secondEngineContainer, false, false)
             // 创建右侧搜索引擎图标
-            createEngineIcon(engine, thirdEngineContainer, false)
+            createEngineIcon(engine, thirdEngineContainer, false, false)
+        }
+        
+        // 为每个AI搜索引擎创建图标
+        com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES.forEach { aiEngine ->
+            // 创建左侧AI搜索引擎图标
+            createEngineIcon(aiEngine, firstAIEngineContainer, true, true)
+            // 创建中间AI搜索引擎图标
+            createEngineIcon(aiEngine, secondAIEngineContainer, false, true)
+            // 创建右侧AI搜索引擎图标
+            createEngineIcon(aiEngine, thirdAIEngineContainer, false, true)
         }
     }
 
-    private fun createEngineIcon(engine: SearchEngine, container: LinearLayout?, isLeft: Boolean) {
+    private fun createEngineIcon(engine: SearchEngine, container: LinearLayout?, isLeft: Boolean, isAI: Boolean) {
         val context = container?.context ?: return
         val imageButton = ImageButton(context).apply {
-            // 使用搜索引擎的图标资源
             setImageResource(engine.iconResId)
             background = null
             setPadding(8, 8, 8, 8)
             
+            // 增大图标尺寸
+            layoutParams = LinearLayout.LayoutParams(60, 60).apply {
+                setMargins(4, 4, 4, 4)
+            }
+            
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            
             setOnClickListener {
-                val engineKey = getEngineKey(engine.name)
+                val engineKey = if (isAI) "ai_" + EngineUtil.getEngineKey(engine.name) else EngineUtil.getEngineKey(engine.name)
                 
                 // 根据容器确定是哪个窗口
                 when (container) {
-                    firstEngineContainer -> {
+                    firstEngineContainer, firstAIEngineContainer -> {
                         leftEngineKey = engineKey
                         settingsManager.setLeftWindowSearchEngine(engineKey)
-                        updateWebViewForEngine(R.id.first_floating_webview, engineKey)
+                        updateWebViewForEngine(firstWebView, firstTitle, engineKey)
+                        
+                        // 更新普通搜索引擎和AI搜索引擎图标状态
+                        updateEngineIconStates(firstEngineContainer, engineKey, false)
+                        updateEngineIconStates(firstAIEngineContainer, engineKey, true)
                     }
-                    secondEngineContainer -> {
+                    secondEngineContainer, secondAIEngineContainer -> {
                         centerEngineKey = engineKey
                         settingsManager.setCenterWindowSearchEngine(engineKey)
-                        updateWebViewForEngine(R.id.second_floating_webview, engineKey)
+                        updateWebViewForEngine(secondWebView, secondTitle, engineKey)
+                        
+                        // 更新普通搜索引擎和AI搜索引擎图标状态
+                        updateEngineIconStates(secondEngineContainer, engineKey, false)
+                        updateEngineIconStates(secondAIEngineContainer, engineKey, true)
                     }
-                    thirdEngineContainer -> {
+                    thirdEngineContainer, thirdAIEngineContainer -> {
                         rightEngineKey = engineKey
                         settingsManager.setRightWindowSearchEngine(engineKey)
-                        updateWebViewForEngine(R.id.third_floating_webview, engineKey)
+                        updateWebViewForEngine(thirdWebView, thirdTitle, engineKey)
+                        
+                        // 更新普通搜索引擎和AI搜索引擎图标状态
+                        updateEngineIconStates(thirdEngineContainer, engineKey, false)
+                        updateEngineIconStates(thirdAIEngineContainer, engineKey, true)
                     }
                 }
-                
-                // 更新所有图标的状态
-                updateEngineIconStates(container, engineKey)
             }
         }
         container.addView(imageButton)
     }
 
-    private fun getEngineKey(engineName: String): String {
-        return when(engineName) {
-            "百度" -> "baidu"
-            "Google" -> "google"
-            "必应" -> "bing"
-            "搜狗" -> "sogou"
-            "360搜索" -> "360"
-            "夸克搜索" -> "quark"
-            "头条搜索" -> "toutiao"
-            "知乎" -> "zhihu"
-            "哔哩哔哩" -> "bilibili"
-            else -> engineName.toLowerCase()
-        }
-    }
-
-    private fun Int.dp(): Int {
-        return TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP,
-            this.toFloat(),
-            resources.displayMetrics
-        ).toInt()
-    }
-
-    private fun getSearchEngineName(engineKey: String): String {
-        return when(engineKey) {
-            "baidu" -> "百度"
-            "google" -> "Google"
-            "bing" -> "必应"
-            "sogou" -> "搜狗"
-            "360" -> "360搜索"
-            "quark" -> "夸克搜索"
-            "toutiao" -> "头条搜索"
-            "zhihu" -> "知乎"
-            "bilibili" -> "哔哩哔哩"
-            else -> engineKey
-        }
-    }
-
-    private fun getSearchEngineHomeUrl(engineKey: String): String {
-        return when(engineKey) {
-            "baidu" -> "https://www.baidu.com"
-            "google" -> "https://www.google.com"
-            "bing" -> "https://www.bing.com"
-            "sogou" -> "https://www.sogou.com"
-            "360" -> "https://www.so.com"
-            "quark" -> "https://quark.sm.cn"
-            "toutiao" -> "https://so.toutiao.com"
-            "zhihu" -> "https://www.zhihu.com"
-            "bilibili" -> "https://www.bilibili.com"
-            else -> "https://www.baidu.com"
-        }
-    }
-
-    private fun setupControls() {
-        // 设置布局切换按钮
-        toggleLayoutButton?.setOnClickListener {
-            isHorizontalLayout = !isHorizontalLayout
-            updateLayoutOrientation()
-            saveWindowState()
-        }
-
-        // 设置搜索按钮
-        dualSearchButton?.setOnClickListener {
-            performDualSearch()
-        }
-
-        // 设置关闭按钮
-        closeButton?.setOnClickListener {
-            stopSelf()
-        }
-
-        // 设置单窗口按钮
-        singleWindowButton?.setOnClickListener {
-            switchToSingleWindowMode()
-        }
-
-        // 设置搜索输入框
-        searchInput?.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                performDualSearch()
-                true
+    private fun updateWebViewForEngine(webView: WebView?, titleView: TextView?, engineKey: String) {
+        val currentQuery = searchInput?.text?.toString()?.trim()
+        val isAI = engineKey.startsWith("ai_")
+        val actualEngineKey = if (isAI) engineKey.substring(3) else engineKey
+        
+        try {
+            if (!currentQuery.isNullOrEmpty()) {
+                val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
+                val newUrl = if (isAI) {
+                    EngineUtil.getAISearchEngineUrl(actualEngineKey, encodedQuery)
+                } else {
+                    EngineUtil.getSearchEngineSearchUrl(actualEngineKey, encodedQuery)
+                }
+                webView?.loadUrl(newUrl)
+                titleView?.text = "${EngineUtil.getSearchEngineName(actualEngineKey, isAI)}: $currentQuery"
             } else {
-                false
+                val homeUrl = if (isAI) {
+                    EngineUtil.getAISearchEngineHomeUrl(actualEngineKey)
+                } else {
+                    EngineUtil.getSearchEngineHomeUrl(actualEngineKey)
+                }
+                webView?.loadUrl(homeUrl)
+                titleView?.text = EngineUtil.getSearchEngineName(actualEngineKey, isAI)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换搜索引擎失败", e)
+            val fallbackUrl = if (isAI) {
+                EngineUtil.getAISearchEngineHomeUrl(actualEngineKey)
+            } else {
+                EngineUtil.getSearchEngineHomeUrl(actualEngineKey)
+            }
+            webView?.loadUrl(fallbackUrl)
+            titleView?.text = EngineUtil.getSearchEngineName(actualEngineKey, isAI)
+        }
+    }
+
+    private fun updateEngineIconStates(container: LinearLayout?, selectedEngineKey: String, isAI: Boolean) {
+        container?.let { parent ->
+            for (i in 0 until parent.childCount) {
+                val view = parent.getChildAt(i)
+                if (view is ImageButton) {
+                    // 根据容器确定当前窗口的搜索引擎和类型
+                    val currentEngineKey = when (container) {
+                        firstEngineContainer, firstAIEngineContainer -> leftEngineKey
+                        secondEngineContainer, secondAIEngineContainer -> centerEngineKey
+                        thirdEngineContainer, thirdAIEngineContainer -> rightEngineKey
+                        else -> selectedEngineKey
+                    }
+                    
+                    // 判断引擎类型是否匹配
+                    val currentIsAI = currentEngineKey.startsWith("ai_")
+                    val currentActualKey = if (currentIsAI) currentEngineKey.substring(3) else currentEngineKey
+                    val selectedActualKey = if (isAI && selectedEngineKey.startsWith("ai_")) 
+                                            selectedEngineKey.substring(3) 
+                                           else selectedEngineKey
+                    
+                    // 设置选中状态的视觉效果
+                    if (currentIsAI == isAI && (isAI && "ai_$selectedActualKey" == currentEngineKey || 
+                                               !isAI && selectedActualKey == currentEngineKey)) {
+                        view.setBackgroundColor(Color.parseColor("#1A000000"))
+                        view.alpha = 1.0f
+                    } else {
+                        view.setBackgroundColor(Color.TRANSPARENT)
+                        view.alpha = 0.5f
+                    }
+                }
             }
         }
     }
