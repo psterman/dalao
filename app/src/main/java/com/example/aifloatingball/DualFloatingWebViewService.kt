@@ -33,6 +33,7 @@ import java.net.URLEncoder
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import com.example.aifloatingball.utils.IconLoader
 
 class DualFloatingWebViewService : Service() {
     companion object {
@@ -110,6 +111,7 @@ class DualFloatingWebViewService : Service() {
     }
 
     private lateinit var faviconManager: FaviconManager
+    private lateinit var iconLoader: IconLoader
 
     /**
      * 扩展函数将dp转换为px
@@ -137,6 +139,10 @@ class DualFloatingWebViewService : Service() {
             
             // 初始化Favicon管理器
             faviconManager = FaviconManager.getInstance(this)
+            
+            // 初始化IconLoader
+            iconLoader = IconLoader(this)
+            iconLoader.cleanupOldCache()
             
             // 从设置中获取用户设置的窗口数量
             windowCount = settingsManager.getDefaultWindowCount()
@@ -951,21 +957,13 @@ class DualFloatingWebViewService : Service() {
                 }
             }
             
-            // 直接加载资源图标而不是使用FaviconManager
-            // 这样可以确保图标清晰度
+            // 设置默认图标先
             val iconResId = getIconResourceByDomain(domain)
-            if (iconResId != 0) {
-                setImageResource(iconResId)
-            } else {
-                // 如果没有对应的本地资源，再使用FaviconManager
-                faviconManager.getFavicon(domain) { bitmap ->
-                    if (bitmap != null) {
-                        Handler(Looper.getMainLooper()).post {
-                            setImageBitmap(bitmap)
-                        }
-                    }
-                }
-            }
+            setImageResource(if (iconResId != 0) iconResId else R.drawable.ic_search)
+            
+            // 使用IconLoader加载网站图标
+            val url = "https://$domain"
+            iconLoader.loadIcon(url, this@apply, if (iconResId != 0) iconResId else R.drawable.ic_search)
             
             // 添加选中状态显示
             when (container) {
@@ -1250,6 +1248,11 @@ class DualFloatingWebViewService : Service() {
     override fun onDestroy() {
         try {
             windowManager.removeView(floatingView)
+            
+            // 清理IconLoader缓存
+            if (::iconLoader.isInitialized) {
+                iconLoader.clearCache()
+            }
             
             // 停止前台服务
             stopForeground(true)
