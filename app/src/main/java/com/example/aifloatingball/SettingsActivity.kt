@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.*
+import com.example.aifloatingball.utils.ServiceUtils
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -33,11 +34,11 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     class SettingsFragment : PreferenceFragmentCompat() {
+        private lateinit var settingsManager: SettingsManager
+
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
-
-            // 获取SettingsManager实例
-            val settingsManager = SettingsManager.getInstance(requireContext())
+            settingsManager = SettingsManager.getInstance(requireContext())
 
             // 主题设置
             findPreference<ListPreference>("theme_mode")?.apply {
@@ -96,12 +97,21 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 默认浏览器设置
+            findPreference<ListPreference>("default_browser")?.apply {
+                value = settingsManager.getDefaultBrowser()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setDefaultBrowser(newValue as String)
+                    true
+                }
+            }
+
             // 默认窗口数量设置
             findPreference<ListPreference>("default_window_count")?.apply {
                 value = settingsManager.getDefaultWindowCount().toString()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setDefaultWindowCount(newValue.toString().toInt())
-                    showApplyChangesDialog()
+                    settingsManager.setDefaultWindowCount((newValue as String).toInt())
+                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
@@ -110,8 +120,8 @@ class SettingsActivity : AppCompatActivity() {
             findPreference<ListPreference>("left_window_search_engine")?.apply {
                 value = settingsManager.getLeftWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setLeftWindowSearchEngine(newValue.toString())
-                    showApplyChangesDialog()
+                    settingsManager.setLeftWindowSearchEngine(newValue as String)
+                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
@@ -120,8 +130,8 @@ class SettingsActivity : AppCompatActivity() {
             findPreference<ListPreference>("center_window_search_engine")?.apply {
                 value = settingsManager.getCenterWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setCenterWindowSearchEngine(newValue.toString())
-                    showApplyChangesDialog()
+                    settingsManager.setCenterWindowSearchEngine(newValue as String)
+                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
@@ -130,8 +140,8 @@ class SettingsActivity : AppCompatActivity() {
             findPreference<ListPreference>("right_window_search_engine")?.apply {
                 value = settingsManager.getRightWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setRightWindowSearchEngine(newValue.toString())
-                    showApplyChangesDialog()
+                    settingsManager.setRightWindowSearchEngine(newValue as String)
+                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
@@ -173,9 +183,9 @@ class SettingsActivity : AppCompatActivity() {
         /**
          * 显示应用更改对话框，询问用户是否要立即应用更改
          */
-        private fun showApplyChangesDialog() {
+        private fun showRestartServiceDialog() {
             // 检查当前是否有浮动窗口服务在运行
-            val serviceRunning = checkServiceRunning()
+            val serviceRunning = ServiceUtils.isServiceRunning(requireContext(), DualFloatingWebViewService::class.java.name)
             
             if (!serviceRunning) {
                 return  // 如果服务没有运行，无需显示对话框
@@ -195,6 +205,25 @@ class SettingsActivity : AppCompatActivity() {
         }
         
         /**
+         * 重启浮动窗口服务，应用新的设置
+         */
+        private fun restartFloatingService() {
+            val context = requireContext()
+            
+            // 停止现有服务
+            context.stopService(Intent(context, DualFloatingWebViewService::class.java))
+            
+            // 等待短暂时间确保服务已停止
+            android.os.Handler().postDelayed({
+                // 启动新服务，并传递窗口数量
+                val intent = Intent(context, DualFloatingWebViewService::class.java).apply {
+                    putExtra("window_count", settingsManager.getDefaultWindowCount())
+                }
+                context.startService(intent)
+            }, 500) // 500毫秒延迟
+        }
+        
+        /**
          * 检查DualFloatingWebViewService是否正在运行
          */
         private fun checkServiceRunning(): Boolean {
@@ -205,29 +234,6 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
             return false
-        }
-        
-        /**
-         * 重启浮动窗口服务以应用新设置
-         */
-        private fun restartFloatingService() {
-            val context = requireContext()
-            
-            // 先停止当前服务
-            context.stopService(Intent(context, DualFloatingWebViewService::class.java))
-            
-            // 稍微延迟后启动新服务
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                // 创建启动服务的Intent
-                val intent = Intent(context, DualFloatingWebViewService::class.java)
-                
-                // 获取设置的窗口数量
-                val windowCount = SettingsManager.getInstance(context).getDefaultWindowCount()
-                intent.putExtra("window_count", windowCount)
-                
-                // 启动服务
-                context.startService(intent)
-            }, 500) // 500ms延迟确保服务完全停止
         }
     }
 } 

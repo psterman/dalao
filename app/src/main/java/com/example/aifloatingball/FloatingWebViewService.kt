@@ -49,6 +49,10 @@ import android.view.animation.Interpolator
 import android.graphics.drawable.Drawable
 import com.example.aifloatingball.R
 import android.graphics.Bitmap
+import androidx.core.app.NotificationCompat
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 
 class FloatingWebViewService : Service() {
     companion object {
@@ -77,6 +81,10 @@ class FloatingWebViewService : Service() {
         private const val DEFAULT_BACKGROUND_COLOR = 0xFFFFFFFF.toInt() // 白色
         private const val DEFAULT_BORDER_COLOR = 0x1A000000.toInt() // 半透明黑色
         private const val FAVICON_SIZE_DP = 40 // 悬浮球大小
+        
+        // 前台服务通知相关常量
+        private const val CHANNEL_ID = "webview_channel"
+        private const val NOTIFICATION_ID = 1002
     }
     
     private lateinit var windowManager: WindowManager
@@ -207,6 +215,9 @@ class FloatingWebViewService : Service() {
     override fun onCreate() {
         super.onCreate()
         try {
+            // 创建并启动前台服务
+            startForeground()
+            
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
             
             // 获取屏幕尺寸
@@ -237,10 +248,50 @@ class FloatingWebViewService : Service() {
             // 设置双击标题栏最大化
             setupTitleBarDoubleTap()
             
-                        } catch (e: Exception) {
+        } catch (e: Exception) {
             Log.e(TAG, "创建服务失败", e)
             stopSelf()
         }
+    }
+    
+    /**
+     * 创建前台服务，避免系统限制服务启动
+     */
+    private fun startForeground() {
+        // 创建通知渠道（Android 8.0+需要）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "浮动窗口服务",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "单窗口浏览服务，用于浮动查看网页"
+                setShowBadge(false)
+            }
+            
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+        
+        // 创建点击通知时的Intent
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, SettingsActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        // 创建通知
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("浮动浏览器")
+            .setContentText("正在运行浮动窗口服务")
+            .setSmallIcon(R.drawable.ic_search)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        
+        // 启动前台服务
+        startForeground(NOTIFICATION_ID, notification)
     }
     
     private fun createFloatingView() {
@@ -1292,31 +1343,21 @@ class FloatingWebViewService : Service() {
     
     override fun onDestroy() {
         try {
-            // 保存当前窗口状态
-            if (!isExpanded && !isHidden) {
+            if (floatingView != null) {
                 saveWindowState()
-            }
-            
-            // 移除浮动窗口
-            floatingView?.let {
-                windowManager.removeView(it)
+                try {
+                    windowManager.removeView(floatingView)
+                } catch (e: Exception) {
+                    Log.e(TAG, "移除浮动窗口失败: $e")
+                }
                 floatingView = null
             }
             
-            // 移除favicon视图
-            faviconView?.let {
-                windowManager.removeView(it)
-                faviconView = null
-            }
-            
-            // 清理动画
-            edgeSnapAnimator?.cancel()
-            edgeSnapAnimator = null
-            
+            // 停止前台服务
+            stopForeground(true)
         } catch (e: Exception) {
             Log.e(TAG, "销毁服务失败", e)
         }
-        
         super.onDestroy()
     }
 

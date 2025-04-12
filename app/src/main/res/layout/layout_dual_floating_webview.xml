@@ -50,6 +50,32 @@
             android:background="@android:color/transparent"
             android:contentDescription="单窗口模式"/>
 
+        <!-- 窗口数量切换控件 - 包含按钮和文本 -->
+        <FrameLayout
+            android:layout_width="40dp"
+            android:layout_height="40dp">
+            
+            <ImageButton
+                android:id="@+id/btn_window_count"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/ic_layers"
+                android:background="@android:color/transparent"
+                android:contentDescription="窗口数量切换"/>
+                
+            <TextView
+                android:id="@+id/window_count_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:textSize="14sp"
+                android:textColor="@android:color/white"
+                android:background="#55000000"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:text="2"/>
+        </FrameLayout>
+
         <ImageButton
             android:id="@+id/btn_dual_close"
             android:layout_width="40dp"

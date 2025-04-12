@@ -57,10 +57,16 @@
             app:title="多窗口设置"
             app:iconSpaceReserved="false">
 
+            <Preference
+                app:title="多窗口说明"
+                app:summary="您可以在下方设置启动时自动打开的窗口数量和每个窗口的默认搜索引擎"
+                app:iconSpaceReserved="false"
+                app:selectable="false" />
+
             <ListPreference
                 app:key="default_window_count"
                 app:title="默认窗口数量"
-                app:summary="选择默认打开的WebView窗口数量"
+                app:summary="设置启动时自动打开的WebView窗口数量"
                 app:entries="@array/window_count_entries"
                 app:entryValues="@array/window_count_values"
                 app:defaultValue="2"
@@ -69,7 +75,7 @@
             <ListPreference
                 app:key="left_window_search_engine"
                 app:title="左侧窗口搜索引擎"
-                app:summary="选择左侧窗口使用的搜索引擎"
+                app:summary="选择左侧窗口默认使用的搜索引擎"
                 app:entries="@array/search_engines"
                 app:entryValues="@array/search_engine_values"
                 app:defaultValue="baidu"
@@ -78,7 +84,7 @@
             <ListPreference
                 app:key="center_window_search_engine"
                 app:title="中间窗口搜索引擎"
-                app:summary="选择中间窗口使用的搜索引擎"
+                app:summary="选择中间窗口默认使用的搜索引擎"
                 app:entries="@array/search_engines"
                 app:entryValues="@array/search_engine_values"
                 app:defaultValue="bing"
@@ -87,7 +93,7 @@
             <ListPreference
                 app:key="right_window_search_engine"
                 app:title="右侧窗口搜索引擎"
-                app:summary="选择右侧窗口使用的搜索引擎"
+                app:summary="选择右侧窗口默认使用的搜索引擎"
                 app:entries="@array/search_engines"
                 app:entryValues="@array/search_engine_values"
                 app:defaultValue="google"

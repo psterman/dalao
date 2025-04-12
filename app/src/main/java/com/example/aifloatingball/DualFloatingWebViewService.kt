@@ -21,6 +21,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -29,6 +30,9 @@ import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.utils.FaviconManager
 import com.example.aifloatingball.utils.EngineUtil
 import java.net.URLEncoder
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 
 class DualFloatingWebViewService : Service() {
     companion object {
@@ -44,6 +48,10 @@ class DualFloatingWebViewService : Service() {
         private const val MIN_WIDTH_DP = 300
         private const val MIN_HEIGHT_DP = 400
         private const val WEBVIEW_WIDTH_DP = 300 // 每个WebView的宽度
+        
+        // 前台服务通知相关常量
+        private const val CHANNEL_ID = "dual_webview_channel"
+        private const val NOTIFICATION_ID = 1001
     }
 
     private lateinit var windowManager: WindowManager
@@ -60,6 +68,7 @@ class DualFloatingWebViewService : Service() {
     private var divider1: View? = null  // 重命名为divider1
     private var divider2: View? = null  // 添加divider2
     private var singleWindowButton: ImageButton? = null
+    private var windowCountToggleView: TextView? = null // 添加窗口计数切换按钮
     private var firstTitle: TextView? = null
     private var secondTitle: TextView? = null
     private var thirdTitle: TextView? = null  // 添加第三个标题
@@ -118,6 +127,9 @@ class DualFloatingWebViewService : Service() {
     override fun onCreate() {
         super.onCreate()
         try {
+            // 创建并启动前台服务
+            startForeground()
+            
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
             
             // 初始化设置管理器
@@ -161,6 +173,46 @@ class DualFloatingWebViewService : Service() {
             Log.e(TAG, "创建服务失败", e)
             stopSelf()
         }
+    }
+
+    /**
+     * 创建前台服务，避免系统限制服务启动
+     */
+    private fun startForeground() {
+        // 创建通知渠道（Android 8.0+需要）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "浮动窗口服务",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "多窗口浏览服务，用于支持同时查看多个网页"
+                setShowBadge(false)
+            }
+            
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+        
+        // 创建点击通知时的Intent
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, SettingsActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        // 创建通知
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("多窗口浏览器")
+            .setContentText("正在运行多窗口浏览服务")
+            .setSmallIcon(R.drawable.ic_search)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        
+        // 启动前台服务
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -234,6 +286,15 @@ class DualFloatingWebViewService : Service() {
             // 添加到窗口
             windowManager.addView(floatingView, params)
             
+            // 初始化设置
+            initializeSettings()
+            
+            // 获取用户设置的默认窗口数量
+            val windowCount = settingsManager.getDefaultWindowCount()
+            
+            // 根据窗口数量显示或隐藏相应的窗口
+            updateWindowVisibility(windowCount)
+            
         } catch (e: Exception) {
             Log.e(TAG, "创建悬浮窗失败", e)
             stopSelf()
@@ -254,6 +315,7 @@ class DualFloatingWebViewService : Service() {
         divider1 = floatingView?.findViewById(R.id.divider1)  // 更新divider1
         divider2 = floatingView?.findViewById(R.id.divider2)  // 添加divider2
         singleWindowButton = floatingView?.findViewById(R.id.btn_single_window)
+        windowCountToggleView = floatingView?.findViewById(R.id.window_count_toggle) // 初始化窗口计数切换视图
         firstTitle = floatingView?.findViewById(R.id.first_floating_title)
         secondTitle = floatingView?.findViewById(R.id.second_floating_title)
         thirdTitle = floatingView?.findViewById(R.id.third_floating_title)  // 添加第三个标题
@@ -480,6 +542,42 @@ class DualFloatingWebViewService : Service() {
         
         // 设置搜索引擎类型切换按钮
         setupEngineToggleButtons()
+        
+        // 设置引擎容器样式
+        setupEngineContainerStyle()
+
+        // 窗口数量切换的点击处理函数
+        val windowCountClickListener = View.OnClickListener {
+            // 获取当前显示的窗口数量
+            val visibleCount = when {
+                thirdWebView?.visibility == View.VISIBLE -> 3
+                secondWebView?.visibility == View.VISIBLE -> 2
+                else -> 1
+            }
+            
+            // 循环切换窗口数量：1 -> 2 -> 3 -> 1
+            val newCount = when (visibleCount) {
+                1 -> 2
+                2 -> 3
+                else -> 1
+            }
+            
+            // 更新窗口可见性
+            updateWindowVisibility(newCount)
+            
+            // 更新窗口数量
+            windowCount = newCount
+            
+            // 保存设置
+            settingsManager.setDefaultWindowCount(newCount)
+            
+            // 更新提示文本
+            windowCountToggleView?.text = "$newCount"
+        }
+
+        // 窗口数量切换按钮 - 两个控件都使用同一个点击监听器
+        floatingView?.findViewById<ImageButton>(R.id.btn_window_count)?.setOnClickListener(windowCountClickListener)
+        windowCountToggleView?.setOnClickListener(windowCountClickListener)
     }
 
     private fun setupTouchListeners() {
@@ -773,47 +871,51 @@ class DualFloatingWebViewService : Service() {
         // 为每个普通搜索引擎创建图标
         SearchEngine.DEFAULT_ENGINES.forEach { engine ->
             // 创建左侧搜索引擎图标
-            createEngineIcon(engine, firstEngineContainer, true, false)
+            createWebViewEngineIcon(engine.name, firstEngineContainer, true, false)
             // 创建中间搜索引擎图标
-            createEngineIcon(engine, secondEngineContainer, false, false)
+            createWebViewEngineIcon(engine.name, secondEngineContainer, false, false)
             // 创建右侧搜索引擎图标
-            createEngineIcon(engine, thirdEngineContainer, false, false)
+            createWebViewEngineIcon(engine.name, thirdEngineContainer, false, false)
         }
         
         // 为每个AI搜索引擎创建图标
         com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES.forEach { aiEngine ->
             // 创建左侧AI搜索引擎图标
-            createEngineIcon(aiEngine, firstAIEngineContainer, true, true)
+            createWebViewEngineIcon(aiEngine.name, firstAIEngineContainer, true, true)
             // 创建中间AI搜索引擎图标
-            createEngineIcon(aiEngine, secondAIEngineContainer, false, true)
+            createWebViewEngineIcon(aiEngine.name, secondAIEngineContainer, false, true)
             // 创建右侧AI搜索引擎图标
-            createEngineIcon(aiEngine, thirdAIEngineContainer, false, true)
+            createWebViewEngineIcon(aiEngine.name, thirdAIEngineContainer, false, true)
         }
     }
 
-    private fun createEngineIcon(engine: SearchEngine, container: LinearLayout?, isLeft: Boolean, isAI: Boolean) {
+    private fun createWebViewEngineIcon(engineName: String, container: LinearLayout?, isLeft: Boolean, isAI: Boolean) {
         val context = container?.context ?: return
         val imageButton = ImageButton(context).apply {
             // 创建默认背景和圆角效果
             background = ColorDrawable(Color.parseColor("#40FFFFFF"))
-            setPadding(8, 8, 8, 8)
             
-            // 增大图标尺寸
-            layoutParams = LinearLayout.LayoutParams(80, 80).apply {
-                setMargins(6, 6, 6, 6)
+            // 将图标尺寸从100dp减小到60dp
+            val size = 30.dpToPx(context)
+            // 确保使用正确的LayoutParams，因为要添加到LinearLayout
+            layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                setMargins(4, 4, 4, 4)
             }
             
-            scaleType = ImageView.ScaleType.FIT_CENTER
+            // 减少内边距使图标更大
+            setPadding(4, 4, 4, 4)
             
-            // 设置临时图标
-            setImageResource(R.drawable.ic_search)
+            // 提高图片质量
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            // 启用硬件加速以提高渲染质量
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
             
             // 获取引擎键值
-            val engineKey = if (isAI) "ai_" + EngineUtil.getEngineKey(engine.name) else EngineUtil.getEngineKey(engine.name)
+            val engineKey = if (isAI) "ai_" + EngineUtil.getEngineKey(engineName) else EngineUtil.getEngineKey(engineName)
             
             // 获取对应的域名
             val domain = if (isAI) {
-                when(EngineUtil.getEngineKey(engine.name)) {
+                when(EngineUtil.getEngineKey(engineName)) {
                     "chatgpt" -> "openai.com"
                     "claude" -> "claude.ai"
                     "gemini" -> "gemini.google.com"
@@ -827,7 +929,7 @@ class DualFloatingWebViewService : Service() {
                     else -> "openai.com"
                 }
             } else {
-                when(EngineUtil.getEngineKey(engine.name)) {
+                when(EngineUtil.getEngineKey(engineName)) {
                     "baidu" -> "baidu.com"
                     "google" -> "google.com"
                     "bing" -> "bing.com"
@@ -843,41 +945,48 @@ class DualFloatingWebViewService : Service() {
                     "jd" -> "jd.com"
                     "douyin" -> "douyin.com"
                     "xiaohongshu" -> "xiaohongshu.com"
-                    "wechat" -> "qq.com"
                     "qq" -> "qq.com"
+                    "wechat" -> "qq.com"
                     else -> "google.com"
                 }
             }
             
-            // 使用FaviconManager获取图标
-            faviconManager.getFavicon(domain) { bitmap ->
-                if (bitmap != null) {
-                    // 在主线程中更新UI
-                    Handler(Looper.getMainLooper()).post {
-                        setImageBitmap(bitmap)
-                        
-                        // 添加选中状态显示
-                        when (container) {
-                            firstEngineContainer, firstAIEngineContainer -> {
-                                val isSelected = engineKey == leftEngineKey
-                                alpha = if (isSelected) 1.0f else 0.7f
-                                background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
-                            }
-                            secondEngineContainer, secondAIEngineContainer -> {
-                                val isSelected = engineKey == centerEngineKey
-                                alpha = if (isSelected) 1.0f else 0.7f
-                                background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
-                            }
-                            thirdEngineContainer, thirdAIEngineContainer -> {
-                                val isSelected = engineKey == rightEngineKey
-                                alpha = if (isSelected) 1.0f else 0.7f
-                                background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
-                            }
+            // 直接加载资源图标而不是使用FaviconManager
+            // 这样可以确保图标清晰度
+            val iconResId = getIconResourceByDomain(domain)
+            if (iconResId != 0) {
+                setImageResource(iconResId)
+            } else {
+                // 如果没有对应的本地资源，再使用FaviconManager
+                faviconManager.getFavicon(domain) { bitmap ->
+                    if (bitmap != null) {
+                        Handler(Looper.getMainLooper()).post {
+                            setImageBitmap(bitmap)
                         }
                     }
                 }
             }
             
+            // 添加选中状态显示
+            when (container) {
+                firstEngineContainer, firstAIEngineContainer -> {
+                    val isSelected = engineKey == leftEngineKey
+                    alpha = if (isSelected) 1.0f else 0.7f
+                    background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
+                }
+                secondEngineContainer, secondAIEngineContainer -> {
+                    val isSelected = engineKey == centerEngineKey
+                    alpha = if (isSelected) 1.0f else 0.7f
+                    background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
+                }
+                thirdEngineContainer, thirdAIEngineContainer -> {
+                    val isSelected = engineKey == rightEngineKey
+                    alpha = if (isSelected) 1.0f else 0.7f
+                    background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
+                }
+            }
+            
+            // 设置点击事件
             setOnClickListener {
                 // 根据容器确定是哪个窗口
                 when (container) {
@@ -912,6 +1021,38 @@ class DualFloatingWebViewService : Service() {
             }
         }
         container.addView(imageButton)
+    }
+
+    /**
+     * 根据域名获取对应的图标资源ID
+     */
+    private fun getIconResourceByDomain(domain: String): Int {
+        return when {
+            domain.contains("baidu.com") -> R.drawable.ic_baidu
+            domain.contains("google.com") -> R.drawable.ic_google
+            domain.contains("bing.com") -> R.drawable.ic_bing
+            domain.contains("sogou.com") -> R.drawable.ic_sogou
+            domain.contains("so.com") -> R.drawable.ic_360
+            domain.contains("sm.cn") -> R.drawable.ic_search
+            domain.contains("toutiao.com") -> R.drawable.ic_search
+            domain.contains("zhihu.com") -> R.drawable.ic_zhihu
+            domain.contains("bilibili.com") -> R.drawable.ic_bilibili
+            domain.contains("douban.com") -> R.drawable.ic_douban
+            domain.contains("weibo.com") -> R.drawable.ic_weibo
+            domain.contains("taobao.com") -> R.drawable.ic_taobao
+            domain.contains("jd.com") -> R.drawable.ic_jd
+            domain.contains("douyin.com") -> R.drawable.ic_douyin
+            domain.contains("xiaohongshu.com") -> R.drawable.ic_xiaohongshu
+            domain.contains("qq.com") -> R.drawable.ic_qq
+            domain.contains("openai.com") -> R.drawable.ic_chatgpt
+            domain.contains("claude.ai") -> R.drawable.ic_claude
+            domain.contains("gemini.google.com") -> R.drawable.ic_gemini
+            domain.contains("zhipuai.cn") -> R.drawable.ic_zhipu
+            domain.contains("aliyun.com") -> R.drawable.ic_qianwen
+            domain.contains("xfyun.cn") -> R.drawable.ic_xinghuo
+            domain.contains("perplexity.ai") -> R.drawable.ic_perplexity
+            else -> 0 // 返回0表示没有找到对应的资源
+        }
     }
 
     private fun updateWebViewForEngine(webView: WebView?, titleView: TextView?, engineKey: String) {
@@ -1028,9 +1169,90 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
+    /**
+     * 设置引擎容器样式，提高显示效果
+     */
+    private fun setupEngineContainerStyle() {
+        // 设置背景和边距
+        val containers = listOf(
+            firstEngineContainer, secondEngineContainer, thirdEngineContainer,
+            firstAIEngineContainer, secondAIEngineContainer, thirdAIEngineContainer
+        )
+        
+        // 确保引擎容器的高度合适
+        containers.forEach { container ->
+            container?.apply {
+                // 使用半透明背景
+                setBackgroundColor(Color.parseColor("#22000000"))
+                setPadding(2.dpToPx(this@DualFloatingWebViewService), 
+                           2.dpToPx(this@DualFloatingWebViewService), 
+                           2.dpToPx(this@DualFloatingWebViewService), 
+                           2.dpToPx(this@DualFloatingWebViewService))
+                
+                // 优化布局参数，确保内容不被截断
+                // 不直接设置布局参数，而是保留原有的layoutParams类型
+                val existingParams = layoutParams
+                if (existingParams is LinearLayout.LayoutParams) {
+                    existingParams.width = LinearLayout.LayoutParams.MATCH_PARENT
+                    existingParams.height = LinearLayout.LayoutParams.WRAP_CONTENT
+                }
+            }
+        }
+        
+        // 优化水平滚动视图，确保能够滚动查看所有图标
+        val scrollContainers = listOf(
+            firstAIScrollContainer,
+            secondAIScrollContainer,
+            thirdAIScrollContainer
+        )
+        
+        scrollContainers.forEach { scrollView ->
+            scrollView?.apply {
+                // 设置滚动视图的样式
+                setBackgroundColor(Color.parseColor("#11000000"))
+                setPadding(1.dpToPx(this@DualFloatingWebViewService), 
+                          1.dpToPx(this@DualFloatingWebViewService), 
+                          1.dpToPx(this@DualFloatingWebViewService), 
+                          1.dpToPx(this@DualFloatingWebViewService))
+                
+                // 显示水平滚动条，帮助用户理解可以滚动
+                isHorizontalScrollBarEnabled = true
+                
+                // 根据父容器类型设置正确的LayoutParams
+                val parent = parent
+                if (parent != null) {
+                    when (parent) {
+                        is LinearLayout -> {
+                            val params = LinearLayout.LayoutParams(
+                                LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT
+                            )
+                            layoutParams = params
+                        }
+                        is FrameLayout -> {
+                            val params = FrameLayout.LayoutParams(
+                                FrameLayout.LayoutParams.MATCH_PARENT,
+                                FrameLayout.LayoutParams.WRAP_CONTENT
+                            )
+                            layoutParams = params
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 单独调整AI容器的初始可见性
+        firstAIScrollContainer?.visibility = View.GONE
+        secondAIScrollContainer?.visibility = View.GONE
+        thirdAIScrollContainer?.visibility = View.GONE
+    }
+
     override fun onDestroy() {
         try {
             windowManager.removeView(floatingView)
+            
+            // 停止前台服务
+            stopForeground(true)
         } catch (e: Exception) {
             Log.e(TAG, "移除视图失败", e)
         }
@@ -1039,13 +1261,19 @@ class DualFloatingWebViewService : Service() {
 
     private fun createEngineIcon(engineName: String): ImageView {
         val imageView = ImageView(this)
-        val size = 80.dpToPx(this)
+        // 增大图标尺寸从80dp到100dp
+        val size = 25.dpToPx(this)
         val layoutParams = LinearLayout.LayoutParams(size, size)
-        layoutParams.setMargins(5.dpToPx(this), 5.dpToPx(this), 5.dpToPx(this), 5.dpToPx(this))
+        layoutParams.setMargins(8.dpToPx(this), 8.dpToPx(this), 8.dpToPx(this), 8.dpToPx(this))
         
-        val padding = 12.dpToPx(this)
+        // 减小内边距使图标可以显示更大
+        val padding = 8.dpToPx(this)
         imageView.setPadding(padding, padding, padding, padding)
         imageView.layoutParams = layoutParams
+        
+        // 设置高质量图片渲染
+        imageView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
         
         // 设置背景
         imageView.setBackgroundResource(R.drawable.icon_background)
@@ -1078,27 +1306,86 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
+    private fun createSelectorEngineIcon(engineName: String): ImageView {
+        val imageView = ImageView(this)
+        // 减小图标尺寸从90dp到55dp
+        val size = 25.dpToPx(this)
+        // 使用LinearLayout的LayoutParams，因为它会被添加到LinearLayout
+        val layoutParams = LinearLayout.LayoutParams(size, size)
+        layoutParams.setMargins(3.dpToPx(this), 3.dpToPx(this), 3.dpToPx(this), 3.dpToPx(this))
+        
+        // 减小内边距使图标可以显示更大
+        val padding = 4.dpToPx(this)
+        imageView.setPadding(padding, padding, padding, padding)
+        imageView.layoutParams = layoutParams
+        
+        // 设置高质量图片渲染
+        imageView.scaleType = ImageView.ScaleType.FIT_CENTER
+        // 启用硬件加速以提高渲染质量
+        imageView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        
+        // 设置背景
+        imageView.setBackgroundResource(R.drawable.icon_background)
+        
+        // 使用本地高清图标资源
+        val engineIcon = when (engineName.lowercase()) {
+            "google" -> R.drawable.ic_google
+            "bing" -> R.drawable.ic_bing
+            "baidu" -> R.drawable.ic_baidu
+            "sogou" -> R.drawable.ic_sogou
+            "360" -> R.drawable.ic_360
+            "quark" -> R.drawable.ic_search
+            "toutiao" -> R.drawable.ic_search
+            "zhihu" -> R.drawable.ic_zhihu
+            "bilibili" -> R.drawable.ic_bilibili
+            "weibo" -> R.drawable.ic_weibo
+            "douban" -> R.drawable.ic_douban
+            "taobao" -> R.drawable.ic_taobao
+            "jd" -> R.drawable.ic_jd
+            "douyin" -> R.drawable.ic_douyin
+            "xiaohongshu" -> R.drawable.ic_xiaohongshu
+            "qq" -> R.drawable.ic_qq
+            "wechat" -> R.drawable.ic_qq
+            else -> R.drawable.ic_search
+        }
+        imageView.setImageResource(engineIcon)
+        
+        return imageView
+    }
+
     private fun createSearchEngineSelector(searchBarLayout: LinearLayout, webView: WebView, isCenter: Boolean = false) {
         val horizontalScrollView = HorizontalScrollView(this).apply {
+            // 确保使用正确的LayoutParams类型，因为我们添加到LinearLayout
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
+            // 显示滚动条以便用户了解可以滚动查看更多图标
+            isHorizontalScrollBarEnabled = true
+            
+            // 使用背景资源或颜色而不是未定义的资源
+            setBackgroundColor(android.graphics.Color.parseColor("#1A000000"))
         }
 
         val engineLayout = LinearLayout(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+            // 这里使用HorizontalScrollView的LayoutParams，因为它会被添加到HorizontalScrollView
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
             )
             orientation = LinearLayout.HORIZONTAL
-            setPadding(10.dpToPx(this@DualFloatingWebViewService), 5.dpToPx(this@DualFloatingWebViewService), 10.dpToPx(this@DualFloatingWebViewService), 5.dpToPx(this@DualFloatingWebViewService))
+            setPadding(3.dpToPx(this@DualFloatingWebViewService), 
+                      2.dpToPx(this@DualFloatingWebViewService), 
+                      3.dpToPx(this@DualFloatingWebViewService), 
+                      2.dpToPx(this@DualFloatingWebViewService))
+            // 添加背景以增强视觉效果
+            setBackgroundColor(Color.parseColor("#22000000"))
         }
 
         val engines = SearchEngine.DEFAULT_ENGINES
 
         for (engine in engines) {
-            val engineIcon = createEngineIcon(engine.name)
+            val engineIcon = createSelectorEngineIcon(engine.name)
             
             engineIcon.setOnClickListener {
                 val currentEngine = engine
@@ -1143,13 +1430,41 @@ class DualFloatingWebViewService : Service() {
         }
 
         horizontalScrollView.addView(engineLayout)
-        searchBarLayout.addView(horizontalScrollView)
+        
+        // 设置水平滚动视图布局参数
+        val hsvParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        hsvParams.setMargins(0, 2.dpToPx(this), 0, 2.dpToPx(this))
+        
+        // 将水平滚动视图添加到搜索栏布局
+        searchBarLayout.addView(horizontalScrollView, hsvParams)
+        
+        // 将滚动位置设置为已选中的引擎
+        horizontalScrollView.post {
+            // 找到选中的引擎在engineLayout中的位置
+            val selectedIndex = engines.indexOfFirst { 
+                val windowPosition = if (isCenter) "center" else if (webView == firstWebView) "left" else "right"
+                val defaultEngine = when (windowPosition) {
+                    "left" -> settingsManager.getLeftWindowSearchEngine()
+                    "center" -> settingsManager.getCenterWindowSearchEngine()
+                    else -> settingsManager.getRightWindowSearchEngine()
+                }
+                it.name.lowercase() == defaultEngine
+            }
+            
+            if (selectedIndex > 2) { // 只有当选择的引擎不在前几个时才滚动
+                val childView = engineLayout.getChildAt(selectedIndex)
+                horizontalScrollView.smoothScrollTo(childView.left - 30.dpToPx(this), 0)
+            }
+        }
     }
 
     private fun updateViewVisibilityByWindowCount() {
         when (windowCount) {
             1 -> {
-                // 仅显示第一个WebView
+                // 只显示第一个窗口
                 firstWebView?.visibility = View.VISIBLE
                 divider1?.visibility = View.GONE
                 secondWebView?.visibility = View.GONE
@@ -1163,7 +1478,7 @@ class DualFloatingWebViewService : Service() {
                 thirdContainer?.visibility = View.GONE
             }
             2 -> {
-                // 显示两个WebView
+                // 显示两个窗口
                 firstWebView?.visibility = View.VISIBLE
                 divider1?.visibility = View.VISIBLE
                 secondWebView?.visibility = View.VISIBLE
@@ -1177,7 +1492,7 @@ class DualFloatingWebViewService : Service() {
                 thirdContainer?.visibility = View.GONE
             }
             else -> {
-                // 显示全部三个WebView
+                // 显示全部三个窗口
                 firstWebView?.visibility = View.VISIBLE
                 divider1?.visibility = View.VISIBLE
                 secondWebView?.visibility = View.VISIBLE
@@ -1194,5 +1509,102 @@ class DualFloatingWebViewService : Service() {
         
         // 更新布局
         container?.requestLayout()
+    }
+
+    // 根据窗口数量显示或隐藏窗口
+    private fun updateWindowVisibility(windowCount: Int) {
+        // 更新窗口数量变量
+        this.windowCount = windowCount
+        
+        // 保存设置
+        settingsManager.setDefaultWindowCount(windowCount)
+        
+        when (windowCount) {
+            1 -> {
+                // 只显示第一个窗口
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.GONE
+                secondWebView?.visibility = View.GONE
+                divider2?.visibility = View.GONE
+                thirdWebView?.visibility = View.GONE
+            }
+            2 -> {
+                // 显示两个窗口
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.VISIBLE
+                secondWebView?.visibility = View.VISIBLE
+                divider2?.visibility = View.GONE
+                thirdWebView?.visibility = View.GONE
+            }
+            else -> {
+                // 显示所有三个窗口
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.VISIBLE
+                secondWebView?.visibility = View.VISIBLE
+                divider2?.visibility = View.VISIBLE
+                thirdWebView?.visibility = View.VISIBLE
+            }
+        }
+        
+        // 更新窗口计数显示
+        windowCountToggleView?.text = "$windowCount"
+        
+        // 更新布局参数
+        updateLayoutParams()
+    }
+
+    private fun updateLayoutParams() {
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        val windowParams = floatingView?.layoutParams as? WindowManager.LayoutParams
+        
+        if (isHorizontalLayout) {
+            windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
+            windowParams?.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
+        } else {
+            windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
+            windowParams?.height = WindowManager.LayoutParams.MATCH_PARENT
+        }
+        
+        try {
+            windowManager.updateViewLayout(floatingView, windowParams)
+        } catch (e: Exception) {
+            Log.e(TAG, "更新窗口布局失败", e)
+        }
+        
+        // 请求布局更新
+        divider1?.requestLayout()
+        divider2?.requestLayout()
+        container?.requestLayout()
+    }
+
+    /**
+     * 初始化设置
+     */
+    private fun initializeSettings() {
+        // 从设置管理器获取配置
+        settingsManager = SettingsManager.getInstance(this)
+        
+        // 获取窗口数量
+        windowCount = settingsManager.getDefaultWindowCount()
+        Log.d(TAG, "从设置中获取窗口数量: $windowCount")
+        
+        // 获取搜索引擎设置
+        leftEngineKey = settingsManager.getLeftWindowSearchEngine()
+        centerEngineKey = settingsManager.getCenterWindowSearchEngine()
+        rightEngineKey = settingsManager.getRightWindowSearchEngine()
+        Log.d(TAG, "搜索引擎设置 - 左: $leftEngineKey, 中: $centerEngineKey, 右: $rightEngineKey")
+        
+        // 获取布局方向
+        isHorizontalLayout = sharedPrefs.getBoolean(KEY_IS_HORIZONTAL, true)
+        
+        // 更新窗口计数显示
+        windowCountToggleView?.text = windowCount.toString()
+        Log.d(TAG, "设置窗口计数显示: $windowCount")
+        
+        // 根据窗口数量更新视图显示
+        updateViewVisibilityByWindowCount()
     }
 } 

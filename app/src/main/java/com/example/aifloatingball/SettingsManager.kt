@@ -255,13 +255,24 @@ class SettingsManager private constructor(context: Context) {
     @Deprecated("Use setThemeMode() instead", ReplaceWith("setThemeMode(mode)"))
     fun setDarkMode(mode: Int) = setThemeMode(mode)
     
-    // 双窗口搜索引擎设置
+    // 窗口数量设置
+    fun getDefaultWindowCount(): Int {
+        return prefs.getString("default_window_count", "2")?.toIntOrNull() ?: 2
+    }
+    
+    fun setDefaultWindowCount(count: Int) {
+        prefs.edit().putString("default_window_count", count.toString()).apply()
+        notifyListeners("default_window_count", count)
+    }
+    
+    // 窗口搜索引擎设置
     fun getLeftWindowSearchEngine(): String {
         return prefs.getString("left_window_search_engine", "baidu") ?: "baidu"
     }
     
     fun setLeftWindowSearchEngine(engine: String) {
         prefs.edit().putString("left_window_search_engine", engine).apply()
+        notifyListeners("left_window_search_engine", engine)
     }
     
     fun getCenterWindowSearchEngine(): String {
@@ -270,6 +281,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun setCenterWindowSearchEngine(engine: String) {
         prefs.edit().putString("center_window_search_engine", engine).apply()
+        notifyListeners("center_window_search_engine", engine)
     }
     
     fun getRightWindowSearchEngine(): String {
@@ -278,6 +290,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun setRightWindowSearchEngine(engine: String) {
         prefs.edit().putString("right_window_search_engine", engine).apply()
+        notifyListeners("right_window_search_engine", engine)
     }
 
     fun getEnabledSearchEngines(): Set<String> {
@@ -286,15 +299,6 @@ class SettingsManager private constructor(context: Context) {
 
     fun setEnabledSearchEngines(engines: Set<String>) {
         prefs.edit().putStringSet("enabled_search_engines", engines).apply()
-    }
-
-    // 窗口数量设置
-    fun getDefaultWindowCount(): Int {
-        return prefs.getString("default_window_count", "2")?.toIntOrNull() ?: 2
-    }
-    
-    fun setDefaultWindowCount(count: Int) {
-        prefs.edit().putString("default_window_count", count.toString()).apply()
     }
 
     // 获取指定位置的搜索引擎
@@ -314,5 +318,15 @@ class SettingsManager private constructor(context: Context) {
             1 -> setCenterWindowSearchEngine(engine)
             2 -> setRightWindowSearchEngine(engine)
         }
+    }
+    
+    // 默认浏览器设置
+    fun getDefaultBrowser(): String {
+        return prefs.getString("default_browser", "system") ?: "system"
+    }
+    
+    fun setDefaultBrowser(browser: String) {
+        prefs.edit().putString("default_browser", browser).apply()
+        notifyListeners("default_browser", browser)
     }
 }

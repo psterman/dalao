@@ -35,12 +35,14 @@
             android:name=".FloatingWebViewService"
             android:enabled="true"
             android:exported="false"
+            android:foregroundServiceType="specialUse"
             android:theme="@style/Theme.AppCompat.Light" />
             
         <service
             android:name=".DualFloatingWebViewService"
             android:enabled="true"
             android:exported="false"
+            android:foregroundServiceType="specialUse"
             android:theme="@style/Theme.AppCompat.Light" />
             
         <activity
