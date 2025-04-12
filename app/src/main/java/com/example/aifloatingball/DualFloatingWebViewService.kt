@@ -733,8 +733,8 @@ class DualFloatingWebViewService : Service() {
     private fun createEngineIcon(engine: SearchEngine, container: LinearLayout?, isLeft: Boolean, isAI: Boolean) {
         val context = container?.context ?: return
         val imageButton = ImageButton(context).apply {
-            setImageResource(engine.iconResId)
-            background = null
+            // 创建默认背景和圆角效果
+            background = ColorDrawable(Color.parseColor("#40FFFFFF"))
             setPadding(8, 8, 8, 8)
             
             // 增大图标尺寸
@@ -744,9 +744,61 @@ class DualFloatingWebViewService : Service() {
             
             scaleType = ImageView.ScaleType.FIT_CENTER
             
+            // 设置临时图标
+            setImageResource(R.drawable.ic_search)
+            
+            // 获取引擎键值
+            val engineKey = if (isAI) "ai_" + EngineUtil.getEngineKey(engine.name) else EngineUtil.getEngineKey(engine.name)
+            
+            // 获取对应的域名
+            val domain = if (isAI) {
+                when(EngineUtil.getEngineKey(engine.name)) {
+                    "chatgpt" -> "openai.com"
+                    "claude" -> "claude.ai"
+                    "gemini" -> "gemini.google.com"
+                    "wenxin" -> "baidu.com"
+                    "chatglm" -> "zhipuai.cn"
+                    "qianwen" -> "aliyun.com"
+                    "xinghuo" -> "xfyun.cn"
+                    "perplexity" -> "perplexity.ai"
+                    "phind" -> "phind.com"
+                    "poe" -> "poe.com"
+                    else -> "openai.com"
+                }
+            } else {
+                when(EngineUtil.getEngineKey(engine.name)) {
+                    "baidu" -> "baidu.com"
+                    "google" -> "google.com"
+                    "bing" -> "bing.com"
+                    "sogou" -> "sogou.com"
+                    "360" -> "so.com"
+                    "quark" -> "sm.cn"
+                    "toutiao" -> "toutiao.com"
+                    "zhihu" -> "zhihu.com"
+                    "bilibili" -> "bilibili.com"
+                    "douban" -> "douban.com"
+                    "weibo" -> "weibo.com"
+                    "taobao" -> "taobao.com"
+                    "jd" -> "jd.com"
+                    "douyin" -> "douyin.com"
+                    "xiaohongshu" -> "xiaohongshu.com"
+                    "wechat" -> "qq.com"
+                    "qq" -> "qq.com"
+                    else -> "google.com"
+                }
+            }
+            
+            // 使用FaviconManager获取图标
+            faviconManager.getFavicon(domain) { bitmap ->
+                if (bitmap != null) {
+                    // 在主线程中更新UI
+                    Handler(Looper.getMainLooper()).post {
+                        setImageBitmap(bitmap)
+                    }
+                }
+            }
+            
             setOnClickListener {
-                val engineKey = if (isAI) "ai_" + EngineUtil.getEngineKey(engine.name) else EngineUtil.getEngineKey(engine.name)
-                
                 // 根据容器确定是哪个窗口
                 when (container) {
                     firstEngineContainer, firstAIEngineContainer -> {
