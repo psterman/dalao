@@ -1253,6 +1253,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 intent.putExtra("url", searchUrl)
             }
             
+            // 获取用户设置的窗口数量
+            val windowCount = settingsManager.getDefaultWindowCount()
+            intent.putExtra("window_count", windowCount)
+            
             startService(intent)
         } else {
             // 使用普通模式
@@ -1333,6 +1337,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 ?: SearchActivity.NORMAL_SEARCH_ENGINES.first()
             intent.putExtra("url", defaultEngine.url.replace("{query}", ""))
         }
+        
+        // 获取用户设置的窗口数量
+        val windowCount = settingsManager.getDefaultWindowCount()
+        intent.putExtra("window_count", windowCount)
         
         startService(intent)
         

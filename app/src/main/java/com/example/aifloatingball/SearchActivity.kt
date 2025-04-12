@@ -654,15 +654,24 @@ class SearchActivity : AppCompatActivity() {
             // 如果没有当前URL，使用当前搜索引擎
             currentSearchEngine?.let { engine ->
                 val query = searchInput.text.toString().trim()
-                if (query.isNotEmpty()) {
+                if (query.isEmpty()) {
+                    // 如果没有查询文本，直接打开搜索引擎主页
+                    intent.putExtra("url", engine.url.replace("{query}", "").replace("search?q=", "")
+                        .replace("search?query=", "")
+                        .replace("search?word=", "")
+                        .replace("s?wd=", ""))
+                } else {
+                    // 有查询文本，使用搜索引擎进行搜索
                     val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
                     val searchUrl = engine.url.replace("{query}", encodedQuery)
                     intent.putExtra("url", searchUrl)
-                } else {
-                    intent.putExtra("url", engine.url.replace("{query}", ""))
                 }
             }
         }
+        
+        // 获取用户设置的窗口数量
+        val windowCount = settingsManager.getDefaultWindowCount()
+        intent.putExtra("window_count", windowCount)
         
         startService(intent)
         finish() // 关闭当前Activity

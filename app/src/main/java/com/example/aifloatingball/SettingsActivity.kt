@@ -1,5 +1,6 @@
 package com.example.aifloatingball
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -100,6 +101,7 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getDefaultWindowCount().toString()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setDefaultWindowCount(newValue.toString().toInt())
+                    showApplyChangesDialog()
                     true
                 }
             }
@@ -109,6 +111,7 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getLeftWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setLeftWindowSearchEngine(newValue.toString())
+                    showApplyChangesDialog()
                     true
                 }
             }
@@ -118,6 +121,7 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getCenterWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setCenterWindowSearchEngine(newValue.toString())
+                    showApplyChangesDialog()
                     true
                 }
             }
@@ -127,6 +131,7 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getRightWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setRightWindowSearchEngine(newValue.toString())
+                    showApplyChangesDialog()
                     true
                 }
             }
@@ -163,6 +168,66 @@ class SettingsActivity : AppCompatActivity() {
                 startActivity(Intent(requireContext(), MenuManagerActivity::class.java))
                 true
             }
+        }
+
+        /**
+         * 显示应用更改对话框，询问用户是否要立即应用更改
+         */
+        private fun showApplyChangesDialog() {
+            // 检查当前是否有浮动窗口服务在运行
+            val serviceRunning = checkServiceRunning()
+            
+            if (!serviceRunning) {
+                return  // 如果服务没有运行，无需显示对话框
+            }
+            
+            // 创建对话框
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("应用更改")
+                .setMessage("窗口设置已更改，是否立即应用到当前运行的浮动窗口？")
+                .setPositiveButton("应用") { _, _ ->
+                    restartFloatingService()
+                }
+                .setNegativeButton("稍后") { dialog, _ ->
+                    dialog.dismiss()
+                }
+                .show()
+        }
+        
+        /**
+         * 检查DualFloatingWebViewService是否正在运行
+         */
+        private fun checkServiceRunning(): Boolean {
+            val manager = requireContext().getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            for (service in manager.getRunningServices(Integer.MAX_VALUE)) {
+                if (DualFloatingWebViewService::class.java.name == service.service.className) {
+                    return true
+                }
+            }
+            return false
+        }
+        
+        /**
+         * 重启浮动窗口服务以应用新设置
+         */
+        private fun restartFloatingService() {
+            val context = requireContext()
+            
+            // 先停止当前服务
+            context.stopService(Intent(context, DualFloatingWebViewService::class.java))
+            
+            // 稍微延迟后启动新服务
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                // 创建启动服务的Intent
+                val intent = Intent(context, DualFloatingWebViewService::class.java)
+                
+                // 获取设置的窗口数量
+                val windowCount = SettingsManager.getInstance(context).getDefaultWindowCount()
+                intent.putExtra("window_count", windowCount)
+                
+                // 启动服务
+                context.startService(intent)
+            }, 500) // 500ms延迟确保服务完全停止
         }
     }
 } 

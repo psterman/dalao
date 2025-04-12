@@ -100,22 +100,10 @@ open class SearchEngine(
                 "小红书搜索"
             ),
             SearchEngine(
-                "微信",
-                "https://weixin.sogou.com/weixin?type=2&query=",
-                R.drawable.ic_wechat,
-                "微信搜索"
-            ),
-            SearchEngine(
-                "QQ",
-                "https://www.sogou.com/web?query=&ie=utf8&insite=qq.com",
-                R.drawable.ic_qq,
-                "QQ搜索"
-            ),
-            SearchEngine(
                 "哔哩哔哩",
                 "https://search.bilibili.com/all?keyword=",
                 R.drawable.ic_bilibili,
-                "哔哩哔哩搜索"
+                "B站搜索"
             )
         )
     }

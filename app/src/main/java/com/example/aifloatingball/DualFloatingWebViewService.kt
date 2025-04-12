@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import android.util.TypedValue
 import android.view.*
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -68,7 +69,12 @@ class DualFloatingWebViewService : Service() {
     private var firstAIEngineContainer: LinearLayout? = null
     private var secondAIEngineContainer: LinearLayout? = null
     private var thirdAIEngineContainer: LinearLayout? = null  // 添加AI引擎容器
-    private var searchEnginePopupWindow: PopupWindow? = null
+    private var firstEngineToggle: ImageButton? = null
+    private var secondEngineToggle: ImageButton? = null
+    private var thirdEngineToggle: ImageButton? = null
+    private var firstAIScrollContainer: HorizontalScrollView? = null
+    private var secondAIScrollContainer: HorizontalScrollView? = null
+    private var thirdAIScrollContainer: HorizontalScrollView? = null
     private var currentEngineKey: String = "baidu"
     private var currentWebView: WebView? = null
     private var currentTitle: TextView? = null
@@ -77,6 +83,7 @@ class DualFloatingWebViewService : Service() {
     private var leftEngineKey: String = "baidu"
     private var centerEngineKey: String = "bing"  // 添加中间引擎键
     private var rightEngineKey: String = "google"
+    private var windowCount: Int = 2 // 默认窗口数量
 
     private var isHorizontalLayout = true // 默认为水平布局
 
@@ -95,6 +102,17 @@ class DualFloatingWebViewService : Service() {
 
     private lateinit var faviconManager: FaviconManager
 
+    /**
+     * 扩展函数将dp转换为px
+     */
+    private fun Int.dpToPx(context: Context): Int {
+        return TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            this.toFloat(),
+            context.resources.displayMetrics
+        ).toInt()
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -107,6 +125,9 @@ class DualFloatingWebViewService : Service() {
             
             // 初始化Favicon管理器
             faviconManager = FaviconManager.getInstance(this)
+            
+            // 从设置中获取用户设置的窗口数量
+            windowCount = settingsManager.getDefaultWindowCount()
             
             // 从设置中获取用户设置的搜索引擎
             leftEngineKey = settingsManager.getLeftWindowSearchEngine()
@@ -133,6 +154,9 @@ class DualFloatingWebViewService : Service() {
             secondEngineContainer?.let { updateEngineIconStates(it, centerEngineKey, false) }
             thirdEngineContainer?.let { updateEngineIconStates(it, rightEngineKey, false) }
             
+            // 根据窗口数量设置视图可见性
+            updateViewVisibilityByWindowCount()
+            
         } catch (e: Exception) {
             Log.e(TAG, "创建服务失败", e)
             stopSelf()
@@ -140,6 +164,16 @@ class DualFloatingWebViewService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 从Intent中获取窗口数量设置（如果有）
+        intent?.getIntExtra("window_count", -1)?.let { count ->
+            if (count > 0) {
+                // 更新窗口数量
+                windowCount = count
+                // 根据窗口数量更新视图可见性
+                updateViewVisibilityByWindowCount()
+            }
+        }
+        
         // 获取查询参数并执行搜索
         intent?.getStringExtra("search_query")?.let { query ->
             if (query.isNotEmpty()) {
@@ -164,10 +198,21 @@ class DualFloatingWebViewService : Service() {
                 val isBaidu = url.contains("baidu.com")
                 
                 // 如果是百度或谷歌，加载另一个搜索引擎
-                if (isGoogle) {
-                    secondWebView?.loadUrl("https://www.baidu.com")
-                } else {
-                    secondWebView?.loadUrl("https://www.google.com")
+                if (windowCount >= 2) {
+                    if (isGoogle) {
+                        secondWebView?.loadUrl("https://www.baidu.com")
+                    } else {
+                        secondWebView?.loadUrl("https://www.google.com")
+                    }
+                }
+                
+                // 如果是三窗口模式，加载第三个窗口
+                if (windowCount >= 3) {
+                    if (isGoogle || isBaidu) {
+                        thirdWebView?.loadUrl("https://www.bing.com")
+                    } else {
+                        thirdWebView?.loadUrl("https://www.zhihu.com")
+                    }
                 }
             }
         }
@@ -218,6 +263,12 @@ class DualFloatingWebViewService : Service() {
         firstAIEngineContainer = floatingView?.findViewById(R.id.first_ai_engine_container)
         secondAIEngineContainer = floatingView?.findViewById(R.id.second_ai_engine_container)
         thirdAIEngineContainer = floatingView?.findViewById(R.id.third_ai_engine_container)  // 添加AI引擎容器
+        firstEngineToggle = floatingView?.findViewById(R.id.first_engine_toggle)
+        secondEngineToggle = floatingView?.findViewById(R.id.second_engine_toggle)
+        thirdEngineToggle = floatingView?.findViewById(R.id.third_engine_toggle)
+        firstAIScrollContainer = floatingView?.findViewById(R.id.first_ai_scroll_container)
+        secondAIScrollContainer = floatingView?.findViewById(R.id.second_ai_scroll_container)
+        thirdAIScrollContainer = floatingView?.findViewById(R.id.third_ai_scroll_container)
     }
 
     private fun createWindowLayoutParams(): WindowManager.LayoutParams {
@@ -426,6 +477,9 @@ class DualFloatingWebViewService : Service() {
         singleWindowButton?.setOnClickListener {
             switchToSingleWindowMode()
         }
+        
+        // 设置搜索引擎类型切换按钮
+        setupEngineToggleButtons()
     }
 
     private fun setupTouchListeners() {
@@ -539,19 +593,21 @@ class DualFloatingWebViewService : Service() {
                 // 使用左侧搜索引擎
                 val leftUrl = EngineUtil.getSearchEngineSearchUrl(leftEngineKey, encodedQuery)
                 firstWebView?.loadUrl(leftUrl)
-                
-                // 使用中间搜索引擎
-                val centerUrl = EngineUtil.getSearchEngineSearchUrl(centerEngineKey, encodedQuery)
-                secondWebView?.loadUrl(centerUrl)
-                
-                // 使用右侧搜索引擎
-                val rightUrl = EngineUtil.getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
-                thirdWebView?.loadUrl(rightUrl)
-                
-                // 更新标题
                 firstTitle?.text = "${EngineUtil.getSearchEngineName(leftEngineKey, false)}: $query"
-                secondTitle?.text = "${EngineUtil.getSearchEngineName(centerEngineKey, false)}: $query"
-                thirdTitle?.text = "${EngineUtil.getSearchEngineName(rightEngineKey, false)}: $query"
+                
+                // 如果有两个或更多窗口，使用中间搜索引擎
+                if (windowCount >= 2) {
+                    val centerUrl = EngineUtil.getSearchEngineSearchUrl(centerEngineKey, encodedQuery)
+                    secondWebView?.loadUrl(centerUrl)
+                    secondTitle?.text = "${EngineUtil.getSearchEngineName(centerEngineKey, false)}: $query"
+                }
+                
+                // 如果有三个窗口，使用右侧搜索引擎
+                if (windowCount >= 3) {
+                    val rightUrl = EngineUtil.getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
+                    thirdWebView?.loadUrl(rightUrl)
+                    thirdTitle?.text = "${EngineUtil.getSearchEngineName(rightEngineKey, false)}: $query"
+                }
                 
                 // 关闭键盘
                 val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -599,9 +655,14 @@ class DualFloatingWebViewService : Service() {
             // 更新容器和WebView宽度
             if (container?.childCount ?: 0 >= 5) {
                 val webViewWidth = if (isLandscape) {
-                    // 横屏时，每个WebView宽度为屏幕宽度的一半减去分割线宽度
-                    (screenWidth / 2) - 2
-        } else {
+                    // 横屏时，根据窗口数量计算WebView宽度
+                    val visibleCount = when (windowCount) {
+                        1 -> 1
+                        2 -> 2
+                        else -> if (isLandscape) 2 else 3 // 横屏时最多显示两个，需要滚动查看第三个
+                    }
+                    (screenWidth / visibleCount) - (2 * Math.min(visibleCount - 1, 1))
+                } else {
                     // 竖屏时，使用固定宽度
                     (WEBVIEW_WIDTH_DP * resources.displayMetrics.density).toInt()
                 }
@@ -667,10 +728,10 @@ class DualFloatingWebViewService : Service() {
         }
         
         // 更新窗口布局
-            try {
+        try {
             windowManager.updateViewLayout(floatingView, windowParams)
-            } catch (e: Exception) {
-                Log.e(TAG, "更新窗口布局失败", e)
+        } catch (e: Exception) {
+            Log.e(TAG, "更新窗口布局失败", e)
         }
         
         // 请求布局更新
@@ -738,8 +799,8 @@ class DualFloatingWebViewService : Service() {
             setPadding(8, 8, 8, 8)
             
             // 增大图标尺寸
-            layoutParams = LinearLayout.LayoutParams(60, 60).apply {
-                setMargins(4, 4, 4, 4)
+            layoutParams = LinearLayout.LayoutParams(80, 80).apply {
+                setMargins(6, 6, 6, 6)
             }
             
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -794,6 +855,25 @@ class DualFloatingWebViewService : Service() {
                     // 在主线程中更新UI
                     Handler(Looper.getMainLooper()).post {
                         setImageBitmap(bitmap)
+                        
+                        // 添加选中状态显示
+                        when (container) {
+                            firstEngineContainer, firstAIEngineContainer -> {
+                                val isSelected = engineKey == leftEngineKey
+                                alpha = if (isSelected) 1.0f else 0.7f
+                                background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
+                            }
+                            secondEngineContainer, secondAIEngineContainer -> {
+                                val isSelected = engineKey == centerEngineKey
+                                alpha = if (isSelected) 1.0f else 0.7f
+                                background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
+                            }
+                            thirdEngineContainer, thirdAIEngineContainer -> {
+                                val isSelected = engineKey == rightEngineKey
+                                alpha = if (isSelected) 1.0f else 0.7f
+                                background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
+                            }
+                        }
                     }
                 }
             }
@@ -904,6 +984,50 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
+    /**
+     * 设置搜索引擎切换按钮
+     */
+    private fun setupEngineToggleButtons() {
+        // 第一个窗口的切换按钮
+        firstEngineToggle?.setOnClickListener {
+            val isAIVisible = firstAIScrollContainer?.visibility == View.VISIBLE
+            
+            // 切换AI和普通搜索引擎视图
+            firstAIScrollContainer?.visibility = if (isAIVisible) View.GONE else View.VISIBLE
+            
+            // 更新按钮图标
+            firstEngineToggle?.setImageResource(
+                if (isAIVisible) R.drawable.ic_search else R.drawable.ic_ai_search
+            )
+        }
+        
+        // 第二个窗口的切换按钮
+        secondEngineToggle?.setOnClickListener {
+            val isAIVisible = secondAIScrollContainer?.visibility == View.VISIBLE
+            
+            // 切换AI和普通搜索引擎视图
+            secondAIScrollContainer?.visibility = if (isAIVisible) View.GONE else View.VISIBLE
+            
+            // 更新按钮图标
+            secondEngineToggle?.setImageResource(
+                if (isAIVisible) R.drawable.ic_search else R.drawable.ic_ai_search
+            )
+        }
+        
+        // 第三个窗口的切换按钮
+        thirdEngineToggle?.setOnClickListener {
+            val isAIVisible = thirdAIScrollContainer?.visibility == View.VISIBLE
+            
+            // 切换AI和普通搜索引擎视图
+            thirdAIScrollContainer?.visibility = if (isAIVisible) View.GONE else View.VISIBLE
+            
+            // 更新按钮图标
+            thirdEngineToggle?.setImageResource(
+                if (isAIVisible) R.drawable.ic_search else R.drawable.ic_ai_search
+            )
+        }
+    }
+
     override fun onDestroy() {
         try {
             windowManager.removeView(floatingView)
@@ -911,5 +1035,164 @@ class DualFloatingWebViewService : Service() {
             Log.e(TAG, "移除视图失败", e)
         }
         super.onDestroy()
+    }
+
+    private fun createEngineIcon(engineName: String): ImageView {
+        val imageView = ImageView(this)
+        val size = 80.dpToPx(this)
+        val layoutParams = LinearLayout.LayoutParams(size, size)
+        layoutParams.setMargins(5.dpToPx(this), 5.dpToPx(this), 5.dpToPx(this), 5.dpToPx(this))
+        
+        val padding = 12.dpToPx(this)
+        imageView.setPadding(padding, padding, padding, padding)
+        imageView.layoutParams = layoutParams
+        
+        // 设置背景
+        imageView.setBackgroundResource(R.drawable.icon_background)
+        
+        val engineIcon = when (engineName.lowercase()) {
+            "google" -> R.drawable.ic_google
+            "bing" -> R.drawable.ic_bing
+            "baidu" -> R.drawable.ic_baidu
+            "weibo" -> R.drawable.ic_weibo
+            "douban" -> R.drawable.ic_douban
+            "taobao" -> R.drawable.ic_taobao
+            "jd" -> R.drawable.ic_jd
+            "douyin" -> R.drawable.ic_douyin
+            "xiaohongshu" -> R.drawable.ic_xiaohongshu
+            else -> R.drawable.ic_search
+        }
+        imageView.setImageResource(engineIcon)
+        
+        return imageView
+    }
+
+    private fun performSearch(webView: WebView, query: String, searchUrl: String) {
+        try {
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val url = searchUrl.replace("{query}", encodedQuery)
+            webView.loadUrl(url)
+        } catch (e: Exception) {
+            Log.e(TAG, "执行搜索失败: $e")
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun createSearchEngineSelector(searchBarLayout: LinearLayout, webView: WebView, isCenter: Boolean = false) {
+        val horizontalScrollView = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val engineLayout = LinearLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(10.dpToPx(this@DualFloatingWebViewService), 5.dpToPx(this@DualFloatingWebViewService), 10.dpToPx(this@DualFloatingWebViewService), 5.dpToPx(this@DualFloatingWebViewService))
+        }
+
+        val engines = SearchEngine.DEFAULT_ENGINES
+
+        for (engine in engines) {
+            val engineIcon = createEngineIcon(engine.name)
+            
+            engineIcon.setOnClickListener {
+                val currentEngine = engine
+                val editText = searchBarLayout.findViewById<EditText>(R.id.search_edit_text)
+                val searchText = editText.text.toString()
+                
+                // 保存选择的搜索引擎
+                val windowPosition = if (isCenter) "center" else if (webView == firstWebView) "left" else "right"
+                when (windowPosition) {
+                    "left" -> settingsManager.setLeftWindowSearchEngine(currentEngine.name.lowercase())
+                    "center" -> settingsManager.setCenterWindowSearchEngine(currentEngine.name.lowercase()) 
+                    "right" -> settingsManager.setRightWindowSearchEngine(currentEngine.name.lowercase())
+                }
+                
+                if (searchText.isNotEmpty()) {
+                    performSearch(webView, searchText, currentEngine.url)
+                }
+                
+                // 显示选中状态
+                for (i in 0 until engineLayout.childCount) {
+                    val view = engineLayout.getChildAt(i)
+                    if (view is ImageView) {
+                        view.setBackgroundResource(R.drawable.icon_background)
+                    }
+                }
+                engineIcon.setBackgroundResource(R.drawable.icon_background_selected)
+            }
+            
+            // 设置默认选中状态
+            val windowPosition = if (isCenter) "center" else if (webView == firstWebView) "left" else "right"
+            val defaultEngine = when (windowPosition) {
+                "left" -> settingsManager.getLeftWindowSearchEngine()
+                "center" -> settingsManager.getCenterWindowSearchEngine()
+                else -> settingsManager.getRightWindowSearchEngine()
+            }
+            
+            if (engine.name.lowercase() == defaultEngine) {
+                engineIcon.setBackgroundResource(R.drawable.icon_background_selected)
+            }
+            
+            engineLayout.addView(engineIcon)
+        }
+
+        horizontalScrollView.addView(engineLayout)
+        searchBarLayout.addView(horizontalScrollView)
+    }
+
+    private fun updateViewVisibilityByWindowCount() {
+        when (windowCount) {
+            1 -> {
+                // 仅显示第一个WebView
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.GONE
+                secondWebView?.visibility = View.GONE
+                divider2?.visibility = View.GONE
+                thirdWebView?.visibility = View.GONE
+                
+                // 获取父容器
+                val secondContainer = secondWebView?.parent as? View
+                val thirdContainer = thirdWebView?.parent as? View
+                secondContainer?.visibility = View.GONE
+                thirdContainer?.visibility = View.GONE
+            }
+            2 -> {
+                // 显示两个WebView
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.VISIBLE
+                secondWebView?.visibility = View.VISIBLE
+                divider2?.visibility = View.GONE
+                thirdWebView?.visibility = View.GONE
+                
+                // 获取父容器
+                val secondContainer = secondWebView?.parent as? View
+                val thirdContainer = thirdWebView?.parent as? View
+                secondContainer?.visibility = View.VISIBLE
+                thirdContainer?.visibility = View.GONE
+            }
+            else -> {
+                // 显示全部三个WebView
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.VISIBLE
+                secondWebView?.visibility = View.VISIBLE
+                divider2?.visibility = View.VISIBLE
+                thirdWebView?.visibility = View.VISIBLE
+                
+                // 获取父容器
+                val secondContainer = secondWebView?.parent as? View
+                val thirdContainer = thirdWebView?.parent as? View
+                secondContainer?.visibility = View.VISIBLE
+                thirdContainer?.visibility = View.VISIBLE
+            }
+        }
+        
+        // 更新布局
+        container?.requestLayout()
     }
 } 

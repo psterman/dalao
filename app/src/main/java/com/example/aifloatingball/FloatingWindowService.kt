@@ -831,6 +831,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 val intent = Intent(this, serviceClass).apply {
                     putExtra("url", searchUrl)
                     putExtra("search_query", query)
+                    
+                    // 如果使用多窗口模式，添加窗口数量设置
+                    if (useDualMode) {
+                        // 从设置获取用户设置的窗口数量
+                        val windowCount = settingsManager.getDefaultWindowCount()
+                        putExtra("window_count", windowCount)
+                    }
                 }
                 startService(intent)
                 
@@ -896,6 +903,13 @@ class FloatingWindowService : Service(), GestureManager.GestureCallback {
                 val intent = Intent(this, serviceClass).apply {
                     putExtra("url", searchUrl)
                     putExtra("search_query", query)
+                    
+                    // 如果使用多窗口模式，添加窗口数量设置
+                    if (useDualMode) {
+                        // 从设置获取用户设置的窗口数量
+                        val windowCount = settingsManager.getDefaultWindowCount()
+                        putExtra("window_count", windowCount)
+                    }
                 }
                 startService(intent)
                 

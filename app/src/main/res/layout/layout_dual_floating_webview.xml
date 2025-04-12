@@ -9,55 +9,55 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-            android:orientation="horizontal"
+        android:orientation="horizontal"
         android:padding="8dp"
         android:background="@color/colorPrimary">
 
-            <EditText
-                android:id="@+id/dual_search_input"
-                android:layout_width="0dp"
+        <EditText
+            android:id="@+id/dual_search_input"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-                android:layout_weight="1"
+            android:layout_weight="1"
             android:hint="输入搜索内容"
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:singleLine="true"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:singleLine="true"
             android:textColor="@android:color/white"
             android:textColorHint="#80FFFFFF"
             android:background="@android:color/transparent"/>
 
-            <ImageButton
-                android:id="@+id/btn_dual_search"
+        <ImageButton
+            android:id="@+id/btn_dual_search"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:src="@drawable/ic_search"
-                android:background="@android:color/transparent"
+            android:background="@android:color/transparent"
             android:contentDescription="搜索"/>
 
-            <ImageButton
-                android:id="@+id/btn_toggle_layout"
+        <ImageButton
+            android:id="@+id/btn_toggle_layout"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:src="@drawable/ic_screen_rotation"
-                android:background="@android:color/transparent"
+            android:background="@android:color/transparent"
             android:contentDescription="切换布局"/>
 
-            <ImageButton
-                android:id="@+id/btn_single_window"
+        <ImageButton
+            android:id="@+id/btn_single_window"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:src="@drawable/ic_single_window"
-                android:background="@android:color/transparent"
+            android:background="@android:color/transparent"
             android:contentDescription="单窗口模式"/>
 
-            <ImageButton
-                android:id="@+id/btn_dual_close"
+        <ImageButton
+            android:id="@+id/btn_dual_close"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:src="@drawable/ic_close"
-                android:background="@android:color/transparent"
+            android:background="@android:color/transparent"
             android:contentDescription="关闭"/>
-        </LinearLayout>
+    </LinearLayout>
 
     <!-- 内容容器 -->
     <FrameLayout
@@ -96,68 +96,71 @@
                             android:id="@+id/first_floating_title"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                                android:padding="8dp"
-                                android:textColor="@android:color/white"
-                                android:text="搜索"
-                                android:gravity="center"/>
+                            android:padding="8dp"
+                            android:textColor="@android:color/white"
+                            android:text="搜索"
+                            android:gravity="center"/>
 
-                        <!-- 搜索引擎选择区 -->
-                        <HorizontalScrollView
+                        <!-- 搜索引擎切换容器 -->
+                        <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
                             
-                            <LinearLayout
-                                android:layout_width="wrap_content"
+                            <!-- 搜索引擎切换按钮 -->
+                            <ImageButton
+                                android:id="@+id/first_engine_toggle"
+                                android:layout_width="36dp"
+                                android:layout_height="36dp"
+                                android:padding="4dp"
+                                android:layout_margin="2dp"
+                                android:background="@android:color/transparent"
+                                android:src="@drawable/ic_search"
+                                android:contentDescription="切换搜索引擎类型"/>
+                            
+                            <!-- 搜索引擎图标容器 -->
+                            <HorizontalScrollView
+                                android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:orientation="vertical">
+                                android:layout_weight="1">
                                 
-                                <!-- 普通搜索引擎区域 -->
-                                <TextView
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="普通搜索"
-                                    android:textColor="@android:color/white"
-                                    android:textSize="12sp"
-                                    android:paddingStart="8dp"/>
-                                    
                                 <LinearLayout
                                     android:id="@+id/first_engine_container"
-                                    android:layout_width="match_parent"
+                                    android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:orientation="horizontal"
-                                    android:padding="4dp"/>
-                                
-                                <!-- AI搜索引擎区域 -->
-                                <TextView
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="AI搜索"
-                                    android:textColor="@android:color/white"
-                                    android:textSize="12sp"
-                                    android:paddingStart="8dp"/>
-                                    
-                                <LinearLayout
-                                    android:id="@+id/first_ai_engine_container"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:orientation="horizontal"
-                                    android:padding="4dp"/>
-                            </LinearLayout>
+                                    android:padding="2dp"/>
+                            </HorizontalScrollView>
+                        </LinearLayout>
+                        
+                        <!-- AI搜索引擎容器 (初始隐藏) -->
+                        <HorizontalScrollView
+                            android:id="@+id/first_ai_scroll_container"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:visibility="gone">
+                            
+                            <LinearLayout
+                                android:id="@+id/first_ai_engine_container"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:padding="2dp"/>
                         </HorizontalScrollView>
                     </LinearLayout>
 
-                <WebView
-                    android:id="@+id/first_floating_webview"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
+                    <WebView
+                        android:id="@+id/first_floating_webview"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
                         android:layout_weight="1"/>
-            </LinearLayout>
+                </LinearLayout>
 
                 <!-- 第一个分割线 -->
-            <View
+                <View
                     android:id="@+id/divider1"
                     android:layout_width="2dp"
-                android:layout_height="match_parent"
+                    android:layout_height="match_parent"
                     android:background="@color/colorPrimaryDark"
                     android:layout_marginStart="1dp"
                     android:layout_marginEnd="1dp"/>
@@ -179,60 +182,63 @@
                             android:id="@+id/second_floating_title"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                                android:padding="8dp"
-                                android:textColor="@android:color/white"
-                                android:text="搜索"
-                                android:gravity="center"/>
+                            android:padding="8dp"
+                            android:textColor="@android:color/white"
+                            android:text="搜索"
+                            android:gravity="center"/>
 
-                        <!-- 搜索引擎选择区 -->
-                        <HorizontalScrollView
+                        <!-- 搜索引擎切换容器 -->
+                        <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content">
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
                             
-                            <LinearLayout
-                                android:layout_width="wrap_content"
+                            <!-- 搜索引擎切换按钮 -->
+                            <ImageButton
+                                android:id="@+id/second_engine_toggle"
+                                android:layout_width="36dp"
+                                android:layout_height="36dp"
+                                android:padding="4dp"
+                                android:layout_margin="2dp"
+                                android:background="@android:color/transparent"
+                                android:src="@drawable/ic_search"
+                                android:contentDescription="切换搜索引擎类型"/>
+                            
+                            <!-- 搜索引擎图标容器 -->
+                            <HorizontalScrollView
+                                android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:orientation="vertical">
+                                android:layout_weight="1">
                                 
-                                <!-- 普通搜索引擎区域 -->
-                                <TextView
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="普通搜索"
-                                    android:textColor="@android:color/white"
-                                    android:textSize="12sp"
-                                    android:paddingStart="8dp"/>
-                                    
                                 <LinearLayout
                                     android:id="@+id/second_engine_container"
-                                    android:layout_width="match_parent"
+                                    android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:orientation="horizontal"
-                                    android:padding="4dp"/>
-                                
-                                <!-- AI搜索引擎区域 -->
-                                <TextView
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:text="AI搜索"
-                                    android:textColor="@android:color/white"
-                                    android:textSize="12sp"
-                                    android:paddingStart="8dp"/>
-                                    
-                                <LinearLayout
-                                    android:id="@+id/second_ai_engine_container"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:orientation="horizontal"
-                                    android:padding="4dp"/>
-                            </LinearLayout>
+                                    android:padding="2dp"/>
+                            </HorizontalScrollView>
+                        </LinearLayout>
+                        
+                        <!-- AI搜索引擎容器 (初始隐藏) -->
+                        <HorizontalScrollView
+                            android:id="@+id/second_ai_scroll_container"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:visibility="gone">
+                            
+                            <LinearLayout
+                                android:id="@+id/second_ai_engine_container"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:padding="2dp"/>
                         </HorizontalScrollView>
                     </LinearLayout>
 
-                <WebView
-                    android:id="@+id/second_floating_webview"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
+                    <WebView
+                        android:id="@+id/second_floating_webview"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
                         android:layout_weight="1"/>
                 </LinearLayout>
 
@@ -258,59 +264,62 @@
                         android:orientation="vertical"
                         android:background="@color/colorPrimaryDark">
 
-                            <TextView
-                                android:id="@+id/third_floating_title"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:padding="8dp"
-                                android:textColor="@android:color/white"
-                                android:text="搜索"
-                                android:gravity="center"/>
+                        <TextView
+                            android:id="@+id/third_floating_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:padding="8dp"
+                            android:textColor="@android:color/white"
+                            android:text="搜索"
+                            android:gravity="center"/>
 
-                            <!-- 搜索引擎选择区 -->
+                        <!-- 搜索引擎切换容器 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            
+                            <!-- 搜索引擎切换按钮 -->
+                            <ImageButton
+                                android:id="@+id/third_engine_toggle"
+                                android:layout_width="36dp"
+                                android:layout_height="36dp"
+                                android:padding="4dp"
+                                android:layout_margin="2dp"
+                                android:background="@android:color/transparent"
+                                android:src="@drawable/ic_search"
+                                android:contentDescription="切换搜索引擎类型"/>
+                            
+                            <!-- 搜索引擎图标容器 -->
                             <HorizontalScrollView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content">
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1">
                                 
                                 <LinearLayout
+                                    android:id="@+id/third_engine_container"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:orientation="vertical">
-                                    
-                                    <!-- 普通搜索引擎区域 -->
-                                    <TextView
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="普通搜索"
-                                        android:textColor="@android:color/white"
-                                        android:textSize="12sp"
-                                        android:paddingStart="8dp"/>
-                                        
-                                    <LinearLayout
-                                        android:id="@+id/third_engine_container"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:padding="4dp"/>
-                                    
-                                    <!-- AI搜索引擎区域 -->
-                                    <TextView
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:text="AI搜索"
-                                        android:textColor="@android:color/white"
-                                        android:textSize="12sp"
-                                        android:paddingStart="8dp"/>
-                                        
-                                    <LinearLayout
-                                        android:id="@+id/third_ai_engine_container"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:padding="4dp"/>
-                                </LinearLayout>
+                                    android:orientation="horizontal"
+                                    android:padding="2dp"/>
                             </HorizontalScrollView>
                         </LinearLayout>
+                        
+                        <!-- AI搜索引擎容器 (初始隐藏) -->
+                        <HorizontalScrollView
+                            android:id="@+id/third_ai_scroll_container"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:visibility="gone">
+                            
+                            <LinearLayout
+                                android:id="@+id/third_ai_engine_container"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:padding="2dp"/>
+                        </HorizontalScrollView>
+                    </LinearLayout>
 
                     <WebView
                         android:id="@+id/third_floating_webview"
@@ -329,4 +338,4 @@
             android:layout_gravity="end|bottom"
             android:background="@drawable/resize_handle"/>
     </FrameLayout>
-    </LinearLayout>
+</LinearLayout> 
