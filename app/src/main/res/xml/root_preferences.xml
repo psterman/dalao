@@ -35,7 +35,8 @@
 
     <PreferenceCategory
         app:title="搜索设置"
-        app:iconSpaceReserved="false">
+        app:icon="@drawable/ic_search_settings"
+        app:iconSpaceReserved="true">
 
         <ListPreference
             app:key="default_search_engine"
@@ -44,18 +45,21 @@
             app:entries="@array/search_engines"
             app:entryValues="@array/search_engine_values"
             app:defaultValue="baidu"
-            app:iconSpaceReserved="false" />
+            app:icon="@drawable/ic_normal_search"
+            app:iconSpaceReserved="true" />
 
         <SwitchPreferenceCompat
             app:key="default_search_mode"
             app:title="默认AI模式"
             app:summary="启动时默认使用AI搜索模式"
             app:defaultValue="false"
-            app:iconSpaceReserved="false" />
+            app:icon="@drawable/ic_ai_search"
+            app:iconSpaceReserved="true" />
 
         <PreferenceCategory
             app:title="多窗口设置"
-            app:iconSpaceReserved="false">
+            app:icon="@drawable/ic_layers"
+            app:iconSpaceReserved="true">
 
             <Preference
                 app:title="多窗口说明"

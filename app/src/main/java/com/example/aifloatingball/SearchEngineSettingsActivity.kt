@@ -44,6 +44,9 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
                     enabledEngines.add(engine.name)
                 }
                 settingsManager.setEnabledSearchEngines(enabledEngines)
+                
+                // 发送广播通知悬浮球服务更新菜单
+                sendBroadcast(Intent("com.example.aifloatingball.ACTION_UPDATE_MENU"))
             }
         )
         
@@ -53,6 +56,8 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             android.R.id.home -> {
+                // 返回按钮点击时也发送更新广播
+                sendBroadcast(Intent("com.example.aifloatingball.ACTION_UPDATE_MENU"))
                 finish()
                 true
             }

@@ -55,7 +55,7 @@ class AISearchEngine(
             ),
             AISearchEngine(
                 "通义千问",
-                "https://qianwen.aliyun.com",
+                "https://tongyi.aliyun.com/qianwen/",
                 R.drawable.ic_qianwen,
                 "阿里通义千问"
             ),
@@ -66,22 +66,94 @@ class AISearchEngine(
                 "讯飞星火认知大模型"
             ),
             AISearchEngine(
-                "Perplexity",
-                "https://perplexity.ai",
-                R.drawable.ic_perplexity,
-                "Perplexity AI搜索"
+                "DeepSeek",
+                "https://chat.deepseek.com",
+                R.drawable.ic_deepseek,
+                "DeepSeek Chat"
             ),
             AISearchEngine(
-                "Phind",
-                "https://phind.com",
+                "Kimi",
+                "https://kimi.moonshot.cn",
                 R.drawable.ic_search,
-                "Phind AI搜索"
+                "Moonshot AI Kimi"
+            ),
+            AISearchEngine(
+                "百小度",
+                "https://xiaodong.baidu.com",
+                R.drawable.ic_search,
+                "百度小度对话"
+            ),
+            AISearchEngine(
+                "豆包",
+                "https://doubao.com",
+                R.drawable.ic_search,
+                "字节豆包"
+            ),
+            AISearchEngine(
+                "腾讯混元",
+                "https://hunyuan.tencent.com",
+                R.drawable.ic_search,
+                "腾讯混元大模型"
+            ),
+            AISearchEngine(
+                "秘塔AI",
+                "https://meta-ai.com",
+                R.drawable.ic_search,
+                "秘塔AI助手"
             ),
             AISearchEngine(
                 "Poe",
                 "https://poe.com",
                 R.drawable.ic_search,
                 "Poe AI平台"
+            ),
+            AISearchEngine(
+                "Perplexity",
+                "https://perplexity.ai",
+                R.drawable.ic_perplexity,
+                "Perplexity AI搜索"
+            ),
+            AISearchEngine(
+                "天工AI",
+                "https://tiangong.kunlun.com",
+                R.drawable.ic_search,
+                "昆仑万维天工"
+            ),
+            AISearchEngine(
+                "Grok",
+                "https://grok.x.ai",
+                R.drawable.ic_grok,
+                "X Grok AI"
+            ),
+            AISearchEngine(
+                "小Yi",
+                "https://xiaoyi.baidu.com",
+                R.drawable.ic_search,
+                "百度小Yi"
+            ),
+            AISearchEngine(
+                "Monica",
+                "https://monica.im",
+                R.drawable.ic_search,
+                "Monica AI助手"
+            ),
+            AISearchEngine(
+                "You",
+                "https://you.com",
+                R.drawable.ic_search,
+                "You AI搜索"
+            ),
+            AISearchEngine(
+                "Pi",
+                "https://pi.ai",
+                R.drawable.ic_search,
+                "Pi AI助手"
+            ),
+            AISearchEngine(
+                "Character.AI",
+                "https://character.ai",
+                R.drawable.ic_search,
+                "Character.AI对话"
             )
         )
     }
@@ -97,11 +169,23 @@ class AISearchEngine(
             "Gemini" -> "https://gemini.google.com"
             "文心一言" -> "https://yiyan.baidu.com"
             "智谱清言" -> "https://chatglm.cn"
-            "通义千问" -> "https://qianwen.aliyun.com"
+            "通义千问" -> "https://tongyi.aliyun.com/qianwen/"
             "讯飞星火" -> "https://xinghuo.xfyun.cn"
+            "DeepSeek" -> "https://chat.deepseek.com"
+            "Kimi" -> "https://kimi.moonshot.cn"
+            "百小度" -> "https://xiaodong.baidu.com"
+            "豆包" -> "https://doubao.com"
+            "腾讯混元" -> "https://hunyuan.tencent.com"
+            "秘塔AI" -> "https://meta-ai.com"
+            "Poe" -> "https://poe.com"
             "Perplexity" -> "https://perplexity.ai/search?q=$encodedQuery"
-            "Phind" -> "https://phind.com/search?q=$encodedQuery"
-            "Poe" -> "https://poe.com/search?q=$encodedQuery"
+            "天工AI" -> "https://tiangong.kunlun.com"
+            "Grok" -> "https://grok.x.ai"
+            "小Yi" -> "https://xiaoyi.baidu.com"
+            "Monica" -> "https://monica.im"
+            "You" -> "https://you.com/search?q=$encodedQuery"
+            "Pi" -> "https://pi.ai"
+            "Character.AI" -> "https://character.ai"
             else -> url
         }
     }
