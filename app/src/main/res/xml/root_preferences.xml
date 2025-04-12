@@ -38,14 +38,13 @@
         app:icon="@drawable/ic_search_settings"
         app:iconSpaceReserved="true">
 
-        <ListPreference
+        <com.example.aifloatingball.preference.SearchEngineListPreference
             app:key="default_search_engine"
             app:title="默认搜索引擎"
             app:summary="选择默认使用的搜索引擎"
             app:entries="@array/search_engines"
             app:entryValues="@array/search_engine_values"
             app:defaultValue="baidu"
-            app:icon="@drawable/ic_normal_search"
             app:iconSpaceReserved="true" />
 
         <SwitchPreferenceCompat
@@ -76,32 +75,32 @@
                 app:defaultValue="2"
                 app:iconSpaceReserved="false" />
 
-            <ListPreference
+            <com.example.aifloatingball.preference.SearchEngineListPreference
                 app:key="left_window_search_engine"
                 app:title="左侧窗口搜索引擎"
                 app:summary="选择左侧窗口默认使用的搜索引擎"
                 app:entries="@array/search_engines"
                 app:entryValues="@array/search_engine_values"
                 app:defaultValue="baidu"
-                app:iconSpaceReserved="false" />
+                app:iconSpaceReserved="true" />
 
-            <ListPreference
+            <com.example.aifloatingball.preference.SearchEngineListPreference
                 app:key="center_window_search_engine"
                 app:title="中间窗口搜索引擎"
                 app:summary="选择中间窗口默认使用的搜索引擎"
                 app:entries="@array/search_engines"
                 app:entryValues="@array/search_engine_values"
                 app:defaultValue="bing"
-                app:iconSpaceReserved="false" />
+                app:iconSpaceReserved="true" />
 
-            <ListPreference
+            <com.example.aifloatingball.preference.SearchEngineListPreference
                 app:key="right_window_search_engine"
                 app:title="右侧窗口搜索引擎"
                 app:summary="选择右侧窗口默认使用的搜索引擎"
                 app:entries="@array/search_engines"
                 app:entryValues="@array/search_engine_values"
                 app:defaultValue="google"
-                app:iconSpaceReserved="false" />
+                app:iconSpaceReserved="true" />
 
         </PreferenceCategory>
 

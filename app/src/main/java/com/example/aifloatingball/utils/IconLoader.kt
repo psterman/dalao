@@ -48,11 +48,7 @@ class IconLoader(private val context: Context) {
         Thread {
             try {
                 // 尝试不同的 favicon URL
-                val iconUrls = listOf(
-                    "https://$domain/favicon.ico",
-                    "https://$domain/favicon.png",
-                    "https://www.google.com/s2/favicons?domain=$domain&sz=64"
-                )
+                val iconUrls = getIconUrls(domain)
                 
                 var bitmap: Bitmap? = null
                 
@@ -94,6 +90,55 @@ class IconLoader(private val context: Context) {
                 Log.e("IconLoader", "加载图标失败: ${e.message}")
             }
         }.start()
+    }
+
+    private fun getIconUrls(domain: String): List<String> {
+        val baseUrls = listOf(
+            "https://$domain",
+            "https://www.$domain"
+        )
+
+        val paths = listOf(
+            "/favicon.ico",
+            "/favicon.png",
+            "/apple-touch-icon.png",
+            "/apple-touch-icon-precomposed.png",
+            "/touch-icon.png",
+            "/static/favicon.ico",
+            "/static/images/favicon.ico",
+            "/assets/favicon.ico",
+            "/assets/images/favicon.ico"
+        )
+
+        val urls = mutableListOf<String>()
+        
+        // 添加特定的图标URL
+        when {
+            domain.contains("baidu.com") -> urls.add("https://www.baidu.com/img/baidu_85beaf5496f291521eb75ba38eacbd87.svg")
+            domain.contains("google.com") -> urls.add("https://www.google.com/images/branding/googleg/1x/googleg_standard_color_128dp.png")
+            domain.contains("bing.com") -> urls.add("https://www.bing.com/sa/simg/favicon-2x.ico")
+            domain.contains("openai.com") -> urls.add("https://chat.openai.com/apple-touch-icon.png")
+            domain.contains("anthropic.com") || domain.contains("claude.ai") -> urls.add("https://claude.ai/apple-touch-icon.png")
+            domain.contains("gemini.google.com") -> urls.add("https://www.gstatic.com/lamda/images/favicon_v1_150160cddff7f294ce30.svg")
+            domain.contains("deepseek.com") -> urls.add("https://chat.deepseek.com/apple-touch-icon.png")
+            domain.contains("moonshot.cn") -> urls.add("https://www.moonshot.cn/apple-touch-icon.png")
+            domain.contains("doubao.com") -> urls.add("https://sf3-cdn-tos.douyinstatic.com/obj/eden-cn/uhbfnupkbps/doubao_favicon.ico")
+            domain.contains("perplexity.ai") -> urls.add("https://www.perplexity.ai/apple-touch-icon.png")
+            domain.contains("x.ai") -> urls.add("https://x.ai/favicon.ico")
+            domain.contains("character.ai") -> urls.add("https://characterai.io/static/favicon.ico")
+        }
+
+        // 添加常规图标路径
+        baseUrls.forEach { baseUrl ->
+            paths.forEach { path ->
+                urls.add(baseUrl + path)
+            }
+        }
+
+        // 添加Google Favicon服务作为备选
+        urls.add("https://www.google.com/s2/favicons?domain=$domain&sz=64")
+        
+        return urls.distinct()
     }
     
     fun clearCache() {

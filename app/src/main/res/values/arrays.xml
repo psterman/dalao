@@ -80,44 +80,39 @@
         <item>百度</item>
         <item>必应</item>
         <item>谷歌</item>
-        <item>DuckDuckGo</item>
-        <item>360搜索</item>
         <item>搜狗</item>
-        <item>知乎</item>
-        <item>微博</item>
-        <item>豆瓣</item>
-        <item>淘宝</item>
-        <item>京东</item>
-        <item>抖音</item>
-        <item>小红书</item>
-        <item>微信</item>
-        <item>QQ</item>
-        <item>哔哩哔哩</item>
+        <item>360搜索</item>
+        <item>头条搜索</item>
+        <item>夸克搜索</item>
+        <item>神马搜索</item>
     </string-array>
 
     <string-array name="search_engine_values">
         <item>baidu</item>
         <item>bing</item>
         <item>google</item>
-        <item>duckduckgo</item>
-        <item>360</item>
         <item>sogou</item>
-        <item>zhihu</item>
-        <item>weibo</item>
-        <item>douban</item>
-        <item>taobao</item>
-        <item>jd</item>
-        <item>douyin</item>
-        <item>xiaohongshu</item>
-        <item>wechat</item>
-        <item>qq</item>
-        <item>bilibili</item>
+        <item>360</item>
+        <item>toutiao</item>
+        <item>quark</item>
+        <item>sm</item>
+    </string-array>
+
+    <string-array name="search_engine_urls">
+        <item>https://www.baidu.com</item>
+        <item>https://www.bing.com</item>
+        <item>https://www.google.com</item>
+        <item>https://www.sogou.com</item>
+        <item>https://www.so.com</item>
+        <item>https://www.toutiao.com</item>
+        <item>https://quark.sm.cn</item>
+        <item>https://m.sm.cn</item>
     </string-array>
 
     <string-array name="window_count_entries">
-        <item>单窗口</item>
-        <item>双窗口</item>
-        <item>三窗口</item>
+        <item>1个窗口</item>
+        <item>2个窗口</item>
+        <item>3个窗口</item>
     </string-array>
 
     <string-array name="window_count_values">
