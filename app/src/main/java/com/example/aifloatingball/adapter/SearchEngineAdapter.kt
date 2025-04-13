@@ -37,12 +37,12 @@ class SearchEngineAdapter<T : SearchEngine>(
         val iconImageView: ImageView = view.findViewById(R.id.engine_icon)
         val toggleSwitch: Switch = view.findViewById(R.id.engine_toggle)
     }
-    
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(context).inflate(R.layout.item_search_engine, parent, false)
         return ViewHolder(view)
     }
-    
+
     override fun getItemCount(): Int = engines.size
     
     @SuppressLint("NotifyDataSetChanged")
