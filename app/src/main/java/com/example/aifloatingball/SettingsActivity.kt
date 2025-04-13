@@ -178,6 +178,18 @@ class SettingsActivity : AppCompatActivity() {
                 startActivity(Intent(requireContext(), MenuManagerActivity::class.java))
                 true
             }
+            
+            // 搜索引擎管理入口
+            findPreference<Preference>("search_engine_manager")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), SearchEngineSettingsActivity::class.java))
+                true
+            }
+            
+            // AI搜索引擎管理入口
+            findPreference<Preference>("ai_search_engine_manager")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), AISearchEngineSettingsActivity::class.java))
+                true
+            }
         }
 
         /**

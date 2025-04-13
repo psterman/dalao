@@ -47,6 +47,20 @@
             app:defaultValue="baidu"
             app:iconSpaceReserved="true" />
 
+        <Preference
+            app:key="search_engine_manager"
+            app:title="普通搜索引擎管理"
+            app:summary="管理普通搜索引擎列表和选项"
+            app:icon="@drawable/ic_search"
+            app:iconSpaceReserved="true" />
+
+        <Preference
+            app:key="ai_search_engine_manager"
+            app:title="AI搜索引擎管理"
+            app:summary="管理AI搜索引擎列表和选项"
+            app:icon="@drawable/ic_ai_search"
+            app:iconSpaceReserved="true" />
+
         <SwitchPreferenceCompat
             app:key="default_search_mode"
             app:title="默认AI模式"

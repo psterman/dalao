@@ -68,7 +68,7 @@ class AISearchEngine(
             AISearchEngine(
                 "DeepSeek",
                 "https://chat.deepseek.com",
-                R.drawable.ic_deepseek,
+                R.drawable.ic_search,
                 "DeepSeek Chat"
             ),
             AISearchEngine(
@@ -80,7 +80,7 @@ class AISearchEngine(
             AISearchEngine(
                 "百小度",
                 "https://xiaodong.baidu.com",
-                R.drawable.ic_search,
+                R.drawable.ic_baidu,
                 "百度小度对话"
             ),
             AISearchEngine(
@@ -128,7 +128,7 @@ class AISearchEngine(
             AISearchEngine(
                 "小Yi",
                 "https://xiaoyi.baidu.com",
-                R.drawable.ic_search,
+                R.drawable.ic_baidu,
                 "百度小Yi"
             ),
             AISearchEngine(

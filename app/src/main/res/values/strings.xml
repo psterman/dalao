@@ -19,7 +19,7 @@
     <string name="notification_channel_name">AI悬浮球服务</string>
     <string name="notification_channel_description">保持AI悬浮球服务在后台运行</string>
     <string name="service_running">AI悬浮球服务正在运行</string>
-    <string name="search_engine_settings">搜索引擎排序</string>
+    <string name="search_engine_settings">搜索引擎管理</string>
     <string name="drag_to_sort">长按拖动排序</string>
     <string name="settings_title">设置</string>
     <string name="appearance">外观</string>
@@ -46,4 +46,21 @@
         <item>1</item>
         <item>2</item>
     </string-array>
+
+    <string name="search_engine_icon">搜索引擎图标</string>
+    <string name="normal_search">普通搜索</string>
+    <string name="ai_search">AI搜索</string>
+    <string name="save_settings">保存设置</string>
+    <string name="engine_enabled">已启用</string>
+    <string name="engine_disabled">已禁用</string>
+
+    <!-- 搜索引擎描述 -->
+    <string name="baidu_desc">百度搜索</string>
+    <string name="google_desc">Google搜索</string>
+    <string name="bing_desc">Microsoft Bing</string>
+    <string name="chatgpt_desc">OpenAI ChatGPT</string>
+    <string name="claude_desc">Anthropic Claude</string>
+    <string name="gemini_desc">Google Gemini</string>
+    <string name="wenxin_desc">百度文心一言</string>
+    <string name="qianwen_desc">阿里通义千问</string>
 </resources> 
