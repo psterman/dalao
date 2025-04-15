@@ -23,79 +23,79 @@ class IconLoader(private val context: Context) {
     fun loadIcon(url: String, iconView: ImageView, defaultIconRes: Int) {
         try {
             val domain = extractDomain(url)
-            val iconFile = File(iconCacheDir, "${domain.replace(".", "_")}.png")
-            
-            // 设置默认图标
-            iconView.setImageResource(defaultIconRes)
-            
-            // 检查内存缓存
-            iconCache[domain]?.let {
-                iconView.setImageBitmap(it)
-                return
-            }
-            
-            // 检查文件缓存
-            if (iconFile.exists()) {
-                try {
-                    val bitmap = BitmapFactory.decodeFile(iconFile.absolutePath)
-                    if (bitmap != null) {
-                        iconCache[domain] = bitmap
-                        iconView.setImageBitmap(bitmap)
-                        return
-                    }
-                } catch (e: Exception) {
-                    Log.e("IconLoader", "从缓存加载图标失败: ${e.message}")
+        val iconFile = File(iconCacheDir, "${domain.replace(".", "_")}.png")
+        
+        // 设置默认图标
+        iconView.setImageResource(defaultIconRes)
+        
+        // 检查内存缓存
+        iconCache[domain]?.let {
+            iconView.setImageBitmap(it)
+            return
+        }
+        
+        // 检查文件缓存
+        if (iconFile.exists()) {
+            try {
+                val bitmap = BitmapFactory.decodeFile(iconFile.absolutePath)
+                if (bitmap != null) {
+                    iconCache[domain] = bitmap
+                    iconView.setImageBitmap(bitmap)
+                    return
                 }
+            } catch (e: Exception) {
+                Log.e("IconLoader", "从缓存加载图标失败: ${e.message}")
             }
-            
-            // 从网络加载
+        }
+        
+        // 从网络加载
             executor.execute {
-                try {
-                    // 尝试不同的 favicon URL
+            try {
+                // 尝试不同的 favicon URL
                     val iconUrls = getIconUrls(domain)
-                    var bitmap: Bitmap? = null
-                    
-                    for (iconUrl in iconUrls) {
-                        try {
-                            val connection = URL(iconUrl).openConnection() as HttpURLConnection
-                            connection.connectTimeout = 5000
-                            connection.readTimeout = 5000
+                var bitmap: Bitmap? = null
+                
+                for (iconUrl in iconUrls) {
+                    try {
+                        val connection = URL(iconUrl).openConnection() as HttpURLConnection
+                        connection.connectTimeout = 5000
+                        connection.readTimeout = 5000
                             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-                            
-                            if (connection.responseCode == 200) {
-                                bitmap = BitmapFactory.decodeStream(connection.inputStream)
+                        
+                        if (connection.responseCode == 200) {
+                            bitmap = BitmapFactory.decodeStream(connection.inputStream)
                                 if (bitmap != null && bitmap.width > 0 && bitmap.height > 0) {
                                     break
                                 }
-                            }
-                        } catch (e: Exception) {
-                            Log.d("IconLoader", "加载 $iconUrl 失败: ${e.message}")
-                            continue
                         }
+                    } catch (e: Exception) {
+                            Log.d("IconLoader", "加载 $iconUrl 失败: ${e.message}")
+                        continue
+                    }
+                }
+                
+                bitmap?.let {
+                    // 缓存到内存
+                    iconCache[domain] = it
+                    
+                    // 缓存到文件
+                    iconCacheDir.mkdirs()
+                    try {
+                        FileOutputStream(iconFile).use { out ->
+                            it.compress(Bitmap.CompressFormat.PNG, 100, out)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("IconLoader", "保存图标到文件失败: ${e.message}")
                     }
                     
-                    bitmap?.let {
-                        // 缓存到内存
-                        iconCache[domain] = it
-                        
-                        // 缓存到文件
-                        iconCacheDir.mkdirs()
-                        try {
-                            FileOutputStream(iconFile).use { out ->
-                                it.compress(Bitmap.CompressFormat.PNG, 100, out)
-                            }
-                        } catch (e: Exception) {
-                            Log.e("IconLoader", "保存图标到文件失败: ${e.message}")
-                        }
-                        
-                        // 在主线程更新UI
-                        Handler(Looper.getMainLooper()).post {
-                            iconView.setImageBitmap(it)
-                        }
+                    // 在主线程更新UI
+                    Handler(Looper.getMainLooper()).post {
+                        iconView.setImageBitmap(it)
                     }
-                } catch (e: Exception) {
-                    Log.e("IconLoader", "加载图标失败: ${e.message}")
                 }
+            } catch (e: Exception) {
+                Log.e("IconLoader", "加载图标失败: ${e.message}")
+            }
             }
         } catch (e: Exception) {
             Log.e("IconLoader", "图标加载异常: ${e.message}")
