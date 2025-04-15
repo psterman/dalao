@@ -35,6 +35,15 @@
             android:contentDescription="搜索"/>
 
         <ImageButton
+            android:id="@+id/btn_save_engines"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_save"
+            android:background="@android:color/transparent"
+            android:tint="@android:color/white"
+            android:contentDescription="保存搜索引擎"/>
+
+        <ImageButton
             android:id="@+id/btn_toggle_layout"
             android:layout_width="40dp"
             android:layout_height="40dp"

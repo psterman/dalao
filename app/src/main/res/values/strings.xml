@@ -63,4 +63,11 @@
     <string name="gemini_desc">Google Gemini</string>
     <string name="wenxin_desc">百度文心一言</string>
     <string name="qianwen_desc">阿里通义千问</string>
+
+    <!-- 搜索引擎快捷方式相关 -->
+    <string name="save_search_engine">保存搜索引擎</string>
+    <string name="search_engine_saved">搜索引擎已保存</string>
+    <string name="search_engine_save_failed">无法保存搜索引擎</string>
+    <string name="search_engine_shortcuts">搜索引擎快捷方式</string>
+    <string name="please_input_search_content">请输入搜索内容</string>
 </resources> 

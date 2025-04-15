@@ -1,27 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/floating_ball_background"
     android:padding="8dp">
 
-    <LinearLayout
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:background="@drawable/floating_ball_background">
+    <!-- 搜索引擎快捷方式容器 -->
+    <HorizontalScrollView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:layout_marginBottom="8dp">
 
-        <TextView
-            android:id="@+id/floating_ball_text"
+        <LinearLayout
+            android:id="@+id/search_shortcuts_container"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textSize="12sp"
-            android:textColor="#FFFFFF"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:gravity="center"
-            android:text="搜索" />
+            android:orientation="horizontal" />
+    </HorizontalScrollView>
 
+    <!-- 搜索输入框 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/search_input_background">
+
+        <EditText
+            android:id="@+id/search_input"
+            android:layout_width="200dp"
+            android:layout_height="match_parent"
+            android:background="@null"
+            android:hint="搜索..."
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:singleLine="true"
+            android:textSize="14sp" />
+
+        <ImageView
+            android:id="@+id/floating_ball_icon"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_search"
+            android:contentDescription="搜索" />
     </LinearLayout>
 
-</FrameLayout> 
+</LinearLayout> 

@@ -33,6 +33,10 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.cardview.widget.CardView
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.SearchEngineShortcut
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
 import android.graphics.Color
@@ -53,6 +57,8 @@ import androidx.core.app.NotificationCompat
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 class FloatingWebViewService : Service() {
     companion object {
@@ -101,6 +107,7 @@ class FloatingWebViewService : Service() {
     private var refreshButton: ImageButton? = null
     private var floatingTitle: TextView? = null
     private var resizeHandle: View? = null
+    private var saveButton: ImageButton? = null
     
     private val halfCircleWindow by lazy { HalfCircleFloatingWindow(this) }
     
@@ -247,6 +254,10 @@ class FloatingWebViewService : Service() {
             
             // 设置双击标题栏最大化
             setupTitleBarDoubleTap()
+            
+            // 确保导航栏和保存按钮可见
+            saveButton?.visibility = View.VISIBLE
+            navigationBar?.visibility = View.VISIBLE
             
         } catch (e: Exception) {
             Log.e(TAG, "创建服务失败", e)
@@ -584,6 +595,26 @@ class FloatingWebViewService : Service() {
             imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
         }
         
+        // 保存搜索引擎快捷方式按钮
+        saveButton?.setOnClickListener { view ->
+            // 调用保存功能
+            saveCurrentSearchEngine()
+            
+            // 添加点击反馈动画
+                view.animate()
+                .scaleX(0.8f)
+                .scaleY(0.8f)
+                .setDuration(100)
+                .withEndAction {
+                    view.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .start()
+                }
+                .start()
+        }
+        
         // 后退按钮
         backButton?.setOnClickListener {
             if (webView?.canGoBack() == true) {
@@ -744,6 +775,8 @@ class FloatingWebViewService : Service() {
                                             searchButton?.visibility = View.VISIBLE
                                             closeButton?.visibility = View.VISIBLE
                                             expandButton?.visibility = View.VISIBLE
+                                            saveButton?.visibility = View.VISIBLE
+                                            navigationBar?.visibility = View.VISIBLE
                                         }
                                     )
                                     
@@ -1013,12 +1046,20 @@ class FloatingWebViewService : Service() {
         searchBar?.visibility = View.VISIBLE
         navigationBar?.visibility = View.VISIBLE
         resizeHandle?.visibility = View.GONE
+        
+        // 确保保存按钮可见
+        saveButton?.visibility = View.VISIBLE
     }
 
     private fun hideOptionalControls() {
         searchBar?.visibility = View.GONE
-        navigationBar?.visibility = View.GONE
+        // 保留导航栏可见性，确保保存按钮始终可见
+        // navigationBar?.visibility = View.GONE
+        navigationBar?.visibility = View.VISIBLE
         resizeHandle?.visibility = View.VISIBLE
+        
+        // 确保保存按钮可见
+        saveButton?.visibility = View.VISIBLE
     }
     
     private fun initGestureDetectors() {
@@ -1223,6 +1264,23 @@ class FloatingWebViewService : Service() {
         buttons.forEach { button ->
             button?.setColorFilter(iconColor)
             button?.background = createRippleDrawable(iconColor.withAlpha(0.1f))
+        }
+        
+        // 优化保存按钮样式，使其更显眼
+        saveButton?.apply {
+            setColorFilter(Color.parseColor("#4CAF50")) // 设置为绿色
+            background = createRippleDrawable(Color.parseColor("#1A4CAF50")) // 绿色水波纹
+            
+            // 确保始终可见
+            visibility = View.VISIBLE
+            
+            // 提高优先级，确保在小屏幕上也能显示
+            (layoutParams as? LinearLayout.LayoutParams)?.apply {
+                // 减小右边距确保有显示空间
+                marginEnd = 0
+                // 使用更高的比重，确保获得足够空间
+                gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            }
         }
         
         // 应用到进度条
@@ -1529,6 +1587,7 @@ class FloatingWebViewService : Service() {
         backButton = floatingView?.findViewById(R.id.btn_back)
         forwardButton = floatingView?.findViewById(R.id.btn_forward)
         refreshButton = floatingView?.findViewById(R.id.btn_refresh)
+        saveButton = floatingView?.findViewById(R.id.btn_save)
         floatingTitle = floatingView?.findViewById(R.id.floating_title)
         resizeHandle = floatingView?.findViewById(R.id.resize_handle)
         searchBar = floatingView?.findViewById(R.id.search_bar)
@@ -1542,6 +1601,11 @@ class FloatingWebViewService : Service() {
         setupResizeHandling()
         initGestureDetectors()
         applyTheme()
+        
+        // 确保保存按钮可见
+        saveButton?.visibility = View.VISIBLE
+        // 确保导航栏可见
+        navigationBar?.visibility = View.VISIBLE
     }
 
     private fun showViews() {
@@ -1606,6 +1670,200 @@ class FloatingWebViewService : Service() {
             faviconView?.setImageBitmap(favicon)
         } ?: run {
             faviconView?.setImageResource(R.drawable.ic_web_default)
+        }
+    }
+
+    // 添加保存当前搜索引擎为快捷方式的方法
+    private fun saveCurrentSearchEngine() {
+        webView?.let { webView ->
+            val currentUrl = webView.url ?: return
+            val title = webView.title ?: "未命名网站"
+            val favicon = currentFavicon
+            
+            try {
+                // 提取搜索引擎基础URL
+                val searchEngineInfo = extractSearchEngineInfo(currentUrl)
+                
+                if (searchEngineInfo != null) {
+                    // 保存搜索引擎信息到SharedPreferences
+                    saveSearchEngineShortcut(searchEngineInfo, title, favicon)
+                    
+                    // 显示成功提示
+                    val successMsg = getString(R.string.search_engine_saved) + ": ${searchEngineInfo.name}"
+                    showSaveResultNotification(true, successMsg)
+                    Toast.makeText(this, successMsg, Toast.LENGTH_SHORT).show()
+                } else {
+                    // 显示失败提示 - 不是搜索引擎
+                    val errorMsg = getString(R.string.search_engine_save_failed) + ": 当前页面不是搜索引擎或无法识别"
+                    showSaveResultNotification(false, errorMsg)
+                    Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                // 显示失败提示 - 发生错误
+                val errorMsg = getString(R.string.search_engine_save_failed) + ": ${e.message}"
+                showSaveResultNotification(false, errorMsg)
+                Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "保存搜索引擎失败", e)
+            }
+        }
+    }
+    
+    // 显示保存结果通知
+    private fun showSaveResultNotification(success: Boolean, message: String) {
+        // 在手势提示区域显示结果
+        gestureHintView?.apply {
+            text = message
+            // 设置背景颜色
+            val backgroundColor = if (success) Color.parseColor("#4CAF50") else Color.parseColor("#F44336")
+            background = GradientDrawable().apply {
+                setColor(backgroundColor)
+                cornerRadius = 16f
+                alpha = 220
+            }
+            visibility = View.VISIBLE
+            
+            // 创建动画显示效果
+            alpha = 0f
+            animate()
+                .alpha(1f)
+                .setDuration(300)
+                .withEndAction {
+                    // 3秒后淡出
+                    postDelayed({
+                        animate()
+                            .alpha(0f)
+                            .setDuration(500)
+                            .withEndAction { visibility = View.GONE }
+                            .start()
+                    }, 3000)
+                }
+                .start()
+        }
+    }
+
+    // 提取搜索引擎信息（搜索URL模板和域名）
+    private fun extractSearchEngineInfo(url: String): SearchEngineShortcut? {
+        try {
+            val uri = Uri.parse(url)
+            val host = uri.host ?: return null
+            
+            // 检查是否是搜索结果页面
+            val path = uri.path ?: ""
+            val query = uri.getQueryParameter("q") 
+                ?: uri.getQueryParameter("query")
+                ?: uri.getQueryParameter("word")
+                ?: uri.getQueryParameter("wd")
+                ?: uri.getQueryParameter("text")
+                ?: uri.getQueryParameter("search")
+                ?: return null
+            
+            // 不同搜索引擎的模式匹配
+            val searchUrlTemplate = when {
+                host.contains("google") -> {
+                    val baseUrl = url.substringBefore("&q=")
+                    "$baseUrl&q={query}"
+                }
+                host.contains("baidu") -> {
+                    val baseUrl = url.substringBefore("wd=")
+                    "${baseUrl}wd={query}"
+                }
+                host.contains("bing") -> {
+                    val baseUrl = url.substringBefore("q=")
+                    "${baseUrl}q={query}"
+                }
+                host.contains("yahoo") -> {
+                    val baseUrl = url.substringBefore("p=")
+                    "${baseUrl}p={query}"
+                }
+                host.contains("duckduckgo") -> {
+                    val baseUrl = url.substringBefore("q=")
+                    "${baseUrl}q={query}"
+                }
+                host.contains("yandex") -> {
+                    val baseUrl = url.substringBefore("text=")
+                    "${baseUrl}text={query}"
+                }
+                host.contains("sogou") -> {
+                    val baseUrl = url.substringBefore("query=")
+                    "${baseUrl}query={query}"
+                }
+                else -> {
+                    // 通用模式：尝试替换查询参数
+                    url.replace(query, "{query}")
+                }
+            }
+            
+            return SearchEngineShortcut(
+                id = System.currentTimeMillis().toString(),
+                name = getSearchEngineName(host),
+                url = searchUrlTemplate,
+                domain = host
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "解析搜索引擎URL失败", e)
+            return null
+        }
+    }
+
+    // 根据域名获取搜索引擎名称
+    private fun getSearchEngineName(domain: String): String {
+        return when {
+            domain.contains("google") -> "Google"
+            domain.contains("baidu") -> "百度"
+            domain.contains("bing") -> "必应"
+            domain.contains("yahoo") -> "雅虎"
+            domain.contains("duckduckgo") -> "DuckDuckGo"
+            domain.contains("yandex") -> "Yandex"
+            domain.contains("sogou") -> "搜狗"
+            else -> domain.substringBefore(".").capitalize()
+        }
+    }
+
+    // 保存搜索引擎快捷方式到SharedPreferences
+    private fun saveSearchEngineShortcut(searchEngine: SearchEngineShortcut, title: String, favicon: Bitmap?) {
+        // 获取当前已保存的快捷方式
+        val prefs = getSharedPreferences("search_engine_shortcuts", Context.MODE_PRIVATE)
+        val gson = Gson()
+        val shortcutsJson = prefs.getString("shortcuts", "[]")
+        val type = object : TypeToken<ArrayList<SearchEngineShortcut>>() {}.type
+        val shortcuts = gson.fromJson<ArrayList<SearchEngineShortcut>>(shortcutsJson, type) ?: ArrayList()
+        
+        // 检查是否已存在相同域名的快捷方式
+        val existingIndex = shortcuts.indexOfFirst { it.domain == searchEngine.domain }
+        if (existingIndex >= 0) {
+            // 更新已有快捷方式
+            shortcuts[existingIndex] = searchEngine
+        } else {
+            // 添加新快捷方式
+            shortcuts.add(searchEngine)
+        }
+        
+        // 保存回SharedPreferences
+        prefs.edit()
+            .putString("shortcuts", gson.toJson(shortcuts))
+            .apply()
+        
+        // 保存favicon（如果有）
+        favicon?.let {
+            saveFaviconForSearchEngine(searchEngine.id, it)
+        }
+    }
+
+    // 保存搜索引擎的favicon
+    private fun saveFaviconForSearchEngine(id: String, favicon: Bitmap) {
+        try {
+            // 将bitmap转换为字节数组
+            val baos = ByteArrayOutputStream()
+            favicon.compress(Bitmap.CompressFormat.PNG, 100, baos)
+            val bytes = baos.toByteArray()
+            
+            // 保存到内部存储
+            val file = File(filesDir, "favicon_$id.png")
+            val fos = FileOutputStream(file)
+            fos.write(bytes)
+            fos.close()
+        } catch (e: Exception) {
+            Log.e(TAG, "保存favicon失败", e)
         }
     }
 } 

@@ -13,6 +13,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.HorizontalScrollView
+import android.widget.TextView
+import android.widget.Toast
 import android.content.Context
 import android.graphics.PixelFormat
 import android.view.MotionEvent
@@ -24,7 +27,19 @@ import androidx.core.app.NotificationCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.preference.SearchEngineListPreference
 import com.example.aifloatingball.HomeActivity
+import android.graphics.BitmapFactory
+import com.example.aifloatingball.FloatingWebViewService
+import com.example.aifloatingball.model.SearchEngineShortcut
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import java.io.File
 import kotlin.math.abs
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.util.Log
+import android.widget.EditText
+import android.view.inputmethod.EditorInfo
+import android.net.Uri
 
 class FloatingWindowService : Service() {
     private var windowManager: WindowManager? = null
@@ -43,6 +58,11 @@ class FloatingWindowService : Service() {
     private val SNAP_DISTANCE = 50
     private val screenWidth by lazy { windowManager?.defaultDisplay?.width ?: 0 }
     private val screenHeight by lazy { windowManager?.defaultDisplay?.height ?: 0 }
+    
+    // 添加搜索引擎快捷方式相关变量
+    private var shortcutsContainer: LinearLayout? = null
+    private var searchInput: EditText? = null
+    private var searchEngineShortcuts: List<SearchEngineShortcut> = emptyList()
 
     override fun onCreate() {
         super.onCreate()
@@ -50,6 +70,8 @@ class FloatingWindowService : Service() {
         startForeground(NOTIFICATION_ID, createNotification())
         initializeWindowManager()
         createFloatingWindow()
+        initializeViews()
+        loadSearchEngineShortcuts()
     }
 
     private fun createNotificationChannel() {
@@ -86,8 +108,8 @@ class FloatingWindowService : Service() {
         val alphaValue = prefs.getFloat("ball_alpha", 0.8f)
         
         params = WindowManager.LayoutParams(
-            size,
-            size,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
@@ -101,6 +123,12 @@ class FloatingWindowService : Service() {
 
     private fun createFloatingWindow() {
         floatingView = LayoutInflater.from(this).inflate(R.layout.floating_ball_layout, null)
+        
+        // 初始化搜索引擎快捷方式容器
+        shortcutsContainer = floatingView?.findViewById(R.id.search_shortcuts_container)
+        
+        // 设置搜索框行为
+        setupSearchInput()
         
         longPressRunnable = Runnable {
             // Handle long press
@@ -205,6 +233,158 @@ class FloatingWindowService : Service() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         val searchEngine = prefs.getString("search_engine", "baidu") ?: "baidu"
         return SearchEngineListPreference.getSearchEngineUrl(this, searchEngine)
+    }
+    
+    // 设置搜索输入框
+    private fun setupSearchInput() {
+        searchInput = floatingView?.findViewById(R.id.search_input)
+        val searchIcon = floatingView?.findViewById<ImageView>(R.id.floating_ball_icon)
+        
+        // 设置输入框搜索动作
+        searchInput?.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                val query = searchInput?.text?.toString()?.trim() ?: ""
+                if (query.isNotEmpty()) {
+                    performSearch(query)
+                } else {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                }
+                true
+            } else {
+                false
+            }
+        }
+        
+        // 设置搜索图标点击事件
+        searchIcon?.setOnClickListener {
+            val query = searchInput?.text.toString().trim()
+            if (query.isNotEmpty()) {
+                performSearch(query)
+            } else {
+                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    // 执行搜索
+    private fun performSearch(query: String) {
+        // 使用默认搜索引擎搜索，或者如果有快捷方式，使用第一个快捷方式
+        if (searchEngineShortcuts.isNotEmpty()) {
+            openSearchWithEngine(searchEngineShortcuts[0], query)
+        } else {
+            // 使用系统默认搜索引擎
+            val searchUrl = SearchEngineListPreference.getSearchEngineUrl(this, 
+                PreferenceManager.getDefaultSharedPreferences(this)
+                    .getString("search_engine", "baidu") ?: "baidu")
+                .replace("{query}", java.net.URLEncoder.encode(query, "UTF-8"))
+            
+            val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                putExtra("url", searchUrl)
+            }
+            startService(intent)
+        }
+        
+        // 隐藏键盘
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(floatingView?.windowToken, 0)
+    }
+    
+    // 加载已保存的搜索引擎快捷方式
+    private fun loadSearchEngineShortcuts() {
+        val prefs = getSharedPreferences("search_engine_shortcuts", Context.MODE_PRIVATE)
+        val gson = Gson()
+        val shortcutsJson = prefs.getString("shortcuts", "[]")
+        val type = object : TypeToken<List<SearchEngineShortcut>>() {}.type
+        searchEngineShortcuts = gson.fromJson(shortcutsJson, type) ?: emptyList()
+        
+        // 显示快捷方式
+        displaySearchEngineShortcuts()
+    }
+
+    // 显示搜索引擎快捷方式
+    private fun displaySearchEngineShortcuts() {
+        shortcutsContainer?.removeAllViews()
+        
+        searchEngineShortcuts.forEach { shortcut ->
+            // 创建快捷方式视图
+            val shortcutView = LayoutInflater.from(this).inflate(
+                R.layout.item_search_engine_shortcut,
+                shortcutsContainer,
+                false
+            )
+            
+            // 设置图标和名称
+            val iconView = shortcutView.findViewById<ImageView>(R.id.shortcut_icon)
+            val nameView = shortcutView.findViewById<TextView>(R.id.shortcut_name)
+            
+            // 加载favicon（如果有）
+            val faviconFile = File(filesDir, "favicon_${shortcut.id}.png")
+            if (faviconFile.exists()) {
+                val favicon = BitmapFactory.decodeFile(faviconFile.absolutePath)
+                iconView.setImageBitmap(favicon)
+            } else {
+                iconView.setImageResource(R.drawable.ic_web_default)
+            }
+            
+            nameView.text = shortcut.name
+            
+            // 设置点击事件
+            shortcutView.setOnClickListener {
+                val query = searchInput?.text?.toString()?.trim() ?: ""
+                if (query.isNotEmpty()) {
+                    openSearchWithEngine(shortcut, query)
+                } else {
+                    Toast.makeText(this, R.string.please_input_search_content, Toast.LENGTH_SHORT).show()
+                }
+            }
+            
+            shortcutsContainer?.addView(shortcutView)
+        }
+    }
+    
+    // 使用特定搜索引擎进行搜索
+    private fun openSearchWithEngine(shortcut: SearchEngineShortcut, query: String) {
+        val searchUrl = if (query.isEmpty()) {
+            // 如果没有查询内容，打开搜索引擎主页
+            shortcut.url.replace("{query}", "")
+                .replace("search?q=", "")
+                .replace("search?query=", "")
+                .replace("search?word=", "")
+                .replace("s?wd=", "")
+        } else {
+            // 有查询内容，进行搜索
+            shortcut.url.replace("{query}", Uri.encode(query))
+        }
+
+        // 启动 FloatingWebViewService 来加载搜索结果
+        val intent = Intent(this, FloatingWebViewService::class.java).apply {
+            putExtra("url", searchUrl)
+        }
+        startService(intent)
+    }
+
+    private fun initializeViews() {
+        // 初始化搜索引擎快捷方式容器
+        shortcutsContainer = floatingView?.findViewById(R.id.shortcuts_container)
+        searchInput = floatingView?.findViewById(R.id.searchInput)
+
+        // 设置搜索输入框行为
+        searchInput?.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                val query = searchInput?.text?.toString()?.trim() ?: ""
+                if (query.isNotEmpty()) {
+                    performSearch(query)
+                } else {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                }
+                true
+            } else {
+                false
+            }
+        }
+
+        // 加载并显示已保存的搜索引擎快捷方式
+        loadSearchEngineShortcuts()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

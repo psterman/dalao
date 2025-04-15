@@ -53,6 +53,27 @@
 
         </RelativeLayout>
 
+        <!-- 搜索引擎快捷方式容器 -->
+        <HorizontalScrollView
+            android:id="@+id/shortcuts_scroll_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:overScrollMode="never"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:clipToPadding="false">
+
+            <LinearLayout
+                android:id="@+id/shortcuts_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+
+        </HorizontalScrollView>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="48dp"
