@@ -40,6 +40,9 @@ import android.util.Log
 import android.widget.EditText
 import android.view.inputmethod.EditorInfo
 import android.net.Uri
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import android.graphics.drawable.Drawable
 
 class FloatingWindowService : Service() {
     private var windowManager: WindowManager? = null
@@ -63,6 +66,19 @@ class FloatingWindowService : Service() {
     private var shortcutsContainer: LinearLayout? = null
     private var searchInput: EditText? = null
     private var searchEngineShortcuts: List<SearchEngineShortcut> = emptyList()
+    
+    // 广播接收器，用于接收搜索引擎快捷方式更新通知
+    private val shortcutsUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Log.d("FloatingWindowService", "收到快捷方式更新广播")
+            if (intent?.action == "com.example.aifloatingball.ACTION_UPDATE_SHORTCUTS") {
+                // 立即重新加载和显示搜索引擎快捷方式
+                loadSearchEngineShortcuts()
+                // 显示提示
+                Toast.makeText(this@FloatingWindowService, "搜索引擎快捷方式已更新", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -72,6 +88,9 @@ class FloatingWindowService : Service() {
         createFloatingWindow()
         initializeViews()
         loadSearchEngineShortcuts()
+        
+        // 注册广播接收器
+        registerReceiver(shortcutsUpdateReceiver, IntentFilter("com.example.aifloatingball.ACTION_UPDATE_SHORTCUTS"))
     }
 
     private fun createNotificationChannel() {
@@ -291,25 +310,114 @@ class FloatingWindowService : Service() {
     
     // 加载已保存的搜索引擎快捷方式
     private fun loadSearchEngineShortcuts() {
+        try {
+            // 1. 从SearchEngineManager获取保存的搜索引擎组
+            val searchEngineManager = com.example.aifloatingball.manager.SearchEngineManager.getInstance(this)
+            val searchEngineGroups = searchEngineManager.getSearchEngineGroups()
+            
+            // 临时列表存储转换后的快捷方式
+            val newShortcuts = mutableListOf<SearchEngineShortcut>()
+            
+            // 2. 将搜索引擎组转换为快捷方式
+            searchEngineGroups.forEach { group ->
+                if (group.engines.isNotEmpty()) {
+                    // 使用组中的第一个搜索引擎作为主要搜索引擎
+                    val primaryEngine = group.engines[0]
+                    
+                    // 创建快捷方式对象
+                    val shortcut = SearchEngineShortcut(
+                        id = group.name.hashCode().toString(),
+                        name = group.name,
+                        url = primaryEngine.url.replace("=.*".toRegex(), "={query}"),
+                        domain = extractDomain(primaryEngine.url)
+                    )
+                    
+                    newShortcuts.add(shortcut)
+                }
+            }
+            
+            // 3. 从SharedPreferences获取旧的快捷方式
         val prefs = getSharedPreferences("search_engine_shortcuts", Context.MODE_PRIVATE)
         val gson = Gson()
         val shortcutsJson = prefs.getString("shortcuts", "[]")
         val type = object : TypeToken<List<SearchEngineShortcut>>() {}.type
-        searchEngineShortcuts = gson.fromJson(shortcutsJson, type) ?: emptyList()
-        
-        // 显示快捷方式
+            val oldShortcuts: List<SearchEngineShortcut> = gson.fromJson(shortcutsJson, type) ?: emptyList()
+            
+            // 4. 合并新旧快捷方式，避免重复
+            oldShortcuts.forEach { oldShortcut ->
+                if (newShortcuts.none { it.domain == oldShortcut.domain }) {
+                    newShortcuts.add(oldShortcut)
+                }
+            }
+            
+            // 5. 更新成员变量
+            searchEngineShortcuts = newShortcuts
+            
+            // 6. 保存合并后的快捷方式
+            prefs.edit().putString("shortcuts", gson.toJson(newShortcuts)).apply()
+            
+            // 7. 刷新显示
         displaySearchEngineShortcuts()
+            
+            Log.d("FloatingWindowService", "已加载 ${searchEngineShortcuts.size} 个搜索引擎快捷方式")
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "加载搜索引擎快捷方式失败: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    // 从URL中提取域名
+    private fun extractDomain(url: String): String {
+        return try {
+            val uri = Uri.parse(url)
+            uri.host ?: ""
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "提取域名失败: ${e.message}")
+            ""
+        }
     }
 
     // 显示搜索引擎快捷方式
     private fun displaySearchEngineShortcuts() {
         shortcutsContainer?.removeAllViews()
         
+        // 如果没有快捷方式，显示提示文本
+        if (searchEngineShortcuts.isEmpty()) {
+            val emptyView = TextView(this).apply {
+                text = "暂无快捷方式，请先在浏览器中保存"
+                textSize = 12f
+                setTextColor(Color.GRAY)
+                setPadding(16, 8, 16, 8)
+                gravity = Gravity.CENTER
+            }
+            shortcutsContainer?.addView(emptyView)
+            return
+        }
+        
+        // 创建水平滚动视图包含所有快捷方式
+        val horizontalScrollView = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            isHorizontalScrollBarEnabled = true
+        }
+        
+        // 创建水平布局容纳快捷方式
+        val linearLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(8, 8, 8, 8)
+        }
+        
         searchEngineShortcuts.forEach { shortcut ->
             // 创建快捷方式视图
             val shortcutView = LayoutInflater.from(this).inflate(
                 R.layout.item_search_engine_shortcut,
-                shortcutsContainer,
+                linearLayout,
                 false
             )
             
@@ -323,7 +431,9 @@ class FloatingWindowService : Service() {
                 val favicon = BitmapFactory.decodeFile(faviconFile.absolutePath)
                 iconView.setImageBitmap(favicon)
             } else {
-                iconView.setImageResource(R.drawable.ic_web_default)
+                // 根据域名选择默认图标
+                val iconResId = getIconResourceByDomain(shortcut.domain)
+                iconView.setImageResource(iconResId)
             }
             
             nameView.text = shortcut.name
@@ -334,33 +444,58 @@ class FloatingWindowService : Service() {
                 if (query.isNotEmpty()) {
                     openSearchWithEngine(shortcut, query)
                 } else {
-                    Toast.makeText(this, R.string.please_input_search_content, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
                 }
             }
             
-            shortcutsContainer?.addView(shortcutView)
+            // 设置长按删除
+            shortcutView.setOnLongClickListener {
+                // 创建确认对话框
+                val builder = android.app.AlertDialog.Builder(this)
+                builder.setTitle("删除快捷方式")
+                    .setMessage("确定要删除 ${shortcut.name} 快捷方式吗？")
+                    .setPositiveButton("删除") { _, _ ->
+                        // 从列表中删除
+                        val updatedList = searchEngineShortcuts.toMutableList()
+                        updatedList.remove(shortcut)
+                        searchEngineShortcuts = updatedList
+                        
+                        // 保存更新后的列表
+                        val gson = Gson()
+                        val json = gson.toJson(searchEngineShortcuts)
+                        getSharedPreferences("search_engine_shortcuts", Context.MODE_PRIVATE)
+                            .edit()
+                            .putString("shortcuts", json)
+                            .apply()
+                        
+                        // 刷新显示
+                        displaySearchEngineShortcuts()
+                        
+                        Toast.makeText(this, "已删除快捷方式", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+                true
+            }
+            
+            linearLayout.addView(shortcutView)
         }
+        
+        horizontalScrollView.addView(linearLayout)
+        shortcutsContainer?.addView(horizontalScrollView)
     }
     
-    // 使用特定搜索引擎进行搜索
-    private fun openSearchWithEngine(shortcut: SearchEngineShortcut, query: String) {
-        val searchUrl = if (query.isEmpty()) {
-            // 如果没有查询内容，打开搜索引擎主页
-            shortcut.url.replace("{query}", "")
-                .replace("search?q=", "")
-                .replace("search?query=", "")
-                .replace("search?word=", "")
-                .replace("s?wd=", "")
-        } else {
-            // 有查询内容，进行搜索
-            shortcut.url.replace("{query}", Uri.encode(query))
+    // 根据域名获取合适的图标资源ID
+    private fun getIconResourceByDomain(domain: String): Int {
+        return when {
+            domain.contains("baidu") -> R.drawable.ic_baidu
+            domain.contains("google") -> R.drawable.ic_google
+            domain.contains("bing") -> R.drawable.ic_bing
+            domain.contains("sogou") -> R.drawable.ic_sogou
+            domain.contains("so.com") -> R.drawable.ic_360
+            domain.contains("zhihu") -> R.drawable.ic_zhihu
+            else -> R.drawable.ic_search
         }
-
-        // 启动 FloatingWebViewService 来加载搜索结果
-        val intent = Intent(this, FloatingWebViewService::class.java).apply {
-            putExtra("url", searchUrl)
-        }
-        startService(intent)
     }
 
     private fun initializeViews() {
@@ -392,5 +527,45 @@ class FloatingWindowService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         floatingView?.let { windowManager?.removeView(it) }
+        
+        // 注销广播接收器
+        try {
+            unregisterReceiver(shortcutsUpdateReceiver)
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "注销广播接收器失败: ${e.message}")
+        }
+    }
+
+    // 使用特定搜索引擎进行搜索
+    private fun openSearchWithEngine(shortcut: SearchEngineShortcut, query: String) {
+        try {
+            val searchUrl = if (query.isEmpty()) {
+                // 如果没有查询内容，打开搜索引擎主页
+                shortcut.url.replace("{query}", "")
+                    .replace("search?q=", "")
+                    .replace("search?query=", "")
+                    .replace("search?word=", "")
+                    .replace("s?wd=", "")
+            } else {
+                // 有查询内容，进行搜索
+                shortcut.url.replace("{query}", Uri.encode(query))
+            }
+
+            // 启动 FloatingWebViewService 来加载搜索结果
+            val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                putExtra("url", searchUrl)
+                putExtra("query", query)
+            }
+            startService(intent)
+            
+            // 显示成功提示
+            Toast.makeText(this, "使用 ${shortcut.name} 搜索: $query", Toast.LENGTH_SHORT).show()
+            
+            // 清空搜索框
+            searchInput?.setText("")
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "使用搜索引擎进行搜索失败: ${e.message}")
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 }

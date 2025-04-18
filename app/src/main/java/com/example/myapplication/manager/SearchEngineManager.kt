@@ -6,7 +6,7 @@ import com.example.aifloatingball.model.SearchEngine
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
-class SearchEngineManager private constructor(context: Context) {
+class LegacySearchEngineManager private constructor(context: Context) {
     private val sharedPreferences: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
 
@@ -15,11 +15,11 @@ class SearchEngineManager private constructor(context: Context) {
         private const val KEY_SEARCH_ENGINES = "saved_search_engines"
         
         @Volatile
-        private var instance: SearchEngineManager? = null
+        private var instance: LegacySearchEngineManager? = null
 
-        fun getInstance(context: Context): SearchEngineManager {
+        fun getInstance(context: Context): LegacySearchEngineManager {
             return instance ?: synchronized(this) {
-                instance ?: SearchEngineManager(context.applicationContext).also { instance = it }
+                instance ?: LegacySearchEngineManager(context.applicationContext).also { instance = it }
             }
         }
     }

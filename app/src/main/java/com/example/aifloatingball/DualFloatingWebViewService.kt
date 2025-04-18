@@ -34,6 +34,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import com.example.aifloatingball.utils.IconLoader
+import com.example.aifloatingball.manager.SearchEngineManager
 
 class DualFloatingWebViewService : Service() {
     companion object {
@@ -88,6 +89,7 @@ class DualFloatingWebViewService : Service() {
     private var currentEngineKey: String = "baidu"
     private var currentWebView: WebView? = null
     private var currentTitle: TextView? = null
+    private var saveButton: ImageButton? = null // 保存按钮
     
     private lateinit var settingsManager: SettingsManager
     private var leftEngineKey: String = "baidu"
@@ -337,6 +339,7 @@ class DualFloatingWebViewService : Service() {
         firstAIScrollContainer = floatingView?.findViewById(R.id.first_ai_scroll_container)
         secondAIScrollContainer = floatingView?.findViewById(R.id.second_ai_scroll_container)
         thirdAIScrollContainer = floatingView?.findViewById(R.id.third_ai_scroll_container)
+        saveButton = floatingView?.findViewById(R.id.btn_save_engines) // 添加保存按钮
     }
 
     private fun createWindowLayoutParams(): WindowManager.LayoutParams {
@@ -551,6 +554,17 @@ class DualFloatingWebViewService : Service() {
         
         // 设置引擎容器样式
         setupEngineContainerStyle()
+        
+        // 设置保存按钮点击事件
+        saveButton?.setOnClickListener {
+            // 显示保存中的提示
+            Toast.makeText(this, "正在保存搜索引擎组合...", Toast.LENGTH_SHORT).show()
+            // 保存当前搜索引擎组合
+            saveCurrentSearchEngines()
+        }
+        
+        // 确保保存按钮可见
+        saveButton?.visibility = View.VISIBLE
 
         // 窗口数量切换的点击处理函数
         val windowCountClickListener = View.OnClickListener {
@@ -1609,5 +1623,115 @@ class DualFloatingWebViewService : Service() {
         
         // 根据窗口数量更新视图显示
         updateViewVisibilityByWindowCount()
+    }
+
+    private fun saveCurrentSearchEngines() {
+        try {
+            val searchEngines = mutableListOf<SearchEngine>()
+            
+            // 收集所有活跃的WebView中的搜索引擎
+            val activeWebViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+                .filter { it.visibility == View.VISIBLE }
+            
+            // 为每个WebView创建SearchEngine对象
+            activeWebViews.forEachIndexed { index, webView ->
+                val engineKey = when (index) {
+                    0 -> leftEngineKey
+                    1 -> centerEngineKey
+                    2 -> rightEngineKey
+                    else -> "baidu"
+                }
+                val isAI = engineKey.startsWith("ai_")
+                val actualEngineKey = if (isAI) engineKey.substring(3) else engineKey
+                
+                // 获取当前URL和标题
+                val url = webView.url ?: ""
+                val title = webView.title ?: EngineUtil.getSearchEngineName(actualEngineKey, isAI)
+                
+                // 构建搜索引擎对象
+                val engine = SearchEngine(
+                    name = title,
+                    url = convertToSearchUrl(url), // 转换为可用于搜索的URL
+                    iconResId = R.drawable.ic_search,
+                    description = "从浏览器保存的搜索引擎: ${EngineUtil.getSearchEngineName(actualEngineKey, isAI)}"
+                )
+                searchEngines.add(engine)
+            }
+            
+            if (searchEngines.isNotEmpty()) {
+                // 创建搜索引擎组合名称
+                val groupName = searchEngines.joinToString(" + ") { 
+                    it.name.take(10) // 截取名称，避免过长
+                }
+                
+                // 保存搜索引擎组合
+                val searchEngineManager = SearchEngineManager.getInstance(this)
+                searchEngineManager.saveSearchEngineGroup(groupName, searchEngines)
+                
+                // 显示视觉反馈
+                showSaveSuccessAnimation(saveButton)
+                
+                // 显示成功提示
+                Toast.makeText(this, "已保存搜索引擎组合：$groupName", Toast.LENGTH_SHORT).show()
+                
+                // 通知 FloatingWindowService 更新快捷方式
+                val intent = Intent("com.example.aifloatingball.ACTION_UPDATE_SHORTCUTS")
+                sendBroadcast(intent)
+                
+                // 延迟一会确保广播接收器有时间处理
+                Handler(Looper.getMainLooper()).postDelayed({
+                    Log.d(TAG, "搜索引擎快捷方式已更新")
+                }, 300)
+            } else {
+                Toast.makeText(this, "没有可保存的搜索引擎", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "保存搜索引擎组合失败", e)
+            Toast.makeText(this, "保存失败：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    // 显示保存成功的动画效果
+    private fun showSaveSuccessAnimation(view: View?) {
+        view?.let {
+            it.animate()
+                .scaleX(1.2f)
+                .scaleY(1.2f)
+                .setDuration(150)
+                .withEndAction {
+                    it.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(150)
+                        .start()
+                }
+                .start()
+        }
+    }
+    
+    // 将当前URL转换为可用于搜索的URL
+    private fun convertToSearchUrl(url: String): String {
+        try {
+            // 尝试从URL中提取查询参数
+            val uri = Uri.parse(url)
+            
+            // 常见搜索引擎查询参数名称
+            val queryParamNames = listOf("q", "query", "word", "wd", "text", "search")
+            
+            // 尝试每一种可能的查询参数
+            for (paramName in queryParamNames) {
+                val queryValue = uri.getQueryParameter(paramName)
+                if (!queryValue.isNullOrEmpty()) {
+                    // 找到查询参数，替换为查询占位符
+                    return url.replace(queryValue, "{query}")
+                }
+            }
+            
+            // 如果找不到查询参数，返回原始URL
+            return url
+        } catch (e: Exception) {
+            Log.e(TAG, "转换搜索URL失败", e)
+            return url
+        }
     }
 } 
