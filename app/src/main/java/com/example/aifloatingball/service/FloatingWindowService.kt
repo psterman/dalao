@@ -202,8 +202,9 @@ class FloatingWindowService : Service() {
             toggleSearchMode()
         }
         
-        // 初始搜索界面为隐藏状态
+        // 初始状态下隐藏所有搜索相关元素
         searchContainer?.visibility = View.GONE
+        shortcutsContainer?.visibility = View.GONE
         
         // 设置搜索框行为
         setupSearchInput()
@@ -329,6 +330,7 @@ class FloatingWindowService : Service() {
     private fun setupSearchInput() {
         searchInput = floatingView?.findViewById(R.id.search_input)
         val searchIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
+        searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
         
         // 应用简约设计风格
         searchInput?.apply {
@@ -345,10 +347,10 @@ class FloatingWindowService : Service() {
             // 自动获取焦点并显示输入法
             isFocusableInTouchMode = true
             
-            // 添加文本观察器，当有文本时显示清除按钮
+            // 添加文本观察器，监听输入内容变化
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun afterTextChanged(s: android.text.Editable?) {
-                    // 可以在这里添加逻辑来显示或隐藏清除文本的按钮
+                    // 可以在这里添加建议或自动完成功能
                 }
                 
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -356,33 +358,40 @@ class FloatingWindowService : Service() {
             })
         }
         
-        // 当搜索界面显示时自动弹出键盘
-        searchContainer?.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(v: View) {
-                if (searchContainer?.visibility == View.VISIBLE) {
-                    searchInput?.requestFocus()
-                    showKeyboard(searchInput)
-                }
-            }
-            
-            override fun onViewDetachedFromWindow(v: View) {
-                hideKeyboard()
-            }
-        })
-        
-        // 设置输入框点击事件
+        // 设置搜索框获得焦点和失去焦点时的行为
         searchInput?.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
-                // 移除 FLAG_NOT_FOCUSABLE 标志，允许输入法显示
+                // 获得焦点时：
+                // 1. 允许输入法显示
                 params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) ?: 0
                 windowManager?.updateViewLayout(floatingView, params)
+                
+                // 2. 显示搜索模式切换按钮
+                searchModeToggle?.visibility = View.VISIBLE
+                
+                // 3. 根据当前模式显示相应的搜索引擎容器
+                if (isAIMode) {
+                    aiEnginesContainer?.visibility = View.VISIBLE
+                    regularEnginesContainer?.visibility = View.GONE
+                } else {
+                    aiEnginesContainer?.visibility = View.GONE
+                    regularEnginesContainer?.visibility = View.VISIBLE
+                }
+                
+                // 4. 显示键盘
                 showKeyboard(searchInput)
             } else {
-                // 不要立即恢复FLAG_NOT_FOCUSABLE，这可能会导致复制粘贴菜单无法使用
+                // 失去焦点时：
+                // 1. 隐藏键盘
                 hideKeyboard()
+                
+                // 2. 隐藏搜索模式切换按钮（延迟执行，避免干扰操作）
+                handler.postDelayed({
+                    searchModeToggle?.visibility = View.GONE
+                }, 200)
             }
         }
-
+        
         // 设置输入框搜索动作
         searchInput?.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
@@ -400,12 +409,12 @@ class FloatingWindowService : Service() {
         
         // 设置搜索图标点击事件
         searchIcon?.setOnClickListener {
-            val query = searchInput?.text.toString().trim()
-            if (query.isNotEmpty()) {
-                performSearch(query)
-            } else {
-                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-            }
+            toggleSearchInterface()
+        }
+        
+        // 设置搜索模式切换按钮点击事件
+        searchModeToggle?.setOnClickListener {
+            toggleSearchMode()
         }
     }
     
@@ -728,73 +737,63 @@ class FloatingWindowService : Service() {
     
     // 创建单个快捷方式视图
     private fun createShortcutView(shortcut: SearchEngineShortcut): View {
-        // 创建按钮容器
-        val container = FrameLayout(this)
-        container.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            setMargins(5, 5, 5, 5)
-        }
+        // 创建视图
+        val view = View.inflate(this, R.layout.search_engine_shortcut, null)
         
-        // 创建图标按钮
-        val btn = ImageButton(this).apply {
-            val buttonBackground = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 15f
-                setColor(Color.parseColor("#2196F3"))
-                setStroke(3, Color.WHITE)
-            }
-            background = buttonBackground
-            
-            val size = 60
-            layoutParams = FrameLayout.LayoutParams(size, size)
-            
-            val iconResId = EngineUtil.getIconResourceByDomain(shortcut.domain)
-            setImageResource(iconResId)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(8, 8, 8, 8)
-            
-            contentDescription = "搜索引擎: ${shortcut.name}"
-            
-            // 点击事件：使用此搜索引擎进行搜索
-            setOnClickListener {
-                val query = searchInput?.text?.toString()?.trim() ?: ""
-                if (query.isNotEmpty()) {
-                    openSearchWithEngine(shortcut, query)
-                } else {
-                    Toast.makeText(context, "点击 ${shortcut.name} - 请输入搜索内容", Toast.LENGTH_SHORT).show()
-                }
-            }
-            
-            // 长按事件：删除快捷方式
-            setOnLongClickListener {
-                showDeleteShortcutDialog(shortcut)
-                true
-            }
-        }
+        val iconView = view.findViewById<ImageView>(R.id.shortcut_icon)
+        val nameView = view.findViewById<TextView>(R.id.shortcut_name)
         
-        container.addView(btn)
+        // 获取图标容器（FrameLayout）
+        val iconContainer = iconView.parent as? FrameLayout
+        
+        // 设置图标
+        val iconResId = EngineUtil.getIconResourceByDomain(shortcut.domain)
+        iconView.setImageResource(iconResId)
+        
+        // 设置图标背景色 - 更柔和的颜色
+        iconView.setBackgroundResource(R.drawable.search_item_background)
+        (iconView.background as GradientDrawable).setColor(Color.parseColor("#F5F5F5"))
+        
+        // 设置名称
+        nameView.text = shortcut.name
+        nameView.setTextColor(Color.parseColor("#5F6368"))
         
         // 为多引擎快捷方式添加标记
-        if (shortcut.name.contains("+")) {
+        if (shortcut.name.contains("+") && iconContainer != null) {
             val badge = TextView(this).apply {
-                text = "多"
+                text = "+"
                 textSize = 10f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(Color.RED)
+                    setColor(Color.parseColor("#F44336"))
                 }
-                layoutParams = FrameLayout.LayoutParams(25, 25).apply {
+                layoutParams = FrameLayout.LayoutParams(24, 24).apply {
                     gravity = Gravity.TOP or Gravity.END
+                    setMargins(0, 0, 0, 0)
                 }
             }
-            container.addView(badge)
+            iconContainer.addView(badge)
         }
         
-        return container
+        // 设置点击事件
+        view.setOnClickListener {
+            val query = searchInput?.text?.toString()?.trim() ?: ""
+            if (query.isNotEmpty()) {
+                openSearchWithEngine(shortcut, query)
+            } else {
+                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        // 设置长按事件：删除快捷方式
+        view.setOnLongClickListener {
+            showDeleteShortcutDialog(shortcut)
+            true
+        }
+        
+        return view
     }
     
     // 显示删除快捷方式的确认对话框
@@ -917,21 +916,44 @@ class FloatingWindowService : Service() {
         if (searchContainer?.visibility == View.VISIBLE) {
             // 隐藏搜索容器
             searchContainer?.visibility = View.GONE
+            
+            // 隐藏搜索引擎容器
+            aiEnginesContainer?.visibility = View.GONE
+            regularEnginesContainer?.visibility = View.GONE
+            savedCombosContainer?.visibility = View.GONE
+            
+            // 隐藏搜索模式切换按钮
+            searchModeToggle?.visibility = View.GONE
+            
+            // 隐藏快捷方式
+            shortcutsContainer?.visibility = View.GONE
+            
+            // 清空输入框内容
+            searchInput?.setText("")
+            
+            // 隐藏键盘
             hideKeyboard()
         } else {
             // 显示搜索容器
             searchContainer?.visibility = View.VISIBLE
             
-            // 自动聚焦到输入框并显示键盘
+            // 自动聚焦到输入框
             searchInput?.post {
                 searchInput?.requestFocus()
                 showKeyboard(searchInput)
+                
+                // 显示搜索模式切换按钮
+                searchModeToggle?.visibility = View.VISIBLE
+                
+                // 根据当前模式显示相应的搜索引擎容器
+                if (isAIMode) {
+                    aiEnginesContainer?.visibility = View.VISIBLE
+                    regularEnginesContainer?.visibility = View.GONE
+                } else {
+                    aiEnginesContainer?.visibility = View.GONE
+                    regularEnginesContainer?.visibility = View.VISIBLE
+                }
             }
-            
-            // 刷新搜索引擎显示
-            updateSearchEngineDisplay()
-            // 更新搜索模式图标
-            updateSearchModeIcon()
         }
     }
     
@@ -943,7 +965,15 @@ class FloatingWindowService : Service() {
         settingsManager.setDefaultAIMode(isAIMode)
         
         // 更新UI显示
-        updateSearchEngineDisplay()
+        if (isAIMode) {
+            aiEnginesContainer?.visibility = View.VISIBLE
+            regularEnginesContainer?.visibility = View.GONE
+        } else {
+            aiEnginesContainer?.visibility = View.GONE
+            regularEnginesContainer?.visibility = View.VISIBLE
+        }
+        
+        // 更新搜索模式图标
         updateSearchModeIcon()
         
         // 显示切换提示
@@ -978,239 +1008,162 @@ class FloatingWindowService : Service() {
     
     // 更新搜索引擎显示
     private fun updateSearchEngineDisplay() {
-        // 清空容器
-        aiEnginesContainer?.removeAllViews()
-        regularEnginesContainer?.removeAllViews()
-        savedCombosContainer?.removeAllViews()
-        
-        // 显示已保存的搜索引擎组合
-        if (searchEngineShortcuts.isNotEmpty()) {
-            savedCombosContainer?.visibility = View.VISIBLE
+        try {
+            // 清空容器
+            aiEnginesContainer?.removeAllViews()
+            regularEnginesContainer?.removeAllViews()
+            savedCombosContainer?.removeAllViews()
             
-            // 添加标题
-            val titleView = TextView(this).apply {
-                text = "已保存组合"
-                textSize = 14f
-                setTextColor(Color.WHITE)
-                setPadding(10, 5, 10, 5)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#2196F3"))
-                    cornerRadius = 8f
+            // 1. 显示已保存的搜索引擎组合
+            if (searchEngineShortcuts.isNotEmpty()) {
+                savedCombosContainer?.visibility = View.VISIBLE
+                
+                // 创建水平滚动视图显示组合
+                val horizontalScroll = HorizontalScrollView(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    isHorizontalScrollBarEnabled = true
                 }
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(5, 5, 5, 5)
+                
+                val comboContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    setPadding(8, 8, 8, 8)
                 }
-            }
-            savedCombosContainer?.addView(titleView)
-            
-            // 创建水平滚动视图显示组合
-            val horizontalScroll = HorizontalScrollView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-            
-            val comboContainer = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-            
-            searchEngineShortcuts.forEach { shortcut ->
-                comboContainer.addView(createShortcutView(shortcut))
-            }
-            
-            horizontalScroll.addView(comboContainer)
-            savedCombosContainer?.addView(horizontalScroll)
-        } else {
-            savedCombosContainer?.visibility = View.GONE
-        }
-        
-        // 根据当前模式显示搜索引擎
-        if (isAIMode) {
-            aiEnginesContainer?.visibility = View.VISIBLE
-            regularEnginesContainer?.visibility = View.GONE
-            
-            // 添加标题
-            val titleView = TextView(this).apply {
-                text = "AI搜索引擎"
-                textSize = 14f
-                setTextColor(Color.WHITE)
-                setPadding(10, 5, 10, 5)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#9C27B0"))
-                    cornerRadius = 8f
+                
+                // 添加快捷方式
+                searchEngineShortcuts.forEach { shortcut ->
+                    comboContainer.addView(createShortcutView(shortcut))
                 }
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(5, 10, 5, 5)
-                }
+                
+                horizontalScroll.addView(comboContainer)
+                savedCombosContainer?.addView(horizontalScroll)
+            } else {
+                savedCombosContainer?.visibility = View.GONE
             }
-            aiEnginesContainer?.addView(titleView)
+            
+            // 2. 设置AI搜索引擎
+            aiEnginesContainer?.visibility = if (isAIMode) View.VISIBLE else View.GONE
             
             // 创建水平滚动视图显示AI搜索引擎
-            val horizontalScroll = HorizontalScrollView(this).apply {
+            val aiHorizontalScroll = HorizontalScrollView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
+                isHorizontalScrollBarEnabled = true
             }
             
-            val enginesContainer = LinearLayout(this).apply {
+            val aiEnginesLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
+                setPadding(8, 8, 8, 8)
             }
             
+            // 添加AI搜索引擎
             aiSearchEngines.forEach { engine ->
-                enginesContainer.addView(createSearchEngineView(engine, true))
+                aiEnginesLayout.addView(createSearchEngineView(engine, true))
             }
             
-            horizontalScroll.addView(enginesContainer)
-            aiEnginesContainer?.addView(horizontalScroll)
+            aiHorizontalScroll.addView(aiEnginesLayout)
+            aiEnginesContainer?.addView(aiHorizontalScroll)
             
-        } else {
-            aiEnginesContainer?.visibility = View.GONE
-            regularEnginesContainer?.visibility = View.VISIBLE
-            
-            // 添加标题
-            val titleView = TextView(this).apply {
-                text = "普通搜索引擎"
-                textSize = 14f
-                setTextColor(Color.WHITE)
-                setPadding(10, 5, 10, 5)
-                gravity = Gravity.CENTER
-                background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#4CAF50"))
-                    cornerRadius = 8f
-                }
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(5, 10, 5, 5)
-                }
-            }
-            regularEnginesContainer?.addView(titleView)
+            // 3. 设置普通搜索引擎
+            regularEnginesContainer?.visibility = if (isAIMode) View.GONE else View.VISIBLE
             
             // 创建水平滚动视图显示普通搜索引擎
-            val horizontalScroll = HorizontalScrollView(this).apply {
+            val regularHorizontalScroll = HorizontalScrollView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
+                isHorizontalScrollBarEnabled = true
             }
             
-            val enginesContainer = LinearLayout(this).apply {
+            val regularEnginesLayout = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
+                setPadding(8, 8, 8, 8)
             }
             
+            // 添加普通搜索引擎
             regularSearchEngines.forEach { engine ->
-                enginesContainer.addView(createSearchEngineView(engine, false))
+                regularEnginesLayout.addView(createSearchEngineView(engine, false))
             }
             
-            horizontalScroll.addView(enginesContainer)
-            regularEnginesContainer?.addView(horizontalScroll)
+            regularHorizontalScroll.addView(regularEnginesLayout)
+            regularEnginesContainer?.addView(regularHorizontalScroll)
+            
+            // 更新搜索模式图标
+            updateSearchModeIcon()
+            
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "更新搜索引擎显示失败", e)
         }
     }
     
-    // 创建搜索引擎视图
+    // 创建搜索引擎视图 - 使用统一的风格
     private fun createSearchEngineView(engine: Any, isAI: Boolean): View {
-        // 创建按钮容器
-        val container = FrameLayout(this)
-        container.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            setMargins(5, 5, 5, 5)
-        }
-        
         // 获取引擎信息
         val name: String
         val iconResId: Int
+        val url: String
         
         if (isAI && engine is com.example.aifloatingball.model.AISearchEngine) {
             name = engine.name
             iconResId = engine.iconResId
+            url = engine.url
         } else if (!isAI && engine is com.example.aifloatingball.model.SearchEngine) {
             name = engine.name
             iconResId = engine.iconResId
+            url = engine.url
         } else {
             name = "未知"
             iconResId = R.drawable.ic_search
+            url = ""
         }
         
-        // 创建图标按钮
-        val btn = ImageButton(this).apply {
-            val buttonBackground = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 15f
-                setColor(if (isAI) Color.parseColor("#9C27B0") else Color.parseColor("#4CAF50"))
-                setStroke(3, Color.WHITE)
-            }
-            background = buttonBackground
-            
-            val size = 60
-            layoutParams = FrameLayout.LayoutParams(size, size)
-            
-            setImageResource(iconResId)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            setPadding(8, 8, 8, 8)
-            
-            contentDescription = "搜索引擎: $name"
-            
-            // 点击事件：使用此搜索引擎进行搜索
-            setOnClickListener {
-                val query = searchInput?.text?.toString()?.trim() ?: ""
-                if (query.isNotEmpty()) {
-                    searchWithEngine(name, query, isAI)
-                } else {
-                    Toast.makeText(context, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
+        // 创建视图
+        val view = View.inflate(this, R.layout.search_engine_shortcut, null)
         
-        container.addView(btn)
+        val iconView = view.findViewById<ImageView>(R.id.shortcut_icon)
+        val nameView = view.findViewById<TextView>(R.id.shortcut_name)
         
-        // 添加引擎名称标签
-        val label = TextView(this).apply {
-            text = name
-            textSize = 10f
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                setColor(if (isAI) Color.parseColor("#9C27B0") else Color.parseColor("#4CAF50"))
-                cornerRadius = 5f
-            }
-            gravity = Gravity.CENTER
-            setPadding(5, 2, 5, 2)
-            
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        // 设置图标
+        iconView.setImageResource(iconResId)
+        
+        // 设置图标背景色 - 更统一的风格
+        val backgroundColor = if (isAI) "#EDE7F6" else "#E8F5E9"
+        iconView.setBackgroundResource(R.drawable.search_item_background)
+        (iconView.background as GradientDrawable).setColor(Color.parseColor(backgroundColor))
+        
+        // 设置名称
+        nameView.text = name
+        // 根据AI/普通设置不同颜色，但更柔和
+        nameView.setTextColor(if (isAI) Color.parseColor("#673AB7") else Color.parseColor("#388E3C"))
+        
+        // 设置点击事件
+        view.setOnClickListener {
+            val query = searchInput?.text?.toString()?.trim() ?: ""
+            if (query.isNotEmpty()) {
+                searchWithEngine(name, query, isAI)
+            } else {
+                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
             }
         }
         
-        container.addView(label)
-        
-        return container
+        return view
     }
     
     // 使用搜索引擎进行搜索

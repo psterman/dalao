@@ -5,18 +5,14 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
     
-    <!-- 大脑外轮廓 -->
+    <!-- Brain Circle -->
     <path
-        android:strokeColor="?android:attr/textColorPrimary"
-        android:strokeWidth="1.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="@android:color/transparent"
+        android:fillColor="#673AB7"
         android:pathData="M12,4C7.582,4 4,7.582 4,12C4,16.418 7.582,20 12,20C16.418,20 20,16.418 20,12C20,7.582 16.418,4 12,4Z" />
 
-    <!-- 大脑内部纹路 -->
+    <!-- Brain Inner Details -->
     <path
-        android:strokeColor="?android:attr/textColorPrimary"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="1.5"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"

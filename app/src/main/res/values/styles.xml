@@ -71,4 +71,19 @@
         <item name="android:maxLines">2</item>
         <item name="android:ellipsize">end</item>
     </style>
+
+    <!-- Circular FAB style -->
+    <style name="CircularFAB">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+
+    <!-- Search engine shortcut style -->
+    <style name="SearchEngineShortcut">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_margin">4dp</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:background">@drawable/shortcut_item_background</item>
+    </style>
 </resources> 
