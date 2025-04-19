@@ -29,11 +29,11 @@ import com.example.aifloatingball.adapter.SearchEngineAdapter
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.utils.FaviconManager
 import com.example.aifloatingball.utils.EngineUtil
+import com.example.aifloatingball.utils.IconLoader
 import java.net.URLEncoder
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import com.example.aifloatingball.utils.IconLoader
 import com.example.aifloatingball.manager.SearchEngineManager
 
 class DualFloatingWebViewService : Service() {
@@ -224,6 +224,23 @@ class DualFloatingWebViewService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            "UPDATE_BALL_SIZE" -> {
+                val size = intent.getIntExtra("size", 50)
+                updateFloatingBallSize(size)
+            }
+            "UPDATE_MENU_LAYOUT" -> {
+                val layout = intent.getStringExtra("layout") ?: "mixed"
+                updateMenuLayout(layout)
+            }
+            "LOAD_SEARCH_ENGINE_GROUP" -> {
+                // 新增: 从Intent中获取组名并加载搜索引擎组合
+                val groupName = intent.getStringExtra("group_name")
+                if (!groupName.isNullOrEmpty()) {
+                    loadSearchEngineGroup(groupName)
+                }
+            }
+            else -> {
         // 从Intent中获取窗口数量设置（如果有）
         intent?.getIntExtra("window_count", -1)?.let { count ->
             if (count > 0) {
@@ -272,6 +289,8 @@ class DualFloatingWebViewService : Service() {
                         thirdWebView?.loadUrl("https://www.bing.com")
                     } else {
                         thirdWebView?.loadUrl("https://www.zhihu.com")
+                            }
+                        }
                     }
                 }
             }
@@ -972,7 +991,7 @@ class DualFloatingWebViewService : Service() {
             }
             
             // 设置默认图标先
-            val iconResId = getIconResourceByDomain(domain)
+            val iconResId = EngineUtil.getIconResourceByDomain(domain)
             setImageResource(if (iconResId != 0) iconResId else R.drawable.ic_search)
             
             // 使用IconLoader加载网站图标
@@ -1033,38 +1052,6 @@ class DualFloatingWebViewService : Service() {
             }
         }
         container.addView(imageButton)
-    }
-
-    /**
-     * 根据域名获取对应的图标资源ID
-     */
-    private fun getIconResourceByDomain(domain: String): Int {
-        return when {
-            domain.contains("baidu.com") -> R.drawable.ic_baidu
-            domain.contains("google.com") -> R.drawable.ic_google
-            domain.contains("bing.com") -> R.drawable.ic_bing
-            domain.contains("sogou.com") -> R.drawable.ic_sogou
-            domain.contains("so.com") -> R.drawable.ic_360
-            domain.contains("sm.cn") -> R.drawable.ic_search
-            domain.contains("toutiao.com") -> R.drawable.ic_search
-            domain.contains("zhihu.com") -> R.drawable.ic_zhihu
-            domain.contains("bilibili.com") -> R.drawable.ic_bilibili
-            domain.contains("douban.com") -> R.drawable.ic_douban
-            domain.contains("weibo.com") -> R.drawable.ic_weibo
-            domain.contains("taobao.com") -> R.drawable.ic_taobao
-            domain.contains("jd.com") -> R.drawable.ic_jd
-            domain.contains("douyin.com") -> R.drawable.ic_douyin
-            domain.contains("xiaohongshu.com") -> R.drawable.ic_xiaohongshu
-            domain.contains("qq.com") -> R.drawable.ic_qq
-            domain.contains("openai.com") -> R.drawable.ic_chatgpt
-            domain.contains("claude.ai") -> R.drawable.ic_claude
-            domain.contains("gemini.google.com") -> R.drawable.ic_gemini
-            domain.contains("zhipuai.cn") -> R.drawable.ic_zhipu
-            domain.contains("aliyun.com") -> R.drawable.ic_qianwen
-            domain.contains("xfyun.cn") -> R.drawable.ic_xinghuo
-            domain.contains("perplexity.ai") -> R.drawable.ic_perplexity
-            else -> 0 // 返回0表示没有找到对应的资源
-        }
     }
 
     private fun updateWebViewForEngine(webView: WebView?, titleView: TextView?, engineKey: String) {
@@ -1194,15 +1181,12 @@ class DualFloatingWebViewService : Service() {
         // 确保引擎容器的高度合适
         containers.forEach { container ->
             container?.apply {
-                // 使用半透明背景
                 setBackgroundColor(Color.parseColor("#22000000"))
                 setPadding(2.dpToPx(this@DualFloatingWebViewService), 
                            2.dpToPx(this@DualFloatingWebViewService), 
                            2.dpToPx(this@DualFloatingWebViewService), 
                            2.dpToPx(this@DualFloatingWebViewService))
                 
-                // 优化布局参数，确保内容不被截断
-                // 不直接设置布局参数，而是保留原有的layoutParams类型
                 val existingParams = layoutParams
                 if (existingParams is LinearLayout.LayoutParams) {
                     existingParams.width = LinearLayout.LayoutParams.MATCH_PARENT
@@ -1211,7 +1195,6 @@ class DualFloatingWebViewService : Service() {
             }
         }
         
-        // 优化水平滚动视图，确保能够滚动查看所有图标
         val scrollContainers = listOf(
             firstAIScrollContainer,
             secondAIScrollContainer,
@@ -1220,17 +1203,14 @@ class DualFloatingWebViewService : Service() {
         
         scrollContainers.forEach { scrollView ->
             scrollView?.apply {
-                // 设置滚动视图的样式
                 setBackgroundColor(Color.parseColor("#11000000"))
                 setPadding(1.dpToPx(this@DualFloatingWebViewService), 
                           1.dpToPx(this@DualFloatingWebViewService), 
                           1.dpToPx(this@DualFloatingWebViewService), 
                           1.dpToPx(this@DualFloatingWebViewService))
                 
-                // 显示水平滚动条，帮助用户理解可以滚动
                 isHorizontalScrollBarEnabled = true
                 
-                // 根据父容器类型设置正确的LayoutParams
                 val parent = parent
                 if (parent != null) {
                     when (parent) {
@@ -1253,7 +1233,6 @@ class DualFloatingWebViewService : Service() {
             }
         }
         
-        // 单独调整AI容器的初始可见性
         firstAIScrollContainer?.visibility = View.GONE
         secondAIScrollContainer?.visibility = View.GONE
         thirdAIScrollContainer?.visibility = View.GONE
@@ -1263,12 +1242,10 @@ class DualFloatingWebViewService : Service() {
         try {
             windowManager.removeView(floatingView)
             
-            // 清理IconLoader缓存
             if (::iconLoader.isInitialized) {
                 iconLoader.clearCache()
             }
             
-            // 停止前台服务
             stopForeground(true)
         } catch (e: Exception) {
             Log.e(TAG, "移除视图失败", e)
@@ -1733,5 +1710,114 @@ class DualFloatingWebViewService : Service() {
             Log.e(TAG, "转换搜索URL失败", e)
             return url
         }
+    }
+
+    /**
+     * 加载保存的搜索引擎组合
+     * @param groupName 搜索引擎组合名称
+     */
+    private fun loadSearchEngineGroup(groupName: String) {
+        try {
+            // 从SearchEngineManager获取保存的搜索引擎组
+            val searchEngineManager = com.example.aifloatingball.manager.SearchEngineManager.getInstance(this)
+            val searchEngineGroups = searchEngineManager.getSearchEngineGroups()
+            
+            // 查找匹配名称的组
+            val group = searchEngineGroups.find { it.name == groupName }
+            
+            if (group != null && group.engines.isNotEmpty()) {
+                // 根据组内引擎数量决定窗口数量，限制最多3个
+                windowCount = minOf(group.engines.size, 3)
+                
+                // 更新视图可见性以匹配引擎数量
+                updateViewVisibilityByWindowCount()
+                
+                // 为每个WebView设置对应的搜索引擎
+                group.engines.forEachIndexed { index, engine ->
+                    when (index) {
+                        0 -> {
+                            // 设置左侧窗口
+                            leftEngineKey = extractSearchEngineKey(engine.url)
+                            firstWebView?.loadUrl(engine.url)
+                            firstTitle?.text = engine.name
+                        }
+                        1 -> if (windowCount >= 2) {
+                            // 设置中间窗口
+                            centerEngineKey = extractSearchEngineKey(engine.url)
+                            secondWebView?.loadUrl(engine.url)
+                            secondTitle?.text = engine.name
+                        }
+                        2 -> if (windowCount >= 3) {
+                            // 设置右侧窗口
+                            rightEngineKey = extractSearchEngineKey(engine.url)
+                            thirdWebView?.loadUrl(engine.url)
+                            thirdTitle?.text = engine.name
+                        }
+                    }
+                }
+                
+                // 更新搜索引擎图标状态
+                updateEngineIcons()
+                
+                // 更新所有搜索引擎图标状态
+                firstEngineContainer?.let { updateEngineIconStates(it, leftEngineKey, false) }
+                secondEngineContainer?.let { updateEngineIconStates(it, centerEngineKey, false) }
+                thirdEngineContainer?.let { updateEngineIconStates(it, rightEngineKey, false) }
+                
+                // 显示成功提示
+                Toast.makeText(this, "已加载搜索引擎组合: $groupName", Toast.LENGTH_SHORT).show()
+                
+                Log.d(TAG, "成功加载搜索引擎组合: $groupName, 窗口数量: $windowCount")
+            } else {
+                Log.e(TAG, "未找到搜索引擎组合: $groupName")
+                Toast.makeText(this, "未找到搜索引擎组合: $groupName", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载搜索引擎组合失败", e)
+            Toast.makeText(this, "加载搜索引擎组合失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 从搜索引擎URL中提取搜索引擎键值
+     */
+    private fun extractSearchEngineKey(url: String): String {
+        return when {
+            url.contains("google.com") -> "google"
+            url.contains("bing.com") -> "bing"
+            url.contains("baidu.com") -> "baidu"
+            url.contains("sogou.com") -> "sogou"
+            url.contains("so.com") -> "360"
+            url.contains("sm.cn") -> "quark"
+            url.contains("toutiao.com") -> "toutiao"
+            url.contains("zhihu.com") -> "zhihu"
+            url.contains("bilibili.com") -> "bilibili"
+            url.contains("weibo.com") -> "weibo"
+            url.contains("douban.com") -> "douban"
+            url.contains("taobao.com") -> "taobao"
+            url.contains("jd.com") -> "jd"
+            url.contains("douyin.com") -> "douyin"
+            url.contains("xiaohongshu.com") -> "xiaohongshu"
+            // AI搜索引擎
+            url.contains("openai.com") -> "ai_chatgpt"
+            url.contains("claude.ai") -> "ai_claude"
+            url.contains("gemini.google.com") -> "ai_gemini"
+            url.contains("perplexity.ai") -> "ai_perplexity"
+            else -> "baidu" // 默认使用百度
+        }
+    }
+
+    // 处理浮动球大小的更新
+    private fun updateFloatingBallSize(size: Int) {
+        // 本方法在当前DualFloatingWebViewService中不需要具体实现
+        // 因为这个服务不管理浮动球本身
+        Log.d(TAG, "收到更新浮动球大小请求：$size")
+    }
+
+    // 处理菜单布局更新
+    private fun updateMenuLayout(layout: String) {
+        // 本方法在当前DualFloatingWebViewService中不需要具体实现
+        // 因为这个服务不管理菜单布局
+        Log.d(TAG, "收到更新菜单布局请求：$layout")
     }
 } 

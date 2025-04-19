@@ -49,6 +49,7 @@ import android.graphics.Color
 import com.example.aifloatingball.model.AISearchEngine
 import androidx.appcompat.widget.SwitchCompat
 import android.content.res.Resources
+import com.example.aifloatingball.service.FloatingWindowService  // 添加这行
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout

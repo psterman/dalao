@@ -34,6 +34,7 @@ import android.os.Looper
 import androidx.constraintlayout.widget.ConstraintLayout
 import com.example.aifloatingball.views.LetterIndexBar
 import com.example.aifloatingball.models.SearchEngine as ModelSearchEngine
+import com.example.aifloatingball.service.FloatingWindowService
 
 class SearchWebViewActivity : AppCompatActivity() {
     private lateinit var searchInput: EditText

@@ -300,6 +300,20 @@ class SettingsManager private constructor(context: Context) {
     fun setEnabledSearchEngines(engines: Set<String>) {
         prefs.edit().putStringSet("enabled_search_engines", engines).apply()
     }
+    
+    /**
+     * 获取启用的搜索引擎组合（显示在FloatingWindowService窗口中的快捷方式）
+     */
+    fun getEnabledSearchEngineGroups(): Set<String> {
+        return prefs.getStringSet("enabled_search_engine_groups", emptySet()) ?: emptySet()
+    }
+    
+    /**
+     * 设置启用的搜索引擎组合
+     */
+    fun setEnabledSearchEngineGroups(groupNames: Set<String>) {
+        prefs.edit().putStringSet("enabled_search_engine_groups", groupNames).apply()
+    }
 
     // 获取指定位置的搜索引擎
     fun getSearchEngineForPosition(position: Int): String {

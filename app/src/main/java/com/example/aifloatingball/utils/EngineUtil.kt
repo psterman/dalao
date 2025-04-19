@@ -2,6 +2,7 @@ package com.example.aifloatingball.utils
 
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.R
 
 /**
  * 搜索引擎工具类
@@ -221,5 +222,37 @@ object EngineUtil {
             else -> "google.com"
         }
         return getFaviconUrl(domain, size)
+    }
+
+    /**
+     * 根据域名获取对应的图标资源ID
+     */
+    fun getIconResourceByDomain(domain: String): Int {
+        return when {
+            domain.contains("baidu.com") -> R.drawable.ic_baidu
+            domain.contains("google.com") -> R.drawable.ic_google
+            domain.contains("bing.com") -> R.drawable.ic_bing
+            domain.contains("sogou.com") -> R.drawable.ic_sogou
+            domain.contains("so.com") -> R.drawable.ic_360
+            domain.contains("sm.cn") -> R.drawable.ic_search
+            domain.contains("toutiao.com") -> R.drawable.ic_search
+            domain.contains("zhihu.com") -> R.drawable.ic_zhihu
+            domain.contains("bilibili.com") -> R.drawable.ic_bilibili
+            domain.contains("douban.com") -> R.drawable.ic_douban
+            domain.contains("weibo.com") -> R.drawable.ic_weibo
+            domain.contains("taobao.com") -> R.drawable.ic_taobao
+            domain.contains("jd.com") -> R.drawable.ic_jd
+            domain.contains("douyin.com") -> R.drawable.ic_douyin
+            domain.contains("xiaohongshu.com") -> R.drawable.ic_xiaohongshu
+            domain.contains("qq.com") -> R.drawable.ic_qq
+            domain.contains("openai.com") -> R.drawable.ic_chatgpt
+            domain.contains("claude.ai") -> R.drawable.ic_claude
+            domain.contains("gemini.google.com") -> R.drawable.ic_gemini
+            domain.contains("zhipuai.cn") -> R.drawable.ic_zhipu
+            domain.contains("aliyun.com") -> R.drawable.ic_qianwen
+            domain.contains("xfyun.cn") -> R.drawable.ic_xinghuo
+            domain.contains("perplexity.ai") -> R.drawable.ic_perplexity
+            else -> R.drawable.ic_search
+        }
     }
 } 

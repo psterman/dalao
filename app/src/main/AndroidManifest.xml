@@ -25,7 +25,7 @@
         android:usesCleartextTraffic="true">
         
         <service
-            android:name=".FloatingWindowService"
+            android:name=".service.FloatingWindowService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse"
@@ -109,5 +109,13 @@
             android:name=".MenuManagerActivity"
             android:label="菜单管理"
             android:theme="@style/Theme.AIFloatingBall" />
+
+        <activity
+            android:name=".AISearchEngineSettingsActivity"
+            android:exported="false" />
+            
+        <activity
+            android:name=".SearchEngineGroupManagerActivity"
+            android:exported="false" />
     </application>
 </manifest> 

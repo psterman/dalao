@@ -190,6 +190,12 @@ class SettingsActivity : AppCompatActivity() {
                 startActivity(Intent(requireContext(), AISearchEngineSettingsActivity::class.java))
                 true
             }
+            
+            // 搜索引擎组合管理入口
+            findPreference<Preference>("search_engine_group_manager")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), SearchEngineGroupManagerActivity::class.java))
+                true
+            }
         }
 
         /**

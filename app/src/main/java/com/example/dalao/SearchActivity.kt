@@ -10,7 +10,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import android.util.Log
-import com.example.aifloatingball.FloatingWindowService
+import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.model.AISearchEngine

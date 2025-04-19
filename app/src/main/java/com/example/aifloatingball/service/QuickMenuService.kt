@@ -12,7 +12,7 @@ import android.view.WindowManager
 import android.widget.TextView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsActivity
-import com.example.aifloatingball.FloatingWindowService
+import com.example.aifloatingball.service.FloatingWindowService
 
 class QuickMenuService : Service() {
     private var windowManager: WindowManager? = null

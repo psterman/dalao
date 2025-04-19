@@ -61,6 +61,13 @@
             app:icon="@drawable/ic_ai_search"
             app:iconSpaceReserved="true" />
 
+        <Preference
+            app:key="search_engine_group_manager"
+            app:title="搜索引擎组合管理"
+            app:summary="管理浮动窗口中显示的搜索引擎组合快捷方式"
+            app:icon="@drawable/ic_layers"
+            app:iconSpaceReserved="true" />
+
         <SwitchPreferenceCompat
             app:key="default_search_mode"
             app:title="默认AI模式"
