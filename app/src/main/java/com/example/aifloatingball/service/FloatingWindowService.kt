@@ -55,6 +55,15 @@ import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.SettingsManager
 import android.view.ContextThemeWrapper
+import android.view.View.OnLongClickListener
+import android.view.MotionEvent.ACTION_UP
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.widget.PopupWindow
+import android.content.ClipboardManager
+import android.content.ClipData
+import android.text.TextUtils
+import android.os.Build.VERSION_CODES
+import android.os.Build.VERSION
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -131,6 +140,10 @@ class FloatingWindowService : Service() {
         initializeWindowManager()
         createFloatingWindow()
         initializeViews()
+        
+        // 确保自定义菜单布局已创建
+        createTextSelectionMenuLayout()
+        
         setupSearchInput()
         loadSearchEngineShortcuts()
         
@@ -178,7 +191,9 @@ class FloatingWindowService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -356,30 +371,48 @@ class FloatingWindowService : Service() {
         val searchIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
         searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
         
-        // 应用简约设计风格
         searchInput?.apply {
-            setBackgroundResource(android.R.color.transparent)
-            setHintTextColor(Color.parseColor("#BBBBBB"))
-            setTextColor(Color.parseColor("#333333"))
-            hint = "搜索..."
-            textSize = 14f
-            
-            // 启用长按复制粘贴菜单
+            // 基本属性设置
+            isFocusableInTouchMode = true
+            isFocusable = true
             isLongClickable = true
+            isCursorVisible = true
             setTextIsSelectable(true)
             
-            // 自动获取焦点并显示输入法
-            isFocusableInTouchMode = true
+            // 设置输入框背景为透明但可触摸
+            setBackgroundResource(android.R.color.transparent)
             
-            // 添加文本观察器，监听输入内容变化
-            addTextChangedListener(object : android.text.TextWatcher {
-                override fun afterTextChanged(s: android.text.Editable?) {
-                    // 可以在这里添加建议或自动完成功能
+            // 设置长按监听器来显示自定义菜单
+            setOnLongClickListener {
+                showCustomTextMenu()
+                true
+            }
+            
+            // 设置触摸监听器，用于选择文本后显示自定义菜单
+            setOnTouchListener { v, event ->
+                if (event.action == ACTION_UP) {
+                    if (hasSelection()) {
+                        showCustomTextMenu()
+                    }
                 }
-                
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            })
+                // 调用默认的onTouchEvent处理选择等操作
+                v.onTouchEvent(event)
+            }
+            
+            // 设置输入完成动作
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                    val query = text?.toString()?.trim() ?: ""
+                    if (query.isNotEmpty()) {
+                        performSearch(query)
+                    } else {
+                        Toast.makeText(context, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
         }
         
         // 设置搜索框获得焦点和失去焦点时的行为
@@ -413,21 +446,6 @@ class FloatingWindowService : Service() {
                 handler.postDelayed({
                     searchModeToggle?.visibility = View.GONE
                 }, 200)
-            }
-        }
-        
-        // 设置输入框搜索动作
-        searchInput?.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                val query = searchInput?.text?.toString()?.trim() ?: ""
-                if (query.isNotEmpty()) {
-                    performSearch(query)
-                } else {
-                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                }
-                true
-            } else {
-                false
             }
         }
         
@@ -951,10 +969,12 @@ class FloatingWindowService : Service() {
             // 恢复悬浮球原始位置
             params?.x = initialX
             params?.y = initialY
-            windowManager?.updateViewLayout(floatingView, params)
             
             // 恢复FLAG_NOT_FOCUSABLE标志
-            params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) ?: 0
+            params?.flags = (params?.flags ?: 0).or(
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            )
+            
             windowManager?.updateViewLayout(floatingView, params)
             
             isMenuVisible = false
@@ -971,8 +991,15 @@ class FloatingWindowService : Service() {
             params?.x = menuX
             params?.y = menuY
             
-            // 移除FLAG_NOT_FOCUSABLE标志以允许输入
-            params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) ?: 0
+            // 修改窗口参数以允许文本操作
+            params?.flags = (params?.flags ?: 0).and(
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            ).and(
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
+            ).or(
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+            )
+            
             windowManager?.updateViewLayout(floatingView, params)
             
             // 显示搜索界面
@@ -1280,6 +1307,207 @@ class FloatingWindowService : Service() {
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
         searchInput?.let { 
             imm.hideSoftInputFromWindow(it.windowToken, 0)
+        }
+    }
+
+    // 检查EditText是否有选中的文本
+    private fun EditText.hasSelection(): Boolean {
+        val selStart = selectionStart
+        val selEnd = selectionEnd
+        return selStart >= 0 && selEnd >= 0 && selStart != selEnd
+    }
+
+    // 显示自定义文本操作菜单
+    private fun showCustomTextMenu() {
+        searchInput?.let { editText ->
+            // 创建自定义弹出菜单
+            val popupView = LayoutInflater.from(this).inflate(R.layout.text_selection_menu, null)
+            
+            // 创建PopupWindow
+            val popupWindow = PopupWindow(
+                popupView,
+                WRAP_CONTENT,
+                WRAP_CONTENT,
+                true
+            ).apply {
+                isOutsideTouchable = true
+                setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            }
+            
+            // 设置菜单项点击事件
+            val copyButton = popupView.findViewById<TextView>(R.id.menu_copy)
+            val pasteButton = popupView.findViewById<TextView>(R.id.menu_paste)
+            val cutButton = popupView.findViewById<TextView>(R.id.menu_cut)
+            val selectAllButton = popupView.findViewById<TextView>(R.id.menu_select_all)
+            
+            // 复制
+            copyButton?.setOnClickListener {
+                val selectedText = editText.text.toString().substring(
+                    editText.selectionStart,
+                    editText.selectionEnd
+                )
+                copyToClipboard(selectedText)
+                popupWindow.dismiss()
+            }
+            
+            // 粘贴
+            pasteButton?.setOnClickListener {
+                pasteFromClipboard(editText)
+                popupWindow.dismiss()
+            }
+            
+            // 剪切
+            cutButton?.setOnClickListener {
+                val selectedText = editText.text.toString().substring(
+                    editText.selectionStart,
+                    editText.selectionEnd
+                )
+                copyToClipboard(selectedText)
+                editText.text.delete(editText.selectionStart, editText.selectionEnd)
+                popupWindow.dismiss()
+            }
+            
+            // 全选
+            selectAllButton?.setOnClickListener {
+                editText.selectAll()
+                popupWindow.dismiss()
+            }
+            
+            // 显示PopupWindow
+            val location = IntArray(2)
+            editText.getLocationOnScreen(location)
+            
+            // 根据是否有选中的文本来决定菜单的位置
+            val xOffset = if (editText.hasSelection()) {
+                val selectionMiddle = (editText.selectionStart + editText.selectionEnd) / 2
+                try {
+                    editText.getOffsetForPosition(
+                        editText.text.toString().substring(0, selectionMiddle).width(editText.paint).toFloat(),
+                        editText.lineHeight / 2f
+                    )
+                } catch (e: Exception) {
+                    0
+                }
+            } else {
+                editText.width / 2
+            }
+            
+            popupWindow.showAtLocation(
+                editText,
+                Gravity.TOP or Gravity.START,
+                location[0] + xOffset,
+                location[1] - editText.height
+            )
+        }
+    }
+
+    // 计算字符串在给定Paint下的宽度
+    private fun String.width(paint: android.text.TextPaint): Int {
+        return android.text.Layout.getDesiredWidth(this, paint).toInt()
+    }
+
+    // 复制文本到剪贴板
+    private fun copyToClipboard(text: String) {
+        try {
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clipData = ClipData.newPlainText("text", text)
+            clipboardManager.setPrimaryClip(clipData)
+            
+            // 在Android 13及以上版本，系统会自动显示通知，所以我们只在低版本显示Toast
+            if (VERSION.SDK_INT < VERSION_CODES.TIRAMISU) {
+                Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "复制到剪贴板失败: ${e.message}")
+        }
+    }
+
+    // 从剪贴板粘贴文本
+    private fun pasteFromClipboard(editText: EditText) {
+        try {
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboardManager.hasPrimaryClip()) {
+                val clipData = clipboardManager.primaryClip
+                if (clipData != null && clipData.itemCount > 0) {
+                    val text = clipData.getItemAt(0).text
+                    if (!TextUtils.isEmpty(text)) {
+                        // 如果有选中的文本，替换选中部分
+                        if (editText.hasSelection()) {
+                            val start = editText.selectionStart
+                            val end = editText.selectionEnd
+                            editText.text.replace(start, end, text)
+                        } else {
+                            // 否则在当前光标位置插入
+                            val start = editText.selectionStart
+                            editText.text.insert(start, text)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "从剪贴板粘贴失败: ${e.message}")
+        }
+    }
+
+    // 创建文本选择菜单布局
+    private fun createTextSelectionMenuLayout() {
+        try {
+            // 检查布局文件是否已存在
+            val layoutExists = try {
+                resources.getLayout(R.layout.text_selection_menu)
+                true
+            } catch (e: Exception) {
+                false
+            }
+            
+            // 如果布局不存在，则动态创建
+            if (!layoutExists) {
+                Log.d(TAG, "创建文本选择菜单布局")
+                
+                // 创建布局
+                val context = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
+                val layout = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER
+                    layoutParams = ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
+                    background = GradientDrawable().apply {
+                        setColor(Color.parseColor("#333333"))
+                        cornerRadius = 8f
+                    }
+                    setPadding(16, 8, 16, 8)
+                }
+                
+                // 添加操作按钮
+                val textButtons = arrayOf("复制", "粘贴", "剪切", "全选")
+                val ids = arrayOf(R.id.menu_copy, R.id.menu_paste, R.id.menu_cut, R.id.menu_select_all)
+                
+                for (i in textButtons.indices) {
+                    val button = TextView(context).apply {
+                        id = ids[i]
+                        text = textButtons[i]
+                        setTextColor(Color.WHITE)
+                        textSize = 14f
+                        setPadding(16, 8, 16, 8)
+                        layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply {
+                            setMargins(8, 0, 8, 0)
+                        }
+                        background = GradientDrawable().apply {
+                            setColor(Color.parseColor("#444444"))
+                            cornerRadius = 4f
+                        }
+                    }
+                    layout.addView(button)
+                }
+                
+                // 动态创建布局文件
+                /*
+                此部分无法真正动态创建布局资源文件，仅是代码示例。
+                实际应用需要在XML中创建布局文件。
+                下面代码只是演示，不会真正执行。
+                */
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "创建文本选择菜单布局失败: ${e.message}")
         }
     }
 }
