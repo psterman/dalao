@@ -145,13 +145,18 @@ class FloatingWindowService : Service() {
         createTextSelectionMenuLayout()
         
         setupSearchInput()
-        loadSearchEngineShortcuts()
+        
+        // 加载快捷方式但不显示它们
+        loadSearchEngineShortcutsQuietly()
         
         // 加载AI和普通搜索引擎
         loadSearchEngines()
         
         // 注册广播接收器
         registerReceiver(shortcutsUpdateReceiver, IntentFilter("com.example.aifloatingball.ACTION_UPDATE_SHORTCUTS"))
+        
+        // 确保初始时只显示悬浮球
+        ensureOnlyFloatingBallVisible()
     }
 
     private fun createNotificationChannel() {
@@ -297,6 +302,9 @@ class FloatingWindowService : Service() {
         }
         
         windowManager?.addView(floatingView, params)
+        
+        // 确保初始显示只有悬浮球，没有搜索相关内容
+        isMenuVisible = false
     }
 
     private fun snapToEdge() {
@@ -500,10 +508,10 @@ class FloatingWindowService : Service() {
         imm.hideSoftInputFromWindow(floatingView?.windowToken, 0)
     }
     
-    // 加载已保存的搜索引擎快捷方式
-    private fun loadSearchEngineShortcuts() {
+    // 加载已保存的搜索引擎快捷方式但不自动显示
+    private fun loadSearchEngineShortcutsQuietly() {
         try {
-            Log.d("FloatingWindowService", "开始加载搜索引擎快捷方式")
+            Log.d(TAG, "开始加载搜索引擎快捷方式（静默模式）")
             
             // 临时列表存储转换后的快捷方式
             val newShortcuts = mutableListOf<SearchEngineShortcut>()
@@ -516,7 +524,7 @@ class FloatingWindowService : Service() {
             val enabledGroups = getSharedPreferences("settings", Context.MODE_PRIVATE)
                 .getStringSet("enabled_search_engine_groups", emptySet()) ?: emptySet()
             
-            Log.d("FloatingWindowService", "从SearchEngineManager获取到 ${searchEngineGroups.size} 个搜索引擎组，其中 ${enabledGroups.size} 个已启用")
+            Log.d(TAG, "从SearchEngineManager获取到 ${searchEngineGroups.size} 个搜索引擎组，其中 ${enabledGroups.size} 个已启用")
             
             // 2. 将启用的搜索引擎组转换为快捷方式
             searchEngineGroups.forEach { group ->
@@ -537,7 +545,7 @@ class FloatingWindowService : Service() {
                     )
                     
                     newShortcuts.add(shortcut)
-                    Log.d("FloatingWindowService", "添加搜索引擎组快捷方式: ${shortcut.name}, URL: ${shortcut.url}")
+                    Log.d(TAG, "添加搜索引擎组快捷方式: ${shortcut.name}, URL: ${shortcut.url}")
                 }
             }
             
@@ -548,22 +556,17 @@ class FloatingWindowService : Service() {
             val type = object : TypeToken<List<SearchEngineShortcut>>() {}.type
             val oldShortcuts: List<SearchEngineShortcut> = gson.fromJson(shortcutsJson, type) ?: emptyList()
             
-            Log.d("FloatingWindowService", "从SharedPreferences获取到 ${oldShortcuts.size} 个已保存的快捷方式")
-            
             // 4. 合并新旧快捷方式，避免重复（仅当启用列表为空时才考虑旧快捷方式，向后兼容）
             if (enabledGroups.isEmpty()) {
                 oldShortcuts.forEach { oldShortcut ->
                     if (newShortcuts.none { it.domain == oldShortcut.domain && it.name == oldShortcut.name }) {
                         newShortcuts.add(oldShortcut)
-                        Log.d("FloatingWindowService", "添加历史快捷方式: ${oldShortcut.name}")
                     }
                 }
             }
             
             // 5. 添加测试快捷方式（仅当没有实际快捷方式且启用列表为空时）
             if (newShortcuts.isEmpty() && enabledGroups.isEmpty()) {
-                Log.d("FloatingWindowService", "没有找到已保存的快捷方式，添加测试快捷方式")
-                
                 val testShortcuts = listOf(
                     SearchEngineShortcut(
                         id = "test_baidu",
@@ -594,15 +597,9 @@ class FloatingWindowService : Service() {
             // 7. 保存合并后的快捷方式
             prefs.edit().putString("shortcuts", gson.toJson(newShortcuts)).apply()
             
-            // 8. 确保在UI线程上刷新显示
-            Handler(Looper.getMainLooper()).post {
-                displaySearchEngineShortcuts()
-                Log.d("FloatingWindowService", "在UI线程中刷新显示快捷方式")
-            }
-            
-            Log.d("FloatingWindowService", "已加载 ${searchEngineShortcuts.size} 个搜索引擎快捷方式")
+            Log.d(TAG, "已加载 ${searchEngineShortcuts.size} 个搜索引擎快捷方式（不自动显示）")
         } catch (e: Exception) {
-            Log.e("FloatingWindowService", "加载搜索引擎快捷方式失败", e)
+            Log.e(TAG, "加载搜索引擎快捷方式失败", e)
             e.printStackTrace()
         }
     }
@@ -1530,5 +1527,47 @@ class FloatingWindowService : Service() {
         } catch (e: Exception) {
             Log.e("ViewDebug", "打印视图ID失败: ${e.message}")
         }
+    }
+
+    // 确保只显示悬浮球
+    private fun ensureOnlyFloatingBallVisible() {
+        // 确保所有搜索相关的视图都被隐藏
+        searchContainer?.visibility = View.GONE
+        shortcutsContainer?.visibility = View.GONE
+        savedCombosContainer?.visibility = View.GONE
+        aiEnginesContainer?.visibility = View.GONE
+        regularEnginesContainer?.visibility = View.GONE
+        searchModeToggle?.visibility = View.GONE
+        
+        // 确保菜单状态标志为关闭
+        isMenuVisible = false
+        
+        // 使窗口不可聚焦，确保不会意外地打开输入法
+        params?.flags = (params?.flags ?: 0).or(
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        )
+        
+        windowManager?.updateViewLayout(floatingView, params)
+        
+        // 加载保存的位置并更新悬浮球位置
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        params?.x = prefs.getInt("last_x", 0)
+        params?.y = prefs.getInt("last_y", 100)
+        
+        windowManager?.updateViewLayout(floatingView, params)
+    }
+
+    // 加载已保存的搜索引擎快捷方式
+    private fun loadSearchEngineShortcuts() {
+        // 加载快捷方式
+        loadSearchEngineShortcutsQuietly()
+        
+        // 显示搜索引擎快捷方式
+        displaySearchEngineShortcuts()
+        
+        // 更新搜索引擎显示
+        updateSearchEngineDisplay()
+        
+        Log.d(TAG, "搜索引擎快捷方式已加载并显示")
     }
 }
