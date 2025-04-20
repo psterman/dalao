@@ -12,21 +12,20 @@
         android:layout_width="300dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:background="#FFFFFF"
-        android:elevation="6dp"
+        android:background="@drawable/search_container_background"
+        android:elevation="4dp"
         android:padding="12dp"
         android:layout_marginBottom="8dp"
-        android:visibility="gone"
-        app:cornerRadius="16dp">
+        android:visibility="gone">
 
         <!-- 搜索框容器 - 极简风格 -->
         <LinearLayout
             android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
+            android:layout_height="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:background="@drawable/search_input_background"
-            android:layout_marginBottom="12dp">
+            android:layout_marginBottom="8dp">
 
             <!-- 搜索图标 -->
             <ImageView
@@ -38,26 +37,26 @@
                 android:tint="#5F6368"
                 android:contentDescription="搜索图标" />
 
-        <EditText
-            android:id="@+id/search_input"
+            <EditText
+                android:id="@+id/search_input"
                 android:layout_width="0dp"
-            android:layout_height="match_parent"
+                android:layout_height="match_parent"
                 android:layout_weight="1"
-            android:background="@null"
-            android:hint="搜索..."
-            android:imeOptions="actionSearch"
-            android:inputType="text"
+                android:background="@null"
+                android:hint="搜索..."
+                android:imeOptions="actionSearch"
+                android:inputType="text"
                 android:paddingStart="0dp"
-            android:paddingEnd="8dp"
-            android:singleLine="true"
+                android:paddingEnd="8dp"
+                android:singleLine="true"
                 android:textSize="16sp"
                 android:textColor="#202124"
                 android:textColorHint="#9AA0A6" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/search_mode_toggle"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:insetLeft="0dp"
                 android:insetTop="0dp"
                 android:insetRight="0dp"
@@ -80,8 +79,8 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@drawable/engine_container_background"
-            android:paddingVertical="8dp"
-            android:layout_marginBottom="10dp"
+            android:paddingVertical="6dp"
+            android:layout_marginBottom="8dp"
             android:visibility="gone">
             
             <TextView
@@ -103,8 +102,8 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@drawable/engine_container_background"
-            android:paddingVertical="8dp"
-            android:layout_marginBottom="10dp"
+            android:paddingVertical="6dp"
+            android:layout_marginBottom="8dp"
             android:visibility="gone">
             
             <TextView
@@ -126,7 +125,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:background="@drawable/engine_container_background"
-            android:paddingVertical="8dp"
+            android:paddingVertical="6dp"
             android:visibility="gone">
             
             <TextView

@@ -71,11 +71,18 @@ class FloatingWindowService : Service() {
     private var initialTouchY: Float = 0f
     private var lastClickTime: Long = 0
     private var handler: Handler = Handler(Looper.getMainLooper())
-    private var longPressRunnable: Runnable? = null
+    private var isMenuVisible = false // 记录菜单是否可见
+    
+    // 初始化长按检测
+    private var longPressRunnable: Runnable = Runnable {
+        // 长按时的操作，比如显示设置菜单
+        openSettings()
+    }
+    
     private val NOTIFICATION_ID = 1
     private val CHANNEL_ID = "FloatingBallChannel"
     private val DOUBLE_CLICK_TIME = 300L
-    private val SNAP_DISTANCE = 50
+    private val MENU_MARGIN = 20 // 菜单与屏幕边缘的距离
     private val screenWidth by lazy { windowManager?.defaultDisplay?.width ?: 0 }
     private val screenHeight by lazy { windowManager?.defaultDisplay?.height ?: 0 }
     
@@ -124,6 +131,7 @@ class FloatingWindowService : Service() {
         initializeWindowManager()
         createFloatingWindow()
         initializeViews()
+        setupSearchInput()
         loadSearchEngineShortcuts()
         
         // 加载AI和普通搜索引擎
@@ -186,36 +194,36 @@ class FloatingWindowService : Service() {
         val inflater = LayoutInflater.from(themedContext).cloneInContext(themedContext)
         floatingView = inflater.inflate(R.layout.floating_ball_layout, null)
         
-        // 输出所有顶级视图ID，用于调试
-        debugPrintAllViewIds(floatingView)
-        
-        // 初始化搜索引擎快捷方式容器
+        // 初始化容器
         shortcutsContainer = floatingView?.findViewById(R.id.search_shortcuts_container)
         savedCombosContainer = floatingView?.findViewById(R.id.saved_combos_container)
         aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
         regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
         searchContainer = floatingView?.findViewById(R.id.search_container)
-        
-        // 初始化搜索模式切换按钮
+        searchInput = floatingView?.findViewById(R.id.search_input)
         searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
-        searchModeToggle?.setOnClickListener {
-            toggleSearchMode()
-        }
+        
+        // 获取悬浮球图标
+        val floatingBallIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
+        
+        // 设置搜索容器背景为不透明
+        searchContainer?.setBackgroundResource(R.drawable.search_container_background)
         
         // 初始状态下隐藏所有搜索相关元素
         searchContainer?.visibility = View.GONE
         shortcutsContainer?.visibility = View.GONE
+        savedCombosContainer?.visibility = View.GONE
+        aiEnginesContainer?.visibility = View.GONE
+        regularEnginesContainer?.visibility = View.GONE
+        searchModeToggle?.visibility = View.GONE
         
-        // 设置搜索框行为
-        setupSearchInput()
-        
-        longPressRunnable = Runnable {
-            // Handle long press
-            openSettings()
+        // 设置悬浮球图标点击事件
+        floatingBallIcon?.setOnClickListener {
+            toggleSearchInterface()
         }
         
-        // 设置悬浮球点击行为
-        floatingView?.setOnTouchListener { view, event ->
+        // 设置悬浮球点击和拖动行为
+        floatingView?.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialX = params?.x ?: 0
@@ -223,67 +231,83 @@ class FloatingWindowService : Service() {
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     
-                    // Handle double click
-                    val clickTime = System.currentTimeMillis()
-                    if (clickTime - lastClickTime < DOUBLE_CLICK_TIME) {
-                        onDoubleClick()
-                        return@setOnTouchListener true
-                    }
-                    lastClickTime = clickTime
-                    
-                    // Start long press detection
-                    handler.postDelayed(longPressRunnable!!, ViewConfiguration.getLongPressTimeout().toLong())
+                    // 开始长按检测
+                    handler.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout().toLong())
+                    true
                 }
+                
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = (event.rawX - initialTouchX).toInt()
                     val deltaY = (event.rawY - initialTouchY).toInt()
                     
+                    // 如果移动距离超过阈值，取消长按和点击事件
                     if (abs(deltaX) > ViewConfiguration.get(this).scaledTouchSlop ||
                         abs(deltaY) > ViewConfiguration.get(this).scaledTouchSlop) {
-                        handler.removeCallbacks(longPressRunnable!!)
+                        handler.removeCallbacks(longPressRunnable)
+                        
+                        // 如果菜单是可见的，先隐藏菜单
+                        if (isMenuVisible) {
+                            toggleSearchInterface()
+                        }
+                        
+                        // 更新悬浮球位置
+                        params?.x = initialX + deltaX
+                        params?.y = initialY + deltaY
+                        
+                        // 限制不超出屏幕边界
+                        params?.x = params?.x?.coerceIn(0, screenWidth - (params?.width ?: 0)) ?: 0
+                        params?.y = params?.y?.coerceIn(0, screenHeight - (params?.height ?: 0)) ?: 0
+                        
+                        windowManager?.updateViewLayout(floatingView, params)
                     }
-                    
-                    params?.x = initialX + deltaX
-                    params?.y = initialY + deltaY
-                    windowManager?.updateViewLayout(floatingView, params)
+                    true
                 }
+                
                 MotionEvent.ACTION_UP -> {
-                    handler.removeCallbacks(longPressRunnable!!)
+                    handler.removeCallbacks(longPressRunnable)
                     
                     val moved = abs(event.rawX - initialTouchX) > ViewConfiguration.get(this).scaledTouchSlop ||
                                abs(event.rawY - initialTouchY) > ViewConfiguration.get(this).scaledTouchSlop
                     
-                    if (!moved) {
-                        // 点击悬浮球时，切换搜索界面显示/隐藏状态
-                        toggleSearchInterface()
-                    } else {
-                        snapToEdge()
+                    if (moved) {
+                        // 保存新位置
                         savePosition()
+                        // 检查是否需要贴边
+                        snapToEdge()
                     }
+                    true
                 }
+                else -> false
             }
-            true
         }
-        windowManager?.addView(floatingView, params)
         
-        // 确保加载快捷方式和显示
-        Handler(Looper.getMainLooper()).postDelayed({
-            loadSearchEngineShortcuts()
-            loadSearchEngines()
-            // 再次确保容器可见
-            shortcutsContainer?.visibility = View.VISIBLE
-            // 输出快捷方式数量
-            Log.d("FloatingWindowService", "快捷方式数量: ${searchEngineShortcuts.size}")
-        }, 1000)
+        windowManager?.addView(floatingView, params)
     }
 
     private fun snapToEdge() {
         params?.let { p ->
-            when {
-                p.x < SNAP_DISTANCE -> p.x = 0
-                p.x > screenWidth - p.width - SNAP_DISTANCE -> p.x = screenWidth - p.width
+            val isNearEdge = when {
+                p.x < MENU_MARGIN -> {
+                    p.x = 0
+                    true
+                }
+                p.x > screenWidth - p.width - MENU_MARGIN -> {
+                    p.x = screenWidth - p.width
+                    true
+                }
+                else -> false
             }
+
+            // 根据是否靠边调整透明度
+            if (isNearEdge) {
+                floatingView?.alpha = 0.4f  // 靠边时更透明
+            } else {
+                floatingView?.alpha = 1.0f  // 非靠边时完全不透明
+            }
+
             windowManager?.updateViewLayout(floatingView, params)
+            // 保存最终位置
+            savePosition()
         }
     }
 
@@ -422,7 +446,9 @@ class FloatingWindowService : Service() {
     private fun showKeyboard(view: View?) {
         if (view == null) return
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        imm.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        view.post {
+            imm.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        }
     }
     
     // 隐藏键盘
@@ -431,12 +457,6 @@ class FloatingWindowService : Service() {
         floatingView?.windowToken?.let {
             imm.hideSoftInputFromWindow(it, 0)
         }
-        
-        // 确保隐藏键盘后恢复FLAG_NOT_FOCUSABLE
-        handler.postDelayed({
-            params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) ?: 0
-            windowManager?.updateViewLayout(floatingView, params)
-        }, 200) // 稍微延迟一下，以确保复制粘贴菜单有足够时间显示
     }
     
     // 执行搜索
@@ -914,46 +934,96 @@ class FloatingWindowService : Service() {
     // 切换搜索界面显示/隐藏
     private fun toggleSearchInterface() {
         if (searchContainer?.visibility == View.VISIBLE) {
-            // 隐藏搜索容器
+            // 隐藏搜索界面
             searchContainer?.visibility = View.GONE
-            
-            // 隐藏搜索引擎容器
+            shortcutsContainer?.visibility = View.GONE
             aiEnginesContainer?.visibility = View.GONE
             regularEnginesContainer?.visibility = View.GONE
             savedCombosContainer?.visibility = View.GONE
-            
-            // 隐藏搜索模式切换按钮
             searchModeToggle?.visibility = View.GONE
-            
-            // 隐藏快捷方式
-            shortcutsContainer?.visibility = View.GONE
             
             // 清空输入框内容
             searchInput?.setText("")
             
             // 隐藏键盘
             hideKeyboard()
-        } else {
-            // 显示搜索容器
-            searchContainer?.visibility = View.VISIBLE
             
-            // 自动聚焦到输入框
+            // 恢复悬浮球原始位置
+            params?.x = initialX
+            params?.y = initialY
+            windowManager?.updateViewLayout(floatingView, params)
+            
+            // 恢复FLAG_NOT_FOCUSABLE标志
+            params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) ?: 0
+            windowManager?.updateViewLayout(floatingView, params)
+            
+            isMenuVisible = false
+        } else {
+            // 记录当前位置
+            initialX = params?.x ?: 0
+            initialY = params?.y ?: 0
+            
+            // 计算菜单显示位置
+            val menuX = calculateMenuX()
+            val menuY = calculateMenuY()
+            
+            // 移动悬浮球到合适位置
+            params?.x = menuX
+            params?.y = menuY
+            
+            // 移除FLAG_NOT_FOCUSABLE标志以允许输入
+            params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) ?: 0
+            windowManager?.updateViewLayout(floatingView, params)
+            
+            // 显示搜索界面
+            searchContainer?.visibility = View.VISIBLE
+            savedCombosContainer?.visibility = View.VISIBLE
+            
+            // 根据当前模式显示相应的搜索引擎容器
+            if (isAIMode) {
+                aiEnginesContainer?.visibility = View.VISIBLE
+                regularEnginesContainer?.visibility = View.GONE
+            } else {
+                aiEnginesContainer?.visibility = View.GONE
+                regularEnginesContainer?.visibility = View.VISIBLE
+            }
+            
+            // 显示搜索模式切换按钮
+            searchModeToggle?.visibility = View.VISIBLE
+            
+            // 激活输入框和输入法
             searchInput?.post {
                 searchInput?.requestFocus()
                 showKeyboard(searchInput)
-                
-                // 显示搜索模式切换按钮
-                searchModeToggle?.visibility = View.VISIBLE
-                
-                // 根据当前模式显示相应的搜索引擎容器
-                if (isAIMode) {
-                    aiEnginesContainer?.visibility = View.VISIBLE
-                    regularEnginesContainer?.visibility = View.GONE
-                } else {
-                    aiEnginesContainer?.visibility = View.GONE
-                    regularEnginesContainer?.visibility = View.VISIBLE
-                }
             }
+            
+            isMenuVisible = true
+        }
+    }
+    
+    // 计算菜单X坐标
+    private fun calculateMenuX(): Int {
+        val currentX = params?.x ?: 0
+        val menuWidth = searchContainer?.width ?: 0
+        
+        // 如果靠近右边缘，向左移动
+        return if (currentX + menuWidth > screenWidth - MENU_MARGIN) {
+            screenWidth - menuWidth - MENU_MARGIN
+        } else {
+            currentX
+        }
+    }
+
+    // 计算菜单Y坐标
+    private fun calculateMenuY(): Int {
+        val currentY = params?.y ?: 0
+        val menuHeight = searchContainer?.height ?: 0
+        
+        // 如果靠近底部，向上移动
+        return if (currentY + menuHeight > screenHeight - MENU_MARGIN) {
+            screenHeight - menuHeight - MENU_MARGIN
+        } else {
+            currentY
         }
     }
     

@@ -47,7 +47,7 @@
         <item>2</item>
     </string-array>
 
-    <string name="search_engine_icon">搜索引擎图标</string>
+    <string name="search_engine_icon">Search Engine Icon</string>
     <string name="normal_search">普通搜索</string>
     <string name="ai_search">AI搜索</string>
     <string name="save_settings">保存设置</string>
