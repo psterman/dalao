@@ -64,6 +64,8 @@ import android.content.ClipData
 import android.text.TextUtils
 import android.os.Build.VERSION_CODES
 import android.os.Build.VERSION
+import java.io.FileOutputStream
+import com.bumptech.glide.Glide
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -160,6 +162,9 @@ class FloatingWindowService : Service() {
         
         // 确保初始时只显示悬浮球
         ensureOnlyFloatingBallVisible()
+        
+        // 确保悬浮球在安全区域内
+        ensureBallInSafeArea()
     }
 
     private fun createNotificationChannel() {
@@ -269,9 +274,11 @@ class FloatingWindowService : Service() {
         var hasMoved = false
         var hasPerformedAction = false // 标记是否已执行了动作
         
-        // 触摸阈值常量
-        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+        // 触摸阈值常量 - 减小移动阈值，提高拖动检测灵敏度
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop / 2
+        val tapTimeout = ViewConfiguration.getTapTimeout()
         val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
+        val doubleTapTimeout = DOUBLE_CLICK_TIME // 双击检测时间窗口
         
         // 长按检测任务
         val longPressRunnable = Runnable {
@@ -280,6 +287,16 @@ class FloatingWindowService : Service() {
                 Log.d(TAG, "执行长按操作：打开设置")
                 hasPerformedAction = true // 标记已执行动作
                 openSettings()
+            }
+        }
+        
+        // 双击检测任务
+        val doubleTapRunnable = Runnable {
+            if (!hasPerformedAction && !hasMoved) {
+                // 如果超过双击时间间隔，且没有执行其他操作，视为单击
+                Log.d(TAG, "单击超时：执行单击操作")
+                toggleSearchInterface()
+                hasPerformedAction = true
             }
         }
         
@@ -299,6 +316,10 @@ class FloatingWindowService : Service() {
                     hasMoved = false
                     hasPerformedAction = false
                     
+                    // 取消可能的待处理任务
+                    handler.removeCallbacks(longPressRunnable)
+                    handler.removeCallbacks(doubleTapRunnable)
+                    
                     // 设置长按检测
                     handler.postDelayed(longPressRunnable, longPressTimeout)
                     Log.d(TAG, "触摸开始: x=$initialX, y=$initialY")
@@ -316,8 +337,10 @@ class FloatingWindowService : Service() {
                         isDragging = true
                         hasMoved = true
                         
-                        // 取消长按检测
+                        // 取消长按检测和双击检测
                         handler.removeCallbacks(longPressRunnable)
+                        handler.removeCallbacks(doubleTapRunnable)
+                        
                         Log.d(TAG, "开始拖动，距离: $distance")
                         
                         // 如果搜索界面已打开，先关闭它
@@ -356,18 +379,23 @@ class FloatingWindowService : Service() {
                         Log.d(TAG, "拖动结束，保存位置: x=${params?.x}, y=${params?.y}")
                     } else if (!hasMoved && !hasPerformedAction) {
                         // 没有移动且没有执行过操作，可能是点击
-                        if (touchDuration < ViewConfiguration.getTapTimeout()) {
+                        if (touchDuration < tapTimeout) {
                             val currentTime = System.currentTimeMillis()
                             
-                            // 检测双击 - 使用更长的双击时间窗口
-                            if (currentTime - lastClickTime < DOUBLE_CLICK_TIME) {
-                                // 双击操作
+                            // 检测双击
+                            if (currentTime - lastClickTime < doubleTapTimeout) {
+                                // 取消单击检测
+                                handler.removeCallbacks(doubleTapRunnable)
+                                
+                                // 执行双击操作
                                 Log.d(TAG, "执行双击操作")
                                 onDoubleClick()
+                                hasPerformedAction = true
                             } else {
-                                // 单击操作
-                                Log.d(TAG, "执行单击操作：切换搜索界面")
-                                toggleSearchInterface()
+                                // 可能是单击，但需要等待确认不是双击的一部分
+                                Log.d(TAG, "可能是单击，等待确认...")
+                                // 设置延迟，等待可能的第二次点击
+                                handler.postDelayed(doubleTapRunnable, doubleTapTimeout)
                             }
                             lastClickTime = currentTime
                         }
@@ -391,16 +419,107 @@ class FloatingWindowService : Service() {
     private fun savePosition() {
         try {
             params?.let { p ->
+                // 获取悬浮球尺寸
+                val floatingBallIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
+                val ballSize = floatingBallIcon?.width ?: 80
+                
+                // 获取屏幕尺寸
+                val displayMetrics = resources.displayMetrics
+                val screenWidth = displayMetrics.widthPixels
+                val screenHeight = displayMetrics.heightPixels
+                val statusBarHeight = getStatusBarHeight()
+                
+                // 确保悬浮球不会超出屏幕边界，并且至少有一半在屏幕内
+                var safeX = p.x
+                var safeY = p.y
+                
+                // 水平边界检查
+                val halfBallSize = ballSize / 2
+                if (safeX < -halfBallSize) {
+                    safeX = -halfBallSize
+                } else if (safeX > screenWidth - halfBallSize) {
+                    safeX = screenWidth - halfBallSize
+                }
+                
+                // 垂直边界检查，考虑状态栏
+                if (safeY < statusBarHeight - halfBallSize) {
+                    safeY = statusBarHeight - halfBallSize
+                } else if (safeY > screenHeight - halfBallSize) {
+                    safeY = screenHeight - halfBallSize
+                }
+                
+                // 如果位置有修正，更新悬浮球位置
+                if (safeX != p.x || safeY != p.y) {
+                    p.x = safeX
+                    p.y = safeY
+                    try {
+                        windowManager?.updateViewLayout(floatingView, params)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "更新安全位置失败: ${e.message}")
+                    }
+                }
+                
                 // 保存到SharedPreferences
                 PreferenceManager.getDefaultSharedPreferences(this)
                     .edit()
-                    .putInt("last_x", p.x)
-                    .putInt("last_y", p.y)
+                    .putInt("last_x", safeX)
+                    .putInt("last_y", safeY)
                     .apply()
-                Log.d(TAG, "位置已保存: x=${p.x}, y=${p.y}")
+                Log.d(TAG, "位置已保存: x=$safeX, y=$safeY")
             }
         } catch (e: Exception) {
             Log.e(TAG, "保存位置失败: ${e.message}")
+        }
+    }
+
+    // 添加确保悬浮球在安全区域的方法
+    private fun ensureBallInSafeArea() {
+        try {
+            params?.let { p ->
+                // 获取悬浮球尺寸
+                val floatingBallIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
+                val ballSize = floatingBallIcon?.width ?: 80
+                
+                // 获取屏幕尺寸
+                val displayMetrics = resources.displayMetrics
+                val screenWidth = displayMetrics.widthPixels
+                val screenHeight = displayMetrics.heightPixels
+                val statusBarHeight = getStatusBarHeight()
+                
+                // 确保悬浮球不会超出屏幕边界，并且至少有一半在屏幕内
+                var needUpdate = false
+                
+                // 水平边界检查
+                val halfBallSize = ballSize / 2
+                if (p.x < -halfBallSize) {
+                    p.x = -halfBallSize
+                    needUpdate = true
+                } else if (p.x > screenWidth - halfBallSize) {
+                    p.x = screenWidth - halfBallSize
+                    needUpdate = true
+                }
+                
+                // 垂直边界检查，考虑状态栏
+                if (p.y < statusBarHeight - halfBallSize) {
+                    p.y = statusBarHeight - halfBallSize
+                    needUpdate = true
+                } else if (p.y > screenHeight - halfBallSize) {
+                    p.y = screenHeight - halfBallSize
+                    needUpdate = true
+                }
+                
+                // 如果位置有修正，更新悬浮球位置
+                if (needUpdate) {
+                    try {
+                        windowManager?.updateViewLayout(floatingView, params)
+                        Log.d(TAG, "悬浮球位置已调整: x=${p.x}, y=${p.y}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "更新安全位置失败: ${e.message}")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "调整悬浮球位置失败: ${e.message}")
         }
     }
 
@@ -853,8 +972,10 @@ class FloatingWindowService : Service() {
         // 获取图标容器（FrameLayout）
         val iconContainer = iconView.parent as? FrameLayout
         
-        // 设置图标
-        val iconResId = EngineUtil.getIconResourceByDomain(shortcut.domain)
+        // 根据域名智能设置图标
+        val iconResId = getIconResourceForDomain(shortcut.domain)
+        
+        // 设置图标，优先使用本地资源，然后尝试从网络加载
         iconView.setImageResource(iconResId)
         
         // 设置图标背景色 - 更柔和的颜色
@@ -864,6 +985,11 @@ class FloatingWindowService : Service() {
         // 设置名称
         nameView.text = shortcut.name
         nameView.setTextColor(Color.parseColor("#5F6368"))
+        
+        // 如果有有效的域名，尝试从网络加载图标
+        if (shortcut.domain.isNotEmpty() && !shortcut.domain.equals("localhost")) {
+            loadIconForDomain(shortcut.domain, iconView, iconResId)
+        }
         
         // 为多引擎快捷方式添加标记
         if (shortcut.name.contains("+") && iconContainer != null) {
@@ -1349,61 +1475,36 @@ class FloatingWindowService : Service() {
         }
     }
     
-    // 新增方法：优化搜索界面位置
+    // 新增方法：更新显示搜索界面的位置计算
     private fun optimallyPositionSearchInterface(width: Int, height: Int, ballSize: Int) {
-        val statusBarHeight = getStatusBarHeight()
-        val ballX = params?.x ?: 0
-        val ballY = params?.y ?: 0
+        // 获取屏幕尺寸
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
         
-        // 1. 检查屏幕位置来确定最佳显示位置
-        val isNearLeft = ballX < screenWidth / 3
-        val isNearRight = ballX > screenWidth * 2 / 3
-        val isNearTop = ballY < screenHeight / 3
-        val isNearBottom = ballY > screenHeight * 2 / 3
+        // 计算屏幕中心位置
+        val centerX = screenWidth / 2
+        val centerY = screenHeight / 2
         
-        // 2. 计算理想的搜索界面位置
-        var idealX = ballX
-        var idealY = ballY
+        // 计算搜索界面应该显示的位置（屏幕中心）
+        val newX = centerX - width / 2
+        val newY = centerY - height / 2
         
-        // 水平位置调整：优先考虑居中对齐
-        if (isNearLeft) {
-            // 靠左时，向右展开
-            idealX = ballX
-        } else if (isNearRight) {
-            // 靠右时，向左展开
-            idealX = ballX - width + ballSize
-        } else {
-            // 居中时，居中对齐
-            idealX = ballX - (width - ballSize) / 2
+        // 确保不超出屏幕边界
+        val finalX = newX.coerceIn(0, screenWidth - width)
+        val finalY = newY.coerceIn(getStatusBarHeight(), screenHeight - height)
+        
+        Log.d(TAG, "搜索界面位置: x=$finalX, y=$finalY (屏幕中心)")
+        
+        // 更新位置
+        params?.x = finalX
+        params?.y = finalY
+        
+        try {
+            windowManager?.updateViewLayout(floatingView, params)
+        } catch (e: Exception) {
+            Log.e(TAG, "更新搜索界面位置失败: ${e.message}")
         }
-        
-        // 垂直位置调整：优先在悬浮球下方显示
-        if (isNearBottom) {
-            // 靠底部时，向上展开
-            idealY = ballY - height
-        } else {
-            // 其他情况，在下方展开
-            idealY = ballY + ballSize
-        }
-        
-        // 3. 边界检查，确保完全在屏幕内
-        if (idealX < 0) idealX = 0
-        if (idealX + width > screenWidth) idealX = screenWidth - width
-        if (idealY < statusBarHeight) idealY = statusBarHeight
-        if (idealY + height > screenHeight) idealY = screenHeight - height
-        
-        // 4. 保存悬浮球原始位置，并移动到理想位置
-        val originalX = params?.x ?: 0
-        val originalY = params?.y ?: 0
-        
-        // 更新布局参数
-        params?.x = idealX
-        params?.y = idealY
-        windowManager?.updateViewLayout(floatingView, params)
-        
-        // 5. 应用后记录原始位置，以便关闭时恢复
-        initialX = originalX
-        initialY = originalY
     }
     
     // 修改关闭搜索界面的方法，确保正确恢复悬浮球位置
@@ -1441,6 +1542,9 @@ class FloatingWindowService : Service() {
                 try {
                     windowManager?.updateViewLayout(floatingView, params)
                     Log.d(TAG, "搜索界面已关闭，悬浮球位置已恢复: x=$initialX, y=$initialY")
+                    
+                    // 确保悬浮球在安全区域内
+                    ensureBallInSafeArea()
                 } catch (e: Exception) {
                     Log.e(TAG, "更新布局失败: ${e.message}")
                 }
@@ -1624,19 +1728,23 @@ class FloatingWindowService : Service() {
         val name: String
         val iconResId: Int
         val url: String
+        val domain: String
         
         if (isAI && engine is com.example.aifloatingball.model.AISearchEngine) {
             name = engine.name
             iconResId = engine.iconResId
             url = engine.url
+            domain = extractDomain(url)
         } else if (!isAI && engine is com.example.aifloatingball.model.SearchEngine) {
             name = engine.name
             iconResId = engine.iconResId
             url = engine.url
+            domain = extractDomain(url)
         } else {
             name = "未知"
             iconResId = R.drawable.ic_search
             url = ""
+            domain = ""
         }
         
         // 创建视图
@@ -1645,13 +1753,25 @@ class FloatingWindowService : Service() {
         val iconView = view.findViewById<ImageView>(R.id.shortcut_icon)
         val nameView = view.findViewById<TextView>(R.id.shortcut_name)
         
+        // 优先使用引擎指定的图标，如果不存在则使用域名推断
+        val finalIconResId = if (iconResId != 0) {
+            iconResId
+        } else {
+            getIconResourceForDomain(domain)
+        }
+        
         // 设置图标
-        iconView.setImageResource(iconResId)
+        iconView.setImageResource(finalIconResId)
         
         // 设置图标背景色 - 更统一的风格
         val backgroundColor = if (isAI) "#EDE7F6" else "#E8F5E9"
         iconView.setBackgroundResource(R.drawable.search_item_background)
         (iconView.background as GradientDrawable).setColor(Color.parseColor(backgroundColor))
+        
+        // 如果有有效的域名，尝试从网络加载图标
+        if (domain.isNotEmpty() && !domain.equals("localhost")) {
+            loadIconForDomain(domain, iconView, finalIconResId)
+        }
         
         // 设置名称
         nameView.text = name
@@ -1669,6 +1789,96 @@ class FloatingWindowService : Service() {
         }
         
         return view
+    }
+    
+    // 使用Glide库加载网站图标
+    private fun loadIconForDomain(domain: String, imageView: ImageView, fallbackResId: Int) {
+        try {
+            // 如果域名为空或无效，直接使用备用图标
+            if (domain.isEmpty() || domain == "localhost") {
+                imageView.setImageResource(fallbackResId)
+                return
+            }
+            
+            // 准备favicon URL
+            val faviconUrl = "https://www.google.com/s2/favicons?sz=64&domain_url=https://$domain"
+            
+            // 使用Glide加载图标 - 自动处理缓存和线程
+            Glide.with(applicationContext)  // 使用applicationContext避免内存泄漏
+                .load(faviconUrl)
+                .placeholder(fallbackResId) // 加载过程中显示
+                .error(fallbackResId) // 加载失败时显示
+                .fallback(fallbackResId) // URL为null时显示
+                .timeout(5000) // 设置超时时间
+                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(200))
+                .into(object : com.bumptech.glide.request.target.CustomTarget<android.graphics.drawable.Drawable>() {
+                    override fun onResourceReady(
+                        resource: android.graphics.drawable.Drawable,
+                        transition: com.bumptech.glide.request.transition.Transition<in android.graphics.drawable.Drawable>?
+                    ) {
+                        try {
+                            // 确保ImageView仍然有效
+                            if (imageView.isAttachedToWindow) {
+                                imageView.setImageDrawable(resource)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "设置图标失败: ${e.message}")
+                            imageView.setImageResource(fallbackResId)
+                        }
+                    }
+                    
+                    override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) {
+                        // 当资源被清除时回调
+                        try {
+                            imageView.setImageResource(fallbackResId)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "清除图标失败: ${e.message}")
+                        }
+                    }
+                })
+            
+            Log.d(TAG, "请求加载图标: $domain")
+        } catch (e: Exception) {
+            Log.e(TAG, "图标加载初始化失败: ${e.message}")
+            // 出错时直接显示备用图标
+            try {
+                imageView.setImageResource(fallbackResId)
+            } catch (ex: Exception) {
+                Log.e(TAG, "备用图标设置失败: ${ex.message}")
+            }
+        }
+    }
+
+    // 根据域名获取正确的图标资源
+    private fun getIconResourceForDomain(domain: String): Int {
+        // 尝试使用EngineUtil获取图标
+        val iconRes = EngineUtil.getIconResourceByDomain(domain)
+        if (iconRes != 0 && iconRes != R.drawable.ic_search) {
+            return iconRes
+        }
+        
+        // 如果EngineUtil没有找到，使用自定义映射
+        return when {
+            domain.contains("baidu") -> R.drawable.ic_baidu
+            domain.contains("google") -> R.drawable.ic_google
+            domain.contains("bing") -> R.drawable.ic_bing
+            domain.contains("sougou") || domain.contains("sogou") -> R.drawable.ic_sogou
+            domain.contains("360") -> R.drawable.ic_360
+            domain.contains("yandex") -> R.drawable.ic_search // 使用通用搜索图标替代不存在的ic_yandex
+            domain.contains("yahoo") -> R.drawable.ic_search // 使用通用搜索图标替代不存在的ic_yahoo
+            domain.contains("duckduckgo") -> R.drawable.ic_duckduckgo
+            domain.contains("zhihu") -> R.drawable.ic_zhihu
+            domain.contains("taobao") || domain.contains("tmall") -> R.drawable.ic_taobao
+            domain.contains("jd") -> R.drawable.ic_jd
+            domain.contains("douyin") || domain.contains("tiktok") -> R.drawable.ic_douyin
+            domain.contains("bilibili") -> R.drawable.ic_bilibili
+            domain.contains("youtube") -> R.drawable.ic_search // 使用通用搜索图标替代不存在的ic_youtube
+            domain.contains("chatgpt") || domain.contains("openai") -> R.drawable.ic_chatgpt
+            domain.contains("claude") || domain.contains("anthropic") -> R.drawable.ic_claude
+            domain.contains("gemini") || domain.contains("bard") -> R.drawable.ic_gemini
+            domain.contains("wenxin") || domain.contains("baichuan") -> R.drawable.ic_wenxin
+            else -> R.drawable.ic_search // 使用通用搜索图标替代不存在的ic_globe
+        }
     }
 
     // 调试方法：打印所有View的ID
@@ -1726,6 +1936,9 @@ class FloatingWindowService : Service() {
         params?.y = if (savedY < statusBarHeight) statusBarHeight else savedY
         
         windowManager?.updateViewLayout(floatingView, params)
+        
+        // 确保悬浮球在安全区域内
+        ensureBallInSafeArea()
     }
 
     // 加载已保存的搜索引擎快捷方式
