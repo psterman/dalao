@@ -898,6 +898,33 @@ class DualFloatingWebViewService : Service() {
             createWebViewEngineIcon(engine.name, thirdEngineContainer, false, false)
         }
         
+        // 添加更多搜索选项
+        val additionalEngines = listOf(
+            Pair("GitHub", "github.com"),
+            Pair("Stack Overflow", "stackoverflow.com"),
+            Pair("Medium", "medium.com"),
+            Pair("Wiki百科", "wikipedia.org"),
+            Pair("Reddit", "reddit.com"),
+            Pair("掘金", "juejin.cn"),
+            Pair("CSDN", "csdn.net"),
+            Pair("开源中国", "oschina.net"),
+            Pair("InfoQ", "infoq.cn"),
+            Pair("微信", "weixin.qq.com"),
+            Pair("知乎专栏", "zhuanlan.zhihu.com"),
+            Pair("Twitter", "twitter.com"),
+            Pair("LinkedIn", "linkedin.com")
+        )
+        
+        // 添加更多网站搜索选项到每个窗口
+        additionalEngines.forEach { (name, domain) ->
+            // 创建左侧搜索引擎图标
+            createWebViewEngineIcon(name, firstEngineContainer, true, false, domain)
+            // 创建中间搜索引擎图标
+            createWebViewEngineIcon(name, secondEngineContainer, false, false, domain)
+            // 创建右侧搜索引擎图标
+            createWebViewEngineIcon(name, thirdEngineContainer, false, false, domain)
+        }
+        
         // 为每个AI搜索引擎创建图标
         com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES.forEach { aiEngine ->
             // 创建左侧AI搜索引擎图标
@@ -909,7 +936,7 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
-    private fun createWebViewEngineIcon(engineName: String, container: LinearLayout?, isLeft: Boolean, isAI: Boolean) {
+    private fun createWebViewEngineIcon(engineName: String, container: LinearLayout?, isLeft: Boolean, isAI: Boolean, customDomain: String? = null) {
         val context = container?.context ?: return
         val imageButton = ImageButton(context).apply {
             // 创建默认背景和圆角效果
@@ -934,7 +961,7 @@ class DualFloatingWebViewService : Service() {
             val engineKey = if (isAI) "ai_" + EngineUtil.getEngineKey(engineName) else EngineUtil.getEngineKey(engineName)
             
             // 获取对应的域名
-            val domain = if (isAI) {
+            val domain = customDomain ?: if (isAI) {
                 when(EngineUtil.getEngineKey(engineName)) {
                     "chatgpt" -> "openai.com"
                     "claude" -> "claude.ai"
@@ -979,26 +1006,7 @@ class DualFloatingWebViewService : Service() {
             val url = "https://$domain"
             iconLoader.loadIcon(url, this@apply, if (iconResId != 0) iconResId else R.drawable.ic_search)
             
-            // 添加选中状态显示
-            when (container) {
-                firstEngineContainer, firstAIEngineContainer -> {
-                    val isSelected = engineKey == leftEngineKey
-                    alpha = if (isSelected) 1.0f else 0.7f
-                    background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
-                }
-                secondEngineContainer, secondAIEngineContainer -> {
-                    val isSelected = engineKey == centerEngineKey
-                    alpha = if (isSelected) 1.0f else 0.7f
-                    background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
-                }
-                thirdEngineContainer, thirdAIEngineContainer -> {
-                    val isSelected = engineKey == rightEngineKey
-                    alpha = if (isSelected) 1.0f else 0.7f
-                    background = ColorDrawable(if (isSelected) Color.parseColor("#33FFFFFF") else Color.parseColor("#20FFFFFF"))
-                }
-            }
-            
-            // 设置点击事件
+            // 添加搜索引擎选择事件
             setOnClickListener {
                 // 根据容器确定是哪个窗口
                 when (container) {

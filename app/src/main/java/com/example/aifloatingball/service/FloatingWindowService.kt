@@ -680,7 +680,7 @@ class FloatingWindowService : Service() {
     private fun performSearch(query: String) {
         // 使用默认搜索引擎搜索，或者如果有快捷方式，使用第一个快捷方式
         if (searchEngineShortcuts.isNotEmpty()) {
-            openSearchWithEngine(searchEngineShortcuts[0], query)
+            openSearchWithEngine(query, searchEngineShortcuts[0].url)
         } else {
             // 使用系统默认搜索引擎
             val searchUrl = SearchEngineListPreference.getSearchEngineUrl(this, 
@@ -1014,7 +1014,7 @@ class FloatingWindowService : Service() {
         view.setOnClickListener {
             val query = searchInput?.text?.toString()?.trim() ?: ""
             if (query.isNotEmpty()) {
-                openSearchWithEngine(shortcut, query)
+                openSearchWithEngine(query, shortcut.url)
             } else {
                 Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
             }
@@ -1096,37 +1096,42 @@ class FloatingWindowService : Service() {
     }
 
     // 使用特定搜索引擎进行搜索
-    private fun openSearchWithEngine(shortcut: SearchEngineShortcut, query: String) {
+    private fun openSearchWithEngine(query: String, engineKey: String? = null) {
         try {
-            if (shortcut.name.contains("+")) { // 如果是搜索引擎组
-                val intent = Intent(this, DualFloatingWebViewService::class.java)
-                // 修改键名为统一的命名方式
-                intent.putExtra("search_query", query)
-                // 计算窗口数量
-                val windowCount = shortcut.name.count { it == '+' } + 1
-                intent.putExtra("window_count", windowCount)
-                // 添加搜索引擎信息
-                intent.putExtra("engine_key", EngineUtil.getEngineKey(shortcut.name.split("+")[0].trim()))
-                startService(intent)
+            Log.d(TAG, "启动多窗口搜索, 关键词: $query, 引擎: $engineKey")
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", query)
+                putExtra("window_count", 3) // 确保始终打开三个窗口
                 
-                Log.d(TAG, "启动组合搜索: query=$query, windowCount=$windowCount")
-            } else {
-                val encodedQuery = Uri.encode(query)
-                val searchUrl = shortcut.url.replace("{query}", encodedQuery)
-                
-                val intent = Intent(this, FloatingWebViewService::class.java)
-                // 使用统一的参数名
-                intent.putExtra("url", searchUrl)
-                intent.putExtra("search_query", query) // 添加原始查询文本
-                startService(intent)
-                
-                Log.d(TAG, "启动单引擎搜索: query=$query, url=$searchUrl")
+                // 处理特定搜索引擎组
+                if (engineKey != null) {
+                    val isAIEngine = engineKey.startsWith("ai_")
+                    putExtra("search_engine", engineKey)
+                    
+                    // 设置搜索引擎组
+                    if (isAIEngine) {
+                        putExtra("engine_group", "ai")
+                    } else {
+                        putExtra("engine_group", "web")
+                    }
+                    
+                    Log.d(TAG, "使用特定搜索引擎: $engineKey, 组: ${if (isAIEngine) "ai" else "web"}")
+                } else {
+                    // 使用默认搜索引擎
+                    val defaultEngine = settingsManager.getDefaultSearchEngine()
+                    Log.d(TAG, "使用默认搜索引擎: $defaultEngine")
+                    putExtra("search_engine", defaultEngine)
+                }
             }
+            
+            startService(intent)
             searchInput?.setText("")
             setSearchModeDismiss()
+            
+            Log.d(TAG, "多窗口搜索服务已启动")
         } catch (e: Exception) {
-            Log.e(TAG, "Error searching with engine: ${e.message}")
-            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "启动搜索服务失败", e)
+            Toast.makeText(this, "搜索启动失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1140,8 +1145,8 @@ class FloatingWindowService : Service() {
                 val intent = Intent(this, com.example.aifloatingball.DualFloatingWebViewService::class.java).apply {
                 // 使用统一的参数名
                 putExtra("search_query", query)
-                // 默认单窗口
-                putExtra("window_count", 1)
+                // 修改为默认使用3个窗口
+                putExtra("window_count", 3)
                 
                 // 设置搜索引擎
                 val engineKey = if (isAI) {
