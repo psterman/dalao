@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="search_edit_text" type="id"/>
+    <item name="btn_switch_normal" type="id" />
+    <item name="menu_copy" type="id" />
+    <item name="menu_paste" type="id" />
+    <item name="menu_cut" type="id" />
+    <item name="menu_select_all" type="id" />
 </resources> 

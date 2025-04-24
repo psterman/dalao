@@ -7,6 +7,7 @@
 
     <!-- 顶部工具栏 -->
     <LinearLayout
+        android:id="@+id/top_control_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -47,10 +48,11 @@
             android:id="@+id/btn_switch_normal"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@drawable/ic_screen_rotation"
-            android:background="@android:color/transparent"
-            android:tint="@android:color/white"
-            android:contentDescription="切换到普通模式"/>
+            android:layout_margin="4dp"
+            android:src="@drawable/ic_switch_mode"
+            android:background="@drawable/circle_ripple"
+            android:contentDescription="切换到普通模式"
+            android:padding="8dp" />
 
         <ImageButton
             android:id="@+id/btn_toggle_layout"
