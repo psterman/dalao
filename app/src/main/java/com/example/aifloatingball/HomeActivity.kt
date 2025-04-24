@@ -1,71 +1,82 @@
 package com.example.aifloatingball
 
-import android.content.Intent
-import android.os.Bundle
-import android.view.GestureDetector
-import android.view.MotionEvent
-import android.view.View
-import android.widget.EditText
-import android.widget.ImageButton
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.GestureDetectorCompat
-import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+// Android standard library imports
+import android.app.AlertDialog
+import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.webkit.URLUtil
-import android.app.AlertDialog
-import android.view.LayoutInflater
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
+import android.content.Intent
+import android.content.res.Configuration
+import android.content.res.Resources
+import android.graphics.Color
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import kotlin.math.abs
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebSettings
-import android.view.inputmethod.EditorInfo
+import android.provider.Settings
+import android.util.Log
+import android.view.GestureDetector
+import android.view.Gravity
 import android.view.KeyEvent
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
+import android.view.View
 import android.view.ViewGroup
-import android.widget.FrameLayout
-import androidx.coordinatorlayout.widget.CoordinatorLayout
-import com.google.android.material.appbar.AppBarLayout
-import androidx.core.widget.NestedScrollView
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.switchmaterial.SwitchMaterial
-import androidx.appcompat.app.AppCompatDelegate
+import android.view.inputmethod.EditorInfo
 import android.webkit.CookieManager
+import android.webkit.URLUtil
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
-import java.io.ByteArrayInputStream
+import android.webkit.WebSettings
 import android.webkit.WebStorage
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Button
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.view.ScaleGestureDetector
-import androidx.drawerlayout.widget.DrawerLayout
-import androidx.core.view.GravityCompat
-import android.content.ClipData
-import android.net.Uri
-import android.content.res.Configuration
-import androidx.core.content.ContextCompat
-import net.sourceforge.pinyin4j.PinyinHelper
-import com.example.aifloatingball.model.SearchEngine
-import com.example.aifloatingball.model.AISearchEngine
-import com.example.aifloatingball.view.LetterIndexBar
-import android.view.Gravity
-import androidx.cardview.widget.CardView
-import android.provider.Settings
+import android.widget.TextView
+import android.widget.Toast
+
+// AndroidX imports
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.SwitchCompat
-import android.graphics.Color
-import android.util.Log
-import android.content.res.Resources
+import androidx.cardview.widget.CardView
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.content.ContextCompat
+import androidx.core.view.GestureDetectorCompat
+import androidx.core.view.GravityCompat
+import androidx.core.widget.NestedScrollView
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+
+// Google Material imports
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.switchmaterial.SwitchMaterial
+
+// Third-party library imports
+import net.sourceforge.pinyin4j.PinyinHelper
+
+// Project imports
+import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.view.LetterIndexBar
+import java.io.ByteArrayInputStream
+import kotlin.math.abs
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     companion object {
         private const val TAG = "HomeActivity"
     }
 
+    private lateinit var rootLayout: ViewGroup
     private lateinit var searchInput: EditText
     private lateinit var voiceSearchButton: ImageButton
     private lateinit var shortcutsGrid: RecyclerView
@@ -123,10 +134,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var isAIMode = true
     private var edgeGravity = GravityCompat.START
 
-    private lateinit var rootLayout: View
     private var autoHideSwitch: SwitchCompat? = null
     private var clipboardSwitch: SwitchCompat? = null
-    private lateinit var switchToFloatingButton: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -184,11 +193,15 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
 
         // 尝试查找开关
-        autoHideSwitch = findViewById<SwitchCompat>(R.id.auto_hide_switch)
-        clipboardSwitch = findViewById<SwitchCompat>(R.id.clipboard_switch)
+        autoHideSwitch = findViewById(R.id.auto_hide_switch)
+        clipboardSwitch = findViewById(R.id.clipboard_switch)
         
         // 设置开关状态
         updateSwitchStates()
+
+        findViewById<ImageButton>(R.id.btn_floating_mode).setOnClickListener {
+            toggleFloatingMode()
+        }
     }
 
     private fun setupDrawer() {
@@ -778,12 +791,6 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         findViewById<ImageButton>(R.id.btn_settings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
-
-        // 初始化并设置切换按钮
-        switchToFloatingButton = findViewById(R.id.btn_switch_floating)
-        switchToFloatingButton.setOnClickListener {
-            toggleFloatingMode()
-        }
     }
 
     private fun showMenuPanel() {
@@ -977,15 +984,6 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 findViewById(R.id.text_night_mode),
                 iconContainer
             )
-        }
-
-        // 悬浮窗模式
-        view.findViewById<LinearLayout>(R.id.btn_floating_mode).apply {
-            setOnClickListener {
-                // 切换到悬浮窗模式
-                toggleFloatingMode()
-                menuDialog.dismiss()
-            }
         }
     }
 
@@ -1322,41 +1320,23 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun toggleFloatingMode() {
-        // 检查是否有SYSTEM_ALERT_WINDOW权限
-        if (!Settings.canDrawOverlays(this)) {
-            // 没有权限，请求权限
-            Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            // 请求悬浮窗权限
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
             intent.data = Uri.parse("package:$packageName")
             startActivity(intent)
+            Toast.makeText(this, "请授予悬浮窗权限", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 有权限，启动悬浮窗服务
-        val intent = Intent(this, DualFloatingWebViewService::class.java)
-        
-        // 如果WebView可见，传递当前URL
-        if (webView.visibility == View.VISIBLE) {
-            intent.putExtra("url", webView.url)
+        // 启动悬浮窗服务
+        val intent = Intent(this, FloatingService::class.java)
+        if (FloatingService.isRunning) {
+            stopService(intent)
         } else {
-            // 否则传递默认搜索引擎
-            val defaultEngine = SearchActivity.NORMAL_SEARCH_ENGINES.firstOrNull { it.name == "百度" }
-                ?: SearchActivity.NORMAL_SEARCH_ENGINES.first()
-            intent.putExtra("url", defaultEngine.url.replace("{query}", ""))
+            startService(intent)
         }
-        
-        // 获取用户设置的窗口数量
-        val windowCount = settingsManager.getDefaultWindowCount()
-        intent.putExtra("window_count", windowCount)
-        
-        startService(intent)
-        
-        // 如果WebView可见，隐藏WebView
-        if (webView.visibility == View.VISIBLE) {
-            webView.visibility = View.GONE
-            homeContent.visibility = View.VISIBLE
-            webView.loadUrl("about:blank")
-        }
+        finish()
     }
 
     // 更新主题

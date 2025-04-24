@@ -56,8 +56,9 @@
             android:id="@+id/btn_toggle_layout"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@drawable/ic_screen_rotation"
+            android:src="@drawable/ic_floating_mode"
             android:background="@android:color/transparent"
+            android:tint="@android:color/white"
             android:contentDescription="切换布局"/>
 
         <ImageButton

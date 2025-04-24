@@ -109,12 +109,16 @@
                         android:src="@drawable/ic_settings" />
 
                     <ImageButton
-                        android:id="@+id/btn_switch_floating"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:id="@+id/btn_floating_mode"
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/circle_button_background"
+                        android:src="@drawable/ic_floating_mode"
+                        android:tint="@android:color/white"
                         android:contentDescription="切换到悬浮窗模式"
-                        android:src="@drawable/ic_floating_mode" />
+                        app:layout_constraintEnd_toEndOf="parent"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        android:layout_margin="16dp"/>
 
                 </LinearLayout>
 
@@ -187,5 +191,18 @@
             android:layout_gravity="end" />
 
     </LinearLayout>
+
+    <!-- 添加开关控件 -->
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/auto_hide_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/clipboard_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
 
 </androidx.drawerlayout.widget.DrawerLayout>
