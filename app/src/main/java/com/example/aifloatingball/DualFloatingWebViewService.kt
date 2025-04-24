@@ -90,6 +90,7 @@ class DualFloatingWebViewService : Service() {
     private var currentWebView: WebView? = null
     private var currentTitle: TextView? = null
     private var saveButton: ImageButton? = null // 保存按钮
+    private var switchToNormalButton: ImageButton? = null // 添加切换按钮
     
     private lateinit var settingsManager: SettingsManager
     private var leftEngineKey: String = "baidu"
@@ -340,6 +341,7 @@ class DualFloatingWebViewService : Service() {
         secondAIScrollContainer = floatingView?.findViewById(R.id.second_ai_scroll_container)
         thirdAIScrollContainer = floatingView?.findViewById(R.id.third_ai_scroll_container)
         saveButton = floatingView?.findViewById(R.id.btn_save_engines) // 添加保存按钮
+        switchToNormalButton = floatingView?.findViewById(R.id.btn_switch_normal) // 初始化切换按钮
     }
 
     private fun createWindowLayoutParams(): WindowManager.LayoutParams {
@@ -598,6 +600,22 @@ class DualFloatingWebViewService : Service() {
         // 窗口数量切换按钮 - 两个控件都使用同一个点击监听器
         floatingView?.findViewById<ImageButton>(R.id.btn_window_count)?.setOnClickListener(windowCountClickListener)
         windowCountToggleView?.setOnClickListener(windowCountClickListener)
+
+        // 设置切换按钮点击事件
+        switchToNormalButton?.setOnClickListener {
+            // 启动 HomeActivity
+            val intent = Intent(this, HomeActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                // 如果当前有URL，传递给 HomeActivity
+                firstWebView?.url?.let { url ->
+                    putExtra("url", url)
+                }
+            }
+            startActivity(intent)
+            
+            // 停止当前服务
+            stopSelf()
+        }
     }
 
     private fun setupTouchListeners() {

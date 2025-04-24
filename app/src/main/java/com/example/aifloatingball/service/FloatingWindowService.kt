@@ -289,7 +289,7 @@ class FloatingWindowService : Service() {
                 openSettings()
             }
         }
-        
+
         // 双击检测任务
         val doubleTapRunnable = Runnable {
             if (!hasPerformedAction && !hasMoved) {
@@ -319,13 +319,13 @@ class FloatingWindowService : Service() {
                     // 取消可能的待处理任务
                     handler.removeCallbacks(longPressRunnable)
                     handler.removeCallbacks(doubleTapRunnable)
-                    
+
                     // 设置长按检测
                     handler.postDelayed(longPressRunnable, longPressTimeout)
                     Log.d(TAG, "触摸开始: x=$initialX, y=$initialY")
                     true
                 }
-                
+
                 MotionEvent.ACTION_MOVE -> {
                     // 计算移动距离
                     val deltaX = event.rawX - initialTouchX
@@ -349,7 +349,7 @@ class FloatingWindowService : Service() {
                             hasPerformedAction = true // 标记已执行动作
                         }
                     }
-                    
+
                     // 如果正在拖动，更新悬浮球位置
                     if (isDragging) {
                         // 计算新位置
@@ -357,14 +357,14 @@ class FloatingWindowService : Service() {
                         params?.y = (initialY + deltaY).toInt()
                         
                         try {
-                            windowManager?.updateViewLayout(floatingView, params)
+                        windowManager?.updateViewLayout(floatingView, params)
                         } catch (e: Exception) {
                             Log.e(TAG, "更新位置失败: ${e.message}")
                         }
                     }
                     true
                 }
-                
+
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     // 取消长按检测
                     handler.removeCallbacks(longPressRunnable)
@@ -402,11 +402,11 @@ class FloatingWindowService : Service() {
                     }
                     true
                 }
-                
+
                 else -> false
             }
         }
-        
+
         // 为搜索容器添加触摸监听器，防止点击传递到悬浮球
         searchContainer?.setOnTouchListener { view, event ->
             // 消费搜索容器内的触摸事件，不向下传递
@@ -418,7 +418,7 @@ class FloatingWindowService : Service() {
     // 添加一个专门保存位置的方法
     private fun savePosition() {
         try {
-            params?.let { p ->
+        params?.let { p ->
                 // 获取悬浮球尺寸
                 val floatingBallIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
                 val ballSize = floatingBallIcon?.width ?: 80
@@ -460,11 +460,11 @@ class FloatingWindowService : Service() {
                 }
                 
                 // 保存到SharedPreferences
-                PreferenceManager.getDefaultSharedPreferences(this)
-                    .edit()
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
                     .putInt("last_x", safeX)
                     .putInt("last_y", safeY)
-                    .apply()
+                .apply()
                 Log.d(TAG, "位置已保存: x=$safeX, y=$safeY")
             }
         } catch (e: Exception) {
@@ -1111,7 +1111,7 @@ class FloatingWindowService : Service() {
                     // 设置搜索引擎组
                     if (isAIEngine) {
                         putExtra("engine_group", "ai")
-                    } else {
+            } else {
                         putExtra("engine_group", "web")
                     }
                     
@@ -1444,7 +1444,7 @@ class FloatingWindowService : Service() {
         )
         
         try {
-            windowManager?.updateViewLayout(floatingView, params)
+        windowManager?.updateViewLayout(floatingView, params)
         } catch (e: Exception) {
             Log.e(TAG, "更新布局参数失败: ${e.message}")
         }
@@ -1506,7 +1506,7 @@ class FloatingWindowService : Service() {
         params?.y = finalY
         
         try {
-            windowManager?.updateViewLayout(floatingView, params)
+        windowManager?.updateViewLayout(floatingView, params)
         } catch (e: Exception) {
             Log.e(TAG, "更新搜索界面位置失败: ${e.message}")
         }
@@ -1530,7 +1530,7 @@ class FloatingWindowService : Service() {
                 searchModeToggle?.visibility = View.GONE
                 
                 // 清空输入框内容
-                searchInput?.setText("")
+            searchInput?.setText("")
                 
                 // 隐藏键盘
                 hideKeyboard()
@@ -1545,7 +1545,7 @@ class FloatingWindowService : Service() {
                 )
                 
                 try {
-                    windowManager?.updateViewLayout(floatingView, params)
+                windowManager?.updateViewLayout(floatingView, params)
                     Log.d(TAG, "搜索界面已关闭，悬浮球位置已恢复: x=$initialX, y=$initialY")
                     
                     // 确保悬浮球在安全区域内

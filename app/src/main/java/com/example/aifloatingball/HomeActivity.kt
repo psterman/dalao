@@ -126,6 +126,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private lateinit var rootLayout: View
     private var autoHideSwitch: SwitchCompat? = null
     private var clipboardSwitch: SwitchCompat? = null
+    private lateinit var switchToFloatingButton: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -246,7 +247,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private fun updateToolbarLayout(isRightHanded: Boolean) {
         // 获取搜索栏容器
-        val searchBarContainer = findViewById<CardView>(R.id.search_bar_container) ?: return
+        val searchBarContainer = findViewById<AppBarLayout>(R.id.appbar) ?: return
         val searchBarParams = searchBarContainer.layoutParams as ViewGroup.MarginLayoutParams
         
         // 获取底部工具栏容器和按钮组
@@ -776,6 +777,12 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
         findViewById<ImageButton>(R.id.btn_settings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        // 初始化并设置切换按钮
+        switchToFloatingButton = findViewById(R.id.btn_switch_floating)
+        switchToFloatingButton.setOnClickListener {
+            toggleFloatingMode()
         }
     }
 
