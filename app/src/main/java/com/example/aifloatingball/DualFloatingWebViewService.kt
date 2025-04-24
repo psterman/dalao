@@ -38,6 +38,7 @@ import com.example.aifloatingball.manager.SearchEngineManager
 
 class DualFloatingWebViewService : Service() {
     companion object {
+        var isRunning = false
         private const val TAG = "DualFloatingWebViewService"
         private const val PREFS_NAME = "dual_floating_window_prefs"
         private const val KEY_WINDOW_WIDTH = "window_width"
@@ -131,6 +132,7 @@ class DualFloatingWebViewService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         try {
             // 创建并启动前台服务
             startForeground()
@@ -1286,6 +1288,8 @@ class DualFloatingWebViewService : Service() {
     }
 
     override fun onDestroy() {
+        super.onDestroy()
+        isRunning = false
         try {
             windowManager.removeView(floatingView)
             
@@ -1299,7 +1303,6 @@ class DualFloatingWebViewService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "移除视图失败", e)
         }
-        super.onDestroy()
     }
 
     private fun createEngineIcon(engineName: String): ImageView {

@@ -68,6 +68,7 @@ import net.sourceforge.pinyin4j.PinyinHelper
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.view.LetterIndexBar
+import com.example.aifloatingball.DualFloatingWebViewService
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
 
@@ -1329,9 +1330,19 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             return
         }
 
-        // 启动悬浮窗服务
-        val intent = Intent(this, FloatingService::class.java)
-        if (FloatingService.isRunning) {
+        // 启动双窗口悬浮服务
+        val intent = Intent(this, DualFloatingWebViewService::class.java)
+        
+        // 获取用户设置的窗口数量
+        val windowCount = settingsManager.getDefaultWindowCount()
+        intent.putExtra("window_count", windowCount)
+        
+        // 如果当前在WebView中有URL，传递给服务
+        if (webView.visibility == View.VISIBLE && webView.url != null) {
+            intent.putExtra("url", webView.url)
+        }
+        
+        if (DualFloatingWebViewService.isRunning) {
             stopService(intent)
         } else {
             startService(intent)
