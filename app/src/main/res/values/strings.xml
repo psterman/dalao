@@ -70,4 +70,5 @@
     <string name="search_engine_save_failed">无法保存搜索引擎</string>
     <string name="search_engine_shortcuts">搜索引擎快捷方式</string>
     <string name="please_input_search_content">请输入搜索内容</string>
+    <string name="text_selection_handle">Text selection handle</string>
 </resources> 

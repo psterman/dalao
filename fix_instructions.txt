@@ -1,0 +1,57 @@
+修复编译错误的说明
+===================
+
+1. 修复资源文件问题
+-----------------
+我们已经创建了以下资源文件，解决了"resource drawable/bg_selection_menu not found"错误：
+- app/src/main/res/drawable/bg_selection_menu.xml
+- app/src/main/res/drawable/app_selection_menu_background.xml
+- app/src/main/res/drawable/menu_background.xml
+- app/src/main/res/drawable/ic_content_copy.xml
+- app/src/main/res/drawable/ic_share.xml
+- app/src/main/res/drawable/ic_search.xml
+
+并且修改了以下文件以使用这些资源：
+- app/src/main/res/layout/view_text_selection_menu.xml (使用text_selection_menu_background)
+- app/src/main/java/com/example/aifloatingball/manager/TextSelectionManager.kt (使用app_selection_menu_background)
+- app/src/main/res/layout/view_menu_item.xml (修改文本颜色为深色)
+
+2. 修复DualFloatingWebViewService.kt文件中的编译错误
+-------------------------------------------
+需要在DualFloatingWebViewService.kt文件中添加以下修复：
+
+a) 添加缺少的导入:
+```kotlin
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+```
+
+b) 添加缺少的变量:
+```kotlin
+private val menuAutoHideHandler = Handler(Looper.getMainLooper())
+```
+
+文件位置：
+app/src/main/java/com/example/aifloatingball/DualFloatingWebViewService.kt
+
+修改方法：
+找到类变量声明部分（通常在class声明后），添加menuAutoHideHandler变量声明：
+```kotlin
+private val handler = Handler(Looper.getMainLooper())
+private val menuAutoHideHandler = Handler(Looper.getMainLooper())
+```
+
+找到文件顶部的import部分，添加缺少的导入：
+```kotlin
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
+```
+
+3. 项目配置修改建议
+---------------
+注意到build.gradle文件中包含了`resourcePrefix 'app_'`配置，这要求所有资源文件名以"app_"开头。
+建议要么：
+- 将资源文件统一重命名为app_开头
+- 或移除resourcePrefix配置
+
+推荐方案是为所有自定义资源添加app_前缀，以便与第三方库资源区分，同时保持资源命名一致性。 

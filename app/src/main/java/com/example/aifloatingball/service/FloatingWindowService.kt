@@ -66,6 +66,11 @@ import android.os.Build.VERSION_CODES
 import android.os.Build.VERSION
 import java.io.FileOutputStream
 import com.bumptech.glide.Glide
+import android.webkit.WebView
+import com.example.aifloatingball.utils.TextSelectionHelper
+import org.json.JSONObject
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -126,6 +131,30 @@ class FloatingWindowService : Service() {
                 Toast.makeText(this@FloatingWindowService, "搜索引擎快捷方式已更新", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private var textSelectionHelper: TextSelectionHelper? = null
+    private var isTextSelectionActive = false
+    private var isDraggingHandle = false
+
+    private fun toggleWindowFocusableFlag(focusable: Boolean) {
+        textSelectionHelper?.toggleWindowFocusableFlag(focusable)
+    }
+
+    private fun parseSelectionPositions(result: String): Pair<Pair<Int, Int>, Pair<Int, Int>>? {
+        return textSelectionHelper?.parseSelectionPositions(result)
+    }
+
+    private fun positionHandle(handle: ImageView?, x: Int, y: Int) {
+        textSelectionHelper?.positionHandle(handle, x, y)
+    }
+
+    private fun isOnHandle(x: Float, y: Float): Boolean {
+        return textSelectionHelper?.isOnHandle(x, y) ?: false
+    }
+
+    private fun updateSelectionRange(x: Float, y: Float) {
+        textSelectionHelper?.updateSelectionRange(x, y)
     }
 
     override fun onCreate() {
@@ -2004,4 +2033,90 @@ class FloatingWindowService : Service() {
         return event.rawX >= left && event.rawX <= right && 
                event.rawY >= top && event.rawY <= bottom
     }
+
+    private fun showSelectionHandles(webView: WebView) {
+        // 创建开始和结束控制柄
+        val startHandle = createSelectionHandle(true) as ImageView
+        val endHandle = createSelectionHandle(false) as ImageView
+        
+        // 添加控制柄到窗口
+        val handleParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+        
+        // 获取选择范围
+        webView.evaluateJavascript("""
+            (function() {
+                const selection = window.getSelection();
+                const range = selection.getRangeAt(0);
+                const startRect = range.getBoundingClientRect();
+                const endRect = range.getBoundingClientRect();
+                return {
+                    start: { x: startRect.left, y: startRect.top },
+                    end: { x: endRect.right, y: endRect.bottom }
+                };
+            })();
+        """) { result ->
+            // 解析结果并定位控制柄
+            val positions = parseSelectionPositions(result)
+            positions?.let { (start, end) ->
+                positionHandle(startHandle, start.first, start.second)
+                positionHandle(endHandle, end.first, end.second)
+            }
+        }
+    }
+
+    private fun createSelectionHandle(isStart: Boolean): View {
+        val handle = ImageView(this).apply {
+            setImageResource(if (isStart) R.drawable.text_select_handle_left else R.drawable.text_select_handle_right)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+        return handle
+    }
+
+    private fun handleTextSelectionFocus() {
+        // 临时允许窗口获取焦点
+        toggleWindowFocusableFlag(true)
+        
+        // 设置定时器，在一段时间后恢复不可获取焦点状态
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (!isTextSelectionActive) {
+                toggleWindowFocusableFlag(false)
+            }
+        }, 5000) // 5秒后恢复
+    }
+
+    private fun setupTouchHandling(webView: WebView) {
+        webView.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    // 检查是否在控制柄上
+                    if (isOnHandle(event.x, event.y)) {
+                        isDraggingHandle = true
+                        return@setOnTouchListener true
+                    }
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isDraggingHandle) {
+                        // 更新选择范围
+                        updateSelectionRange(event.x, event.y)
+                        return@setOnTouchListener true
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    isDraggingHandle = false
+                }
+            }
+            false
+        }
+    }
+
+    private val menuAutoHideHandler = Handler(Looper.getMainLooper())
 }

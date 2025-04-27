@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/text_selection_menu_background"
+    android:orientation="horizontal"
+    android:padding="4dp">
+
+    <include
+        android:id="@+id/menu_select_all"
+        layout="@layout/view_menu_item"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:layout_marginHorizontal="2dp"
+        android:background="#DDDDDD" />
+
+    <include
+        android:id="@+id/menu_cut"
+        layout="@layout/view_menu_item"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:layout_marginHorizontal="2dp"
+        android:background="#DDDDDD" />
+
+    <include
+        android:id="@+id/menu_copy"
+        layout="@layout/view_menu_item"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:layout_marginHorizontal="2dp"
+        android:background="#DDDDDD" />
+
+    <include
+        android:id="@+id/menu_paste"
+        layout="@layout/view_menu_item"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+</LinearLayout> 

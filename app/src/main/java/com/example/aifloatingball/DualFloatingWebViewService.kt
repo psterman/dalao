@@ -1,49 +1,58 @@
 package com.example.aifloatingball
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.SearchManager
 import android.app.Service
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.graphics.PixelFormat
+import android.graphics.Point
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.text.TextUtils
 import android.util.Log
 import android.util.TypedValue
 import android.view.*
+import android.view.ActionMode
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.*
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.SearchEngineAdapter
-import com.example.aifloatingball.model.SearchEngine
-import com.example.aifloatingball.utils.FaviconManager
-import com.example.aifloatingball.utils.EngineUtil
-import java.net.URLEncoder
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import com.example.aifloatingball.utils.IconLoader
 import com.example.aifloatingball.manager.SearchEngineManager
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.res.Configuration
-import android.text.TextUtils
-import android.view.ActionMode
-import android.view.Menu
-import android.view.MenuItem
-import android.webkit.JavascriptInterface
-import android.widget.PopupMenu
+import com.example.aifloatingball.manager.TextSelectionManager
+import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.utils.EngineUtil
+import com.example.aifloatingball.utils.FaviconManager
+import com.example.aifloatingball.utils.IconLoader
+import org.json.JSONObject
+import java.net.URLEncoder
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 class DualFloatingWebViewService : Service() {
     companion object {
@@ -126,7 +135,14 @@ class DualFloatingWebViewService : Service() {
     private lateinit var faviconManager: FaviconManager
     private lateinit var iconLoader: IconLoader
 
-    private var textSelectionPopupWindow: PopupWindow? = null
+    private var textSelectionMenuView: View? = null
+    private var textSelectionManager: TextSelectionManager? = null
+    private var currentSelectedText: String = ""
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    
+    // 添加自动隐藏菜单的Handler
+    private val menuAutoHideHandler = Handler(Looper.getMainLooper())
 
     /**
      * 扩展函数将dp转换为px
@@ -500,7 +516,7 @@ class DualFloatingWebViewService : Service() {
         val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
         
         webViews.forEach { webView ->
-            // Apply common settings
+            // 配置WebView设置
             webView.settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -516,57 +532,32 @@ class DualFloatingWebViewService : Service() {
                 userAgentString = userAgentString + " Mobile"
             }
             
-            // 设置WebView的长按事件监听器，用于激活文本选择
-            webView.setOnLongClickListener { view ->
-                // 确保窗口可以获取焦点
-                toggleWindowFocusableFlag(true)
-                
-                // 获取WebView
-                val targetWebView = view as WebView
-                
-                // 执行JavaScript获取选中文本
-                targetWebView.evaluateJavascript(
-                    "(function() { return window.getSelection().toString(); })();",
-                    { result ->
-                        val selectedText = result?.replace("\"", "")
-                        if (!selectedText.isNullOrEmpty() && selectedText != "null") {
-                            // 有选中文本时，显示菜单
-                            showTextSelectionPopupMenu(targetWebView, selectedText)
-                        }
-                    }
-                )
-                
-                // 返回false以不中断长按选择文本的默认行为
-                false
-            }
-            
-            // 设置触摸监听器，检测单指双击和长按
+            // 设置触摸事件监听
             webView.setOnTouchListener { view, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        // 根据需要，可以在这里添加检测多种触摸手势的代码
+                        // 记录触摸开始位置和时间
+                        view.tag = event
                     }
                     MotionEvent.ACTION_UP -> {
-                        // 如果需要检测点击结束时的行为
+                        // 获取DOWN事件
+                        val downEvent = view.tag as? MotionEvent
+                        if (downEvent != null) {
+                            // 计算是否为长按
+                            val duration = event.eventTime - downEvent.downTime
+                            if (duration >= ViewConfiguration.getLongPressTimeout()) {
+                                // 长按时间已达到，处理长按事件
+                                handleLongPress(webView, event)
+                            }
+                        }
                     }
                 }
-                // 返回false以允许WebView处理其他触摸事件
+                // 返回false让事件继续传递给WebView内部处理
                 false
             }
-            
-            // Enable text selection with custom menu
-            enableWebViewTextSelection(webView)
-        }
-        
-        // Continue with specific WebView setups for first, second, and third WebViews
-        
-        // For the first WebView
-        firstWebView?.apply {
-            webViewClient = object : WebViewClient() {
-                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
-                    handler?.proceed()
-                }
-                
+
+            // 设置WebView客户端
+            webView.webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     Log.d(TAG, "开始加载页面: $url")
@@ -575,816 +566,501 @@ class DualFloatingWebViewService : Service() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     Log.d(TAG, "页面加载完成: $url")
-                    view?.requestLayout()
+                    view?.let { 
+                        // 启用文本选择
+                        enableTextSelectionMode(it)
+                        
+                        // 注册JavaScript接口
+                        it.addJavascriptInterface(
+                            TextSelectionJavaScriptInterface(it),
+                            "textSelectionCallback"
+                        )
+                    }
                 }
             }
-            
+        }
+
+        // 初始化WebView首页
+        firstWebView?.let {
             val leftHomeUrl = EngineUtil.getSearchEngineHomeUrl(leftEngineKey)
-            loadUrl(leftHomeUrl)
-            
+            it.loadUrl(leftHomeUrl)
             firstTitle?.text = EngineUtil.getSearchEngineName(leftEngineKey, false)
         }
         
-        // Similar setup for second and third WebViews - keep existing implementation
-        // ... (existing code for second and third WebViews) ...
+        secondWebView?.let {
+            val centerHomeUrl = EngineUtil.getSearchEngineHomeUrl(centerEngineKey)
+            it.loadUrl(centerHomeUrl)
+            secondTitle?.text = EngineUtil.getSearchEngineName(centerEngineKey, false)
+        }
+        
+        thirdWebView?.let {
+            val rightHomeUrl = EngineUtil.getSearchEngineHomeUrl(rightEngineKey)
+            it.loadUrl(rightHomeUrl)
+            thirdTitle?.text = EngineUtil.getSearchEngineName(rightEngineKey, false)
+        }
     }
 
-    /**
-     * Enable text selection with custom actions in WebView
-     */
-    private fun enableWebViewTextSelection(webView: WebView) {
-        try {
-            // Add JavaScript interface for text selection detection
-            webView.addJavascriptInterface(object : Any() {
-                @JavascriptInterface
-                fun onTextSelected(selectedText: String) {
+    // 初始化文本选择功能
+    private fun initTextSelection(webView: WebView) {
+        // 创建文本选择管理器
+        if (textSelectionManager == null) {
+            textSelectionManager = TextSelectionManager(
+                context = this,
+                webView = webView,
+                windowManager = windowManager,
+                onSelectionChanged = { selectedText: String ->
+                    currentSelectedText = selectedText
+                    Log.d(TAG, "选中文本变化: $selectedText")
+                    
                     if (selectedText.isNotEmpty()) {
-                        Handler(Looper.getMainLooper()).post {
-                            showTextSelectionPopupMenu(webView, selectedText)
-                        }
+                        // 获取WebView中心点位置作为菜单显示位置
+                        val location = IntArray(2)
+                        webView.getLocationOnScreen(location)
+                        val centerX = location[0] + webView.width / 2
+                        val centerY = location[1] + webView.height / 2
+                        
+                        // 显示选择菜单
+                        showTextSelectionMenu(webView, centerX, centerY)
                     }
                 }
-            }, "TextSelection")
-            
-            // Inject JavaScript to listen for selection changes
-            val script = """
-                (function() {
-                    document.addEventListener('selectionchange', function() {
-                        var selectedText = window.getSelection().toString();
-                        if (selectedText.length > 0) {
-                            // Don't call too frequently - only when selection is stable
-                            if (window.textSelectionTimeout) {
-                                clearTimeout(window.textSelectionTimeout);
-                            }
-                            window.textSelectionTimeout = setTimeout(function() {
-                                window.TextSelection.onTextSelected(selectedText);
-                            }, 500);
-                        }
-                    });
-                })();
-            """.trimIndent()
-            
-            // Store the existing WebViewClient
-            val existingWebViewClient = webView.webViewClient
-            
-            // Create a new WebViewClient that preserves the functionality of the existing one
-            webView.webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    // Call the original implementation first
-                    existingWebViewClient.onPageFinished(view, url)
-                    
-                    // Then inject our text selection script
-                    webView.evaluateJavascript(script, null)
-                    
-                    // Ensure input method can interact with WebView
-                    val params = floatingView?.layoutParams as? WindowManager.LayoutParams
-                    if (params != null) {
-                        params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                        try {
-                            windowManager.updateViewLayout(floatingView, params)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "更新窗口参数失败", e)
-                        }
-                    }
-                }
-                
-                // Forward all other WebViewClient methods to the existing implementation
-                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                    return if (existingWebViewClient.shouldOverrideUrlLoading(view, url)) {
-                        true
-                    } else {
-                        super.shouldOverrideUrlLoading(view, url)
-                    }
-                }
-                
-                override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
-                    try {
-                        // Try to call the existing client's method
-                        existingWebViewClient.onReceivedSslError(view, handler, error)
-                    } catch (e: Exception) {
-                        // If it fails, use the default behavior
-                        handler?.proceed()
-                    }
-                }
-                
-                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                    existingWebViewClient.onPageStarted(view, url, favicon)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "启用WebView文本选择失败: ${e.message}")
+            )
         }
+        
+        // 注入JavaScript增强文本选择能力
+        textSelectionManager?.injectSelectionJavaScript()
+        
+        // 启用文本选择模式
+        enableTextSelectionMode(webView)
     }
 
-    /**
-     * Show a popup menu for text selection
-     */
-    private fun showTextSelectionPopupMenu(webView: WebView, selectedText: String) {
-        try {
-            // 确保窗口可以获取焦点
-            toggleWindowFocusableFlag(true)
-            
-            // 获取WebView位置
-            val location = IntArray(2)
-            webView.getLocationOnScreen(location)
-            
-            // 创建弹出菜单
-            val inflater = LayoutInflater.from(this)
-            val menuView = inflater.inflate(R.layout.text_selection_menu, null)
-            
-            // 创建弹出窗口
-            textSelectionPopupWindow = PopupWindow(
-                menuView,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                true // 可获取焦点
-            ).apply {
-                isOutsideTouchable = true
-                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-                elevation = 10f
-            }
-            
-            // 设置菜单项点击监听器
-            menuView.findViewById<TextView>(R.id.menu_copy)?.setOnClickListener {
-                copyToClipboard(selectedText)
-                Toast.makeText(this@DualFloatingWebViewService, "已复制", Toast.LENGTH_SHORT).show()
-                textSelectionPopupWindow?.dismiss()
-            }
-            
-            menuView.findViewById<TextView>(R.id.menu_paste)?.setOnClickListener {
-                pasteToWebView(webView)
-                textSelectionPopupWindow?.dismiss()
-            }
-            
-            menuView.findViewById<TextView>(R.id.menu_cut)?.setOnClickListener {
-                copyToClipboard(selectedText)
-                webView.evaluateJavascript("document.execCommand('delete');", null)
-                Toast.makeText(this@DualFloatingWebViewService, "已剪切", Toast.LENGTH_SHORT).show()
-                textSelectionPopupWindow?.dismiss()
-            }
-            
-            menuView.findViewById<TextView>(R.id.menu_select_all)?.setOnClickListener {
-                webView.evaluateJavascript("document.execCommand('selectAll');", null)
-                textSelectionPopupWindow?.dismiss()
-            }
-            
-            // 显示菜单在中心位置
-            webView.post {
-                textSelectionPopupWindow?.showAtLocation(
-                    webView,
-                    Gravity.CENTER,
-                    0,
-                    0
-                )
-            }
-            
-            // 设置关闭监听器，还原窗口属性
-            textSelectionPopupWindow?.setOnDismissListener {
-                Handler(Looper.getMainLooper()).postDelayed({
-                    toggleWindowFocusableFlag(false)
-                }, 500) // 延迟500毫秒再切换窗口焦点状态，避免突然失焦导致的用户体验问题
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "显示文本选择菜单失败: ${e.message}")
-            toggleWindowFocusableFlag(false) // 确保即使出错也能恢复窗口状态
-        }
-    }
-
-    private fun setupControls() {
-        // 设置移动和调整大小的触摸监听
-        setupTouchListeners()
+    private fun handleLongPress(webView: WebView, event: MotionEvent) {
+        // 获取相对于WebView的坐标
+        val x = event.x.toInt()
+        val y = event.y.toInt()
         
-        // 设置布局切换按钮
-        toggleLayoutButton?.setOnClickListener {
-            isHorizontalLayout = !isHorizontalLayout
-            updateLayoutOrientation()
-            saveWindowState()
-        }
+        Log.d(TAG, "处理长按事件: WebView相对坐标($x, $y)")
         
-        // 设置搜索功能
-        setupSearchFunctionality()
+        // 清除先前的选择
+        textSelectionManager?.clearSelection()
         
-        // 设置关闭按钮
-        closeButton?.setOnClickListener {
-            stopSelf()
-        }
-        
-        // 设置单窗口模式按钮
-        singleWindowButton?.setOnClickListener {
-            switchToSingleWindowMode()
-        }
-        
-        // 设置搜索引擎类型切换按钮
-        setupEngineToggleButtons()
-        
-        // 设置引擎容器样式
-        setupEngineContainerStyle()
-        
-        // 设置保存按钮点击事件
-        saveButton?.setOnClickListener {
-            // 显示保存中的提示
-            Toast.makeText(this, "正在保存搜索引擎组合...", Toast.LENGTH_SHORT).show()
-            // 保存当前搜索引擎组合
-            saveCurrentSearchEngines()
-        }
-        
-        // 确保保存按钮可见
-        saveButton?.visibility = View.VISIBLE
-
-        // 窗口数量切换的点击处理函数
-        val windowCountClickListener = View.OnClickListener {
-            // 获取当前显示的窗口数量
-            val visibleCount = when {
-                thirdWebView?.visibility == View.VISIBLE -> 3
-                secondWebView?.visibility == View.VISIBLE -> 2
-                else -> 1
+        // 创建文本选择管理器
+        textSelectionManager = TextSelectionManager(
+            context = this,
+            webView = webView,
+            windowManager = windowManager,
+            onSelectionChanged = { selectedText: String ->
+                currentSelectedText = selectedText
+                if (selectedText.isNotEmpty()) {
+                    // 显示菜单
+                    val screenX = event.rawX.toInt()
+                    val screenY = event.rawY.toInt()
+                    showTextSelectionMenu(webView, screenX, screenY)
+                }
             }
-            
-            // 循环切换窗口数量：1 -> 2 -> 3 -> 1
-            val newCount = when (visibleCount) {
-                1 -> 2
-                2 -> 3
-                else -> 1
-            }
-            
-            // 更新窗口可见性
-            updateWindowVisibility(newCount)
-            
-            // 更新窗口数量
-            windowCount = newCount
-            
-            // 保存设置
-            settingsManager.setDefaultWindowCount(newCount)
-            
-            // 更新提示文本
-            windowCountToggleView?.text = "$newCount"
-        }
-
-        // 窗口数量切换按钮 - 两个控件都使用同一个点击监听器
-        floatingView?.findViewById<ImageButton>(R.id.btn_window_count)?.setOnClickListener(windowCountClickListener)
-        windowCountToggleView?.setOnClickListener(windowCountClickListener)
-
-        // 设置切换按钮点击事件，包含额外的空值检查
-        if (switchToNormalButton != null) {
-            switchToNormalButton?.setOnClickListener {
-                switchToNormalMode()
-            }
-        } else {
-            // 如果按钮为null，记录错误并尝试创建替代方案
-            Log.e(TAG, "切换按钮不可用，尝试使用备用方法")
-            
-            // 可以尝试动态创建一个按钮或使用其他现有按钮添加长按功能
-            closeButton?.setOnLongClickListener {
-                // 长按关闭按钮作为切换到普通模式的备用方案
-                Toast.makeText(this, "长按检测到，切换到普通模式", Toast.LENGTH_SHORT).show()
-                switchToNormalMode()
-                true
-            }
-        }
-    }
-
-    private fun setupTouchListeners() {
-        // 处理窗口拖动
-        val titleBars = listOf(
-            floatingView?.findViewById<View>(R.id.first_title_bar),
-            floatingView?.findViewById<View>(R.id.second_title_bar),
-            floatingView?.findViewById<View>(R.id.third_title_bar)
         )
         
-        titleBars.forEach { titleBar ->
-            titleBar?.setOnTouchListener { _, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.x ?: 0
-                        initialY = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.y ?: 0
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isMoving = true
-                        return@setOnTouchListener true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        if (isMoving) {
-                            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
-                            params.x = initialX + (event.rawX - initialTouchX).toInt()
-                            params.y = initialY + (event.rawY - initialTouchY).toInt()
-                            try {
-                                windowManager.updateViewLayout(floatingView, params)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "更新窗口位置失败", e)
+        // 触发震动反馈
+        try {
+            @Suppress("DEPRECATION")
+            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(android.os.VibrationEffect.createOneShot(50, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(50)
+            }
+            Log.d(TAG, "震动反馈已触发")
+        } catch (e: Exception) {
+            Log.e(TAG, "震动反馈失败: ${e.message}")
+        }
+        
+        // 使用更可靠的方法选择文本
+        val script = """
+            (function() {
+                try {
+                    // 设置选择样式
+                    var style = document.createElement('style');
+                    style.textContent = `
+                        * {
+                            -webkit-user-select: text !important;
+                            user-select: text !important;
+                        }
+                        ::selection {
+                            background: rgba(33, 150, 243, 0.4) !important;
+                        }
+                    `;
+                    document.head.appendChild(style);
+                    
+                    // 获取点击位置的元素
+                    var clickElement = document.elementFromPoint($x, $y);
+                    if (!clickElement) return "no-element";
+                    
+                    // 确保元素可选
+                    clickElement.style.webkitUserSelect = 'text';
+                    clickElement.style.userSelect = 'text';
+                    
+                    // 尝试选取一个单词
+                    var wordScript = `
+                        var selection = window.getSelection();
+                        selection.removeAllRanges();
+                        
+                        var range = document.caretRangeFromPoint($x, $y);
+                        if (range) {
+                            selection.addRange(range);
+                            selection.modify('extend', 'forward', 'word');
+                            
+                            // 如果选择为空，尝试向后选择一个单词
+                            if (selection.toString().trim() === '') {
+                                selection.modify('move', 'backward', 'word');
+                                selection.modify('extend', 'forward', 'word');
+                            }
+                            
+                            // 如果仍然为空，尝试选择父元素的一部分
+                            if (selection.toString().trim() === '') {
+                                selection.removeAllRanges();
+                                var elem = document.elementFromPoint($x, $y);
+                                var range = document.createRange();
+                                range.selectNodeContents(elem);
+                                selection.addRange(range);
                             }
                         }
-                        return@setOnTouchListener true
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        isMoving = false
-                        saveWindowState()
-                        return@setOnTouchListener true
-                    }
-                    else -> return@setOnTouchListener false
-                }
-            }
-        }
-        
-        // 处理窗口大小调整
-        resizeHandle?.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
-                    initialWidth = params.width
-                    initialHeight = params.height
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    isResizing = true
-                    return@setOnTouchListener true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (isResizing) {
-                        val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return@setOnTouchListener false
-                        val minWidth = (MIN_WIDTH_DP * resources.displayMetrics.density).toInt()
-                        val minHeight = (MIN_HEIGHT_DP * resources.displayMetrics.density).toInt()
+                        return selection.toString();
+                    `;
+                    
+                    // 执行选择
+                    var wordResult = eval(wordScript);
+                    
+                    // 如果选择成功获取选择范围
+                    var selection = window.getSelection();
+                    if (selection.rangeCount > 0 && selection.toString().trim().length > 0) {
+                        var range = selection.getRangeAt(0);
+                        var rects = range.getClientRects();
                         
-                        // 计算新尺寸
-                        val newWidth = (initialWidth + (event.rawX - initialTouchX).toInt()).coerceAtLeast(minWidth)
-                        val newHeight = (initialHeight + (event.rawY - initialTouchY).toInt()).coerceAtLeast(minHeight)
-                        
-                        // 应用新尺寸
-                        params.width = newWidth
-                        params.height = newHeight
-                        
-                        try {
-                            windowManager.updateViewLayout(floatingView, params)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "调整窗口大小失败", e)
+                        if (rects.length > 0) {
+                            var firstRect = rects[0];
+                            var lastRect = rects[rects.length - 1];
+                            
+                            // 保护选择不被清除
+                            document.addEventListener('mousedown', function(e) {
+                                e.stopPropagation();
+                            }, true);
+                            document.addEventListener('touchstart', function(e) {
+                                e.stopPropagation();
+                            }, true);
+                            
+                            return JSON.stringify({
+                                text: selection.toString(),
+                                left: {
+                                    x: firstRect.left + window.scrollX,
+                                    y: firstRect.bottom + window.scrollY
+                                },
+                                right: {
+                                    x: lastRect.right + window.scrollX,
+                                    y: lastRect.bottom + window.scrollY
+                                }
+                            });
                         }
                     }
-                    return@setOnTouchListener true
+                    
+                    return "no-selection";
+                } catch (e) {
+                    console.error("选择错误:", e);
+                    return "error:" + e.toString();
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    isResizing = false
-                    saveWindowState()
-                    return@setOnTouchListener true
+            })();
+        """.trimIndent()
+        
+        webView.evaluateJavascript(script) { result ->
+            Log.d(TAG, "JavaScript选择结果: $result")
+            
+            if (result != "null" && !result.startsWith("\"no-") && !result.startsWith("\"error:")) {
+                try {
+                    val jsonStr = result.replace("\\\"", "\"")
+                        .replace("^\"|\"$".toRegex(), "")
+                    val json = JSONObject(jsonStr)
+                    
+                    val selectedText = json.getString("text")
+                    currentSelectedText = selectedText
+                    
+                    if (selectedText.isNotEmpty()) {
+                        val leftPos = json.getJSONObject("left")
+                        val rightPos = json.getJSONObject("right")
+                        
+                        // 确保在主线程显示选择柄
+                        mainHandler.post {
+                            // 显示选择柄
+                            textSelectionManager?.showSelectionHandles(
+                                leftPos.getInt("x"),
+                                leftPos.getInt("y"),
+                                rightPos.getInt("x"),
+                                rightPos.getInt("y")
+                            )
+                            
+                            // 防止选择消失
+                            preventSelectionLoss(webView)
+                        }
+                        
+                        Log.d(TAG, "成功选中文本: $selectedText")
+                    }
+                            } catch (e: Exception) {
+                    Log.e(TAG, "解析选择结果失败: ${e.message}")
                 }
-                else -> return@setOnTouchListener false
+            } else {
+                Log.e(TAG, "未能选中文本: $result")
             }
         }
     }
 
-    private fun setupSearchFunctionality() {
-        // 设置搜索输入框的回车键操作
-        searchInput?.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                performDualSearch()
-                return@setOnEditorActionListener true
-            }
-            false
+    // 防止选择丢失
+    private fun preventSelectionLoss(webView: WebView) {
+        val script = """
+            (function() {
+                // 保存当前选择
+                var savedSelection = window.getSelection().toString();
+                
+                // 禁用可能清除选择的事件
+                document.addEventListener('touchstart', function(e) {
+                    e.stopPropagation();
+                }, true);
+                
+                document.addEventListener('mousedown', function(e) {
+                    e.stopPropagation();
+                }, true);
+                
+                // 禁用长按菜单
+                document.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                }, true);
+                
+                return "selection-protected";
+            })();
+        """.trimIndent()
+        
+        webView.evaluateJavascript(script) { result ->
+            Log.d(TAG, "选择保护结果: $result")
+        }
+    }
+
+    // 显示文本选择菜单
+    private fun showTextSelectionMenu(webView: WebView, x: Int, y: Int) {
+        Log.d(TAG, "显示文本选择菜单: ($x, $y)")
+        
+        // 如果菜单已显示，先移除
+        hideTextSelectionMenu()
+        
+        // 加载菜单布局
+        val menuView = LayoutInflater.from(this).inflate(R.layout.text_selection_menu, null)
+        
+        // 设置菜单按钮点击事件
+        menuView.findViewById<View>(R.id.action_copy).setOnClickListener {
+            Log.d(TAG, "复制选中文本")
+            webView.evaluateJavascript("javascript:window.TextSelection.getSelectedText()", { selectedText ->
+                if (selectedText != "null" && selectedText.isNotEmpty()) {
+                    val text = JSONObject(selectedText).optString("text", "")
+                    if (text.isNotEmpty()) {
+                        copyToClipboard(text)
+                        Toast.makeText(this, "已复制文本", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                hideTextSelectionMenu()
+                webView.evaluateJavascript("javascript:window.TextSelection.clearSelection()", null)
+            })
         }
         
-        // 设置搜索按钮点击事件
-        dualSearchButton?.setOnClickListener {
-            performDualSearch()
+        menuView.findViewById<View>(R.id.action_cut).setOnClickListener {
+            Log.d(TAG, "剪切选中文本")
+            webView.evaluateJavascript("javascript:window.TextSelection.getSelectedText()", { selectedText ->
+                if (selectedText != "null" && selectedText.isNotEmpty()) {
+                    val text = JSONObject(selectedText).optString("text", "")
+                    if (text.isNotEmpty()) {
+                        copyToClipboard(text)
+                        Toast.makeText(this, "已剪切文本", Toast.LENGTH_SHORT).show()
+                        // 清除选中的文本
+                        webView.evaluateJavascript(
+                            "javascript:document.execCommand('delete', false, null)", null
+                        )
+                    }
+                }
+                hideTextSelectionMenu()
+                webView.evaluateJavascript("javascript:window.TextSelection.clearSelection()", null)
+            })
         }
-    }
-
-    private fun performDualSearch() {
-        val query = searchInput?.text?.toString()?.trim() ?: ""
-        if (query.isNotEmpty()) {
-            try {
-                val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                
-                // 使用左侧搜索引擎
-                val leftUrl = EngineUtil.getSearchEngineSearchUrl(leftEngineKey, encodedQuery)
-                firstWebView?.loadUrl(leftUrl)
-                firstTitle?.text = "${EngineUtil.getSearchEngineName(leftEngineKey, false)}: $query"
-                
-                // 如果有两个或更多窗口，使用中间搜索引擎
-                if (windowCount >= 2) {
-                    val centerUrl = EngineUtil.getSearchEngineSearchUrl(centerEngineKey, encodedQuery)
-                    secondWebView?.loadUrl(centerUrl)
-                    secondTitle?.text = "${EngineUtil.getSearchEngineName(centerEngineKey, false)}: $query"
+        
+        menuView.findViewById<View>(R.id.action_paste).setOnClickListener {
+            Log.d(TAG, "粘贴文本")
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboardManager.hasPrimaryClip()) {
+                val item = clipboardManager.primaryClip?.getItemAt(0)
+                val pasteText = item?.text?.toString() ?: ""
+                if (pasteText.isNotEmpty()) {
+                    // 使用JavaScript执行粘贴操作
+                    val escapedText = URLEncoder.encode(pasteText, "UTF-8")
+                    webView.evaluateJavascript(
+                        "javascript:document.execCommand('insertText', false, decodeURIComponent('$escapedText'))",
+                        null
+                    )
                 }
-                
-                // 如果有三个窗口，使用右侧搜索引擎
-                if (windowCount >= 3) {
-                    val rightUrl = EngineUtil.getSearchEngineSearchUrl(rightEngineKey, encodedQuery)
-                    thirdWebView?.loadUrl(rightUrl)
-                    thirdTitle?.text = "${EngineUtil.getSearchEngineName(rightEngineKey, false)}: $query"
-                }
-                
-                // 关闭键盘
-                val inputMethodManager = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                inputMethodManager.hideSoftInputFromWindow(searchInput?.windowToken, 0)
-            } catch (e: Exception) {
-                Log.e(TAG, "执行搜索失败", e)
-                Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+            hideTextSelectionMenu()
+            webView.evaluateJavascript("javascript:window.TextSelection.clearSelection()", null)
         }
+        
+        menuView.findViewById<View>(R.id.action_select_all).setOnClickListener {
+            Log.d(TAG, "全选")
+            webView.evaluateJavascript("javascript:document.execCommand('selectAll', false, null)", null)
+        }
+        
+        // 计算菜单显示位置
+        val position = calculateMenuPosition(webView, x, y, menuView)
+        
+        // 设置菜单布局参数
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            this.x = position.x
+            this.y = position.y
+            gravity = Gravity.START or Gravity.TOP
+        }
+        
+        // 添加菜单视图到窗口
+        windowManager.addView(menuView, params)
+        textSelectionMenuView = menuView
+        
+        // 添加动画效果
+        menuView.alpha = 0f
+        menuView.scaleX = 0.8f
+        menuView.scaleY = 0.8f
+        
+        menuView.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(200)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+            
+        // 添加自动隐藏计时器
+        menuAutoHideHandler.removeCallbacksAndMessages(null)
+        menuAutoHideHandler.postDelayed({
+            if (textSelectionMenuView != null) {
+                hideTextSelectionMenu()
+                webView.evaluateJavascript("javascript:window.TextSelection.clearSelection()", null)
+            }
+        }, 8000) // 8秒后自动隐藏
     }
     
-    /**
-     * 更新布局方向
-     * @return 返回设置的方向值（HORIZONTAL 或 VERTICAL）
-     */
-    private fun updateLayoutOrientation(): Int {
+    private fun hideTextSelectionMenu() {
+        textSelectionMenuView?.let {
+            try {
+                it.animate()
+                    .alpha(0f)
+                    .scaleX(0.8f)
+                    .scaleY(0.8f)
+                    .setDuration(150)
+                    .setInterpolator(AccelerateInterpolator())
+                    .withEndAction {
+                        try {
+                            windowManager.removeView(it)
+        } catch (e: Exception) {
+                            Log.e(TAG, "移除菜单视图失败", e)
+                        }
+                        textSelectionMenuView = null
+                    }
+                    .start()
+            } catch (e: Exception) {
+                Log.e(TAG, "隐藏文本选择菜单失败", e)
+                try {
+                    windowManager.removeView(it)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "移除菜单视图失败", e2)
+                }
+                textSelectionMenuView = null
+            }
+        }
+        menuAutoHideHandler.removeCallbacksAndMessages(null)
+    }
+
+    // 计算菜单显示位置
+    private fun calculateMenuPosition(webView: WebView, x: Int, y: Int, menuView: View): Point {
+        // 测量菜单视图大小
+        menuView.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        
+        val menuWidth = menuView.measuredWidth
+        val menuHeight = menuView.measuredHeight
+        
+        // 获取WebView在屏幕上的位置
+        val webViewLocation = IntArray(2)
+        webView.getLocationOnScreen(webViewLocation)
+        
+        // 屏幕尺寸
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
-        val isLandscape = screenWidth > screenHeight
-
-        val windowParams = floatingView?.layoutParams as? WindowManager.LayoutParams
         
-        val orientationValue = if (isHorizontalLayout) {
-            LinearLayout.HORIZONTAL
-        } else {
-            LinearLayout.VERTICAL
+        // 计算菜单位置，优先显示在选择点上方
+        // x坐标：优先水平居中于点击位置，但不超出屏幕边界
+        val menuX = max(0, min(x - menuWidth / 2, screenWidth - menuWidth))
+        
+        // y坐标：优先在点击位置上方45dp，如果太靠上则放在点击位置下方25dp
+        val offsetUp = dpToPx(45)
+        val offsetDown = dpToPx(25)
+        
+        var menuY = y - menuHeight - offsetUp
+        
+        // 如果太靠上，或者与WebView顶部太近，放到触摸点下方
+        if (menuY < 0 || (y - webViewLocation[1]) < menuHeight) {
+            menuY = y + offsetDown
         }
         
-        container?.orientation = orientationValue
-        
-        if (isHorizontalLayout) {
-            // 设置窗口宽度为屏幕宽度
-            windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
-            windowParams?.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
-            
-            // 更新分割线
-            divider1?.layoutParams = LinearLayout.LayoutParams(2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                setMargins(1, 0, 1, 0)
-            }
-            divider2?.layoutParams = LinearLayout.LayoutParams(2, ViewGroup.LayoutParams.MATCH_PARENT).apply {
-                setMargins(1, 0, 1, 0)
-            }
-            
-            // 更新容器和WebView宽度
-            if (container?.childCount ?: 0 >= 5) {
-                val webViewWidth = if (isLandscape) {
-                    // 横屏时，根据窗口数量计算WebView宽度
-                    val visibleCount = when (windowCount) {
-                        1 -> 1
-                        2 -> 2
-                        else -> if (isLandscape) 2 else 3 // 横屏时最多显示两个，需要滚动查看第三个
-                    }
-                    (screenWidth / visibleCount) - (2 * Math.min(visibleCount - 1, 1))
-                } else {
-                    // 竖屏时，使用固定宽度
-                    (WEBVIEW_WIDTH_DP * resources.displayMetrics.density).toInt()
-                }
-                
-                // 设置每个WebView容器的宽度
-                container?.getChildAt(0)?.let { firstContainer ->
-                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
-                    firstContainer.layoutParams = params
-                }
-                
-                container?.getChildAt(2)?.let { secondContainer ->
-                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
-                    secondContainer.layoutParams = params
-                }
-                
-                container?.getChildAt(4)?.let { thirdContainer ->
-                    val params = LinearLayout.LayoutParams(webViewWidth, ViewGroup.LayoutParams.MATCH_PARENT)
-                    thirdContainer.layoutParams = params
-                }
-                
-                // 设置容器宽度为wrap_content以启用滚动
-                container?.layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            }
-        } else {
-            // 垂直布局
-            windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
-            windowParams?.height = WindowManager.LayoutParams.MATCH_PARENT
-            
-            // 垂直分割线
-            divider1?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
-                setMargins(0, 1, 0, 1)
-            }
-            divider2?.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 2).apply {
-                setMargins(0, 1, 0, 1)
-            }
-            
-            // 更新容器布局为垂直方向
-            if (container?.childCount ?: 0 >= 5) {
-                container?.getChildAt(0)?.let { firstContainer ->
-                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-                    firstContainer.layoutParams = params
-                }
-                
-                container?.getChildAt(2)?.let { secondContainer ->
-                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-                    secondContainer.layoutParams = params
-                }
-                
-                container?.getChildAt(4)?.let { thirdContainer ->
-                    val params = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-                    thirdContainer.layoutParams = params
-                }
-                
-                // 设置容器为match_parent
-                container?.layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            }
+        // 确保不超出屏幕底部
+        if (menuY + menuHeight > screenHeight) {
+            menuY = screenHeight - menuHeight - dpToPx(10)
         }
         
-        // 更新窗口布局
-        try {
-            windowManager.updateViewLayout(floatingView, windowParams)
-        } catch (e: Exception) {
-            Log.e(TAG, "更新窗口布局失败", e)
-        }
-        
-        // 请求布局更新
-        divider1?.requestLayout()
-        divider2?.requestLayout()
-        container?.requestLayout()
-        
-        return orientationValue
+        Log.d(TAG, "菜单位置: ($menuX, $menuY), 屏幕: ${screenWidth}x${screenHeight}, 菜单: ${menuWidth}x${menuHeight}")
+        return Point(menuX, menuY)
     }
     
-    private fun switchToSingleWindowMode() {
-        try {
-            // 获取当前第一个WebView的URL
-            val currentUrl = firstWebView?.url ?: "https://www.baidu.com"
-            
-            // 启动单窗口模式
-            val intent = Intent(this, FloatingWebViewService::class.java).apply {
-                putExtra("url", currentUrl)
-            }
-            startService(intent)
-            
-            // 关闭当前服务
-            stopSelf()
-        } catch (e: Exception) {
-            Log.e(TAG, "切换到单窗口模式失败", e)
-            Toast.makeText(this, "切换到单窗口模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+    // 辅助方法：dp转像素
+    private fun dpToPx(dp: Int): Int {
+        return (dp * resources.displayMetrics.density).roundToInt()
     }
 
-    private fun updateEngineIcons() {
-        // 清空容器
-        firstEngineContainer?.removeAllViews()
-        secondEngineContainer?.removeAllViews()
-        thirdEngineContainer?.removeAllViews()
-        firstAIEngineContainer?.removeAllViews()
-        secondAIEngineContainer?.removeAllViews()
-        thirdAIEngineContainer?.removeAllViews()
-        
-        // 为每个普通搜索引擎创建图标
-        SearchEngine.DEFAULT_ENGINES.forEach { engine ->
-            // 创建左侧搜索引擎图标
-            createWebViewEngineIcon(engine.name, firstEngineContainer, true, false)
-            // 创建中间搜索引擎图标
-            createWebViewEngineIcon(engine.name, secondEngineContainer, false, false)
-            // 创建右侧搜索引擎图标
-            createWebViewEngineIcon(engine.name, thirdEngineContainer, false, false)
-        }
-        
-        // 添加更多搜索选项
-        val additionalEngines = listOf(
-            Pair("GitHub", "github.com"),
-            Pair("Stack Overflow", "stackoverflow.com"),
-            Pair("Medium", "medium.com"),
-            Pair("Wiki百科", "wikipedia.org"),
-            Pair("Reddit", "reddit.com"),
-            Pair("掘金", "juejin.cn"),
-            Pair("CSDN", "csdn.net"),
-            Pair("开源中国", "oschina.net"),
-            Pair("InfoQ", "infoq.cn"),
-            Pair("微信", "weixin.qq.com"),
-            Pair("知乎专栏", "zhuanlan.zhihu.com"),
-            Pair("Twitter", "twitter.com"),
-            Pair("LinkedIn", "linkedin.com")
-        )
-        
-        // 添加更多网站搜索选项到每个窗口
-        additionalEngines.forEach { (name, domain) ->
-            // 创建左侧搜索引擎图标
-            createWebViewEngineIcon(name, firstEngineContainer, true, false, domain)
-            // 创建中间搜索引擎图标
-            createWebViewEngineIcon(name, secondEngineContainer, false, false, domain)
-            // 创建右侧搜索引擎图标
-            createWebViewEngineIcon(name, thirdEngineContainer, false, false, domain)
-        }
-        
-        // 为每个AI搜索引擎创建图标
-        com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES.forEach { aiEngine ->
-            // 创建左侧AI搜索引擎图标
-            createWebViewEngineIcon(aiEngine.name, firstAIEngineContainer, true, true)
-            // 创建中间AI搜索引擎图标
-            createWebViewEngineIcon(aiEngine.name, secondAIEngineContainer, false, true)
-            // 创建右侧AI搜索引擎图标
-            createWebViewEngineIcon(aiEngine.name, thirdAIEngineContainer, false, true)
-        }
+    // 剪贴板操作
+    private fun copyToClipboard(text: String) {
+        val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clipData = ClipData.newPlainText("selected text", text)
+        clipboardManager.setPrimaryClip(clipData)
+        Log.d(TAG, "已复制文本: ${text.take(20)}${if (text.length > 20) "..." else ""}")
     }
-
-    private fun createWebViewEngineIcon(engineName: String, container: LinearLayout?, isLeft: Boolean, isAI: Boolean, customDomain: String? = null) {
-        val context = container?.context ?: return
-        val imageButton = ImageButton(context).apply {
-            // 创建默认背景和圆角效果
-            background = ColorDrawable(Color.parseColor("#40FFFFFF"))
+    
+    private fun pasteToWebView(webView: WebView) {
+        val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        if (clipboardManager.hasPrimaryClip()) {
+            val clipData = clipboardManager.primaryClip
+            val clipText = clipData?.getItemAt(0)?.text?.toString() ?: ""
             
-            // 将图标尺寸从100dp减小到60dp
-            val size = 30.dpToPx(context)
-            // 确保使用正确的LayoutParams，因为要添加到LinearLayout
-            layoutParams = LinearLayout.LayoutParams(size, size).apply {
-                setMargins(4, 4, 4, 4)
+            if (clipText.isNotEmpty()) {
+                // 使用JavaScript插入文本
+                val escapedText = clipText.replace("\\", "\\\\").replace("'", "\\'")
+                    .replace("\n", "\\n").replace("\r", "\\r")
+                
+                webView.evaluateJavascript(
+                    "javascript:(function() { document.execCommand('insertText', false, '$escapedText'); })();",
+                    null
+                )
             }
-            
-            // 减少内边距使图标更大
-            setPadding(4, 4, 4, 4)
-            
-            // 提高图片质量
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            // 启用硬件加速以提高渲染质量
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            
-            // 获取引擎键值
-            val engineKey = if (isAI) "ai_" + EngineUtil.getEngineKey(engineName) else EngineUtil.getEngineKey(engineName)
-            
-            // 获取对应的域名
-            val domain = customDomain ?: if (isAI) {
-                when(EngineUtil.getEngineKey(engineName)) {
-                    "chatgpt" -> "openai.com"
-                    "claude" -> "claude.ai"
-                    "gemini" -> "gemini.google.com"
-                    "wenxin" -> "baidu.com"
-                    "chatglm" -> "zhipuai.cn"
-                    "qianwen" -> "aliyun.com"
-                    "xinghuo" -> "xfyun.cn"
-                    "perplexity" -> "perplexity.ai"
-                    "phind" -> "phind.com"
-                    "poe" -> "poe.com"
-                    else -> "openai.com"
-                }
-            } else {
-                when(EngineUtil.getEngineKey(engineName)) {
-                    "baidu" -> "baidu.com"
-                    "google" -> "google.com"
-                    "bing" -> "bing.com"
-                    "sogou" -> "sogou.com"
-                    "360" -> "so.com"
-                    "quark" -> "sm.cn"
-                    "toutiao" -> "toutiao.com"
-                    "zhihu" -> "zhihu.com"
-                    "bilibili" -> "bilibili.com"
-                    "douban" -> "douban.com"
-                    "weibo" -> "weibo.com"
-                    "taobao" -> "taobao.com"
-                    "jd" -> "jd.com"
-                    "douyin" -> "douyin.com"
-                    "xiaohongshu" -> "xiaohongshu.com"
-                    "qq" -> "qq.com"
-                    "wechat" -> "qq.com"
-                    else -> "google.com"
-                }
-            }
-            
-            // 设置默认图标先
-            val iconResId = getIconResourceByDomain(domain)
-            setImageResource(if (iconResId != 0) iconResId else R.drawable.ic_search)
-            
-            // 使用IconLoader加载网站图标
-            val url = "https://$domain"
-            iconLoader.loadIcon(url, this@apply, if (iconResId != 0) iconResId else R.drawable.ic_search)
-            
-            // 添加搜索引擎选择事件
-            setOnClickListener {
-                // 根据容器确定是哪个窗口
-                when (container) {
-                    firstEngineContainer, firstAIEngineContainer -> {
-                        leftEngineKey = engineKey
-                        settingsManager.setLeftWindowSearchEngine(engineKey)
-                        updateWebViewForEngine(firstWebView, firstTitle, engineKey)
-                        
-                        // 更新普通搜索引擎和AI搜索引擎图标状态
-                        updateEngineIconStates(firstEngineContainer, engineKey, false)
-                        updateEngineIconStates(firstAIEngineContainer, engineKey, true)
-                    }
-                    secondEngineContainer, secondAIEngineContainer -> {
-                        centerEngineKey = engineKey
-                        settingsManager.setCenterWindowSearchEngine(engineKey)
-                        updateWebViewForEngine(secondWebView, secondTitle, engineKey)
-                        
-                        // 更新普通搜索引擎和AI搜索引擎图标状态
-                        updateEngineIconStates(secondEngineContainer, engineKey, false)
-                        updateEngineIconStates(secondAIEngineContainer, engineKey, true)
-                    }
-                    thirdEngineContainer, thirdAIEngineContainer -> {
-                        rightEngineKey = engineKey
-                        settingsManager.setRightWindowSearchEngine(engineKey)
-                        updateWebViewForEngine(thirdWebView, thirdTitle, engineKey)
-                        
-                        // 更新普通搜索引擎和AI搜索引擎图标状态
-                        updateEngineIconStates(thirdEngineContainer, engineKey, false)
-                        updateEngineIconStates(thirdAIEngineContainer, engineKey, true)
-                    }
-                }
-            }
-        }
-        container.addView(imageButton)
-    }
-
-    /**
-     * 根据域名获取对应的图标资源ID
-     */
-    private fun getIconResourceByDomain(domain: String): Int {
-        return when {
-            domain.contains("baidu.com") -> R.drawable.ic_baidu
-            domain.contains("google.com") -> R.drawable.ic_google
-            domain.contains("bing.com") -> R.drawable.ic_bing
-            domain.contains("sogou.com") -> R.drawable.ic_sogou
-            domain.contains("so.com") -> R.drawable.ic_360
-            domain.contains("sm.cn") -> R.drawable.ic_search
-            domain.contains("toutiao.com") -> R.drawable.ic_search
-            domain.contains("zhihu.com") -> R.drawable.ic_zhihu
-            domain.contains("bilibili.com") -> R.drawable.ic_bilibili
-            domain.contains("douban.com") -> R.drawable.ic_douban
-            domain.contains("weibo.com") -> R.drawable.ic_weibo
-            domain.contains("taobao.com") -> R.drawable.ic_taobao
-            domain.contains("jd.com") -> R.drawable.ic_jd
-            domain.contains("douyin.com") -> R.drawable.ic_douyin
-            domain.contains("xiaohongshu.com") -> R.drawable.ic_xiaohongshu
-            domain.contains("qq.com") -> R.drawable.ic_qq
-            domain.contains("openai.com") -> R.drawable.ic_chatgpt
-            domain.contains("claude.ai") -> R.drawable.ic_claude
-            domain.contains("gemini.google.com") -> R.drawable.ic_gemini
-            domain.contains("zhipuai.cn") -> R.drawable.ic_zhipu
-            domain.contains("aliyun.com") -> R.drawable.ic_qianwen
-            domain.contains("xfyun.cn") -> R.drawable.ic_xinghuo
-            domain.contains("perplexity.ai") -> R.drawable.ic_perplexity
-            else -> 0 // 返回0表示没有找到对应的资源
-        }
-    }
-
-    private fun updateWebViewForEngine(webView: WebView?, titleView: TextView?, engineKey: String) {
-        val currentQuery = searchInput?.text?.toString()?.trim()
-        val isAI = engineKey.startsWith("ai_")
-        val actualEngineKey = if (isAI) engineKey.substring(3) else engineKey
-        
-        try {
-            if (!currentQuery.isNullOrEmpty()) {
-                val encodedQuery = URLEncoder.encode(currentQuery, "UTF-8")
-                val newUrl = if (isAI) {
-                    EngineUtil.getAISearchEngineUrl(actualEngineKey, encodedQuery)
-                } else {
-                    EngineUtil.getSearchEngineSearchUrl(actualEngineKey, encodedQuery)
-                }
-                webView?.loadUrl(newUrl)
-                titleView?.text = "${EngineUtil.getSearchEngineName(actualEngineKey, isAI)}: $currentQuery"
-            } else {
-                val homeUrl = if (isAI) {
-                    EngineUtil.getAISearchEngineHomeUrl(actualEngineKey)
-                } else {
-                    EngineUtil.getSearchEngineHomeUrl(actualEngineKey)
-                }
-                webView?.loadUrl(homeUrl)
-                titleView?.text = EngineUtil.getSearchEngineName(actualEngineKey, isAI)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "切换搜索引擎失败", e)
-            val fallbackUrl = if (isAI) {
-                EngineUtil.getAISearchEngineHomeUrl(actualEngineKey)
-            } else {
-                EngineUtil.getSearchEngineHomeUrl(actualEngineKey)
-            }
-            webView?.loadUrl(fallbackUrl)
-            titleView?.text = EngineUtil.getSearchEngineName(actualEngineKey, isAI)
-        }
-    }
-
-    private fun updateEngineIconStates(container: LinearLayout?, selectedEngineKey: String, isAI: Boolean) {
-        container?.let { parent ->
-            for (i in 0 until parent.childCount) {
-                val view = parent.getChildAt(i)
-                if (view is ImageButton) {
-                    // 根据容器确定当前窗口的搜索引擎和类型
-                    val currentEngineKey = when (container) {
-                        firstEngineContainer, firstAIEngineContainer -> leftEngineKey
-                        secondEngineContainer, secondAIEngineContainer -> centerEngineKey
-                        thirdEngineContainer, thirdAIEngineContainer -> rightEngineKey
-                        else -> selectedEngineKey
-                    }
-                    
-                    // 判断引擎类型是否匹配
-                    val currentIsAI = currentEngineKey.startsWith("ai_")
-                    val currentActualKey = if (currentIsAI) currentEngineKey.substring(3) else currentEngineKey
-                    val selectedActualKey = if (isAI && selectedEngineKey.startsWith("ai_")) 
-                                            selectedEngineKey.substring(3) 
-                                           else selectedEngineKey
-                    
-                    // 设置选中状态的视觉效果
-                    if (currentIsAI == isAI && (isAI && "ai_$selectedActualKey" == currentEngineKey || 
-                                               !isAI && selectedActualKey == currentEngineKey)) {
-                        view.setBackgroundColor(Color.parseColor("#1A000000"))
-                        view.alpha = 1.0f
                     } else {
-                        view.setBackgroundColor(Color.TRANSPARENT)
-                        view.alpha = 0.5f
-                    }
-                }
-            }
+            Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1515,8 +1191,34 @@ class DualFloatingWebViewService : Service() {
         isRunning = false
         try {
             // Dismiss any open popup
-            textSelectionPopupWindow?.dismiss()
-            textSelectionPopupWindow = null
+            textSelectionMenuView?.let {
+                try {
+                    it.animate()
+                        .alpha(0f)
+                        .scaleX(0.8f)
+                        .scaleY(0.8f)
+                        .setDuration(150)
+                        .setInterpolator(AccelerateInterpolator())
+                        .withEndAction {
+                            try {
+                                windowManager.removeView(it)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "移除菜单视图失败", e)
+                            }
+                            textSelectionMenuView = null
+                        }
+                        .start()
+                } catch (e: Exception) {
+                    Log.e(TAG, "隐藏文本选择菜单失败", e)
+                    try {
+                        windowManager.removeView(it)
+                    } catch (e2: Exception) {
+                        Log.e(TAG, "移除菜单视图失败", e2)
+                    }
+                    textSelectionMenuView = null
+                }
+            }
+            menuAutoHideHandler.removeCallbacksAndMessages(null)
             
             windowManager.removeView(floatingView)
             
@@ -1681,7 +1383,7 @@ class DualFloatingWebViewService : Service() {
                 for (i in 0 until engineLayout.childCount) {
                     val view = engineLayout.getChildAt(i)
                     if (view is ImageView) {
-                        view.setBackgroundResource(R.drawable.icon_background)
+                        view.setBackgroundResource(R.drawable.icon_background_selected)
                     }
                 }
                 engineIcon.setBackgroundResource(R.drawable.icon_background_selected)
@@ -2033,99 +1735,64 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
-    // In the setupCommonWebViewSettings method, add support for text selection
-
-    private fun setupCommonWebViewSettings(webView: WebView?) {
-        webView?.apply {
-            settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                loadWithOverviewMode = true
-                useWideViewPort = true
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                cacheMode = WebSettings.LOAD_DEFAULT
-                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                setDefaultZoom(WebSettings.ZoomDensity.MEDIUM)
-                userAgentString = userAgentString + " Mobile"
-            }
-            
-            // 允许文本选择
-            webView.setOnLongClickListener {
-                // 让WebView处理长按事件
-                false
-            }
-            
-            // 确保可以长按选择文本
-            webView.isLongClickable = true
-            
-            // 触摸和文本处理设置
-            webView.settings.javaScriptEnabled = true 
-        }
-    }
-
     /**
      * 为所有WebView启用文本选择功能
      */
     private fun enableTextSelectionOnWebViews() {
-        // 获取所有WebView
         val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
         
-        // 为每个WebView启用长按文本选择
         webViews.forEach { webView ->
             webView.isLongClickable = true
-            // 禁用WebView内置的长按菜单
-            webView.setOnLongClickListener { false }
             
-            // 设置WebView选择模式，启用文本选择
-            try {
-                val field = WebView::class.java.getDeclaredField("mSelectByDefault")
-                field.isAccessible = true
-                field.setBoolean(webView, true)
-            } catch (e: Exception) {
-                // 反射可能失败，忽略错误继续
-                Log.e(TAG, "无法通过反射设置WebView选择模式: ${e.message}")
+            // 设置长按监听器
+            webView.setOnLongClickListener { view ->
+                val event = view.tag as? MotionEvent ?: return@setOnLongClickListener false
+                
+                // 清除之前的选择
+                textSelectionManager?.clearSelection()
+                
+                // 创建新的选择管理器
+                textSelectionManager = TextSelectionManager(
+                    context = this@DualFloatingWebViewService,
+                    webView = webView,
+                    windowManager = windowManager,
+                    onSelectionChanged = { selectedText: String ->  // 显式指定参数类型
+                        currentSelectedText = selectedText
+                        if (selectedText.isNotEmpty()) {
+                            showTextSelectionMenu(webView, event.rawX.toInt(), event.rawY.toInt())
+                        }
+                    }
+                )
+                
+                // 开始选择
+                textSelectionManager?.startSelection(
+                    event.x.toInt(),
+                    event.y.toInt()
+                )
+                
+                true
             }
             
-            // 确保WebView能够处理文本选择
-            webView.settings.javaScriptEnabled = true
+            // 保存触摸事件
+            webView.setOnTouchListener { view, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        view.tag = event
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        // 处理长按事件
+                        val downEvent = view.tag as? MotionEvent
+                        if (downEvent != null && 
+                            event.eventTime - downEvent.downTime >= ViewConfiguration.getLongPressTimeout()) {
+                            handleLongPress(webView, event)
+                        }
+                    }
+                }
+                false
+            }
             
-            // 添加自定义文本选择菜单支持
+            // 启用文本选择
             enableWebViewTextSelection(webView)
-        }
-    }
-
-    /**
-     * Copy text to clipboard
-     */
-    private fun copyToClipboard(text: String) {
-        val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clipData = ClipData.newPlainText("Selected Text", text)
-        clipboardManager.setPrimaryClip(clipData)
-    }
-
-    /**
-     * Paste text from clipboard to WebView
-     */
-    private fun pasteToWebView(webView: WebView) {
-        val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        if (clipboardManager.hasPrimaryClip()) {
-            val clipData = clipboardManager.primaryClip
-            val clipText = clipData?.getItemAt(0)?.text?.toString() ?: ""
-            
-            // Use JavaScript to paste the text at the current cursor position
-            val escapedText = clipText.replace("\\", "\\\\").replace("'", "\\'")
-                .replace("\n", "\\n").replace("\r", "\\r")
-            
-            webView.evaluateJavascript(
-                "javascript:(function() { " +
-                "   document.execCommand('insertText', false, '$escapedText'); " +
-                "})();", null
-            )
-        } else {
-            Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -2154,6 +1821,223 @@ class DualFloatingWebViewService : Service() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "切换窗口焦点状态失败: ${e.message}")
+        }
+    }
+
+    private fun setupControls() {
+        // 设置窗口切换按钮
+        toggleLayoutButton?.setOnClickListener {
+            isHorizontalLayout = !isHorizontalLayout
+            updateLayoutOrientation()
+        }
+
+        // 设置搜索按钮
+        dualSearchButton?.setOnClickListener {
+            performDualSearch()
+        }
+
+        // 设置关闭按钮
+        closeButton?.setOnClickListener {
+            stopSelf()
+        }
+
+        // 设置搜索输入框
+        searchInput?.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performDualSearch()
+                true
+            } else {
+                false
+            }
+        }
+
+        // 设置保存按钮
+        saveButton?.setOnClickListener {
+            saveCurrentSearchEngines()
+        }
+
+        // 设置切换按钮
+        switchToNormalButton?.setOnClickListener {
+            switchToNormalMode()
+        }
+    }
+
+    private fun updateLayoutOrientation() {
+        container?.orientation = if (isHorizontalLayout) {
+            LinearLayout.HORIZONTAL
+        } else {
+            LinearLayout.VERTICAL
+        }
+        
+        // 更新布局参数
+        updateLayoutParams()
+        
+        // 保存布局方向
+        sharedPrefs.edit().putBoolean(KEY_IS_HORIZONTAL, isHorizontalLayout).apply()
+    }
+
+    private fun getSearchUrl(engineKey: String, query: String): String {
+        return when(engineKey.lowercase()) {
+            "baidu" -> "https://www.baidu.com/s?wd=$query"
+            "google" -> "https://www.google.com/search?q=$query"
+            "bing" -> "https://www.bing.com/search?q=$query"
+            "sogou" -> "https://www.sogou.com/web?query=$query"
+            "360" -> "https://www.so.com/s?q=$query"
+            "zhihu" -> "https://www.zhihu.com/search?q=$query"
+            "bilibili" -> "https://search.bilibili.com/all?keyword=$query"
+            "weibo" -> "https://s.weibo.com/weibo?q=$query"
+            "douban" -> "https://www.douban.com/search?q=$query"
+            "taobao" -> "https://s.taobao.com/search?q=$query"
+            "jd" -> "https://search.jd.com/Search?keyword=$query"
+            "douyin" -> "https://www.douyin.com/search/$query"
+            "xiaohongshu" -> "https://www.xiaohongshu.com/search_result?keyword=$query"
+            else -> "https://www.baidu.com/s?wd=$query"
+        }
+    }
+
+    private fun performDualSearch() {
+        val query = searchInput?.text?.toString() ?: return
+        if (query.isEmpty()) return
+
+        // 执行搜索
+        when (windowCount) {
+            1 -> {
+                firstWebView?.let { performSearch(it, query, getSearchUrl(leftEngineKey, query)) }
+            }
+            2 -> {
+                firstWebView?.let { performSearch(it, query, getSearchUrl(leftEngineKey, query)) }
+                secondWebView?.let { performSearch(it, query, getSearchUrl(centerEngineKey, query)) }
+            }
+            else -> {
+                firstWebView?.let { performSearch(it, query, getSearchUrl(leftEngineKey, query)) }
+                secondWebView?.let { performSearch(it, query, getSearchUrl(centerEngineKey, query)) }
+                thirdWebView?.let { performSearch(it, query, getSearchUrl(rightEngineKey, query)) }
+            }
+        }
+
+        // 隐藏输入法
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        searchInput?.let { imm.hideSoftInputFromWindow(it.windowToken, 0) }
+    }
+
+    private fun updateEngineIcons() {
+        // 更新第一个窗口的图标
+        firstEngineContainer?.let { updateEngineIconStates(it, leftEngineKey, false) }
+        
+        // 更新第二个窗口的图标
+        secondEngineContainer?.let { updateEngineIconStates(it, centerEngineKey, false) }
+        
+        // 更新第三个窗口的图标
+        thirdEngineContainer?.let { updateEngineIconStates(it, rightEngineKey, false) }
+    }
+
+    private fun updateEngineIconStates(container: LinearLayout, selectedEngine: String, isAI: Boolean) {
+        for (i in 0 until container.childCount) {
+            val view = container.getChildAt(i)
+            if (view is ImageView) {
+                val engineName = view.tag as? String
+                if (engineName == selectedEngine) {
+                    view.setBackgroundResource(R.drawable.icon_background_selected)
+                } else {
+                    view.setBackgroundResource(R.drawable.icon_background)
+                }
+            }
+        }
+    }
+
+    private fun enableWebViewTextSelection(webView: WebView) {
+        webView.settings.javaScriptEnabled = true
+        
+        // 注入JavaScript以启用文本选择
+        val script = """
+            (function() {
+                document.documentElement.style.webkitUserSelect = 'text';
+                document.documentElement.style.userSelect = 'text';
+                
+                document.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                });
+                
+                document.addEventListener('selectionchange', function() {
+                    var selection = window.getSelection();
+                    if (selection.toString().length > 0) {
+                        window.textSelectionCallback.onSelectionChanged(selection.toString());
+                    }
+                });
+            })();
+        """.trimIndent()
+        
+        // 添加JavaScript接口
+        webView.addJavascriptInterface(TextSelectionJavaScriptInterface(webView), "textSelectionCallback")
+        
+        webView.evaluateJavascript(script, null)
+    }
+
+    private fun enableTextSelectionMode(webView: WebView) {
+        val script = """
+            (function() {
+                // 创建并应用样式，确保文本可选
+                var styleEl = document.createElement('style');
+                styleEl.textContent = `
+                    * {
+                        -webkit-user-select: text !important;
+                        user-select: text !important;
+                    }
+                    ::selection {
+                        background: rgba(33, 150, 243, 0.4) !important;
+                    }
+                `;
+                document.head.appendChild(styleEl);
+                
+                // 禁用页面自身的选择菜单
+                document.documentElement.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    return false;
+                }, true);
+                
+                // 针对特定元素优化选择行为
+                var elements = document.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6, article, section');
+                for (var i = 0; i < elements.length; i++) {
+                    elements[i].style.webkitUserSelect = 'text';
+                    elements[i].style.userSelect = 'text';
+                }
+                
+                // 重置可能干扰选择的行为
+                var resetElements = document.querySelectorAll('*[ontouchstart], *[oncontextmenu]');
+                for (var i = 0; i < resetElements.length; i++) {
+                    resetElements[i].ontouchstart = null;
+                    resetElements[i].oncontextmenu = null;
+                }
+                
+                console.log('文本选择模式已启用');
+            })();
+        """.trimIndent()
+        
+        webView.evaluateJavascript(script, null)
+    }
+
+    // 文本选择JavaScript接口
+    private inner class TextSelectionJavaScriptInterface(private val webView: WebView) {
+        @JavascriptInterface
+        fun onSelectionChanged(
+            selectedText: String,
+            leftX: Float = 0f,
+            leftY: Float = 0f,
+            rightX: Float = 0f,
+            rightY: Float = 0f
+        ) {
+            mainHandler.post {
+                currentSelectedText = selectedText
+                if (selectedText.isNotEmpty()) {
+                    // 转换为相对于WebView的坐标
+                    textSelectionManager?.showSelectionHandles(
+                        leftX.toInt(),
+                        leftY.toInt(),
+                        rightX.toInt(),
+                        rightY.toInt()
+                    )
+                }
+            }
         }
     }
 } 

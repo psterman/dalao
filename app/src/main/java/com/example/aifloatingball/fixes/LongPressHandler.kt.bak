@@ -1,0 +1,282 @@
+package com.example.aifloatingball.fixes
+
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.view.ViewConfiguration
+import android.webkit.WebView
+import kotlin.math.abs
+
+/**
+ * Specialized handler for detecting and managing long press events in WebView
+ * for better text selection experience
+ */
+class LongPressHandler(
+    private val webView: WebView,
+    private val textSelectionManager: TextSelectionManager
+) : GestureDetector.SimpleOnGestureListener() {
+    
+    companion object {
+        private const val TAG = "LongPressHandler"
+        private const val LONG_PRESS_THRESHOLD = 500L // ms
+        private const val TAP_TIMEOUT = 180L // ms
+        private const val TOUCH_SLOP = 20f // px
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var longPressRunnable: Runnable? = null
+    private var initialX = 0f
+    private var initialY = 0f
+    private var lastTouchEvent: MotionEvent? = null
+    
+    /**
+     * Handle touch events in WebView for text selection
+     */
+    fun onTouchEvent(event: MotionEvent): Boolean {
+        lastTouchEvent = MotionEvent.obtain(event)
+        
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                initialX = event.x
+                initialY = event.y
+                
+                // Cancel any previous long press
+                if (longPressRunnable != null) {
+                    mainHandler.removeCallbacks(longPressRunnable!!)
+                    longPressRunnable = null
+                }
+                
+                // Set up new long press detection
+                longPressRunnable = Runnable {
+                    handleLongPress(initialX, initialY)
+                }
+                
+                mainHandler.postDelayed(longPressRunnable, LONG_PRESS_THRESHOLD)
+                return false
+            }
+            
+            MotionEvent.ACTION_MOVE -> {
+                // Cancel long press if the touch moved too much
+                if (longPressRunnable != null) {
+                    val deltaX = abs(event.x - initialX)
+                    val deltaY = abs(event.y - initialY)
+                    
+                    if (deltaX > TOUCH_SLOP || deltaY > TOUCH_SLOP) {
+                        mainHandler.removeCallbacks(longPressRunnable!!)
+                        longPressRunnable = null
+                    }
+                }
+                return false
+            }
+            
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                // Cancel long press if finger is lifted
+                if (longPressRunnable != null) {
+                    mainHandler.removeCallbacks(longPressRunnable!!)
+                    longPressRunnable = null
+                }
+                
+                // Check for quick tap (potential text selection adjustment)
+                if (event.action == MotionEvent.ACTION_UP) {
+                    val tapDuration = event.eventTime - event.downTime
+                    if (tapDuration < TAP_TIMEOUT) {
+                        checkForSelectionAdjustment(event.x, event.y)
+                    }
+                }
+                return false
+            }
+        }
+        
+        return false
+    }
+    
+    /**
+     * Handle long press at the specified coordinates
+     */
+    private fun handleLongPress(x: Float, y: Float) {
+        Log.d(TAG, "Long press detected at ($x, $y)")
+        
+        val adjustedX = x.toInt()
+        val adjustedY = y.toInt()
+        
+        // Execute JavaScript to determine what's at the touch point
+        val script = """
+            (function() {
+                try {
+                    // Convert screen coordinates to document coordinates
+                    var touchX = $adjustedX + window.scrollX;
+                    var touchY = $adjustedY + window.scrollY;
+                    
+                    // Get the element at touch point
+                    var element = document.elementFromPoint($adjustedX, $adjustedY);
+                    if (!element) return 'no-element';
+                    
+                    // Check if it's an image or other special element
+                    var tagName = element.tagName.toLowerCase();
+                    if (tagName === 'img') {
+                        // Handle image selection
+                        return JSON.stringify({
+                            type: 'image',
+                            src: element.src,
+                            rect: element.getBoundingClientRect()
+                        });
+                    }
+                    
+                    // For text nodes
+                    // Create a range from the touch point
+                    var range = document.caretRangeFromPoint($adjustedX, $adjustedY);
+                    if (!range) return 'no-range';
+                    
+                    // Get the text node
+                    var node = range.startContainer;
+                    if (node.nodeType !== Node.TEXT_NODE) {
+                        // If not text node, try to find text in child nodes
+                        var textNode = null;
+                        var walker = document.createTreeWalker(
+                            element, 
+                            NodeFilter.SHOW_TEXT, 
+                            null, 
+                            false
+                        );
+                        while (walker.nextNode()) {
+                            var currentNode = walker.currentNode;
+                            if (currentNode.textContent.trim().length > 0) {
+                                textNode = currentNode;
+                                break;
+                            }
+                        }
+                        
+                        if (textNode) {
+                            node = textNode;
+                            range = document.createRange();
+                            range.selectNodeContents(node);
+                        } else {
+                            return 'no-text';
+                        }
+                    }
+                    
+                    // Create a new selection
+                    var selection = window.getSelection();
+                    selection.removeAllRanges();
+                    
+                    // Get the word at touch point or select all text in node
+                    var text = node.textContent;
+                    if (text.trim().length > 0) {
+                        // Try to select the word at the touch point
+                        var offset = range.startOffset;
+                        
+                        // Find word boundaries
+                        var startPos = text.lastIndexOf(' ', offset) + 1;
+                        if (startPos <= 0) startPos = 0;
+                        
+                        var endPos = text.indexOf(' ', offset);
+                        if (endPos <= 0) endPos = text.length;
+                        
+                        // Select the word
+                        range.setStart(node, startPos);
+                        range.setEnd(node, endPos);
+                        
+                        selection.addRange(range);
+                        
+                        // If selection is empty, try to select all text in node
+                        if (selection.toString().trim().length === 0) {
+                            range.selectNodeContents(node);
+                            selection.addRange(range);
+                        }
+                        
+                        // Return selection information
+                        var rects = range.getClientRects();
+                        if (rects.length > 0) {
+                            var firstRect = rects[0];
+                            var lastRect = rects[rects.length - 1];
+                            
+                            return JSON.stringify({
+                                type: 'text',
+                                text: selection.toString(),
+                                leftX: firstRect.left + window.scrollX,
+                                leftY: firstRect.bottom + window.scrollY,
+                                rightX: lastRect.right + window.scrollX,
+                                rightY: lastRect.bottom + window.scrollY
+                            });
+                        }
+                    }
+                    
+                    return 'empty-selection';
+                } catch (e) {
+                    return 'error: ' + e.message;
+                }
+            })();
+        """
+        
+        webView.evaluateJavascript(script) { result ->
+            Log.d(TAG, "Long press result: $result")
+            
+            try {
+                if (result != null && result.length > 2) {
+                    if (result.startsWith("\"error:")) {
+                        Log.e(TAG, "JavaScript error: ${result.replace("\"error:", "").replace("\"", "")}")
+                        return@evaluateJavascript
+                    }
+                    
+                    if (result.startsWith("\"no-")) {
+                        Log.d(TAG, "No selection possible: $result")
+                        return@evaluateJavascript
+                    }
+                    
+                    if (result.startsWith("\"empty-")) {
+                        Log.d(TAG, "Empty selection: $result")
+                        return@evaluateJavascript
+                    }
+                    
+                    // Parse the JSON result (need to handle escaped quotes in JSON string)
+                    val jsonContent = result.trim()
+                        .replace("\\\"", "\"")
+                        .replace("^\"|\"$".toRegex(), "")
+                    
+                    if (jsonContent.startsWith("{")) {
+                        try {
+                            // Manual parsing for better error handling
+                            val type = jsonContent.substringAfter("\"type\":")
+                                .substringAfter("\"").substringBefore("\"")
+                            
+                            if (type == "text") {
+                                val text = jsonContent.substringAfter("\"text\":")
+                                    .substringAfter("\"").substringBefore("\"")
+                                val leftX = jsonContent.substringAfter("\"leftX\":").substringBefore(",").toFloat()
+                                val leftY = jsonContent.substringAfter("\"leftY\":").substringBefore(",").toFloat()
+                                val rightX = jsonContent.substringAfter("\"rightX\":").substringBefore(",").toFloat()
+                                val rightY = jsonContent.substringAfter("\"rightY\":").substringBefore("}").toFloat()
+                                
+                                if (text.isNotEmpty()) {
+                                    textSelectionManager.updateSelection(
+                                        text, leftX.toInt(), leftY.toInt(), 
+                                        rightX.toInt(), rightY.toInt()
+                                    )
+                                }
+                            } else if (type == "image") {
+                                // Handle image selection if needed
+                                Log.d(TAG, "Image selection detected but not handled")
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error parsing selection result: ${e.message}")
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error processing selection: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+    
+    /**
+     * Check if the user is tapping near existing selection to adjust it
+     */
+    private fun checkForSelectionAdjustment(x: Float, y: Float) {
+        // Check if the selection menu is visible and close it if tap is away from it
+        textSelectionManager.hideMenu()
+    }
+} 

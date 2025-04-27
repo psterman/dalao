@@ -1,54 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
+    android:layout_height="48dp"
     android:orientation="horizontal"
-    android:background="@drawable/text_menu_background"
-    android:padding="4dp"
-    android:gravity="center">
+    android:background="@drawable/text_selection_menu_background"
+    android:gravity="center"
+    android:elevation="4dp">
 
     <TextView
-        android:id="@+id/menu_copy"
+        android:id="@+id/action_select_all"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="复制"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:padding="8dp"
-        android:layout_margin="4dp"
-        android:background="@drawable/text_menu_item_background"/>
-
-    <TextView
-        android:id="@+id/menu_paste"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="粘贴"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:padding="8dp"
-        android:layout_margin="4dp"
-        android:background="@drawable/text_menu_item_background"/>
-
-    <TextView
-        android:id="@+id/menu_cut"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="剪切"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:padding="8dp"
-        android:layout_margin="4dp"
-        android:background="@drawable/text_menu_item_background"/>
-
-    <TextView
-        android:id="@+id/menu_select_all"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:text="全选"
-        android:textColor="#FFFFFF"
         android:textSize="14sp"
-        android:padding="8dp"
-        android:layout_margin="4dp"
-        android:background="@drawable/text_menu_item_background"/>
+        android:textColor="#333333"
+        android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground"/>
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="24dp"
+        android:background="#DDDDDD" />
+
+    <TextView
+        android:id="@+id/action_cut"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:text="剪切"
+        android:textSize="14sp"
+        android:textColor="#333333"
+        android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground"/>
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="24dp"
+        android:background="#DDDDDD" />
+
+    <TextView
+        android:id="@+id/action_copy"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:text="复制"
+        android:textSize="14sp"
+        android:textColor="#333333"
+        android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground"/>
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="24dp"
+        android:background="#DDDDDD" />
+
+    <TextView
+        android:id="@+id/action_paste"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:text="粘贴"
+        android:textSize="14sp"
+        android:textColor="#333333"
+        android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:background="?android:attr/selectableItemBackground"/>
 
 </LinearLayout> 

@@ -6,4 +6,8 @@
     <item name="menu_paste" type="id" />
     <item name="menu_cut" type="id" />
     <item name="menu_select_all" type="id" />
+    <item name="copyButton" type="id"/>
+    <item name="shareButton" type="id"/>
+    <item name="translateButton" type="id"/>
+    <item name="searchButton" type="id"/>
 </resources> 
