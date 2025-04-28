@@ -53,11 +53,18 @@ import java.net.URLEncoder
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.ReentrantLock
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.withLock
+import com.example.aifloatingball.model.HandleType
+import android.widget.PopupWindow
+import android.view.ViewPropertyAnimator
 
 class DualFloatingWebViewService : Service() {
     companion object {
         var isRunning = false
-        private const val TAG = "DualFloatingWebViewService"
+        private const val TAG = "DualFloatingWebView"
         private const val PREFS_NAME = "dual_floating_window_prefs"
         private const val KEY_WINDOW_WIDTH = "window_width"
         private const val KEY_WINDOW_HEIGHT = "window_height"
@@ -73,6 +80,8 @@ class DualFloatingWebViewService : Service() {
         // 前台服务通知相关常量
         private const val CHANNEL_ID = "dual_webview_channel"
         private const val NOTIFICATION_ID = 1001
+        private const val MENU_SHOW_TIMEOUT = 200L
+        private const val MENU_AUTO_HIDE_DELAY = 8000L
     }
 
     private lateinit var windowManager: WindowManager
@@ -135,14 +144,327 @@ class DualFloatingWebViewService : Service() {
     private lateinit var faviconManager: FaviconManager
     private lateinit var iconLoader: IconLoader
 
-    private var textSelectionMenuView: View? = null
+    private var textSelectionMenu: PopupWindow? = null
     private var textSelectionManager: TextSelectionManager? = null
     private var currentSelectedText: String = ""
 
     private val mainHandler = Handler(Looper.getMainLooper())
     
-    // 添加自动隐藏菜单的Handler
-    private val menuAutoHideHandler = Handler(Looper.getMainLooper())
+    // 单例模式控制变量
+    private val isMenuOperationInProgress = AtomicBoolean(false)
+    private val isMenuShowing = AtomicBoolean(false)
+    private val isMenuAnimating = AtomicBoolean(false)
+
+    // 当前活跃的WebView引用
+    private var currentActiveWebView: WebView? = null
+    private var lastTouchDownTime = 0L
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+
+    // 菜单显示锁
+    private val menuShowLock = ReentrantLock()
+    private val menuAnimationComplete = menuShowLock.newCondition()
+
+    // 全局单例菜单控制
+    private object TextSelectionMenuController {
+        private var currentMenuView: View? = null
+        private var isMenuShowing = AtomicBoolean(false)
+        private var isMenuAnimating = AtomicBoolean(false)
+        private val menuLock = ReentrantLock()
+        private val menuCondition = menuLock.newCondition()
+        private var currentWebView: WebView? = null
+
+        fun cleanupState() {
+            currentMenuView = null
+            isMenuShowing.set(false)
+            isMenuAnimating.set(false)
+            currentWebView = null
+        }
+
+        private fun animateMenuItemAndExecute(view: View, windowManager: WindowManager, action: () -> Unit) {
+            view.animate()
+                .alpha(0f)
+                .scaleX(0.8f)
+                .scaleY(0.8f)
+                .setDuration(150)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction {
+                    try {
+                        action.invoke()
+                        windowManager.removeView(view)
+                        cleanupState()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "执行菜单命令失败", e)
+                    }
+                }
+                .start()
+        }
+
+        private fun executeSelectAll(webView: WebView) {
+            webView.evaluateJavascript("""
+                (function() {
+                    var selection = window.getSelection();
+                    selection.removeAllRanges();
+                    var range = document.createRange();
+                    range.selectNodeContents(document.body);
+                    selection.addRange(range);
+                    return selection.toString();
+                })();
+            """.trimIndent()) { result ->
+                Log.d(TAG, "全选文本: ${result?.take(50)}...")
+            }
+        }
+
+        private fun executeCopy(context: Context, webView: WebView) {
+            webView.evaluateJavascript("""
+                (function() {
+                    var selection = window.getSelection();
+                    var text = selection.toString();
+                    selection.removeAllRanges(); // 清除选择以避免视觉干扰
+                    return text;
+                })();
+            """.trimIndent()) { result ->
+                val text = result?.trim('"') ?: ""
+                if (text.isNotEmpty()) {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("selected text", text)
+                    clipboard.setPrimaryClip(clip)
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                    }
+                    Log.d(TAG, "已复制文本: ${text.take(50)}...")
+                }
+            }
+        }
+
+        private fun executeCut(context: Context, webView: WebView) {
+            webView.evaluateJavascript("""
+                (function() {
+                    var selection = window.getSelection();
+                    var text = selection.toString();
+                    if (text) {
+                        try {
+                            // 尝试使用execCommand
+                            document.execCommand('cut');
+                        } catch(e) {
+                            // 如果execCommand失败，手动删除选中内容
+                            var range = selection.getRangeAt(0);
+                            range.deleteContents();
+                            selection.removeAllRanges();
+                        }
+                    }
+                    return text;
+                })();
+            """.trimIndent()) { result ->
+                val text = result?.trim('"') ?: ""
+                if (text.isNotEmpty()) {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("cut text", text)
+                    clipboard.setPrimaryClip(clip)
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(context, "已剪切", Toast.LENGTH_SHORT).show()
+                    }
+                    Log.d(TAG, "已剪切文本: ${text.take(50)}...")
+                }
+            }
+        }
+
+        private fun executePaste(context: Context, webView: WebView) {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboard.hasPrimaryClip()) {
+                val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
+                if (text.isNotEmpty()) {
+                    // 转义特殊字符
+                    val escapedText = text.replace("\\", "\\\\")
+                        .replace("'", "\\'")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("""$""", """\\$""")
+                        .replace("\"", "\\\"")
+                    
+                    webView.evaluateJavascript("""
+                        (function() {
+                            var selection = window.getSelection();
+                            var range = selection.getRangeAt(0);
+                            
+                            // 创建文本节点
+                            var textNode = document.createTextNode("$escapedText");
+                            
+                            // 删除当前选中内容
+                            range.deleteContents();
+                            
+                            // 插入新文本
+                            range.insertNode(textNode);
+                            
+                            // 将光标移动到插入文本的末尾
+                            range.setStartAfter(textNode);
+                            range.setEndAfter(textNode);
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            
+                            return true;
+                        })();
+                    """.trimIndent()) { result ->
+                        if (result == "true") {
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(context, "已粘贴", Toast.LENGTH_SHORT).show()
+                            }
+                            Log.d(TAG, "已粘贴文本: ${text.take(50)}...")
+                        }
+                    }
+                }
+            }
+        }
+
+        fun showMenu(
+            context: Context,
+            windowManager: WindowManager,
+            webView: WebView,
+            x: Int,
+            y: Int,
+            onMenuShown: () -> Unit
+        ) {
+            if (currentWebView != webView || isMenuShowing.get()) {
+                hideCurrentMenu(windowManager) {
+                    doShowMenu(context, windowManager, webView, x, y, onMenuShown)
+                }
+            } else {
+                doShowMenu(context, windowManager, webView, x, y, onMenuShown)
+            }
+        }
+
+        private fun doShowMenu(
+            context: Context,
+            windowManager: WindowManager,
+            webView: WebView,
+            x: Int,
+            y: Int,
+            onMenuShown: () -> Unit
+        ) {
+            menuLock.withLock {
+                try {
+                    isMenuShowing.set(true)
+                    isMenuAnimating.set(true)
+                    currentWebView = webView
+
+                    val menuView = LayoutInflater.from(context)
+                        .inflate(R.layout.text_selection_menu, null).apply {
+                            alpha = 0f
+                            scaleX = 0.8f
+                            scaleY = 0.8f
+                            
+                            // 全选按钮
+                            findViewById<View>(R.id.action_select_all)?.setOnClickListener {
+                                animateMenuItemAndExecute(this, windowManager) {
+                                    executeSelectAll(webView)
+                                }
+                            }
+
+                            // 复制按钮
+                            findViewById<View>(R.id.action_copy)?.setOnClickListener {
+                                animateMenuItemAndExecute(this, windowManager) {
+                                    executeCopy(context, webView)
+                                }
+                            }
+
+                            // 剪切按钮
+                            findViewById<View>(R.id.action_cut)?.setOnClickListener {
+                                animateMenuItemAndExecute(this, windowManager) {
+                                    executeCut(context, webView)
+                                }
+                            }
+
+                            // 粘贴按钮
+                            findViewById<View>(R.id.action_paste)?.setOnClickListener {
+                                animateMenuItemAndExecute(this, windowManager) {
+                                    executePaste(context, webView)
+                                }
+                            }
+                        }
+
+                    val params = WindowManager.LayoutParams(
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.WRAP_CONTENT,
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                        PixelFormat.TRANSLUCENT
+                    ).apply {
+                        this.x = x
+                        this.y = y
+                        gravity = Gravity.START or Gravity.TOP
+                    }
+
+                    try {
+                        windowManager.addView(menuView, params)
+                        currentMenuView = menuView
+
+                        menuView.animate()
+                            .alpha(1f)
+                            .scaleX(1f)
+                            .scaleY(1f)
+                            .setDuration(200)
+                            .setInterpolator(DecelerateInterpolator())
+                            .withEndAction {
+                                isMenuAnimating.set(false)
+                                onMenuShown()
+                            }
+                            .start()
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "显示菜单失败", e)
+                        cleanupState()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "创建菜单失败", e)
+                    cleanupState()
+                }
+            }
+        }
+
+        fun hideCurrentMenu(windowManager: WindowManager, callback: (() -> Unit)? = null) {
+            if (!isMenuShowing.get() && !isMenuAnimating.get()) {
+                callback?.invoke()
+                return
+            }
+
+            menuLock.withLock {
+                try {
+                    isMenuAnimating.set(true)
+                    currentMenuView?.let { view ->
+                        if (view.isAttachedToWindow && view.windowToken != null) {
+                            view.animate()
+                                .alpha(0f)
+                                .scaleX(0.8f)
+                                .scaleY(0.8f)
+                                .setDuration(150)
+                                .setInterpolator(AccelerateInterpolator())
+                                .withEndAction {
+                                    try {
+                                        windowManager.removeView(view)
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "移除菜单视图失败", e)
+                                    }
+                                    cleanupState()
+                                    callback?.invoke()
+                                }
+                                .start()
+                        } else {
+                            cleanupState()
+                            callback?.invoke()
+                        }
+                    } ?: run {
+                        cleanupState()
+                        callback?.invoke()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "隐藏菜单失败", e)
+                    cleanupState()
+                    callback?.invoke()
+                }
+            }
+        }
+    }
 
     /**
      * 扩展函数将dp转换为px
@@ -516,7 +838,6 @@ class DualFloatingWebViewService : Service() {
         val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
         
         webViews.forEach { webView ->
-            // 配置WebView设置
             webView.settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -525,271 +846,135 @@ class DualFloatingWebViewService : Service() {
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                cacheMode = WebSettings.LOAD_DEFAULT
-                layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                setDefaultZoom(WebSettings.ZoomDensity.MEDIUM)
-                userAgentString = userAgentString + " Mobile"
             }
-            
+
             // 设置触摸事件监听
             webView.setOnTouchListener { view, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        // 记录触摸开始位置和时间
-                        view.tag = event
+                        lastTouchDownTime = SystemClock.uptimeMillis()
+                        lastTouchX = event.x
+                        lastTouchY = event.y
+                        
+                        // 如果点击了不同的WebView，清理之前的选择
+                        if (currentActiveWebView != webView) {
+                            clearTextSelection()
+                            currentActiveWebView = webView
+                        }
+                        
+                        // 检查是否点击了输入框
+                        webView.evaluateJavascript("""
+                            (function() {
+                                var x = ${event.x};
+                                var y = ${event.y};
+                                var element = document.elementFromPoint(x, y);
+                                return element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA');
+                            })();
+                        """.trimIndent()) { result ->
+                            if (result == "true") {
+                                // 如果是输入框，允许获取焦点
+                                toggleWindowFocusableFlag(true)
+                            }
+                        }
                     }
                     MotionEvent.ACTION_UP -> {
-                        // 获取DOWN事件
-                        val downEvent = view.tag as? MotionEvent
-                        if (downEvent != null) {
-                            // 计算是否为长按
-                            val duration = event.eventTime - downEvent.downTime
-                            if (duration >= ViewConfiguration.getLongPressTimeout()) {
-                                // 长按时间已达到，处理长按事件
+                        val touchDuration = SystemClock.uptimeMillis() - lastTouchDownTime
+                        val touchMoved = Math.abs(event.x - lastTouchX) > 10 || 
+                                       Math.abs(event.y - lastTouchY) > 10
+                        
+                        if (!touchMoved) {
+                            if (touchDuration < ViewConfiguration.getLongPressTimeout()) {
+                                // 短按 - 尝试激活选择
+                                activateSelection(webView, event)
+                            } else {
+                                // 长按 - 处理长按事件
                                 handleLongPress(webView, event)
                             }
                         }
                     }
                 }
-                // 返回false让事件继续传递给WebView内部处理
-                false
+                false // 继续传递事件给WebView
             }
 
-            // 设置WebView客户端
             webView.webViewClient = object : WebViewClient() {
-                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                    super.onPageStarted(view, url, favicon)
-                    Log.d(TAG, "开始加载页面: $url")
-                }
-                
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    Log.d(TAG, "页面加载完成: $url")
                     view?.let { 
-                        // 启用文本选择
                         enableTextSelectionMode(it)
-                        
-                        // 注册JavaScript接口
-                        it.addJavascriptInterface(
-                            TextSelectionJavaScriptInterface(it),
-                            "textSelectionCallback"
-                        )
                     }
                 }
             }
         }
-
-        // 初始化WebView首页
-        firstWebView?.let {
-            val leftHomeUrl = EngineUtil.getSearchEngineHomeUrl(leftEngineKey)
-            it.loadUrl(leftHomeUrl)
-            firstTitle?.text = EngineUtil.getSearchEngineName(leftEngineKey, false)
-        }
-        
-        secondWebView?.let {
-            val centerHomeUrl = EngineUtil.getSearchEngineHomeUrl(centerEngineKey)
-            it.loadUrl(centerHomeUrl)
-            secondTitle?.text = EngineUtil.getSearchEngineName(centerEngineKey, false)
-        }
-        
-        thirdWebView?.let {
-            val rightHomeUrl = EngineUtil.getSearchEngineHomeUrl(rightEngineKey)
-            it.loadUrl(rightHomeUrl)
-            thirdTitle?.text = EngineUtil.getSearchEngineName(rightEngineKey, false)
-        }
     }
 
-    // 初始化文本选择功能
-    private fun initTextSelection(webView: WebView) {
-        // 创建文本选择管理器
-        if (textSelectionManager == null) {
-            textSelectionManager = TextSelectionManager(
-                context = this,
-                webView = webView,
-                windowManager = windowManager,
-                onSelectionChanged = { selectedText: String ->
-                    currentSelectedText = selectedText
-                    Log.d(TAG, "选中文本变化: $selectedText")
-                    
-                    if (selectedText.isNotEmpty()) {
-                        // 获取WebView中心点位置作为菜单显示位置
-                        val location = IntArray(2)
-                        webView.getLocationOnScreen(location)
-                        val centerX = location[0] + webView.width / 2
-                        val centerY = location[1] + webView.height / 2
-                        
-                        // 显示选择菜单
-                        showTextSelectionMenu(webView, centerX, centerY)
-                    }
-                }
-            )
+    private fun activateSelection(webView: WebView, event: MotionEvent) {
+        if (isMenuShowing.get() || isMenuAnimating.get()) {
+            hideTextSelectionMenu()
         }
         
-        // 注入JavaScript增强文本选择能力
-        textSelectionManager?.injectSelectionJavaScript()
-        
-        // 启用文本选择模式
-        enableTextSelectionMode(webView)
-    }
-
-    private fun handleLongPress(webView: WebView, event: MotionEvent) {
-        // 获取相对于WebView的坐标
-        val x = event.x.toInt()
-        val y = event.y.toInt()
-        
-        Log.d(TAG, "处理长按事件: WebView相对坐标($x, $y)")
-        
-        // 清除先前的选择
-        textSelectionManager?.clearSelection()
-        
-        // 创建文本选择管理器
-        textSelectionManager = TextSelectionManager(
-            context = this,
-            webView = webView,
-            windowManager = windowManager,
-            onSelectionChanged = { selectedText: String ->
-                currentSelectedText = selectedText
-                if (selectedText.isNotEmpty()) {
-                    // 显示菜单
-                    val screenX = event.rawX.toInt()
-                    val screenY = event.rawY.toInt()
-                    showTextSelectionMenu(webView, screenX, screenY)
-                }
-            }
-        )
-        
-        // 触发震动反馈
-        try {
-            @Suppress("DEPRECATION")
-            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
-            
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(android.os.VibrationEffect.createOneShot(50, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator.vibrate(50)
-            }
-            Log.d(TAG, "震动反馈已触发")
-        } catch (e: Exception) {
-            Log.e(TAG, "震动反馈失败: ${e.message}")
-        }
-        
-        // 使用更可靠的方法选择文本
         val script = """
             (function() {
                 try {
-                    // 设置选择样式
-                    var style = document.createElement('style');
-                    style.textContent = `
-                        * {
-                            -webkit-user-select: text !important;
-                            user-select: text !important;
-                        }
-                        ::selection {
-                            background: rgba(33, 150, 243, 0.4) !important;
-                        }
-                    `;
-                    document.head.appendChild(style);
+                    var x = ${event.x};
+                    var y = ${event.y};
                     
-                    // 获取点击位置的元素
-                    var clickElement = document.elementFromPoint($x, $y);
-                    if (!clickElement) return "no-element";
+                    var elem = document.elementFromPoint(x, y);
+                    if (!elem) return null;
                     
-                    // 确保元素可选
-                    clickElement.style.webkitUserSelect = 'text';
-                    clickElement.style.userSelect = 'text';
+                    var isText = elem.nodeType === 3 || 
+                                (elem.nodeType === 1 && 
+                                 (elem.tagName === 'P' || 
+                                  elem.tagName === 'SPAN' || 
+                                  elem.tagName === 'DIV' || 
+                                  /H[1-6]/.test(elem.tagName)));
                     
-                    // 尝试选取一个单词
-                    var wordScript = `
+                    if (isText) {
+                        var range = document.caretRangeFromPoint(x, y);
+                        if (!range) return null;
+                        
                         var selection = window.getSelection();
                         selection.removeAllRanges();
+                        selection.addRange(range);
                         
-                        var range = document.caretRangeFromPoint($x, $y);
-                        if (range) {
-                            selection.addRange(range);
-                            selection.modify('extend', 'forward', 'word');
-                            
-                            // 如果选择为空，尝试向后选择一个单词
-                            if (selection.toString().trim() === '') {
-                                selection.modify('move', 'backward', 'word');
-                                selection.modify('extend', 'forward', 'word');
-                            }
-                            
-                            // 如果仍然为空，尝试选择父元素的一部分
-                            if (selection.toString().trim() === '') {
-                                selection.removeAllRanges();
-                                var elem = document.elementFromPoint($x, $y);
-                                var range = document.createRange();
-                                range.selectNodeContents(elem);
-                                selection.addRange(range);
-                            }
-                        }
-                        return selection.toString();
-                    `;
-                    
-                    // 执行选择
-                    var wordResult = eval(wordScript);
-                    
-                    // 如果选择成功获取选择范围
-                    var selection = window.getSelection();
-                    if (selection.rangeCount > 0 && selection.toString().trim().length > 0) {
-                        var range = selection.getRangeAt(0);
-                        var rects = range.getClientRects();
+                        var rect = range.getBoundingClientRect();
+                        var selectedText = selection.toString()
+                            .replace(/[\n\r]/g, ' ')  // 替换换行为空格
+                            .replace(/[\\"]/g, '\\\\"');  // 转义引号
                         
-                        if (rects.length > 0) {
-                            var firstRect = rects[0];
-                            var lastRect = rects[rects.length - 1];
-                            
-                            // 保护选择不被清除
-                            document.addEventListener('mousedown', function(e) {
-                                e.stopPropagation();
-                            }, true);
-                            document.addEventListener('touchstart', function(e) {
-                                e.stopPropagation();
-                            }, true);
-                            
-                            return JSON.stringify({
-                                text: selection.toString(),
-                                left: {
-                                    x: firstRect.left + window.scrollX,
-                                    y: firstRect.bottom + window.scrollY
-                                },
-                                right: {
-                                    x: lastRect.right + window.scrollX,
-                                    y: lastRect.bottom + window.scrollY
-                                }
-                            });
-                        }
+                        return JSON.stringify({
+                            text: selectedText,
+                            left: {
+                                x: Math.round(rect.left + window.scrollX),
+                                y: Math.round(rect.bottom + window.scrollY)
+                            },
+                            right: {
+                                x: Math.round(rect.right + window.scrollX),
+                                y: Math.round(rect.bottom + window.scrollY)
+                            }
+                        });
                     }
-                    
-                    return "no-selection";
-                } catch (e) {
-                    console.error("选择错误:", e);
-                    return "error:" + e.toString();
+                    return null;
+                } catch(e) {
+                    console.error('Selection error:', e);
+                    return null;
                 }
             })();
         """.trimIndent()
-        
+
         webView.evaluateJavascript(script) { result ->
-            Log.d(TAG, "JavaScript选择结果: $result")
-            
-            if (result != "null" && !result.startsWith("\"no-") && !result.startsWith("\"error:")) {
-                try {
-                    val jsonStr = result.replace("\\\"", "\"")
-                        .replace("^\"|\"$".toRegex(), "")
+            try {
+                if (result != "null") {
+                    val jsonStr = result.trim('"').replace("\\\\\"", "\"")
                     val json = JSONObject(jsonStr)
                     
                     val selectedText = json.getString("text")
-                    currentSelectedText = selectedText
-                    
                     if (selectedText.isNotEmpty()) {
-                        val leftPos = json.getJSONObject("left")
-                        val rightPos = json.getJSONObject("right")
+                        currentSelectedText = selectedText
                         
-                        // 确保在主线程显示选择柄
                         mainHandler.post {
-                            // 显示选择柄
+                            val leftPos = json.getJSONObject("left")
+                            val rightPos = json.getJSONObject("right")
+                            
                             textSelectionManager?.showSelectionHandles(
                                 leftPos.getInt("x"),
                                 leftPos.getInt("y"),
@@ -797,239 +982,148 @@ class DualFloatingWebViewService : Service() {
                                 rightPos.getInt("y")
                             )
                             
-                            // 防止选择消失
-                            preventSelectionLoss(webView)
+                            showTextSelectionMenuSafely(webView, 
+                                event.rawX.toInt(), 
+                                event.rawY.toInt()
+                            )
                         }
-                        
-                        Log.d(TAG, "成功选中文本: $selectedText")
-                    }
-                            } catch (e: Exception) {
-                    Log.e(TAG, "解析选择结果失败: ${e.message}")
-                }
-            } else {
-                Log.e(TAG, "未能选中文本: $result")
-            }
-        }
-    }
-
-    // 防止选择丢失
-    private fun preventSelectionLoss(webView: WebView) {
-        val script = """
-            (function() {
-                // 保存当前选择
-                var savedSelection = window.getSelection().toString();
-                
-                // 禁用可能清除选择的事件
-                document.addEventListener('touchstart', function(e) {
-                    e.stopPropagation();
-                }, true);
-                
-                document.addEventListener('mousedown', function(e) {
-                    e.stopPropagation();
-                }, true);
-                
-                // 禁用长按菜单
-                document.addEventListener('contextmenu', function(e) {
-                    e.preventDefault();
-                }, true);
-                
-                return "selection-protected";
-            })();
-        """.trimIndent()
-        
-        webView.evaluateJavascript(script) { result ->
-            Log.d(TAG, "选择保护结果: $result")
-        }
-    }
-
-    // 显示文本选择菜单
-    private fun showTextSelectionMenu(webView: WebView, x: Int, y: Int) {
-        Log.d(TAG, "显示文本选择菜单: ($x, $y)")
-        
-        // 如果菜单已显示，先移除
-        hideTextSelectionMenu()
-        
-        // 加载菜单布局
-        val menuView = LayoutInflater.from(this).inflate(R.layout.text_selection_menu, null)
-        
-        // 设置菜单按钮点击事件
-        menuView.findViewById<View>(R.id.action_copy).setOnClickListener {
-            Log.d(TAG, "复制选中文本")
-            webView.evaluateJavascript("javascript:window.TextSelection.getSelectedText()", { selectedText ->
-                if (selectedText != "null" && selectedText.isNotEmpty()) {
-                    val text = JSONObject(selectedText).optString("text", "")
-                    if (text.isNotEmpty()) {
-                        copyToClipboard(text)
-                        Toast.makeText(this, "已复制文本", Toast.LENGTH_SHORT).show()
                     }
                 }
-                hideTextSelectionMenu()
-                webView.evaluateJavascript("javascript:window.TextSelection.clearSelection()", null)
-            })
-        }
-        
-        menuView.findViewById<View>(R.id.action_cut).setOnClickListener {
-            Log.d(TAG, "剪切选中文本")
-            webView.evaluateJavascript("javascript:window.TextSelection.getSelectedText()", { selectedText ->
-                if (selectedText != "null" && selectedText.isNotEmpty()) {
-                    val text = JSONObject(selectedText).optString("text", "")
-                    if (text.isNotEmpty()) {
-                        copyToClipboard(text)
-                        Toast.makeText(this, "已剪切文本", Toast.LENGTH_SHORT).show()
-                        // 清除选中的文本
-                        webView.evaluateJavascript(
-                            "javascript:document.execCommand('delete', false, null)", null
-                        )
-                    }
-                }
-                hideTextSelectionMenu()
-                webView.evaluateJavascript("javascript:window.TextSelection.clearSelection()", null)
-            })
-        }
-        
-        menuView.findViewById<View>(R.id.action_paste).setOnClickListener {
-            Log.d(TAG, "粘贴文本")
-            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            if (clipboardManager.hasPrimaryClip()) {
-                val item = clipboardManager.primaryClip?.getItemAt(0)
-                val pasteText = item?.text?.toString() ?: ""
-                if (pasteText.isNotEmpty()) {
-                    // 使用JavaScript执行粘贴操作
-                    val escapedText = URLEncoder.encode(pasteText, "UTF-8")
-                    webView.evaluateJavascript(
-                        "javascript:document.execCommand('insertText', false, decodeURIComponent('$escapedText'))",
-                        null
-                    )
-                }
-            }
-            hideTextSelectionMenu()
-            webView.evaluateJavascript("javascript:window.TextSelection.clearSelection()", null)
-        }
-        
-        menuView.findViewById<View>(R.id.action_select_all).setOnClickListener {
-            Log.d(TAG, "全选")
-            webView.evaluateJavascript("javascript:document.execCommand('selectAll', false, null)", null)
-        }
-        
-        // 计算菜单显示位置
-        val position = calculateMenuPosition(webView, x, y, menuView)
-        
-        // 设置菜单布局参数
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            this.x = position.x
-            this.y = position.y
-            gravity = Gravity.START or Gravity.TOP
-        }
-        
-        // 添加菜单视图到窗口
-        windowManager.addView(menuView, params)
-        textSelectionMenuView = menuView
-        
-        // 添加动画效果
-        menuView.alpha = 0f
-        menuView.scaleX = 0.8f
-        menuView.scaleY = 0.8f
-        
-        menuView.animate()
-            .alpha(1f)
-            .scaleX(1f)
-            .scaleY(1f)
-            .setDuration(200)
-            .setInterpolator(DecelerateInterpolator())
-            .start()
-            
-        // 添加自动隐藏计时器
-        menuAutoHideHandler.removeCallbacksAndMessages(null)
-        menuAutoHideHandler.postDelayed({
-            if (textSelectionMenuView != null) {
-                hideTextSelectionMenu()
-                webView.evaluateJavascript("javascript:window.TextSelection.clearSelection()", null)
-            }
-        }, 8000) // 8秒后自动隐藏
-    }
-    
-    private fun hideTextSelectionMenu() {
-        textSelectionMenuView?.let {
-            try {
-                it.animate()
-                    .alpha(0f)
-                    .scaleX(0.8f)
-                    .scaleY(0.8f)
-                    .setDuration(150)
-                    .setInterpolator(AccelerateInterpolator())
-                    .withEndAction {
-                        try {
-                            windowManager.removeView(it)
-        } catch (e: Exception) {
-                            Log.e(TAG, "移除菜单视图失败", e)
-                        }
-                        textSelectionMenuView = null
-                    }
-                    .start()
             } catch (e: Exception) {
-                Log.e(TAG, "隐藏文本选择菜单失败", e)
-                try {
-                    windowManager.removeView(it)
-                } catch (e2: Exception) {
-                    Log.e(TAG, "移除菜单视图失败", e2)
-                }
-                textSelectionMenuView = null
+                Log.e(TAG, "处理文本选择结果失败", e)
             }
         }
-        menuAutoHideHandler.removeCallbacksAndMessages(null)
     }
 
-    // 计算菜单显示位置
-    private fun calculateMenuPosition(webView: WebView, x: Int, y: Int, menuView: View): Point {
-        // 测量菜单视图大小
-        menuView.measure(
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
-        
-        val menuWidth = menuView.measuredWidth
-        val menuHeight = menuView.measuredHeight
-        
-        // 获取WebView在屏幕上的位置
-        val webViewLocation = IntArray(2)
-        webView.getLocationOnScreen(webViewLocation)
-        
-        // 屏幕尺寸
-        val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-        
-        // 计算菜单位置，优先显示在选择点上方
-        // x坐标：优先水平居中于点击位置，但不超出屏幕边界
-        val menuX = max(0, min(x - menuWidth / 2, screenWidth - menuWidth))
-        
-        // y坐标：优先在点击位置上方45dp，如果太靠上则放在点击位置下方25dp
-        val offsetUp = dpToPx(45)
-        val offsetDown = dpToPx(25)
-        
-        var menuY = y - menuHeight - offsetUp
-        
-        // 如果太靠上，或者与WebView顶部太近，放到触摸点下方
-        if (menuY < 0 || (y - webViewLocation[1]) < menuHeight) {
-            menuY = y + offsetDown
-        }
-        
-        // 确保不超出屏幕底部
-        if (menuY + menuHeight > screenHeight) {
-            menuY = screenHeight - menuHeight - dpToPx(10)
-        }
-        
-        Log.d(TAG, "菜单位置: ($menuX, $menuY), 屏幕: ${screenWidth}x${screenHeight}, 菜单: ${menuWidth}x${menuHeight}")
-        return Point(menuX, menuY)
+    private fun clearTextSelection() {
+        textSelectionManager?.clearSelection()
+        textSelectionManager = null
+        currentSelectionState = null
+        hideTextSelectionMenu()
     }
-    
+
+    private fun showTextSelectionMenuSafely(webView: WebView, x: Int, y: Int) {
+        if (textSelectionMenu?.isShowing == true) {
+            textSelectionMenu?.dismiss()
+        }
+
+        val menuView = LayoutInflater.from(this).inflate(R.layout.text_selection_menu, null)
+        textSelectionMenu = PopupWindow(
+            menuView,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            isOutsideTouchable = true
+            isFocusable = true
+            elevation = resources.getDimensionPixelSize(R.dimen.menu_elevation).toFloat()
+        }
+
+        menuView.findViewById<View>(R.id.menu_copy).setOnClickListener {
+            copySelectedText(webView)
+            clearTextSelection()
+        }
+
+        menuView.findViewById<View>(R.id.menu_share).setOnClickListener {
+            shareSelectedText(webView)
+            clearTextSelection()
+        }
+
+        // 计算菜单位置
+        val location = IntArray(2)
+        webView.getLocationOnScreen(location)
+        val menuX = location[0] + x - (textSelectionMenu?.contentView?.measuredWidth ?: 0) / 2
+        val menuY = location[1] + y - (textSelectionMenu?.contentView?.measuredHeight ?: 0) - 20
+
+        textSelectionMenu?.showAtLocation(webView, Gravity.NO_GRAVITY, menuX, menuY)
+    }
+
+    private fun hideTextSelectionMenu() {
+        textSelectionMenu?.dismiss()
+        textSelectionMenu = null
+    }
+
+    private fun copySelectedText(webView: WebView) {
+        webView.evaluateJavascript(
+            "(function() { return window.getSelection().toString(); })();"
+        ) { result ->
+            if (result != "null") {
+                val text = result.trim('"')
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("选中文本", text)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun shareSelectedText(webView: WebView) {
+        webView.evaluateJavascript(
+            "(function() { return window.getSelection().toString(); })();"
+        ) { result ->
+            if (result != "null") {
+                val text = result.trim('"')
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(Intent.createChooser(intent, "分享文本").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
+    }
+
+    private fun hideTextSelectionMenuSync() {
+        if (!isMenuShowing.get() && !isMenuAnimating.get()) {
+            return
+        }
+
+        menuShowLock.lock()
+        try {
+            isMenuAnimating.set(true)
+            textSelectionMenu?.let { popup ->
+                try {
+                    // 获取PopupWindow的内容视图
+                    val contentView = popup.contentView
+                    if (contentView != null && contentView.isAttachedToWindow) {
+                        // 使用内容视图进行动画，而不是PopupWindow本身
+                        contentView.animate()
+                            .alpha(0f)
+                            .scaleX(0.8f)
+                            .scaleY(0.8f)
+                            .setDuration(150)
+                            .setInterpolator(AccelerateInterpolator())
+                            .withEndAction {
+                                dismissPopupSafely(popup)
+                                TextSelectionMenuController.cleanupState()
+                            }
+                            .start()
+                        
+                        // 等待动画完成，设置超时防止死锁
+                        if (!menuAnimationComplete.await(MENU_SHOW_TIMEOUT, TimeUnit.MILLISECONDS)) {
+                            Log.w(TAG, "等待动画完成超时")
+                            dismissPopupSafely(popup)
+                            TextSelectionMenuController.cleanupState()
+                        }
+                    } else {
+                        // 内容视图不存在或未附加到窗口，直接关闭弹出窗口
+                        dismissPopupSafely(popup)
+                        TextSelectionMenuController.cleanupState()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "隐藏文本选择菜单失败", e)
+                    dismissPopupSafely(popup)
+                    TextSelectionMenuController.cleanupState()
+                }
+            } ?: run {
+                // 如果没有菜单，直接清理状态
+                TextSelectionMenuController.cleanupState()
+            }
+        } finally {
+            menuShowLock.unlock()
+        }
+        mainHandler.removeCallbacksAndMessages(null)
+    }
+
     // 辅助方法：dp转像素
     private fun dpToPx(dp: Int): Int {
         return (dp * resources.displayMetrics.density).roundToInt()
@@ -1059,7 +1153,7 @@ class DualFloatingWebViewService : Service() {
                     null
                 )
             }
-                    } else {
+        } else {
             Toast.makeText(this, "剪贴板为空", Toast.LENGTH_SHORT).show()
         }
     }
@@ -1191,34 +1285,7 @@ class DualFloatingWebViewService : Service() {
         isRunning = false
         try {
             // Dismiss any open popup
-            textSelectionMenuView?.let {
-                try {
-                    it.animate()
-                        .alpha(0f)
-                        .scaleX(0.8f)
-                        .scaleY(0.8f)
-                        .setDuration(150)
-                        .setInterpolator(AccelerateInterpolator())
-                        .withEndAction {
-                            try {
-                                windowManager.removeView(it)
-                            } catch (e: Exception) {
-                                Log.e(TAG, "移除菜单视图失败", e)
-                            }
-                            textSelectionMenuView = null
-                        }
-                        .start()
-                } catch (e: Exception) {
-                    Log.e(TAG, "隐藏文本选择菜单失败", e)
-                    try {
-                        windowManager.removeView(it)
-                    } catch (e2: Exception) {
-                        Log.e(TAG, "移除菜单视图失败", e2)
-                    }
-                    textSelectionMenuView = null
-                }
-            }
-            menuAutoHideHandler.removeCallbacksAndMessages(null)
+            hideTextSelectionMenuSync()
             
             windowManager.removeView(floatingView)
             
@@ -1232,6 +1299,7 @@ class DualFloatingWebViewService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "移除视图失败", e)
         }
+        clearTextSelection()
     }
 
     private fun createEngineIcon(engineName: String): ImageView {
@@ -1751,16 +1819,25 @@ class DualFloatingWebViewService : Service() {
                 // 清除之前的选择
                 textSelectionManager?.clearSelection()
                 
-                // 创建新的选择管理器
+                // 创建新的选择管理器，注意接口适配
                 textSelectionManager = TextSelectionManager(
                     context = this@DualFloatingWebViewService,
                     webView = webView,
                     windowManager = windowManager,
-                    onSelectionChanged = { selectedText: String ->  // 显式指定参数类型
+                    onSelectionChanged = { selectedText: String ->
                         currentSelectedText = selectedText
                         if (selectedText.isNotEmpty()) {
-                            showTextSelectionMenu(webView, event.rawX.toInt(), event.rawY.toInt())
+                            showTextSelectionMenuSafely(webView, event.rawX.toInt(), event.rawY.toInt())
                         }
+                    },
+                    onHandleMoved = { managerHandleType, x, y ->
+                        // 将 manager 包中的 HandleType 转换为 model 包中的 HandleType
+                        val modelHandleType = when (managerHandleType) {
+                            com.example.aifloatingball.manager.HandleType.START -> HandleType.START
+                            com.example.aifloatingball.manager.HandleType.END -> HandleType.END
+                            else -> HandleType.NONE
+                        }
+                        updateSelectionForHandleMove(webView, modelHandleType, x, y)
                     }
                 )
                 
@@ -1774,25 +1851,6 @@ class DualFloatingWebViewService : Service() {
             }
             
             // 保存触摸事件
-            webView.setOnTouchListener { view, event ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        view.tag = event
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        // 处理长按事件
-                        val downEvent = view.tag as? MotionEvent
-                        if (downEvent != null && 
-                            event.eventTime - downEvent.downTime >= ViewConfiguration.getLongPressTimeout()) {
-                            handleLongPress(webView, event)
-                        }
-                    }
-                }
-                false
-            }
-            
-            // 启用文本选择
-            enableWebViewTextSelection(webView)
         }
     }
 
@@ -1979,34 +2037,35 @@ class DualFloatingWebViewService : Service() {
                 // 创建并应用样式，确保文本可选
                 var styleEl = document.createElement('style');
                 styleEl.textContent = `
-                    * {
+                    *:not(input):not(textarea) {
                         -webkit-user-select: text !important;
                         user-select: text !important;
                     }
                     ::selection {
                         background: rgba(33, 150, 243, 0.4) !important;
                     }
+                    input, textarea {
+                        -webkit-user-select: auto !important;
+                        user-select: auto !important;
+                    }
                 `;
                 document.head.appendChild(styleEl);
                 
-                // 禁用页面自身的选择菜单
-                document.documentElement.addEventListener('contextmenu', function(e) {
-                    e.preventDefault();
-                    return false;
+                // 针对非输入框元素禁用默认的长按菜单
+                document.addEventListener('contextmenu', function(e) {
+                    if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+                        e.preventDefault();
+                        return false;
+                    }
                 }, true);
                 
                 // 针对特定元素优化选择行为
                 var elements = document.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6, article, section');
                 for (var i = 0; i < elements.length; i++) {
-                    elements[i].style.webkitUserSelect = 'text';
-                    elements[i].style.userSelect = 'text';
-                }
-                
-                // 重置可能干扰选择的行为
-                var resetElements = document.querySelectorAll('*[ontouchstart], *[oncontextmenu]');
-                for (var i = 0; i < resetElements.length; i++) {
-                    resetElements[i].ontouchstart = null;
-                    resetElements[i].oncontextmenu = null;
+                    if (elements[i].tagName !== 'INPUT' && elements[i].tagName !== 'TEXTAREA') {
+                        elements[i].style.webkitUserSelect = 'text';
+                        elements[i].style.userSelect = 'text';
+                    }
                 }
                 
                 console.log('文本选择模式已启用');
@@ -2039,5 +2098,532 @@ class DualFloatingWebViewService : Service() {
                 }
             }
         }
+    }
+
+    /**
+     * 处理长按事件
+     */
+    private fun handleLongPress(webView: WebView, event: MotionEvent) {
+        webView.evaluateJavascript("""
+            (function() {
+                try {
+                    var x = ${event.x};
+                    var y = ${event.y};
+                    
+                    // 获取精确的文本节点和位置
+                    function getPreciseTextNode(x, y) {
+                        var range = document.caretRangeFromPoint(x, y);
+                        if (!range) return null;
+                        
+                        var node = range.startContainer;
+                        var offset = range.startOffset;
+                        
+                        // 确保我们得到的是文本节点
+                        if (node.nodeType !== Node.TEXT_NODE) {
+                            // 如果不是文本节点，查找最近的文本节点
+                            var walker = document.createTreeWalker(
+                                document.body,
+                                NodeFilter.SHOW_TEXT,
+                                null,
+                                false
+                            );
+                            
+                            var closestNode = null;
+                            var minDistance = Infinity;
+                            var currentNode;
+                            
+                            while (currentNode = walker.nextNode()) {
+                                var rect = currentNode.parentElement.getBoundingClientRect();
+                                var distance = Math.abs(rect.left - x) + Math.abs(rect.top - y);
+                                if (distance < minDistance) {
+                                    closestNode = currentNode;
+                                    minDistance = distance;
+                                }
+                            }
+                            
+                            if (closestNode) {
+                                node = closestNode;
+                                // 根据点击位置确定偏移量
+                                var nodeRect = node.parentElement.getBoundingClientRect();
+                                offset = Math.floor((x - nodeRect.left) / 
+                                    (nodeRect.width / node.length));
+                            }
+                        }
+                        
+                        return {
+                            node: node,
+                            offset: offset
+                        };
+                    }
+                    
+                    // 扩展选择范围到单词边界
+                    function expandToWordBoundary(node, offset) {
+                        var text = node.textContent;
+                        var start = offset;
+                        var end = offset;
+                        
+                        // 向前查找单词边界
+                        while (start > 0 && /\\w/.test(text[start - 1])) {
+                            start--;
+                        }
+                        
+                        // 向后查找单词边界
+                        while (end < text.length && /\\w/.test(text[end])) {
+                            end++;
+                        }
+                        
+                        return { start, end };
+                    }
+                    
+                    // 获取选择范围的详细信息
+                    function getSelectionDetails(range) {
+                        var rects = range.getClientRects();
+                        if (rects.length === 0) return null;
+                        
+                        var firstRect = rects[0];
+                        var lastRect = rects[rects.length - 1];
+                        var isRTL = getComputedStyle(range.startContainer.parentElement).direction === 'rtl';
+                        
+                        // 计算基线位置（用于垂直对齐）
+                        var computedStyle = window.getComputedStyle(range.startContainer.parentElement);
+                        var fontSize = parseFloat(computedStyle.fontSize);
+                        var lineHeight = parseFloat(computedStyle.lineHeight) || fontSize * 1.2;
+                        var baseline = firstRect.bottom - (lineHeight - fontSize) * 0.5;
+                        
+                        return {
+                            text: range.toString(),
+                            start: {
+                                x: isRTL ? firstRect.right : firstRect.left,
+                                y: baseline,
+                                top: firstRect.top,
+                                bottom: firstRect.bottom
+                            },
+                            end: {
+                                x: isRTL ? lastRect.left : lastRect.right,
+                                y: baseline,
+                                top: lastRect.top,
+                                bottom: lastRect.bottom
+                            },
+                            isRTL: isRTL,
+                            lineHeight: lineHeight
+                        };
+                    }
+                    
+                    var element = document.elementFromPoint(x, y);
+                    if (element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA')) {
+                        return JSON.stringify({
+                            isInput: true,
+                            value: element.value || '',
+                            selectionStart: element.selectionStart,
+                            selectionEnd: element.selectionEnd
+                        });
+                    }
+                    
+                    // 获取精确的点击位置
+                    var position = getPreciseTextNode(x, y);
+                    if (!position) {
+                        return JSON.stringify({
+                            isInput: false,
+                            error: 'No text node found'
+                        });
+                    }
+                    
+                    // 创建选择范围
+                    var selection = window.getSelection();
+                    selection.removeAllRanges();
+                    
+                    var range = document.createRange();
+                    range.setStart(position.node, position.offset);
+                    range.setEnd(position.node, position.offset);
+                    
+                    // 扩展到单词边界
+                    var boundary = expandToWordBoundary(position.node, position.offset);
+                    range.setStart(position.node, boundary.start);
+                    range.setEnd(position.node, boundary.end);
+                    
+                    selection.addRange(range);
+                    
+                    // 获取选择范围的详细信息
+                    var details = getSelectionDetails(range);
+                    if (!details) {
+                        return JSON.stringify({
+                            isInput: false,
+                            error: 'Cannot get selection details'
+                        });
+                    }
+                    
+                    return JSON.stringify({
+                        isInput: false,
+                        ...details
+                    });
+                    
+                } catch(e) {
+                    console.error('Error in handleLongPress:', e);
+                    return JSON.stringify({
+                        isInput: false,
+                        error: e.message
+                    });
+                }
+            })();
+        """.trimIndent()) { result ->
+            try {
+                val jsonString = result?.let {
+                    if (it == "null" || it.isEmpty()) {
+                        "{\"isInput\":false,\"error\":\"No result\"}"
+                    } else {
+                        it.trim('"').replace("\\\"", "\"")
+                    }
+                } ?: "{\"isInput\":false,\"error\":\"Null result\"}"
+                
+                Log.d(TAG, "JavaScript返回结果: $jsonString")
+                
+                val json = JSONObject(jsonString)
+                val isInput = json.optBoolean("isInput", false)
+                
+                if (isInput) {
+                    handleInputFieldLongPress(webView, event)
+                } else {
+                    handleTextNodeLongPress(webView, event, json)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "处理长按事件失败: ${e.message}", e)
+                handleFallbackTextSelection(webView, event)
+            }
+        }
+    }
+
+    private fun handleTextNodeLongPress(webView: WebView, event: MotionEvent, json: JSONObject) {
+        mainHandler.post {
+            try {
+                clearTextSelection()
+                
+                val start = json.optJSONObject("start")
+                val end = json.optJSONObject("end")
+                val isRTL = json.optBoolean("isRTL", false)
+                val text = json.optString("text", "")
+                
+                if (start != null && end != null && text.isNotEmpty()) {
+                    // 更新选择状态
+                    currentSelectionState = SelectionHandleState(
+                        startHandle = Point(
+                            start.getInt("x"),
+                            start.getInt("y")
+                        ),
+                        endHandle = Point(
+                            end.getInt("x"),
+                            end.getInt("y")
+                        ),
+                        isRTL = isRTL
+                    )
+                    
+                    // 创建选择管理器
+                    textSelectionManager = TextSelectionManager(
+                        context = this,
+                        webView = webView,
+                        windowManager = windowManager,
+                        onSelectionChanged = { selectedText ->
+                            if (selectedText.isNotEmpty()) {
+                                showTextSelectionMenuSafely(
+                                    webView,
+                                    (start.getInt("x") + end.getInt("x")) / 2,
+                                    min(start.getInt("bottom"), end.getInt("bottom"))
+                                )
+                            }
+                        },
+                        onHandleMoved = { managerHandleType, x, y ->
+                            // 将 manager 包中的 HandleType 转换为 model 包中的 HandleType
+                            val modelHandleType = when (managerHandleType) {
+                                com.example.aifloatingball.manager.HandleType.START -> HandleType.START
+                                com.example.aifloatingball.manager.HandleType.END -> HandleType.END
+                                else -> HandleType.NONE
+                            }
+                            updateSelectionForHandleMove(webView, modelHandleType, x, y)
+                        }
+                    )
+                    
+                    // 显示选择柄
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "处理文本节点长按失败", e)
+            }
+        }
+    }
+
+    private fun updateSelectionForHandleMove(webView: WebView, handleType: HandleType, x: Int, y: Int) {
+        val js = when (handleType) {
+            HandleType.START -> """
+                (function() {
+                    const range = window.__selection_range;
+                    if (!range) return;
+                    
+                    const point = document.caretRangeFromPoint($x, $y);
+                    if (point) {
+                        range.setStart(point.startContainer, point.startOffset);
+                        window.__selection_range = range;
+                        
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        
+                        return {
+                            text: selection.toString(),
+                            start: getSelectionCoordinates(range, true),
+                            end: getSelectionCoordinates(range, false)
+                        };
+                    }
+                })();
+            """
+            HandleType.END -> """
+                (function() {
+                    const range = window.__selection_range;
+                    if (!range) return;
+                    
+                    const point = document.caretRangeFromPoint($x, $y);
+                    if (point) {
+                        range.setEnd(point.startContainer, point.startOffset);
+                        window.__selection_range = range;
+                        
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        
+                        return {
+                            text: selection.toString(),
+                            start: getSelectionCoordinates(range, true),
+                            end: getSelectionCoordinates(range, false)
+                        };
+                    }
+                })();
+            """
+            HandleType.NONE -> """
+                (function() {
+                    return null;
+                })();
+            """
+        }
+        
+        webView.evaluateJavascript(js) { result ->
+            try {
+                if (result != "null") {
+                    val json = JSONObject(result)
+                    val text = json.optString("text", "")
+                    val start = json.optJSONObject("start")
+                    val end = json.optJSONObject("end")
+                    
+                    if (start != null && end != null) {
+                        mainHandler.post {
+                            textSelectionManager?.updateHandlePositions(
+                                leftX = start.getInt("x"),
+                                leftY = start.getInt("y"),
+                                rightX = end.getInt("x"),
+                                rightY = end.getInt("y")
+                            )
+                            
+                            if (text.isNotEmpty()) {
+                                showTextSelectionMenuSafely(webView, x, y)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "更新选择位置失败", e)
+            }
+        }
+    }
+
+    private fun handleInputFieldLongPress(webView: WebView, event: MotionEvent) {
+        mainHandler.post {
+            try {
+                toggleWindowFocusableFlag(true)
+                webView.evaluateJavascript("""
+                    (function() {
+                        try {
+                            var element = document.elementFromPoint(${event.x}, ${event.y});
+                            if (element) {
+                                element.focus();
+                                element.setSelectionRange(0, element.value.length);
+                                return true;
+                            }
+                            return false;
+                        } catch(e) {
+                            console.error('Error focusing input:', e);
+                            return false;
+                        }
+                    })();
+                """.trimIndent()) { focusResult ->
+                    Log.d(TAG, "输入框焦点设置结果: $focusResult")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "设置输入框焦点失败", e)
+            }
+        }
+    }
+    
+    private fun handleFallbackTextSelection(webView: WebView, event: MotionEvent) {
+        mainHandler.post {
+            try {
+                clearTextSelection()
+                textSelectionManager = TextSelectionManager(
+                    context = this,
+                    webView = webView,
+                    windowManager = windowManager,
+                    onSelectionChanged = { selectedText ->
+                        if (selectedText.isNotEmpty()) {
+                            showTextSelectionMenuSafely(webView, event.rawX.toInt(), event.rawY.toInt())
+                        }
+                    },
+                    onHandleMoved = { managerHandleType, x, y ->
+                        // 将 manager 包中的 HandleType 转换为 model 包中的 HandleType
+                        val modelHandleType = when (managerHandleType) {
+                            com.example.aifloatingball.manager.HandleType.START -> HandleType.START
+                            com.example.aifloatingball.manager.HandleType.END -> HandleType.END
+                            else -> HandleType.NONE
+                        }
+                        updateSelectionForHandleMove(webView, modelHandleType, x, y)
+                    }
+                )
+                textSelectionManager?.startSelection(event.x.toInt(), event.y.toInt())
+                provideHapticFeedback()
+            } catch (e: Exception) {
+                Log.e(TAG, "回退到默认文本选择处理失败", e)
+            }
+        }
+    }
+
+    private fun provideHapticFeedback() {
+        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(50)
+        }
+    }
+
+    // 添加选择柄状态追踪
+    private data class SelectionHandleState(
+        val startHandle: Point,
+        val endHandle: Point,
+        val isRTL: Boolean
+    )
+
+    private var currentSelectionState: SelectionHandleState? = null
+
+    private fun dismissTextSelectionMenu() {
+        textSelectionMenu?.let { popup ->
+            try {
+                // 直接使用 dismiss 方法关闭弹出窗口
+                popup.dismiss()
+                textSelectionMenu = null
+            } catch (e: Exception) {
+                Log.e(TAG, "关闭文本选择菜单失败", e)
+                // 确保清理状态
+                textSelectionMenu = null
+            }
+        }
+    }
+
+    private fun animateMenuDismiss() {
+        menuShowLock.lock()
+        try {
+            isMenuAnimating.set(true)
+            textSelectionMenu?.let { popup ->
+                try {
+                    // 获取PopupWindow的内容视图
+                    val contentView = popup.contentView
+                    if (contentView != null && contentView.isAttachedToWindow) {
+                        // 使用内容视图进行动画，而不是PopupWindow本身
+                        contentView.animate()
+                            .alpha(0f)
+                            .scaleX(0.8f)
+                            .scaleY(0.8f)
+                            .setDuration(150)
+                            .setInterpolator(AccelerateInterpolator())
+                            .withEndAction {
+                                dismissPopupSafely(popup)
+                                TextSelectionMenuController.cleanupState()
+                            }
+                            .start()
+                        
+                        // 等待动画完成，设置超时防止死锁
+                        if (!menuAnimationComplete.await(MENU_SHOW_TIMEOUT, TimeUnit.MILLISECONDS)) {
+                            Log.w(TAG, "等待动画完成超时")
+                            dismissPopupSafely(popup)
+                            TextSelectionMenuController.cleanupState()
+                        }
+                    } else {
+                        // 内容视图不存在或未附加到窗口，直接关闭弹出窗口
+                        dismissPopupSafely(popup)
+                        TextSelectionMenuController.cleanupState()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "隐藏文本选择菜单失败", e)
+                    dismissPopupSafely(popup)
+                    TextSelectionMenuController.cleanupState()
+                }
+            } ?: run {
+                // 如果没有菜单视图，直接清理状态
+                TextSelectionMenuController.cleanupState()
+            }
+        } finally {
+            menuShowLock.unlock()
+        }
+        mainHandler.removeCallbacksAndMessages(null)
+    }
+
+    // 安全地关闭弹出窗口
+    private fun dismissPopupSafely(popup: PopupWindow) {
+        try {
+            if (popup.isShowing) {
+                popup.dismiss()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭弹出窗口失败", e)
+        }
+        textSelectionMenu = null
+    }
+
+    // 计算菜单显示位置
+    private fun calculateMenuPosition(webView: WebView, x: Int, y: Int, menuView: View): Point {
+        // 测量菜单视图大小
+        menuView.measure(
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        
+        val menuWidth = menuView.measuredWidth
+        val menuHeight = menuView.measuredHeight
+        
+        // 获取WebView在屏幕上的位置
+        val webViewLocation = IntArray(2)
+        webView.getLocationOnScreen(webViewLocation)
+        
+        // 屏幕尺寸
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        // 计算菜单位置，优先显示在选择点上方
+        // x坐标：优先水平居中于点击位置，但不超出屏幕边界
+        val menuX = max(0, min(x - menuWidth / 2, screenWidth - menuWidth))
+        
+        // y坐标：优先在点击位置上方45dp，如果太靠上则放在点击位置下方25dp
+        val offsetUp = dpToPx(45)
+        val offsetDown = dpToPx(25)
+        
+        var menuY = y - menuHeight - offsetUp
+        
+        // 如果太靠上，或者与WebView顶部太近，放到触摸点下方
+        if (menuY < 0 || (y - webViewLocation[1]) < menuHeight) {
+            menuY = y + offsetDown
+        }
+        
+        // 确保不超出屏幕底部
+        if (menuY + menuHeight > screenHeight) {
+            menuY = screenHeight - menuHeight - dpToPx(10)
+        }
+        
+        Log.d(TAG, "菜单位置: ($menuX, $menuY), 屏幕: ${screenWidth}x${screenHeight}, 菜单: ${menuWidth}x${menuHeight}")
+        return Point(menuX, menuY)
     }
 } 

@@ -13,6 +13,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.WebView
+import android.widget.ImageView
 import android.widget.PopupWindow
 import android.widget.Toast
 import com.example.aifloatingball.R
@@ -23,11 +24,16 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+enum class HandleType {
+    START, END
+}
+
 class TextSelectionManager(
     private val context: Context,
     private var webView: WebView,
     private val windowManager: WindowManager,
-    private val onSelectionChanged: (String) -> Unit
+    private val onSelectionChanged: (String) -> Unit,
+    private val onHandleMoved: (HandleType, Int, Int) -> Unit
 ) {
     companion object {
         private const val TAG = "TextSelectionManager"
@@ -58,31 +64,72 @@ class TextSelectionManager(
     private var lastTouchY = 0f
     private var activeHandle: TextSelectionHandleView? = null
 
-    private val handleTouchListener = View.OnTouchListener { view, event ->
-        when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
-                startX = event.rawX
-                startY = event.rawY
-                lastTouchX = event.rawX
-                lastTouchY = event.rawY
-                activeHandle = view as TextSelectionHandleView
-                true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                val dx = event.rawX - lastTouchX
-                val dy = event.rawY - lastTouchY
-                updateHandlePosition(activeHandle, dx, dy)
-                lastTouchX = event.rawX
-                lastTouchY = event.rawY
-                true
-            }
-            MotionEvent.ACTION_UP -> {
-                activeHandle = null
-                updateSelection()
-                true
-            }
-            else -> false
+    private var startHandle: ImageView? = null
+    private var endHandle: ImageView? = null
+    private var isHandleDragging = false
+    private var activeHandleType: HandleType? = null
+
+    init {
+        createSelectionHandles()
+    }
+
+    private fun createSelectionHandles() {
+        // 创建开始选择柄
+        startHandle = ImageView(context).apply {
+            setImageResource(R.drawable.ic_text_select_handle_start)
+            visibility = View.GONE
         }
+
+        // 创建结束选择柄
+        endHandle = ImageView(context).apply {
+            setImageResource(R.drawable.ic_text_select_handle_end)
+            visibility = View.GONE
+        }
+
+        // 设置选择柄的触摸事件
+        val handleTouchListener = View.OnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isHandleDragging = true
+                    activeHandleType = if (view == startHandle) HandleType.START else HandleType.END
+                    lastTouchX = event.rawX
+                    lastTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isHandleDragging) {
+                        val dx = event.rawX - lastTouchX
+                        val dy = event.rawY - lastTouchY
+                        
+                        val params = view.layoutParams as WindowManager.LayoutParams
+                        params.x += dx.toInt()
+                        params.y += dy.toInt()
+                        
+                        try {
+                            windowManager.updateViewLayout(view, params)
+                            activeHandleType?.let { handleType ->
+                                onHandleMoved(handleType, params.x, params.y)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        
+                        lastTouchX = event.rawX
+                        lastTouchY = event.rawY
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    isHandleDragging = false
+                    activeHandleType = null
+                    true
+                }
+                else -> false
+            }
+        }
+
+        startHandle?.setOnTouchListener(handleTouchListener)
+        endHandle?.setOnTouchListener(handleTouchListener)
     }
 
     fun startSelection(x: Int, y: Int) {
@@ -666,7 +713,7 @@ class TextSelectionManager(
     }
 
     // 更新现有选择柄的位置
-    private fun updateHandlePositions(leftX: Int, leftY: Int, rightX: Int, rightY: Int) {
+    fun updateHandlePositions(leftX: Int, leftY: Int, rightX: Int, rightY: Int) {
         val leftParams = leftHandle?.layoutParams as? WindowManager.LayoutParams
         val rightParams = rightHandle?.layoutParams as? WindowManager.LayoutParams
         
@@ -1096,5 +1143,12 @@ class TextSelectionManager(
         hideSelectionHandles()
         hideSelectionMenu()
         isSelectionActive = false
+    }
+
+    /**
+     * 获取当前选中的文本
+     */
+    fun getSelectedText(): String {
+        return selectedText
     }
 } 

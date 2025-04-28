@@ -74,4 +74,6 @@
     <dimen name="gesture_hint_padding">8dp</dimen>
 
     <dimen name="search_engine_icon_size">40dp</dimen>
+
+    <dimen name="menu_elevation">8dp</dimen>
 </resources> 
