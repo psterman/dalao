@@ -60,6 +60,7 @@ import kotlin.concurrent.withLock
 import com.example.aifloatingball.model.HandleType
 import android.widget.PopupWindow
 import android.view.ViewPropertyAnimator
+import java.io.File
 
 class DualFloatingWebViewService : Service() {
     companion object {
@@ -2238,6 +2239,354 @@ class DualFloatingWebViewService : Service() {
         switchToNormalButton?.setOnClickListener {
             switchToNormalMode()
         }
+        
+        // 初始化搜索引擎切换工具栏
+        setupSearchEngineToolbars()
+    }
+
+    /**
+     * 设置搜索引擎切换工具栏
+     */
+    private fun setupSearchEngineToolbars() {
+        // 初始化第一个WebView的工具栏
+        setupWebViewToolbar(
+            firstWebView,
+            firstEngineContainer,
+            firstAIEngineContainer,
+            firstEngineToggle,
+            leftEngineKey,
+            true
+        )
+        
+        // 初始化第二个WebView的工具栏
+        setupWebViewToolbar(
+            secondWebView,
+            secondEngineContainer,
+            secondAIEngineContainer,
+            secondEngineToggle,
+            centerEngineKey,
+            false
+        )
+        
+        // 初始化第三个WebView的工具栏
+        setupWebViewToolbar(
+            thirdWebView,
+            thirdEngineContainer,
+            thirdAIEngineContainer,
+            thirdEngineToggle,
+            rightEngineKey,
+            false
+        )
+        
+        // 确保工具栏的可见性与窗口数量一致
+        updateToolbarVisibility()
+    }
+
+    /**
+     * 设置单个WebView的搜索引擎工具栏
+     */
+    private fun setupWebViewToolbar(
+        webView: WebView?,
+        normalEngineContainer: LinearLayout?,
+        aiEngineContainer: LinearLayout?,
+        toggleButton: ImageButton?,
+        defaultEngine: String,
+        isLeftWindow: Boolean
+    ) {
+        webView ?: return
+        normalEngineContainer ?: return
+        aiEngineContainer ?: return
+        toggleButton ?: return
+        
+        // 清空现有图标
+        normalEngineContainer.removeAllViews()
+        aiEngineContainer.removeAllViews()
+        
+        // 添加常规搜索引擎图标
+        val normalEngines = listOf(
+            SearchEngine("百度", "https://www.baidu.com/s?wd={query}", R.drawable.ic_baidu, "百度搜索"),
+            SearchEngine("谷歌", "https://www.google.com/search?q={query}", R.drawable.ic_google, "谷歌搜索"),
+            SearchEngine("必应", "https://www.bing.com/search?q={query}", R.drawable.ic_bing, "必应搜索"),
+            SearchEngine("搜狗", "https://www.sogou.com/web?query={query}", R.drawable.ic_sogou, "搜狗搜索"),
+            SearchEngine("360", "https://www.so.com/s?q={query}", R.drawable.ic_360, "360搜索"),
+            SearchEngine("知乎", "https://www.zhihu.com/search?q={query}", R.drawable.ic_zhihu, "知乎搜索"),
+            SearchEngine("微博", "https://s.weibo.com/weibo?q={query}", R.drawable.ic_weibo, "微博搜索")
+        )
+
+        // 添加AI搜索引擎图标
+        val aiEngines = listOf(
+            SearchEngine("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search, "ChatGPT"),
+            SearchEngine("必应AI", "https://www.bing.com/new", R.drawable.ic_bing, "必应AI聊天"),
+            SearchEngine("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_baidu, "文心一言"),
+            SearchEngine("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_search, "讯飞星火"),
+            SearchEngine("百度文心", "https://yiyan.baidu.com/", R.drawable.ic_baidu, "百度文心")
+        )
+        
+        // 添加常规搜索引擎图标
+        addSearchEngineIcons(normalEngineContainer, normalEngines, webView, defaultEngine, false)
+        
+        // 添加AI搜索引擎图标
+        addSearchEngineIcons(aiEngineContainer, aiEngines, webView, defaultEngine, true)
+        
+        // 初始隐藏AI引擎容器
+        aiEngineContainer.visibility = View.GONE
+        
+        // 设置切换按钮点击事件
+        toggleButton.setOnClickListener {
+            val isAIVisible = aiEngineContainer.visibility == View.VISIBLE
+            
+            // 切换显示状态
+            normalEngineContainer.visibility = if (isAIVisible) View.VISIBLE else View.GONE
+            aiEngineContainer.visibility = if (isAIVisible) View.GONE else View.VISIBLE
+            
+            // 更新按钮图标
+            toggleButton.setImageResource(
+                if (isAIVisible) R.drawable.ic_search else R.drawable.ic_ai_search
+            )
+            
+            // 添加动画效果
+            val container = if (isAIVisible) normalEngineContainer else aiEngineContainer
+            container.alpha = 0f
+            container.animate()
+                .alpha(1f)
+                .setDuration(200)
+                .start()
+        }
+        
+        // 初始化选中状态
+        updateEngineSelection(normalEngineContainer, aiEngineContainer, defaultEngine)
+    }
+
+    /**
+     * 添加搜索引擎图标到容器
+     */
+    private fun addSearchEngineIcons(
+        container: LinearLayout,
+        engines: List<SearchEngine>,
+        webView: WebView,
+        defaultEngine: String,
+        isAI: Boolean
+    ) {
+        val prefix = if (isAI) "ai_" else ""
+        
+        // 创建水平滚动布局包裹引擎图标
+        val scrollView = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            isHorizontalScrollBarEnabled = true
+            setPadding(2.dpToPx(this@DualFloatingWebViewService), 
+                      2.dpToPx(this@DualFloatingWebViewService), 
+                      2.dpToPx(this@DualFloatingWebViewService), 
+                      2.dpToPx(this@DualFloatingWebViewService))
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+        }
+        
+        // 创建内部图标容器
+        val iconsContainer = LinearLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(4.dpToPx(this@DualFloatingWebViewService), 
+                      2.dpToPx(this@DualFloatingWebViewService), 
+                      4.dpToPx(this@DualFloatingWebViewService), 
+                      2.dpToPx(this@DualFloatingWebViewService))
+        }
+        
+        // 添加引擎图标
+        engines.forEach { engine ->
+            val engineKey = prefix + engine.name.lowercase()
+            val iconView = createEngineIconButton(engine, engineKey)
+            
+            // 设置点击事件
+            iconView.setOnClickListener {
+                // 执行搜索
+                val query = searchInput?.text?.toString() ?: ""
+                if (query.isNotEmpty()) {
+                    performSearch(webView, query, engine.url)
+                } else {
+                    // 如果搜索框为空，直接加载引擎首页
+                    val baseUrl = engine.url.split("?")[0]
+                    webView.loadUrl(baseUrl)
+                }
+                
+                // 更新选中状态
+                updateEngineSelection(container, null, engineKey)
+                
+                // 更新对应窗口的默认引擎
+                when {
+                    webView == firstWebView -> {
+                        leftEngineKey = engineKey
+                        settingsManager.setLeftWindowSearchEngine(engineKey)
+                    }
+                    webView == secondWebView -> {
+                        centerEngineKey = engineKey
+                        settingsManager.setCenterWindowSearchEngine(engineKey)
+                    }
+                    webView == thirdWebView -> {
+                        rightEngineKey = engineKey
+                        settingsManager.setRightWindowSearchEngine(engineKey)
+                    }
+                }
+                
+                // 添加点击反馈
+                iconView.animate()
+                    .scaleX(1.2f)
+                    .scaleY(1.2f)
+                    .setDuration(100)
+                    .withEndAction {
+                        iconView.animate()
+                            .scaleX(1f)
+                            .scaleY(1f)
+                            .setDuration(100)
+                            .start()
+                    }
+                    .start()
+                
+                // 显示提示
+                Toast.makeText(
+                    this@DualFloatingWebViewService,
+                    "已切换到${engine.name}${if (isAI) "AI" else ""}搜索",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            
+            // 设置标签
+            iconView.tag = engineKey
+            
+            // 添加到容器
+            iconsContainer.addView(iconView)
+        }
+        
+        // 将图标容器添加到滚动视图
+        scrollView.addView(iconsContainer)
+        
+        // 将滚动视图添加到引擎容器
+        container.addView(scrollView)
+    }
+
+    /**
+     * 创建搜索引擎图标按钮
+     */
+    private fun createEngineIconButton(engine: SearchEngine, engineKey: String): ImageView {
+        return ImageView(this).apply {
+            val size = 36.dpToPx(this@DualFloatingWebViewService)
+            val layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                setMargins(
+                    4.dpToPx(this@DualFloatingWebViewService),
+                    2.dpToPx(this@DualFloatingWebViewService),
+                    4.dpToPx(this@DualFloatingWebViewService),
+                    2.dpToPx(this@DualFloatingWebViewService)
+                )
+            }
+            this.layoutParams = layoutParams
+            
+            // 设置图标
+            setImageResource(engine.iconResId)
+            
+            // 设置背景
+            setBackgroundResource(R.drawable.icon_background)
+            
+            // 设置内边距
+            val padding = 6.dpToPx(this@DualFloatingWebViewService)
+            setPadding(padding, padding, padding, padding)
+            
+            // 设置缩放类型
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            
+            // 添加描述
+            contentDescription = engine.description
+            
+            // 启用硬件加速
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+        }
+    }
+
+    /**
+     * 更新引擎选中状态
+     */
+    private fun updateEngineSelection(
+        normalContainer: ViewGroup,
+        aiContainer: ViewGroup?,
+        selectedEngineKey: String
+    ) {
+        // 处理常规搜索引擎容器
+        updateContainerSelection(normalContainer, selectedEngineKey)
+        
+        // 处理AI搜索引擎容器
+        aiContainer?.let {
+            updateContainerSelection(it, selectedEngineKey)
+        }
+    }
+
+    /**
+     * 更新容器内图标的选中状态
+     */
+    private fun updateContainerSelection(container: ViewGroup, selectedEngineKey: String) {
+        // 遍历容器中的所有视图
+        for (i in 0 until container.childCount) {
+            val child = container.getChildAt(i)
+            if (child is HorizontalScrollView && child.childCount > 0) {
+                val iconContainer = child.getChildAt(0) as? ViewGroup ?: continue
+                
+                // 遍历图标容器中的所有图标
+                for (j in 0 until iconContainer.childCount) {
+                    val iconView = iconContainer.getChildAt(j)
+                    if (iconView is ImageView) {
+                        val engineKey = iconView.tag as? String
+                        
+                        // 更新选中状态
+                        if (engineKey == selectedEngineKey) {
+                            iconView.setBackgroundResource(R.drawable.icon_background_selected)
+                            // 滚动到可见位置
+                            child.post {
+                                child.smoothScrollTo(
+                                    (iconView.left + iconView.right - child.width) / 2,
+                                    0
+                                )
+                            }
+                        } else {
+                            iconView.setBackgroundResource(R.drawable.icon_background)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 更新工具栏可见性
+     */
+    private fun updateToolbarVisibility() {
+        when (windowCount) {
+            1 -> {
+                firstEngineContainer?.visibility = View.VISIBLE
+                firstEngineToggle?.visibility = View.VISIBLE
+                secondEngineContainer?.visibility = View.GONE
+                secondEngineToggle?.visibility = View.GONE
+                thirdEngineContainer?.visibility = View.GONE
+                thirdEngineToggle?.visibility = View.GONE
+            }
+            2 -> {
+                firstEngineContainer?.visibility = View.VISIBLE
+                firstEngineToggle?.visibility = View.VISIBLE
+                secondEngineContainer?.visibility = View.VISIBLE
+                secondEngineToggle?.visibility = View.VISIBLE
+                thirdEngineContainer?.visibility = View.GONE
+                thirdEngineToggle?.visibility = View.GONE
+            }
+            else -> {
+                firstEngineContainer?.visibility = View.VISIBLE
+                firstEngineToggle?.visibility = View.VISIBLE
+                secondEngineContainer?.visibility = View.VISIBLE
+                secondEngineToggle?.visibility = View.VISIBLE
+                thirdEngineContainer?.visibility = View.VISIBLE
+                thirdEngineToggle?.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun updateLayoutOrientation() {
@@ -3006,6 +3355,80 @@ class DualFloatingWebViewService : Service() {
                 val url = "https://translate.google.com/?text=${URLEncoder.encode(text, "UTF-8")}"
                 webView.loadUrl(url)
             }
+        }
+    }
+
+    /**
+     * 创建图标背景Drawable
+     */
+    private fun createIconBackgroundDrawables() {
+        try {
+            // 如果资源已存在，跳过创建
+            resources.getIdentifier("engine_icon_background", "drawable", packageName)
+            resources.getIdentifier("engine_icon_selected", "drawable", packageName)
+            return
+        } catch (e: Exception) {
+            // 资源不存在，需要创建
+        }
+        
+        try {
+            // 创建临时目录
+            val drawableDir = File(cacheDir, "drawable")
+            if (!drawableDir.exists()) {
+                drawableDir.mkdirs()
+            }
+            
+            // 创建普通背景
+            val normalBackgroundXml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <ripple xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:color="#33000000">
+                    <item>
+                        <shape android:shape="oval">
+                            <solid android:color="#FFFFFF" />
+                            <stroke android:color="#E0E0E0" android:width="1dp" />
+                            <padding android:left="1dp" android:top="1dp" 
+                                android:right="1dp" android:bottom="1dp" />
+                        </shape>
+                    </item>
+                </ripple>
+            """.trimIndent()
+            
+            // 创建选中背景
+            val selectedBackgroundXml = """
+                <?xml version="1.0" encoding="utf-8"?>
+                <ripple xmlns:android="http://schemas.android.com/apk/res/android"
+                    android:color="#33000000">
+                    <item>
+                        <shape android:shape="oval">
+                            <solid android:color="#F2F8FF" />
+                            <stroke android:color="#4285F4" android:width="1.5dp" />
+                            <padding android:left="1dp" android:top="1dp" 
+                                android:right="1dp" android:bottom="1dp" />
+                        </shape>
+                    </item>
+                </ripple>
+            """.trimIndent()
+            
+            // 保存为临时文件
+            val normalFile = File(drawableDir, "engine_icon_background.xml")
+            normalFile.writeText(normalBackgroundXml)
+            
+            val selectedFile = File(drawableDir, "engine_icon_selected.xml")
+            selectedFile.writeText(selectedBackgroundXml)
+            
+            // 通过反射注册drawable
+            val resourceClass = R.drawable::class.java
+            val drawableField = resourceClass.getDeclaredField("engine_icon_background")
+            drawableField.isAccessible = true
+            drawableField.set(null, R.drawable.icon_background)
+            
+            val selectedField = resourceClass.getDeclaredField("engine_icon_selected")
+            selectedField.isAccessible = true
+            selectedField.set(null, R.drawable.icon_background_selected)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "创建Drawable失败: ${e.message}")
         }
     }
 } 
