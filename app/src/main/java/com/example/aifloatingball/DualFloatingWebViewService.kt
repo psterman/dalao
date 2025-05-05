@@ -848,6 +848,9 @@ class DualFloatingWebViewService : Service() {
                 displayZoomControls = false
             }
 
+            // 添加 JSBridge
+            webView.addJavascriptInterface(WebViewJSBridge(webView), "NativeBridge")
+
             // 设置触摸事件监听
             webView.setOnTouchListener { view, event ->
                 when (event.action) {
@@ -901,9 +904,176 @@ class DualFloatingWebViewService : Service() {
                     super.onPageFinished(view, url)
                     view?.let { 
                         enableTextSelectionMode(it)
+                        injectCustomMenuCode(it)
                     }
                 }
             }
+        }
+    }
+
+    private fun injectCustomMenuCode(webView: WebView) {
+        val css = """
+            #custom_selection_menu {
+                position: fixed;
+                background: #ffffff;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                padding: 8px;
+                display: none;
+                z-index: 999999;
+                font-family: system-ui, -apple-system, sans-serif;
+                user-select: none;
+                -webkit-user-select: none;
+            }
+            #custom_selection_menu button {
+                background: none;
+                border: none;
+                padding: 8px 12px;
+                margin: 0 4px;
+                color: #333;
+                font-size: 14px;
+                cursor: pointer;
+                border-radius: 4px;
+                transition: background 0.2s;
+            }
+            #custom_selection_menu button:active {
+                background: #e0e0e0;
+            }
+            #custom_selection_menu .divider {
+                display: inline-block;
+                width: 1px;
+                height: 20px;
+                background: #e0e0e0;
+                margin: 0 4px;
+                vertical-align: middle;
+            }
+        """
+
+        val js = """
+            (function() {
+                // 移除已存在的菜单（如果有）
+                var existingMenu = document.getElementById('custom_selection_menu');
+                if (existingMenu) {
+                    existingMenu.remove();
+                }
+
+                // 创建样式
+                var style = document.createElement('style');
+                style.textContent = `$css`;
+                document.head.appendChild(style);
+
+                // 创建菜单
+                var menu = document.createElement('div');
+                menu.id = 'custom_selection_menu';
+                menu.innerHTML = `
+                    <button onclick="window.handleMenuAction('copy')">复制</button>
+                    <span class="divider"></span>
+                    <button onclick="window.handleMenuAction('share')">分享</button>
+                    <span class="divider"></span>
+                    <button onclick="window.handleMenuAction('search')">搜索</button>
+                    <span class="divider"></span>
+                    <button onclick="window.handleMenuAction('translate')">翻译</button>
+                `;
+                document.body.appendChild(menu);
+
+                // 处理菜单动作
+                window.handleMenuAction = function(action) {
+                    var selection = window.getSelection();
+                    var text = selection.toString();
+                    if (!text) return;
+
+                    switch(action) {
+                        case 'copy':
+                            window.NativeBridge.onCopyText(text);
+                            break;
+                        case 'share':
+                            window.NativeBridge.onShareText(text);
+                            break;
+                        case 'search':
+                            window.NativeBridge.onSearchText(text);
+                            break;
+                        case 'translate':
+                            window.NativeBridge.onTranslateText(text);
+                            break;
+                    }
+                    hideCustomMenu();
+                };
+
+                // 显示菜单
+                window.showCustomMenu = function(x, y) {
+                    var menu = document.getElementById('custom_selection_menu');
+                    if (!menu) return;
+
+                    menu.style.display = 'block';
+                    
+                    // 获取选中文本的位置
+                    var selection = window.getSelection();
+                    var range = selection.getRangeAt(0);
+                    var rect = range.getBoundingClientRect();
+                    
+                    // 计算菜单位置
+                    var menuX = rect.left;
+                    var menuY = rect.bottom + window.scrollY + 5;  // 在选中文本下方5px
+                    
+                    menu.style.left = menuX + 'px';
+                    menu.style.top = menuY + 'px';
+
+                    // 确保菜单在视口内
+                    var menuRect = menu.getBoundingClientRect();
+                    var viewportWidth = window.innerWidth;
+                    var viewportHeight = window.innerHeight;
+
+                    if (menuRect.right > viewportWidth) {
+                        menu.style.left = (viewportWidth - menuRect.width - 5) + 'px';
+                    }
+                    if (menuRect.bottom > viewportHeight) {
+                        menu.style.top = (rect.top + window.scrollY - menuRect.height - 5) + 'px';
+                    }
+                };
+
+                // 隐藏菜单
+                window.hideCustomMenu = function() {
+                    var menu = document.getElementById('custom_selection_menu');
+                    if (menu) {
+                        menu.style.display = 'none';
+                    }
+                };
+
+                // 监听选择事件
+                document.addEventListener('selectionchange', function() {
+                    var selection = window.getSelection();
+                    if (selection.toString().length > 0) {
+                        showCustomMenu();
+                    } else {
+                        hideCustomMenu();
+                    }
+                });
+
+                // 点击其他地方隐藏菜单
+                document.addEventListener('mousedown', function(e) {
+                    if (!e.target.closest('#custom_selection_menu')) {
+                        hideCustomMenu();
+                    }
+                });
+
+                // 滚动时隐藏菜单
+                document.addEventListener('scroll', function() {
+                    hideCustomMenu();
+                }, true);
+
+                // 启用文本选择
+                document.documentElement.style.webkitUserSelect = 'text';
+                document.documentElement.style.userSelect = 'text';
+                
+                // 禁用默认的长按菜单
+                document.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                });
+            })();
+        """
+
+        webView.evaluateJavascript(js) { result ->
+            Log.d(TAG, "注入自定义菜单代码完成: $result")
         }
     }
 
@@ -2625,5 +2795,49 @@ class DualFloatingWebViewService : Service() {
         
         Log.d(TAG, "菜单位置: ($menuX, $menuY), 屏幕: ${screenWidth}x${screenHeight}, 菜单: ${menuWidth}x${menuHeight}")
         return Point(menuX, menuY)
+    }
+
+    // 添加 JSBridge 接口类
+    private inner class WebViewJSBridge(private val webView: WebView) {
+        @JavascriptInterface
+        fun onCopyText(text: String) {
+            mainHandler.post {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("selected text", text)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this@DualFloatingWebViewService, "已复制", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun onShareText(text: String) {
+            mainHandler.post {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(Intent.createChooser(intent, "分享文本").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        }
+
+        @JavascriptInterface
+        fun onSearchText(text: String) {
+            mainHandler.post {
+                val intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
+                    putExtra(SearchManager.QUERY, text)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+            }
+        }
+
+        @JavascriptInterface
+        fun onTranslateText(text: String) {
+            mainHandler.post {
+                val url = "https://translate.google.com/?text=${URLEncoder.encode(text, "UTF-8")}"
+                webView.loadUrl(url)
+            }
+        }
     }
 } 
