@@ -916,38 +916,101 @@ class DualFloatingWebViewService : Service() {
             #custom_selection_menu {
                 position: fixed;
                 background: #ffffff;
-                border-radius: 8px;
+                border-radius: 6px;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                padding: 8px;
+                padding: 4px;
                 display: none;
                 z-index: 999999;
                 font-family: system-ui, -apple-system, sans-serif;
                 user-select: none;
                 -webkit-user-select: none;
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: center;
+                min-width: 0;
+                max-width: 100%;
+                transform-origin: top center;
             }
             #custom_selection_menu button {
                 background: none;
                 border: none;
-                padding: 8px 12px;
-                margin: 0 4px;
+                padding: 6px 8px;
+                margin: 0 2px;
                 color: #333;
-                font-size: 14px;
+                font-size: 12px;
                 cursor: pointer;
                 border-radius: 4px;
-                transition: background 0.2s;
+                transition: all 0.2s;
+                position: relative;
+                overflow: hidden;
+                white-space: nowrap;
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+            }
+            #custom_selection_menu button:hover {
+                background: rgba(0, 0, 0, 0.05);
             }
             #custom_selection_menu button:active {
-                background: #e0e0e0;
+                background: rgba(0, 0, 0, 0.1);
+                transform: scale(0.95);
+            }
+            #custom_selection_menu button i {
+                font-size: 16px;
+                width: 16px;
+                height: 16px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #666;
             }
             #custom_selection_menu .divider {
                 display: inline-block;
                 width: 1px;
-                height: 20px;
+                height: 16px;
                 background: #e0e0e0;
-                margin: 0 4px;
-                vertical-align: middle;
+                margin: 0 2px;
+                flex: none;
             }
-        """
+            @media screen and (max-width: 300px) {
+                #custom_selection_menu {
+                    flex-wrap: wrap;
+                    padding: 2px;
+                }
+                #custom_selection_menu button {
+                    font-size: 11px;
+                    padding: 4px 6px;
+                }
+                #custom_selection_menu button i {
+                    font-size: 14px;
+                    width: 14px;
+                    height: 14px;
+                }
+                #custom_selection_menu .divider {
+                    display: none;
+                }
+            }
+            /* 图标样式 */
+            .menu-icon {
+                display: inline-block;
+                width: 16px;
+                height: 16px;
+                stroke-width: 2;
+                stroke: currentColor;
+                fill: none;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+        """.trimIndent()
+
+        val copyIcon = """<svg class="menu-icon" viewBox="0 0 24 24"><path d="M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.242a2 2 0 0 0-.602-1.43L16.083 2.57A2 2 0 0 0 14.685 2H10a2 2 0 0 0-2 2z"/><path d="M16 18v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2"/></svg>"""
+        val shareIcon = """<svg class="menu-icon" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>"""
+        val searchIcon = """<svg class="menu-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>"""
+        val translateIcon = """<svg class="menu-icon" viewBox="0 0 24 24"><path d="M2 5h8"/><path d="M6 5v8"/><path d="M2 9h8"/><path d="M12 13h10"/><path d="M12 17h10"/><path d="M2 13h6"/><path d="M2 17h6"/><path d="M14 5l6 6"/><path d="M20 5l-6 6"/></svg>"""
 
         val js = """
             (function() {
@@ -966,43 +1029,74 @@ class DualFloatingWebViewService : Service() {
                 var menu = document.createElement('div');
                 menu.id = 'custom_selection_menu';
                 menu.innerHTML = `
-                    <button onclick="window.handleMenuAction('copy')">复制</button>
+                    <button data-action="copy">$copyIcon<span>复制</span></button>
                     <span class="divider"></span>
-                    <button onclick="window.handleMenuAction('share')">分享</button>
+                    <button data-action="share">$shareIcon<span>分享</span></button>
                     <span class="divider"></span>
-                    <button onclick="window.handleMenuAction('search')">多窗口搜索</button>
+                    <button data-action="search">$searchIcon<span>搜索</span></button>
                     <span class="divider"></span>
-                    <button onclick="window.handleMenuAction('translate')">翻译</button>
+                    <button data-action="translate">$translateIcon<span>翻译</span></button>
                 `;
                 document.body.appendChild(menu);
 
-                // 处理菜单动作
-                window.handleMenuAction = function(action) {
+                // 处理菜单点击
+                menu.addEventListener('click', function(e) {
+                    var button = e.target.closest('button');
+                    if (!button) return;
+                    
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    var action = button.dataset.action;
+                    if (!action) return;
+                    
                     var selection = window.getSelection();
-                    var text = selection.toString();
+                    var text = selection.toString().trim();
                     if (!text) return;
+                    
+                    // 添加点击反馈
+                    button.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        button.style.transform = 'scale(1)';
+                    }, 200);
 
-                    switch(action) {
-                        case 'copy':
-                            window.NativeBridge.onCopyText(text);
-                            break;
-                        case 'share':
-                            window.NativeBridge.onShareText(text);
-                            break;
-                        case 'search':
-                            window.NativeBridge.onSearchText(text);
-                            break;
-                        case 'translate':
-                            window.NativeBridge.onTranslateText(text);
-                            break;
+                    try {
+                        // 确保 NativeBridge 存在
+                        if (!window.NativeBridge) {
+                            console.error('NativeBridge not found');
+                            return;
+                        }
+
+                        // 调用对应的原生方法
+                        switch(action) {
+                            case 'copy':
+                                window.NativeBridge.onCopyText(text);
+                                break;
+                            case 'share':
+                                window.NativeBridge.onShareText(text);
+                                break;
+                            case 'search':
+                                window.NativeBridge.onSearchText(text);
+                                break;
+                            case 'translate':
+                                window.NativeBridge.onTranslateText(text);
+                                break;
+                        }
+                        
+                        // 隐藏菜单
+                        hideCustomMenu();
+                        
+                        // 清除选择
+                        selection.removeAllRanges();
+                    } catch (error) {
+                        console.error('Error executing action:', error);
                     }
-                    hideCustomMenu();
-                };
+                });
 
                 // 显示菜单
                 window.showCustomMenu = function() {
                     var selection = window.getSelection();
-                    if (!selection.toString()) return;
+                    if (!selection.toString().trim()) return;
 
                     var menu = document.getElementById('custom_selection_menu');
                     if (!menu) return;
@@ -1010,39 +1104,53 @@ class DualFloatingWebViewService : Service() {
                     var range = selection.getRangeAt(0);
                     var rect = range.getBoundingClientRect();
                     
-                    menu.style.display = 'block';
-                    menu.style.left = (rect.left + window.scrollX) + 'px';
-                    menu.style.top = (rect.bottom + window.scrollY + 5) + 'px';
-
-                    // 确保菜单在视口内
+                    menu.style.display = 'flex';
+                    
+                    // 计算菜单位置，优先显示在选中文本的正上方或正下方
                     var menuRect = menu.getBoundingClientRect();
                     var viewportWidth = window.innerWidth;
                     var viewportHeight = window.innerHeight;
-
-                    if (menuRect.right > viewportWidth) {
-                        menu.style.left = (viewportWidth - menuRect.width - 5) + 'px';
+                    
+                    // 水平居中对齐选中文本
+                    var left = rect.left + (rect.width - menuRect.width) / 2;
+                    
+                    // 确保不超出左右边界
+                    left = Math.max(5, Math.min(left, viewportWidth - menuRect.width - 5));
+                    
+                    // 垂直位置：优先显示在上方
+                    var top = rect.top - menuRect.height - 5;
+                    if (top < 5) { // 如果上方空间不足，显示在下方
+                        top = rect.bottom + 5;
                     }
-                    if (menuRect.bottom > viewportHeight) {
-                        menu.style.top = (rect.top + window.scrollY - menuRect.height - 5) + 'px';
-                    }
-
-                    // 防止菜单超出左边界
-                    if (parseFloat(menu.style.left) < 0) {
-                        menu.style.left = '5px';
-                    }
+                    
+                    menu.style.left = left + 'px';
+                    menu.style.top = top + 'px';
+                    
+                    // 添加显示动画
+                    menu.style.transform = 'scale(0.9)';
+                    menu.style.opacity = '0';
+                    
+                    requestAnimationFrame(() => {
+                        menu.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+                        menu.style.transform = 'scale(1)';
+                        menu.style.opacity = '1';
+                    });
                 };
 
                 // 隐藏菜单
                 window.hideCustomMenu = function() {
                     var menu = document.getElementById('custom_selection_menu');
                     if (menu) {
-                        menu.style.display = 'none';
+                        menu.style.transform = 'scale(0.9)';
+                        menu.style.opacity = '0';
+                        setTimeout(() => {
+                            menu.style.display = 'none';
+                        }, 200);
                     }
                 };
 
                 // 监听选择事件
                 document.addEventListener('selectionchange', function() {
-                    // 使用 requestAnimationFrame 确保在下一帧处理，避免选择未完成就显示菜单
                     requestAnimationFrame(function() {
                         var selection = window.getSelection();
                         var text = selection.toString().trim();
@@ -1057,7 +1165,6 @@ class DualFloatingWebViewService : Service() {
 
                 // 监听触摸结束事件
                 document.addEventListener('touchend', function() {
-                    // 延迟一小段时间后检查选择
                     setTimeout(function() {
                         var selection = window.getSelection();
                         var text = selection.toString().trim();
@@ -1069,7 +1176,6 @@ class DualFloatingWebViewService : Service() {
 
                 // 监听鼠标按键释放事件
                 document.addEventListener('mouseup', function() {
-                    // 延迟一小段时间后检查选择
                     setTimeout(function() {
                         var selection = window.getSelection();
                         var text = selection.toString().trim();
@@ -1114,7 +1220,7 @@ class DualFloatingWebViewService : Service() {
                     e.preventDefault();
                 });
             })();
-        """
+        """.trimIndent()
 
         webView.evaluateJavascript(js) { result ->
             Log.d(TAG, "注入自定义菜单代码完成: $result")
