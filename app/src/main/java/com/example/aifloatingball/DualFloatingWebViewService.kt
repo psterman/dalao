@@ -2020,7 +2020,7 @@ class DualFloatingWebViewService : Service() {
         aiEngineContainer ?: return
         toggleButton ?: return
         
-        // 清空现有图标
+        // 清空现有图标 - 确保彻底清空所有子视图
         normalEngineContainer.removeAllViews()
         aiEngineContainer.removeAllViews()
         
@@ -2039,20 +2039,18 @@ class DualFloatingWebViewService : Service() {
             SearchEngine("微博", "https://s.weibo.com/weibo?q={query}", R.drawable.ic_weibo, "微博搜索")
         )
 
-        // 添加扩展的AI搜索引擎图标
+        // 添加AI搜索引擎图标 - 确保无重复且使用不同图标区分
         val aiEngines = listOf(
             SearchEngine("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search, "ChatGPT"),
-            SearchEngine("GPT-4o", "https://chat.openai.com/?model=gpt-4o", R.drawable.ic_search, "GPT-4o"),
-            SearchEngine("Claude", "https://claude.ai/", R.drawable.ic_search, "Claude AI助手"),
-            SearchEngine("Claude3", "https://claude.ai/chats?model=claude-3-opus-20240229", R.drawable.ic_search, "Claude 3 Opus"),
-            SearchEngine("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_search, "文心一言"),
-            SearchEngine("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_search, "阿里通义千问"),
-            SearchEngine("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_search, "讯飞星火"),
-            SearchEngine("必应AI", "https://www.bing.com/new", R.drawable.ic_search, "必应AI聊天"),
-            SearchEngine("搜狗AI", "https://ai.sogou.com/", R.drawable.ic_search, "搜狗AI助手"),
-            SearchEngine("Gemini", "https://gemini.google.com/", R.drawable.ic_search, "Google Gemini"),
-            SearchEngine("Perplexity", "https://www.perplexity.ai/", R.drawable.ic_search, "Perplexity AI"),
-            SearchEngine("Copilot", "https://copilot.microsoft.com/", R.drawable.ic_search, "Microsoft Copilot")
+            SearchEngine("GPT-4o", "https://chat.openai.com/?model=gpt-4o", R.drawable.ic_bing, "GPT-4o"), // 使用必应图标
+            SearchEngine("Claude", "https://claude.ai/", R.drawable.ic_baidu, "Claude AI助手"), // 使用百度图标
+            SearchEngine("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_baidu, "文心一言"),
+            SearchEngine("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_google, "阿里通义千问"), // 使用谷歌图标
+            SearchEngine("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_sogou, "讯飞星火"), // 使用搜狗图标
+            SearchEngine("必应AI", "https://www.bing.com/new", R.drawable.ic_bing, "必应AI聊天"),
+            SearchEngine("搜狗AI", "https://ai.sogou.com/", R.drawable.ic_sogou, "搜狗AI助手"),
+            SearchEngine("Gemini", "https://gemini.google.com/", R.drawable.ic_google, "Google Gemini"),
+            SearchEngine("Perplexity", "https://www.perplexity.ai/", R.drawable.ic_360, "Perplexity AI") // 使用360图标
         )
         
         Log.d(TAG, "添加常规搜索引擎图标，数量: ${normalEngines.size}")
@@ -2126,6 +2124,9 @@ class DualFloatingWebViewService : Service() {
         isAI: Boolean
     ) {
         val prefix = if (isAI) "ai_" else ""
+        
+        // 确保容器为空，避免重复添加图标
+        container.removeAllViews()
         
         // 创建水平滚动布局包裹引擎图标
         val scrollView = HorizontalScrollView(this).apply {
@@ -2223,12 +2224,14 @@ class DualFloatingWebViewService : Service() {
                     }
                     .start()
                 
-                // 显示提示
-                Toast.makeText(
-                    this@DualFloatingWebViewService,
-                    "已切换到${engine.name}${if (isAI) "AI" else ""}搜索",
-                    Toast.LENGTH_SHORT
-                ).show()
+                // 显示提示 - 使用Handler.post确保提示在UI更新后显示
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        this@DualFloatingWebViewService,
+                        "已切换到${engine.name}${if (isAI) "AI" else ""}搜索",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
             
             // 设置标签
@@ -2239,8 +2242,6 @@ class DualFloatingWebViewService : Service() {
             
             Log.d(TAG, "添加了搜索引擎图标: $engineKey")
         }
-        
-        // 删除指示标签，不需要文字注解
         
         // 确保容器有最小高度
         iconsContainer.minimumHeight = 50.dpToPx(this)
@@ -3529,12 +3530,14 @@ class DualFloatingWebViewService : Service() {
                 // 更新切换按钮图标
                 firstEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
                 
-                // 显示提示
-                Toast.makeText(
-                    this@DualFloatingWebViewService,
-                    "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
-                    Toast.LENGTH_SHORT
-                ).show()
+                // 使用Handler.post确保提示在UI更新后显示，并减少显示延迟感
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        this@DualFloatingWebViewService,
+                        "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
                 
             } catch (e: Exception) {
                 Log.e(TAG, "第一个窗口切换按钮出错", e)
@@ -3565,12 +3568,14 @@ class DualFloatingWebViewService : Service() {
                 // 更新切换按钮图标
                 secondEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
                 
-                // 显示提示
-                Toast.makeText(
-                    this@DualFloatingWebViewService,
-                    "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
-                    Toast.LENGTH_SHORT
-                ).show()
+                // 使用Handler.post确保提示在UI更新后显示，并减少显示延迟感
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        this@DualFloatingWebViewService,
+                        "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
                 
             } catch (e: Exception) {
                 Log.e(TAG, "第二个窗口切换按钮出错", e)
@@ -3601,12 +3606,14 @@ class DualFloatingWebViewService : Service() {
                 // 更新切换按钮图标
                 thirdEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
                 
-                // 显示提示
-                Toast.makeText(
-                    this@DualFloatingWebViewService,
-                    "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
-                    Toast.LENGTH_SHORT
-                ).show()
+                // 使用Handler.post确保提示在UI更新后显示，并减少显示延迟感
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        this@DualFloatingWebViewService,
+                        "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
                 
             } catch (e: Exception) {
                 Log.e(TAG, "第三个窗口切换按钮出错", e)
