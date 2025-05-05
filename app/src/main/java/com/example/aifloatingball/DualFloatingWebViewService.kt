@@ -1686,6 +1686,34 @@ class DualFloatingWebViewService : Service() {
             switchToNormal()
         }
         
+        // 设置窗口数量切换按钮
+        val windowCountButton = floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
+        windowCountButton?.setOnClickListener {
+            try {
+                // 循环切换窗口数量：1 -> 2 -> 3 -> 1
+                val newCount = if (windowCount >= 3) 1 else windowCount + 1
+                updateWindowVisibility(newCount)
+                Toast.makeText(this, "已切换到${newCount}窗口模式", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "窗口数量切换为: $newCount")
+            } catch (e: Exception) {
+                Log.e(TAG, "切换窗口数量失败", e)
+                Toast.makeText(this, "切换失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        // 设置单窗口按钮
+        singleWindowButton?.setOnClickListener {
+            try {
+                // 直接切换到单窗口模式
+                updateWindowVisibility(1)
+                Toast.makeText(this, "已切换到单窗口模式", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "切换到单窗口模式")
+            } catch (e: Exception) {
+                Log.e(TAG, "切换到单窗口失败", e)
+                Toast.makeText(this, "切换失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
         // 初始化搜索引擎切换工具栏
         setupSearchEngineToolbars()
         
