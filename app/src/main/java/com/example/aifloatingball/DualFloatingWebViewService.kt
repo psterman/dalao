@@ -871,6 +871,26 @@ class DualFloatingWebViewService : Service() {
             // 添加 JSBridge
             webView.addJavascriptInterface(WebViewJSBridge(webView), "NativeBridge")
 
+            // 设置WebView的长按事件监听，用于处理链接长按
+            webView.setOnLongClickListener { view ->
+                val result = (view as WebView).hitTestResult
+                
+                when (result.type) {
+                    WebView.HitTestResult.SRC_ANCHOR_TYPE,
+                    WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE,
+                    WebView.HitTestResult.IMAGE_TYPE -> {
+                        // 获取长按位置的URL和链接文本
+                        val url = result.extra
+                        if (url != null) {
+                            // 显示自定义链接菜单
+                            showLinkActionMenu(webView, url, result.type)
+                            return@setOnLongClickListener true
+                        }
+                    }
+                }
+                false
+            }
+
             // 设置触摸事件监听
             webView.setOnTouchListener { view, event ->
                 when (event.action) {
@@ -925,10 +945,310 @@ class DualFloatingWebViewService : Service() {
                     view?.let { 
                         enableTextSelectionMode(it)
                         injectCustomMenuCode(it)
+                        injectLinkContextMenuCode(it)
                     }
                 }
             }
         }
+    }
+
+    /**
+     * 显示链接操作菜单
+     */
+    private fun showLinkActionMenu(webView: WebView, url: String, hitType: Int) {
+        try {
+            // 创建弹出菜单视图
+            val menuView = LayoutInflater.from(this).inflate(R.layout.popup_link_menu, null)
+            val popupWindow = PopupWindow(
+                menuView,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                true
+            ).apply {
+                elevation = 24f
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                isOutsideTouchable = true
+            }
+            
+            // 获取链接文本（仅当类型为锚点时）
+            if (hitType == WebView.HitTestResult.SRC_ANCHOR_TYPE || 
+                hitType == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+                webView.evaluateJavascript("""
+                    (function() {
+                        var links = document.querySelectorAll('a');
+                        for(var i = 0; i < links.length; i++) {
+                            if(links[i].href === "$url") {
+                                return links[i].innerText || links[i].textContent || '';
+                            }
+                        }
+                        return '';
+                    })();
+                """.trimIndent()) { result ->
+                    val linkText = result.trim('"')
+                    setupLinkMenuButtons(menuView, webView, url, linkText)
+                }
+            } else {
+                // 如果只是图片，没有链接文本
+                setupLinkMenuButtons(menuView, webView, url, "")
+            }
+            
+            // 在点击位置附近显示菜单
+            val location = IntArray(2)
+            webView.getLocationOnScreen(location)
+            
+            // 显示在合适的位置，防止超出屏幕
+            val displayMetrics = resources.displayMetrics
+            val x = Math.min(location[0] + lastTouchX.toInt(), 
+                            displayMetrics.widthPixels - menuView.measuredWidth)
+            val y = Math.min(location[1] + lastTouchY.toInt(), 
+                            displayMetrics.heightPixels - menuView.measuredHeight)
+            
+            // 测量视图大小
+            menuView.measure(
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            
+            // 添加进入动画
+            menuView.alpha = 0f
+            menuView.scaleX = 0.8f
+            menuView.scaleY = 0.8f
+            
+            popupWindow.showAtLocation(webView, Gravity.NO_GRAVITY, x, y)
+            
+            menuView.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(200)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示链接菜单失败", e)
+            Toast.makeText(this, "显示菜单失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 设置链接菜单按钮
+     */
+    private fun setupLinkMenuButtons(
+        menuView: View, 
+        webView: WebView, 
+        url: String, 
+        linkText: String
+    ) {
+        try {
+            // 后台打开
+            menuView.findViewById<View>(R.id.btn_open_background)?.setOnClickListener {
+                openLinkInBackground(url)
+                dismissPopupMenu(menuView)
+            }
+            
+            // 新标签打开
+            menuView.findViewById<View>(R.id.btn_open_new_tab)?.setOnClickListener {
+                openLinkInNewTab(url)
+                dismissPopupMenu(menuView)
+            }
+            
+            // 复制链接文字
+            val btnCopyText = menuView.findViewById<View>(R.id.btn_copy_text)
+            if (linkText.isNotEmpty()) {
+                btnCopyText?.setOnClickListener {
+                    copyTextToClipboard(linkText)
+                    Toast.makeText(this, "已复制链接文字", Toast.LENGTH_SHORT).show()
+                    dismissPopupMenu(menuView)
+                }
+            } else {
+                btnCopyText?.visibility = View.GONE
+            }
+            
+            // 复制链接
+            menuView.findViewById<View>(R.id.btn_copy_link)?.setOnClickListener {
+                copyTextToClipboard(url)
+                Toast.makeText(this, "已复制链接", Toast.LENGTH_SHORT).show()
+                dismissPopupMenu(menuView)
+            }
+            
+            // 分享链接
+            menuView.findViewById<View>(R.id.btn_share_link)?.setOnClickListener {
+                shareLinkUrl(url)
+                dismissPopupMenu(menuView)
+            }
+            
+            // 生成二维码
+            menuView.findViewById<View>(R.id.btn_generate_qr)?.setOnClickListener {
+                generateQRCode(url)
+                dismissPopupMenu(menuView)
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "设置链接菜单按钮失败", e)
+        }
+    }
+    
+    /**
+     * 关闭弹出菜单
+     */
+    private fun dismissPopupMenu(menuView: View) {
+        try {
+            val popupWindow = menuView.parent?.parent as? PopupWindow
+            
+            // 添加退出动画
+            menuView.animate()
+                .alpha(0f)
+                .scaleX(0.8f)
+                .scaleY(0.8f)
+                .setDuration(150)
+                .setInterpolator(AccelerateInterpolator())
+                .withEndAction {
+                    popupWindow?.dismiss()
+                }
+                .start()
+                
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭菜单失败", e)
+            // 如果动画失败，直接关闭
+            try {
+                val popupWindow = menuView.parent?.parent as? PopupWindow
+                popupWindow?.dismiss()
+            } catch (e2: Exception) {
+                Log.e(TAG, "直接关闭菜单也失败", e2)
+            }
+        }
+    }
+    
+    /**
+     * 在后台打开链接
+     */
+    private fun openLinkInBackground(url: String) {
+        try {
+            // 根据当前窗口数量选择打开方式
+            when (windowCount) {
+                1 -> {
+                    // 如果当前只有一个窗口，增加到两个窗口并在第二个窗口打开
+                    updateWindowVisibility(2)
+                    secondWebView?.loadUrl(url)
+                    Toast.makeText(this, "已在第二个窗口打开链接", Toast.LENGTH_SHORT).show()
+                }
+                2 -> {
+                    // 如果当前有两个窗口，增加到三个窗口并在第三个窗口打开
+                    updateWindowVisibility(3)
+                    thirdWebView?.loadUrl(url)
+                    Toast.makeText(this, "已在第三个窗口打开链接", Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    // 如果已经有三个窗口，在第二个窗口打开
+                    secondWebView?.loadUrl(url)
+                    Toast.makeText(this, "已在第二个窗口打开链接", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "后台打开链接失败", e)
+            Toast.makeText(this, "打开链接失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 在新标签打开链接
+     */
+    private fun openLinkInNewTab(url: String) {
+        try {
+            // 创建Intent打开系统浏览器
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "新标签打开链接失败", e)
+            Toast.makeText(this, "打开链接失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 复制文本到剪贴板
+     */
+    private fun copyTextToClipboard(text: String) {
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("链接文本", text)
+            clipboard.setPrimaryClip(clip)
+        } catch (e: Exception) {
+            Log.e(TAG, "复制到剪贴板失败", e)
+            Toast.makeText(this, "复制失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 分享链接URL
+     */
+    private fun shareLinkUrl(url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, url)
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(Intent.createChooser(intent, "分享链接").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) {
+            Log.e(TAG, "分享链接失败", e)
+            Toast.makeText(this, "分享失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 生成二维码
+     */
+    private fun generateQRCode(url: String) {
+        try {
+            // 此处调用二维码生成库生成二维码
+            // 目前仅显示提示信息，实际功能需要集成二维码生成库
+            Toast.makeText(this, "二维码生成功能将在后续版本添加", Toast.LENGTH_SHORT).show()
+            
+            // 使用系统二维码扫描应用
+            val intent = Intent(Intent.ACTION_VIEW)
+            intent.data = Uri.parse("https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + Uri.encode(url))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "生成二维码失败", e)
+            Toast.makeText(this, "生成二维码失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 注入链接上下文菜单代码
+     */
+    private fun injectLinkContextMenuCode(webView: WebView) {
+        val script = """
+            (function() {
+                // 禁用默认上下文菜单
+                document.addEventListener('contextmenu', function(e) {
+                    // 检查是否是链接
+                    var element = e.target;
+                    var isLink = false;
+                    
+                    // 向上查找最近的链接元素
+                    while (element && element !== document) {
+                        if (element.tagName === 'A' && element.href) {
+                            isLink = true;
+                            break;
+                        }
+                        element = element.parentElement;
+                    }
+                    
+                    // 如果是链接，阻止默认事件，让长按处理
+                    if (isLink) {
+                        e.preventDefault();
+                        return false;
+                    }
+                }, false);
+                
+                console.log('链接上下文菜单代码已注入');
+            })();
+        """.trimIndent()
+        
+        webView.evaluateJavascript(script, null)
     }
 
     private fun injectCustomMenuCode(webView: WebView) {
