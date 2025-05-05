@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Point
@@ -49,18 +50,21 @@ import com.example.aifloatingball.utils.EngineUtil
 import com.example.aifloatingball.utils.FaviconManager
 import com.example.aifloatingball.utils.IconLoader
 import org.json.JSONObject
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.net.URLEncoder
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.roundToInt
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.withLock
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 import com.example.aifloatingball.model.HandleType
 import android.widget.PopupWindow
 import android.view.ViewPropertyAnimator
-import java.io.File
+import java.io.File as JavaFile
 
 class DualFloatingWebViewService : Service() {
     companion object {
@@ -516,9 +520,6 @@ class DualFloatingWebViewService : Service() {
             // 初始化WebView
             setupWebViews()
             
-            // 设置WebView的文本选择功能
-            enableTextSelectionOnWebViews()
-            
             // 设置控件事件
             setupControls()
             
@@ -532,6 +533,15 @@ class DualFloatingWebViewService : Service() {
             
             // 根据窗口数量设置视图可见性
             updateViewVisibilityByWindowCount()
+            
+            // 刷新引擎切换按钮，确保点击事件被正确设置
+            refreshEngineToggleButtons()
+            
+            // 记录按钮状态
+            Log.d(TAG, "服务初始化完成，引擎切换按钮状态：")
+            Log.d(TAG, "firstEngineToggle: ${if (firstEngineToggle?.visibility == View.VISIBLE) "可见" else "不可见"}")
+            Log.d(TAG, "secondEngineToggle: ${if (secondEngineToggle?.visibility == View.VISIBLE) "可见" else "不可见"}")
+            Log.d(TAG, "thirdEngineToggle: ${if (thirdEngineToggle?.visibility == View.VISIBLE) "可见" else "不可见"}")
             
         } catch (e: Exception) {
             Log.e(TAG, "创建服务失败", e)
@@ -695,7 +705,7 @@ class DualFloatingWebViewService : Service() {
         firstAIScrollContainer = floatingView?.findViewById(R.id.first_ai_scroll_container)
         secondAIScrollContainer = floatingView?.findViewById(R.id.second_ai_scroll_container)
         thirdAIScrollContainer = floatingView?.findViewById(R.id.third_ai_scroll_container)
-        saveButton = floatingView?.findViewById(R.id.btn_save_engines) // 添加保存按钮
+        saveButton = floatingView?.findViewById(R.id.btn_save_engines) // 保存按钮
         
         // 使用动态方法查找切换按钮，避免编译错误
         val btnSwitchId = resources.getIdentifier("btn_switch_normal", "id", packageName)
@@ -749,6 +759,15 @@ class DualFloatingWebViewService : Service() {
                 Log.e(TAG, "无法找到顶部工具栏，切换按钮将无法使用")
             }
         }
+        
+        // 添加调试日志
+        Log.d(TAG, "初始化视图完成:")
+        Log.d(TAG, "firstEngineToggle: $firstEngineToggle")
+        Log.d(TAG, "secondEngineToggle: $secondEngineToggle")
+        Log.d(TAG, "thirdEngineToggle: $thirdEngineToggle")
+        Log.d(TAG, "firstAIScrollContainer: $firstAIScrollContainer")
+        Log.d(TAG, "secondAIScrollContainer: $secondAIScrollContainer")
+        Log.d(TAG, "thirdAIScrollContainer: $thirdAIScrollContainer")
     }
 
     /**
@@ -1483,122 +1502,197 @@ class DualFloatingWebViewService : Service() {
      * 设置搜索引擎切换按钮
      */
     private fun setupEngineToggleButtons() {
+        Log.d(TAG, "初始化引擎切换按钮")
+        
         // 第一个窗口的切换按钮
         firstEngineToggle?.setOnClickListener {
-            val isAIVisible = firstAIScrollContainer?.visibility == View.VISIBLE
-            
-            // 切换AI和普通搜索引擎视图
-            firstAIScrollContainer?.visibility = if (isAIVisible) View.GONE else View.VISIBLE
-            
-            // 更新按钮图标
-            firstEngineToggle?.setImageResource(
-                if (isAIVisible) R.drawable.ic_search else R.drawable.ic_ai_search
-            )
+            try {
+                Log.d(TAG, "第一个窗口切换按钮被点击")
+                // 获取当前AI滚动容器可见性状态
+                val isAIVisible = firstAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第一个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                
+                // 直接切换容器可见性
+                if (isAIVisible) {
+                    // 从AI引擎切换到普通引擎
+                    firstAIScrollContainer?.visibility = View.GONE
+                    firstEngineToggle?.setImageResource(R.drawable.ic_ai_search)
+                } else {
+                    // 从普通引擎切换到AI引擎
+                    firstAIScrollContainer?.visibility = View.VISIBLE
+                    firstEngineToggle?.setImageResource(R.drawable.ic_search)
+                }
+                
+                // 添加切换动画
+                if (!isAIVisible) {
+                    firstAIScrollContainer?.apply {
+                        alpha = 0f
+                        animate()
+                            .alpha(1f)
+                            .setDuration(200)
+                            .start()
+                    }
+                }
+                
+                // 确认切换后的可见性状态
+                Log.d(TAG, "切换后第一个窗口容器状态 - " +
+                       "AI容器: ${if (firstAIScrollContainer?.visibility == View.VISIBLE) "可见" else "不可见"}")
+                
+                // 显示提示
+                Toast.makeText(
+                    this@DualFloatingWebViewService,
+                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    Toast.LENGTH_SHORT
+                ).show()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "第一个窗口切换按钮出错", e)
+                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
         
         // 第二个窗口的切换按钮
         secondEngineToggle?.setOnClickListener {
-            val isAIVisible = secondAIScrollContainer?.visibility == View.VISIBLE
-            
-            // 切换AI和普通搜索引擎视图
-            secondAIScrollContainer?.visibility = if (isAIVisible) View.GONE else View.VISIBLE
-            
-            // 更新按钮图标
-            secondEngineToggle?.setImageResource(
-                if (isAIVisible) R.drawable.ic_search else R.drawable.ic_ai_search
-            )
+            try {
+                Log.d(TAG, "第二个窗口切换按钮被点击")
+                // 获取当前AI容器可见性状态
+                val isAIVisible = secondAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第二个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                
+                // 直接切换容器可见性
+                if (isAIVisible) {
+                    // 从AI引擎切换到普通引擎
+                    secondAIScrollContainer?.visibility = View.GONE
+                    secondEngineToggle?.setImageResource(R.drawable.ic_ai_search)
+                } else {
+                    // 从普通引擎切换到AI引擎
+                    secondAIScrollContainer?.visibility = View.VISIBLE
+                    secondEngineToggle?.setImageResource(R.drawable.ic_search)
+                }
+                
+                // 添加切换动画
+                if (!isAIVisible) {
+                    secondAIScrollContainer?.apply {
+                        alpha = 0f
+                        animate()
+                            .alpha(1f)
+                            .setDuration(200)
+                            .start()
+                    }
+                }
+                
+                // 确认切换后的可见性状态
+                Log.d(TAG, "切换后第二个窗口容器状态 - " +
+                       "AI容器: ${if (secondAIScrollContainer?.visibility == View.VISIBLE) "可见" else "不可见"}")
+                
+                // 显示提示
+                Toast.makeText(
+                    this@DualFloatingWebViewService,
+                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    Toast.LENGTH_SHORT
+                ).show()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "第二个窗口切换按钮出错", e)
+                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
         
         // 第三个窗口的切换按钮
         thirdEngineToggle?.setOnClickListener {
-            val isAIVisible = thirdAIScrollContainer?.visibility == View.VISIBLE
-            
-            // 切换AI和普通搜索引擎视图
-            thirdAIScrollContainer?.visibility = if (isAIVisible) View.GONE else View.VISIBLE
-            
-            // 更新按钮图标
-            thirdEngineToggle?.setImageResource(
-                if (isAIVisible) R.drawable.ic_search else R.drawable.ic_ai_search
-            )
+            try {
+                Log.d(TAG, "第三个窗口切换按钮被点击")
+                // 获取当前AI容器可见性状态
+                val isAIVisible = thirdAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第三个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                
+                // 直接切换容器可见性
+                if (isAIVisible) {
+                    // 从AI引擎切换到普通引擎
+                    thirdAIScrollContainer?.visibility = View.GONE
+                    thirdEngineToggle?.setImageResource(R.drawable.ic_ai_search)
+                } else {
+                    // 从普通引擎切换到AI引擎
+                    thirdAIScrollContainer?.visibility = View.VISIBLE
+                    thirdEngineToggle?.setImageResource(R.drawable.ic_search)
+                }
+                
+                // 添加切换动画
+                if (!isAIVisible) {
+                    thirdAIScrollContainer?.apply {
+                        alpha = 0f
+                        animate()
+                            .alpha(1f)
+                            .setDuration(200)
+                            .start()
+                    }
+                }
+                
+                // 确认切换后的可见性状态
+                Log.d(TAG, "切换后第三个窗口容器状态 - " +
+                       "AI容器: ${if (thirdAIScrollContainer?.visibility == View.VISIBLE) "可见" else "不可见"}")
+                
+                // 显示提示
+                Toast.makeText(
+                    this@DualFloatingWebViewService,
+                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    Toast.LENGTH_SHORT
+                ).show()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "第三个窗口切换按钮出错", e)
+                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     /**
-     * 设置引擎容器样式，提高显示效果
+     * 设置控件事件
      */
-    private fun setupEngineContainerStyle() {
-        // 设置背景和边距
-        val containers = listOf(
-            firstEngineContainer, secondEngineContainer, thirdEngineContainer,
-            firstAIEngineContainer, secondAIEngineContainer, thirdAIEngineContainer
-        )
-        
-        // 确保引擎容器的高度合适
-        containers.forEach { container ->
-            container?.apply {
-                // 使用半透明背景
-                setBackgroundColor(Color.parseColor("#22000000"))
-                setPadding(2.dpToPx(this@DualFloatingWebViewService), 
-                           2.dpToPx(this@DualFloatingWebViewService), 
-                           2.dpToPx(this@DualFloatingWebViewService), 
-                           2.dpToPx(this@DualFloatingWebViewService))
-                
-                // 优化布局参数，确保内容不被截断
-                // 不直接设置布局参数，而是保留原有的layoutParams类型
-                val existingParams = layoutParams
-                if (existingParams is LinearLayout.LayoutParams) {
-                    existingParams.width = LinearLayout.LayoutParams.MATCH_PARENT
-                    existingParams.height = LinearLayout.LayoutParams.WRAP_CONTENT
-                }
+    private fun setupControls() {
+        // 设置窗口切换按钮
+        toggleLayoutButton?.setOnClickListener {
+            isHorizontalLayout = !isHorizontalLayout
+            updateLayoutOrientation()
+        }
+
+        // 设置搜索按钮
+        dualSearchButton?.setOnClickListener {
+            performDualSearch()
+        }
+
+        // 设置关闭按钮
+        closeButton?.setOnClickListener {
+            stopSelf()
+        }
+
+        // 设置搜索输入框
+        searchInput?.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performDualSearch()
+                true
+            } else {
+                false
             }
         }
-        
-        // 优化水平滚动视图，确保能够滚动查看所有图标
-        val scrollContainers = listOf(
-            firstAIScrollContainer,
-            secondAIScrollContainer,
-            thirdAIScrollContainer
-        )
-        
-        scrollContainers.forEach { scrollView ->
-            scrollView?.apply {
-                // 设置滚动视图的样式
-                setBackgroundColor(Color.parseColor("#11000000"))
-                setPadding(1.dpToPx(this@DualFloatingWebViewService), 
-                          1.dpToPx(this@DualFloatingWebViewService), 
-                          1.dpToPx(this@DualFloatingWebViewService), 
-                          1.dpToPx(this@DualFloatingWebViewService))
-                
-                // 显示水平滚动条，帮助用户理解可以滚动
-                isHorizontalScrollBarEnabled = true
-                
-                // 根据父容器类型设置正确的LayoutParams
-                val parent = parent
-                if (parent != null) {
-                    when (parent) {
-                        is LinearLayout -> {
-                            val params = LinearLayout.LayoutParams(
-                                LinearLayout.LayoutParams.MATCH_PARENT,
-                                LinearLayout.LayoutParams.WRAP_CONTENT
-                            )
-                            layoutParams = params
-                        }
-                        is FrameLayout -> {
-                            val params = FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                FrameLayout.LayoutParams.WRAP_CONTENT
-                            )
-                            layoutParams = params
-                        }
-                    }
-                }
-            }
+
+        // 设置保存按钮
+        saveButton?.setOnClickListener {
+            saveSearchEngines()
+        }
+
+        // 设置切换按钮
+        switchToNormalButton?.setOnClickListener {
+            switchToNormal()
         }
         
-        // 单独调整AI容器的初始可见性
-        firstAIScrollContainer?.visibility = View.GONE
-        secondAIScrollContainer?.visibility = View.GONE
-        thirdAIScrollContainer?.visibility = View.GONE
+        // 初始化搜索引擎切换工具栏
+        setupSearchEngineToolbars()
+        
+        // 单独设置搜索引擎切换按钮，确保不被覆盖
+        refreshEngineToggleButtons()
+        
+        Log.d(TAG, "搜索引擎按钮设置完成")
     }
 
     override fun onDestroy() {
@@ -1825,461 +1919,61 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
-    private fun updateViewVisibilityByWindowCount() {
-        when (windowCount) {
-            1 -> {
-                // 只显示第一个窗口
-                firstWebView?.visibility = View.VISIBLE
-                divider1?.visibility = View.GONE
-                secondWebView?.visibility = View.GONE
-                divider2?.visibility = View.GONE
-                thirdWebView?.visibility = View.GONE
-                
-                // 获取父容器
-                val secondContainer = secondWebView?.parent as? View
-                val thirdContainer = thirdWebView?.parent as? View
-                secondContainer?.visibility = View.GONE
-                thirdContainer?.visibility = View.GONE
-            }
-            2 -> {
-                // 显示两个窗口
-                firstWebView?.visibility = View.VISIBLE
-                divider1?.visibility = View.VISIBLE
-                secondWebView?.visibility = View.VISIBLE
-                divider2?.visibility = View.GONE
-                thirdWebView?.visibility = View.GONE
-                
-                // 获取父容器
-                val secondContainer = secondWebView?.parent as? View
-                val thirdContainer = thirdWebView?.parent as? View
-                secondContainer?.visibility = View.VISIBLE
-                thirdContainer?.visibility = View.GONE
-            }
-            else -> {
-                // 显示全部三个窗口
-                firstWebView?.visibility = View.VISIBLE
-                divider1?.visibility = View.VISIBLE
-                secondWebView?.visibility = View.VISIBLE
-                divider2?.visibility = View.VISIBLE
-                thirdWebView?.visibility = View.VISIBLE
-                
-                // 获取父容器
-                val secondContainer = secondWebView?.parent as? View
-                val thirdContainer = thirdWebView?.parent as? View
-                secondContainer?.visibility = View.VISIBLE
-                thirdContainer?.visibility = View.VISIBLE
-            }
-        }
-        
-        // 更新布局
-        container?.requestLayout()
-    }
-
-    // 根据窗口数量显示或隐藏窗口
-    private fun updateWindowVisibility(windowCount: Int) {
-        // 更新窗口数量变量
-        this.windowCount = windowCount
-        
-        // 保存设置
-        settingsManager.setDefaultWindowCount(windowCount)
-        
-        when (windowCount) {
-            1 -> {
-                // 只显示第一个窗口
-                firstWebView?.visibility = View.VISIBLE
-                divider1?.visibility = View.GONE
-                secondWebView?.visibility = View.GONE
-                divider2?.visibility = View.GONE
-                thirdWebView?.visibility = View.GONE
-            }
-            2 -> {
-                // 显示两个窗口
-                firstWebView?.visibility = View.VISIBLE
-                divider1?.visibility = View.VISIBLE
-                secondWebView?.visibility = View.VISIBLE
-                divider2?.visibility = View.GONE
-                thirdWebView?.visibility = View.GONE
-            }
-            else -> {
-                // 显示所有三个窗口
-                firstWebView?.visibility = View.VISIBLE
-                divider1?.visibility = View.VISIBLE
-                secondWebView?.visibility = View.VISIBLE
-                divider2?.visibility = View.VISIBLE
-                thirdWebView?.visibility = View.VISIBLE
-            }
-        }
-        
-        // 更新窗口计数显示
-        windowCountToggleView?.text = "$windowCount"
-        
-        // 更新布局参数
-        updateLayoutParams()
-    }
-
-    private fun updateLayoutParams() {
-        val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-        
-        val windowParams = floatingView?.layoutParams as? WindowManager.LayoutParams
-        
-        if (isHorizontalLayout) {
-            windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
-            windowParams?.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
-        } else {
-            windowParams?.width = WindowManager.LayoutParams.MATCH_PARENT
-            windowParams?.height = WindowManager.LayoutParams.MATCH_PARENT
-        }
-        
-        try {
-            windowManager.updateViewLayout(floatingView, windowParams)
-        } catch (e: Exception) {
-            Log.e(TAG, "更新窗口布局失败", e)
-        }
-        
-        // 请求布局更新
-        divider1?.requestLayout()
-        divider2?.requestLayout()
-        container?.requestLayout()
-    }
-
     /**
-     * 初始化设置
-     */
-    private fun initializeSettings() {
-        // 从设置管理器获取配置
-        settingsManager = SettingsManager.getInstance(this)
-        
-        // 获取窗口数量
-        windowCount = settingsManager.getDefaultWindowCount()
-        Log.d(TAG, "从设置中获取窗口数量: $windowCount")
-        
-        // 获取搜索引擎设置
-        leftEngineKey = settingsManager.getLeftWindowSearchEngine()
-        centerEngineKey = settingsManager.getCenterWindowSearchEngine()
-        rightEngineKey = settingsManager.getRightWindowSearchEngine()
-        Log.d(TAG, "搜索引擎设置 - 左: $leftEngineKey, 中: $centerEngineKey, 右: $rightEngineKey")
-        
-        // 获取布局方向
-        isHorizontalLayout = sharedPrefs.getBoolean(KEY_IS_HORIZONTAL, true)
-        
-        // 更新窗口计数显示
-        windowCountToggleView?.text = windowCount.toString()
-        Log.d(TAG, "设置窗口计数显示: $windowCount")
-        
-        // 根据窗口数量更新视图显示
-        updateViewVisibilityByWindowCount()
-    }
-
-    private fun saveCurrentSearchEngines() {
-        try {
-            val searchEngines = mutableListOf<SearchEngine>()
-            
-            // 收集所有活跃的WebView中的搜索引擎
-            val activeWebViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
-                .filter { it.visibility == View.VISIBLE }
-            
-            // 为每个WebView创建SearchEngine对象
-            activeWebViews.forEachIndexed { index, webView ->
-                val engineKey = when (index) {
-                    0 -> leftEngineKey
-                    1 -> centerEngineKey
-                    2 -> rightEngineKey
-                    else -> "baidu"
-                }
-                val isAI = engineKey.startsWith("ai_")
-                val actualEngineKey = if (isAI) engineKey.substring(3) else engineKey
-                
-                // 获取当前URL和标题
-                val url = webView.url ?: ""
-                val title = webView.title ?: EngineUtil.getSearchEngineName(actualEngineKey, isAI)
-                
-                // 构建搜索引擎对象
-                val engine = SearchEngine(
-                    name = title,
-                    url = convertToSearchUrl(url), // 转换为可用于搜索的URL
-                    iconResId = R.drawable.ic_search,
-                    description = "从浏览器保存的搜索引擎: ${EngineUtil.getSearchEngineName(actualEngineKey, isAI)}"
-                )
-                searchEngines.add(engine)
-            }
-            
-            if (searchEngines.isNotEmpty()) {
-                // 创建搜索引擎组合名称
-                val groupName = searchEngines.joinToString(" + ") { 
-                    it.name.take(10) // 截取名称，避免过长
-                }
-                
-                // 保存搜索引擎组合
-                val searchEngineManager = SearchEngineManager.getInstance(this)
-                searchEngineManager.saveSearchEngineGroup(groupName, searchEngines)
-                
-                // 显示视觉反馈
-                showSaveSuccessAnimation(saveButton)
-                
-                // 显示成功提示
-                Toast.makeText(this, "已保存搜索引擎组合：$groupName", Toast.LENGTH_SHORT).show()
-                
-                // 通知 FloatingWindowService 更新快捷方式
-                val intent = Intent("com.example.aifloatingball.ACTION_UPDATE_SHORTCUTS")
-                sendBroadcast(intent)
-                
-                // 延迟一会确保广播接收器有时间处理
-                Handler(Looper.getMainLooper()).postDelayed({
-                    Log.d(TAG, "搜索引擎快捷方式已更新")
-                }, 300)
-            } else {
-                Toast.makeText(this, "没有可保存的搜索引擎", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "保存搜索引擎组合失败", e)
-            Toast.makeText(this, "保存失败：${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    // 显示保存成功的动画效果
-    private fun showSaveSuccessAnimation(view: View?) {
-        view?.let {
-            it.animate()
-                .scaleX(1.2f)
-                .scaleY(1.2f)
-                .setDuration(150)
-                .withEndAction {
-                    it.animate()
-                        .scaleX(1f)
-                        .scaleY(1f)
-                        .setDuration(150)
-                        .start()
-                }
-                .start()
-        }
-    }
-    
-    // 将当前URL转换为可用于搜索的URL
-    private fun convertToSearchUrl(url: String): String {
-        try {
-            // 尝试从URL中提取查询参数
-            val uri = Uri.parse(url)
-            
-            // 常见搜索引擎查询参数名称
-            val queryParamNames = listOf("q", "query", "word", "wd", "text", "search")
-            
-            // 尝试每一种可能的查询参数
-            for (paramName in queryParamNames) {
-                val queryValue = uri.getQueryParameter(paramName)
-                if (!queryValue.isNullOrEmpty()) {
-                    // 找到查询参数，替换为查询占位符
-                    return url.replace(queryValue, "{query}")
-                }
-            }
-            
-            // 如果找不到查询参数，返回原始URL
-            return url
-        } catch (e: Exception) {
-            Log.e(TAG, "转换搜索URL失败", e)
-            return url
-        }
-    }
-
-    /**
-     * 切换到普通模式
-     */
-    private fun switchToNormalMode() {
-        try {
-            // 启动 HomeActivity
-            val intent = Intent(this, HomeActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                
-                // 如果当前有URL，传递给 HomeActivity
-                when (windowCount) {
-                    1 -> firstWebView?.url?.let { putExtra("url", it) }
-                    2 -> {
-                        // 获取第一个和第二个WebView的URL
-                        val urls = mutableListOf<String>()
-                        firstWebView?.url?.let { urls.add(it) }
-                        secondWebView?.url?.let { urls.add(it) }
-                        putExtra("urls", urls.toTypedArray())
-                    }
-                    else -> {
-                        // 获取所有WebView的URL
-                        val urls = mutableListOf<String>()
-                        firstWebView?.url?.let { urls.add(it) }
-                        secondWebView?.url?.let { urls.add(it) }
-                        thirdWebView?.url?.let { urls.add(it) }
-                        putExtra("urls", urls.toTypedArray())
-                    }
-                }
-            }
-            startActivity(intent)
-            
-            // 显示切换提示
-            Toast.makeText(this, "正在切换到普通浏览模式", Toast.LENGTH_SHORT).show()
-            
-            // 停止当前服务
-            stopSelf()
-        } catch (e: Exception) {
-            Log.e(TAG, "切换到普通模式失败: ${e.message}")
-            Toast.makeText(this, "切换失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /**
-     * 为所有WebView启用文本选择功能
-     */
-    private fun enableTextSelectionOnWebViews() {
-        val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
-        
-        webViews.forEach { webView ->
-            webView.isLongClickable = true
-            
-            // 设置长按监听器
-            webView.setOnLongClickListener { view ->
-                val event = view.tag as? MotionEvent ?: return@setOnLongClickListener false
-                
-                // 清除之前的选择
-                textSelectionManager?.clearSelection()
-                
-                // 创建新的选择管理器，注意接口适配
-                textSelectionManager = TextSelectionManager(
-                    context = this@DualFloatingWebViewService,
-                    webView = webView,
-                    windowManager = windowManager,
-                    onSelectionChanged = { selectedText: String ->
-                        currentSelectedText = selectedText
-                        if (selectedText.isNotEmpty()) {
-                            showTextSelectionMenuSafely(webView, event.rawX.toInt(), event.rawY.toInt())
-                        }
-                    },
-                    onHandleMoved = { managerHandleType, x, y ->
-                        // 将 manager 包中的 HandleType 转换为 model 包中的 HandleType
-                        val modelHandleType = when (managerHandleType) {
-                            com.example.aifloatingball.manager.HandleType.START -> HandleType.START
-                            com.example.aifloatingball.manager.HandleType.END -> HandleType.END
-                            else -> HandleType.NONE
-                        }
-                        updateSelectionForHandleMove(webView, modelHandleType, x, y)
-                    }
-                )
-                
-                // 开始选择
-                textSelectionManager?.startSelection(
-                    event.x.toInt(),
-                    event.y.toInt()
-                )
-                
-                true
-            }
-            
-            // 保存触摸事件
-        }
-    }
-
-    /**
-     * 切换窗口是否可获得焦点的标志，用于处理输入法
-     * @param focusable 是否可获得焦点
-     */
-    private fun toggleWindowFocusableFlag(focusable: Boolean) {
-        try {
-            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
-            
-            if (focusable) {
-                // 移除FLAG_NOT_FOCUSABLE标志，使窗口可以获取焦点
-                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-            } else {
-                // 添加FLAG_NOT_FOCUSABLE标志，使窗口不可获取焦点
-                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            }
-            
-            // 应用新参数
-            windowManager.updateViewLayout(floatingView, params)
-            
-            // 如果切换到可获取焦点，则请求焦点
-            if (focusable) {
-                floatingView?.requestFocus()
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "切换窗口焦点状态失败: ${e.message}")
-        }
-    }
-
-    private fun setupControls() {
-        // 设置窗口切换按钮
-        toggleLayoutButton?.setOnClickListener {
-            isHorizontalLayout = !isHorizontalLayout
-            updateLayoutOrientation()
-        }
-
-        // 设置搜索按钮
-        dualSearchButton?.setOnClickListener {
-            performDualSearch()
-        }
-
-        // 设置关闭按钮
-        closeButton?.setOnClickListener {
-            stopSelf()
-        }
-
-        // 设置搜索输入框
-        searchInput?.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                performDualSearch()
-                true
-            } else {
-                false
-            }
-        }
-
-        // 设置保存按钮
-        saveButton?.setOnClickListener {
-            saveCurrentSearchEngines()
-        }
-
-        // 设置切换按钮
-        switchToNormalButton?.setOnClickListener {
-            switchToNormalMode()
-        }
-        
-        // 初始化搜索引擎切换工具栏
-        setupSearchEngineToolbars()
-    }
-
-    /**
-     * 设置搜索引擎切换工具栏
+     * 初始化搜索引擎切换工具栏
      */
     private fun setupSearchEngineToolbars() {
-        // 初始化第一个WebView的工具栏
-        setupWebViewToolbar(
-            firstWebView,
-            firstEngineContainer,
-            firstAIEngineContainer,
-            firstEngineToggle,
-            leftEngineKey,
-            true
-        )
-        
-        // 初始化第二个WebView的工具栏
-        setupWebViewToolbar(
-            secondWebView,
-            secondEngineContainer,
-            secondAIEngineContainer,
-            secondEngineToggle,
-            centerEngineKey,
-            false
-        )
-        
-        // 初始化第三个WebView的工具栏
-        setupWebViewToolbar(
-            thirdWebView,
-            thirdEngineContainer,
-            thirdAIEngineContainer,
-            thirdEngineToggle,
-            rightEngineKey,
-            false
-        )
-        
-        // 确保工具栏的可见性与窗口数量一致
-        updateToolbarVisibility()
+        try {
+            Log.d(TAG, "开始初始化搜索引擎工具栏")
+            
+            // 检查对应的视图是否存在
+            if (firstWebView == null || secondWebView == null || thirdWebView == null) {
+                Log.e(TAG, "WebView未正确初始化: $firstWebView, $secondWebView, $thirdWebView")
+                return
+            }
+            
+            if (firstEngineContainer == null || secondEngineContainer == null || thirdEngineContainer == null) {
+                Log.e(TAG, "引擎容器未正确初始化: $firstEngineContainer, $secondEngineContainer, $thirdEngineContainer")
+                return
+            }
+            
+            // 初始化第一个WebView的工具栏
+            setupWebViewToolbar(
+                firstWebView,
+                firstEngineContainer,
+                firstAIEngineContainer,
+                firstEngineToggle,
+                leftEngineKey,
+                true
+            )
+            
+            // 初始化第二个WebView的工具栏
+            setupWebViewToolbar(
+                secondWebView,
+                secondEngineContainer,
+                secondAIEngineContainer,
+                secondEngineToggle,
+                centerEngineKey,
+                false
+            )
+            
+            // 初始化第三个WebView的工具栏
+            setupWebViewToolbar(
+                thirdWebView,
+                thirdEngineContainer,
+                thirdAIEngineContainer,
+                thirdEngineToggle,
+                rightEngineKey,
+                false
+            )
+            
+            // 确保工具栏的可见性与窗口数量一致
+            updateToolbarVisibility()
+            
+            Log.d(TAG, "搜索引擎工具栏初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化搜索引擎工具栏失败", e)
+        }
     }
 
     /**
@@ -2302,6 +1996,10 @@ class DualFloatingWebViewService : Service() {
         normalEngineContainer.removeAllViews()
         aiEngineContainer.removeAllViews()
         
+        // 记录初始状态
+        val isAIEngine = defaultEngine.startsWith("ai_")
+        Log.d(TAG, "初始化工具栏 - 默认引擎: $defaultEngine, 是否为AI引擎: $isAIEngine")
+        
         // 添加常规搜索引擎图标
         val normalEngines = listOf(
             SearchEngine("百度", "https://www.baidu.com/s?wd={query}", R.drawable.ic_baidu, "百度搜索"),
@@ -2313,48 +2011,64 @@ class DualFloatingWebViewService : Service() {
             SearchEngine("微博", "https://s.weibo.com/weibo?q={query}", R.drawable.ic_weibo, "微博搜索")
         )
 
-        // 添加AI搜索引擎图标
+        // 添加扩展的AI搜索引擎图标
         val aiEngines = listOf(
             SearchEngine("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search, "ChatGPT"),
-            SearchEngine("必应AI", "https://www.bing.com/new", R.drawable.ic_bing, "必应AI聊天"),
-            SearchEngine("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_baidu, "文心一言"),
+            SearchEngine("GPT-4o", "https://chat.openai.com/?model=gpt-4o", R.drawable.ic_search, "GPT-4o"),
+            SearchEngine("Claude", "https://claude.ai/", R.drawable.ic_search, "Claude AI助手"),
+            SearchEngine("Claude3", "https://claude.ai/chats?model=claude-3-opus-20240229", R.drawable.ic_search, "Claude 3 Opus"),
+            SearchEngine("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_search, "文心一言"),
+            SearchEngine("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_search, "阿里通义千问"),
             SearchEngine("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_search, "讯飞星火"),
-            SearchEngine("百度文心", "https://yiyan.baidu.com/", R.drawable.ic_baidu, "百度文心")
+            SearchEngine("必应AI", "https://www.bing.com/new", R.drawable.ic_search, "必应AI聊天"),
+            SearchEngine("搜狗AI", "https://ai.sogou.com/", R.drawable.ic_search, "搜狗AI助手"),
+            SearchEngine("Gemini", "https://gemini.google.com/", R.drawable.ic_search, "Google Gemini"),
+            SearchEngine("Perplexity", "https://www.perplexity.ai/", R.drawable.ic_search, "Perplexity AI"),
+            SearchEngine("Copilot", "https://copilot.microsoft.com/", R.drawable.ic_search, "Microsoft Copilot")
         )
         
+        Log.d(TAG, "添加常规搜索引擎图标，数量: ${normalEngines.size}")
         // 添加常规搜索引擎图标
         addSearchEngineIcons(normalEngineContainer, normalEngines, webView, defaultEngine, false)
         
+        Log.d(TAG, "添加AI搜索引擎图标，数量: ${aiEngines.size}")
         // 添加AI搜索引擎图标
         addSearchEngineIcons(aiEngineContainer, aiEngines, webView, defaultEngine, true)
         
-        // 初始隐藏AI引擎容器
-        aiEngineContainer.visibility = View.GONE
+        // 确保容器背景颜色不同，以便于区分
+        normalEngineContainer.setBackgroundColor(Color.parseColor("#10000000"))
+        aiEngineContainer.setBackgroundColor(Color.parseColor("#10303F9F"))
         
-        // 设置切换按钮点击事件
-        toggleButton.setOnClickListener {
-            val isAIVisible = aiEngineContainer.visibility == View.VISIBLE
-            
-            // 切换显示状态
-            normalEngineContainer.visibility = if (isAIVisible) View.VISIBLE else View.GONE
-            aiEngineContainer.visibility = if (isAIVisible) View.GONE else View.VISIBLE
-            
-            // 更新按钮图标
-            toggleButton.setImageResource(
-                if (isAIVisible) R.drawable.ic_search else R.drawable.ic_ai_search
-            )
-            
-            // 添加动画效果
-            val container = if (isAIVisible) normalEngineContainer else aiEngineContainer
-            container.alpha = 0f
-            container.animate()
-                .alpha(1f)
-                .setDuration(200)
-                .start()
+        // 找到对应的ScrollContainer
+        val aiScrollContainer = when (webView) {
+            firstWebView -> firstAIScrollContainer
+            secondWebView -> secondAIScrollContainer
+            thirdWebView -> thirdAIScrollContainer
+            else -> null
         }
         
-        // 初始化选中状态
-        updateEngineSelection(normalEngineContainer, aiEngineContainer, defaultEngine)
+        // 重要更改：设置互斥显示，只显示一种类型的搜索引擎列表
+        if (isAIEngine) {
+            // 如果默认是AI引擎，显示AI引擎容器，隐藏普通引擎容器
+            aiScrollContainer?.visibility = View.VISIBLE
+            normalEngineContainer.visibility = View.GONE
+            toggleButton.setImageResource(R.drawable.ic_search)
+        } else {
+            // 如果默认是普通引擎，显示普通引擎容器，隐藏AI引擎容器
+            aiScrollContainer?.visibility = View.GONE
+            normalEngineContainer.visibility = View.VISIBLE
+            toggleButton.setImageResource(R.drawable.ic_ai_search)
+        }
+        
+        // 记录容器状态
+        Log.d(TAG, "容器状态 - AI容器可见性: ${if (aiScrollContainer?.visibility == View.VISIBLE) "可见" else "不可见"}, " +
+                "普通容器可见性: ${if (normalEngineContainer.visibility == View.VISIBLE) "可见" else "不可见"}")
+        
+        // 确保容器有子视图
+        Log.d(TAG, "AI容器子视图数量: ${aiEngineContainer.childCount}, " +
+                "普通容器子视图数量: ${normalEngineContainer.childCount}")
+        
+        // 重要：删除原来这里的setOnClickListener代码，避免覆盖setupEngineToggleButtons中的设置
     }
 
     /**
@@ -2381,6 +2095,13 @@ class DualFloatingWebViewService : Service() {
                       2.dpToPx(this@DualFloatingWebViewService), 
                       2.dpToPx(this@DualFloatingWebViewService))
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            isVerticalScrollBarEnabled = false
+            
+            // 启用平滑滚动
+            isSmoothScrollingEnabled = true
+            
+            // 增加水平滚动条可见度
+            scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
         }
         
         // 创建内部图标容器
@@ -2394,12 +2115,20 @@ class DualFloatingWebViewService : Service() {
                       2.dpToPx(this@DualFloatingWebViewService), 
                       4.dpToPx(this@DualFloatingWebViewService), 
                       2.dpToPx(this@DualFloatingWebViewService))
+            
+            // 设置最小宽度，确保容器即使为空也有宽度
+            minimumWidth = 100.dpToPx(this@DualFloatingWebViewService)
         }
+        
+        Log.d(TAG, "添加${if (isAI) "AI" else "普通"}搜索引擎图标，数量: ${engines.size}")
         
         // 添加引擎图标
         engines.forEach { engine ->
             val engineKey = prefix + engine.name.lowercase()
             val iconView = createEngineIconButton(engine, engineKey)
+            
+            // 加载图标（使用Google的图标服务）
+            loadEngineIcon(iconView, engine)
             
             // 设置点击事件
             iconView.setOnClickListener {
@@ -2415,6 +2144,10 @@ class DualFloatingWebViewService : Service() {
                 
                 // 更新选中状态
                 updateEngineSelection(container, null, engineKey)
+                
+                // 将选中引擎滚动到视图中央
+                val scrollToX = iconView.left - (scrollView.width / 2) + (iconView.width / 2)
+                scrollView.smoothScrollTo(Math.max(0, scrollToX), 0)
                 
                 // 更新对应窗口的默认引擎
                 when {
@@ -2459,13 +2192,42 @@ class DualFloatingWebViewService : Service() {
             
             // 添加到容器
             iconsContainer.addView(iconView)
+            
+            Log.d(TAG, "添加了搜索引擎图标: $engineKey")
         }
+        
+        // 删除指示标签，不需要文字注解
+        
+        // 确保容器有最小高度
+        iconsContainer.minimumHeight = 50.dpToPx(this)
         
         // 将图标容器添加到滚动视图
         scrollView.addView(iconsContainer)
         
         // 将滚动视图添加到引擎容器
         container.addView(scrollView)
+        
+        // 确保容器可见性
+        container.visibility = View.VISIBLE
+        
+        // 记录容器内容
+        Log.d(TAG, "${if (isAI) "AI" else "普通"}搜索引擎容器初始化完成，子视图数量: ${container.childCount}")
+        
+        // 如果当前引擎在此容器中，滚动到该位置
+        if ((isAI && defaultEngine.startsWith("ai_")) || (!isAI && !defaultEngine.startsWith("ai_"))) {
+            scrollView.post {
+                // 查找选中的图标
+                for (i in 0 until iconsContainer.childCount) {
+                    val view = iconsContainer.getChildAt(i)
+                    if (view is ImageView && view.tag == defaultEngine) {
+                        // 计算滚动位置，使图标居中
+                        val scrollToX = view.left - (scrollView.width / 2) + (view.width / 2)
+                        scrollView.smoothScrollTo(Math.max(0, scrollToX), 0)
+                        break
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -2473,7 +2235,7 @@ class DualFloatingWebViewService : Service() {
      */
     private fun createEngineIconButton(engine: SearchEngine, engineKey: String): ImageView {
         return ImageView(this).apply {
-            val size = 36.dpToPx(this@DualFloatingWebViewService)
+            val size = 40.dpToPx(this@DualFloatingWebViewService)
             val layoutParams = LinearLayout.LayoutParams(size, size).apply {
                 setMargins(
                     4.dpToPx(this@DualFloatingWebViewService),
@@ -2484,8 +2246,8 @@ class DualFloatingWebViewService : Service() {
             }
             this.layoutParams = layoutParams
             
-            // 设置图标
-            setImageResource(engine.iconResId)
+            // 设置默认图标
+            setImageResource(R.drawable.ic_search)
             
             // 设置背景
             setBackgroundResource(R.drawable.icon_background)
@@ -2502,6 +2264,9 @@ class DualFloatingWebViewService : Service() {
             
             // 启用硬件加速
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            
+            // 设置可见性为可见
+            visibility = View.VISIBLE
         }
     }
 
@@ -3373,7 +3138,7 @@ class DualFloatingWebViewService : Service() {
         
         try {
             // 创建临时目录
-            val drawableDir = File(cacheDir, "drawable")
+            val drawableDir = JavaFile(cacheDir, "drawable")
             if (!drawableDir.exists()) {
                 drawableDir.mkdirs()
             }
@@ -3411,10 +3176,10 @@ class DualFloatingWebViewService : Service() {
             """.trimIndent()
             
             // 保存为临时文件
-            val normalFile = File(drawableDir, "engine_icon_background.xml")
+            val normalFile = JavaFile(drawableDir, "engine_icon_background.xml")
             normalFile.writeText(normalBackgroundXml)
             
-            val selectedFile = File(drawableDir, "engine_icon_selected.xml")
+            val selectedFile = JavaFile(drawableDir, "engine_icon_selected.xml")
             selectedFile.writeText(selectedBackgroundXml)
             
             // 通过反射注册drawable
@@ -3429,6 +3194,587 @@ class DualFloatingWebViewService : Service() {
             
         } catch (e: Exception) {
             Log.e(TAG, "创建Drawable失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 加载搜索引擎图标
+     */
+    private fun loadEngineIcon(iconView: ImageView, engine: SearchEngine) {
+        try {
+            // 从URL中提取域名
+            val baseUrl = engine.url.split("?")[0]
+            val uri = Uri.parse(baseUrl)
+            var host = uri.host ?: run {
+                // 如果无法获取主机名，使用默认图标
+                Log.e(TAG, "无法获取主机名，URL: ${engine.url}")
+                iconView.setImageResource(R.drawable.ic_search)
+                return
+            }
+            
+            // 特殊处理一些AI搜索引擎的图标域名
+            val originalHost = host
+            when {
+                engine.name.contains("ChatGPT", ignoreCase = true) || 
+                engine.name.contains("GPT-4", ignoreCase = true) || 
+                engine.name.contains("OpenAI", ignoreCase = true) -> {
+                    host = "openai.com"
+                }
+                engine.name.contains("Claude", ignoreCase = true) -> {
+                    host = "anthropic.com"
+                }
+                engine.name.contains("文心", ignoreCase = true) || 
+                engine.name.contains("一言", ignoreCase = true) -> {
+                    host = "baidu.com"
+                }
+                engine.name.contains("通义", ignoreCase = true) || 
+                engine.name.contains("千问", ignoreCase = true) -> {
+                    host = "aliyun.com"
+                }
+                engine.name.contains("讯飞", ignoreCase = true) || 
+                engine.name.contains("星火", ignoreCase = true) -> {
+                    host = "xfyun.cn"
+                }
+                engine.name.contains("必应", ignoreCase = true) || 
+                engine.name.contains("Bing", ignoreCase = true) ||
+                engine.name.contains("Copilot", ignoreCase = true) -> {
+                    host = "bing.com"
+                }
+                engine.name.contains("Gemini", ignoreCase = true) -> {
+                    host = "google.com"
+                }
+                engine.name.contains("搜狗", ignoreCase = true) && engine.name.contains("AI", ignoreCase = true) -> {
+                    host = "sogou.com"
+                }
+                engine.name.contains("Perplexity", ignoreCase = true) -> {
+                    host = "perplexity.ai"
+                }
+            }
+            
+            if (originalHost != host) {
+                Log.d(TAG, "图标域名映射: ${engine.name} - $originalHost -> $host")
+            }
+            
+            // 构建Google图标服务URL
+            val iconUrl = "https://www.google.com/s2/favicons?domain=$host&sz=64"
+            Log.d(TAG, "加载图标: ${engine.name} - $iconUrl")
+            
+            // 使用异步线程加载图标
+            Thread {
+                try {
+                    // 检查缓存
+                    val iconCacheDir = JavaFile(cacheDir, "engine_icons")
+                    if (!iconCacheDir.exists()) {
+                        iconCacheDir.mkdirs()
+                    }
+                    
+                    val cacheFileName = "${engine.name}_${host.replace(".", "_")}.png"
+                    val iconFile = JavaFile(iconCacheDir, cacheFileName)
+                    
+                    // 如果缓存存在且未过期，直接使用缓存
+                    if (iconFile.exists() && 
+                       System.currentTimeMillis() - iconFile.lastModified() < TimeUnit.DAYS.toMillis(1)) {
+                        val bitmap = BitmapFactory.decodeFile(iconFile.absolutePath)
+                        if (bitmap != null) {
+                            Log.d(TAG, "使用缓存图标: ${engine.name}")
+                            mainHandler.post {
+                                iconView.setImageBitmap(bitmap)
+                                iconView.visibility = View.VISIBLE
+                            }
+                            return@Thread
+                        } else {
+                            Log.e(TAG, "缓存图标解码失败: ${engine.name}")
+                            iconFile.delete() // 删除无效缓存
+                        }
+                    }
+                    
+                    // 下载图标
+                    Log.d(TAG, "开始下载图标: ${engine.name}")
+                    val url = URL(iconUrl)
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.connectTimeout = 5000
+                    connection.readTimeout = 5000
+                    connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                    
+                    val responseCode = connection.responseCode
+                    if (responseCode != HttpURLConnection.HTTP_OK) {
+                        Log.e(TAG, "图标下载失败，HTTP错误: $responseCode - ${engine.name}")
+                        mainHandler.post {
+                            iconView.setImageResource(R.drawable.ic_search)
+                        }
+                        return@Thread
+                    }
+                    
+                    val inputStream = connection.inputStream
+                    val bitmap = BitmapFactory.decodeStream(inputStream)
+                    
+                    if (bitmap != null) {
+                        Log.d(TAG, "图标下载成功: ${engine.name}")
+                        // 保存到缓存
+                        val outStream = FileOutputStream(iconFile)
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outStream)
+                        outStream.flush()
+                        outStream.close()
+                        
+                        // 更新UI
+                        mainHandler.post {
+                            iconView.setImageBitmap(bitmap)
+                            iconView.visibility = View.VISIBLE
+                        }
+                    } else {
+                        // 解码失败，使用默认图标
+                        Log.e(TAG, "图标解码失败: ${engine.name}")
+                        mainHandler.post {
+                            iconView.setImageResource(R.drawable.ic_search)
+                            iconView.visibility = View.VISIBLE
+                        }
+                    }
+                    
+                } catch (e: Exception) {
+                    Log.e(TAG, "加载图标失败: ${engine.name} - ${e.message}", e)
+                    // 加载失败时使用默认图标
+                    mainHandler.post {
+                        iconView.setImageResource(R.drawable.ic_search)
+                        iconView.visibility = View.VISIBLE
+                    }
+                }
+            }.start()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "处理图标URL失败: ${engine.name} - ${e.message}", e)
+            iconView.setImageResource(R.drawable.ic_search)
+            iconView.visibility = View.VISIBLE
+        }
+    }
+
+    /**
+     * 更新视图可见性
+     */
+    private fun updateViewVisibilityByWindowCount() {
+        Log.d(TAG, "更新视图可见性，窗口数量: $windowCount")
+        
+        when (windowCount) {
+            1 -> {
+                // 只显示第一个窗口
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.GONE
+                secondWebView?.visibility = View.GONE
+                divider2?.visibility = View.GONE
+                thirdWebView?.visibility = View.GONE
+                
+                // 获取父容器
+                val secondContainer = secondWebView?.parent as? View
+                val thirdContainer = thirdWebView?.parent as? View
+                secondContainer?.visibility = View.GONE
+                thirdContainer?.visibility = View.GONE
+                
+                // 更新搜索引擎容器可见性
+                firstEngineContainer?.visibility = View.VISIBLE
+                secondEngineContainer?.visibility = View.GONE
+                thirdEngineContainer?.visibility = View.GONE
+                
+                // 设置切换按钮可见性
+                firstEngineToggle?.visibility = View.VISIBLE
+                secondEngineToggle?.visibility = View.GONE
+                thirdEngineToggle?.visibility = View.GONE
+            }
+            2 -> {
+                // 显示两个窗口
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.VISIBLE
+                secondWebView?.visibility = View.VISIBLE
+                divider2?.visibility = View.GONE
+                thirdWebView?.visibility = View.GONE
+                
+                // 获取父容器
+                val secondContainer = secondWebView?.parent as? View
+                val thirdContainer = thirdWebView?.parent as? View
+                secondContainer?.visibility = View.VISIBLE
+                thirdContainer?.visibility = View.GONE
+                
+                // 更新搜索引擎容器可见性
+                firstEngineContainer?.visibility = View.VISIBLE
+                secondEngineContainer?.visibility = View.VISIBLE
+                thirdEngineContainer?.visibility = View.GONE
+                
+                // 设置切换按钮可见性
+                firstEngineToggle?.visibility = View.VISIBLE
+                secondEngineToggle?.visibility = View.VISIBLE
+                thirdEngineToggle?.visibility = View.GONE
+            }
+            else -> {
+                // 显示全部三个窗口
+                firstWebView?.visibility = View.VISIBLE
+                divider1?.visibility = View.VISIBLE
+                secondWebView?.visibility = View.VISIBLE
+                divider2?.visibility = View.VISIBLE
+                thirdWebView?.visibility = View.VISIBLE
+                
+                // 获取父容器
+                val secondContainer = secondWebView?.parent as? View
+                val thirdContainer = thirdWebView?.parent as? View
+                secondContainer?.visibility = View.VISIBLE
+                thirdContainer?.visibility = View.VISIBLE
+                
+                // 更新搜索引擎容器可见性
+                firstEngineContainer?.visibility = View.VISIBLE
+                secondEngineContainer?.visibility = View.VISIBLE
+                thirdEngineContainer?.visibility = View.VISIBLE
+                
+                // 设置切换按钮可见性
+                firstEngineToggle?.visibility = View.VISIBLE
+                secondEngineToggle?.visibility = View.VISIBLE
+                thirdEngineToggle?.visibility = View.VISIBLE
+            }
+        }
+        
+        // 确保初始化时AI容器的正确可见性
+        if (firstAIEngineContainer != null && firstEngineContainer != null) {
+            val isAI = leftEngineKey.startsWith("ai_")
+            firstAIScrollContainer?.visibility = if (isAI) View.VISIBLE else View.GONE
+            firstEngineContainer?.visibility = View.VISIBLE
+        }
+        
+        if (secondAIEngineContainer != null && secondEngineContainer != null) {
+            val isAI = centerEngineKey.startsWith("ai_")
+            secondAIScrollContainer?.visibility = if (isAI) View.VISIBLE else View.GONE
+            secondEngineContainer?.visibility = View.VISIBLE
+        }
+        
+        if (thirdAIEngineContainer != null && thirdEngineContainer != null) {
+            val isAI = rightEngineKey.startsWith("ai_")
+            thirdAIScrollContainer?.visibility = if (isAI) View.VISIBLE else View.GONE
+            thirdEngineContainer?.visibility = View.VISIBLE
+        }
+        
+        // 更新布局
+        container?.requestLayout()
+    }
+
+    /**
+     * 刷新搜索引擎切换按钮的状态和事件
+     */
+    private fun refreshEngineToggleButtons() {
+        Log.d(TAG, "刷新搜索引擎切换按钮")
+        
+        // 确保切换按钮可见
+        firstEngineToggle?.visibility = View.VISIBLE
+        secondEngineToggle?.visibility = View.VISIBLE
+        thirdEngineToggle?.visibility = View.VISIBLE
+        
+        // 给第一个窗口切换按钮添加点击事件
+        firstEngineToggle?.setOnClickListener {
+            try {
+                Log.d(TAG, "第一个窗口切换按钮被点击")
+                
+                // 确保容器存在
+                if (firstAIScrollContainer == null || firstEngineContainer == null) {
+                    Log.e(TAG, "第一个窗口容器未初始化")
+                    Toast.makeText(this, "错误：搜索引擎容器未初始化", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                
+                // 获取当前AI容器可见性状态
+                val isAIVisible = firstAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第一个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                
+                // 切换容器可见性 - 重要：这里修改为互斥显示
+                if (isAIVisible) {
+                    // 从AI引擎切换到普通引擎
+                    firstAIScrollContainer?.visibility = View.GONE
+                    firstEngineContainer?.visibility = View.VISIBLE
+                    firstEngineToggle?.setImageResource(R.drawable.ic_ai_search)
+                } else {
+                    // 从普通引擎切换到AI引擎
+                    firstAIScrollContainer?.visibility = View.VISIBLE
+                    firstEngineContainer?.visibility = View.GONE
+                    firstEngineToggle?.setImageResource(R.drawable.ic_search)
+                }
+                
+                // 添加切换动画
+                val containerToShow = if (isAIVisible) firstEngineContainer else firstAIScrollContainer
+                containerToShow?.apply {
+                    alpha = 0f
+                    animate()
+                        .alpha(1f)
+                        .setDuration(200)
+                        .start()
+                }
+                
+                // 强制重新绘制整个视图
+                container?.invalidate()
+                container?.requestLayout()
+                
+                // 显示提示
+                Toast.makeText(
+                    this@DualFloatingWebViewService,
+                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    Toast.LENGTH_SHORT
+                ).show()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "第一个窗口切换按钮出错", e)
+                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        // 给第二个窗口切换按钮添加点击事件
+        secondEngineToggle?.setOnClickListener {
+            try {
+                Log.d(TAG, "第二个窗口切换按钮被点击")
+                
+                // 确保容器存在
+                if (secondAIScrollContainer == null || secondEngineContainer == null) {
+                    Log.e(TAG, "第二个窗口容器未初始化")
+                    Toast.makeText(this, "错误：搜索引擎容器未初始化", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                
+                // 获取当前AI容器可见性状态
+                val isAIVisible = secondAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第二个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                
+                // 切换容器可见性 - 重要：这里修改为互斥显示
+                if (isAIVisible) {
+                    // 从AI引擎切换到普通引擎
+                    secondAIScrollContainer?.visibility = View.GONE
+                    secondEngineContainer?.visibility = View.VISIBLE
+                    secondEngineToggle?.setImageResource(R.drawable.ic_ai_search)
+                } else {
+                    // 从普通引擎切换到AI引擎
+                    secondAIScrollContainer?.visibility = View.VISIBLE
+                    secondEngineContainer?.visibility = View.GONE
+                    secondEngineToggle?.setImageResource(R.drawable.ic_search)
+                }
+                
+                // 添加切换动画
+                val containerToShow = if (isAIVisible) secondEngineContainer else secondAIScrollContainer
+                containerToShow?.apply {
+                    alpha = 0f
+                    animate()
+                        .alpha(1f)
+                        .setDuration(200)
+                        .start()
+                }
+                
+                // 强制重新绘制整个视图
+                container?.invalidate()
+                container?.requestLayout()
+                
+                // 显示提示
+                Toast.makeText(
+                    this@DualFloatingWebViewService,
+                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    Toast.LENGTH_SHORT
+                ).show()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "第二个窗口切换按钮出错", e)
+                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        // 给第三个窗口切换按钮添加点击事件
+        thirdEngineToggle?.setOnClickListener {
+            try {
+                Log.d(TAG, "第三个窗口切换按钮被点击")
+                
+                // 确保容器存在
+                if (thirdAIScrollContainer == null || thirdEngineContainer == null) {
+                    Log.e(TAG, "第三个窗口容器未初始化")
+                    Toast.makeText(this, "错误：搜索引擎容器未初始化", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                
+                // 获取当前AI容器可见性状态
+                val isAIVisible = thirdAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第三个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                
+                // 切换容器可见性 - 重要：这里修改为互斥显示
+                if (isAIVisible) {
+                    // 从AI引擎切换到普通引擎
+                    thirdAIScrollContainer?.visibility = View.GONE
+                    thirdEngineContainer?.visibility = View.VISIBLE
+                    thirdEngineToggle?.setImageResource(R.drawable.ic_ai_search)
+                } else {
+                    // 从普通引擎切换到AI引擎
+                    thirdAIScrollContainer?.visibility = View.VISIBLE
+                    thirdEngineContainer?.visibility = View.GONE
+                    thirdEngineToggle?.setImageResource(R.drawable.ic_search)
+                }
+                
+                // 添加切换动画
+                val containerToShow = if (isAIVisible) thirdEngineContainer else thirdAIScrollContainer
+                containerToShow?.apply {
+                    alpha = 0f
+                    animate()
+                        .alpha(1f)
+                        .setDuration(200)
+                        .start()
+                }
+                
+                // 强制重新绘制整个视图
+                container?.invalidate()
+                container?.requestLayout()
+                
+                // 显示提示
+                Toast.makeText(
+                    this@DualFloatingWebViewService,
+                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    Toast.LENGTH_SHORT
+                ).show()
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "第三个窗口切换按钮出错", e)
+                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        Log.d(TAG, "搜索引擎切换按钮刷新完成")
+    }
+
+    /**
+     * 初始化设置
+     */
+    private fun initializeSettings() {
+        // 从设置管理器获取配置
+        settingsManager = SettingsManager.getInstance(this)
+        
+        // 获取窗口数量
+        windowCount = settingsManager.getDefaultWindowCount()
+        Log.d(TAG, "从设置中获取窗口数量: $windowCount")
+        
+        // 获取搜索引擎设置
+        leftEngineKey = settingsManager.getLeftWindowSearchEngine()
+        centerEngineKey = settingsManager.getCenterWindowSearchEngine()
+        rightEngineKey = settingsManager.getRightWindowSearchEngine()
+        Log.d(TAG, "搜索引擎设置 - 左: $leftEngineKey, 中: $centerEngineKey, 右: $rightEngineKey")
+        
+        // 获取布局方向
+        isHorizontalLayout = sharedPrefs.getBoolean(KEY_IS_HORIZONTAL, true)
+        
+        // 更新窗口计数显示
+        windowCountToggleView?.text = windowCount.toString()
+        Log.d(TAG, "设置窗口计数显示: $windowCount")
+        
+        // 根据窗口数量更新视图显示
+        updateViewVisibilityByWindowCount()
+    }
+
+    /**
+     * 保存当前搜索引擎设置
+     */
+    private fun saveSearchEngines() {
+        try {
+            // 保存用户当前的搜索引擎选择
+            settingsManager.setLeftWindowSearchEngine(leftEngineKey)
+            settingsManager.setCenterWindowSearchEngine(centerEngineKey)
+            settingsManager.setRightWindowSearchEngine(rightEngineKey)
+            
+            Toast.makeText(this, "已保存搜索引擎设置", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "保存搜索引擎设置失败", e)
+            Toast.makeText(this, "保存失败：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 切换到普通模式
+     */
+    private fun switchToNormal() {
+        try {
+            // 显示切换提示
+            Toast.makeText(this, "正在切换到普通浏览模式", Toast.LENGTH_SHORT).show()
+            
+            // 停止当前服务
+            stopSelf()
+        } catch (e: Exception) {
+            Log.e(TAG, "切换到普通模式失败: ${e.message}")
+            Toast.makeText(this, "切换失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 切换窗口是否可获得焦点的标志，用于处理输入法
+     */
+    private fun toggleWindowFocusableFlag(focusable: Boolean) {
+        try {
+            val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
+            
+            if (focusable) {
+                // 移除FLAG_NOT_FOCUSABLE标志，使窗口可以获取焦点
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            } else {
+                // 添加FLAG_NOT_FOCUSABLE标志，使窗口不可获取焦点
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            }
+            
+            // 应用新参数
+            try {
+                windowManager.updateViewLayout(floatingView, params)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新窗口布局参数失败", e)
+            }
+            
+            // 如果切换到可获取焦点，则请求焦点
+            if (focusable) {
+                floatingView?.requestFocus()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换窗口焦点状态失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 更新布局参数
+     */
+    private fun updateLayoutParams() {
+        try {
+            val displayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+            
+            val windowParams = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
+            
+            if (isHorizontalLayout) {
+                windowParams.width = WindowManager.LayoutParams.MATCH_PARENT
+                windowParams.height = (screenHeight * DEFAULT_HEIGHT_RATIO).toInt()
+            } else {
+                windowParams.width = WindowManager.LayoutParams.MATCH_PARENT
+                windowParams.height = WindowManager.LayoutParams.MATCH_PARENT
+            }
+            
+            try {
+                windowManager.updateViewLayout(floatingView, windowParams)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新窗口布局失败", e)
+            }
+            
+            // 请求布局更新
+            container?.requestLayout()
+        } catch (e: Exception) {
+            Log.e(TAG, "更新布局参数失败", e)
+        }
+    }
+
+    /**
+     * 根据窗口数量显示或隐藏相应的窗口
+     */
+    private fun updateWindowVisibility(windowCount: Int) {
+        try {
+            // 更新窗口数量变量
+            this.windowCount = windowCount
+            
+            // 保存设置
+            settingsManager.setDefaultWindowCount(windowCount)
+            
+            // 更新视图可见性
+            updateViewVisibilityByWindowCount()
+            
+            // 更新窗口计数显示
+            windowCountToggleView?.text = "$windowCount"
+        } catch (e: Exception) {
+            Log.e(TAG, "更新窗口可见性失败", e)
         }
     }
 } 
