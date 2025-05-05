@@ -2047,17 +2047,35 @@ class DualFloatingWebViewService : Service() {
             else -> null
         }
         
-        // 重要更改：设置互斥显示，只显示一种类型的搜索引擎列表
+        // 设置两种搜索引擎容器共用同一位置
+        val parentLayout = normalEngineContainer.parent as? ViewGroup
+        if (parentLayout != null && aiScrollContainer != null) {
+            // 确保父容器使用的是FrameLayout或者其他可以重叠子视图的布局
+            if (parentLayout is FrameLayout) {
+                // 已经是FrameLayout，直接设置布局参数
+                val params = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+                
+                normalEngineContainer.layoutParams = params
+                aiScrollContainer.layoutParams = params
+            } else {
+                Log.w(TAG, "父容器不是FrameLayout，无法使容器重叠显示")
+            }
+        }
+        
+        // 根据默认引擎类型设置初始可见性
         if (isAIEngine) {
             // 如果默认是AI引擎，显示AI引擎容器，隐藏普通引擎容器
             aiScrollContainer?.visibility = View.VISIBLE
             normalEngineContainer.visibility = View.GONE
-            toggleButton.setImageResource(R.drawable.ic_search)
+            toggleButton.setImageResource(R.drawable.ic_search)  // 显示切换到普通搜索的图标
         } else {
             // 如果默认是普通引擎，显示普通引擎容器，隐藏AI引擎容器
             aiScrollContainer?.visibility = View.GONE
             normalEngineContainer.visibility = View.VISIBLE
-            toggleButton.setImageResource(R.drawable.ic_ai_search)
+            toggleButton.setImageResource(R.drawable.ic_ai_search)  // 显示切换到AI搜索的图标
         }
         
         // 记录容器状态
@@ -2067,8 +2085,6 @@ class DualFloatingWebViewService : Service() {
         // 确保容器有子视图
         Log.d(TAG, "AI容器子视图数量: ${aiEngineContainer.childCount}, " +
                 "普通容器子视图数量: ${normalEngineContainer.childCount}")
-        
-        // 重要：删除原来这里的setOnClickListener代码，避免覆盖setupEngineToggleButtons中的设置
     }
 
     /**
@@ -3474,41 +3490,21 @@ class DualFloatingWebViewService : Service() {
                     return@setOnClickListener
                 }
                 
-                // 获取当前AI容器可见性状态
-                val isAIVisible = firstAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第一个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                // 获取当前显示的是哪种引擎列表
+                val isAIEngineShowing = firstAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第一个窗口当前显示的是${if (isAIEngineShowing) "AI" else "普通"}搜索引擎")
                 
-                // 切换容器可见性 - 重要：这里修改为互斥显示
-                if (isAIVisible) {
-                    // 从AI引擎切换到普通引擎
-                    firstAIScrollContainer?.visibility = View.GONE
-                    firstEngineContainer?.visibility = View.VISIBLE
-                    firstEngineToggle?.setImageResource(R.drawable.ic_ai_search)
-                } else {
-                    // 从普通引擎切换到AI引擎
-                    firstAIScrollContainer?.visibility = View.VISIBLE
-                    firstEngineContainer?.visibility = View.GONE
-                    firstEngineToggle?.setImageResource(R.drawable.ic_search)
-                }
+                // 直接切换显示的引擎列表
+                firstAIScrollContainer?.visibility = if (isAIEngineShowing) View.GONE else View.VISIBLE
+                firstEngineContainer?.visibility = if (isAIEngineShowing) View.VISIBLE else View.GONE
                 
-                // 添加切换动画
-                val containerToShow = if (isAIVisible) firstEngineContainer else firstAIScrollContainer
-                containerToShow?.apply {
-                    alpha = 0f
-                    animate()
-                        .alpha(1f)
-                        .setDuration(200)
-                        .start()
-                }
-                
-                // 强制重新绘制整个视图
-                container?.invalidate()
-                container?.requestLayout()
+                // 更新切换按钮图标
+                firstEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
                 
                 // 显示提示
                 Toast.makeText(
                     this@DualFloatingWebViewService,
-                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
                     Toast.LENGTH_SHORT
                 ).show()
                 
@@ -3530,41 +3526,21 @@ class DualFloatingWebViewService : Service() {
                     return@setOnClickListener
                 }
                 
-                // 获取当前AI容器可见性状态
-                val isAIVisible = secondAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第二个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                // 获取当前显示的是哪种引擎列表
+                val isAIEngineShowing = secondAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第二个窗口当前显示的是${if (isAIEngineShowing) "AI" else "普通"}搜索引擎")
                 
-                // 切换容器可见性 - 重要：这里修改为互斥显示
-                if (isAIVisible) {
-                    // 从AI引擎切换到普通引擎
-                    secondAIScrollContainer?.visibility = View.GONE
-                    secondEngineContainer?.visibility = View.VISIBLE
-                    secondEngineToggle?.setImageResource(R.drawable.ic_ai_search)
-                } else {
-                    // 从普通引擎切换到AI引擎
-                    secondAIScrollContainer?.visibility = View.VISIBLE
-                    secondEngineContainer?.visibility = View.GONE
-                    secondEngineToggle?.setImageResource(R.drawable.ic_search)
-                }
+                // 直接切换显示的引擎列表
+                secondAIScrollContainer?.visibility = if (isAIEngineShowing) View.GONE else View.VISIBLE
+                secondEngineContainer?.visibility = if (isAIEngineShowing) View.VISIBLE else View.GONE
                 
-                // 添加切换动画
-                val containerToShow = if (isAIVisible) secondEngineContainer else secondAIScrollContainer
-                containerToShow?.apply {
-                    alpha = 0f
-                    animate()
-                        .alpha(1f)
-                        .setDuration(200)
-                        .start()
-                }
-                
-                // 强制重新绘制整个视图
-                container?.invalidate()
-                container?.requestLayout()
+                // 更新切换按钮图标
+                secondEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
                 
                 // 显示提示
                 Toast.makeText(
                     this@DualFloatingWebViewService,
-                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
                     Toast.LENGTH_SHORT
                 ).show()
                 
@@ -3586,41 +3562,21 @@ class DualFloatingWebViewService : Service() {
                     return@setOnClickListener
                 }
                 
-                // 获取当前AI容器可见性状态
-                val isAIVisible = thirdAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第三个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
+                // 获取当前显示的是哪种引擎列表
+                val isAIEngineShowing = thirdAIScrollContainer?.visibility == View.VISIBLE
+                Log.d(TAG, "第三个窗口当前显示的是${if (isAIEngineShowing) "AI" else "普通"}搜索引擎")
                 
-                // 切换容器可见性 - 重要：这里修改为互斥显示
-                if (isAIVisible) {
-                    // 从AI引擎切换到普通引擎
-                    thirdAIScrollContainer?.visibility = View.GONE
-                    thirdEngineContainer?.visibility = View.VISIBLE
-                    thirdEngineToggle?.setImageResource(R.drawable.ic_ai_search)
-                } else {
-                    // 从普通引擎切换到AI引擎
-                    thirdAIScrollContainer?.visibility = View.VISIBLE
-                    thirdEngineContainer?.visibility = View.GONE
-                    thirdEngineToggle?.setImageResource(R.drawable.ic_search)
-                }
+                // 直接切换显示的引擎列表
+                thirdAIScrollContainer?.visibility = if (isAIEngineShowing) View.GONE else View.VISIBLE
+                thirdEngineContainer?.visibility = if (isAIEngineShowing) View.VISIBLE else View.GONE
                 
-                // 添加切换动画
-                val containerToShow = if (isAIVisible) thirdEngineContainer else thirdAIScrollContainer
-                containerToShow?.apply {
-                    alpha = 0f
-                    animate()
-                        .alpha(1f)
-                        .setDuration(200)
-                        .start()
-                }
-                
-                // 强制重新绘制整个视图
-                container?.invalidate()
-                container?.requestLayout()
+                // 更新切换按钮图标
+                thirdEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
                 
                 // 显示提示
                 Toast.makeText(
                     this@DualFloatingWebViewService,
-                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
+                    "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
                     Toast.LENGTH_SHORT
                 ).show()
                 

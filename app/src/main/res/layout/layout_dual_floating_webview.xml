@@ -165,35 +165,41 @@
                                 android:src="@drawable/ic_search"
                                 android:contentDescription="切换搜索引擎类型"/>
                             
-                            <!-- 搜索引擎图标容器 -->
-                            <HorizontalScrollView
+                            <!-- 搜索引擎容器 - 使用FrameLayout使两种引擎共用同一位置 -->
+                            <FrameLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1">
                                 
-                                <LinearLayout
-                                    android:id="@+id/first_engine_container"
-                                    android:layout_width="wrap_content"
+                                <!-- 普通搜索引擎容器 -->
+                                <HorizontalScrollView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content">
+                                    
+                                    <LinearLayout
+                                        android:id="@+id/first_engine_container"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:padding="2dp"/>
+                                </HorizontalScrollView>
+                                
+                                <!-- AI搜索引擎容器 (初始隐藏) -->
+                                <HorizontalScrollView
+                                    android:id="@+id/first_ai_scroll_container"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:orientation="horizontal"
-                                    android:padding="2dp"/>
-                            </HorizontalScrollView>
+                                    android:visibility="gone">
+                                    
+                                    <LinearLayout
+                                        android:id="@+id/first_ai_engine_container"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:padding="2dp"/>
+                                </HorizontalScrollView>
+                            </FrameLayout>
                         </LinearLayout>
-                        
-                        <!-- AI搜索引擎容器 (初始隐藏) -->
-                        <HorizontalScrollView
-                            android:id="@+id/first_ai_scroll_container"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            
-                            <LinearLayout
-                                android:id="@+id/first_ai_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:padding="2dp"/>
-                        </HorizontalScrollView>
                     </LinearLayout>
 
                     <WebView
@@ -251,35 +257,41 @@
                                 android:src="@drawable/ic_search"
                                 android:contentDescription="切换搜索引擎类型"/>
                             
-                            <!-- 搜索引擎图标容器 -->
-                            <HorizontalScrollView
+                            <!-- 搜索引擎容器 - 使用FrameLayout使两种引擎共用同一位置 -->
+                            <FrameLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1">
                                 
-                                <LinearLayout
-                                    android:id="@+id/second_engine_container"
-                                    android:layout_width="wrap_content"
+                                <!-- 普通搜索引擎容器 -->
+                                <HorizontalScrollView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content">
+                                    
+                                    <LinearLayout
+                                        android:id="@+id/second_engine_container"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:padding="2dp"/>
+                                </HorizontalScrollView>
+                                
+                                <!-- AI搜索引擎容器 (初始隐藏) -->
+                                <HorizontalScrollView
+                                    android:id="@+id/second_ai_scroll_container"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:orientation="horizontal"
-                                    android:padding="2dp"/>
-                            </HorizontalScrollView>
+                                    android:visibility="gone">
+                                    
+                                    <LinearLayout
+                                        android:id="@+id/second_ai_engine_container"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:padding="2dp"/>
+                                </HorizontalScrollView>
+                            </FrameLayout>
                         </LinearLayout>
-                        
-                        <!-- AI搜索引擎容器 (初始隐藏) -->
-                        <HorizontalScrollView
-                            android:id="@+id/second_ai_scroll_container"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            
-                            <LinearLayout
-                                android:id="@+id/second_ai_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:padding="2dp"/>
-                        </HorizontalScrollView>
                     </LinearLayout>
 
                     <WebView
@@ -337,35 +349,41 @@
                                 android:src="@drawable/ic_search"
                                 android:contentDescription="切换搜索引擎类型"/>
                             
-                            <!-- 搜索引擎图标容器 -->
-                            <HorizontalScrollView
+                            <!-- 搜索引擎容器 - 使用FrameLayout使两种引擎共用同一位置 -->
+                            <FrameLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1">
                                 
-                                <LinearLayout
-                                    android:id="@+id/third_engine_container"
-                                    android:layout_width="wrap_content"
+                                <!-- 普通搜索引擎容器 -->
+                                <HorizontalScrollView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content">
+                                    
+                                    <LinearLayout
+                                        android:id="@+id/third_engine_container"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:padding="2dp"/>
+                                </HorizontalScrollView>
+                                
+                                <!-- AI搜索引擎容器 (初始隐藏) -->
+                                <HorizontalScrollView
+                                    android:id="@+id/third_ai_scroll_container"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:orientation="horizontal"
-                                    android:padding="2dp"/>
-                            </HorizontalScrollView>
+                                    android:visibility="gone">
+                                    
+                                    <LinearLayout
+                                        android:id="@+id/third_ai_engine_container"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:padding="2dp"/>
+                                </HorizontalScrollView>
+                            </FrameLayout>
                         </LinearLayout>
-                        
-                        <!-- AI搜索引擎容器 (初始隐藏) -->
-                        <HorizontalScrollView
-                            android:id="@+id/third_ai_scroll_container"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:visibility="gone">
-                            
-                            <LinearLayout
-                                android:id="@+id/third_ai_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:padding="2dp"/>
-                        </HorizontalScrollView>
                     </LinearLayout>
 
                     <WebView
