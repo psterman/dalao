@@ -970,7 +970,7 @@ class DualFloatingWebViewService : Service() {
                     <span class="divider"></span>
                     <button onclick="window.handleMenuAction('share')">分享</button>
                     <span class="divider"></span>
-                    <button onclick="window.handleMenuAction('search')">搜索</button>
+                    <button onclick="window.handleMenuAction('search')">多窗口搜索</button>
                     <span class="divider"></span>
                     <button onclick="window.handleMenuAction('translate')">翻译</button>
                 `;
@@ -1000,23 +1000,19 @@ class DualFloatingWebViewService : Service() {
                 };
 
                 // 显示菜单
-                window.showCustomMenu = function(x, y) {
+                window.showCustomMenu = function() {
+                    var selection = window.getSelection();
+                    if (!selection.toString()) return;
+
                     var menu = document.getElementById('custom_selection_menu');
                     if (!menu) return;
 
-                    menu.style.display = 'block';
-                    
-                    // 获取选中文本的位置
-                    var selection = window.getSelection();
                     var range = selection.getRangeAt(0);
                     var rect = range.getBoundingClientRect();
                     
-                    // 计算菜单位置
-                    var menuX = rect.left;
-                    var menuY = rect.bottom + window.scrollY + 5;  // 在选中文本下方5px
-                    
-                    menu.style.left = menuX + 'px';
-                    menu.style.top = menuY + 'px';
+                    menu.style.display = 'block';
+                    menu.style.left = (rect.left + window.scrollX) + 'px';
+                    menu.style.top = (rect.bottom + window.scrollY + 5) + 'px';
 
                     // 确保菜单在视口内
                     var menuRect = menu.getBoundingClientRect();
@@ -1028,6 +1024,11 @@ class DualFloatingWebViewService : Service() {
                     }
                     if (menuRect.bottom > viewportHeight) {
                         menu.style.top = (rect.top + window.scrollY - menuRect.height - 5) + 'px';
+                    }
+
+                    // 防止菜单超出左边界
+                    if (parseFloat(menu.style.left) < 0) {
+                        menu.style.left = '5px';
                     }
                 };
 
@@ -1041,12 +1042,41 @@ class DualFloatingWebViewService : Service() {
 
                 // 监听选择事件
                 document.addEventListener('selectionchange', function() {
-                    var selection = window.getSelection();
-                    if (selection.toString().length > 0) {
-                        showCustomMenu();
-                    } else {
-                        hideCustomMenu();
-                    }
+                    // 使用 requestAnimationFrame 确保在下一帧处理，避免选择未完成就显示菜单
+                    requestAnimationFrame(function() {
+                        var selection = window.getSelection();
+                        var text = selection.toString().trim();
+                        
+                        if (text.length > 0) {
+                            showCustomMenu();
+                        } else {
+                            hideCustomMenu();
+                        }
+                    });
+                });
+
+                // 监听触摸结束事件
+                document.addEventListener('touchend', function() {
+                    // 延迟一小段时间后检查选择
+                    setTimeout(function() {
+                        var selection = window.getSelection();
+                        var text = selection.toString().trim();
+                        if (text.length > 0) {
+                            showCustomMenu();
+                        }
+                    }, 100);
+                });
+
+                // 监听鼠标按键释放事件
+                document.addEventListener('mouseup', function() {
+                    // 延迟一小段时间后检查选择
+                    setTimeout(function() {
+                        var selection = window.getSelection();
+                        var text = selection.toString().trim();
+                        if (text.length > 0) {
+                            showCustomMenu();
+                        }
+                    }, 100);
                 });
 
                 // 点击其他地方隐藏菜单
@@ -1062,9 +1092,23 @@ class DualFloatingWebViewService : Service() {
                 }, true);
 
                 // 启用文本选择
-                document.documentElement.style.webkitUserSelect = 'text';
-                document.documentElement.style.userSelect = 'text';
-                
+                var styleSheet = document.createElement('style');
+                styleSheet.textContent = `
+                    * {
+                        -webkit-user-select: text !important;
+                        user-select: text !important;
+                    }
+                    input, textarea {
+                        -webkit-user-select: auto !important;
+                        user-select: auto !important;
+                    }
+                    #custom_selection_menu, #custom_selection_menu * {
+                        -webkit-user-select: none !important;
+                        user-select: none !important;
+                    }
+                `;
+                document.head.appendChild(styleSheet);
+
                 // 禁用默认的长按菜单
                 document.addEventListener('contextmenu', function(e) {
                     e.preventDefault();
@@ -2105,21 +2149,22 @@ class DualFloatingWebViewService : Service() {
     }
 
     private fun getSearchUrl(engineKey: String, query: String): String {
+        val encodedQuery = URLEncoder.encode(query, "UTF-8")
         return when(engineKey.lowercase()) {
-            "baidu" -> "https://www.baidu.com/s?wd=$query"
-            "google" -> "https://www.google.com/search?q=$query"
-            "bing" -> "https://www.bing.com/search?q=$query"
-            "sogou" -> "https://www.sogou.com/web?query=$query"
-            "360" -> "https://www.so.com/s?q=$query"
-            "zhihu" -> "https://www.zhihu.com/search?q=$query"
-            "bilibili" -> "https://search.bilibili.com/all?keyword=$query"
-            "weibo" -> "https://s.weibo.com/weibo?q=$query"
-            "douban" -> "https://www.douban.com/search?q=$query"
-            "taobao" -> "https://s.taobao.com/search?q=$query"
-            "jd" -> "https://search.jd.com/Search?keyword=$query"
-            "douyin" -> "https://www.douyin.com/search/$query"
-            "xiaohongshu" -> "https://www.xiaohongshu.com/search_result?keyword=$query"
-            else -> "https://www.baidu.com/s?wd=$query"
+            "baidu" -> "https://www.baidu.com/s?wd=$encodedQuery"
+            "google" -> "https://www.google.com/search?q=$encodedQuery"
+            "bing" -> "https://www.bing.com/search?q=$encodedQuery"
+            "sogou" -> "https://www.sogou.com/web?query=$encodedQuery"
+            "360" -> "https://www.so.com/s?q=$encodedQuery"
+            "zhihu" -> "https://www.zhihu.com/search?q=$encodedQuery"
+            "bilibili" -> "https://search.bilibili.com/all?keyword=$encodedQuery"
+            "weibo" -> "https://s.weibo.com/weibo?q=$encodedQuery"
+            "douban" -> "https://www.douban.com/search?q=$encodedQuery"
+            "taobao" -> "https://s.taobao.com/search?q=$encodedQuery"
+            "jd" -> "https://search.jd.com/Search?keyword=$encodedQuery"
+            "douyin" -> "https://www.douyin.com/search/$encodedQuery"
+            "xiaohongshu" -> "https://www.xiaohongshu.com/search_result?keyword=$encodedQuery"
+            else -> "https://www.baidu.com/s?wd=$encodedQuery"
         }
     }
 
@@ -2824,11 +2869,28 @@ class DualFloatingWebViewService : Service() {
         @JavascriptInterface
         fun onSearchText(text: String) {
             mainHandler.post {
-                val intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
-                    putExtra(SearchManager.QUERY, text)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // 获取当前搜索引擎设置
+                val leftEngine = settingsManager.getLeftWindowSearchEngine()
+                val centerEngine = settingsManager.getCenterWindowSearchEngine()
+                val rightEngine = settingsManager.getRightWindowSearchEngine()
+
+                // 根据窗口数量执行搜索
+                when (windowCount) {
+                    1 -> {
+                        firstWebView?.loadUrl(getSearchUrl(leftEngine, text))
+                    }
+                    2 -> {
+                        firstWebView?.loadUrl(getSearchUrl(leftEngine, text))
+                        secondWebView?.loadUrl(getSearchUrl(centerEngine, text))
+                    }
+                    else -> {
+                        firstWebView?.loadUrl(getSearchUrl(leftEngine, text))
+                        secondWebView?.loadUrl(getSearchUrl(centerEngine, text))
+                        thirdWebView?.loadUrl(getSearchUrl(rightEngine, text))
+                    }
                 }
-                startActivity(intent)
+                
+                Toast.makeText(this@DualFloatingWebViewService, "正在搜索: $text", Toast.LENGTH_SHORT).show()
             }
         }
 
