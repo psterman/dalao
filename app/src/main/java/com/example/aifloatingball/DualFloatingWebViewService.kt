@@ -2467,6 +2467,56 @@ class DualFloatingWebViewService : Service() {
             
             // 增加水平滚动条可见度
             scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+            
+            // 添加触摸事件监听，使其支持拖动滚动
+            setOnTouchListener(object : View.OnTouchListener {
+                private var startX = 0f
+                private var startScrollX = 0
+                private var isDragging = false
+                private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+                
+                override fun onTouch(v: View, event: MotionEvent): Boolean {
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 记录起始触摸位置和滚动位置
+                            startX = event.x
+                            startScrollX = scrollX
+                            isDragging = false
+                            // 返回false以允许子视图也接收触摸事件
+                            return false
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val deltaX = startX - event.x
+                            
+                            // 如果移动距离超过阈值，开始拖动
+                            if (!isDragging && Math.abs(deltaX) > touchSlop) {
+                                isDragging = true
+                                // 阻止父视图拦截触摸事件
+                                parent.requestDisallowInterceptTouchEvent(true)
+                            }
+                            
+                            if (isDragging) {
+                                // 计算新的滚动位置
+                                val newScrollX = (startScrollX + deltaX).toInt()
+                                // 滚动到新位置
+                                scrollTo(newScrollX, 0)
+                                return true
+                            }
+                            return false
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            if (isDragging) {
+                                // 在拖动结束时执行惯性滚动
+                                // 允许父视图再次拦截触摸事件
+                                parent.requestDisallowInterceptTouchEvent(false)
+                                return true
+                            }
+                            return false
+                        }
+                    }
+                    return false
+                }
+            })
         }
         
         // 创建内部图标容器

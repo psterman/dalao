@@ -71,6 +71,7 @@ import com.example.aifloatingball.utils.TextSelectionHelper
 import org.json.JSONObject
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -157,6 +158,32 @@ class FloatingWindowService : Service() {
         textSelectionHelper?.updateSelectionRange(x, y)
     }
 
+    // 添加透明度更新的广播接收器
+    private val alphaUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.ACTION_UPDATE_ALPHA") {
+                val alpha = intent.getIntExtra("alpha", 85)
+                updateFloatingBallAlpha(alpha)
+            }
+        }
+    }
+
+    // 添加更新透明度的方法
+    private fun updateFloatingBallAlpha(alphaValue: Int) {
+        try {
+            val floatingBallIcon = floatingView?.findViewById<FloatingActionButton>(R.id.floating_ball_icon)
+            floatingBallIcon?.alpha = alphaValue / 100f
+            
+            // 同时更新窗口参数的透明度
+            params?.alpha = alphaValue / 100f
+            windowManager?.updateViewLayout(floatingView, params)
+            
+            Log.d(TAG, "实时更新透明度: $alphaValue")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新透明度失败: ${e.message}")
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -188,6 +215,9 @@ class FloatingWindowService : Service() {
         
         // 注册广播接收器
         registerReceiver(shortcutsUpdateReceiver, IntentFilter("com.example.aifloatingball.ACTION_UPDATE_SHORTCUTS"))
+        
+        // 注册透明度更新的广播接收器
+        registerReceiver(alphaUpdateReceiver, IntentFilter("com.example.aifloatingball.ACTION_UPDATE_ALPHA"))
         
         // 确保初始时只显示悬浮球
         ensureOnlyFloatingBallVisible()
@@ -226,7 +256,7 @@ class FloatingWindowService : Service() {
     private fun initializeWindowManager() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        val size = prefs.getInt("ball_size", 100)
+        val alpha = prefs.getInt("ball_alpha", 85) / 100f
         
         // 获取状态栏高度
         val statusBarHeight = getStatusBarHeight()
@@ -242,7 +272,7 @@ class FloatingWindowService : Service() {
             gravity = Gravity.TOP or Gravity.START
             x = prefs.getInt("last_x", 0)
             y = prefs.getInt("last_y", statusBarHeight + 20)  // 默认位置避开状态栏
-            this.alpha = 1.0f  // 始终使用完全不透明的整体视图
+            this.alpha = alpha  // 应用透明度设置
         }
     }
     
@@ -267,9 +297,12 @@ class FloatingWindowService : Service() {
         searchInput = floatingView?.findViewById(R.id.search_input)
         searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
         
-        // 获取悬浮球图标
-        val floatingBallIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
-        
+        // 获取悬浮球图标并设置透明度
+        val floatingBallIcon = floatingView?.findViewById<FloatingActionButton>(R.id.floating_ball_icon)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val alpha = prefs.getInt("ball_alpha", 85) / 100f
+        floatingBallIcon?.alpha = alpha
+
         // 设置搜索容器背景为不透明
         searchContainer?.setBackgroundResource(R.drawable.search_container_background)
         
@@ -558,16 +591,23 @@ class FloatingWindowService : Service() {
     }
 
     private fun onDoubleClick() {
-        // 保持完全不透明，改为切换其他视觉效果
-        floatingView?.let { view ->
-            val floatingBallIcon = view.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
-            // 切换图标背景颜色而不是透明度
-            if (isAlternateAppearance) {
-                floatingBallIcon?.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#2196F3")) // 蓝色
-            } else {
-                floatingBallIcon?.backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#FF4081")) // 粉色
+        try {
+            // 启动DualFloatingWebViewService
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                // 使用默认设置
+                putExtra("window_count", settingsManager.getDefaultWindowCount())
+                
+                // 设置默认搜索引擎
+                putExtra("left_engine", settingsManager.getLeftWindowSearchEngine())
+                putExtra("center_engine", settingsManager.getCenterWindowSearchEngine())
+                putExtra("right_engine", settingsManager.getRightWindowSearchEngine())
             }
-            isAlternateAppearance = !isAlternateAppearance
+            startService(intent)
+            
+            Log.d(TAG, "双击启动多窗口服务")
+        } catch (e: Exception) {
+            Log.e(TAG, "启动多窗口服务失败: ${e.message}")
+            Toast.makeText(this, "启动多窗口服务失败", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1119,6 +1159,7 @@ class FloatingWindowService : Service() {
         // 注销广播接收器
         try {
             unregisterReceiver(shortcutsUpdateReceiver)
+            unregisterReceiver(alphaUpdateReceiver)
         } catch (e: Exception) {
             Log.e("FloatingWindowService", "注销广播接收器失败: ${e.message}")
         }

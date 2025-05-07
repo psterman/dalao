@@ -155,11 +155,15 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
-            // 悬浮球大小设置
-            findPreference<SeekBarPreference>("ball_size")?.apply {
-                value = settingsManager.getBallSize()
+            // 悬浮球透明度设置
+            findPreference<SeekBarPreference>("ball_alpha")?.apply {
+                value = settingsManager.getBallAlpha()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setBallSize(newValue as Int)
+                    settingsManager.setBallAlpha(newValue as Int)
+                    // 立即更新悬浮球透明度，不需要重启服务
+                    val intent = Intent("com.example.aifloatingball.ACTION_UPDATE_ALPHA")
+                    intent.putExtra("alpha", newValue as Int)
+                    requireContext().sendBroadcast(intent)
                     true
                 }
             }

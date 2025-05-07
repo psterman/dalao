@@ -16,12 +16,12 @@
             app:iconSpaceReserved="false" />
 
         <SeekBarPreference
-            app:key="ball_size"
-            app:title="悬浮球大小"
-            app:summary="调整悬浮球的显示大小"
-            android:max="150"
-            android:min="50"
-            app:defaultValue="100"
+            app:key="ball_alpha"
+            app:title="悬浮球透明度"
+            app:summary="调整悬浮球的透明度"
+            android:max="100"
+            android:min="20"
+            app:defaultValue="85"
             app:showSeekBarValue="true"
             app:iconSpaceReserved="false" />
 

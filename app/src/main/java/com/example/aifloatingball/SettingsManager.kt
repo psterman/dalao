@@ -21,7 +21,7 @@ class SettingsManager private constructor(context: Context) {
     
     companion object {
         private const val PREFS_NAME = "settings"
-        private const val DEFAULT_BALL_SIZE = 100
+        private const val DEFAULT_BALL_ALPHA = 85
         private const val DEFAULT_LAYOUT_THEME = 0
         private const val DEFAULT_PAGE = "home"
         
@@ -41,13 +41,14 @@ class SettingsManager private constructor(context: Context) {
         }
     }
     
-    // 悬浮球大小设置
-    fun getBallSize(): Int {
-        return prefs.getInt("ball_size", DEFAULT_BALL_SIZE)
+    // 悬浮球透明度设置
+    fun getBallAlpha(): Int {
+        return prefs.getInt("ball_alpha", DEFAULT_BALL_ALPHA)
     }
     
-    fun setBallSize(size: Int) {
-        prefs.edit().putInt("ball_size", size).apply()
+    fun setBallAlpha(alpha: Int) {
+        prefs.edit().putInt("ball_alpha", alpha).apply()
+        notifyListeners("ball_alpha", alpha)
     }
 
     // 统一主题设置
