@@ -172,9 +172,17 @@
                                 android:layout_weight="1">
                                 
                                 <!-- 普通搜索引擎容器 -->
-                                <HorizontalScrollView
+                                <LinearLayout
                                     android:layout_width="match_parent"
-                                    android:layout_height="wrap_content">
+                                    android:layout_height="wrap_content"
+                                    android:orientation="vertical">
+                                    
+                                    <HorizontalScrollView
+                                        android:id="@+id/first_engine_scroll"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:scrollbars="none"
+                                        android:overScrollMode="never">
                                     
                                     <LinearLayout
                                         android:id="@+id/first_engine_container"
@@ -183,6 +191,13 @@
                                         android:orientation="horizontal"
                                         android:padding="2dp"/>
                                 </HorizontalScrollView>
+                                    
+                                    <com.example.aifloatingball.view.CustomHorizontalScrollbar
+                                        android:id="@+id/first_engine_scrollbar"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="8dp"
+                                        android:layout_marginTop="2dp"/>
+                                </LinearLayout>
                                 
                                 <!-- AI搜索引擎容器 (初始隐藏) -->
                                 <HorizontalScrollView
@@ -264,9 +279,17 @@
                                 android:layout_weight="1">
                                 
                                 <!-- 普通搜索引擎容器 -->
-                                <HorizontalScrollView
+                                <LinearLayout
                                     android:layout_width="match_parent"
-                                    android:layout_height="wrap_content">
+                                    android:layout_height="wrap_content"
+                                    android:orientation="vertical">
+                                    
+                                    <HorizontalScrollView
+                                        android:id="@+id/second_engine_scroll"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:scrollbars="none"
+                                        android:overScrollMode="never">
                                     
                                     <LinearLayout
                                         android:id="@+id/second_engine_container"
@@ -275,6 +298,13 @@
                                         android:orientation="horizontal"
                                         android:padding="2dp"/>
                                 </HorizontalScrollView>
+                                    
+                                    <com.example.aifloatingball.view.CustomHorizontalScrollbar
+                                        android:id="@+id/second_engine_scrollbar"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="8dp"
+                                        android:layout_marginTop="2dp"/>
+                                </LinearLayout>
                                 
                                 <!-- AI搜索引擎容器 (初始隐藏) -->
                                 <HorizontalScrollView
@@ -356,9 +386,17 @@
                                 android:layout_weight="1">
                                 
                                 <!-- 普通搜索引擎容器 -->
-                                <HorizontalScrollView
+                                <LinearLayout
                                     android:layout_width="match_parent"
-                                    android:layout_height="wrap_content">
+                                    android:layout_height="wrap_content"
+                                    android:orientation="vertical">
+                                    
+                                    <HorizontalScrollView
+                                        android:id="@+id/third_engine_scroll"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:scrollbars="none"
+                                        android:overScrollMode="never">
                                     
                                     <LinearLayout
                                         android:id="@+id/third_engine_container"
@@ -367,6 +405,13 @@
                                         android:orientation="horizontal"
                                         android:padding="2dp"/>
                                 </HorizontalScrollView>
+                                    
+                                    <com.example.aifloatingball.view.CustomHorizontalScrollbar
+                                        android:id="@+id/third_engine_scrollbar"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="8dp"
+                                        android:layout_marginTop="2dp"/>
+                                </LinearLayout>
                                 
                                 <!-- AI搜索引擎容器 (初始隐藏) -->
                                 <HorizontalScrollView
