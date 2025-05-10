@@ -120,18 +120,26 @@ class CustomHorizontalScrollbar @JvmOverloads constructor(
                 )
                 if (expandedRect.contains(event.x, event.y)) {
                     isDragging = true
+                    // 仅当直接操作此组件时才阻止事件传递给父视图
                     parent?.requestDisallowInterceptTouchEvent(true)
                     return true
                 }
+                // 如果点击不在滚动条上，不处理事件
+                return false
             }
             MotionEvent.ACTION_MOVE -> {
+                if (!isDragging) {
+                    // 如果没有在拖动滚动条，不处理事件
+                    return false
+                }
+                
                 if (!hasMovedBeyondSlop) {
                     val deltaX = abs(event.x - initialTouchX)
                     val deltaY = abs(event.y - initialTouchY)
                     if (deltaX > touchSlop || deltaY > touchSlop) {
                         hasMovedBeyondSlop = true
                         // 如果水平移动大于垂直移动，且正在拖动滚动条，则拦截事件
-                        if (deltaX > deltaY && isDragging) {
+                        if (deltaX > deltaY) {
                             parent?.requestDisallowInterceptTouchEvent(true)
                         } else {
                             isDragging = false
@@ -153,7 +161,7 @@ class CustomHorizontalScrollbar @JvmOverloads constructor(
                         // 计算并设置目标ScrollView的滚动位置
                         targetScrollView?.let { scrollView ->
                             val scrollFraction = scrollbarX / (width - scrollbarWidth)
-                            val maxScroll = scrollableWidth - viewportWidth
+                            val maxScroll = max(0, scrollableWidth - viewportWidth)
                             val targetScroll = (maxScroll * scrollFraction).toInt()
                             scrollView.scrollTo(targetScroll, 0)
                         }
@@ -168,6 +176,7 @@ class CustomHorizontalScrollbar @JvmOverloads constructor(
                     isDragging = false
                     hasMovedBeyondSlop = false
                     parent?.requestDisallowInterceptTouchEvent(false)
+                    performClick()
                     return true
                 }
             }

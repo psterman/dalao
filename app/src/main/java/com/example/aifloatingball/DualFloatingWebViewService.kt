@@ -67,6 +67,7 @@ import android.widget.PopupWindow
 import android.view.ViewPropertyAnimator
 import java.io.File as JavaFile
 import com.example.aifloatingball.view.CustomHorizontalScrollbar
+import android.util.Pair
 
 class DualFloatingWebViewService : Service() {
     companion object {
@@ -129,7 +130,7 @@ class DualFloatingWebViewService : Service() {
     
     private lateinit var settingsManager: SettingsManager
     private var leftEngineKey: String = "baidu"
-    private var centerEngineKey: String = "bing"  // 添加中间引擎键
+    private var centerEngineKey: String = "bing"   // 添加中间引擎键
     private var rightEngineKey: String = "google"
     private var windowCount: Int = 2 // 默认窗口数量
 
@@ -946,33 +947,18 @@ class DualFloatingWebViewService : Service() {
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
+                
+                // 确保WebView不拦截水平滑动
+                webView.isHorizontalScrollBarEnabled = false
+                webView.overScrollMode = View.OVER_SCROLL_NEVER
             }
 
             // 添加 JSBridge
             webView.addJavascriptInterface(WebViewJSBridge(webView), "NativeBridge")
-
-            // 设置WebView的长按事件监听，用于处理链接长按
-            webView.setOnLongClickListener { view ->
-                val result = (view as WebView).hitTestResult
-                
-                when (result.type) {
-                    WebView.HitTestResult.SRC_ANCHOR_TYPE,
-                    WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE,
-                    WebView.HitTestResult.IMAGE_TYPE -> {
-                        // 获取长按位置的URL和链接文本
-                        val url = result.extra
-                        if (url != null) {
-                            // 显示自定义链接菜单
-                            showLinkActionMenu(webView, url, result.type)
-                            return@setOnLongClickListener true
-                        }
-                    }
-                }
-                false
-            }
-
-            // 设置触摸事件监听
-            webView.setOnTouchListener { view, event ->
+            
+            // 确保WebView不拦截父容器的触摸事件
+            webView.setOnTouchListener { v, event ->
+                // 只有对垂直方向的滑动和点击进行处理，水平滑动交给父容器
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         lastTouchDownTime = SystemClock.uptimeMillis()
@@ -999,6 +985,22 @@ class DualFloatingWebViewService : Service() {
                                 toggleWindowFocusableFlag(true)
                             }
                         }
+                        
+                        // 不消费事件，让父容器处理横向滑动
+                        v.parent.requestDisallowInterceptTouchEvent(false)
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        // 计算水平和垂直移动距离
+                        val deltaX = Math.abs(event.x - lastTouchX)
+                        val deltaY = Math.abs(event.y - lastTouchY)
+                        
+                        // 如果水平移动明显大于垂直移动，让父容器处理
+                        if (deltaX > deltaY * 1.5f) {
+                            v.parent.requestDisallowInterceptTouchEvent(false)
+                        } else {
+                            // 否则WebView处理(垂直滚动)
+                            v.parent.requestDisallowInterceptTouchEvent(true)
+                        }
                     }
                     MotionEvent.ACTION_UP -> {
                         val touchDuration = SystemClock.uptimeMillis() - lastTouchDownTime
@@ -1014,6 +1016,9 @@ class DualFloatingWebViewService : Service() {
                                 handleLongPress(webView, event)
                             }
                         }
+                        
+                        // 恢复父视图拦截
+                        v.parent.requestDisallowInterceptTouchEvent(false)
                     }
                 }
                 false // 继续传递事件给WebView
@@ -4137,6 +4142,110 @@ class DualFloatingWebViewService : Service() {
     }
 
     /**
+     * 设置搜索引擎滚动视图的触摸事件处理
+     * 确保搜索引擎区域可以独立滚动
+     */
+    private fun setupEngineScrollViews() {
+        try {
+            // 获取所有搜索引擎滚动视图
+            val engineScrolls = listOfNotNull(
+                floatingView?.findViewById<HorizontalScrollView>(R.id.first_engine_scroll),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.second_engine_scroll),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.third_engine_scroll)
+            )
+            
+            val aiScrolls = listOfNotNull(
+                floatingView?.findViewById<HorizontalScrollView>(R.id.first_ai_scroll_container),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.second_ai_scroll_container),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.third_ai_scroll_container)
+            )
+            
+            // 所有滚动视图列表
+            val allScrolls = engineScrolls + aiScrolls
+            
+            // 为每个滚动视图设置触摸事件
+            allScrolls.forEach { scrollView ->
+                // 设置滚动条可见
+                scrollView.isHorizontalScrollBarEnabled = true
+                
+                // 设置触摸监听
+                scrollView.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 找到主HorizontalScrollView
+                            var parent = v.parent
+                            var mainScrollView: HorizontalScrollView? = null
+                            
+                            // 向上遍历父视图树
+                            while (parent != null) {
+                                if (parent is HorizontalScrollView && parent != v) {
+                                    mainScrollView = parent
+                                    break
+                                }
+                                parent = parent.parent
+                            }
+                            
+                            // 禁止主滚动视图拦截触摸事件
+                            mainScrollView?.requestDisallowInterceptTouchEvent(true)
+                            
+                            // 显式设置一个标记，表明我们正在处理搜索引擎区域的滚动
+                            v.tag = "ENGINE_SCROLLING"
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            // 重置标记
+                            v.tag = null
+                            
+                            // 恢复所有父视图的事件拦截
+                            var parent = v.parent
+                            while (parent != null) {
+                                if (parent is HorizontalScrollView) {
+                                    parent.requestDisallowInterceptTouchEvent(false)
+                                }
+                                parent = parent.parent
+                            }
+                        }
+                    }
+                    // 返回false继续传递事件
+                    false
+                }
+            }
+            
+            // 此外，为搜索引擎图标添加更宽松的触摸区域
+            val iconContainers = listOfNotNull(
+                floatingView?.findViewById<View>(R.id.first_engine_container),
+                floatingView?.findViewById<View>(R.id.second_engine_container),
+                floatingView?.findViewById<View>(R.id.third_engine_container),
+                floatingView?.findViewById<View>(R.id.first_ai_engine_container),
+                floatingView?.findViewById<View>(R.id.second_ai_engine_container),
+                floatingView?.findViewById<View>(R.id.third_ai_engine_container)
+            )
+            
+            iconContainers.forEach { container ->
+                container.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 向上寻找HorizontalScrollView父视图
+                            var parent = v.parent
+                            while (parent != null && parent !is HorizontalScrollView) {
+                                parent = parent.parent
+                            }
+                            
+                            // 如果找到了HorizontalScrollView父视图，告诉它不要拦截触摸事件
+                            (parent as? HorizontalScrollView)?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    }
+                    // 返回false继续传递事件
+                    false
+                }
+            }
+            
+            Log.d(TAG, "已设置搜索引擎滚动视图的触摸事件处理，保证独立滚动")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置搜索引擎滚动视图的触摸事件处理失败", e)
+        }
+    }
+
+    /**
      * 初始化设置
      */
     private fun initializeSettings() {
@@ -4168,6 +4277,15 @@ class DualFloatingWebViewService : Service() {
         
         // 设置主HorizontalScrollView的触摸事件处理，让其只响应WebView区域的滑动
         setupMainHorizontalScrollView()
+        
+        // 设置搜索引擎滚动视图的触摸事件处理
+        setupEngineScrollViews()
+        
+        // 设置WebView区域和搜索引擎区域独立滚动
+        setupIndependentScrolling()
+        
+        // 设置WebView触摸事件处理
+        setupWebViewTouchHandling()
     }
     
     /**
@@ -4181,166 +4299,26 @@ class DualFloatingWebViewService : Service() {
             
             if (mainScrollView == null) {
                 Log.e(TAG, "找不到主HorizontalScrollView，尝试直接拦截所有触摸事件")
-                
-                // 如果找不到主HorizontalScrollView，直接添加触摸事件拦截到浮动窗口
-                val view = floatingView
-                view?.setOnTouchListener { _, event ->
-                    // 获取屏幕上所有可见的WebView
-                    val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
-                        .filter { it.visibility == View.VISIBLE }
-                    
-                    // 检查触摸点是否在WebView区域
-                    var isInWebViewArea = false
-                    for (webView in webViews) {
-                        val location = IntArray(2)
-                        webView.getLocationOnScreen(location)
-                        
-                        val webViewRect = Rect(
-                            location[0],
-                            location[1],
-                            location[0] + webView.width,
-                            location[1] + webView.height
-                        )
-                        
-                        if (webViewRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
-                            isInWebViewArea = true
-                            break
-                        }
-                    }
-                    
-                    // 拦截非WebView区域的横向滑动
-                    if (!isInWebViewArea) {
-                        when (event.action) {
-                            MotionEvent.ACTION_DOWN -> {
-                                initialTouchX = event.rawX
-                                initialTouchY = event.rawY
-                            }
-                            MotionEvent.ACTION_MOVE -> {
-                                val deltaX = Math.abs(event.rawX - initialTouchX)
-                                val deltaY = Math.abs(event.rawY - initialTouchY)
-                                val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
-                                
-                                if (deltaX > touchSlop && deltaX > deltaY * 1.5f) {
-                                    Log.d(TAG, "拦截非WebView区域的横向滑动")
-                                    return@setOnTouchListener true
-                                }
-                            }
-                        }
-                    }
-                    
-                    false
-                }
                 return
             }
             
-            Log.d(TAG, "找到了主HorizontalScrollView，设置自定义触摸事件拦截")
+            Log.d(TAG, "找到了主HorizontalScrollView，设置自定义触摸事件处理")
             
-            // 创建自定义的HorizontalScrollView来替换原有的
-            val customScrollView = object : HorizontalScrollView(this) {
-                private var lastX = 0f
-                private var lastY = 0f
-                
-                override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-                    val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
-                        .filter { it.visibility == View.VISIBLE }
-                    
-                    // 检查触摸点是否在WebView区域
-                    var isInWebViewArea = false
-                    for (webView in webViews) {
-                        val location = IntArray(2)
-                        webView.getLocationOnScreen(location)
-                        
-                        val webViewRect = Rect(
-                            location[0],
-                            location[1],
-                            location[0] + webView.width,
-                            location[1] + webView.height
-                        )
-                        
-                        if (webViewRect.contains(ev.rawX.toInt(), ev.rawY.toInt())) {
-                            isInWebViewArea = true
-                            break
-                        }
-                    }
-                    
-                    // 只允许WebView区域的横向滑动触发拦截
-                    if (isInWebViewArea) {
-                        when (ev.action) {
-                            MotionEvent.ACTION_DOWN -> {
-                                lastX = ev.x
-                                lastY = ev.y
-                                return false
-                            }
-                            MotionEvent.ACTION_MOVE -> {
-                                val deltaX = Math.abs(ev.x - lastX)
-                                val deltaY = Math.abs(ev.y - lastY)
-                                val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-                                
-                                // 只有显著的横向滑动才拦截
-                                if (deltaX > touchSlop && deltaX > deltaY * 1.5f) {
-                                    return super.onInterceptTouchEvent(ev)
-                                }
-                            }
-                        }
-                    }
-                    
-                    // 非WebView区域的触摸事件不拦截
-                    return false
-                }
-                
-                override fun onTouchEvent(ev: MotionEvent): Boolean {
-                    val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
-                        .filter { it.visibility == View.VISIBLE }
-                    
-                    // 检查触摸点是否在WebView区域
-                    var isInWebViewArea = false
-                    for (webView in webViews) {
-                        val location = IntArray(2)
-                        webView.getLocationOnScreen(location)
-                        
-                        val webViewRect = Rect(
-                            location[0],
-                            location[1],
-                            location[0] + webView.width,
-                            location[1] + webView.height
-                        )
-                        
-                        if (webViewRect.contains(ev.rawX.toInt(), ev.rawY.toInt())) {
-                            isInWebViewArea = true
-                            break
-                        }
-                    }
-                    
-                    // 只处理WebView区域的触摸事件
-                    return if (isInWebViewArea) {
-                        super.onTouchEvent(ev)
-                    } else {
-                        false
-                    }
-                }
-            }
+            // 将滚动条设置为可见
+            mainScrollView.isHorizontalScrollBarEnabled = true
+            // 启用平滑滚动
+            mainScrollView.isSmoothScrollingEnabled = true
+            // 设置滚动条样式
+            mainScrollView.scrollBarStyle = HorizontalScrollView.SCROLLBARS_INSIDE_OVERLAY
             
-            // 将自定义ScrollView属性设置与原有ScrollView一致
-            customScrollView.layoutParams = mainScrollView.layoutParams
-            // 使用Android标准常量值
-            customScrollView.scrollBarStyle = 0x01000000 // SCROLLBARS_INSIDE_OVERLAY的值
-            customScrollView.isHorizontalScrollBarEnabled = false
-            customScrollView.isFillViewport = true
+            // 确保HorizontalScrollView可以接收触摸事件
+            mainScrollView.isFocusable = true
+            mainScrollView.isFocusableInTouchMode = true
             
-            // 转移原有子视图到新的ScrollView
-            val parent = mainScrollView.parent as ViewGroup
-            val index = parent.indexOfChild(mainScrollView)
-            val content = mainScrollView.getChildAt(0)
+            // 重要：移除任何可能阻止滚动的触摸监听器
+            mainScrollView.setOnTouchListener(null)
             
-            // 从原有ScrollView移除子视图
-            mainScrollView.removeView(content)
-            
-            // 替换ScrollView
-            parent.removeViewAt(index)
-            customScrollView.addView(content)
-            parent.addView(customScrollView, index)
-            
-            Log.d(TAG, "成功替换主HorizontalScrollView")
+            Log.d(TAG, "成功配置主HorizontalScrollView")
         } catch (e: Exception) {
             Log.e(TAG, "设置主HorizontalScrollView触摸事件失败: ${e.message}", e)
         }
@@ -4456,83 +4434,33 @@ class DualFloatingWebViewService : Service() {
      */
     private fun setupUpperControlsTouchEvents() {
         try {
-            // 获取标题栏容器并设置触摸事件
+            // 获取标题栏容器
             val firstTitleBar = floatingView?.findViewById<View>(R.id.first_title_bar)
             val secondTitleBar = floatingView?.findViewById<View>(R.id.second_title_bar)
             val thirdTitleBar = floatingView?.findViewById<View>(R.id.third_title_bar)
             
-            // 设置所有标题栏的触摸事件拦截
-            listOfNotNull(firstTitleBar, secondTitleBar, thirdTitleBar).forEach { titleBar ->
-                titleBar.setOnTouchListener { _, event ->
-                    // 拦截所有触摸事件，防止传递到ViewPager
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            // 告诉父视图不要拦截触摸事件
-                            titleBar.parent?.requestDisallowInterceptTouchEvent(true)
-                        }
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            // 恢复父视图拦截
-                            titleBar.parent?.requestDisallowInterceptTouchEvent(false)
-                        }
-                    }
-                    // 消费事件但允许点击等操作继续传递
-                    false
-                }
-            }
-            
             // 获取搜索引擎容器
             val engineContainers = listOfNotNull(
-                firstEngineContainer?.parent as? View,
-                secondEngineContainer?.parent as? View,
-                thirdEngineContainer?.parent as? View,
-                firstAIScrollContainer,
-                secondAIScrollContainer,
-                thirdAIScrollContainer
+                firstEngineContainer,
+                secondEngineContainer,
+                thirdEngineContainer
             )
-            
-            // 设置所有搜索引擎容器的触摸事件拦截
-            engineContainers.forEach { container ->
-                container.setOnTouchListener { _, event ->
-                    // 防止横向滑动传递到ViewPager
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            // 告诉父视图不要拦截触摸事件
-                            container.parent?.requestDisallowInterceptTouchEvent(true)
-                        }
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            // 恢复父视图拦截
-                            container.parent?.requestDisallowInterceptTouchEvent(false)
-                        }
-                    }
-                    // 不消费事件，允许子视图接收事件
-                    false
-                }
-            }
             
             // 获取顶部工具栏和搜索栏
             val topControlBar = floatingView?.findViewById<View>(R.id.top_control_bar)
             val searchBar = floatingView?.findViewById<View>(R.id.search_bar)
             
-            // 设置顶部区域的触摸事件拦截
+            // 清除所有潜在的触摸监听，确保事件可以正常传递
             listOfNotNull(topControlBar, searchBar).forEach { view ->
-                view.setOnTouchListener { _, event ->
-                    // 拦截所有横向滑动事件
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            // 告诉父视图不要拦截触摸事件
-                            view.parent?.requestDisallowInterceptTouchEvent(true)
-                        }
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            // 恢复父视图拦截
-                            view.parent?.requestDisallowInterceptTouchEvent(false)
-                        }
-                    }
-                    // 不消费事件，允许子视图接收事件
-                    false
-                }
+                view.setOnTouchListener(null)
             }
             
-            Log.d(TAG, "已设置上方控制区域的触摸事件处理")
+            // 确保搜索引擎容器可以处理自己的触摸事件
+            engineContainers.forEach { container ->
+                container?.parent?.requestDisallowInterceptTouchEvent(false)
+            }
+            
+            Log.d(TAG, "已重置上方控制区域的触摸事件处理")
         } catch (e: Exception) {
             Log.e(TAG, "设置上方区域触摸事件失败", e)
         }
@@ -4652,6 +4580,212 @@ class DualFloatingWebViewService : Service() {
             windowCountToggleView?.text = "$windowCount"
         } catch (e: Exception) {
             Log.e(TAG, "更新窗口可见性失败", e)
+        }
+    }
+
+    /**
+     * 设置独立滚动区域
+     * 确保WebView区域和搜索引擎区域可以独立滚动
+     */
+    private fun setupIndependentScrolling() {
+        try {
+            // 获取主HorizontalScrollView (WebView容器的滚动视图)
+            val mainScrollView = findMainHorizontalScrollView()
+            if (mainScrollView == null) {
+                Log.e(TAG, "找不到主HorizontalScrollView，无法设置独立滚动")
+                return
+            }
+            
+            // 查找所有搜索引擎滚动视图
+            val engineScrolls = listOfNotNull(
+                floatingView?.findViewById<HorizontalScrollView>(R.id.first_engine_scroll),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.second_engine_scroll),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.third_engine_scroll),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.first_ai_scroll_container),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.second_ai_scroll_container),
+                floatingView?.findViewById<HorizontalScrollView>(R.id.third_ai_scroll_container)
+            )
+
+            // 获取所有搜索引擎图标容器
+            val engineContainers = listOfNotNull(
+                floatingView?.findViewById<LinearLayout>(R.id.first_engine_container),
+                floatingView?.findViewById<LinearLayout>(R.id.second_engine_container),
+                floatingView?.findViewById<LinearLayout>(R.id.third_engine_container)
+            )
+            
+            // 设置主滚动视图对搜索引擎区域触摸的判断
+            mainScrollView.setOnTouchListener { _, event ->
+                var isEngineAreaTouch = false
+                
+                // 计算每个搜索引擎区域的位置，看触摸点是否在其中
+                engineScrolls.forEach { scrollView ->
+                    if (scrollView.visibility == View.VISIBLE) {
+                        val location = IntArray(2)
+                        scrollView.getLocationOnScreen(location)
+                        val scrollRect = android.graphics.Rect(
+                            location[0],
+                            location[1],
+                            location[0] + scrollView.width,
+                            location[1] + scrollView.height
+                        )
+                        
+                        if (scrollRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
+                            isEngineAreaTouch = true
+                            // 如果触摸在引擎区域，禁止主滚动视图拦截
+                            mainScrollView.requestDisallowInterceptTouchEvent(true)
+                            return@forEach
+                        }
+                    }
+                }
+                
+                // 如果不是引擎区域触摸，可以正常滚动
+                !isEngineAreaTouch
+            }
+            
+            // 为每个搜索引擎滚动视图添加触摸处理
+            engineScrolls.forEach { scrollView ->
+                scrollView.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 禁止主滚动视图拦截
+                            mainScrollView.requestDisallowInterceptTouchEvent(true)
+                            // 记录触摸开始位置
+                            v.tag = android.util.Pair(event.x, event.y)
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val touchData = v.tag as? android.util.Pair<Float, Float>
+                            val startX = touchData?.first ?: 0f
+                            val startY = touchData?.second ?: 0f
+                            val deltaX = kotlin.math.abs(event.x - startX)
+                            val deltaY = kotlin.math.abs(event.y - startY)
+                            
+                            // 如果水平移动明显大于垂直移动，确保自己处理而不是主滚动视图
+                            if (deltaX > deltaY * 1.5f) {
+                                mainScrollView.requestDisallowInterceptTouchEvent(true)
+                            }
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            // 恢复主滚动视图的事件拦截
+                            mainScrollView.requestDisallowInterceptTouchEvent(false)
+                            // 清除标记
+                            v.tag = null
+                        }
+                    }
+                    // 返回false以允许事件继续传递给HorizontalScrollView本身
+                    false
+                }
+            }
+
+            // 为搜索引擎图标容器添加触摸处理
+            engineContainers.forEach { container ->
+                container.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 禁止主滚动视图拦截事件，确保在图标区域滑动时不会触发WebView页面滑动
+                            mainScrollView.requestDisallowInterceptTouchEvent(true)
+                            // 记录初始触摸位置
+                            v.tag = android.util.Pair(event.x, event.y)
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val touchData = v.tag as? android.util.Pair<Float, Float>
+                            val startX = touchData?.first ?: 0f
+                            val startY = touchData?.second ?: 0f
+                            val deltaX = kotlin.math.abs(event.x - startX)
+                            val deltaY = kotlin.math.abs(event.y - startY)
+                            
+                            // 在水平移动时保持对滚动的控制，不让主WebView区域拦截
+                            if (deltaX > deltaY) {
+                                mainScrollView.requestDisallowInterceptTouchEvent(true)
+                                // 确保找到父级ScrollView并让它处理滚动
+                                var parent = v.parent
+                                while (parent != null) {
+                                    if (parent is HorizontalScrollView) {
+                                        parent.requestDisallowInterceptTouchEvent(false)
+                                        break
+                                    }
+                                    parent = parent.parent
+                                }
+                            }
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            // 恢复正常事件处理
+                            mainScrollView.requestDisallowInterceptTouchEvent(false)
+                            v.tag = null
+                        }
+                    }
+                    // 返回false让事件继续传递
+                    false
+                }
+            }
+            
+            Log.d(TAG, "已设置WebView区域和搜索引擎区域独立滚动")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置独立滚动区域失败", e)
+        }
+    }
+
+    /**
+     * 设置WebView触摸事件处理
+     * 确保WebView内容区域可以独立处理触摸事件
+     */
+    private fun setupWebViewTouchHandling() {
+        try {
+            // 获取所有WebView
+            val webViews = listOfNotNull(
+                floatingView?.findViewById<WebView>(R.id.first_floating_webview),
+                floatingView?.findViewById<WebView>(R.id.second_floating_webview),
+                floatingView?.findViewById<WebView>(R.id.third_floating_webview)
+            )
+            
+            // 获取主HorizontalScrollView
+            val mainScrollView = findMainHorizontalScrollView()
+            if (mainScrollView == null) {
+                Log.e(TAG, "找不到主HorizontalScrollView，无法设置WebView触摸处理")
+                return
+            }
+            
+            // 为每个WebView设置触摸事件处理
+            webViews.forEach { webView ->
+                webView.setOnTouchListener { v, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 记录初始触摸位置
+                            v.tag = android.util.Pair(event.x, event.y)
+                            
+                            // 允许主滚动视图拦截事件，因为这是WebView区域，我们希望在水平滑动时可以切换WebView页面
+                            mainScrollView.requestDisallowInterceptTouchEvent(false)
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            val touchData = v.tag as? android.util.Pair<Float, Float>
+                            val startX = touchData?.first ?: 0f
+                            val startY = touchData?.second ?: 0f
+                            val deltaX = kotlin.math.abs(event.x - startX)
+                            val deltaY = kotlin.math.abs(event.y - startY)
+                            
+                            // 如果是垂直滑动为主，或者WebView内容需要水平滚动，则让WebView处理事件
+                            if (deltaY > deltaX || (deltaX > deltaY * 1.5f && webView.canScrollHorizontally(1))) {
+                                // 如果WebView内容需要滚动，则禁止主滚动视图拦截
+                                mainScrollView.requestDisallowInterceptTouchEvent(true)
+                            } else {
+                                // 水平滑动且WebView内容不需要水平滚动时，让主滚动视图处理事件（用于切换WebView页面）
+                                mainScrollView.requestDisallowInterceptTouchEvent(false)
+                            }
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            // 恢复主滚动视图的事件拦截
+                            mainScrollView.requestDisallowInterceptTouchEvent(false)
+                            // 清除标记
+                            v.tag = null
+                        }
+                    }
+                    // 返回false以允许事件继续传递给WebView本身
+                    false
+                }
+            }
+            
+            Log.d(TAG, "已设置WebView触摸事件处理，确保内容区域可以独立处理触摸事件")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置WebView触摸事件处理失败", e)
         }
     }
 } 
