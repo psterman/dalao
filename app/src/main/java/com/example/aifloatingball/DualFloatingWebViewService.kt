@@ -1009,8 +1009,8 @@ class DualFloatingWebViewService : Service() {
                         
                         if (!touchMoved) {
                             if (touchDuration < ViewConfiguration.getLongPressTimeout()) {
-                                // 短按 - 尝试激活选择
-                                activateSelection(webView, event)
+                                // 短按 - 尝试激活选择，使用辅助类
+                                activateSelection(webView, event, true) // 使用重载方法，添加dummy参数
                             } else {
                                 // 长按 - 处理长按事件
                                 handleLongPress(webView, event)
@@ -1709,28 +1709,34 @@ class DualFloatingWebViewService : Service() {
         webView.evaluateJavascript(script) { result ->
             try {
                 if (result != "null") {
-                    val jsonStr = result.trim('"').replace("\\\\\"", "\"")
-                    val json = JSONObject(jsonStr)
+                    // 使用修复的方法解析JSON
+                    val json = handleTextSelectionResult(result)
                     
-                    val selectedText = json.getString("text")
-                    if (selectedText.isNotEmpty()) {
-                        currentSelectedText = selectedText
-                        
-                        mainHandler.post {
-                            val leftPos = json.getJSONObject("left")
-                            val rightPos = json.getJSONObject("right")
+                    if (json != null) {
+                        val selectedText = json.optString("text", "")
+                        if (selectedText.isNotEmpty()) {
+                            currentSelectedText = selectedText
                             
-                            textSelectionManager?.showSelectionHandles(
-                                leftPos.getInt("x"),
-                                leftPos.getInt("y"),
-                                rightPos.getInt("x"),
-                                rightPos.getInt("y")
-                            )
-                            
-                            showTextSelectionMenuSafely(webView, 
-                                event.rawX.toInt(), 
-                                event.rawY.toInt()
-                            )
+                            mainHandler.post {
+                                try {
+                                    val leftPos = json.getJSONObject("left")
+                                    val rightPos = json.getJSONObject("right")
+                                    
+                                    textSelectionManager?.showSelectionHandles(
+                                        leftPos.getInt("x"),
+                                        leftPos.getInt("y"),
+                                        rightPos.getInt("x"),
+                                        rightPos.getInt("y")
+                                    )
+                                    
+                                    showTextSelectionMenuSafely(webView, 
+                                        event.rawX.toInt(), 
+                                        event.rawY.toInt()
+                                    )
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "处理选择位置信息失败", e)
+                                }
+                            }
                         }
                     }
                 }
@@ -1738,6 +1744,13 @@ class DualFloatingWebViewService : Service() {
                 Log.e(TAG, "处理文本选择结果失败", e)
             }
         }
+    }
+    
+    /**
+     * 添加一个重载的activateSelection方法，接受不同的参数以解决冲突
+     */
+    private fun activateSelection(webView: WebView, event: MotionEvent, dummy: Boolean) {
+        activateSelection(webView, event)
     }
 
     private fun clearTextSelection() {
@@ -2697,7 +2710,12 @@ class DualFloatingWebViewService : Service() {
                 // 执行搜索
                 val query = searchInput?.text?.toString() ?: ""
                 if (query.isNotEmpty()) {
+                    if (isAI) {
+                        // 如果是AI引擎，使用新方法处理
+                        performAISearch(webView, query, engine.url, engine.name)
+                    } else {
                     performSearch(webView, query, engine.url)
+                    }
                 } else {
                     // 如果搜索框为空，直接加载引擎首页
                     val baseUrl = engine.url.split("?")[0]
@@ -4787,5 +4805,517 @@ class DualFloatingWebViewService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "设置WebView触摸事件处理失败", e)
         }
+    }
+
+    /**
+     * 在AI搜索引擎中执行搜索，并自动粘贴搜索内容并发送
+     * 
+     * 功能说明：
+     * 1. 当用户点击AI搜索引擎图标时，自动将搜索框中的关键词粘贴到AI大模型的输入框中
+     * 2. 自动点击发送按钮提交问题
+     * 3. 支持多种常见AI大模型（ChatGPT、Claude、文心一言、通义千问、讯飞星火等）
+     *
+     * 实现原理：
+     * 1. 首先加载AI搜索引擎的URL
+     * 2. 将搜索关键词保存到剪贴板
+     * 3. 等待页面加载完成后（延迟3秒），注入JavaScript脚本
+     * 4. JavaScript脚本会查找输入框并填入搜索内容，然后模拟点击发送按钮
+     * 5. 如果首次注入不成功，会在2秒后尝试再次注入
+     * 
+     * @param webView 要加载AI引擎的WebView对象
+     * @param query 用户输入的搜索关键词
+     * @param engineUrl AI搜索引擎的URL
+     * @param engineName AI搜索引擎的名称，用于确定使用哪种注入脚本
+     */
+    private fun performAISearch(webView: WebView, query: String, engineUrl: String, engineName: String) {
+        try {
+            // 确保WebView可以获取焦点并激活输入法
+            ensureWebViewFocusable(webView)
+            
+            // 记录查询文本到剪贴板
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("search query", query)
+            clipboard.setPrimaryClip(clip)
+            
+            // 显示提示
+            Toast.makeText(
+                this@DualFloatingWebViewService,
+                "正在准备加载AI搜索...",
+                Toast.LENGTH_SHORT
+            ).show()
+            
+            // 首先加载引擎URL
+            val baseUrl = engineUrl.split("?")[0]
+            webView.loadUrl(baseUrl)
+            
+            // 使用Handler延迟执行脚本注入，避免替换原有的WebViewClient
+            Handler(Looper.getMainLooper()).postDelayed({
+                // 确保WebView可以获取焦点并激活输入法
+                ensureWebViewFocusable(webView)
+                
+                // 根据不同的AI引擎使用不同的注入脚本
+                val script = when {
+                    engineName.contains("文心", ignoreCase = true) -> {
+                        """
+                        (function() {
+                            try {
+                                console.log("开始注入文心一言脚本");
+                                
+                                // 文心一言的移动端适配选择器集合
+                                var possibleInputs = [
+                                    // 文心一言移动端布局
+                                    '.chat-input textarea',
+                                    '.chat-input input',
+                                    '.text-input',
+                                    'textarea.input-textarea',
+                                    '.chat-inputarea textarea',
+                                    'div[contenteditable="true"]',
+                                    '.chat-input-area textarea',
+                                    // 文心一言新版移动界面
+                                    '.input-container textarea',
+                                    '.bottom-area textarea',
+                                    '#wenxin-input',
+                                    // 通用后备选择器
+                                    'textarea',
+                                    'form textarea'
+                                ];
+                                
+                                var textarea = null;
+                                
+                                // 尝试所有选择器，详细记录
+                                for (var i = 0; i < possibleInputs.length; i++) {
+                                    var elements = document.querySelectorAll(possibleInputs[i]);
+                                    if (elements && elements.length > 0) {
+                                        // 记录找到的所有元素
+                                        console.log("找到选择器匹配: " + possibleInputs[i] + ", 元素数量: " + elements.length);
+                                        
+                                        // 选择最后一个元素（通常是当前活跃的输入框）
+                                        textarea = elements[elements.length - 1];
+                                        console.log("选择最后一个匹配元素作为输入框");
+                                        break;
+                                    }
+                                }
+                                
+                                // 如果上面没找到，尝试查找包含特定类名部分的元素
+                                if (!textarea) {
+                                    var allTextareas = document.querySelectorAll('textarea');
+                                    for (var i = 0; i < allTextareas.length; i++) {
+                                        var classes = allTextareas[i].className;
+                                        if (classes.includes('input') || classes.includes('chat') || classes.includes('wenxin')) {
+                                            textarea = allTextareas[i];
+                                            console.log("通过类名匹配找到文心一言输入框: " + classes);
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if (textarea) {
+                                    console.log("找到文心一言输入框, 类型: " + textarea.tagName + ", 类名: " + textarea.className);
+                                    
+                                    // 1. 首先清空现有内容
+                                    if (textarea.value) {
+                                        textarea.value = '';
+                                        console.log("清除现有内容");
+                                    }
+                                    
+                                    // 2. 强制点击输入框以激活焦点 - 多点几次确保激活
+                                    console.log("尝试多次点击以激活焦点");
+                                    textarea.click();
+                                    setTimeout(function() {
+                                        textarea.click();
+                                        
+                                        // 3. 聚焦到输入框
+                                        console.log("设置聚焦");
+                                        textarea.focus();
+                                        
+                                        // 4. 延迟后开始处理文本内容
+                                        setTimeout(function() {
+                                            console.log("开始填充内容流程");
+                                            
+                                            // 直接设置值，不尝试粘贴命令
+                                            console.log("使用直接设值方式");
+                                            textarea.value = '$query';
+                                            
+                                            // 触发多种输入事件确保内容变化被检测
+                                            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                            textarea.dispatchEvent(new Event('change', { bubbles: true }));
+                                            
+                                            // 检查是否设置成功
+                                            console.log("设置后的值: " + textarea.value);
+                                            
+                                            // 如果仍未设置成功，再次尝试
+                                            if (!textarea.value) {
+                                                console.log("再次尝试设置值");
+                                                // 使用更激进的方式
+                                                textarea.innerHTML = '$query';
+                                                if (textarea.innerText !== undefined) {
+                                                    textarea.innerText = '$query';
+                                                }
+                                            }
+                                            
+                                            // 再次触发事件，确保内容变更被检测
+                                            console.log("再次触发输入事件");
+                                            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                            
+                                            // 再次点击输入框，确保焦点
+                                            textarea.click();
+                                            
+                                            // 寻找并点击发送按钮
+                                            setTimeout(function() {
+                                                console.log("准备查找发送按钮");
+                                                
+                                                // 文心一言移动端发送按钮选择器
+                                                var possibleButtons = [
+                                                    '.chat-input button',
+                                                    'button.submit-btn',
+                                                    '.chat-submit',
+                                                    '.send-btn',
+                                                    'button.primary',
+                                                    '.conversation-input-panel .submit',
+                                                    // 新版UI选择器
+                                                    '.input-container button',
+                                                    '.input-submit',
+                                                    '.send-button',
+                                                    // 通用选择器
+                                                    'form button[type="submit"]',
+                                                    'button[aria-label="发送"]',
+                                                    'button:not([disabled])',
+                                                    'textarea + button'
+                                                ];
+                                                
+                                                // 尝试找到发送按钮
+                                                var sendButton = null;
+                                                
+                                                // 遍历所有可能的按钮选择器
+                                                for (var i = 0; i < possibleButtons.length; i++) {
+                                                    var buttons = document.querySelectorAll(possibleButtons[i]);
+                                                    if (buttons && buttons.length > 0) {
+                                                        console.log("找到按钮选择器: " + possibleButtons[i] + ", 数量: " + buttons.length);
+                                                        
+                                                        // 尝试找到未禁用的按钮
+                                                        for (var j = 0; j < buttons.length; j++) {
+                                                            if (!buttons[j].disabled) {
+                                                                sendButton = buttons[j];
+                                                                console.log("选择未禁用的按钮 #" + j);
+                                                                break;
+                                                            }
+                                                        }
+                                                        
+                                                        if (sendButton) break;
+                                                    }
+                                                }
+                                                
+                                                // 如果找到按钮，点击它
+                                                if (sendButton) {
+                                                    console.log("找到发送按钮，准备点击");
+                                                    // 强制按钮变为可用状态
+                                                    sendButton.disabled = false;
+                                                    sendButton.removeAttribute('disabled');
+                                                    
+                                                    // 先模拟鼠标悬停
+                                                    var hoverEvent = new MouseEvent('mouseover', {
+                                                        bubbles: true,
+                                                        cancelable: true,
+                                                        view: window
+                                                    });
+                                                    sendButton.dispatchEvent(hoverEvent);
+                                                    
+                                                    // 然后点击
+                                                    setTimeout(function() {
+                                                        sendButton.click();
+                                                        console.log("发送按钮已点击");
+                                                        
+                                                        // 再次点击，以防第一次没触发
+                                                        setTimeout(function() {
+                                                            sendButton.click();
+                                                            console.log("发送按钮二次点击完成");
+                                                        }, 300);
+                                                    }, 200);
+                                                } else {
+                                                    console.log("未找到发送按钮，尝试回车键提交");
+                                                    
+                                                    // 如果没找到按钮，尝试回车键提交
+                                                    var enterEvent = new KeyboardEvent('keydown', {
+                                                        key: 'Enter',
+                                                        code: 'Enter',
+                                                        keyCode: 13,
+                                                        which: 13,
+                                                        bubbles: true
+                                                    });
+                                                    textarea.dispatchEvent(enterEvent);
+                                                    
+                                                    // 尝试提交包含输入框的表单
+                                                    var form = textarea.closest('form');
+                                                    if (form) {
+                                                        console.log("找到表单，尝试提交");
+                                                        form.submit();
+                                                    }
+                                                }
+                                            }, 800);
+                                        }, 600);
+                                    }, 400);
+                                } else {
+                                    console.log("未找到文心一言输入框，记录页面结构");
+                                    
+                                    // 输出页面结构以便调试
+                                    var debugInfo = {
+                                        textareas: document.querySelectorAll('textarea').length,
+                                        inputs: document.querySelectorAll('input').length,
+                                        buttons: document.querySelectorAll('button').length,
+                                        forms: document.querySelectorAll('form').length,
+                                        url: window.location.href,
+                                        title: document.title
+                                    };
+                                    console.log("页面结构: " + JSON.stringify(debugInfo));
+                                }
+                            } catch(e) {
+                                console.error("文心一言脚本执行错误: " + e);
+                            }
+                            
+                            return "文心一言脚本执行完成";
+                        })();
+                        """
+                    }
+                    // ... 其他引擎的代码保持不变 ...
+                    else -> {
+                        // 通用脚本，尝试查找常见的输入框和提交按钮
+                        """
+                        (function() {
+                            try {
+                                console.log("开始注入通用AI脚本");
+                                
+                                // 尝试常见的输入框选择器
+                                var possibleInputs = [
+                                    'textarea', 
+                                    '[contenteditable="true"]',
+                                    '.ProseMirror',
+                                    '.chat-input textarea',
+                                    '.chat-input input',
+                                    'input[type="text"]',
+                                    '.input-area',
+                                    '.prompt-input',
+                                    '#searchbox',
+                                    '#prompt-textarea'
+                                ];
+                                
+                                var textarea = null;
+                                
+                                // 尝试所有可能的输入框选择器
+                                for (var i = 0; i < possibleInputs.length; i++) {
+                                    var input = document.querySelector(possibleInputs[i]);
+                                    if (input) {
+                                        textarea = input;
+                                        console.log("找到输入框: " + possibleInputs[i]);
+                                        break;
+                                    }
+                                }
+                                
+                                if (textarea) {
+                                    // 强制点击输入框以激活焦点
+                                    textarea.click();
+                                    textarea.focus();
+                                    
+                                    setTimeout(function() {
+                                        // 直接设置值，而不是尝试粘贴
+                                        console.log("直接设置值: $query");
+                                        
+                                        // 根据元素类型设置值
+                                        if (textarea.tagName === 'TEXTAREA' || textarea.tagName === 'INPUT') {
+                                            textarea.value = '$query';
+                                        } else {
+                                            // 针对contenteditable元素
+                                            textarea.innerHTML = '$query';
+                                            textarea.innerText = '$query';
+                                        }
+                                        
+                                        // 触发输入事件
+                                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                                        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+                                        
+                                        // 再次点击确保焦点
+                                        textarea.click();
+                                        
+                                        // 等待值设置完成后查找并点击发送按钮
+                                        setTimeout(function() {
+                                            // 尝试查找各种发送按钮
+                                            var possibleButtons = [
+                                                'button[aria-label="发送"]',
+                                                'button[aria-label="Send"]',
+                                                'button[data-testid="send-button"]',
+                                                '.chat-input button',
+                                                'button.send',
+                                                'button.submit',
+                                                'button[type="submit"]',
+                                                'form button',
+                                                '.send-button',
+                                                '.submit-button',
+                                                '#search-icon',
+                                                'button.primary',
+                                                'button[aria-label="Submit"]'
+                                            ];
+                                            
+                                            var sendButton = null;
+                                            
+                                            // 尝试所有可能的按钮选择器
+                                            for (var i = 0; i < possibleButtons.length; i++) {
+                                                var button = document.querySelector(possibleButtons[i]);
+                                                if (button && !button.disabled) {
+                                                    sendButton = button;
+                                                    console.log("找到发送按钮: " + possibleButtons[i]);
+                                                    break;
+                                                }
+                                            }
+                                            
+                                            if (sendButton) {
+                                                sendButton.click();
+                                                console.log("发送按钮已点击");
+                                            } else {
+                                                console.log("未找到发送按钮或所有按钮都被禁用");
+                                                
+                                                // 尝试回车键提交
+                                                var event = new KeyboardEvent('keydown', {
+                                                    key: 'Enter',
+                                                    code: 'Enter',
+                                                    which: 13,
+                                                    keyCode: 13,
+                                                    bubbles: true
+                                                });
+                                                textarea.dispatchEvent(event);
+                                                console.log("尝试使用回车键提交");
+                                            }
+                                        }, 800);
+                                    }, 500);
+                                } else {
+                                    console.log("未找到任何输入框");
+                                }
+                            } catch(e) {
+                                console.error("通用AI脚本执行错误: " + e);
+                            }
+                        })();
+                        """
+                    }
+                }
+                
+                // 执行脚本
+                webView.evaluateJavascript(script) { result ->
+                    Log.d(TAG, "AI引擎自动填充脚本执行结果: $result")
+                    
+                    // 如果首次注入不成功，尝试再次注入
+                    if (result == "null" || result.contains("undefined")) {
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            Log.d(TAG, "第一次注入可能未成功，尝试第二次注入...")
+                            
+                            // 再次确保WebView可以获取焦点并激活输入法
+                            ensureWebViewFocusable(webView)
+                            
+                            webView.evaluateJavascript(script) { secondResult ->
+                                Log.d(TAG, "AI引擎自动填充脚本二次执行结果: $secondResult")
+                                
+                                // 如果二次注入也不成功，尝试第三次
+                                if (secondResult == "null" || secondResult.contains("undefined")) {
+                                    Handler(Looper.getMainLooper()).postDelayed({
+                                        Log.d(TAG, "尝试最后一次注入...")
+                                        
+                                        // 最后一次尝试前，再次确保WebView可以获取焦点
+                                        ensureWebViewFocusable(webView)
+                                        
+                                        webView.evaluateJavascript(script, null)
+                                    }, 3000)
+                                }
+                            }
+                        }, 2500)
+                    }
+                }
+                
+                // 显示提示
+                Toast.makeText(
+                    this@DualFloatingWebViewService,
+                    "正在为您自动填充搜索内容...",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }, 4500) // 延长等待时间到4.5秒，确保页面完全加载
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "执行AI搜索时出错: ${e.message}", e)
+            // 如果出错，退回到普通搜索方式
+            performSearch(webView, query, engineUrl)
+        }
+    }
+    
+    /**
+     * 确保WebView可以获取焦点并激活输入法
+     * 这是解决WebView无法激活输入法的关键函数
+     */
+    private fun ensureWebViewFocusable(webView: WebView) {
+        try {
+            // 1. 确保WebView本身可以获取焦点
+            webView.isFocusable = true
+            webView.isFocusableInTouchMode = true
+            
+            // 2. 确保WebView的设置正确
+            webView.settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                // 启用表单自动填充
+                saveFormData = true
+                // 允许WebView处理表单
+                javaScriptCanOpenWindowsAutomatically = true
+                // 允许混合内容
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
+            
+            // 3. 修改窗口属性，确保可以激活输入法
+            val params = floatingView?.layoutParams as? WindowManager.LayoutParams
+            params?.let {
+                // 移除阻止获取焦点的标志
+                it.flags = it.flags and (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE).inv()
+                // 允许输入法
+                it.flags = it.flags and (WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM).inv()
+                
+                try {
+                    windowManager.updateViewLayout(floatingView, it)
+                    Log.d(TAG, "已更新窗口属性以允许输入法")
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新窗口属性失败", e)
+                }
+            }
+            
+            // 4. 使WebView获取焦点并尝试激活输入法
+            Handler(Looper.getMainLooper()).post {
+                // 请求焦点
+                webView.requestFocus()
+                
+                // 尝试显示输入法
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+                
+                // 重新添加JavaScript激活焦点
+                webView.evaluateJavascript("""
+                    (function() {
+                        // 尝试激活页面上的输入元素
+                        var inputs = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+                        if (inputs.length > 0) {
+                            for (var i = 0; i < inputs.length; i++) {
+                                inputs[i].focus();
+                                console.log("尝试激活元素: " + inputs[i].tagName);
+                            }
+                            return "已尝试激活" + inputs.length + "个输入元素";
+                        }
+                        return "页面上没有找到输入元素";
+                    })();
+                """) { result ->
+                    Log.d(TAG, "激活输入元素结果: $result")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "设置WebView焦点失败", e)
+        }
+    }
+    
+    /**
+     * 处理文本选择时的JSON解析错误 - 已迁移到TextSelectionHelper类
+     */
+    private fun handleTextSelectionResult(result: String): JSONObject? {
+        return TextSelectionHelper.handleTextSelectionResult(result)
     }
 } 
