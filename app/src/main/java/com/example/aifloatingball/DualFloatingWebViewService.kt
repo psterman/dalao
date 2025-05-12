@@ -550,6 +550,9 @@ class DualFloatingWebViewService : Service() {
             Log.d(TAG, "secondEngineToggle: ${if (secondEngineToggle?.visibility == View.VISIBLE) "可见" else "不可见"}")
             Log.d(TAG, "thirdEngineToggle: ${if (thirdEngineToggle?.visibility == View.VISIBLE) "可见" else "不可见"}")
             
+            // 设置引擎切换按钮
+            setupEngineToggles()
+            
         } catch (e: Exception) {
             Log.e(TAG, "创建服务失败", e)
             stopSelf()
@@ -2527,56 +2530,27 @@ class DualFloatingWebViewService : Service() {
             SearchEngine("微博", "https://s.weibo.com/weibo?q={query}", R.drawable.ic_weibo, "微博搜索")
         )
 
-        // 添加AI搜索引擎图标 - 确保无重复且使用不同图标区分
+        // 添加AI搜索引擎图标
         val aiEngines = listOf(
             SearchEngine("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search, "ChatGPT"),
-            SearchEngine("GPT-4o", "https://chat.openai.com/?model=gpt-4o", R.drawable.ic_bing, "GPT-4o"), // 使用必应图标
-            SearchEngine("Claude", "https://claude.ai/", R.drawable.ic_baidu, "Claude AI助手"), // 使用百度图标
+            SearchEngine("Claude", "https://claude.ai/", R.drawable.ic_baidu, "Claude AI助手"),
             SearchEngine("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_baidu, "文心一言"),
-            SearchEngine("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_google, "阿里通义千问"), // 使用谷歌图标
-            SearchEngine("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_sogou, "讯飞星火"), // 使用搜狗图标
-            SearchEngine("必应AI", "https://www.bing.com/new", R.drawable.ic_bing, "必应AI聊天"),
-            SearchEngine("搜狗AI", "https://ai.sogou.com/", R.drawable.ic_sogou, "搜狗AI助手"),
-            SearchEngine("Gemini", "https://gemini.google.com/", R.drawable.ic_google, "Google Gemini"),
-            SearchEngine("Perplexity", "https://www.perplexity.ai/", R.drawable.ic_360, "Perplexity AI") // 使用360图标
+            SearchEngine("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_google, "阿里通义千问"),
+            SearchEngine("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_sogou, "讯飞星火")
         )
         
-        Log.d(TAG, "添加常规搜索引擎图标，数量: ${normalEngines.size}")
         // 添加常规搜索引擎图标
         addSearchEngineIcons(normalEngineContainer, normalEngines, webView, defaultEngine, false)
         
-        Log.d(TAG, "添加AI搜索引擎图标，数量: ${aiEngines.size}")
         // 添加AI搜索引擎图标
         addSearchEngineIcons(aiEngineContainer, aiEngines, webView, defaultEngine, true)
         
-        // 确保容器背景颜色不同，以便于区分
-        normalEngineContainer.setBackgroundColor(Color.parseColor("#10000000"))
-        aiEngineContainer.setBackgroundColor(Color.parseColor("#10303F9F"))
-        
-        // 找到对应的ScrollContainer
+        // 获取对应的AI滚动容器
         val aiScrollContainer = when (webView) {
             firstWebView -> firstAIScrollContainer
             secondWebView -> secondAIScrollContainer
             thirdWebView -> thirdAIScrollContainer
             else -> null
-        }
-        
-        // 设置两种搜索引擎容器共用同一位置
-        val parentLayout = normalEngineContainer.parent as? ViewGroup
-        if (parentLayout != null && aiScrollContainer != null) {
-            // 确保父容器使用的是FrameLayout或者其他可以重叠子视图的布局
-            if (parentLayout is FrameLayout) {
-                // 已经是FrameLayout，直接设置布局参数
-                val params = FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT
-                )
-                
-                normalEngineContainer.layoutParams = params
-                aiScrollContainer.layoutParams = params
-            } else {
-                Log.w(TAG, "父容器不是FrameLayout，无法使容器重叠显示")
-            }
         }
         
         // 根据默认引擎类型设置初始可见性
@@ -2592,99 +2566,35 @@ class DualFloatingWebViewService : Service() {
             toggleButton.setImageResource(R.drawable.ic_ai_search)  // 显示切换到AI搜索的图标
         }
         
-        // 记录容器状态
-        Log.d(TAG, "容器状态 - AI容器可见性: ${if (aiScrollContainer?.visibility == View.VISIBLE) "可见" else "不可见"}, " +
-                "普通容器可见性: ${if (normalEngineContainer.visibility == View.VISIBLE) "可见" else "不可见"}")
-        
-        // 确保容器有子视图
-        Log.d(TAG, "AI容器子视图数量: ${aiEngineContainer.childCount}, " +
-                "普通容器子视图数量: ${normalEngineContainer.childCount}")
+        // 设置切换按钮点击事件
+        toggleButton.setOnClickListener {
+            val isCurrentlyAI = aiScrollContainer?.visibility == View.VISIBLE
+            if (isCurrentlyAI) {
+                // 切换到普通搜索
+                aiScrollContainer?.visibility = View.GONE
+                normalEngineContainer.visibility = View.VISIBLE
+                toggleButton.setImageResource(R.drawable.ic_ai_search)
+            } else {
+                // 切换到AI搜索
+                aiScrollContainer?.visibility = View.VISIBLE
+                normalEngineContainer.visibility = View.GONE
+                toggleButton.setImageResource(R.drawable.ic_search)
+            }
+        }
     }
 
     /**
      * 添加搜索引擎图标到容器
      */
-    private fun addSearchEngineIcons(
-        container: LinearLayout,
-        engines: List<SearchEngine>,
-        webView: WebView,
-        defaultEngine: String,
-        isAI: Boolean
-    ) {
-        val prefix = if (isAI) "ai_" else ""
-        
-        // 确保容器为空，避免重复添加图标
-        container.removeAllViews()
-        
-        // 创建水平滚动布局包裹引擎图标
+    private fun addSearchEngineIcons(container: LinearLayout, engines: List<SearchEngine>, webView: WebView, defaultEngine: String, isAI: Boolean) {
+        // 创建水平滚动视图
         val scrollView = HorizontalScrollView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             isHorizontalScrollBarEnabled = true
-            setPadding(2.dpToPx(this@DualFloatingWebViewService), 
-                      2.dpToPx(this@DualFloatingWebViewService), 
-                      2.dpToPx(this@DualFloatingWebViewService), 
-                      2.dpToPx(this@DualFloatingWebViewService))
-            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            isVerticalScrollBarEnabled = false
-            
-            // 启用平滑滚动
-            isSmoothScrollingEnabled = true
-            
-            // 增加水平滚动条可见度
-            scrollBarStyle = 0x01000000 // SCROLLBARS_INSIDE_OVERLAY的标准值
-            
-            // 添加触摸事件监听，使其支持拖动滚动
-            setOnTouchListener(object : View.OnTouchListener {
-                private var startX = 0f
-                private var startScrollX = 0
-                private var isDragging = false
-                private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-                
-                override fun onTouch(v: View, event: MotionEvent): Boolean {
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            // 记录起始触摸位置和滚动位置
-                            startX = event.x
-                            startScrollX = scrollX
-                            isDragging = false
-                            // 返回false以允许子视图也接收触摸事件
-                            return false
-                        }
-                        MotionEvent.ACTION_MOVE -> {
-                            val deltaX = startX - event.x
-                            
-                            // 如果移动距离超过阈值，开始拖动
-                            if (!isDragging && Math.abs(deltaX) > touchSlop) {
-                                isDragging = true
-                                // 阻止父视图拦截触摸事件
-                                parent.requestDisallowInterceptTouchEvent(true)
-                            }
-                            
-                            if (isDragging) {
-                                // 计算新的滚动位置
-                                val newScrollX = (startScrollX + deltaX).toInt()
-                                // 滚动到新位置
-                                scrollTo(newScrollX, 0)
-                                return true
-                            }
-                            return false
-                        }
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            if (isDragging) {
-                                // 在拖动结束时执行惯性滚动
-                                // 允许父视图再次拦截触摸事件
-                                parent.requestDisallowInterceptTouchEvent(false)
-                                return true
-                            }
-                            return false
-                        }
-                    }
-                    return false
-                }
-            })
+            overScrollMode = View.OVER_SCROLL_NEVER
         }
         
         // 创建内部图标容器
@@ -2698,19 +2608,14 @@ class DualFloatingWebViewService : Service() {
                       2.dpToPx(this@DualFloatingWebViewService), 
                       4.dpToPx(this@DualFloatingWebViewService), 
                       2.dpToPx(this@DualFloatingWebViewService))
-            
-            // 设置最小宽度，确保容器即使为空也有宽度
-            minimumWidth = 100.dpToPx(this@DualFloatingWebViewService)
         }
-        
-        Log.d(TAG, "添加${if (isAI) "AI" else "普通"}搜索引擎图标，数量: ${engines.size}")
         
         // 添加引擎图标
         engines.forEach { engine ->
-            val engineKey = prefix + engine.name.lowercase()
+            val engineKey = if (isAI) "ai_${engine.name.lowercase()}" else engine.name.lowercase()
             val iconView = createEngineIconButton(engine, engineKey)
             
-            // 加载图标（使用Google的图标服务）
+            // 加载图标
             loadEngineIcon(iconView, engine)
             
             // 设置点击事件
@@ -2719,10 +2624,9 @@ class DualFloatingWebViewService : Service() {
                 val query = searchInput?.text?.toString() ?: ""
                 if (query.isNotEmpty()) {
                     if (isAI) {
-                        // 如果是AI引擎，使用新方法处理
                         performAISearch(webView, query, engine.url, engine.name)
                     } else {
-                    performSearch(webView, query, engine.url)
+                        performSearch(webView, query, engine.url)
                     }
                 } else {
                     // 如果搜索框为空，直接加载引擎首页
@@ -2733,21 +2637,20 @@ class DualFloatingWebViewService : Service() {
                 // 更新选中状态
                 updateEngineSelection(container, null, engineKey)
                 
-                // 将选中引擎滚动到视图中央
-                val scrollToX = iconView.left - (scrollView.width / 2) + (iconView.width / 2)
-                scrollView.smoothScrollTo(Math.max(0, scrollToX), 0)
+                // 切换到按钮面板
+                switchToButtonPanel(webView, container)
                 
                 // 更新对应窗口的默认引擎
-                when {
-                    webView == firstWebView -> {
+                when (webView) {
+                    firstWebView -> {
                         leftEngineKey = engineKey
                         settingsManager.setLeftWindowSearchEngine(engineKey)
                     }
-                    webView == secondWebView -> {
+                    secondWebView -> {
                         centerEngineKey = engineKey
                         settingsManager.setCenterWindowSearchEngine(engineKey)
                     }
-                    webView == thirdWebView -> {
+                    thirdWebView -> {
                         rightEngineKey = engineKey
                         settingsManager.setRightWindowSearchEngine(engineKey)
                     }
@@ -2767,7 +2670,7 @@ class DualFloatingWebViewService : Service() {
                     }
                     .start()
                 
-                // 显示提示 - 使用Handler.post确保提示在UI更新后显示
+                // 显示提示
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(
                         this@DualFloatingWebViewService,
@@ -2782,12 +2685,7 @@ class DualFloatingWebViewService : Service() {
             
             // 添加到容器
             iconsContainer.addView(iconView)
-            
-            Log.d(TAG, "添加了搜索引擎图标: $engineKey")
         }
-        
-        // 确保容器有最小高度
-        iconsContainer.minimumHeight = 50.dpToPx(this)
         
         // 将图标容器添加到滚动视图
         scrollView.addView(iconsContainer)
@@ -2795,27 +2693,8 @@ class DualFloatingWebViewService : Service() {
         // 将滚动视图添加到引擎容器
         container.addView(scrollView)
         
-        // 确保容器可见性
-        container.visibility = View.VISIBLE
-        
-        // 记录容器内容
-        Log.d(TAG, "${if (isAI) "AI" else "普通"}搜索引擎容器初始化完成，子视图数量: ${container.childCount}")
-        
-        // 如果当前引擎在此容器中，滚动到该位置
-        if ((isAI && defaultEngine.startsWith("ai_")) || (!isAI && !defaultEngine.startsWith("ai_"))) {
-            scrollView.post {
-                // 查找选中的图标
-                for (i in 0 until iconsContainer.childCount) {
-                    val view = iconsContainer.getChildAt(i)
-                    if (view is ImageView && view.tag == defaultEngine) {
-                        // 计算滚动位置，使图标居中
-                        val scrollToX = view.left - (scrollView.width / 2) + (view.width / 2)
-                        scrollView.smoothScrollTo(Math.max(0, scrollToX), 0)
-                        break
-                    }
-                }
-            }
-        }
+        // 更新选中状态
+        updateEngineSelection(container, null, defaultEngine)
     }
 
     /**
@@ -5574,7 +5453,7 @@ class DualFloatingWebViewService : Service() {
         container.visibility = View.GONE
         container.setOnClickListener {
             isAIEngineActive = true
-            // 获取剪贴板内容并自动填充发送
+            switchToAIMode(webView)
             autoFillAndSendClipboardContent(webView)
         }
     }
@@ -5687,5 +5566,329 @@ class DualFloatingWebViewService : Service() {
                 }
             }
         }
+    }
+
+    private data class ButtonConfig(
+        val text: String,
+        val onClick: View.OnClickListener
+    )
+
+    private var aiControlPanel: LinearLayout? = null
+    private var normalEngineContainer: LinearLayout? = null
+    private var lastScrollY = 0
+    private val SCROLL_THRESHOLD = 1000 // 滑动阈值
+
+    private fun restoreSearchEnginePanel(webView: WebView, container: LinearLayout, isAI: Boolean) {
+        // 清空当前容器
+        container.removeAllViews()
+        
+        // 获取当前引擎
+        val currentEngine = when (webView) {
+            firstWebView -> leftEngineKey
+            secondWebView -> centerEngineKey
+            thirdWebView -> rightEngineKey
+            else -> "baidu"
+        }
+        
+        // 重新添加搜索引擎图标
+        val engines = if (isAI) {
+            listOf(
+                SearchEngine("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search, "ChatGPT"),
+                SearchEngine("Claude", "https://claude.ai/", R.drawable.ic_baidu, "Claude AI助手"),
+                SearchEngine("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_baidu, "文心一言"),
+                SearchEngine("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_google, "阿里通义千问"),
+                SearchEngine("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_sogou, "讯飞星火")
+            )
+        } else {
+            listOf(
+                SearchEngine("百度", "https://www.baidu.com/s?wd={query}", R.drawable.ic_baidu, "百度搜索"),
+                SearchEngine("谷歌", "https://www.google.com/search?q={query}", R.drawable.ic_google, "谷歌搜索"),
+                SearchEngine("必应", "https://www.bing.com/search?q={query}", R.drawable.ic_bing, "必应搜索"),
+                SearchEngine("搜狗", "https://www.sogou.com/web?query={query}", R.drawable.ic_sogou, "搜狗搜索"),
+                SearchEngine("360", "https://www.so.com/s?q={query}", R.drawable.ic_360, "360搜索")
+            )
+        }
+        
+        addSearchEngineIcons(container, engines, webView, currentEngine, isAI)
+    }
+
+    private fun createAIControlPanel(webView: WebView): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            
+            // 创建按钮样式
+            val buttonParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1.0f
+            ).apply {
+                marginStart = 3
+                marginEnd = 3
+            }
+
+            // 创建并添加所有按钮
+            val buttonConfigs = listOf(
+                ButtonConfig("粘贴发送", View.OnClickListener {
+                    clipboardManager.primaryClip?.let { clipData ->
+                        if (clipData.itemCount > 0) {
+                            val text = clipData.getItemAt(0).text.toString()
+                            autoFillAndSendClipboardContent(webView)
+                        }
+                    }
+                }),
+                ButtonConfig("剪贴板", View.OnClickListener {
+                    clipboardManager.primaryClip?.let { clipData ->
+                        if (clipData.itemCount > 0) {
+                            Toast.makeText(
+                                this@DualFloatingWebViewService,
+                                "当前剪贴板内容：${clipData.getItemAt(0).text}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }),
+                ButtonConfig("返回", View.OnClickListener {
+                    webView.goBack()
+                }),
+                ButtonConfig("前进", View.OnClickListener {
+                    webView.goForward()
+                }),
+                ButtonConfig("刷新", View.OnClickListener {
+                    webView.reload()
+                }),
+                ButtonConfig("切换", View.OnClickListener {
+                    // 获取父容器
+                    val container = this.parent as? LinearLayout
+                    if (container != null) {
+                        // 根据当前引擎类型决定是切换到AI还是普通搜索引擎
+                        val currentEngine = when (webView) {
+                            firstWebView -> leftEngineKey
+                            secondWebView -> centerEngineKey
+                            thirdWebView -> rightEngineKey
+                            else -> "baidu"
+                        }
+                        val isCurrentAI = currentEngine.startsWith("ai_")
+                        restoreSearchEnginePanel(webView, container, !isCurrentAI)
+                    }
+                }),
+                ButtonConfig("关闭", View.OnClickListener {
+                    // 获取父容器
+                    val container = this.parent as? LinearLayout
+                    if (container != null) {
+                        // 获取当前引擎类型
+                        val currentEngine = when (webView) {
+                            firstWebView -> leftEngineKey
+                            secondWebView -> centerEngineKey
+                            thirdWebView -> rightEngineKey
+                            else -> "baidu"
+                        }
+                        val isCurrentAI = currentEngine.startsWith("ai_")
+                        // 恢复到当前类型的搜索引擎面板
+                        restoreSearchEnginePanel(webView, container, isCurrentAI)
+                    }
+                })
+            )
+
+            // 创建并添加按钮到面板
+            buttonConfigs.forEach { config ->
+                addView(Button(context).apply {
+                    text = config.text
+                    layoutParams = buttonParams
+                    setOnClickListener(config.onClick)
+                    background = ContextCompat.getDrawable(context, R.drawable.button_background)
+                    setTextColor(Color.WHITE)
+                    textSize = 11f  // 稍微减小字体以适应更多按钮
+                    setPadding(3.dpToPx(this@DualFloatingWebViewService),
+                              2.dpToPx(this@DualFloatingWebViewService),
+                              3.dpToPx(this@DualFloatingWebViewService),
+                              2.dpToPx(this@DualFloatingWebViewService))
+                    
+                    // 为关闭按钮设置特殊样式
+                    if (config.text == "关闭") {
+                        setTextColor(Color.RED)
+                    }
+                })
+            }
+        }
+    }
+
+    private fun setupWebViewScrollListener(webView: WebView) {
+        webView.viewTreeObserver.addOnScrollChangedListener {
+            val scrollY = webView.scrollY
+            if (Math.abs(scrollY - lastScrollY) > SCROLL_THRESHOLD) {
+                // 向上滑动超过阈值，隐藏控制面板
+                aiControlPanel?.visibility = View.GONE
+            } else if (scrollY < SCROLL_THRESHOLD) {
+                // 回到顶部附近，显示控制面板
+                aiControlPanel?.visibility = View.VISIBLE
+            }
+            lastScrollY = scrollY
+        }
+    }
+
+    private fun switchToAIMode(webView: WebView) {
+        try {
+            // 保存当前的搜索引擎容器引用
+            normalEngineContainer = when(webView) {
+                firstWebView -> firstEngineContainer
+                secondWebView -> secondEngineContainer
+                thirdWebView -> thirdEngineContainer
+                else -> null
+            }
+            
+            // 隐藏普通搜索引擎容器
+            normalEngineContainer?.visibility = View.GONE
+            
+            // 创建并显示AI控制面板
+            if (aiControlPanel == null) {
+                aiControlPanel = createAIControlPanel(webView)
+                // 将AI控制面板添加到布局中
+                normalEngineContainer?.parent?.let { parent ->
+                    if (parent is ViewGroup) {
+                        val index = parent.indexOfChild(normalEngineContainer)
+                        parent.addView(aiControlPanel, index)
+                    }
+                }
+            }
+            aiControlPanel?.visibility = View.VISIBLE
+            
+            // 设置滚动监听
+            setupWebViewScrollListener(webView)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "切换到AI模式失败", e)
+        }
+    }
+
+    private fun switchToNormalMode() {
+        try {
+            // 隐藏AI控制面板
+            aiControlPanel?.visibility = View.GONE
+            // 显示普通搜索引擎容器
+            normalEngineContainer?.visibility = View.VISIBLE
+        } catch (e: Exception) {
+            Log.e(TAG, "切换回普通模式失败", e)
+        }
+    }
+
+    private fun switchToAIEngine(webView: WebView, engineContainer: LinearLayout, aiScrollContainer: HorizontalScrollView?, toggleButton: ImageView) {
+        try {
+            val isAIEngineShowing = engineContainer.visibility == View.GONE
+            
+            if (!isAIEngineShowing) {
+                // 切换到AI引擎
+                engineContainer.visibility = View.GONE
+                aiScrollContainer?.visibility = View.VISIBLE
+                
+                // 创建并显示AI控制面板
+                if (aiControlPanel == null) {
+                    aiControlPanel = createAIControlPanel(webView)
+                }
+                
+                // 将AI控制面板添加到布局中
+                aiScrollContainer?.let { container ->
+                    // 移除所有现有的视图
+                    container.removeAllViews()
+                    // 添加控制面板
+                    container.addView(aiControlPanel)
+                }
+                
+                toggleButton.setImageResource(R.drawable.ic_search)
+                
+                // 记录当前WebView的滚动位置
+                lastScrollY = webView.scrollY
+                
+                // 设置滚动监听
+                webView.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                    if (scrollY > lastScrollY + SCROLL_THRESHOLD) {
+                        // 向上滚动超过阈值，隐藏按钮面板
+                        aiScrollContainer?.visibility = View.GONE
+                    } else if (scrollY < lastScrollY - SCROLL_THRESHOLD) {
+                        // 向下滚动超过阈值，显示按钮面板
+                        aiScrollContainer?.visibility = View.VISIBLE
+                    }
+                    lastScrollY = scrollY
+                }
+            } else {
+                // 切换回普通引擎
+                engineContainer.visibility = View.VISIBLE
+                aiScrollContainer?.visibility = View.GONE
+                toggleButton.setImageResource(R.drawable.ic_ai_search)
+                
+                // 移除滚动监听
+                webView.setOnScrollChangeListener(null)
+            }
+            
+            // 使用Handler.post确保提示在UI更新后显示
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(
+                    this,
+                    if (isAIEngineShowing) "已切换到普通搜索" else "已切换到AI搜索",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "切换搜索引擎失败: ${e.message}")
+        }
+    }
+
+    private fun setupEngineToggles() {
+        // 设置第一个引擎切换按钮
+        firstEngineToggle?.setOnClickListener {
+            switchToAIEngine(
+                firstWebView ?: return@setOnClickListener,
+                firstEngineContainer ?: return@setOnClickListener,
+                firstAIScrollContainer,
+                it as ImageView
+            )
+        }
+
+        // 设置第二个引擎切换按钮
+        secondEngineToggle?.setOnClickListener {
+            switchToAIEngine(
+                secondWebView ?: return@setOnClickListener,
+                secondEngineContainer ?: return@setOnClickListener,
+                secondAIScrollContainer,
+                it as ImageView
+            )
+        }
+
+        // 设置第三个引擎切换按钮
+        thirdEngineToggle?.setOnClickListener {
+            switchToAIEngine(
+                thirdWebView ?: return@setOnClickListener,
+                thirdEngineContainer ?: return@setOnClickListener,
+                thirdAIScrollContainer,
+                it as ImageView
+            )
+        }
+    }
+
+    private fun switchToButtonPanel(webView: WebView, container: LinearLayout) {
+        // 清空当前容器
+        container.removeAllViews()
+        
+        // 创建按钮面板
+        val buttonPanel = createAIControlPanel(webView)
+        
+        // 设置面板样式
+        buttonPanel.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(8.dpToPx(this@DualFloatingWebViewService),
+                      4.dpToPx(this@DualFloatingWebViewService),
+                      8.dpToPx(this@DualFloatingWebViewService),
+                      4.dpToPx(this@DualFloatingWebViewService))
+        }
+        
+        // 添加按钮面板到容器
+        container.addView(buttonPanel)
     }
 } 
