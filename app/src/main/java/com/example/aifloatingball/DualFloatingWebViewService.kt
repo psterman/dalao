@@ -68,6 +68,7 @@ import android.view.ViewPropertyAnimator
 import java.io.File as JavaFile
 import com.example.aifloatingball.view.CustomHorizontalScrollbar
 import android.util.Pair
+import com.example.aifloatingball.utils.WebViewInputHelper
 
 class DualFloatingWebViewService : Service() {
     companion object {
@@ -627,7 +628,10 @@ class DualFloatingWebViewService : Service() {
         intent?.getStringExtra("url")?.let { url ->
             if (url.isNotEmpty()) {
                 // 加载URL到第一个WebView
-                firstWebView?.loadUrl(url)
+                firstWebView?.let { webView ->
+                    webViewInputHelper.prepareWebViewForInput(webView)
+                    webView.loadUrl(url)
+                }
                 
                 // 根据URL确定搜索引擎
                 val isGoogle = url.contains("google.com")
@@ -635,19 +639,25 @@ class DualFloatingWebViewService : Service() {
                 
                 // 如果是百度或谷歌，加载另一个搜索引擎
                 if (windowCount >= 2) {
-                    if (isGoogle) {
-                        secondWebView?.loadUrl("https://www.baidu.com")
-                    } else {
-                        secondWebView?.loadUrl("https://www.google.com")
+                    secondWebView?.let { webView ->
+                        webViewInputHelper.prepareWebViewForInput(webView)
+                        if (isGoogle) {
+                            webView.loadUrl("https://www.baidu.com")
+                        } else {
+                            webView.loadUrl("https://www.google.com")
+                        }
                     }
                 }
                 
                 // 如果是三窗口模式，加载第三个窗口
                 if (windowCount >= 3) {
-                    if (isGoogle || isBaidu) {
-                        thirdWebView?.loadUrl("https://www.bing.com")
-                    } else {
-                        thirdWebView?.loadUrl("https://www.zhihu.com")
+                    thirdWebView?.let { webView ->
+                        webViewInputHelper.prepareWebViewForInput(webView)
+                        if (isGoogle || isBaidu) {
+                            webView.loadUrl("https://www.bing.com")
+                        } else {
+                            webView.loadUrl("https://www.zhihu.com")
+                        }
                     }
                 }
             }
@@ -942,30 +952,48 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
+    private lateinit var webViewInputHelper: WebViewInputHelper
+    
     private fun setupWebViews() {
+        // 初始化WebView输入辅助类
+        webViewInputHelper = WebViewInputHelper(this, windowManager, floatingView)
+        
         val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
         
         webViews.forEach { webView ->
-            webView.settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                loadWithOverviewMode = true
-                useWideViewPort = true
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                
-                // 确保WebView不拦截水平滑动
-                webView.isHorizontalScrollBarEnabled = false
-                webView.overScrollMode = View.OVER_SCROLL_NEVER
-            }
+            // 使用辅助类设置WebView
+            webViewInputHelper.prepareWebViewForInput(webView)
 
-            // 添加 JSBridge
+            // 添加输入法桥接接口
+            webView.addJavascriptInterface(object {
+                @JavascriptInterface
+                fun onInputFieldFocused() {
+                    Handler(Looper.getMainLooper()).post {
+                        webViewInputHelper.ensureInputMethodAvailable(webView)
+                    }
+                }
+
+                @JavascriptInterface
+                fun onInputFieldClicked() {
+                    Handler(Looper.getMainLooper()).post {
+                        webViewInputHelper.forceShowInputMethod(webView)
+                    }
+                }
+            }, "InputMethodBridge")
+
+            // 添加原有的JSBridge
             webView.addJavascriptInterface(WebViewJSBridge(webView), "NativeBridge")
             
-            // 确保WebView不拦截父容器的触摸事件
+            // 设置WebViewClient
+            webView.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    webViewInputHelper.injectInputMethodSupport(webView)
+                }
+            }
+            
+            // 设置触摸事件处理
             webView.setOnTouchListener { v, event ->
-                // 只有对垂直方向的滑动和点击进行处理，水平滑动交给父容器
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         lastTouchDownTime = SystemClock.uptimeMillis()
@@ -976,21 +1004,6 @@ class DualFloatingWebViewService : Service() {
                         if (currentActiveWebView != webView) {
                             clearTextSelection()
                             currentActiveWebView = webView
-                        }
-                        
-                        // 检查是否点击了输入框
-                        webView.evaluateJavascript("""
-                            (function() {
-                                var x = ${event.x};
-                                var y = ${event.y};
-                                var element = document.elementFromPoint(x, y);
-                                return element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA');
-                            })();
-                        """.trimIndent()) { result ->
-                            if (result == "true") {
-                                // 如果是输入框，允许获取焦点
-                                toggleWindowFocusableFlag(true)
-                            }
                         }
                         
                         // 不消费事件，让父容器处理横向滑动
@@ -1031,6 +1044,7 @@ class DualFloatingWebViewService : Service() {
                 false // 继续传递事件给WebView
             }
 
+            // 设置页面加载完成的处理
             webView.webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
@@ -1038,6 +1052,7 @@ class DualFloatingWebViewService : Service() {
                         enableTextSelectionMode(it)
                         injectCustomMenuCode(it)
                         injectLinkContextMenuCode(it)
+                        webViewInputHelper.injectInputMethodSupport(it)
                     }
                     if (isAIEngineActive && view == currentWebView) {
                         // 页面加载完成后自动填充并发送
@@ -4412,23 +4427,34 @@ class DualFloatingWebViewService : Service() {
             val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
             
             if (focusable) {
-                // 移除FLAG_NOT_FOCUSABLE标志，使窗口可以获取焦点
+                // 移除阻止获取焦点的标志
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                // 移除阻止输入法的标志
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM.inv()
+                // 设置输入法模式
+                params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or
+                        WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             } else {
-                // 添加FLAG_NOT_FOCUSABLE标志，使窗口不可获取焦点
                 params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
             }
             
             // 应用新参数
             try {
                 windowManager.updateViewLayout(floatingView, params)
+                
+                // 如果切换到可获取焦点，主动请求焦点并尝试显示输入法
+                if (focusable) {
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        currentWebView?.let { webView ->
+                            webView.requestFocus()
+                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                            imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED)
+                        }
+                    }, 100)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "更新窗口布局参数失败", e)
-            }
-            
-            // 如果切换到可获取焦点，则请求焦点
-            if (focusable) {
-                floatingView?.requestFocus()
             }
         } catch (e: Exception) {
             Log.e(TAG, "切换窗口焦点状态失败: ${e.message}")
@@ -5290,15 +5316,10 @@ class DualFloatingWebViewService : Service() {
             webView.settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                // 启用表单自动填充
                 saveFormData = true
-                // 允许WebView处理表单
                 javaScriptCanOpenWindowsAutomatically = true
-                // 允许混合内容
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                
-                // 增加其他设置以提高兼容性
-                setGeolocationEnabled(true)  // 允许地理位置
+                setGeolocationEnabled(true)
                 loadsImagesAutomatically = true
                 allowFileAccess = true
                 allowContentAccess = true
@@ -5307,9 +5328,14 @@ class DualFloatingWebViewService : Service() {
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
+                mediaPlaybackRequiresUserGesture = false
+                defaultTextEncodingName = "UTF-8"
             }
             
-            // 3. 修改窗口属性，确保可以激活输入法
+            // 3. 注入输入法支持脚本
+            webViewInputHelper.injectInputMethodSupport(webView)
+            
+            // 4. 修改窗口属性，确保可以激活输入法
             val params = floatingView?.layoutParams as? WindowManager.LayoutParams
             params?.let {
                 // 移除阻止获取焦点的标志
@@ -5556,50 +5582,103 @@ class DualFloatingWebViewService : Service() {
 
     private fun setupWebView(webView: WebView) {
         webView.settings.apply {
-            // 确保JavaScript能够运行
+            // 基本设置
             javaScriptEnabled = true
-            // 允许DOM存储
             domStorageEnabled = true
-            // 设置支持缩放
             setSupportZoom(true)
-            // 支持自动对焦
             builtInZoomControls = true
+            displayZoomControls = false
+            
+            // 增加输入相关设置
+            saveFormData = true
+            javaScriptCanOpenWindowsAutomatically = true
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            
+            // 其他增强设置
+            setGeolocationEnabled(true)
+            loadsImagesAutomatically = true
+            allowFileAccess = true
+            allowContentAccess = true
+            databaseEnabled = true
+            setSupportMultipleWindows(true)
         }
         
-        // 设置WebView可以获取焦点
+        // 设置WebView基本属性
         webView.isFocusable = true
         webView.isFocusableInTouchMode = true
+        webView.requestFocus()
         
-        // 设置WebView请求焦点
-        webView.requestFocus(View.FOCUS_DOWN)
-        
-        // 添加触摸监听器来处理输入法
+        // 增强型触摸监听器
         webView.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (!v.hasFocus()) {
-                        v.requestFocus()
+                    // 确保窗口可以获取焦点
+                    toggleWindowFocusableFlag(true)
+                    
+                    // 检查是否点击了输入框
+                    webView.evaluateJavascript("""
+                        (function() {
+                            var x = ${event.x};
+                            var y = ${event.y};
+                            var element = document.elementFromPoint(x, y);
+                            return element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.contentEditable === 'true');
+                        })();
+                    """.trimIndent()) { result ->
+                        if (result == "true") {
+                            // 如果点击了输入框，强制显示输入法
+                            Handler(Looper.getMainLooper()).post {
+                                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED)
+                            }
+                        }
                     }
-                    // 确保输入法管理器可用
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showSoftInput(v, InputMethodManager.SHOW_IMPLICIT)
                 }
             }
             false
         }
 
-        // 设置WebChromeClient来处理JavaScript交互
+        // 设置WebChromeClient
         webView.webChromeClient = object : android.webkit.WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 super.onProgressChanged(view, newProgress)
                 if (newProgress == 100) {
-                    // 页面加载完成后注入JavaScript以确保输入框可以正常工作
+                    // 页面加载完成后注入增强型JavaScript
                     webView.evaluateJavascript("""
                         (function() {
+                            // 监听所有可能的输入元素
                             document.addEventListener('click', function(e) {
-                                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                                if (e.target.tagName === 'INPUT' || 
+                                    e.target.tagName === 'TEXTAREA' || 
+                                    e.target.contentEditable === 'true' ||
+                                    e.target.role === 'textbox') {
                                     e.target.focus();
+                                    // 发送消息到Android
+                                    window.androidInterface.onInputFieldClicked();
                                 }
+                            }, true);
+                            
+                            // 监听动态添加的元素
+                            var observer = new MutationObserver(function(mutations) {
+                                mutations.forEach(function(mutation) {
+                                    if (mutation.addedNodes) {
+                                        mutation.addedNodes.forEach(function(node) {
+                                            if (node.nodeType === 1) {  // 元素节点
+                                                var inputs = node.querySelectorAll('input, textarea, [contenteditable="true"]');
+                                                inputs.forEach(function(input) {
+                                                    input.addEventListener('click', function() {
+                                                        this.focus();
+                                                        window.androidInterface.onInputFieldClicked();
+                                                    });
+                                                });
+                                            }
+                                        });
+                                    }
+                                });
+                            });
+                            
+                            observer.observe(document.body, {
+                                childList: true,
+                                subtree: true
                             });
                         })()
                     """.trimIndent(), null)
@@ -5611,15 +5690,21 @@ class DualFloatingWebViewService : Service() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // 注入CSS来防止输入框被系统键盘遮挡
+                
+                // 注入CSS以优化输入体验
                 webView.evaluateJavascript("""
                     (function() {
                         var style = document.createElement('style');
                         style.type = 'text/css';
                         style.innerHTML = `
-                            input, textarea {
+                            input, textarea, [contenteditable="true"] {
                                 font-size: 16px !important;
                                 max-height: 999999px;
+                                -webkit-user-select: text !important;
+                                user-select: text !important;
+                            }
+                            body {
+                                -webkit-tap-highlight-color: rgba(0,0,0,0);
                             }
                         `;
                         document.getElementsByTagName('head')[0].appendChild(style);
@@ -5631,6 +5716,17 @@ class DualFloatingWebViewService : Service() {
                 }
             }
         }
+        
+        // 添加JavaScript接口
+        webView.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun onInputFieldClicked() {
+                Handler(Looper.getMainLooper()).post {
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.showSoftInput(webView, InputMethodManager.SHOW_FORCED)
+                }
+            }
+        }, "androidInterface")
     }
 
     private data class ButtonConfig(
