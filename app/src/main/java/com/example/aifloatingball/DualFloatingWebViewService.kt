@@ -993,6 +993,21 @@ class DualFloatingWebViewService : Service() {
             }
             
             // 设置触摸事件处理
+            webView.setOnLongClickListener { view ->
+                // 获取长按位置的HitTestResult
+                val result = webView.hitTestResult
+                
+                // 如果是链接类型，显示链接菜单
+                if (result.type == WebView.HitTestResult.SRC_ANCHOR_TYPE ||
+                    result.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+                    showLinkActionMenu(webView, result.extra ?: "", result.type)
+                    true
+                } else {
+                    false
+                }
+            }
+            
+            // 设置触摸事件处理
             webView.setOnTouchListener { v, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
@@ -1006,7 +1021,7 @@ class DualFloatingWebViewService : Service() {
                             currentActiveWebView = webView
                         }
                         
-                        // 不消费事件，让父容器处理横向滑动
+                        // 不消费事件，让WebView处理
                         v.parent.requestDisallowInterceptTouchEvent(false)
                     }
                     MotionEvent.ACTION_MOVE -> {
@@ -1027,21 +1042,16 @@ class DualFloatingWebViewService : Service() {
                         val touchMoved = Math.abs(event.x - lastTouchX) > 10 || 
                                        Math.abs(event.y - lastTouchY) > 10
                         
-                        if (!touchMoved) {
-                            if (touchDuration < ViewConfiguration.getLongPressTimeout()) {
-                                // 短按 - 尝试激活选择，使用辅助类
-                                activateSelection(webView, event, true) // 使用重载方法，添加dummy参数
-                            } else {
-                                // 长按 - 处理长按事件
-                                handleLongPress(webView, event)
-                            }
+                        if (!touchMoved && touchDuration >= ViewConfiguration.getLongPressTimeout()) {
+                            // 长按非链接区域，处理文本选择
+                            handleLongPress(webView, event)
                         }
                         
                         // 恢复父视图拦截
                         v.parent.requestDisallowInterceptTouchEvent(false)
                     }
                 }
-                false // 继续传递事件给WebView
+                false // 不消费事件，让WebView处理点击
             }
 
             // 设置页面加载完成的处理
@@ -1787,43 +1797,29 @@ class DualFloatingWebViewService : Service() {
     }
 
     private fun showTextSelectionMenuSafely(webView: WebView, x: Int, y: Int) {
-        if (textSelectionMenu?.isShowing == true) {
-            textSelectionMenu?.dismiss()
+        webView.evaluateJavascript(
+            "(function() { return window.getSelection().toString(); })();"
+        ) { result ->
+            val selectedText = result.trim('"')
+            if (selectedText.isNotEmpty()) {
+                com.example.aifloatingball.manager.TextSelectionMenuController.showMenu(
+                    context = this,
+                    windowManager = windowManager,
+                    webView = webView,
+                    x = x,
+                    y = y,
+                    selectedText = selectedText,
+                    onMenuShown = {
+                        // 菜单显示后的回调
+                        Log.d(TAG, "文本选择菜单已显示")
+                    }
+                )
+            }
         }
-
-        val menuView = LayoutInflater.from(this).inflate(R.layout.text_selection_menu, null)
-        textSelectionMenu = PopupWindow(
-            menuView,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply {
-            isOutsideTouchable = true
-            isFocusable = true
-            elevation = resources.getDimensionPixelSize(R.dimen.menu_elevation).toFloat()
-        }
-
-        menuView.findViewById<View>(R.id.menu_copy).setOnClickListener {
-            copySelectedText(webView)
-            clearTextSelection()
-        }
-
-        menuView.findViewById<View>(R.id.menu_share).setOnClickListener {
-            shareSelectedText(webView)
-            clearTextSelection()
-        }
-
-        // 计算菜单位置
-        val location = IntArray(2)
-        webView.getLocationOnScreen(location)
-        val menuX = location[0] + x - (textSelectionMenu?.contentView?.measuredWidth ?: 0) / 2
-        val menuY = location[1] + y - (textSelectionMenu?.contentView?.measuredHeight ?: 0) - 20
-
-        textSelectionMenu?.showAtLocation(webView, Gravity.NO_GRAVITY, menuX, menuY)
     }
 
     private fun hideTextSelectionMenu() {
-        textSelectionMenu?.dismiss()
-        textSelectionMenu = null
+        com.example.aifloatingball.manager.TextSelectionMenuController.hideMenu()
     }
 
     private fun copySelectedText(webView: WebView) {
