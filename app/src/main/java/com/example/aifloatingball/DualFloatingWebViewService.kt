@@ -5459,31 +5459,96 @@ class DualFloatingWebViewService : Service() {
     }
 
     private fun autoFillAndSendClipboardContent(webView: WebView) {
-        if (!isAIEngineActive) return
+        // 移除isAIEngineActive检查，确保"粘贴发送"按钮始终可用
+        // if (!isAIEngineActive) return
 
         clipboardManager.primaryClip?.let { clipData ->
             if (clipData.itemCount > 0) {
                 val clipText = clipData.getItemAt(0).text.toString()
                 if (clipText.isNotEmpty()) {
+                    // 记录日志
+                    Log.d("DualFloatingWebView", "粘贴发送按钮被点击，内容: ${clipText.take(20)}${if (clipText.length > 20) "..." else ""}")
+                    
+                    // 显示Toast提示用户
+                    Toast.makeText(
+                        this,
+                        "正在执行粘贴发送操作",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    
                     // 使用JavaScript注入文本到输入框并触发发送
-                    val escapedText = clipText.replace("'", "\\'")
+                    val escapedText = clipText.replace("'", "\\'").replace("\n", "\\n")
                     webView.evaluateJavascript("""
                         (function() {
-                            const inputElement = document.querySelector('textarea');
-                            if (inputElement) {
-                                inputElement.value = '$escapedText';
-                                // 模拟按下回车键
-                                const enterEvent = new KeyboardEvent('keydown', {
-                                    key: 'Enter',
-                                    code: 'Enter',
-                                    keyCode: 13,
-                                    which: 13,
-                                    bubbles: true
-                                });
-                                inputElement.dispatchEvent(enterEvent);
+                            console.log('开始执行粘贴发送操作');
+                            try {
+                                // 尝试查找可能的输入元素
+                                const inputElement = 
+                                    document.querySelector('textarea') || 
+                                    document.querySelector('input[type="text"]') ||
+                                    document.querySelector('[contenteditable="true"]') ||
+                                    document.querySelector('.chat-input') ||
+                                    document.querySelector('.input-area');
+                                
+                                if (inputElement) {
+                                    console.log('找到输入元素:', inputElement);
+                                    
+                                    // 设置焦点
+                                    inputElement.focus();
+                                    
+                                    // 尝试用不同方法设置值
+                                    inputElement.value = '$escapedText';
+                                    
+                                    // 如果是contenteditable元素
+                                    if (inputElement.getAttribute('contenteditable') === 'true') {
+                                        inputElement.innerHTML = '$escapedText';
+                                    }
+                                    
+                                    // 触发输入事件
+                                    const inputEvent = new Event('input', { bubbles: true });
+                                    inputElement.dispatchEvent(inputEvent);
+                                    
+                                    // 模拟按下回车键
+                                    setTimeout(function() {
+                                        const enterEvent = new KeyboardEvent('keydown', {
+                                            key: 'Enter',
+                                            code: 'Enter',
+                                            keyCode: 13,
+                                            which: 13,
+                                            bubbles: true
+                                        });
+                                        inputElement.dispatchEvent(enterEvent);
+                                        
+                                        // 寻找发送按钮并点击（作为后备方案）
+                                        setTimeout(function() {
+                                            const sendButton = 
+                                                document.querySelector('button[type="submit"]') ||
+                                                document.querySelector('.send-button') ||
+                                                document.querySelector('[aria-label*="发送"]') ||
+                                                document.querySelector('[aria-label*="send"]') ||
+                                                document.querySelector('button:contains("发送")') ||
+                                                document.querySelector('button:contains("Send")');
+                                                
+                                            if (sendButton) {
+                                                console.log('找到发送按钮，点击它');
+                                                sendButton.click();
+                                            }
+                                        }, 300);
+                                    }, 100);
+                                    
+                                    return true;
+                                } else {
+                                    console.log('找不到合适的输入元素');
+                                    return false;
+                                }
+                            } catch(e) {
+                                console.error('执行粘贴发送时出错:', e);
+                                return false;
                             }
-                        })()
-                    """.trimIndent(), null)
+                        })();
+                    """.trimIndent()) { result ->
+                        Log.d("DualFloatingWebView", "粘贴发送执行结果: $result")
+                    }
                 }
             }
         }
@@ -5632,6 +5697,107 @@ class DualFloatingWebViewService : Service() {
 
             // 创建并添加所有按钮
             val buttonConfigs = listOf(
+                // 将"关闭"按钮移到最前面
+                ButtonConfig("关闭", View.OnClickListener {
+                    try {
+                        // 视觉反馈
+                        val button = it as? Button
+                        button?.let { btn ->
+                            btn.alpha = 0.5f
+                            btn.postDelayed({ btn.alpha = 1.0f }, 100)
+                        }
+
+                        // 记录日志
+                        Log.d("DualFloatingWebView", "关闭按钮被点击")
+                        
+                        // 立即显示toast提示
+                        Toast.makeText(
+                            this@DualFloatingWebViewService,
+                            "正在关闭面板...",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        // 尝试各种方法关闭面板
+                        var success = false
+                        
+                        // 1. 首先尝试使用对应的引擎容器
+                        val container = when (webView) {
+                            firstWebView -> firstEngineContainer
+                            secondWebView -> secondEngineContainer
+                            thirdWebView -> thirdEngineContainer
+                            else -> null
+                        }
+                        
+                        if (container != null) {
+                            success = closeButtonPanel(container)
+                        }
+                        
+                        // 2. 如果第一种方法失败，尝试获取当前按钮的父容器链
+                        if (!success) {
+                            var parent: View? = this.parent as? View
+                            var depth = 0
+                            
+                            while (parent != null && depth < 3 && !success) {
+                                Log.d("DualFloatingWebView", "尝试父容器链，深度 $depth: ${parent.javaClass.simpleName}")
+                                
+                                if (parent is LinearLayout) {
+                                    val targetContainer = parent
+                                    // 尝试清空并恢复
+                                    targetContainer.removeAllViews()
+                                    
+                                    val isAI = when (webView) {
+                                        firstWebView -> leftEngineKey
+                                        secondWebView -> centerEngineKey
+                                        thirdWebView -> rightEngineKey
+                                        else -> "baidu"
+                                    }.startsWith("ai_")
+                                    
+                                    restoreSearchEnginePanel(webView, targetContainer, isAI)
+                                    success = true
+                                    break
+                                }
+                                
+                                parent = parent.parent as? View
+                                depth++
+                            }
+                        }
+                        
+                        // 3. 最后的紧急方案，强制恢复所有容器
+                        if (!success) {
+                            Log.d("DualFloatingWebView", "尝试强制恢复所有容器")
+                            forceRestoreAllContainers()
+                            success = true
+                        }
+                        
+                        // 确认操作完成
+                        if (success) {
+                            Toast.makeText(
+                                this@DualFloatingWebViewService,
+                                "已关闭面板",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } catch (e: Exception) {
+                        Log.e("DualFloatingWebView", "关闭面板时出错", e)
+                        
+                        // 出错时强制恢复
+                        try {
+                            forceRestoreAllContainers()
+                            Toast.makeText(
+                                this@DualFloatingWebViewService,
+                                "已尝试恢复界面",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } catch (e2: Exception) {
+                            Log.e("DualFloatingWebView", "恢复失败", e2)
+                            Toast.makeText(
+                                this@DualFloatingWebViewService,
+                                "操作失败，请重试",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }),
                 ButtonConfig("粘贴发送", View.OnClickListener {
                     clipboardManager.primaryClip?.let { clipData ->
                         if (clipData.itemCount > 0) {
@@ -5641,54 +5807,184 @@ class DualFloatingWebViewService : Service() {
                     }
                 }),
                 ButtonConfig("剪贴板", View.OnClickListener {
-                    clipboardManager.primaryClip?.let { clipData ->
-                        if (clipData.itemCount > 0) {
+                    try {
+                        clipboardManager.primaryClip?.let { clipData ->
+                            if (clipData.itemCount > 0) {
+                                val text = clipData.getItemAt(0).text.toString().trim()
+                                val displayText = if (text.length > 50) text.substring(0, 50) + "..." else text
+                                
+                                // 记录日志
+                                Log.d("DualFloatingWebView", "剪贴板按钮被点击，内容: $displayText")
+                                
+                                // 显示Toast提示
+                                Toast.makeText(
+                                    this@DualFloatingWebViewService,
+                                    "当前剪贴板内容：$displayText",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                Toast.makeText(
+                                    this@DualFloatingWebViewService,
+                                    "剪贴板为空",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        } ?: run {
                             Toast.makeText(
                                 this@DualFloatingWebViewService,
-                                "当前剪贴板内容：${clipData.getItemAt(0).text}",
+                                "无法访问剪贴板",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
+                    } catch (e: Exception) {
+                        Log.e("DualFloatingWebView", "访问剪贴板失败", e)
+                        Toast.makeText(
+                            this@DualFloatingWebViewService,
+                            "访问剪贴板失败: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }),
                 ButtonConfig("返回", View.OnClickListener {
-                    webView.goBack()
-                }),
-                ButtonConfig("前进", View.OnClickListener {
-                    webView.goForward()
-                }),
-                ButtonConfig("刷新", View.OnClickListener {
-                    webView.reload()
-                }),
-                ButtonConfig("切换", View.OnClickListener {
-                    // 获取父容器
-                    val container = this.parent as? LinearLayout
-                    if (container != null) {
-                        // 根据当前引擎类型决定是切换到AI还是普通搜索引擎
-                        val currentEngine = when (webView) {
-                            firstWebView -> leftEngineKey
-                            secondWebView -> centerEngineKey
-                            thirdWebView -> rightEngineKey
-                            else -> "baidu"
+                    try {
+                        // 记录日志
+                        Log.d("DualFloatingWebView", "返回按钮被点击")
+                        
+                        // 尝试返回上一页
+                        if (webView.canGoBack()) {
+                            webView.goBack()
+                            Toast.makeText(
+                                this@DualFloatingWebViewService,
+                                "返回上一页",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                this@DualFloatingWebViewService,
+                                "已经是第一页",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
-                        val isCurrentAI = currentEngine.startsWith("ai_")
-                        restoreSearchEnginePanel(webView, container, !isCurrentAI)
+                    } catch (e: Exception) {
+                        Log.e("DualFloatingWebView", "返回操作失败", e)
+                        Toast.makeText(
+                            this@DualFloatingWebViewService,
+                            "返回操作失败: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }),
-                ButtonConfig("关闭", View.OnClickListener {
-                    // 获取父容器
-                    val container = this.parent as? LinearLayout
-                    if (container != null) {
-                        // 获取当前引擎类型
-                        val currentEngine = when (webView) {
-                            firstWebView -> leftEngineKey
-                            secondWebView -> centerEngineKey
-                            thirdWebView -> rightEngineKey
-                            else -> "baidu"
+                ButtonConfig("前进", View.OnClickListener {
+                    try {
+                        // 记录日志
+                        Log.d("DualFloatingWebView", "前进按钮被点击")
+                        
+                        // 尝试前进
+                        if (webView.canGoForward()) {
+                            webView.goForward()
+                            Toast.makeText(
+                                this@DualFloatingWebViewService,
+                                "前进到下一页",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Toast.makeText(
+                                this@DualFloatingWebViewService,
+                                "已经是最后一页",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
-                        val isCurrentAI = currentEngine.startsWith("ai_")
-                        // 恢复到当前类型的搜索引擎面板
-                        restoreSearchEnginePanel(webView, container, isCurrentAI)
+                    } catch (e: Exception) {
+                        Log.e("DualFloatingWebView", "前进操作失败", e)
+                        Toast.makeText(
+                            this@DualFloatingWebViewService,
+                            "前进操作失败: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }),
+                ButtonConfig("刷新", View.OnClickListener {
+                    try {
+                        // 记录日志
+                        Log.d("DualFloatingWebView", "刷新按钮被点击")
+                        
+                        // 刷新页面
+                        webView.reload()
+                        Toast.makeText(
+                            this@DualFloatingWebViewService,
+                            "正在刷新页面",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } catch (e: Exception) {
+                        Log.e("DualFloatingWebView", "刷新操作失败", e)
+                        Toast.makeText(
+                            this@DualFloatingWebViewService,
+                            "刷新操作失败: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }),
+                ButtonConfig("切换", View.OnClickListener {
+                    try {
+                        // 记录日志
+                        Log.d("DualFloatingWebView", "切换按钮被点击")
+                        
+                        // 获取父容器
+                        val container = this.parent as? LinearLayout
+                        if (container != null) {
+                            // 根据当前引擎类型决定是切换到AI还是普通搜索引擎
+                            val currentEngine = when (webView) {
+                                firstWebView -> leftEngineKey
+                                secondWebView -> centerEngineKey
+                                thirdWebView -> rightEngineKey
+                                else -> "baidu"
+                            }
+                            val isCurrentAI = currentEngine.startsWith("ai_")
+                            
+                            // 记录当前状态
+                            Log.d("DualFloatingWebView", "当前引擎: $currentEngine, 是AI引擎: $isCurrentAI")
+                            
+                            // 尝试找到引擎容器
+                            val engineContainer = when (webView) {
+                                firstWebView -> firstEngineContainer
+                                secondWebView -> secondEngineContainer
+                                thirdWebView -> thirdEngineContainer
+                                else -> null
+                            }
+                            
+                            if (engineContainer != null) {
+                                // 直接在正确的容器上切换
+                                engineContainer.removeAllViews()
+                                
+                                // 切换到另一类型的搜索引擎
+                                restoreSearchEnginePanel(webView, engineContainer, !isCurrentAI)
+                                
+                                // 显示提示
+                                val toastMessage = if (isCurrentAI) "已切换到普通搜索" else "已切换到AI搜索"
+                                Toast.makeText(
+                                    this@DualFloatingWebViewService,
+                                    toastMessage,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                // 如果找不到正确的容器，尝试使用传递的容器
+                                restoreSearchEnginePanel(webView, container, !isCurrentAI)
+                                
+                                // 显示提示
+                                Toast.makeText(
+                                    this@DualFloatingWebViewService,
+                                    if (isCurrentAI) "已切换到普通搜索" else "已切换到AI搜索",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e("DualFloatingWebView", "切换搜索引擎失败", e)
+                        Toast.makeText(
+                            this@DualFloatingWebViewService,
+                            "切换搜索引擎失败: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 })
             )
@@ -5870,6 +6166,21 @@ class DualFloatingWebViewService : Service() {
     }
 
     private fun switchToButtonPanel(webView: WebView, container: LinearLayout) {
+        // 记录面板状态切换
+        Log.d("DualFloatingWebView", "切换到按钮面板 - 输入容器：$container")
+        
+        // 保存原始内容，以便后续恢复
+        val originalChildren = mutableListOf<View>()
+        for (i in 0 until container.childCount) {
+            originalChildren.add(container.getChildAt(i))
+        }
+        
+        // 保存恢复信息到容器的tag中
+        container.tag = mapOf(
+            "originalContent" to true,
+            "webView" to webView
+        )
+        
         // 清空当前容器
         container.removeAllViews()
         
@@ -5886,9 +6197,79 @@ class DualFloatingWebViewService : Service() {
                       4.dpToPx(this@DualFloatingWebViewService),
                       8.dpToPx(this@DualFloatingWebViewService),
                       4.dpToPx(this@DualFloatingWebViewService))
+                      
+            // 给按钮面板添加标记，用于恢复时识别
+            tag = "buttonPanel"
         }
         
         // 添加按钮面板到容器
         container.addView(buttonPanel)
+    }
+
+    // 关闭按钮面板的辅助方法
+    private fun closeButtonPanel(engineContainer: LinearLayout?): Boolean {
+        try {
+            if (engineContainer == null) return false
+            
+            // 记录日志
+            Log.d("DualFloatingWebView", "尝试关闭按钮面板，恢复引擎容器: $engineContainer")
+            
+            // 清空容器内容
+            engineContainer.removeAllViews()
+            
+            // 确保可见
+            engineContainer.visibility = View.VISIBLE
+            
+            // 根据容器确定WebView和引擎类型
+            val targetWebView = when (engineContainer) {
+                firstEngineContainer -> firstWebView
+                secondEngineContainer -> secondWebView
+                thirdEngineContainer -> thirdWebView
+                else -> null
+            }
+            
+            if (targetWebView != null) {
+                val engineKey = when (targetWebView) {
+                    firstWebView -> leftEngineKey
+                    secondWebView -> centerEngineKey
+                    thirdWebView -> rightEngineKey
+                    else -> "baidu"
+                }
+                val isAI = engineKey.startsWith("ai_")
+                
+                // 恢复搜索引擎面板
+                restoreSearchEnginePanel(targetWebView, engineContainer, isAI)
+                return true
+            }
+            
+            return false
+        } catch (e: Exception) {
+            Log.e("DualFloatingWebView", "关闭按钮面板失败", e)
+            return false
+        }
+    }
+    
+    // 强制恢复所有容器的辅助方法
+    private fun forceRestoreAllContainers() {
+        // 恢复第一个容器
+        if (firstEngineContainer != null && firstWebView != null) {
+            firstEngineContainer?.removeAllViews()
+            firstEngineContainer?.visibility = View.VISIBLE
+            restoreSearchEnginePanel(firstWebView!!, firstEngineContainer!!, leftEngineKey.startsWith("ai_"))
+        }
+        
+        // 恢复第二个容器
+        if (secondEngineContainer != null && secondWebView != null) {
+            secondEngineContainer?.removeAllViews()
+            secondEngineContainer?.visibility = View.VISIBLE
+            restoreSearchEnginePanel(secondWebView!!, secondEngineContainer!!, centerEngineKey.startsWith("ai_"))
+        }
+        
+        // 恢复第三个容器
+        if (thirdEngineContainer != null && thirdWebView != null) {
+            thirdEngineContainer?.removeAllViews()
+            thirdEngineContainer?.visibility = View.VISIBLE
+            restoreSearchEnginePanel(thirdWebView!!, thirdEngineContainer!!, rightEngineKey.startsWith("ai_"))
+        }
     }
 } 
