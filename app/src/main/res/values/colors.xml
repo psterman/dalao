@@ -70,6 +70,7 @@
     <!-- Divider Colors -->
     <color name="divider_dark">#1AFFFFFF</color>
     <color name="divider_light">#1A000000</color>
+    <color name="divider_color">#1F000000</color>
 
     <!-- Drawer Theme Colors -->
     <color name="drawer_background_light">#FFFFFF</color>

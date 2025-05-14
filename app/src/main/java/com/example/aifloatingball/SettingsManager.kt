@@ -171,6 +171,16 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putBoolean("default_search_mode", enabled).apply()
     }
     
+    // 当前AI模式状态
+    fun getIsAIMode(): Boolean {
+        return prefs.getBoolean("is_ai_mode", false)
+    }
+    
+    fun setIsAIMode(enabled: Boolean) {
+        prefs.edit().putBoolean("is_ai_mode", enabled).apply()
+        notifyListeners("is_ai_mode", enabled)
+    }
+    
     // 自动粘贴设置
     fun isAutoPasteEnabled(): Boolean {
         return prefs.getBoolean("auto_paste", true)

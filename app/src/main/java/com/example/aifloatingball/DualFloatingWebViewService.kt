@@ -528,6 +528,9 @@ class DualFloatingWebViewService : Service() {
             // 初始化WebView
             setupWebViews()
             
+            // 设置搜索引擎容器布局
+            setupEngineContainers()
+            
             // 设置控件事件
             setupControls()
             
@@ -954,9 +957,178 @@ class DualFloatingWebViewService : Service() {
 
     private lateinit var webViewInputHelper: WebViewInputHelper
     
+    /**
+     * 设置搜索引擎容器的布局
+     */
+    private fun setupEngineContainers() {
+        try {
+            // 创建第一个窗口的搜索引擎容器布局
+            val firstEngineLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                
+                // 添加普通搜索引擎容器
+                firstEngineContainer?.let { addView(it) }
+                
+                // 添加分隔线
+                addView(View(this@DualFloatingWebViewService).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        1.dpToPx(this@DualFloatingWebViewService)
+                    )
+                    setBackgroundColor(ContextCompat.getColor(this@DualFloatingWebViewService, R.color.divider_color))
+                })
+                
+                // 添加AI搜索引擎容器
+                firstAIScrollContainer?.let { addView(it) }
+            }
+            
+            // 创建第二个窗口的搜索引擎容器布局
+            val secondEngineLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                // 添加普通搜索引擎容器
+                secondEngineContainer?.let { addView(it) }
+                
+                // 添加分隔线
+                addView(View(this@DualFloatingWebViewService).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        1.dpToPx(this@DualFloatingWebViewService)
+                    )
+                    setBackgroundColor(ContextCompat.getColor(this@DualFloatingWebViewService, R.color.divider_color))
+                })
+                
+                // 添加AI搜索引擎容器
+                secondAIScrollContainer?.let { addView(it) }
+            }
+            
+            // 创建第三个窗口的搜索引擎容器布局
+            val thirdEngineLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                
+                // 添加普通搜索引擎容器
+                thirdEngineContainer?.let { addView(it) }
+                
+                // 添加分隔线
+                addView(View(this@DualFloatingWebViewService).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        1.dpToPx(this@DualFloatingWebViewService)
+                    )
+                    setBackgroundColor(ContextCompat.getColor(this@DualFloatingWebViewService, R.color.divider_color))
+                })
+                
+                // 添加AI搜索引擎容器
+                thirdAIScrollContainer?.let { addView(it) }
+            }
+            
+            // 将布局添加到主容器中
+            container?.apply {
+                addView(firstEngineLayout)
+                addView(secondEngineLayout)
+                addView(thirdEngineLayout)
+            }
+            
+            // 初始状态设置
+            firstAIScrollContainer?.visibility = View.GONE
+            secondAIScrollContainer?.visibility = View.GONE
+            thirdAIScrollContainer?.visibility = View.GONE
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "设置搜索引擎容器布局失败", e)
+        }
+    }
+    
     private fun setupWebViews() {
         // 初始化WebView输入辅助类
         webViewInputHelper = WebViewInputHelper(this, windowManager, floatingView)
+        
+        // 创建搜索引擎容器布局
+        val engineContainerLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        
+        // 初始化AI搜索引擎容器
+        firstAIEngineContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(8.dpToPx(this@DualFloatingWebViewService), 
+                      4.dpToPx(this@DualFloatingWebViewService),
+                      8.dpToPx(this@DualFloatingWebViewService),
+                      4.dpToPx(this@DualFloatingWebViewService))
+        }
+        
+        secondAIEngineContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        
+        thirdAIEngineContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        
+        // 初始化AI搜索引擎滚动容器
+        firstAIScrollContainer = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            isHorizontalScrollBarEnabled = true
+            addView(firstAIEngineContainer)
+            visibility = View.GONE
+        }
+        
+        secondAIScrollContainer = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            isHorizontalScrollBarEnabled = true
+            addView(secondAIEngineContainer)
+            visibility = View.GONE
+        }
+        
+        thirdAIScrollContainer = HorizontalScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            isHorizontalScrollBarEnabled = true
+            addView(thirdAIEngineContainer)
+            visibility = View.GONE
+        }
+        
+        // 将AI搜索引擎容器添加到布局中
+        container?.apply {
+            addView(firstAIScrollContainer)
+            addView(secondAIScrollContainer)
+            addView(thirdAIScrollContainer)
+        }
         
         val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
         
@@ -1946,143 +2118,80 @@ class DualFloatingWebViewService : Service() {
         
         // 第一个窗口的切换按钮
         firstEngineToggle?.setOnClickListener {
-            try {
-                Log.d(TAG, "第一个窗口切换按钮被点击")
-                // 获取当前AI滚动容器可见性状态
-                val isAIVisible = firstAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第一个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
-                
-                // 直接切换容器可见性
-                if (isAIVisible) {
-                    // 从AI引擎切换到普通引擎
-                    firstAIScrollContainer?.visibility = View.GONE
-                    firstEngineToggle?.setImageResource(R.drawable.ic_ai_search)
-                } else {
-                    // 从普通引擎切换到AI引擎
-                    firstAIScrollContainer?.visibility = View.VISIBLE
-                    firstEngineToggle?.setImageResource(R.drawable.ic_search)
+            val webView = firstWebView ?: return@setOnClickListener
+            val engineContainer = firstEngineContainer ?: return@setOnClickListener
+            val aiContainer = firstAIEngineContainer ?: return@setOnClickListener
+            val aiScrollContainer = firstAIScrollContainer ?: return@setOnClickListener
+            
+            val data = EngineToggleData(
+                webView = webView,
+                engineContainer = engineContainer,
+                aiContainer = aiContainer,
+                aiScrollContainer = aiScrollContainer,
+                position = "left",
+                saveEngineKey = { key ->
+                    leftEngineKey = key
+                    settingsManager.setLeftWindowSearchEngine(key)
                 }
-                
-                // 添加切换动画
-                if (!isAIVisible) {
-                    firstAIScrollContainer?.apply {
-                        alpha = 0f
-                        animate()
-                            .alpha(1f)
-                            .setDuration(200)
-                            .start()
-                    }
-                }
-                
-                // 确认切换后的可见性状态
-                Log.d(TAG, "切换后第一个窗口容器状态 - " +
-                       "AI容器: ${if (firstAIScrollContainer?.visibility == View.VISIBLE) "可见" else "不可见"}")
-                
-                // 显示提示
-                Toast.makeText(
-                    this@DualFloatingWebViewService,
-                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
-                    Toast.LENGTH_SHORT
-                ).show()
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "第一个窗口切换按钮出错", e)
-                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+            )
+            
+            handleEngineToggle(
+                data = data,
+                toggleButton = it as ImageView,
+                isShowingNormal = engineContainer.visibility == View.VISIBLE
+            )
         }
         
         // 第二个窗口的切换按钮
         secondEngineToggle?.setOnClickListener {
-            try {
-                Log.d(TAG, "第二个窗口切换按钮被点击")
-                // 获取当前AI容器可见性状态
-                val isAIVisible = secondAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第二个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
-                
-                // 直接切换容器可见性
-                if (isAIVisible) {
-                    // 从AI引擎切换到普通引擎
-                    secondAIScrollContainer?.visibility = View.GONE
-                    secondEngineToggle?.setImageResource(R.drawable.ic_ai_search)
-                } else {
-                    // 从普通引擎切换到AI引擎
-                    secondAIScrollContainer?.visibility = View.VISIBLE
-                    secondEngineToggle?.setImageResource(R.drawable.ic_search)
+            val webView = secondWebView ?: return@setOnClickListener
+            val engineContainer = secondEngineContainer ?: return@setOnClickListener
+            val aiContainer = secondAIEngineContainer ?: return@setOnClickListener
+            val aiScrollContainer = secondAIScrollContainer ?: return@setOnClickListener
+            
+            val data = EngineToggleData(
+                webView = webView,
+                engineContainer = engineContainer,
+                aiContainer = aiContainer,
+                aiScrollContainer = aiScrollContainer,
+                position = "center",
+                saveEngineKey = { key ->
+                    centerEngineKey = key
+                    settingsManager.setCenterWindowSearchEngine(key)
                 }
-                
-                // 添加切换动画
-                if (!isAIVisible) {
-                    secondAIScrollContainer?.apply {
-                        alpha = 0f
-                        animate()
-                            .alpha(1f)
-                            .setDuration(200)
-                            .start()
-                    }
-                }
-                
-                // 确认切换后的可见性状态
-                Log.d(TAG, "切换后第二个窗口容器状态 - " +
-                       "AI容器: ${if (secondAIScrollContainer?.visibility == View.VISIBLE) "可见" else "不可见"}")
-                
-                // 显示提示
-                Toast.makeText(
-                    this@DualFloatingWebViewService,
-                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
-                    Toast.LENGTH_SHORT
-                ).show()
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "第二个窗口切换按钮出错", e)
-                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+            )
+            
+            handleEngineToggle(
+                data = data,
+                toggleButton = it as ImageView,
+                isShowingNormal = engineContainer.visibility == View.VISIBLE
+            )
         }
         
         // 第三个窗口的切换按钮
         thirdEngineToggle?.setOnClickListener {
-            try {
-                Log.d(TAG, "第三个窗口切换按钮被点击")
-                // 获取当前AI容器可见性状态
-                val isAIVisible = thirdAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第三个窗口AI容器当前可见性: ${if (isAIVisible) "可见" else "不可见"}")
-                
-                // 直接切换容器可见性
-                if (isAIVisible) {
-                    // 从AI引擎切换到普通引擎
-                    thirdAIScrollContainer?.visibility = View.GONE
-                    thirdEngineToggle?.setImageResource(R.drawable.ic_ai_search)
-                } else {
-                    // 从普通引擎切换到AI引擎
-                    thirdAIScrollContainer?.visibility = View.VISIBLE
-                    thirdEngineToggle?.setImageResource(R.drawable.ic_search)
+            val webView = thirdWebView ?: return@setOnClickListener
+            val engineContainer = thirdEngineContainer ?: return@setOnClickListener
+            val aiContainer = thirdAIEngineContainer ?: return@setOnClickListener
+            val aiScrollContainer = thirdAIScrollContainer ?: return@setOnClickListener
+            
+            val data = EngineToggleData(
+                webView = webView,
+                engineContainer = engineContainer,
+                aiContainer = aiContainer,
+                aiScrollContainer = aiScrollContainer,
+                position = "right",
+                saveEngineKey = { key ->
+                    rightEngineKey = key
+                    settingsManager.setRightWindowSearchEngine(key)
                 }
-                
-                // 添加切换动画
-                if (!isAIVisible) {
-                    thirdAIScrollContainer?.apply {
-                        alpha = 0f
-                        animate()
-                            .alpha(1f)
-                            .setDuration(200)
-                            .start()
-                    }
-                }
-                
-                // 确认切换后的可见性状态
-                Log.d(TAG, "切换后第三个窗口容器状态 - " +
-                       "AI容器: ${if (thirdAIScrollContainer?.visibility == View.VISIBLE) "可见" else "不可见"}")
-                
-                // 显示提示
-                Toast.makeText(
-                    this@DualFloatingWebViewService,
-                    if (isAIVisible) "已切换到普通搜索" else "已切换到AI搜索",
-                    Toast.LENGTH_SHORT
-                ).show()
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "第三个窗口切换按钮出错", e)
-                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+            )
+            
+            handleEngineToggle(
+                data = data,
+                toggleButton = it as ImageView,
+                isShowingNormal = engineContainer.visibility == View.VISIBLE
+            )
         }
     }
 
@@ -2564,19 +2673,7 @@ class DualFloatingWebViewService : Service() {
             else -> null
         }
         
-        // 根据默认引擎类型设置初始可见性
-        if (isAIEngine) {
-            // 如果默认是AI引擎，显示AI引擎容器，隐藏普通引擎容器
-            aiScrollContainer?.visibility = View.VISIBLE
-            normalEngineContainer.visibility = View.GONE
-            toggleButton.setImageResource(R.drawable.ic_search)  // 显示切换到普通搜索的图标
-        } else {
-            // 如果默认是普通引擎，显示普通引擎容器，隐藏AI引擎容器
-            aiScrollContainer?.visibility = View.GONE
-            normalEngineContainer.visibility = View.VISIBLE
-            toggleButton.setImageResource(R.drawable.ic_ai_search)  // 显示切换到AI搜索的图标
-        }
-        
+                // 初始化搜索引擎容器的可见性        normalEngineContainer.visibility = View.VISIBLE        aiScrollContainer?.visibility = View.GONE        toggleButton.setImageResource(R.drawable.ic_ai_search)        // 设置切换按钮的点击事件        toggleButton.setOnClickListener {            // 切换搜索引擎容器的可见性            val isShowingNormal = normalEngineContainer.visibility == View.VISIBLE                        if (isShowingNormal) {                // 切换到 AI 搜索引擎                normalEngineContainer.visibility = View.GONE                aiScrollContainer?.visibility = View.VISIBLE                toggleButton.setImageResource(R.drawable.ic_search)                                // 保存当前状态                settingsManager.setIsAIMode(true)                                // 更新搜索框提示文本                searchInput?.hint = "输入要问AI的内容..."            } else {                // 切换到普通搜索引擎                normalEngineContainer.visibility = View.VISIBLE                aiScrollContainer?.visibility = View.GONE                toggleButton.setImageResource(R.drawable.ic_ai_search)                                // 保存当前状态                settingsManager.setIsAIMode(false)                                // 更新搜索框提示文本                searchInput?.hint = "输入搜索关键词..."            }        }        // 禁用其他可能干扰切换的点击事件        normalEngineContainer.setOnClickListener(null)        aiScrollContainer?.setOnClickListener(null)                
         // 设置切换按钮点击事件
         toggleButton.setOnClickListener {
             val isCurrentlyAI = aiScrollContainer?.visibility == View.VISIBLE
@@ -6337,35 +6434,47 @@ class DualFloatingWebViewService : Service() {
     }
 
     private fun setupEngineToggles() {
-        // 设置第一个引擎切换按钮
-        firstEngineToggle?.setOnClickListener {
-            switchToAIEngine(
-                firstWebView ?: return@setOnClickListener,
-                firstEngineContainer ?: return@setOnClickListener,
-                firstAIScrollContainer,
-                it as ImageView
-            )
-        }
+        // 设置第一个窗口的切换按钮
+        setupSingleEngineToggle(
+            toggleButton = firstEngineToggle,
+            webView = firstWebView,
+            engineContainer = firstEngineContainer,
+            aiContainer = firstAIEngineContainer,
+            aiScrollContainer = firstAIScrollContainer,
+            position = "left",
+            saveEngineKey = { key ->
+                leftEngineKey = key
+                settingsManager.setLeftWindowSearchEngine(key)
+            }
+        )
 
-        // 设置第二个引擎切换按钮
-        secondEngineToggle?.setOnClickListener {
-            switchToAIEngine(
-                secondWebView ?: return@setOnClickListener,
-                secondEngineContainer ?: return@setOnClickListener,
-                secondAIScrollContainer,
-                it as ImageView
-            )
-        }
+        // 设置第二个窗口的切换按钮
+        setupSingleEngineToggle(
+            toggleButton = secondEngineToggle,
+            webView = secondWebView,
+            engineContainer = secondEngineContainer,
+            aiContainer = secondAIEngineContainer,
+            aiScrollContainer = secondAIScrollContainer,
+            position = "center",
+            saveEngineKey = { key ->
+                centerEngineKey = key
+                settingsManager.setCenterWindowSearchEngine(key)
+            }
+        )
 
-        // 设置第三个引擎切换按钮
-        thirdEngineToggle?.setOnClickListener {
-            switchToAIEngine(
-                thirdWebView ?: return@setOnClickListener,
-                thirdEngineContainer ?: return@setOnClickListener,
-                thirdAIScrollContainer,
-                it as ImageView
-            )
-        }
+        // 设置第三个窗口的切换按钮
+        setupSingleEngineToggle(
+            toggleButton = thirdEngineToggle,
+            webView = thirdWebView,
+            engineContainer = thirdEngineContainer,
+            aiContainer = thirdAIEngineContainer,
+            aiScrollContainer = thirdAIScrollContainer,
+            position = "right",
+            saveEngineKey = { key ->
+                rightEngineKey = key
+                settingsManager.setRightWindowSearchEngine(key)
+            }
+        )
     }
 
     private fun switchToButtonPanel(webView: WebView, container: LinearLayout) {
@@ -6409,7 +6518,269 @@ class DualFloatingWebViewService : Service() {
         container.addView(buttonPanel)
     }
 
+    private var isAIMode = false
 
-    
+    private fun setupSingleEngineToggle(
+        toggleButton: ImageView?,
+        webView: WebView?,
+        engineContainer: ViewGroup?,
+        aiContainer: ViewGroup?,
+        aiScrollContainer: View?,
+        position: String,
+        saveEngineKey: (String) -> Unit
+    ) {
+        toggleButton?.setOnClickListener {
+            val webViewNotNull = webView ?: return@setOnClickListener
+            val engineContainerNotNull = engineContainer ?: return@setOnClickListener
+            val aiContainerNotNull = aiContainer ?: return@setOnClickListener
+            val aiScrollContainerNotNull = aiScrollContainer ?: return@setOnClickListener
+            
+            val data = EngineToggleData(
+                webView = webViewNotNull,
+                engineContainer = engineContainerNotNull,
+                aiContainer = aiContainerNotNull,
+                aiScrollContainer = aiScrollContainerNotNull,
+                position = position,
+                saveEngineKey = saveEngineKey
+            )
+            
+            handleEngineToggle(
+                data = data,
+                toggleButton = it as ImageView,
+                isShowingNormal = engineContainerNotNull.visibility == View.VISIBLE
+            )
+        }
+    }
 
+    private data class EngineToggleData(
+        val webView: WebView,
+        val engineContainer: ViewGroup,
+        val aiContainer: ViewGroup,
+        val aiScrollContainer: View,
+        val position: String,
+        val saveEngineKey: (String) -> Unit
+    )
+
+    private fun handleEngineToggle(
+        data: EngineToggleData,
+        toggleButton: ImageView,
+        isShowingNormal: Boolean
+    ) {
+        if (isShowingNormal) {
+            // 使用统一的动画助手函数
+            switchEngineWithAnimation(
+                data.engineContainer,
+                data.aiContainer,
+                data.aiScrollContainer,
+                toggleButton,
+                true,
+                data.webView,
+                data.position,
+                data.saveEngineKey
+            )
+        } else {
+            // 切换回普通模式
+            switchEngineWithAnimation(
+                data.engineContainer,
+                data.aiContainer,
+                data.aiScrollContainer,
+                toggleButton,
+                false,
+                data.webView,
+                data.position,
+                { _ -> }
+            )
+        }
+        
+        // 保存当前状态
+        settingsManager.setIsAIMode(!isShowingNormal)
+    }
+
+    private fun switchEngineWithAnimation(
+        normalContainer: View,
+        aiContainer: ViewGroup,
+        aiScrollContainer: View,
+        toggleButton: ImageView,
+        toAIMode: Boolean,
+        webView: WebView,
+        position: String,
+        saveEngineFunction: (String) -> Unit
+    ) {
+        // 确保两个容器都存在
+        if (normalContainer == null || aiContainer == null) {
+            Log.e(TAG, "容器未正确初始化")
+            return
+        }
+        
+        // 切换前先检查目标容器是否已经创建了图标
+        if (toAIMode && aiContainer.childCount == 0) {
+            createAIEngineButtons(webView, aiContainer as LinearLayout, position, saveEngineFunction)
+        }
+        
+        // 执行切换动画
+        if (toAIMode) {
+            normalContainer.animate()
+                .alpha(0f)
+                .withEndAction {
+                    normalContainer.visibility = View.GONE
+                    aiContainer.visibility = View.VISIBLE
+                    aiContainer.alpha = 0f
+                    aiContainer.animate().alpha(1f).start()
+                }.start()
+        } else {
+            aiContainer.animate()
+                .alpha(0f)
+                .withEndAction {
+                    aiContainer.visibility = View.GONE
+                    normalContainer.visibility = View.VISIBLE
+                    normalContainer.alpha = 0f
+                    normalContainer.animate().alpha(1f).start()
+                }.start()
+        }
+    }
+
+    /**
+     * 从Google Favicon服务加载网站图标
+     */
+    private fun getFaviconUrl(url: String): String {
+        // 提取域名
+        val domain = try {
+            val uri = Uri.parse(url)
+            uri.host ?: url
+        } catch (e: Exception) {
+            url
+        }
+        
+        // 返回Google Favicon服务URL
+        return "https://www.google.com/s2/favicons?domain=$domain&sz=64"
+    }
+
+    /**
+     * 加载网站Favicon并设置给ImageView
+     */
+    private fun loadFavicon(url: String, imageView: ImageView, defaultIconRes: Int) {
+        try {
+            // 先设置默认图标
+            imageView.setImageResource(defaultIconRes)
+            
+            // 在后台线程加载Favicon
+            Thread {
+                try {
+                    val faviconUrl = getFaviconUrl(url)
+                    val connection = URL(faviconUrl).openConnection() as HttpURLConnection
+                    connection.connectTimeout = 5000
+                    
+                    val bitmap = BitmapFactory.decodeStream(connection.inputStream)
+                    
+                    // 在主线程更新UI
+                    Handler(Looper.getMainLooper()).post {
+                        if (bitmap != null) {
+                            imageView.setImageBitmap(bitmap)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("DualFloatingWebView", "加载Favicon失败: ${e.message}")
+                }
+            }.start()
+        } catch (e: Exception) {
+            Log.e("DualFloatingWebView", "设置Favicon失败: ${e.message}")
+        }
+    }
+
+    private fun createAIEngineButtons(webView: WebView, aiContainer: LinearLayout, engineKeyPrefix: String, saveEngineFunction: (String) -> Unit) {
+        // 清空容器
+        aiContainer.removeAllViews()
+        
+        // 创建水平布局
+        val buttonLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(16.dpToPx(this@DualFloatingWebViewService), 8.dpToPx(this@DualFloatingWebViewService), 
+                      16.dpToPx(this@DualFloatingWebViewService), 8.dpToPx(this@DualFloatingWebViewService))
+        }
+        
+        // AI搜索引擎列表
+        val aiEngines = listOf(
+            Triple("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search),
+            Triple("Claude", "https://claude.ai/", R.drawable.ic_search),
+            Triple("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_search),
+            Triple("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_search),
+            Triple("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_search)
+        )
+        
+        // 为每个AI引擎创建按钮
+        aiEngines.forEach { (name, url, defaultIconRes) ->
+            // 创建带有文本的垂直布局
+            val itemLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginStart = 12.dpToPx(this@DualFloatingWebViewService)
+                    marginEnd = 12.dpToPx(this@DualFloatingWebViewService)
+                }
+                gravity = Gravity.CENTER
+            }
+            
+            // 创建图标
+            val iconView = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    56.dpToPx(this@DualFloatingWebViewService),
+                    56.dpToPx(this@DualFloatingWebViewService)
+                )
+                
+                // 设置圆形背景
+                background = ContextCompat.getDrawable(this@DualFloatingWebViewService, R.drawable.circle_button_background)
+                // 设置四边的内边距
+                setPadding(
+                    8.dpToPx(this@DualFloatingWebViewService),
+                    8.dpToPx(this@DualFloatingWebViewService),
+                    8.dpToPx(this@DualFloatingWebViewService),
+                    8.dpToPx(this@DualFloatingWebViewService)
+                )
+                
+                // 加载Favicon
+                loadFavicon(url, this, defaultIconRes)
+                
+                // 设置点击事件
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    Toast.makeText(this@DualFloatingWebViewService, "正在打开: $name", Toast.LENGTH_SHORT).show()
+                    webView.loadUrl(url)
+                    saveEngineFunction("ai_${name.lowercase()}")
+                }
+            }
+            
+            // 创建名称文本
+            val textView = TextView(this).apply {
+                text = name
+                textSize = 12f
+                setTextColor(Color.BLACK)
+                gravity = Gravity.CENTER
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+            
+            // 添加视图到布局
+            itemLayout.addView(iconView)
+            itemLayout.addView(textView)
+            buttonLayout.addView(itemLayout)
+        }
+        
+        // 添加整个布局到容器
+        aiContainer.addView(buttonLayout)
+        
+        // 记录日志
+        Log.d("DualFloatingWebView", "已添加${aiEngines.size}个AI搜索引擎按钮到容器")
+    }
 } 
