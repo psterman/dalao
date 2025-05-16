@@ -1040,10 +1040,44 @@ class DualFloatingWebViewService : Service() {
                 addView(thirdEngineLayout)
             }
             
-            // 初始状态设置
-            firstAIScrollContainer?.visibility = View.GONE
-            secondAIScrollContainer?.visibility = View.GONE
-            thirdAIScrollContainer?.visibility = View.GONE
+            // 修改初始状态设置 - 两种搜索引擎都显示
+            firstAIScrollContainer?.visibility = View.VISIBLE
+            secondAIScrollContainer?.visibility = View.VISIBLE
+            thirdAIScrollContainer?.visibility = View.VISIBLE
+            
+            // 确保AI搜索引擎按钮已创建
+            firstWebView?.let { webView ->
+                firstAIEngineContainer?.let { container ->
+                    if (container.childCount == 0) {
+                        createAIEngineButtons(webView, container as LinearLayout, "left") { key ->
+                            leftEngineKey = key
+                            settingsManager.setLeftWindowSearchEngine(key)
+                        }
+                    }
+                }
+            }
+            
+            secondWebView?.let { webView ->
+                secondAIEngineContainer?.let { container ->
+                    if (container.childCount == 0) {
+                        createAIEngineButtons(webView, container as LinearLayout, "center") { key ->
+                            centerEngineKey = key
+                            settingsManager.setCenterWindowSearchEngine(key)
+                        }
+                    }
+                }
+            }
+            
+            thirdWebView?.let { webView ->
+                thirdAIEngineContainer?.let { container ->
+                    if (container.childCount == 0) {
+                        createAIEngineButtons(webView, container as LinearLayout, "right") { key ->
+                            rightEngineKey = key
+                            settingsManager.setRightWindowSearchEngine(key)
+                        }
+                    }
+                }
+            }
             
         } catch (e: Exception) {
             Log.e(TAG, "设置搜索引擎容器布局失败", e)
@@ -2135,7 +2169,7 @@ class DualFloatingWebViewService : Service() {
                 }
             )
             
-            handleEngineToggle(
+             handleEngineToggle(
                 data = data,
                 toggleButton = it as ImageView,
                 isShowingNormal = engineContainer.visibility == View.VISIBLE
@@ -3948,8 +3982,8 @@ class DualFloatingWebViewService : Service() {
                 secondEngineContainer?.visibility = View.GONE
                 thirdEngineContainer?.visibility = View.GONE
                 
-                // 设置切换按钮可见性
-                firstEngineToggle?.visibility = View.VISIBLE
+                // 隐藏切换按钮，不再需要
+                firstEngineToggle?.visibility = View.GONE
                 secondEngineToggle?.visibility = View.GONE
                 thirdEngineToggle?.visibility = View.GONE
             }
@@ -3972,9 +4006,9 @@ class DualFloatingWebViewService : Service() {
                 secondEngineContainer?.visibility = View.VISIBLE
                 thirdEngineContainer?.visibility = View.GONE
                 
-                // 设置切换按钮可见性
-                firstEngineToggle?.visibility = View.VISIBLE
-                secondEngineToggle?.visibility = View.VISIBLE
+                // 隐藏切换按钮，不再需要
+                firstEngineToggle?.visibility = View.GONE
+                secondEngineToggle?.visibility = View.GONE
                 thirdEngineToggle?.visibility = View.GONE
             }
             else -> {
@@ -3996,30 +4030,51 @@ class DualFloatingWebViewService : Service() {
                 secondEngineContainer?.visibility = View.VISIBLE
                 thirdEngineContainer?.visibility = View.VISIBLE
                 
-                // 设置切换按钮可见性
-                firstEngineToggle?.visibility = View.VISIBLE
-                secondEngineToggle?.visibility = View.VISIBLE
-                thirdEngineToggle?.visibility = View.VISIBLE
+                // 隐藏切换按钮，不再需要
+                firstEngineToggle?.visibility = View.GONE
+                secondEngineToggle?.visibility = View.GONE
+                thirdEngineToggle?.visibility = View.GONE
             }
         }
         
-        // 确保初始化时AI容器的正确可见性
+        // 确保两种搜索引擎同时可见
         if (firstAIEngineContainer != null && firstEngineContainer != null) {
-            val isAI = leftEngineKey.startsWith("ai_")
-            firstAIScrollContainer?.visibility = if (isAI) View.VISIBLE else View.GONE
+            firstAIScrollContainer?.visibility = View.VISIBLE
             firstEngineContainer?.visibility = View.VISIBLE
+            
+            // 确保AI搜索引擎按钮已创建
+            if (firstWebView != null && firstAIEngineContainer?.childCount == 0) {
+                createAIEngineButtons(firstWebView!!, firstAIEngineContainer as LinearLayout, "left") { key ->
+                    leftEngineKey = key
+                    settingsManager.setLeftWindowSearchEngine(key)
+                }
+            }
         }
         
-        if (secondAIEngineContainer != null && secondEngineContainer != null) {
-            val isAI = centerEngineKey.startsWith("ai_")
-            secondAIScrollContainer?.visibility = if (isAI) View.VISIBLE else View.GONE
+        if (secondAIEngineContainer != null && secondEngineContainer != null && windowCount >= 2) {
+            secondAIScrollContainer?.visibility = View.VISIBLE
             secondEngineContainer?.visibility = View.VISIBLE
+            
+            // 确保AI搜索引擎按钮已创建
+            if (secondWebView != null && secondAIEngineContainer?.childCount == 0) {
+                createAIEngineButtons(secondWebView!!, secondAIEngineContainer as LinearLayout, "center") { key ->
+                    centerEngineKey = key
+                    settingsManager.setCenterWindowSearchEngine(key)
+                }
+            }
         }
         
-        if (thirdAIEngineContainer != null && thirdEngineContainer != null) {
-            val isAI = rightEngineKey.startsWith("ai_")
-            thirdAIScrollContainer?.visibility = if (isAI) View.VISIBLE else View.GONE
+        if (thirdAIEngineContainer != null && thirdEngineContainer != null && windowCount >= 3) {
+            thirdAIScrollContainer?.visibility = View.VISIBLE
             thirdEngineContainer?.visibility = View.VISIBLE
+            
+            // 确保AI搜索引擎按钮已创建
+            if (thirdWebView != null && thirdAIEngineContainer?.childCount == 0) {
+                createAIEngineButtons(thirdWebView!!, thirdAIEngineContainer as LinearLayout, "right") { key ->
+                    rightEngineKey = key
+                    settingsManager.setRightWindowSearchEngine(key)
+                }
+            }
         }
         
         // 更新布局
@@ -4027,131 +4082,62 @@ class DualFloatingWebViewService : Service() {
     }
 
     /**
-     * 刷新搜索引擎切换按钮的状态和事件
+     * 刷新搜索引擎容器设置
+     * 注意：不再使用切换按钮，改为同时显示两种搜索引擎
      */
     private fun refreshEngineToggleButtons() {
-        Log.d(TAG, "刷新搜索引擎切换按钮")
+        Log.d(TAG, "刷新搜索引擎容器设置")
         
-        // 确保切换按钮可见
-        firstEngineToggle?.visibility = View.VISIBLE
-        secondEngineToggle?.visibility = View.VISIBLE
-        thirdEngineToggle?.visibility = View.VISIBLE
+        // 隐藏所有切换按钮，不再需要
+        firstEngineToggle?.visibility = View.GONE
+        secondEngineToggle?.visibility = View.GONE
+        thirdEngineToggle?.visibility = View.GONE
         
-        // 给第一个窗口切换按钮添加点击事件
-        firstEngineToggle?.setOnClickListener {
-            try {
-                Log.d(TAG, "第一个窗口切换按钮被点击")
-                
-                // 确保容器存在
-                if (firstAIScrollContainer == null || firstEngineContainer == null) {
-                    Log.e(TAG, "第一个窗口容器未初始化")
-                    Toast.makeText(this, "错误：搜索引擎容器未初始化", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
+        // 确保两种搜索引擎都可见
+        firstAIScrollContainer?.visibility = View.VISIBLE
+        firstEngineContainer?.visibility = View.VISIBLE
+        
+        secondAIScrollContainer?.visibility = if (windowCount >= 2) View.VISIBLE else View.GONE
+        secondEngineContainer?.visibility = if (windowCount >= 2) View.VISIBLE else View.GONE
+        
+        thirdAIScrollContainer?.visibility = if (windowCount >= 3) View.VISIBLE else View.GONE
+        thirdEngineContainer?.visibility = if (windowCount >= 3) View.VISIBLE else View.GONE
+        
+        // 确保AI搜索引擎按钮已创建
+        firstWebView?.let { webView ->
+            firstAIEngineContainer?.let { container ->
+                if (container.childCount == 0) {
+                    createAIEngineButtons(webView, container as LinearLayout, "left") { key ->
+                        leftEngineKey = key
+                        settingsManager.setLeftWindowSearchEngine(key)
+                    }
                 }
-                
-                // 获取当前显示的是哪种引擎列表
-                val isAIEngineShowing = firstAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第一个窗口当前显示的是${if (isAIEngineShowing) "AI" else "普通"}搜索引擎")
-                
-                // 直接切换显示的引擎列表
-                firstAIScrollContainer?.visibility = if (isAIEngineShowing) View.GONE else View.VISIBLE
-                firstEngineContainer?.visibility = if (isAIEngineShowing) View.VISIBLE else View.GONE
-                
-                // 更新切换按钮图标
-                firstEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
-                
-                // 使用Handler.post确保提示在UI更新后显示，并减少显示延迟感
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(
-                        this@DualFloatingWebViewService,
-                        "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "第一个窗口切换按钮出错", e)
-                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
         
-        // 给第二个窗口切换按钮添加点击事件
-        secondEngineToggle?.setOnClickListener {
-            try {
-                Log.d(TAG, "第二个窗口切换按钮被点击")
-                
-                // 确保容器存在
-                if (secondAIScrollContainer == null || secondEngineContainer == null) {
-                    Log.e(TAG, "第二个窗口容器未初始化")
-                    Toast.makeText(this, "错误：搜索引擎容器未初始化", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
+        secondWebView?.let { webView ->
+            secondAIEngineContainer?.let { container ->
+                if (container.childCount == 0) {
+                    createAIEngineButtons(webView, container as LinearLayout, "center") { key ->
+                        centerEngineKey = key
+                        settingsManager.setCenterWindowSearchEngine(key)
+                    }
                 }
-                
-                // 获取当前显示的是哪种引擎列表
-                val isAIEngineShowing = secondAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第二个窗口当前显示的是${if (isAIEngineShowing) "AI" else "普通"}搜索引擎")
-                
-                // 直接切换显示的引擎列表
-                secondAIScrollContainer?.visibility = if (isAIEngineShowing) View.GONE else View.VISIBLE
-                secondEngineContainer?.visibility = if (isAIEngineShowing) View.VISIBLE else View.GONE
-                
-                // 更新切换按钮图标
-                secondEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
-                
-                // 使用Handler.post确保提示在UI更新后显示，并减少显示延迟感
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(
-                        this@DualFloatingWebViewService,
-                        "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "第二个窗口切换按钮出错", e)
-                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
         
-        // 给第三个窗口切换按钮添加点击事件
-        thirdEngineToggle?.setOnClickListener {
-            try {
-                Log.d(TAG, "第三个窗口切换按钮被点击")
-                
-                // 确保容器存在
-                if (thirdAIScrollContainer == null || thirdEngineContainer == null) {
-                    Log.e(TAG, "第三个窗口容器未初始化")
-                    Toast.makeText(this, "错误：搜索引擎容器未初始化", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
+        thirdWebView?.let { webView ->
+            thirdAIEngineContainer?.let { container ->
+                if (container.childCount == 0) {
+                    createAIEngineButtons(webView, container as LinearLayout, "right") { key ->
+                        rightEngineKey = key
+                        settingsManager.setRightWindowSearchEngine(key)
+                    }
                 }
-                
-                // 获取当前显示的是哪种引擎列表
-                val isAIEngineShowing = thirdAIScrollContainer?.visibility == View.VISIBLE
-                Log.d(TAG, "第三个窗口当前显示的是${if (isAIEngineShowing) "AI" else "普通"}搜索引擎")
-                
-                // 直接切换显示的引擎列表
-                thirdAIScrollContainer?.visibility = if (isAIEngineShowing) View.GONE else View.VISIBLE
-                thirdEngineContainer?.visibility = if (isAIEngineShowing) View.VISIBLE else View.GONE
-                
-                // 更新切换按钮图标
-                thirdEngineToggle?.setImageResource(if (isAIEngineShowing) R.drawable.ic_ai_search else R.drawable.ic_search)
-                
-                // 使用Handler.post确保提示在UI更新后显示，并减少显示延迟感
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(
-                        this@DualFloatingWebViewService,
-                        "已切换到${if (isAIEngineShowing) "普通" else "AI"}搜索引擎",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-                
-            } catch (e: Exception) {
-                Log.e(TAG, "第三个窗口切换按钮出错", e)
-                Toast.makeText(this, "切换引擎出错: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
         
-        Log.d(TAG, "搜索引擎切换按钮刷新完成")
+        Log.d(TAG, "搜索引擎容器设置刷新完成")
     }
 
     /**
@@ -6434,47 +6420,55 @@ class DualFloatingWebViewService : Service() {
     }
 
     private fun setupEngineToggles() {
-        // 设置第一个窗口的切换按钮
-        setupSingleEngineToggle(
-            toggleButton = firstEngineToggle,
-            webView = firstWebView,
-            engineContainer = firstEngineContainer,
-            aiContainer = firstAIEngineContainer,
-            aiScrollContainer = firstAIScrollContainer,
-            position = "left",
-            saveEngineKey = { key ->
-                leftEngineKey = key
-                settingsManager.setLeftWindowSearchEngine(key)
+        // 不再需要设置切换按钮，因为现在两种搜索引擎都同时显示
+        // 隐藏所有切换按钮
+        firstEngineToggle?.visibility = View.GONE
+        secondEngineToggle?.visibility = View.GONE
+        thirdEngineToggle?.visibility = View.GONE
+        
+        // 确保所有AI搜索引擎按钮已创建
+        firstWebView?.let { webView ->
+            firstAIEngineContainer?.let { container ->
+                if (container.childCount == 0) {
+                    createAIEngineButtons(webView, container as LinearLayout, "left") { key ->
+                        leftEngineKey = key
+                        settingsManager.setLeftWindowSearchEngine(key)
+                    }
+                }
             }
-        )
-
-        // 设置第二个窗口的切换按钮
-        setupSingleEngineToggle(
-            toggleButton = secondEngineToggle,
-            webView = secondWebView,
-            engineContainer = secondEngineContainer,
-            aiContainer = secondAIEngineContainer,
-            aiScrollContainer = secondAIScrollContainer,
-            position = "center",
-            saveEngineKey = { key ->
-                centerEngineKey = key
-                settingsManager.setCenterWindowSearchEngine(key)
+        }
+        
+        secondWebView?.let { webView ->
+            secondAIEngineContainer?.let { container ->
+                if (container.childCount == 0) {
+                    createAIEngineButtons(webView, container as LinearLayout, "center") { key ->
+                        centerEngineKey = key
+                        settingsManager.setCenterWindowSearchEngine(key)
+                    }
+                }
             }
-        )
-
-        // 设置第三个窗口的切换按钮
-        setupSingleEngineToggle(
-            toggleButton = thirdEngineToggle,
-            webView = thirdWebView,
-            engineContainer = thirdEngineContainer,
-            aiContainer = thirdAIEngineContainer,
-            aiScrollContainer = thirdAIScrollContainer,
-            position = "right",
-            saveEngineKey = { key ->
-                rightEngineKey = key
-                settingsManager.setRightWindowSearchEngine(key)
+        }
+        
+        thirdWebView?.let { webView ->
+            thirdAIEngineContainer?.let { container ->
+                if (container.childCount == 0) {
+                    createAIEngineButtons(webView, container as LinearLayout, "right") { key ->
+                        rightEngineKey = key
+                        settingsManager.setRightWindowSearchEngine(key)
+                    }
+                }
             }
-        )
+        }
+        
+        // 确保两类搜索引擎同时可见
+        firstAIScrollContainer?.visibility = View.VISIBLE
+        firstEngineContainer?.visibility = View.VISIBLE
+        
+        secondAIScrollContainer?.visibility = if (windowCount >= 2) View.VISIBLE else View.GONE
+        secondEngineContainer?.visibility = if (windowCount >= 2) View.VISIBLE else View.GONE
+        
+        thirdAIScrollContainer?.visibility = if (windowCount >= 3) View.VISIBLE else View.GONE
+        thirdEngineContainer?.visibility = if (windowCount >= 3) View.VISIBLE else View.GONE
     }
 
     private fun switchToButtonPanel(webView: WebView, container: LinearLayout) {
@@ -6578,7 +6572,7 @@ class DualFloatingWebViewService : Service() {
                 data.position,
                 data.saveEngineKey
             )
-        } else {
+                    } else {
             // 切换回普通模式
             switchEngineWithAnimation(
                 data.engineContainer,
