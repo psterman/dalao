@@ -6690,10 +6690,10 @@ class DualFloatingWebViewService : Service() {
             )
             gravity = Gravity.CENTER_VERTICAL
             setPadding(
-                16.dpToPx(this@DualFloatingWebViewService),
-                8.dpToPx(this@DualFloatingWebViewService),
-                16.dpToPx(this@DualFloatingWebViewService),
-                8.dpToPx(this@DualFloatingWebViewService)
+                12.dpToPx(this@DualFloatingWebViewService),
+                4.dpToPx(this@DualFloatingWebViewService),
+                12.dpToPx(this@DualFloatingWebViewService),
+                4.dpToPx(this@DualFloatingWebViewService)
             )
         }
         
@@ -6711,11 +6711,11 @@ class DualFloatingWebViewService : Service() {
             // 创建图标
             val iconView = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
-                    56.dpToPx(this@DualFloatingWebViewService),
-                    56.dpToPx(this@DualFloatingWebViewService)
+                    40.dpToPx(this@DualFloatingWebViewService),  // 减小图标尺寸
+                    40.dpToPx(this@DualFloatingWebViewService)   // 减小图标尺寸
                 ).apply {
-                    marginStart = 8.dpToPx(this@DualFloatingWebViewService)
-                    marginEnd = 8.dpToPx(this@DualFloatingWebViewService)
+                    marginStart = 4.dpToPx(this@DualFloatingWebViewService)  // 减小边距
+                    marginEnd = 4.dpToPx(this@DualFloatingWebViewService)    // 减小边距
                 }
                 
                 // 设置圆形背景和默认图标
@@ -6724,10 +6724,10 @@ class DualFloatingWebViewService : Service() {
                 
                 // 设置四边的内边距
                 setPadding(
-                    8.dpToPx(this@DualFloatingWebViewService),
-                    8.dpToPx(this@DualFloatingWebViewService),
-                    8.dpToPx(this@DualFloatingWebViewService),
-                    8.dpToPx(this@DualFloatingWebViewService)
+                    6.dpToPx(this@DualFloatingWebViewService),  // 减小内边距
+                    6.dpToPx(this@DualFloatingWebViewService),  // 减小内边距
+                    6.dpToPx(this@DualFloatingWebViewService),  // 减小内边距
+                    6.dpToPx(this@DualFloatingWebViewService)   // 减小内边距
                 )
                 
                 // 尝试加载网站的Favicon
