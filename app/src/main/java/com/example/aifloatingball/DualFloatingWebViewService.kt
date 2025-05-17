@@ -100,7 +100,6 @@ class DualFloatingWebViewService : Service() {
     private var thirdWebView: WebView? = null  // 添加第三个WebView
     private var searchInput: EditText? = null
     private var toggleLayoutButton: ImageButton? = null
-    private var dualSearchButton: ImageButton? = null
     private var closeButton: ImageButton? = null
     private var resizeHandle: View? = null
     private var container: LinearLayout? = null
@@ -784,7 +783,7 @@ class DualFloatingWebViewService : Service() {
         thirdWebView = floatingView?.findViewById(R.id.third_floating_webview)  // 添加第三个WebView
         searchInput = floatingView?.findViewById(R.id.dual_search_input)
         toggleLayoutButton = floatingView?.findViewById(R.id.btn_toggle_layout)
-        dualSearchButton = floatingView?.findViewById(R.id.btn_dual_search)
+        // 移除dualSearchButton赋值
         closeButton = floatingView?.findViewById(R.id.btn_dual_close)
         resizeHandle = floatingView?.findViewById(R.id.dual_resize_handle)
         divider1 = floatingView?.findViewById(R.id.divider1)  // 更新divider1
@@ -2239,10 +2238,7 @@ class DualFloatingWebViewService : Service() {
             updateLayoutOrientation()
         }
 
-        // 设置搜索按钮
-        dualSearchButton?.setOnClickListener {
-            performDualSearch()
-        }
+                // 移除搜索按钮，改为仅通过搜索输入框的回车键执行搜索
 
         // 设置关闭按钮
         closeButton?.setOnClickListener {
@@ -6681,7 +6677,7 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
-    private fun createAIEngineButtons(webView: WebView, aiContainer: LinearLayout, engineKeyPrefix: String, saveEngineFunction: (String) -> Unit) {
+        private fun createAIEngineButtons(webView: WebView, aiContainer: LinearLayout, engineKeyPrefix: String, saveEngineFunction: (String) -> Unit) {
         // 清空容器
         aiContainer.removeAllViews()
         
@@ -6693,8 +6689,12 @@ class DualFloatingWebViewService : Service() {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(16.dpToPx(this@DualFloatingWebViewService), 8.dpToPx(this@DualFloatingWebViewService), 
-                      16.dpToPx(this@DualFloatingWebViewService), 8.dpToPx(this@DualFloatingWebViewService))
+            setPadding(
+                16.dpToPx(this@DualFloatingWebViewService),
+                8.dpToPx(this@DualFloatingWebViewService),
+                16.dpToPx(this@DualFloatingWebViewService),
+                8.dpToPx(this@DualFloatingWebViewService)
+            )
         }
         
         // AI搜索引擎列表
@@ -6708,28 +6708,19 @@ class DualFloatingWebViewService : Service() {
         
         // 为每个AI引擎创建按钮
         aiEngines.forEach { (name, url, defaultIconRes) ->
-            // 创建带有文本的垂直布局
-            val itemLayout = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    marginStart = 12.dpToPx(this@DualFloatingWebViewService)
-                    marginEnd = 12.dpToPx(this@DualFloatingWebViewService)
-                }
-                gravity = Gravity.CENTER
-            }
-            
             // 创建图标
             val iconView = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     56.dpToPx(this@DualFloatingWebViewService),
                     56.dpToPx(this@DualFloatingWebViewService)
-                )
+                ).apply {
+                    marginStart = 8.dpToPx(this@DualFloatingWebViewService)
+                    marginEnd = 8.dpToPx(this@DualFloatingWebViewService)
+                }
                 
                 // 设置圆形背景
                 background = ContextCompat.getDrawable(this@DualFloatingWebViewService, R.drawable.circle_button_background)
+                
                 // 设置四边的内边距
                 setPadding(
                     8.dpToPx(this@DualFloatingWebViewService),
@@ -6749,26 +6740,13 @@ class DualFloatingWebViewService : Service() {
                     webView.loadUrl(url)
                     saveEngineFunction("ai_${name.lowercase()}")
                 }
+                
+                // 设置内容描述，便于无障碍访问
+                contentDescription = name
             }
             
-            // 创建名称文本
-            val textView = TextView(this).apply {
-                text = name
-                textSize = 12f
-                setTextColor(Color.BLACK)
-                gravity = Gravity.CENTER
-                maxLines = 1
-                ellipsize = TextUtils.TruncateAt.END
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            }
-            
-            // 添加视图到布局
-            itemLayout.addView(iconView)
-            itemLayout.addView(textView)
-            buttonLayout.addView(itemLayout)
+            // 直接添加图标到布局，不再添加文字
+            buttonLayout.addView(iconView)
         }
         
         // 添加整个布局到容器

@@ -28,14 +28,6 @@
             android:background="@android:color/transparent"/>
 
         <ImageButton
-            android:id="@+id/btn_dual_search"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_search"
-            android:background="@android:color/transparent"
-            android:contentDescription="搜索"/>
-
-        <ImageButton
             android:id="@+id/btn_save_engines"
             android:layout_width="40dp"
             android:layout_height="40dp"
@@ -147,10 +139,11 @@
                         <TextView
                             android:id="@+id/first_floating_title"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:padding="8dp"
+                            android:layout_height="0dp"
+                            android:padding="0dp"
                             android:textColor="@android:color/white"
                             android:text="搜索"
+                            android:visibility="gone"
                             android:gravity="center"/>
 
                         <!-- 搜索引擎切换容器 -->
@@ -170,11 +163,12 @@
                                 android:src="@drawable/ic_search"
                                 android:contentDescription="切换搜索引擎类型"/>
                             
-                            <!-- 搜索引擎容器 - 使用FrameLayout使两种引擎共用同一位置 -->
-                            <FrameLayout
+                            <!-- 搜索引擎容器 - 使用LinearLayout替代FrameLayout -->
+                            <LinearLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1">
+                                android:layout_weight="1"
+                                android:orientation="vertical">
                                 
                                 <!-- 普通搜索引擎容器 -->
                                 <LinearLayout
@@ -206,7 +200,15 @@
                                         android:layout_marginTop="2dp"/>
                                 </LinearLayout>
                                 
-                                <!-- AI搜索引擎容器 (初始隐藏) -->
+                                <!-- 分割线 -->
+                                <View
+                                    android:layout_width="match_parent"
+                                    android:layout_height="1dp"
+                                    android:background="#33FFFFFF"
+                                    android:layout_marginTop="2dp"
+                                    android:layout_marginBottom="2dp"/>
+                                    
+                                <!-- AI搜索引擎容器 -->
                                 <HorizontalScrollView
                                     android:id="@+id/first_ai_scroll_container"
                                     android:layout_width="match_parent"
@@ -214,8 +216,7 @@
                                     android:scrollbars="horizontal"
                                     android:overScrollMode="ifContentScrolls"
                                     android:scrollbarSize="3dp"
-                                    android:scrollbarStyle="insideOverlay"
-                                    android:visibility="gone">
+                                    android:scrollbarStyle="insideOverlay">
                                     
                                     <LinearLayout
                                         android:id="@+id/first_ai_engine_container"
@@ -224,7 +225,7 @@
                                         android:orientation="horizontal"
                                         android:padding="2dp"/>
                                 </HorizontalScrollView>
-                            </FrameLayout>
+                            </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
 
@@ -260,10 +261,11 @@
                         <TextView
                             android:id="@+id/second_floating_title"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:padding="8dp"
+                            android:layout_height="0dp"
+                            android:padding="0dp"
                             android:textColor="@android:color/white"
                             android:text="搜索"
+                            android:visibility="gone"
                             android:gravity="center"/>
 
                         <!-- 搜索引擎切换容器 -->
@@ -283,11 +285,12 @@
                                 android:src="@drawable/ic_search"
                                 android:contentDescription="切换搜索引擎类型"/>
                             
-                            <!-- 搜索引擎容器 - 使用FrameLayout使两种引擎共用同一位置 -->
-                            <FrameLayout
+                            <!-- 搜索引擎容器 - 使用LinearLayout替代FrameLayout -->
+                            <LinearLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1">
+                                android:layout_weight="1"
+                                android:orientation="vertical">
                                 
                                 <!-- 普通搜索引擎容器 -->
                                 <LinearLayout
@@ -319,7 +322,15 @@
                                         android:layout_marginTop="2dp"/>
                                 </LinearLayout>
                                 
-                                <!-- AI搜索引擎容器 (初始隐藏) -->
+                                <!-- 分割线 -->
+                                <View
+                                    android:layout_width="match_parent"
+                                    android:layout_height="1dp"
+                                    android:background="#33FFFFFF"
+                                    android:layout_marginTop="2dp"
+                                    android:layout_marginBottom="2dp"/>
+                                    
+                                <!-- AI搜索引擎容器 -->
                                 <HorizontalScrollView
                                     android:id="@+id/second_ai_scroll_container"
                                     android:layout_width="match_parent"
@@ -327,8 +338,7 @@
                                     android:scrollbars="horizontal"
                                     android:overScrollMode="ifContentScrolls"
                                     android:scrollbarSize="3dp"
-                                    android:scrollbarStyle="insideOverlay"
-                                    android:visibility="gone">
+                                    android:scrollbarStyle="insideOverlay">
                                     
                                     <LinearLayout
                                         android:id="@+id/second_ai_engine_container"
@@ -337,7 +347,7 @@
                                         android:orientation="horizontal"
                                         android:padding="2dp"/>
                                 </HorizontalScrollView>
-                            </FrameLayout>
+                            </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
 
@@ -373,10 +383,11 @@
                         <TextView
                             android:id="@+id/third_floating_title"
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:padding="8dp"
+                            android:layout_height="0dp"
+                            android:padding="0dp"
                             android:textColor="@android:color/white"
                             android:text="搜索"
+                            android:visibility="gone"
                             android:gravity="center"/>
 
                         <!-- 搜索引擎切换容器 -->
@@ -396,11 +407,12 @@
                                 android:src="@drawable/ic_search"
                                 android:contentDescription="切换搜索引擎类型"/>
                             
-                            <!-- 搜索引擎容器 - 使用FrameLayout使两种引擎共用同一位置 -->
-                            <FrameLayout
+                            <!-- 搜索引擎容器 - 使用LinearLayout替代FrameLayout -->
+                            <LinearLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1">
+                                android:layout_weight="1"
+                                android:orientation="vertical">
                                 
                                 <!-- 普通搜索引擎容器 -->
                                 <LinearLayout
@@ -432,7 +444,15 @@
                                         android:layout_marginTop="2dp"/>
                                 </LinearLayout>
                                 
-                                <!-- AI搜索引擎容器 (初始隐藏) -->
+                                <!-- 分割线 -->
+                                <View
+                                    android:layout_width="match_parent"
+                                    android:layout_height="1dp"
+                                    android:background="#33FFFFFF"
+                                    android:layout_marginTop="2dp"
+                                    android:layout_marginBottom="2dp"/>
+                                    
+                                <!-- AI搜索引擎容器 -->
                                 <HorizontalScrollView
                                     android:id="@+id/third_ai_scroll_container"
                                     android:layout_width="match_parent"
@@ -440,8 +460,7 @@
                                     android:scrollbars="horizontal"
                                     android:overScrollMode="ifContentScrolls"
                                     android:scrollbarSize="3dp"
-                                    android:scrollbarStyle="insideOverlay"
-                                    android:visibility="gone">
+                                    android:scrollbarStyle="insideOverlay">
                                     
                                     <LinearLayout
                                         android:id="@+id/third_ai_engine_container"
@@ -450,7 +469,7 @@
                                         android:orientation="horizontal"
                                         android:padding="2dp"/>
                                 </HorizontalScrollView>
-                            </FrameLayout>
+                            </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
 
