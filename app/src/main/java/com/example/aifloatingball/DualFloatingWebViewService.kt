@@ -6697,13 +6697,13 @@ class DualFloatingWebViewService : Service() {
             )
         }
         
-        // AI搜索引擎列表
+        // AI搜索引擎列表，使用特定的默认图标
         val aiEngines = listOf(
-            Triple("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search),
-            Triple("Claude", "https://claude.ai/", R.drawable.ic_search),
-            Triple("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_search),
-            Triple("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_search),
-            Triple("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_search)
+            Triple("ChatGPT", "https://chat.openai.com/", R.drawable.ic_chatgpt),
+            Triple("Claude", "https://claude.ai/", R.drawable.ic_claude),
+            Triple("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_wenxin),
+            Triple("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_qianwen),
+            Triple("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_xinghuo)
         )
         
         // 为每个AI引擎创建按钮
@@ -6718,8 +6718,9 @@ class DualFloatingWebViewService : Service() {
                     marginEnd = 8.dpToPx(this@DualFloatingWebViewService)
                 }
                 
-                // 设置圆形背景
+                // 设置圆形背景和默认图标
                 background = ContextCompat.getDrawable(this@DualFloatingWebViewService, R.drawable.circle_button_background)
+                setImageResource(defaultIconRes)
                 
                 // 设置四边的内边距
                 setPadding(
@@ -6729,7 +6730,7 @@ class DualFloatingWebViewService : Service() {
                     8.dpToPx(this@DualFloatingWebViewService)
                 )
                 
-                // 加载Favicon
+                // 尝试加载网站的Favicon
                 loadFavicon(url, this, defaultIconRes)
                 
                 // 设置点击事件
@@ -6745,7 +6746,7 @@ class DualFloatingWebViewService : Service() {
                 contentDescription = name
             }
             
-            // 直接添加图标到布局，不再添加文字
+            // 直接添加图标到布局
             buttonLayout.addView(iconView)
         }
         
