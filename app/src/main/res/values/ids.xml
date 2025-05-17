@@ -14,4 +14,7 @@
     <item name="action_copy" type="id"/>
     <item name="action_cut" type="id"/>
     <item name="action_paste" type="id"/>
+    <item name="control_panel_container" type="id"/>
+    <item name="normal_engine_container" type="id"/>
+    <item name="ai_engine_container" type="id"/>
 </resources> 

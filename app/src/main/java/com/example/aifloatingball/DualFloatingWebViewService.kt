@@ -5850,6 +5850,44 @@ class DualFloatingWebViewService : Service() {
         addSearchEngineIcons(container, engines, webView, currentEngine, isAI)
     }
 
+        private data class ButtonInfo(val text: String, val iconRes: Int, val onClick: () -> Unit)
+
+    private fun createControlButton(text: String, iconRes: Int, onClick: () -> Unit): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                marginStart = 8.dpToPx(this@DualFloatingWebViewService)
+                marginEnd = 8.dpToPx(this@DualFloatingWebViewService)
+            }
+            gravity = Gravity.CENTER
+
+            // 添加图标
+            addView(ImageView(context).apply {
+                setImageResource(iconRes)
+                layoutParams = LinearLayout.LayoutParams(
+                    32.dpToPx(this@DualFloatingWebViewService),
+                    32.dpToPx(this@DualFloatingWebViewService)
+                )
+                setOnClickListener { onClick() }
+            })
+
+            // 添加文字
+            addView(TextView(context).apply {
+                this.text = text
+                textSize = 12f
+                setTextColor(Color.BLACK)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+            })
+        }
+    }
+
     private fun createAIControlPanel(webView: WebView): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -5857,342 +5895,282 @@ class DualFloatingWebViewService : Service() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(
+                12.dpToPx(this@DualFloatingWebViewService),
+                4.dpToPx(this@DualFloatingWebViewService),
+                12.dpToPx(this@DualFloatingWebViewService),
+                4.dpToPx(this@DualFloatingWebViewService)
+            )
             
-            // 创建按钮样式
-            val buttonParams = LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1.0f
-            ).apply {
-                marginStart = 3
-                marginEnd = 3
+            // 判断是否是AI模式
+            val isAI = when(webView) {
+                firstWebView -> leftEngineKey.startsWith("ai_")
+                secondWebView -> centerEngineKey.startsWith("ai_") 
+                thirdWebView -> rightEngineKey.startsWith("ai_")
+                else -> false
             }
 
-            // 创建并添加所有按钮
-            val buttonConfigs = listOf(
-                // 将"关闭"按钮移到最前面
-                ButtonConfig("关闭", View.OnClickListener {
-                    try {
-                        // 视觉反馈
-                        val button = it as? Button
-                        button?.let { btn ->
-                            btn.alpha = 0.5f
-                            btn.postDelayed({ btn.alpha = 1.0f }, 100)
-                        }
-
-                        // 记录日志
-                        Log.d("DualFloatingWebView", "关闭按钮被点击")
-                        
-                        // 立即显示toast提示
-                        Toast.makeText(
-                            this@DualFloatingWebViewService,
-                            "正在关闭面板...",
-                            Toast.LENGTH_SHORT
-                        ).show()
-
-                        // 尝试各种方法关闭面板
-                        var success = false
-                        
-                        // 1. 首先尝试使用对应的引擎容器
-                        val container = when (webView) {
-                            firstWebView -> firstEngineContainer
-                            secondWebView -> secondEngineContainer
-                            thirdWebView -> thirdEngineContainer
-                            else -> null
-                        }
-                        
-                        if (container != null) {
-                            success = closeButtonPanel(container)
-                        }
-                        
-                        // 2. 如果第一种方法失败，尝试获取当前按钮的父容器链
-                        if (!success) {
-                            var parent: View? = this.parent as? View
-                            var depth = 0
+            // 创建主要功能按钮 - 根据是否AI搜索引擎提供不同功能
+            val mainButtons = if (isAI) {
+                listOf(
+                    ButtonInfo("粘贴发送", R.drawable.ic_paste) {
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.let { text ->
+                            // 使用更可靠的方式粘贴并发送
+                            autoFillAndSendClipboardContent(webView)
                             
-                            while (parent != null && depth < 3 && !success) {
-                                Log.d("DualFloatingWebView", "尝试父容器链，深度 $depth: ${parent.javaClass.simpleName}")
-                                
-                                if (parent is LinearLayout) {
-                                    val targetContainer = parent
-                                    // 尝试清空并恢复
-                                    targetContainer.removeAllViews()
-                                    
-                                    val isAI = when (webView) {
-                                        firstWebView -> leftEngineKey
-                                        secondWebView -> centerEngineKey
-                                        thirdWebView -> rightEngineKey
-                                        else -> "baidu"
-                                    }.startsWith("ai_")
-                                    
-                                    restoreSearchEnginePanel(webView, targetContainer, isAI)
-                                    success = true
-                                    break
+                            // 显示提示
+                            Toast.makeText(this@DualFloatingWebViewService, "已发送内容", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    ButtonInfo("清空", R.drawable.ic_close) {
+                        // 清空输入框
+                        webView.evaluateJavascript("""
+                            (function() {
+                                var textareas = document.querySelectorAll('textarea');
+                                for(var i = 0; i < textareas.length; i++) {
+                                    textareas[i].value = '';
+                                }
+                                return true;
+                            })()
+                        """.trimIndent(), null)
+                        
+                        Toast.makeText(this@DualFloatingWebViewService, "已清空输入", Toast.LENGTH_SHORT).show()
+                    },
+                    ButtonInfo("重新生成", R.drawable.ic_refresh) {
+                        // 查找并点击"重新生成"按钮
+                        webView.evaluateJavascript("""
+                            (function() {
+                                var buttons = document.querySelectorAll('button');
+                                for(var i = 0; i < buttons.length; i++) {
+                                    if(buttons[i].textContent.includes('重新') || 
+                                       buttons[i].textContent.includes('Regenerate') || 
+                                       buttons[i].textContent.includes('retry') ||
+                                       buttons[i].textContent.includes('重试')) {
+                                        buttons[i].click();
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            })()
+                        """.trimIndent()) { result ->
+                            if (result == "true") {
+                                Toast.makeText(this@DualFloatingWebViewService, "已发送重新生成请求", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(this@DualFloatingWebViewService, "未找到重新生成按钮", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    ButtonInfo("复制", R.drawable.ic_content_copy) {
+                        // 复制最后一条消息
+                        webView.evaluateJavascript("""
+                            (function() {
+                                // 尝试获取最后一个消息元素
+                                var messages = document.querySelectorAll('[role="region"]');
+                                if (messages.length > 0) {
+                                    var lastMessage = messages[messages.length - 1];
+                                    var text = lastMessage.innerText;
+                                    return text;
                                 }
                                 
-                                parent = parent.parent as? View
-                                depth++
+                                // 备用方法
+                                var elements = document.querySelectorAll('p');
+                                if (elements.length > 0) {
+                                    var lastElement = elements[elements.length - 1];
+                                    return lastElement.innerText;
+                                }
+                                return "";
+                            })()
+                        """.trimIndent()) { result ->
+                            val text = result?.trim('"')?.replace("\\n", "\n") ?: ""
+                            if (text.isNotEmpty()) {
+                                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("AI回复", text)
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(this@DualFloatingWebViewService, "已复制回复内容", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(this@DualFloatingWebViewService, "未找到可复制内容", Toast.LENGTH_SHORT).show()
                             }
                         }
-                        
-                        // 3. 最后的紧急方案，强制恢复所有容器
-                        if (!success) {
-                            Log.d("DualFloatingWebView", "尝试强制恢复所有容器")
-                            forceRestoreAllContainers()
-                            success = true
-                        }
-                        
-                        // 确认操作完成
-                        if (success) {
-                            Toast.makeText(
-                                this@DualFloatingWebViewService,
-                                "已关闭面板",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    } catch (e: Exception) {
-                        Log.e("DualFloatingWebView", "关闭面板时出错", e)
-                        
-                        // 出错时强制恢复
-                        try {
-                            forceRestoreAllContainers()
-                            Toast.makeText(
-                                this@DualFloatingWebViewService,
-                                "已尝试恢复界面",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } catch (e2: Exception) {
-                            Log.e("DualFloatingWebView", "恢复失败", e2)
-                            Toast.makeText(
-                                this@DualFloatingWebViewService,
-                                "操作失败，请重试",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                }),
-                ButtonConfig("粘贴发送", View.OnClickListener {
-                    if (isAIEngineActiveMap[webView] == true) {
-                        clipboardManager.primaryClip?.let { clipData ->
-                            if (clipData.itemCount > 0) {
-                                val text = clipData.getItemAt(0).text.toString()
-                                autoFillAndSendClipboardContent(webView)
+                    },
+                    ButtonInfo("停止生成", R.drawable.ic_refresh) {
+                        // 查找并点击"停止生成"按钮
+                        webView.evaluateJavascript("""
+                            (function() {
+                                var buttons = document.querySelectorAll('button');
+                                for(var i = 0; i < buttons.length; i++) {
+                                    if(buttons[i].textContent.includes('停止') || 
+                                       buttons[i].textContent.includes('Stop') || 
+                                       buttons[i].getAttribute('aria-label')?.includes('Stop')) {
+                                        buttons[i].click();
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            })()
+                        """.trimIndent()) { result ->
+                            if (result == "true") {
+                                Toast.makeText(this@DualFloatingWebViewService, "已停止生成", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(this@DualFloatingWebViewService, "未找到停止按钮", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
-                }),
-                ButtonConfig("剪贴板", View.OnClickListener {
-                    if (isAIEngineActiveMap[webView] == true) {
-                        try {
-                            clipboardManager.primaryClip?.let { clipData ->
-                                if (clipData.itemCount > 0) {
-                                    val text = clipData.getItemAt(0).text.toString().trim()
-                                    val displayText = if (text.length > 50) text.substring(0, 50) + "..." else text
-                                    
-                                    // 记录日志
-                                    Log.d("DualFloatingWebView", "剪贴板按钮被点击，内容: $displayText")
-                                    
-                                    // 显示Toast提示
-                                    Toast.makeText(
-                                        this@DualFloatingWebViewService,
-                                        "当前剪贴板内容：$displayText",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                )
+            } else {
+                listOf(
+                    ButtonInfo("粘贴", R.drawable.ic_paste) {
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.let { text ->
+                            // 粘贴到当前选中的输入框
+                            webView.evaluateJavascript("""
+                                (function() {
+                                    var activeElement = document.activeElement;
+                                    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                                        activeElement.value = '$text';
+                                        return true;
+                                    }
+                                    return false;
+                                })()
+                            """.trimIndent()) { result ->
+                                if (result == "true") {
+                                    Toast.makeText(this@DualFloatingWebViewService, "已粘贴内容", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(
-                                        this@DualFloatingWebViewService,
-                                        "剪贴板为空",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    Toast.makeText(this@DualFloatingWebViewService, "未找到输入框", Toast.LENGTH_SHORT).show()
                                 }
-                            } ?: run {
-                                Toast.makeText(
-                                    this@DualFloatingWebViewService,
-                                    "无法访问剪贴板",
-                                    Toast.LENGTH_SHORT
-                                ).show()
                             }
-                        } catch (e: Exception) {
-                            Log.e("DualFloatingWebView", "访问剪贴板失败", e)
-                            Toast.makeText(
-                                this@DualFloatingWebViewService,
-                                "访问剪贴板失败: ${e.message}",
-                                Toast.LENGTH_SHORT
-                            ).show()
                         }
-                    }
-                }),
-                ButtonConfig("返回", View.OnClickListener {
-                    if (isAIEngineActiveMap[webView] == true) {
-                        try {
-                            // 记录日志
-                            Log.d("DualFloatingWebView", "返回按钮被点击")
-                            
-                            // 尝试返回上一页
-                            if (webView.canGoBack()) {
-                                webView.goBack()
-                                Toast.makeText(
-                                    this@DualFloatingWebViewService,
-                                    "返回上一页",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                    },
+                    ButtonInfo("复制", R.drawable.ic_content_copy) {
+                        // 复制选中内容
+                        webView.evaluateJavascript("""
+                            (function() {
+                                var selectedText = window.getSelection().toString();
+                                return selectedText;
+                            })()
+                        """.trimIndent()) { result ->
+                            val text = result?.trim('"') ?: ""
+                            if (text.isNotEmpty()) {
+                                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("选中内容", text)
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(this@DualFloatingWebViewService, "已复制选中内容", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(
-                                    this@DualFloatingWebViewService,
-                                    "已经是第一页",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                Toast.makeText(this@DualFloatingWebViewService, "未选中任何内容", Toast.LENGTH_SHORT).show()
                             }
-                        } catch (e: Exception) {
-                            Log.e("DualFloatingWebView", "返回操作失败", e)
-                            Toast.makeText(
-                                this@DualFloatingWebViewService,
-                                "返回操作失败: ${e.message}",
-                                Toast.LENGTH_SHORT
-                            ).show()
                         }
+                    },
+                    ButtonInfo("返回", R.drawable.ic_back) {
+                        if (webView.canGoBack()) webView.goBack()
+                    },
+                    ButtonInfo("前进", R.drawable.ic_forward) {
+                        if (webView.canGoForward()) webView.goForward()
+                    },
+                    ButtonInfo("刷新", R.drawable.ic_refresh) {
+                        webView.reload()
                     }
-                }),
-                ButtonConfig("前进", View.OnClickListener {
-                    if (isAIEngineActiveMap[webView] == true) {
-                        try {
-                            // 记录日志
-                            Log.d("DualFloatingWebView", "前进按钮被点击")
-                            
-                            // 尝试前进
-                            if (webView.canGoForward()) {
-                                webView.goForward()
-                                Toast.makeText(
-                                    this@DualFloatingWebViewService,
-                                    "前进到下一页",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                Toast.makeText(
-                                    this@DualFloatingWebViewService,
-                                    "已经是最后一页",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } catch (e: Exception) {
-                            Log.e("DualFloatingWebView", "前进操作失败", e)
-                            Toast.makeText(
-                                this@DualFloatingWebViewService,
-                                "前进操作失败: ${e.message}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                )
+            }
+
+            // 添加主要功能按钮
+            mainButtons.forEach { button ->
+                addView(createControlButton(button.text, button.iconRes, button.onClick))
+            }
+
+            // 添加分隔线
+            addView(View(context).apply {
+                layoutParams = LinearLayout.LayoutParams(1.dpToPx(context), 24.dpToPx(context))
+                setBackgroundColor(Color.LTGRAY)
+                val margin = 8.dpToPx(context)
+                (layoutParams as LinearLayout.LayoutParams).setMargins(margin, 0, margin, 0)
+            })
+
+            // 添加切换和关闭按钮
+            val controlButtons = listOf(
+                ButtonInfo("切换", R.drawable.ic_switch) {
+                    // 获取对应的引擎容器
+                    val container = when(webView) {
+                        firstWebView -> firstEngineContainer
+                        secondWebView -> secondEngineContainer
+                        thirdWebView -> thirdEngineContainer
+                        else -> null
                     }
-                }),
-                ButtonConfig("刷新", View.OnClickListener {
-                    if (isAIEngineActiveMap[webView] == true) {
-                        try {
-                            // 记录日志
-                            Log.d("DualFloatingWebView", "刷新按钮被点击")
-                            
-                            // 刷新页面
-                            webView.reload()
-                            Toast.makeText(
-                                this@DualFloatingWebViewService,
-                                "正在刷新页面",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } catch (e: Exception) {
-                            Log.e("DualFloatingWebView", "刷新操作失败", e)
-                            Toast.makeText(
-                                this@DualFloatingWebViewService,
-                                "刷新操作失败: ${e.message}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                    val aiContainer = when(webView) {
+                        firstWebView -> firstAIEngineContainer
+                        secondWebView -> secondAIEngineContainer
+                        thirdWebView -> thirdAIEngineContainer
+                        else -> null
                     }
-                }),
-                ButtonConfig("切换", View.OnClickListener {
-                    try {
-                        // 记录日志
-                        Log.d("DualFloatingWebView", "切换按钮被点击")
+                    val aiScrollContainer = when(webView) {
+                        firstWebView -> firstAIScrollContainer
+                        secondWebView -> secondAIScrollContainer
+                        thirdWebView -> thirdAIScrollContainer
+                        else -> null
+                    }
+                    
+                    // 切换搜索引擎类型
+                    if (container != null && aiContainer != null && aiScrollContainer != null) {
+                        // 清空当前面板
+                        removeAllViews()
                         
-                    // 获取父容器
-                    val container = this.parent as? LinearLayout
-                    if (container != null) {
-                        // 根据当前引擎类型决定是切换到AI还是普通搜索引擎
-                        val currentEngine = when (webView) {
-                            firstWebView -> leftEngineKey
-                            secondWebView -> centerEngineKey
-                            thirdWebView -> rightEngineKey
-                            else -> "baidu"
+                        // 判断当前引擎类型
+                        val isNormalEngineShowing = container.visibility == View.VISIBLE
+                        
+                        if (isNormalEngineShowing) {
+                            // 切换到AI引擎
+                            container.visibility = View.GONE
+                            aiScrollContainer.visibility = View.VISIBLE
+                        } else {
+                            // 切换到普通引擎
+                            container.visibility = View.VISIBLE
+                            aiScrollContainer.visibility = View.GONE
                         }
-                        val isCurrentAI = currentEngine.startsWith("ai_")
-                            
-                            // 记录当前状态
-                            Log.d("DualFloatingWebView", "当前引擎: $currentEngine, 是AI引擎: $isCurrentAI")
-                            
-                            // 尝试找到引擎容器
-                            val engineContainer = when (webView) {
-                                firstWebView -> firstEngineContainer
-                                secondWebView -> secondEngineContainer
-                                thirdWebView -> thirdEngineContainer
-                                else -> null
-                            }
-                            
-                            if (engineContainer != null) {
-                                // 直接在正确的容器上切换
-                                engineContainer.removeAllViews()
-                                
-                                // 切换到另一类型的搜索引擎
-                                restoreSearchEnginePanel(webView, engineContainer, !isCurrentAI)
-                                
-                                // 显示提示
-                                val toastMessage = if (isCurrentAI) "已切换到普通搜索" else "已切换到AI搜索"
-                                Toast.makeText(
-                                    this@DualFloatingWebViewService,
-                                    toastMessage,
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            } else {
-                                // 如果找不到正确的容器，尝试使用传递的容器
-                        restoreSearchEnginePanel(webView, container, !isCurrentAI)
-                                
-                                // 显示提示
-                                Toast.makeText(
-                                    this@DualFloatingWebViewService,
-                                    if (isCurrentAI) "已切换到普通搜索" else "已切换到AI搜索",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    } catch (e: Exception) {
-                        Log.e("DualFloatingWebView", "切换搜索引擎失败", e)
-                        Toast.makeText(
-                            this@DualFloatingWebViewService,
-                            "切换搜索引擎失败: ${e.message}",
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        
+                        // 重建按钮面板
+                        closeButtonPanel(container)
                     }
-                })
+                },
+                ButtonInfo("关闭", R.drawable.ic_close) {
+                    // 获取对应的引擎容器
+                    val container = when(webView) {
+                        firstWebView -> firstEngineContainer
+                        secondWebView -> secondEngineContainer
+                        thirdWebView -> thirdEngineContainer
+                        else -> null
+                    }
+                    
+                    // 尝试关闭按钮面板并恢复引擎容器
+                    if (container != null) {
+                        closeButtonPanel(container)
+                    } else {
+                        hideControlPanel()
+                    }
+                }
             )
 
-            // 创建并添加按钮到面板
-            buttonConfigs.forEach { config ->
-                addView(Button(context).apply {
-                    text = config.text
-                    layoutParams = buttonParams
-                    setOnClickListener(config.onClick)
-                    background = ContextCompat.getDrawable(context, R.drawable.button_background)
-                    setTextColor(Color.WHITE)
-                    textSize = 11f  // 稍微减小字体以适应更多按钮
-                    setPadding(3.dpToPx(this@DualFloatingWebViewService),
-                              2.dpToPx(this@DualFloatingWebViewService),
-                              3.dpToPx(this@DualFloatingWebViewService),
-                              2.dpToPx(this@DualFloatingWebViewService))
-                    
-                    // 为关闭按钮设置特殊样式
-                    if (config.text == "关闭") {
-                        setTextColor(Color.RED)
-                    }
-                })
+            // 添加控制按钮
+            controlButtons.forEach { button ->
+                addView(createControlButton(button.text, button.iconRes, button.onClick))
             }
         }
+    }
+
+    private fun hideControlPanel() {
+        floatingView?.findViewById<View>(R.id.control_panel_container)?.visibility = View.GONE
+    }
+
+    private fun handleEngineToggle(webView: WebView) {
+        isAIMode = !isAIMode
+        updateEngineVisibility()
+    }
+
+    private fun updateEngineVisibility() {
+        val normalContainer = floatingView?.findViewById<View>(R.id.normal_engine_container)
+        val aiContainer = floatingView?.findViewById<View>(R.id.ai_engine_container)
+        
+        normalContainer?.visibility = if (isAIMode) View.GONE else View.VISIBLE
+        aiContainer?.visibility = if (isAIMode) View.VISIBLE else View.GONE
     }
 
     private fun setupWebViewScrollListener(webView: WebView) {
@@ -6506,6 +6484,19 @@ class DualFloatingWebViewService : Service() {
         
         // 添加按钮面板到容器
         container.addView(buttonPanel)
+        
+        // 添加震动反馈
+        try {
+            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(30)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "震动反馈失败", e)
+        }
     }
 
     private var isAIMode = false
@@ -6677,9 +6668,25 @@ class DualFloatingWebViewService : Service() {
         }
     }
 
-        private fun createAIEngineButtons(webView: WebView, aiContainer: LinearLayout, engineKeyPrefix: String, saveEngineFunction: (String) -> Unit) {
+    private fun createAIEngineButtons(webView: WebView, aiContainer: LinearLayout, engineKeyPrefix: String, saveEngineFunction: (String) -> Unit) {
         // 清空容器
         aiContainer.removeAllViews()
+        
+        // 创建控制面板容器
+        val controlPanelContainer = LinearLayout(this).apply {
+            id = View.generateViewId()
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            visibility = View.GONE
+        }
+        aiContainer.addView(controlPanelContainer)
+        
+        // 创建控制面板
+        val controlPanel = createAIControlPanel(webView)
+        controlPanelContainer.addView(controlPanel)
         
         // 创建水平布局
         val buttonLayout = LinearLayout(this).apply {
@@ -6699,11 +6706,11 @@ class DualFloatingWebViewService : Service() {
         
         // AI搜索引擎列表，使用特定的默认图标
         val aiEngines = listOf(
-            Triple("ChatGPT", "https://chat.openai.com/", R.drawable.ic_chatgpt),
-            Triple("Claude", "https://claude.ai/", R.drawable.ic_claude),
-            Triple("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_wenxin),
-            Triple("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_qianwen),
-            Triple("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_xinghuo)
+            Triple("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search),
+            Triple("Claude", "https://claude.ai/", R.drawable.ic_search),
+            Triple("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_search),
+            Triple("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_search),
+            Triple("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_search)
         )
         
         // 为每个AI引擎创建按钮
@@ -6711,36 +6718,61 @@ class DualFloatingWebViewService : Service() {
             // 创建图标
             val iconView = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
-                    40.dpToPx(this@DualFloatingWebViewService),  // 减小图标尺寸
-                    40.dpToPx(this@DualFloatingWebViewService)   // 减小图标尺寸
+                    56.dpToPx(this@DualFloatingWebViewService),
+                    56.dpToPx(this@DualFloatingWebViewService)
                 ).apply {
-                    marginStart = 4.dpToPx(this@DualFloatingWebViewService)  // 减小边距
-                    marginEnd = 4.dpToPx(this@DualFloatingWebViewService)    // 减小边距
+                    marginStart = 8.dpToPx(this@DualFloatingWebViewService)
+                    marginEnd = 8.dpToPx(this@DualFloatingWebViewService)
                 }
                 
-                // 设置圆形背景和默认图标
+                // 设置圆形背景
                 background = ContextCompat.getDrawable(this@DualFloatingWebViewService, R.drawable.circle_button_background)
-                setImageResource(defaultIconRes)
-                
                 // 设置四边的内边距
                 setPadding(
-                    6.dpToPx(this@DualFloatingWebViewService),  // 减小内边距
-                    6.dpToPx(this@DualFloatingWebViewService),  // 减小内边距
-                    6.dpToPx(this@DualFloatingWebViewService),  // 减小内边距
-                    6.dpToPx(this@DualFloatingWebViewService)   // 减小内边距
+                    8.dpToPx(this@DualFloatingWebViewService),
+                    8.dpToPx(this@DualFloatingWebViewService),
+                    8.dpToPx(this@DualFloatingWebViewService),
+                    8.dpToPx(this@DualFloatingWebViewService)
                 )
                 
-                // 尝试加载网站的Favicon
+                // 加载Favicon
                 loadFavicon(url, this, defaultIconRes)
                 
                 // 设置点击事件
                 isClickable = true
                 isFocusable = true
-                setOnClickListener {
-                    Toast.makeText(this@DualFloatingWebViewService, "正在打开: $name", Toast.LENGTH_SHORT).show()
-                    webView.loadUrl(url)
-                    saveEngineFunction("ai_${name.lowercase()}")
+                setOnLongClickListener {
+                    // 显示控制面板
+                    val container = parent?.parent as? ViewGroup
+                    container?.findViewById<View>(controlPanelContainer.id)?.visibility = View.VISIBLE
+                    true
                 }
+                            setOnClickListener {
+                // 显示提示信息
+                Toast.makeText(this@DualFloatingWebViewService, "正在打开: $name", Toast.LENGTH_SHORT).show()
+                
+                // 加载URL
+                webView.loadUrl(url)
+                
+                // 保存引擎键值
+                saveEngineFunction("ai_${name.lowercase()}")
+                
+                // 切换到文字按钮面板
+                switchToButtonPanel(webView, aiContainer)
+                
+                // 添加震动反馈
+                try {
+                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        vibrator.vibrate(VibrationEffect.createOneShot(30, VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(30)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "震动反馈失败", e)
+                }
+            }
                 
                 // 设置内容描述，便于无障碍访问
                 contentDescription = name
@@ -6756,4 +6788,4 @@ class DualFloatingWebViewService : Service() {
         // 记录日志
         Log.d("DualFloatingWebView", "已添加${aiEngines.size}个AI搜索引擎按钮到容器")
     }
-} fb
+}
