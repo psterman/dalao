@@ -6132,17 +6132,66 @@ class DualFloatingWebViewService : Service() {
                     }
                 },
                 ButtonInfo("关闭", R.drawable.ic_close) {
-                    // 获取对应的引擎容器
-                    val container = when(webView) {
-                        firstWebView -> firstEngineContainer
-                        secondWebView -> secondEngineContainer
-                        thirdWebView -> thirdEngineContainer
-                        else -> null
-                    }
-                    
-                    // 尝试关闭按钮面板并恢复引擎容器
-                    if (container != null) {
-                        closeButtonPanel(container)
+                    // 获取当前容器
+                    val parentView = parent as? ViewGroup
+                    if (parentView != null) {
+                        // 判断父容器是否为AI引擎容器
+                        val currentContainer = when {
+                            webView == firstWebView && parentView.parent == firstAIScrollContainer -> firstAIEngineContainer
+                            webView == secondWebView && parentView.parent == secondAIScrollContainer -> secondAIEngineContainer
+                            webView == thirdWebView && parentView.parent == thirdAIScrollContainer -> thirdAIEngineContainer
+                            webView == firstWebView -> firstEngineContainer
+                            webView == secondWebView -> secondEngineContainer
+                            webView == thirdWebView -> thirdEngineContainer
+                            else -> null
+                        }
+                        
+                        // 恢复适当的容器
+                        if (currentContainer != null) {
+                            // 清空当前视图
+                            parentView.removeAllViews()
+                            
+                            // 恢复引擎图标
+                            val isAI = when(webView) {
+                                firstWebView -> leftEngineKey.startsWith("ai_")
+                                secondWebView -> centerEngineKey.startsWith("ai_") 
+                                thirdWebView -> rightEngineKey.startsWith("ai_")
+                                else -> false
+                            }
+                            
+                            if (isAI) {
+                                // 重新创建AI引擎按钮
+                                when (webView) {
+                                    firstWebView -> createAIEngineButtons(webView, firstAIEngineContainer!!, "left") { key ->
+                                        leftEngineKey = key
+                                        settingsManager.setLeftWindowSearchEngine(key)
+                                    }
+                                    secondWebView -> createAIEngineButtons(webView, secondAIEngineContainer!!, "center") { key ->
+                                        centerEngineKey = key
+                                        settingsManager.setCenterWindowSearchEngine(key)
+                                    }
+                                    thirdWebView -> createAIEngineButtons(webView, thirdAIEngineContainer!!, "right") { key ->
+                                        rightEngineKey = key
+                                        settingsManager.setRightWindowSearchEngine(key)
+                                    }
+                                }
+                            } else {
+                                // 恢复普通搜索引擎面板
+                                val standardContainer = when(webView) {
+                                    firstWebView -> firstEngineContainer
+                                    secondWebView -> secondEngineContainer
+                                    thirdWebView -> thirdEngineContainer
+                                    else -> null
+                                }
+                                if (standardContainer != null) {
+                                    restoreSearchEnginePanel(webView, standardContainer, false)
+                                }
+                            }
+                            
+                            Toast.makeText(this@DualFloatingWebViewService, "已关闭控制面板", Toast.LENGTH_SHORT).show()
+                        } else {
+                            hideControlPanel()
+                        }
                     } else {
                         hideControlPanel()
                     }
@@ -6354,12 +6403,19 @@ class DualFloatingWebViewService : Service() {
             // 记录日志
             Log.d("DualFloatingWebView", "尝试关闭按钮面板，恢复引擎容器: $container")
             
-            // 获取对应的WebView
+            // 获取对应的WebView 
             val webView = when (container) {
                 firstEngineContainer -> firstWebView
                 secondEngineContainer -> secondWebView
                 thirdEngineContainer -> thirdWebView
-                else -> null
+                firstAIEngineContainer -> firstWebView
+                secondAIEngineContainer -> secondWebView
+                thirdAIEngineContainer -> thirdWebView
+                else -> container.tag?.let { 
+                    if (it is Map<*, *> && it.containsKey("webView")) {
+                        it["webView"] as? WebView
+                    } else null
+                }
             }
             
             if (webView != null) {
@@ -6369,19 +6425,68 @@ class DualFloatingWebViewService : Service() {
                 // 更新AI状态
                 isAIEngineActiveMap[webView] = false
                 
-                // 显示搜索引擎容器
-                container.visibility = View.VISIBLE
-                container.removeAllViews()
-                
-                // 恢复搜索引擎面板
-                val currentEngine = when (webView) {
-                    firstWebView -> leftEngineKey
-                    secondWebView -> centerEngineKey
-                    thirdWebView -> rightEngineKey
-                    else -> "baidu"
+                // 确定需要恢复的容器
+                val targetContainer = when (webView) {
+                    firstWebView -> {
+                        val engineKey = leftEngineKey
+                        val isAI = engineKey.startsWith("ai_")
+                        if (isAI) firstAIEngineContainer else firstEngineContainer
+                    }
+                    secondWebView -> {
+                        val engineKey = centerEngineKey
+                        val isAI = engineKey.startsWith("ai_")
+                        if (isAI) secondAIEngineContainer else secondEngineContainer
+                    }
+                    thirdWebView -> {
+                        val engineKey = rightEngineKey
+                        val isAI = engineKey.startsWith("ai_")
+                        if (isAI) thirdAIEngineContainer else thirdEngineContainer
+                    }
+                    else -> container
                 }
-                val isAI = currentEngine.startsWith("ai_")
-                restoreSearchEnginePanel(webView, container, isAI)
+                
+                // 显示并恢复适当的容器
+                if (targetContainer != null) {
+                    targetContainer.visibility = View.VISIBLE
+                    targetContainer.removeAllViews()
+                    
+                    // 恢复搜索引擎面板
+                    val currentEngine = when (webView) {
+                        firstWebView -> leftEngineKey
+                        secondWebView -> centerEngineKey
+                        thirdWebView -> rightEngineKey
+                        else -> "baidu"
+                    }
+                    val isAI = currentEngine.startsWith("ai_")
+                    
+                    if (isAI) {
+                        // 恢复AI搜索引擎按钮
+                        when (webView) {
+                            firstWebView -> createAIEngineButtons(webView, firstAIEngineContainer!!, "left") { key ->
+                                leftEngineKey = key
+                                settingsManager.setLeftWindowSearchEngine(key)
+                            }
+                            secondWebView -> createAIEngineButtons(webView, secondAIEngineContainer!!, "center") { key ->
+                                centerEngineKey = key
+                                settingsManager.setCenterWindowSearchEngine(key)
+                            }
+                            thirdWebView -> createAIEngineButtons(webView, thirdAIEngineContainer!!, "right") { key ->
+                                rightEngineKey = key
+                                settingsManager.setRightWindowSearchEngine(key)
+                            }
+                        }
+                    } else {
+                        // 恢复普通搜索引擎面板
+                        when (webView) {
+                            firstWebView -> restoreSearchEnginePanel(webView, firstEngineContainer!!, false)
+                            secondWebView -> restoreSearchEnginePanel(webView, secondEngineContainer!!, false)
+                            thirdWebView -> restoreSearchEnginePanel(webView, thirdEngineContainer!!, false)
+                        }
+                    }
+                    
+                    // 显示提示
+                    Toast.makeText(this, "已关闭控制面板", Toast.LENGTH_SHORT).show()
+                }
                 
                 return true
             }
