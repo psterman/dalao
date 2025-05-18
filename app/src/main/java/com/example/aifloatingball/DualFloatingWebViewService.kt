@@ -1032,17 +1032,40 @@ class DualFloatingWebViewService : Service() {
                 thirdAIScrollContainer?.let { addView(it) }
             }
             
+            // 清空WebView容器
+            container?.removeAllViews()
+            
+            // 根据窗口数量添加需要的容器
+            val webviewContainer = container?.findViewById<LinearLayout>(R.id.dual_webview_container)
+            if (webviewContainer != null) {
+                // 移除所有多余的子视图（保留WebView及分割线）
+                for (i in webviewContainer.childCount - 1 downTo 0) {
+                    val childView = webviewContainer.getChildAt(i)
+                    if (childView != firstWebView?.parent && 
+                        childView != secondWebView?.parent &&
+                        childView != thirdWebView?.parent &&
+                        childView != divider1 &&
+                        childView != divider2) {
+                        webviewContainer.removeViewAt(i)
+                    }
+                }
+            }
+            
             // 将布局添加到主容器中
             container?.apply {
                 addView(firstEngineLayout)
-                addView(secondEngineLayout)
-                addView(thirdEngineLayout)
+                if (windowCount >= 2) {
+                    addView(secondEngineLayout)
+                }
+                if (windowCount >= 3) {
+                    addView(thirdEngineLayout)
+                }
             }
             
             // 修改初始状态设置 - 两种搜索引擎都显示
             firstAIScrollContainer?.visibility = View.VISIBLE
-            secondAIScrollContainer?.visibility = View.VISIBLE
-            thirdAIScrollContainer?.visibility = View.VISIBLE
+            secondAIScrollContainer?.visibility = if (windowCount >= 2) View.VISIBLE else View.GONE
+            thirdAIScrollContainer?.visibility = if (windowCount >= 3) View.VISIBLE else View.GONE
             
             // 确保AI搜索引擎按钮已创建
             firstWebView?.let { webView ->
@@ -1056,23 +1079,27 @@ class DualFloatingWebViewService : Service() {
                 }
             }
             
-            secondWebView?.let { webView ->
-                secondAIEngineContainer?.let { container ->
-                    if (container.childCount == 0) {
-                        createAIEngineButtons(webView, container as LinearLayout, "center") { key ->
-                            centerEngineKey = key
-                            settingsManager.setCenterWindowSearchEngine(key)
+            if (windowCount >= 2) {
+                secondWebView?.let { webView ->
+                    secondAIEngineContainer?.let { container ->
+                        if (container.childCount == 0) {
+                            createAIEngineButtons(webView, container as LinearLayout, "center") { key ->
+                                centerEngineKey = key
+                                settingsManager.setCenterWindowSearchEngine(key)
+                            }
                         }
                     }
                 }
             }
             
-            thirdWebView?.let { webView ->
-                thirdAIEngineContainer?.let { container ->
-                    if (container.childCount == 0) {
-                        createAIEngineButtons(webView, container as LinearLayout, "right") { key ->
-                            rightEngineKey = key
-                            settingsManager.setRightWindowSearchEngine(key)
+            if (windowCount >= 3) {
+                thirdWebView?.let { webView ->
+                    thirdAIEngineContainer?.let { container ->
+                        if (container.childCount == 0) {
+                            createAIEngineButtons(webView, container as LinearLayout, "right") { key ->
+                                rightEngineKey = key
+                                settingsManager.setRightWindowSearchEngine(key)
+                            }
                         }
                     }
                 }
@@ -3958,6 +3985,9 @@ class DualFloatingWebViewService : Service() {
     private fun updateViewVisibilityByWindowCount() {
         Log.d(TAG, "更新视图可见性，窗口数量: $windowCount")
         
+        // 获取WebView容器
+        val webviewContainer = container?.findViewById<LinearLayout>(R.id.dual_webview_container)
+        
         when (windowCount) {
             1 -> {
                 // 只显示第一个窗口
@@ -3982,6 +4012,24 @@ class DualFloatingWebViewService : Service() {
                 firstEngineToggle?.visibility = View.GONE
                 secondEngineToggle?.visibility = View.GONE
                 thirdEngineToggle?.visibility = View.GONE
+                
+                // 移除多余的容器
+                webviewContainer?.let {
+                    // 保留必要的视图
+                    val viewsToKeep = mutableListOf<View>()
+                    for (i in 0 until it.childCount) {
+                        val child = it.getChildAt(i)
+                        if (child == firstWebView?.parent) {
+                            viewsToKeep.add(child)
+                        }
+                    }
+                    
+                    // 清空容器并重新添加需要的视图
+                    it.removeAllViews()
+                    for (view in viewsToKeep) {
+                        it.addView(view)
+                    }
+                }
             }
             2 -> {
                 // 显示两个窗口
@@ -4006,6 +4054,26 @@ class DualFloatingWebViewService : Service() {
                 firstEngineToggle?.visibility = View.GONE
                 secondEngineToggle?.visibility = View.GONE
                 thirdEngineToggle?.visibility = View.GONE
+                
+                // 移除多余的容器
+                webviewContainer?.let {
+                    // 保留必要的视图
+                    val viewsToKeep = mutableListOf<View>()
+                    for (i in 0 until it.childCount) {
+                        val child = it.getChildAt(i)
+                        if (child == firstWebView?.parent || 
+                            child == divider1 || 
+                            child == secondWebView?.parent) {
+                            viewsToKeep.add(child)
+                        }
+                    }
+                    
+                    // 清空容器并重新添加需要的视图
+                    it.removeAllViews()
+                    for (view in viewsToKeep) {
+                        it.addView(view)
+                    }
+                }
             }
             else -> {
                 // 显示全部三个窗口
@@ -4030,6 +4098,28 @@ class DualFloatingWebViewService : Service() {
                 firstEngineToggle?.visibility = View.GONE
                 secondEngineToggle?.visibility = View.GONE
                 thirdEngineToggle?.visibility = View.GONE
+                
+                // 移除多余的容器
+                webviewContainer?.let {
+                    // 保留必要的视图
+                    val viewsToKeep = mutableListOf<View>()
+                    for (i in 0 until it.childCount) {
+                        val child = it.getChildAt(i)
+                        if (child == firstWebView?.parent || 
+                            child == divider1 || 
+                            child == secondWebView?.parent ||
+                            child == divider2 ||
+                            child == thirdWebView?.parent) {
+                            viewsToKeep.add(child)
+                        }
+                    }
+                    
+                    // 清空容器并重新添加需要的视图
+                    it.removeAllViews()
+                    for (view in viewsToKeep) {
+                        it.addView(view)
+                    }
+                }
             }
         }
         
@@ -6400,93 +6490,23 @@ class DualFloatingWebViewService : Service() {
         try {
             if (container == null) return false
             
-            // 记录日志
-            Log.d("DualFloatingWebView", "尝试关闭按钮面板，恢复引擎容器: $container")
-            
-            // 获取对应的WebView 
+            // 获取对应的WebView
             val webView = when (container) {
-                firstEngineContainer -> firstWebView
-                secondEngineContainer -> secondWebView
-                thirdEngineContainer -> thirdWebView
-                firstAIEngineContainer -> firstWebView
-                secondAIEngineContainer -> secondWebView
-                thirdAIEngineContainer -> thirdWebView
-                else -> container.tag?.let { 
-                    if (it is Map<*, *> && it.containsKey("webView")) {
-                        it["webView"] as? WebView
-                    } else null
-                }
+                firstEngineContainer, firstAIEngineContainer -> firstWebView
+                secondEngineContainer, secondAIEngineContainer -> secondWebView
+                thirdEngineContainer, thirdAIEngineContainer -> thirdWebView
+                else -> null
             }
             
             if (webView != null) {
-                // 隐藏AI控制面板
+                // 只隐藏AI控制面板
                 aiControlPanels[webView]?.visibility = View.GONE
                 
                 // 更新AI状态
                 isAIEngineActiveMap[webView] = false
                 
-                // 确定需要恢复的容器
-                val targetContainer = when (webView) {
-                    firstWebView -> {
-                        val engineKey = leftEngineKey
-                        val isAI = engineKey.startsWith("ai_")
-                        if (isAI) firstAIEngineContainer else firstEngineContainer
-                    }
-                    secondWebView -> {
-                        val engineKey = centerEngineKey
-                        val isAI = engineKey.startsWith("ai_")
-                        if (isAI) secondAIEngineContainer else secondEngineContainer
-                    }
-                    thirdWebView -> {
-                        val engineKey = rightEngineKey
-                        val isAI = engineKey.startsWith("ai_")
-                        if (isAI) thirdAIEngineContainer else thirdEngineContainer
-                    }
-                    else -> container
-                }
-                
-                // 显示并恢复适当的容器
-                if (targetContainer != null) {
-                    targetContainer.visibility = View.VISIBLE
-                    targetContainer.removeAllViews()
-                    
-                    // 恢复搜索引擎面板
-                    val currentEngine = when (webView) {
-                        firstWebView -> leftEngineKey
-                        secondWebView -> centerEngineKey
-                        thirdWebView -> rightEngineKey
-                        else -> "baidu"
-                    }
-                    val isAI = currentEngine.startsWith("ai_")
-                    
-                    if (isAI) {
-                        // 恢复AI搜索引擎按钮
-                        when (webView) {
-                            firstWebView -> createAIEngineButtons(webView, firstAIEngineContainer!!, "left") { key ->
-                                leftEngineKey = key
-                                settingsManager.setLeftWindowSearchEngine(key)
-                            }
-                            secondWebView -> createAIEngineButtons(webView, secondAIEngineContainer!!, "center") { key ->
-                                centerEngineKey = key
-                                settingsManager.setCenterWindowSearchEngine(key)
-                            }
-                            thirdWebView -> createAIEngineButtons(webView, thirdAIEngineContainer!!, "right") { key ->
-                                rightEngineKey = key
-                                settingsManager.setRightWindowSearchEngine(key)
-                            }
-                        }
-                    } else {
-                        // 恢复普通搜索引擎面板
-                        when (webView) {
-                            firstWebView -> restoreSearchEnginePanel(webView, firstEngineContainer!!, false)
-                            secondWebView -> restoreSearchEnginePanel(webView, secondEngineContainer!!, false)
-                            thirdWebView -> restoreSearchEnginePanel(webView, thirdEngineContainer!!, false)
-                        }
-                    }
-                    
-                    // 显示提示
-                    Toast.makeText(this, "已关闭控制面板", Toast.LENGTH_SHORT).show()
-                }
+                // 显示提示
+                Toast.makeText(this, "已关闭控制面板", Toast.LENGTH_SHORT).show()
                 
                 return true
             }
