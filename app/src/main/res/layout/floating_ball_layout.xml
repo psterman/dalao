@@ -173,6 +173,17 @@
                 android:contentDescription="拼多多搜索"
                 android:layout_marginEnd="8dp"/>
 
+            <!-- 抖音搜索按钮 -->
+            <ImageButton
+                android:id="@+id/douyin_app_search_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_douyin"
+                android:background="@drawable/circle_background_black"
+                android:padding="8dp"
+                android:contentDescription="抖音搜索"
+                android:layout_marginEnd="8dp"/>
+
         </LinearLayout>
     </LinearLayout>
 

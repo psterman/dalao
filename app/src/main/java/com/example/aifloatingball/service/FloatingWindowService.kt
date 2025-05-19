@@ -1279,6 +1279,17 @@ class FloatingWindowService : Service() {
             }
             openPDDApp(searchQuery)
         }
+
+        // 初始化抖音APP搜索按钮
+        val douyinAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.douyin_app_search_button)
+        douyinAppSearchButton?.setOnClickListener {
+            val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+            if (searchQuery.isEmpty()) {
+                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            openDouyinApp(searchQuery)
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -2304,4 +2315,52 @@ class FloatingWindowService : Service() {
     }
 
     private val menuAutoHideHandler = Handler(Looper.getMainLooper())
+
+    // 初始化抖音APP搜索功能
+    private fun initializeDouyinAppSearch() {
+        val douyinAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.douyin_app_search_button)
+        douyinAppSearchButton?.setOnClickListener {
+            val searchQuery = searchInput?.text?.toString() ?: ""
+            openDouyinApp(searchQuery)
+        }
+    }
+    
+    // 打开抖音APP搜索页面
+    private fun openDouyinApp(query: String) {
+        try {
+            // 编码搜索关键词
+            val encodedQuery = Uri.encode(query)
+            
+            // 构建抖音搜索页面的scheme链接
+            val searchUrl = "snssdk1128://search?keyword=$encodedQuery"
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)).apply {
+                setPackage("com.ss.android.ugc.aweme")  // 抖音包名
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            startActivity(intent)
+            
+            // 成功启动后的操作
+            Toast.makeText(this, "正在打开抖音搜索: $query", Toast.LENGTH_SHORT).show()
+            searchContainer?.visibility = View.GONE
+            searchInput?.setText("")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "打开抖音APP失败: ${e.message}")
+            
+            // 如果无法打开APP，尝试打开网页版
+            try {
+                // 重新编码查询字符串，确保在这个作用域中可用
+                val encodedQuery = Uri.encode(query)
+                val webUrl = "https://www.douyin.com/search/$encodedQuery"
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(webIntent)
+            } catch (e2: Exception) {
+                // 如果连网页版都无法打开，提示安装APP
+                Toast.makeText(this, "请确认是否已安装抖音APP", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 }
