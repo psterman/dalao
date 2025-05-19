@@ -126,6 +126,7 @@
         <item>淘宝</item>
         <item>拼多多</item>
         <item>抖音</item>
+        <item>小红书</item>
     </string-array>
 
     <!-- 应用搜索值 -->
@@ -133,6 +134,7 @@
         <item>taobao</item>
         <item>pdd</item>
         <item>douyin</item>
+        <item>xiaohongshu</item>
     </string-array>
 
     <!-- 默认启用的应用搜索 -->
@@ -140,5 +142,6 @@
         <item>taobao</item>
         <item>pdd</item>
         <item>douyin</item>
+        <item>xiaohongshu</item>
     </string-array>
 </resources>

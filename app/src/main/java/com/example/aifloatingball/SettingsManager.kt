@@ -415,12 +415,12 @@ class SettingsManager private constructor(context: Context) {
 
     // 获取默认的应用搜索列表
     private fun getDefaultAppSearches(): Set<String> {
-        return setOf("taobao", "pdd", "douyin")
+        return setOf("taobao", "pdd", "douyin", "xiaohongshu")
     }
 
     // 获取默认的应用搜索排序
     private fun getDefaultAppSearchOrder(): List<String> {
-        return listOf("taobao", "pdd", "douyin")
+        return listOf("taobao", "pdd", "douyin", "xiaohongshu")
     }
 
     // 获取应用搜索配置
@@ -449,6 +449,14 @@ class SettingsManager private constructor(context: Context) {
                 searchScheme = "snssdk1128://search?keyword={query}",
                 webUrl = "https://www.douyin.com/search/{query}",
                 iconResId = R.drawable.ic_douyin
+            ),
+            "xiaohongshu" to AppSearchConfig(
+                id = "xiaohongshu",
+                name = "小红书",
+                packageName = "com.xingin.xhs",
+                searchScheme = "xhsdiscover://search/result?keyword={query}",
+                webUrl = "https://www.xiaohongshu.com/search_result?keyword={query}",
+                iconResId = R.drawable.ic_xiaohongshu
             )
         )
     }
