@@ -1284,6 +1284,21 @@ class FloatingWindowService : Service() {
             }
             openDouyinApp(searchQuery)
         }
+
+        // 初始化小红书APP搜索按钮
+        val xiaohongshuAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.xiaohongshu_app_search_button)
+        xiaohongshuAppSearchButton?.let { button ->
+            // 加载小红书图标
+            loadFaviconForApp(button, "xiaohongshu.com", R.drawable.circle_background_red)
+            button.setOnClickListener {
+                val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+                if (searchQuery.isEmpty()) {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                openXiaohongshuApp(searchQuery)
+            }
+        }
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -2466,6 +2481,43 @@ class FloatingWindowService : Service() {
                 imageButton.setImageResource(android.R.drawable.ic_menu_search)
             } catch (ex: Exception) {
                 Log.e(TAG, "设置默认图标失败: ${ex.message}")
+            }
+        }
+    }
+
+    // 打开小红书APP搜索页面
+    private fun openXiaohongshuApp(query: String) {
+        try {
+            // 编码搜索关键词
+            val encodedQuery = Uri.encode(query)
+            
+            // 构建小红书搜索页面的scheme链接
+            val searchUrl = "xhsdiscover://search/result?keyword=$encodedQuery"
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)).apply {
+                setPackage("com.xingin.xhs")  // 小红书包名
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            startActivity(intent)
+            
+            // 成功启动后的操作
+            Toast.makeText(this, "正在打开小红书搜索: $query", Toast.LENGTH_SHORT).show()
+            searchContainer?.visibility = View.GONE
+            searchInput?.setText("")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "打开小红书APP失败: ${e.message}")
+            
+            // 如果无法打开APP，尝试打开网页版
+            try {
+                val webUrl = "https://www.xiaohongshu.com/search_result?keyword=${Uri.encode(query)}"
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(webIntent)
+            } catch (e2: Exception) {
+                // 如果连网页版都无法打开，提示安装APP
+                Toast.makeText(this, "请确认是否已安装小红书APP", Toast.LENGTH_SHORT).show()
             }
         }
     }
