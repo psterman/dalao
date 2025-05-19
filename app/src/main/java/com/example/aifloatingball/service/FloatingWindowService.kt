@@ -72,6 +72,7 @@ import org.json.JSONObject
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import android.view.GestureDetector
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -313,6 +314,10 @@ class FloatingWindowService : Service() {
         aiEnginesContainer?.visibility = View.GONE
         regularEnginesContainer?.visibility = View.GONE
         searchModeToggle?.visibility = View.GONE
+        
+        // 隐藏淘宝APP搜索专栏
+        val taobaoAppContainer = floatingView?.findViewById<LinearLayout>(R.id.taobao_app_container)
+        taobaoAppContainer?.visibility = View.GONE
 
         // 完全重写触摸事件处理逻辑
         setupTouchEventHandling()
@@ -1148,6 +1153,58 @@ class FloatingWindowService : Service() {
 
         // 加载并显示已保存的搜索引擎快捷方式
         loadSearchEngineShortcuts()
+        
+        // 初始化searchInput的长按事件
+        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                showCustomTextMenu()
+            }
+        })
+        
+        searchInput?.setOnTouchListener { v, event ->
+            gestureDetector.onTouchEvent(event)
+            return@setOnTouchListener false
+        }
+        
+        // 初始化淘宝APP搜索按钮
+        initializeTaobaoAppSearch()
+    }
+    
+    // 初始化淘宝APP搜索功能
+    private fun initializeTaobaoAppSearch() {
+        val taobaoAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.taobao_app_search_button)
+        taobaoAppSearchButton?.setOnClickListener {
+            val searchQuery = searchInput?.text?.toString() ?: ""
+            openTaobaoApp(searchQuery)
+        }
+    }
+    
+    // 打开淘宝APP搜索页面
+    private fun openTaobaoApp(query: String) {
+        try {
+            // 编码搜索关键词
+            val encodedQuery = Uri.encode(query)
+            
+            // 构建淘宝搜索页面的scheme链接
+            val searchUrl = "taobao://search.taobao.com/search?q=$encodedQuery"
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)).apply {
+                setPackage("com.taobao.taobao")  // 指定淘宝包名
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            startActivity(intent)
+            
+            // 成功启动后的操作
+            Toast.makeText(this, "正在打开淘宝搜索: $query", Toast.LENGTH_SHORT).show()
+            searchContainer?.visibility = View.GONE
+            searchInput?.setText("")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "打开淘宝APP失败: ${e.message}")
+            
+            // 如果无法打开APP，提示安装
+            Toast.makeText(this, "请确认是否已安装淘宝APP", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -1503,6 +1560,10 @@ class FloatingWindowService : Service() {
         // 显示保存的引擎组合
         savedCombosContainer?.visibility = View.VISIBLE
         
+        // 显示淘宝APP搜索专栏
+        val taobaoAppContainer = floatingView?.findViewById<LinearLayout>(R.id.taobao_app_container)
+        taobaoAppContainer?.visibility = View.VISIBLE
+        
         // 显示搜索模式切换按钮
         searchModeToggle?.visibility = View.VISIBLE
         
@@ -1598,6 +1659,10 @@ class FloatingWindowService : Service() {
                 regularEnginesContainer?.visibility = View.GONE
                 savedCombosContainer?.visibility = View.GONE
                 searchModeToggle?.visibility = View.GONE
+                
+                // 隐藏淘宝APP搜索专栏
+                val taobaoAppContainer = floatingView?.findViewById<LinearLayout>(R.id.taobao_app_container)
+                taobaoAppContainer?.visibility = View.GONE
                 
                 // 清空输入框内容
             searchInput?.setText("")

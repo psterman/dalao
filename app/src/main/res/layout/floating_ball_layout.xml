@@ -126,6 +126,7 @@
             android:orientation="vertical"
             android:background="@drawable/engine_container_background"
             android:paddingVertical="6dp"
+            android:layout_marginBottom="8dp"
             android:visibility="gone">
             
             <TextView
@@ -138,6 +139,44 @@
                 android:paddingVertical="4dp"/>
                 
             <!-- 水平滚动容器将在代码中添加 -->
+        </LinearLayout>
+        
+        <!-- 淘宝APP搜索专栏 - 新增 -->
+        <LinearLayout
+            android:id="@+id/taobao_app_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/engine_container_background"
+            android:padding="8dp"
+            android:gravity="center_vertical">
+            
+            <ImageView
+                android:id="@+id/taobao_app_icon"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_taobao"
+                android:padding="4dp"
+                android:background="@drawable/circle_background_orange"
+                android:contentDescription="淘宝" />
+                
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="打开淘宝APP搜索"
+                android:textSize="14sp"
+                android:textColor="#202124"
+                android:layout_marginStart="12dp"/>
+                
+            <ImageButton
+                android:id="@+id/taobao_app_search_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_open_in_app"
+                android:tint="#FF5000"
+                android:contentDescription="打开淘宝APP" />
         </LinearLayout>
     </LinearLayout>
 
