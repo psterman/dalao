@@ -35,7 +35,7 @@ class SearchEngineManager private constructor(context: Context) {
             val currentEngines = getSavedSearchEngines().toMutableList()
             
             // 检查引擎是否已存在
-            val existingIndex = currentEngines.indexOfFirst { it.url == searchEngine.url }
+            val existingIndex = currentEngines.indexOfFirst { it.searchUrl == searchEngine.searchUrl }
             if (existingIndex != -1) {
                 currentEngines[existingIndex] = searchEngine
             } else {

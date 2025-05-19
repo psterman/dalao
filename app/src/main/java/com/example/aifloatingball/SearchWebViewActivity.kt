@@ -135,7 +135,13 @@ class SearchWebViewActivity : AppCompatActivity() {
 
             // Initialize search engine list
             sortedEngines = settingsManager.getEngineOrder().map { aiEngine ->
-                SearchEngine(aiEngine.name, aiEngine.url, aiEngine.iconResId)
+                SearchEngine(
+                    name = aiEngine.name,
+                    displayName = aiEngine.name,
+                    searchUrl = aiEngine.searchUrl,
+                    iconResId = aiEngine.iconResId,
+                    description = ""
+                )
             }.sortedWith(compareBy { 
                 val firstChar = it.name.first().toString()
                 when {
@@ -216,17 +222,17 @@ class SearchWebViewActivity : AppCompatActivity() {
     }
 
     private fun performSearch(engine: SearchEngine, query: String?) {
-        val url = if (query.isNullOrBlank()) {
+        val searchUrl = if (query.isNullOrBlank()) {
             // 如果没有查询文本，使用搜索引擎的首页URL（去掉%s部分）
-            engine.url.replace("%s", "").replace("search?q=", "")
+            engine.searchUrl.replace("%s", "").replace("search?q=", "")
                 .replace("search?query=", "")
                 .replace("search?word=", "")
                 .replace("s?wd=", "")
         } else {
             // 有查询文本，使用完整的搜索URL
-            engine.url.replace("%s", query)
+            engine.searchUrl.replace("%s", query)
         }
-        webView.loadUrl(url)
+        webView.loadUrl(searchUrl)
     }
 
     private fun setupClickListeners() {
@@ -408,7 +414,7 @@ class SearchWebViewActivity : AppCompatActivity() {
             // 启动悬浮窗服务并传递搜索引擎信息
             val intent = Intent(this, FloatingWindowService::class.java).apply {
                 putExtra("ENGINE_NAME", engine.name)
-                putExtra("ENGINE_URL", engine.url)
+                putExtra("ENGINE_URL", engine.searchUrl)
                 putExtra("ENGINE_ICON", engine.iconResId)
                 putExtra("SEARCH_QUERY", query)
                 putExtra("SHOULD_OPEN_URL", true)
@@ -869,7 +875,9 @@ class SearchWebViewActivity : AppCompatActivity() {
 
     data class SearchEngine(
         val name: String,
-        val url: String,
-        val iconResId: Int
+        val displayName: String,
+        val searchUrl: String,
+        val iconResId: Int,
+        val description: String
     )
 } 

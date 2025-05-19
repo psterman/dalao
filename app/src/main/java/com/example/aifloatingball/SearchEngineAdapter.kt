@@ -11,15 +11,16 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.BaseSearchEngine
 import com.example.aifloatingball.utils.IconLoader
 import java.util.Collections
 
-class SearchEngineAdapter<T : SearchEngine>(
+class SearchEngineAdapter(
     private val context: Context,
-    private val engines: List<T>,
+    private val engines: List<BaseSearchEngine>,
     private val enabledEngines: MutableSet<String>,
     private val onEngineToggled: (String, Boolean) -> Unit
-) : RecyclerView.Adapter<SearchEngineAdapter<T>.ViewHolder>() {
+) : RecyclerView.Adapter<SearchEngineAdapter.ViewHolder>() {
     
     private val iconLoader = IconLoader(context)
     
@@ -40,24 +41,24 @@ class SearchEngineAdapter<T : SearchEngine>(
         val engine = engines[position]
         
         // 设置搜索引擎名称
-        holder.nameTextView.text = engine.name
+        holder.nameTextView.text = engine.displayName
         
         // 设置搜索引擎图标
         holder.iconImageView.setImageResource(engine.iconResId)
         
         // 从网络加载图标
-        val url = if (engine is AISearchEngine) {
-            engine.url
+        val searchUrl = if (engine is AISearchEngine) {
+            engine.searchUrl
         } else {
-            if (engine.url.contains("?")) {
-                engine.url.substring(0, engine.url.indexOf("?"))
+            if (engine.searchUrl.contains("?")) {
+                engine.searchUrl.substring(0, engine.searchUrl.indexOf("?"))
             } else {
-                engine.url
+                engine.searchUrl
             }
         }
         
         // 加载网站图标
-        iconLoader.loadIcon(url, holder.iconImageView, engine.iconResId)
+        iconLoader.loadIcon(searchUrl, holder.iconImageView, engine.iconResId)
         
         // 设置切换状态
         holder.toggleSwitch.isChecked = enabledEngines.contains(engine.name)
@@ -91,7 +92,7 @@ class SearchEngineAdapter<T : SearchEngine>(
         notifyItemMoved(fromPosition, toPosition)
     }
 
-    fun getEngines(): List<T> = engines
+    fun getEngines(): List<BaseSearchEngine> = engines
 
     fun updateEnabledEngines(newEnabledEngines: Set<String>) {
         enabledEngines.clear()

@@ -120,4 +120,25 @@
         <item>2</item>
         <item>3</item>
     </string-array>
+
+    <!-- 应用搜索名称 -->
+    <string-array name="app_search_names">
+        <item>淘宝</item>
+        <item>拼多多</item>
+        <item>抖音</item>
+    </string-array>
+
+    <!-- 应用搜索值 -->
+    <string-array name="app_search_values">
+        <item>taobao</item>
+        <item>pdd</item>
+        <item>douyin</item>
+    </string-array>
+
+    <!-- 默认启用的应用搜索 -->
+    <string-array name="default_app_searches">
+        <item>taobao</item>
+        <item>pdd</item>
+        <item>douyin</item>
+    </string-array>
 </resources>

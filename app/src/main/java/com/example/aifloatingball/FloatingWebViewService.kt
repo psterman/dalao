@@ -1797,7 +1797,8 @@ class FloatingWebViewService : Service() {
                 id = System.currentTimeMillis().toString(),
                 name = getSearchEngineName(host),
                 url = searchUrlTemplate,
-                domain = host
+                domain = host,
+                searchUrl = searchUrlTemplate
             )
         } catch (e: Exception) {
             Log.e(TAG, "解析搜索引擎URL失败", e)
@@ -1864,6 +1865,40 @@ class FloatingWebViewService : Service() {
             fos.close()
         } catch (e: Exception) {
             Log.e(TAG, "保存favicon失败", e)
+        }
+    }
+
+    private fun parseSearchEngine(url: String): SearchEngine? {
+        try {
+            val uri = Uri.parse(url)
+            val host = uri.host ?: return null
+            val searchUrlTemplate = url.replace(
+                Regex("([?&](q|query|word|wd|text|search)=)[^&]*"),
+                "$1{query}"
+            )
+            
+            return SearchEngine(
+                name = getSearchEngineName(host),
+                url = url,
+                searchUrl = searchUrlTemplate,
+                iconResId = R.drawable.ic_search,
+                description = "${getSearchEngineName(host)}搜索"
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "解析搜索引擎URL失败", e)
+            return null
+        }
+    }
+
+    private fun getSearchEngineNameFromHost(host: String): String {
+        return when {
+            host.contains("baidu") -> "百度"
+            host.contains("google") -> "谷歌"
+            host.contains("bing") -> "必应"
+            host.contains("sogou") -> "搜狗"
+            host.contains("zhihu") -> "知乎"
+            host.contains("bilibili") -> "哔哩哔哩"
+            else -> host.split(".")[0].capitalize()
         }
     }
 } 

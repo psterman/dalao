@@ -1,78 +1,57 @@
 package com.example.aifloatingball.service
 
+import android.app.AlertDialog
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Intent
-import android.os.IBinder
-import android.preference.PreferenceManager
-import android.view.WindowManager
-import android.view.Gravity
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.HorizontalScrollView
-import android.widget.TextView
-import android.widget.Toast
+import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.PixelFormat
-import android.view.MotionEvent
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
+import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
-import android.view.ViewConfiguration
-import androidx.core.app.NotificationCompat
-import com.example.aifloatingball.R
-import com.example.aifloatingball.preference.SearchEngineListPreference
-import com.example.aifloatingball.HomeActivity
-import android.graphics.BitmapFactory
-import com.example.aifloatingball.FloatingWebViewService
-import com.example.aifloatingball.DualFloatingWebViewService
-import com.example.aifloatingball.model.SearchEngineShortcut
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import java.io.File
-import kotlin.math.abs
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
+import android.preference.PreferenceManager
+import android.text.TextUtils
 import android.util.Log
-import android.widget.EditText
+import android.view.*
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.view.inputmethod.EditorInfo
-import android.net.Uri
-import android.content.BroadcastReceiver
-import android.content.IntentFilter
-import android.graphics.drawable.Drawable
-import android.widget.ImageButton
-import android.widget.ScrollView
-import android.widget.FrameLayout
+import android.webkit.WebView
+import android.widget.*
+import androidx.core.app.NotificationCompat
+import com.bumptech.glide.Glide
+import com.example.aifloatingball.DualFloatingWebViewService
+import com.example.aifloatingball.FloatingWebViewService
+import com.example.aifloatingball.HomeActivity
+import com.example.aifloatingball.R
+import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.manager.SearchEngineManager
-import android.app.AlertDialog
-import com.example.aifloatingball.utils.EngineUtil
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
-import com.example.aifloatingball.SettingsManager
-import android.view.ContextThemeWrapper
-import android.view.View.OnLongClickListener
-import android.view.MotionEvent.ACTION_UP
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.PopupWindow
-import android.content.ClipboardManager
-import android.content.ClipData
-import android.text.TextUtils
-import android.os.Build.VERSION_CODES
-import android.os.Build.VERSION
-import java.io.FileOutputStream
-import com.bumptech.glide.Glide
-import android.webkit.WebView
+import com.example.aifloatingball.model.SearchEngineShortcut
+import com.example.aifloatingball.preference.SearchEngineListPreference
+import com.example.aifloatingball.utils.EngineUtil
 import com.example.aifloatingball.utils.TextSelectionHelper
-import org.json.JSONObject
-import android.view.animation.AccelerateInterpolator
-import android.view.animation.DecelerateInterpolator
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
-import android.view.GestureDetector
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import org.json.JSONObject
+import java.io.File
+import java.io.FileOutputStream
+import kotlin.math.abs
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -264,11 +243,14 @@ class FloatingWindowService : Service() {
         val statusBarHeight = getStatusBarHeight()
         
         params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,  // 允许布局超出屏幕边界
+            WRAP_CONTENT,
+            WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -664,7 +646,7 @@ class FloatingWindowService : Service() {
             
             // 设置触摸监听器，用于选择文本后显示自定义菜单
             setOnTouchListener { v, event ->
-                if (event.action == ACTION_UP) {
+                if (event.action == MotionEvent.ACTION_UP) {
                     if (hasSelection()) {
                         showCustomTextMenu()
                     }
@@ -755,7 +737,7 @@ class FloatingWindowService : Service() {
     private fun performSearch(query: String) {
         // 使用默认搜索引擎搜索，或者如果有快捷方式，使用第一个快捷方式
         if (searchEngineShortcuts.isNotEmpty()) {
-            openSearchWithEngine(query, searchEngineShortcuts[0].url)
+            openSearchWithEngine(query, searchEngineShortcuts[0].searchUrl)
         } else {
             // 使用系统默认搜索引擎
             val searchUrl = SearchEngineListPreference.getSearchEngineUrl(this, 
@@ -800,18 +782,19 @@ class FloatingWindowService : Service() {
                     val primaryEngine = group.engines[0]
                     
                     // 改进URL转换逻辑，确保正确处理不同搜索引擎URL格式
-                    val searchUrl = convertToSearchUrl(primaryEngine.url)
+                    val searchUrl = convertToSearchUrl(primaryEngine.searchUrl)
                     
                     // 创建快捷方式对象
                     val shortcut = SearchEngineShortcut(
                         id = group.name.hashCode().toString(),
                         name = group.name,
-                        url = searchUrl,
+                        url = primaryEngine.url,
+                        searchUrl = searchUrl,
                         domain = extractDomain(primaryEngine.url)
                     )
                     
                     newShortcuts.add(shortcut)
-                    Log.d(TAG, "添加搜索引擎组快捷方式: ${shortcut.name}, URL: ${shortcut.url}")
+                    Log.d(TAG, "添加搜索引擎组快捷方式: ${shortcut.name}, URL: ${shortcut.searchUrl}")
                 }
             }
             
@@ -837,19 +820,22 @@ class FloatingWindowService : Service() {
                     SearchEngineShortcut(
                         id = "test_baidu",
                         name = "百度",
-                        url = "https://www.baidu.com/s?wd={query}",
+                        url = "https://www.baidu.com",
+                        searchUrl = "https://www.baidu.com/s?wd={query}",
                         domain = "baidu.com"
                     ),
                     SearchEngineShortcut(
                         id = "test_google",
                         name = "谷歌",
-                        url = "https://www.google.com/search?q={query}",
+                        url = "https://www.google.com",
+                        searchUrl = "https://www.google.com/search?q={query}",
                         domain = "google.com"
                     ),
                     SearchEngineShortcut(
                         id = "test_combo",
                         name = "百度+谷歌",
-                        url = "https://www.baidu.com/s?wd={query}",
+                        url = "https://www.baidu.com",
+                        searchUrl = "https://www.baidu.com/s?wd={query}",
                         domain = "baidu.com"
                     )
                 )
@@ -996,7 +982,7 @@ class FloatingWindowService : Service() {
         
         // 构建每个快捷方式的描述文本
         val message = searchEngineShortcuts.joinToString("\n\n") { shortcut -> 
-            "${shortcut.name}\n${shortcut.url}" 
+            "${shortcut.name}\n${shortcut.searchUrl}" 
         }
         
         // 创建一个简单的对话框来显示所有快捷方式
@@ -1089,7 +1075,7 @@ class FloatingWindowService : Service() {
         view.setOnClickListener {
             val query = searchInput?.text?.toString()?.trim() ?: ""
             if (query.isNotEmpty()) {
-                openSearchWithEngine(query, shortcut.url)
+                openSearchWithEngine(query, shortcut.searchUrl)
             } else {
                 Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
             }
@@ -1260,24 +1246,32 @@ class FloatingWindowService : Service() {
     private fun initializeAppSearchButtons() {
         // 初始化淘宝APP搜索按钮
         val taobaoAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.taobao_app_search_button)
-        taobaoAppSearchButton?.setOnClickListener {
-            val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
-            if (searchQuery.isEmpty()) {
-                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+        taobaoAppSearchButton?.let { button ->
+            // 加载淘宝图标
+            loadFaviconForApp(button, "taobao.com", R.drawable.circle_background_orange)
+            button.setOnClickListener {
+                val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+                if (searchQuery.isEmpty()) {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                openTaobaoApp(searchQuery)
             }
-            openTaobaoApp(searchQuery)
         }
         
         // 初始化拼多多APP搜索按钮
         val pddAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.pdd_app_search_button)
-        pddAppSearchButton?.setOnClickListener {
-            val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
-            if (searchQuery.isEmpty()) {
-                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
+        pddAppSearchButton?.let { button ->
+            // 加载拼多多图标
+            loadFaviconForApp(button, "pinduoduo.com", R.drawable.circle_background_red)
+            button.setOnClickListener {
+                val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+                if (searchQuery.isEmpty()) {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                openPDDApp(searchQuery)
             }
-            openPDDApp(searchQuery)
         }
 
         // 初始化抖音APP搜索按钮
@@ -1292,7 +1286,9 @@ class FloatingWindowService : Service() {
         }
     }
 
-    override fun onBind(intent: Intent?): IBinder? = null
+    override fun onBind(intent: Intent): IBinder? {
+        return null
+    }
 
     override fun onDestroy() {
         super.onDestroy()
@@ -1508,7 +1504,7 @@ class FloatingWindowService : Service() {
             clipboardManager.setPrimaryClip(clipData)
             
             // 在Android 13及以上版本，系统会自动显示通知，所以我们只在低版本显示Toast
-            if (VERSION.SDK_INT < VERSION_CODES.TIRAMISU) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
                 Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
@@ -2360,6 +2356,116 @@ class FloatingWindowService : Service() {
             } catch (e2: Exception) {
                 // 如果连网页版都无法打开，提示安装APP
                 Toast.makeText(this, "请确认是否已安装抖音APP", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // 为APP按钮加载favicon
+    private fun loadFaviconForApp(imageButton: ImageButton, domain: String, fallbackBackground: Int) {
+        try {
+            // 使用Google的favicon服务
+            val faviconUrls = listOf(
+                "https://www.google.com/s2/favicons?sz=64&domain_url=https://$domain"
+            )
+            
+            // 使用Glide加载多个源
+            val requestBuilder = Glide.with(applicationContext)
+                .load(faviconUrls[0]) // 首选移动版网站图标
+            
+            // 添加备用URL
+            faviconUrls.drop(1).forEach { url ->
+                requestBuilder.error(
+                    Glide.with(applicationContext)
+                        .load(url)
+                )
+            }
+            
+            // 配置加载选项和转换
+            requestBuilder
+                .placeholder(android.R.drawable.ic_menu_search)
+                .fallback(android.R.drawable.ic_menu_search)
+                .timeout(3000) // 缩短超时时间以加快降级速度
+                .transform(
+                    // 添加圆形裁剪
+                    com.bumptech.glide.load.resource.bitmap.CircleCrop(),
+                    // 自定义图标处理
+                    object : com.bumptech.glide.load.resource.bitmap.BitmapTransformation() {
+                        override fun transform(
+                            pool: com.bumptech.glide.load.engine.bitmap_recycle.BitmapPool,
+                            toTransform: android.graphics.Bitmap,
+                            outWidth: Int,
+                            outHeight: Int
+                        ): android.graphics.Bitmap {
+                            // 创建一个新的Bitmap，带白色背景
+                            val result = pool.get(outWidth, outHeight, android.graphics.Bitmap.Config.ARGB_8888)
+                            result.eraseColor(android.graphics.Color.WHITE)
+                            
+                            val canvas = android.graphics.Canvas(result)
+                            val paint = android.graphics.Paint().apply {
+                                isAntiAlias = true
+                                isFilterBitmap = true
+                                isDither = true  // 添加抖动效果，改善渐变
+                            }
+                            
+                            // 计算缩放比例
+                            val scale = 0.7f
+                            
+                            val scaledWidth = toTransform.width * scale
+                            val scaledHeight = toTransform.height * scale
+                            val left = (outWidth - scaledWidth) / 2f
+                            val top = (outHeight - scaledHeight) / 2f
+                            
+                            // 定义源矩形和目标矩形
+                            val srcRect = android.graphics.Rect(0, 0, toTransform.width, toTransform.height)
+                            val dstRect = android.graphics.RectF(
+                                left, top,
+                                left + scaledWidth,
+                                top + scaledHeight
+                            )
+                            
+                            // 绘制图标
+                            canvas.drawBitmap(toTransform, srcRect, dstRect, paint)
+                            
+                            return result
+                        }
+
+                        override fun updateDiskCacheKey(messageDigest: java.security.MessageDigest) {
+                            messageDigest.update("favicon_transform_v3".toByteArray())
+                        }
+                    }
+                )
+                .into(object : com.bumptech.glide.request.target.CustomTarget<android.graphics.drawable.Drawable>() {
+                    override fun onResourceReady(
+                        resource: android.graphics.drawable.Drawable,
+                        transition: com.bumptech.glide.request.transition.Transition<in android.graphics.drawable.Drawable>?
+                    ) {
+                        try {
+                            if (imageButton.isAttachedToWindow) {
+                                // 直接设置图标，不需要特殊处理
+                                imageButton.setImageDrawable(resource)
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "设置APP图标失败: ${e.message}")
+                            imageButton.setImageResource(android.R.drawable.ic_menu_search)
+                        }
+                    }
+                    
+                    override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) {
+                        try {
+                            imageButton.setImageResource(android.R.drawable.ic_menu_search)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "清除APP图标失败: ${e.message}")
+                        }
+                    }
+                })
+            
+            Log.d(TAG, "请求加载APP图标: $domain")
+        } catch (e: Exception) {
+            Log.e(TAG, "APP图标加载初始化失败: ${e.message}")
+            try {
+                imageButton.setImageResource(android.R.drawable.ic_menu_search)
+            } catch (ex: Exception) {
+                Log.e(TAG, "设置默认图标失败: ${ex.message}")
             }
         }
     }

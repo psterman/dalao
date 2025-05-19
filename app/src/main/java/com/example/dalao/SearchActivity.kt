@@ -1,18 +1,21 @@
 package com.example.dalao
 
 import android.content.Intent
+import android.os.Bundle
+import android.os.Parcelable
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import android.util.Log
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.model.BaseSearchEngine
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import net.sourceforge.pinyin4j.PinyinHelper
@@ -22,10 +25,45 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var previewEngineList: LinearLayout
     private lateinit var settingsManager: SettingsManager
     private lateinit var searchInput: TextView
-    private val searchEngines = mutableListOf<SearchEngine>()
+    private val searchEngines = mutableListOf<BaseSearchEngine>()
+    private lateinit var engineList: RecyclerView
+    private lateinit var adapter: SearchEngineAdapter
+    private var currentEngine: BaseSearchEngine? = null
 
     companion object {
         const val ACTION_SHOW_SEARCH = "com.example.aifloatingball.ACTION_SHOW_SEARCH"
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_search)
+
+        engineList = findViewById(R.id.engine_list)
+        engineList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        adapter = SearchEngineAdapter(this, getSearchEngines())
+        engineList.adapter = adapter
+
+        // 使用 BaseSearchEngine 作为通用类型
+        currentEngine = intent.getParcelableExtra<Parcelable>("current_engine") as? BaseSearchEngine
+        
+        letterTitle = findViewById(R.id.letter_title)
+        previewEngineList = findViewById(R.id.preview_engine_list)
+        settingsManager = SettingsManager.getInstance(this)
+        searchInput = findViewById(R.id.search_input)
+
+        // 获取搜索引擎列表
+        searchEngines.addAll(SearchEngine.getNormalSearchEngines())
+        searchEngines.addAll(AISearchEngine.DEFAULT_AI_ENGINES)
+
+        // 使用 BaseSearchEngine 作为通用类型
+        currentEngine = intent.getParcelableExtra<Parcelable>("current_engine") as? BaseSearchEngine
+    }
+
+    private fun getSearchEngines(): List<BaseSearchEngine> {
+        val engines = mutableListOf<BaseSearchEngine>()
+        engines.addAll(SearchEngine.getNormalSearchEngines())
+        engines.addAll(AISearchEngine.DEFAULT_AI_ENGINES)
+        return engines
     }
 
     private fun showSearchEnginesByLetter(letter: Char) {

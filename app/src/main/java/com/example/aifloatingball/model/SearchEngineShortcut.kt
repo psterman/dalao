@@ -7,6 +7,7 @@ package com.example.aifloatingball.model
 data class SearchEngineShortcut(
     val id: String,
     val name: String,
-    val url: String,
-    val domain: String
+    val searchUrl: String,
+    val domain: String,
+    val url: String = searchUrl
 ) 

@@ -38,12 +38,10 @@
         app:icon="@drawable/ic_search_settings"
         app:iconSpaceReserved="true">
 
-        <com.example.aifloatingball.preference.SearchEngineListPreference
+        <com.example.aifloatingball.preference.SearchEnginePreference
             app:key="default_search_engine"
             app:title="默认搜索引擎"
             app:summary="选择默认使用的搜索引擎"
-            app:entries="@array/search_engines"
-            app:entryValues="@array/search_engine_values"
             app:defaultValue="baidu"
             app:iconSpaceReserved="true" />
 
@@ -96,30 +94,24 @@
                 app:defaultValue="2"
                 app:iconSpaceReserved="false" />
 
-            <com.example.aifloatingball.preference.SearchEngineListPreference
+            <com.example.aifloatingball.preference.SearchEnginePreference
                 app:key="left_window_search_engine"
                 app:title="左侧窗口搜索引擎"
                 app:summary="选择左侧窗口默认使用的搜索引擎"
-                app:entries="@array/search_engines"
-                app:entryValues="@array/search_engine_values"
                 app:defaultValue="baidu"
                 app:iconSpaceReserved="true" />
 
-            <com.example.aifloatingball.preference.SearchEngineListPreference
+            <com.example.aifloatingball.preference.SearchEnginePreference
                 app:key="center_window_search_engine"
                 app:title="中间窗口搜索引擎"
                 app:summary="选择中间窗口默认使用的搜索引擎"
-                app:entries="@array/search_engines"
-                app:entryValues="@array/search_engine_values"
                 app:defaultValue="bing"
                 app:iconSpaceReserved="true" />
 
-            <com.example.aifloatingball.preference.SearchEngineListPreference
+            <com.example.aifloatingball.preference.SearchEnginePreference
                 app:key="right_window_search_engine"
                 app:title="右侧窗口搜索引擎"
                 app:summary="选择右侧窗口默认使用的搜索引擎"
-                app:entries="@array/search_engines"
-                app:entryValues="@array/search_engine_values"
                 app:defaultValue="google"
                 app:iconSpaceReserved="true" />
 
@@ -131,6 +123,11 @@
             app:summary="打开搜索框时自动粘贴剪贴板内容"
             app:defaultValue="true"
             app:iconSpaceReserved="false" />
+
+        <Preference
+            app:key="app_search_settings"
+            app:title="应用搜索设置"
+            app:summary="管理搜索按钮的显示和排序" />
     </PreferenceCategory>
 
     <PreferenceCategory

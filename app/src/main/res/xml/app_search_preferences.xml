@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        app:key="app_search_category"
+        app:title="应用搜索设置">
+
+        <MultiSelectListPreference
+            app:key="enabled_app_searches"
+            app:title="启用的应用搜索"
+            app:summary="选择要显示的应用搜索按钮"
+            app:entries="@array/app_search_names"
+            app:entryValues="@array/app_search_values"
+            app:defaultValue="@array/default_app_searches" />
+
+        <Preference
+            app:key="app_search_order"
+            app:title="应用搜索排序"
+            app:summary="调整应用搜索按钮的显示顺序" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen> 

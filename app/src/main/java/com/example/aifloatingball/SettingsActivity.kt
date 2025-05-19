@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.*
 import com.example.aifloatingball.utils.ServiceUtils
+import com.example.aifloatingball.preference.SearchEnginePreference
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -80,7 +81,7 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             // 默认搜索引擎设置
-            findPreference<ListPreference>("default_search_engine")?.apply {
+            findPreference<SearchEnginePreference>("default_search_engine")?.apply {
                 value = settingsManager.getDefaultSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setDefaultSearchEngine(newValue.toString())
@@ -117,30 +118,30 @@ class SettingsActivity : AppCompatActivity() {
             }
             
             // 左侧窗口搜索引擎设置
-            findPreference<ListPreference>("left_window_search_engine")?.apply {
+            findPreference<SearchEnginePreference>("left_window_search_engine")?.apply {
                 value = settingsManager.getLeftWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setLeftWindowSearchEngine(newValue as String)
+                    settingsManager.setLeftWindowSearchEngine(newValue.toString())
                     ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
             
             // 中间窗口搜索引擎设置
-            findPreference<ListPreference>("center_window_search_engine")?.apply {
+            findPreference<SearchEnginePreference>("center_window_search_engine")?.apply {
                 value = settingsManager.getCenterWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setCenterWindowSearchEngine(newValue as String)
+                    settingsManager.setCenterWindowSearchEngine(newValue.toString())
                     ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
             
             // 右侧窗口搜索引擎设置
-            findPreference<ListPreference>("right_window_search_engine")?.apply {
+            findPreference<SearchEnginePreference>("right_window_search_engine")?.apply {
                 value = settingsManager.getRightWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setRightWindowSearchEngine(newValue as String)
+                    settingsManager.setRightWindowSearchEngine(newValue.toString())
                     ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
@@ -192,6 +193,12 @@ class SettingsActivity : AppCompatActivity() {
             // AI搜索引擎管理入口
             findPreference<Preference>("ai_search_engine_manager")?.setOnPreferenceClickListener {
                 startActivity(Intent(requireContext(), AISearchEngineSettingsActivity::class.java))
+                true
+            }
+            
+            // 应用搜索设置入口
+            findPreference<Preference>("app_search_settings")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), AppSearchSettingsActivity::class.java))
                 true
             }
             

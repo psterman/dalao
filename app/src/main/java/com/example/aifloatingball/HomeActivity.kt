@@ -1127,7 +1127,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private fun setupLetterIndexBar() {
         // 直接使用普通搜索引擎列表，移除AI模式切换
-        letterIndexBar.engines = SearchActivity.NORMAL_SEARCH_ENGINES
+        letterIndexBar.engines = SearchEngine.getNormalSearchEngines()
 
         letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
             override fun onLetterSelected(view: View, letter: Char) {
@@ -1156,7 +1156,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
         // 直接使用普通搜索引擎列表
-        val engines = SearchActivity.NORMAL_SEARCH_ENGINES
+        val engines = SearchEngine.getNormalSearchEngines()
 
         // 过滤匹配的搜索引擎
         val matchingEngines = engines.filter { engine ->

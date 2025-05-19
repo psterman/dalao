@@ -123,5 +123,15 @@
         <activity
             android:name=".SearchEngineGroupManagerActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".AppSearchSettingsActivity"
+            android:label="应用搜索设置"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="" />
+        </activity>
     </application>
 </manifest> 

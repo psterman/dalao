@@ -2,6 +2,7 @@ package com.example.aifloatingball.utils
 
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.BaseSearchEngine
 import com.example.aifloatingball.R
 
 /**
@@ -125,7 +126,7 @@ object EngineUtil {
         val engine = AISearchEngine.DEFAULT_AI_ENGINES.find { 
             getEngineKey(it.name) == engineKey 
         }
-        return engine?.url ?: "https://chat.openai.com"
+        return engine?.searchUrl ?: "https://chat.openai.com"
     }
     
     /**
@@ -169,7 +170,7 @@ object EngineUtil {
         val engine = AISearchEngine.DEFAULT_AI_ENGINES.find { 
             getEngineKey(it.name) == engineKey 
         }
-        return engine?.getAISearchUrl(query) ?: "https://chat.openai.com"
+        return engine?.getSearchUrl(query) ?: "https://chat.openai.com"
     }
     
     /**

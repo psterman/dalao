@@ -7,6 +7,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.BaseSearchEngine
 import com.example.aifloatingball.SearchActivity
 import android.util.Log
 import android.content.Intent
@@ -24,6 +25,7 @@ class SettingsManager private constructor(context: Context) {
         private const val DEFAULT_BALL_ALPHA = 85
         private const val DEFAULT_LAYOUT_THEME = 0
         private const val DEFAULT_PAGE = "home"
+        private const val KEY_SEARCH_HISTORY = "search_history"
         
         // 主题模式常量
         const val THEME_MODE_SYSTEM = 0    // 跟随系统
@@ -82,10 +84,23 @@ class SettingsManager private constructor(context: Context) {
     
     fun setDefaultSearchEngine(engine: String) {
         prefs.edit().putString("default_search_engine", engine).apply()
+        notifyListeners("default_search_engine", engine)
     }
-    
+
+    // 获取搜索引擎实例
+    fun getSearchEngineById(id: String): BaseSearchEngine {
+        return if (id.startsWith("ai_")) {
+            val aiName = id.substring(3)
+            AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == aiName }
+                ?: AISearchEngine.DEFAULT_AI_ENGINES.first()
+        } else {
+            SearchEngine.DEFAULT_ENGINES.find { it.name == id }
+                ?: SearchEngine.DEFAULT_ENGINES.first()
+        }
+    }
+
     // 获取当前模式下的搜索引擎列表
-    fun getCurrentSearchEngines(): List<Any> {
+    fun getCurrentSearchEngines(): List<BaseSearchEngine> {
         val isAIMode = isDefaultAIMode()
         val enabledEngines = getEnabledEngines()
         
@@ -102,9 +117,21 @@ class SettingsManager private constructor(context: Context) {
             Log.e("SettingsManager", "加载搜索引擎列表失败: ${e.message}", e)
             // 返回默认搜索引擎
             if (isAIMode) {
-                listOf(AISearchEngine("ChatGPT", "https://chat.openai.com", R.drawable.ic_chatgpt, "ChatGPT AI聊天"))
+                listOf(AISearchEngine(
+                    name = "ChatGPT",
+                    url = "https://chat.openai.com",
+                    iconResId = R.drawable.ic_chatgpt,
+                    description = "ChatGPT AI助手",
+                    searchUrl = "https://chat.openai.com/search?q={query}"
+                ))
             } else {
-                listOf(SearchEngine("百度", "https://www.baidu.com/s?wd=", R.drawable.ic_search, "百度搜索"))
+                listOf(SearchEngine(
+                    name = "baidu",
+                    url = "https://www.baidu.com",
+                    iconResId = R.drawable.ic_baidu,
+                    description = "百度搜索",
+                    searchUrl = "https://www.baidu.com/s?wd={query}"
+                ))
             }
         }
     }
@@ -120,10 +147,10 @@ class SettingsManager private constructor(context: Context) {
     }
     
     @Deprecated("Use getCurrentSearchEngines() instead", ReplaceWith("getCurrentSearchEngines()"))
-    fun getFilteredEngineOrder(): List<Any> = getCurrentSearchEngines()
+    fun getFilteredEngineOrder(): List<BaseSearchEngine> = getCurrentSearchEngines()
     
     @Deprecated("Use getCurrentSearchEngines() instead", ReplaceWith("getCurrentSearchEngines()"))
-    fun getEngineOrder(): List<SearchEngine> = getCurrentSearchEngines() as List<SearchEngine>
+    fun getEngineOrder(): List<SearchEngine> = getCurrentSearchEngines().filterIsInstance<SearchEngine>()
     
     @Deprecated("Use saveEnabledEngines() instead", ReplaceWith("saveEnabledEngines(engines.map { it.name }.toSet())"))
     fun saveEngineOrder(engines: List<SearchEngine>) {
@@ -353,5 +380,97 @@ class SettingsManager private constructor(context: Context) {
     fun setDefaultBrowser(browser: String) {
         prefs.edit().putString("default_browser", browser).apply()
         notifyListeners("default_browser", browser)
+    }
+
+    // 获取启用的应用搜索列表
+    fun getEnabledAppSearches(): Set<String> {
+        return prefs.getStringSet("enabled_app_searches", getDefaultAppSearches()) ?: getDefaultAppSearches()
+    }
+
+    // 设置启用的应用搜索列表
+    fun setEnabledAppSearches(apps: Set<String>) {
+        prefs.edit().putStringSet("enabled_app_searches", apps).apply()
+        notifyListeners("enabled_app_searches", apps)
+    }
+
+    // 获取应用搜索排序
+    fun getAppSearchOrder(): List<String> {
+        val json = prefs.getString("app_search_order", "") ?: ""
+        if (json.isEmpty()) {
+            return getDefaultAppSearchOrder()
+        }
+        return try {
+            gson.fromJson<List<String>>(json, object : TypeToken<List<String>>() {}.type)
+        } catch (e: Exception) {
+            getDefaultAppSearchOrder()
+        }
+    }
+
+    // 设置应用搜索排序
+    fun setAppSearchOrder(order: List<String>) {
+        val json = gson.toJson(order)
+        prefs.edit().putString("app_search_order", json).apply()
+        notifyListeners("app_search_order", order)
+    }
+
+    // 获取默认的应用搜索列表
+    private fun getDefaultAppSearches(): Set<String> {
+        return setOf("taobao", "pdd", "douyin")
+    }
+
+    // 获取默认的应用搜索排序
+    private fun getDefaultAppSearchOrder(): List<String> {
+        return listOf("taobao", "pdd", "douyin")
+    }
+
+    // 获取应用搜索配置
+    fun getAppSearchConfig(): Map<String, AppSearchConfig> {
+        return mapOf(
+            "taobao" to AppSearchConfig(
+                id = "taobao",
+                name = "淘宝",
+                packageName = "com.taobao.taobao",
+                searchScheme = "taobao://search.taobao.com/search?q={query}",
+                webUrl = "https://s.taobao.com/search?q={query}",
+                iconResId = R.drawable.ic_taobao
+            ),
+            "pdd" to AppSearchConfig(
+                id = "pdd",
+                name = "拼多多",
+                packageName = "com.xunmeng.pinduoduo",
+                searchScheme = "pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key={query}",
+                webUrl = "https://mobile.yangkeduo.com/search_result.html?search_key={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "douyin" to AppSearchConfig(
+                id = "douyin",
+                name = "抖音",
+                packageName = "com.ss.android.ugc.aweme",
+                searchScheme = "snssdk1128://search?keyword={query}",
+                webUrl = "https://www.douyin.com/search/{query}",
+                iconResId = R.drawable.ic_douyin
+            )
+        )
+    }
+
+    // 数据类：应用搜索配置
+    data class AppSearchConfig(
+        val id: String,
+        val name: String,
+        val packageName: String,
+        val searchScheme: String,
+        val webUrl: String,
+        val iconResId: Int
+    )
+
+    fun getSearchHistory(): List<Map<String, Any>> {
+        val json = prefs.getString(KEY_SEARCH_HISTORY, "[]")
+        val type = object : TypeToken<List<Map<String, Any>>>() {}.type
+        return gson.fromJson(json, type) ?: emptyList()
+    }
+
+    fun saveSearchHistory(history: List<Map<String, Any>>) {
+        val json = gson.toJson(history)
+        prefs.edit().putString(KEY_SEARCH_HISTORY, json).apply()
     }
 }
