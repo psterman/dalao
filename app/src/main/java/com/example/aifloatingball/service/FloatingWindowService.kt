@@ -116,6 +116,7 @@ class FloatingWindowService : Service() {
     private var regularEnginesContainer: LinearLayout? = null
     private var savedCombosContainer: LinearLayout? = null
     private var searchContainer: LinearLayout? = null
+    private var appSearchContainer: LinearLayout? = null  // 新增应用搜索容器引用
     
     // AI和普通搜索引擎列表
     private var aiSearchEngines: List<AISearchEngine> = emptyList()
@@ -315,9 +316,9 @@ class FloatingWindowService : Service() {
         regularEnginesContainer?.visibility = View.GONE
         searchModeToggle?.visibility = View.GONE
         
-        // 隐藏淘宝APP搜索专栏
-        val taobaoAppContainer = floatingView?.findViewById<LinearLayout>(R.id.taobao_app_container)
-        taobaoAppContainer?.visibility = View.GONE
+        // 隐藏应用搜索容器
+        val appSearchContainer = floatingView?.findViewById<LinearLayout>(R.id.app_search_container)
+        appSearchContainer?.visibility = View.GONE
 
         // 完全重写触摸事件处理逻辑
         setupTouchEventHandling()
@@ -1135,6 +1136,8 @@ class FloatingWindowService : Service() {
         // 初始化搜索引擎快捷方式容器
         shortcutsContainer = floatingView?.findViewById(R.id.search_shortcuts_container)
         searchInput = floatingView?.findViewById(R.id.search_input)
+        searchContainer = floatingView?.findViewById(R.id.search_container)
+        appSearchContainer = floatingView?.findViewById(R.id.app_search_container)  // 初始化应用搜索容器
 
         // 设置搜索输入框行为
         searchInput?.setOnEditorActionListener { _, actionId, _ ->
@@ -1154,20 +1157,11 @@ class FloatingWindowService : Service() {
         // 加载并显示已保存的搜索引擎快捷方式
         loadSearchEngineShortcuts()
         
-        // 初始化searchInput的长按事件
-        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onLongPress(e: MotionEvent) {
-                showCustomTextMenu()
-            }
-        })
+        // 初始化应用搜索按钮
+        initializeAppSearchButtons()
         
-        searchInput?.setOnTouchListener { v, event ->
-            gestureDetector.onTouchEvent(event)
-            return@setOnTouchListener false
-        }
-        
-        // 初始化淘宝APP搜索按钮
-        initializeTaobaoAppSearch()
+        // 确保初始时只显示悬浮球
+        ensureOnlyFloatingBallVisible()
     }
     
     // 初始化淘宝APP搜索功能
@@ -1202,8 +1196,88 @@ class FloatingWindowService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "打开淘宝APP失败: ${e.message}")
             
-            // 如果无法打开APP，提示安装
-            Toast.makeText(this, "请确认是否已安装淘宝APP", Toast.LENGTH_SHORT).show()
+            // 如果无法打开APP，尝试打开网页版
+            try {
+                val webUrl = "https://s.taobao.com/search?q=${Uri.encode(query)}"
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(webIntent)
+            } catch (e2: Exception) {
+                // 如果连网页版都无法打开，提示安装APP
+                Toast.makeText(this, "请确认是否已安装淘宝APP", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    // 初始化拼多多APP搜索功能
+    private fun initializePDDAppSearch() {
+        val pddAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.pdd_app_search_button)
+        pddAppSearchButton?.setOnClickListener {
+            val searchQuery = searchInput?.text?.toString() ?: ""
+            openPDDApp(searchQuery)
+        }
+    }
+    
+    // 打开拼多多APP搜索页面
+    private fun openPDDApp(query: String) {
+        try {
+            // 编码搜索关键词
+            val encodedQuery = Uri.encode(query)
+            
+            // 构建拼多多搜索页面的scheme链接
+            val searchUrl = "pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key=$encodedQuery"
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)).apply {
+                setPackage("com.xunmeng.pinduoduo")  // 指定拼多多包名
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            startActivity(intent)
+            
+            // 成功启动后的操作
+            Toast.makeText(this, "正在打开拼多多搜索: $query", Toast.LENGTH_SHORT).show()
+            searchContainer?.visibility = View.GONE
+            searchInput?.setText("")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "打开拼多多APP失败: ${e.message}")
+            
+            // 如果无法打开APP，尝试打开网页版
+            try {
+                val webUrl = "https://mobile.yangkeduo.com/search_result.html?search_key=${Uri.encode(query)}"
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(webIntent)
+            } catch (e2: Exception) {
+                // 如果连网页版都无法打开，提示安装APP
+                Toast.makeText(this, "请确认是否已安装拼多多APP", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    // 初始化应用搜索按钮
+    private fun initializeAppSearchButtons() {
+        // 初始化淘宝APP搜索按钮
+        val taobaoAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.taobao_app_search_button)
+        taobaoAppSearchButton?.setOnClickListener {
+            val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+            if (searchQuery.isEmpty()) {
+                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            openTaobaoApp(searchQuery)
+        }
+        
+        // 初始化拼多多APP搜索按钮
+        val pddAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.pdd_app_search_button)
+        pddAppSearchButton?.setOnClickListener {
+            val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+            if (searchQuery.isEmpty()) {
+                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            openPDDApp(searchQuery)
         }
     }
 
@@ -1560,9 +1634,8 @@ class FloatingWindowService : Service() {
         // 显示保存的引擎组合
         savedCombosContainer?.visibility = View.VISIBLE
         
-        // 显示淘宝APP搜索专栏
-        val taobaoAppContainer = floatingView?.findViewById<LinearLayout>(R.id.taobao_app_container)
-        taobaoAppContainer?.visibility = View.VISIBLE
+        // 显示应用搜索容器
+        appSearchContainer?.visibility = View.VISIBLE
         
         // 显示搜索模式切换按钮
         searchModeToggle?.visibility = View.VISIBLE
@@ -1609,6 +1682,10 @@ class FloatingWindowService : Service() {
                 ?.setDuration(200)
                 ?.start()
         }
+        
+        // 显示应用搜索容器
+        val appSearchContainer = floatingView?.findViewById<LinearLayout>(R.id.app_search_container)
+        appSearchContainer?.visibility = View.VISIBLE
     }
     
     // 新增方法：更新显示搜索界面的位置计算
@@ -1659,13 +1736,10 @@ class FloatingWindowService : Service() {
                 regularEnginesContainer?.visibility = View.GONE
                 savedCombosContainer?.visibility = View.GONE
                 searchModeToggle?.visibility = View.GONE
-                
-                // 隐藏淘宝APP搜索专栏
-                val taobaoAppContainer = floatingView?.findViewById<LinearLayout>(R.id.taobao_app_container)
-                taobaoAppContainer?.visibility = View.GONE
+                appSearchContainer?.visibility = View.GONE  // 隐藏应用搜索容器
                 
                 // 清空输入框内容
-            searchInput?.setText("")
+                searchInput?.setText("")
                 
                 // 隐藏键盘
                 hideKeyboard()
@@ -1680,7 +1754,7 @@ class FloatingWindowService : Service() {
                 )
                 
                 try {
-                windowManager?.updateViewLayout(floatingView, params)
+                    windowManager?.updateViewLayout(floatingView, params)
                     Log.d(TAG, "搜索界面已关闭，悬浮球位置已恢复: x=$initialX, y=$initialY")
                     
                     // 确保悬浮球在安全区域内
@@ -2055,6 +2129,7 @@ class FloatingWindowService : Service() {
         aiEnginesContainer?.visibility = View.GONE
         regularEnginesContainer?.visibility = View.GONE
         searchModeToggle?.visibility = View.GONE
+        appSearchContainer?.visibility = View.GONE  // 隐藏应用搜索容器
         
         // 确保菜单状态标志为关闭
         isMenuVisible = false
@@ -2079,6 +2154,10 @@ class FloatingWindowService : Service() {
         
         // 确保悬浮球在安全区域内
         ensureBallInSafeArea()
+        
+        // 隐藏应用搜索容器
+        val appSearchContainer = floatingView?.findViewById<LinearLayout>(R.id.app_search_container)
+        appSearchContainer?.visibility = View.GONE
     }
 
     // 加载已保存的搜索引擎快捷方式
