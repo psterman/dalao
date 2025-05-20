@@ -736,17 +736,29 @@ class FloatingWindowService : Service() {
     // 显示键盘
     private fun showKeyboard(view: View?) {
         if (view == null) return
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        view.post {
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            // 确保view可以获取焦点
+            view.isFocusable = true
+            view.isFocusableInTouchMode = true
+            // 请求焦点
+            view.requestFocus()
+            // 显示输入法
             imm.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+        } catch (e: Exception) {
+            Log.e(TAG, "显示键盘失败: ${e.message}")
         }
     }
     
     // 隐藏键盘
     private fun hideKeyboard() {
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        floatingView?.windowToken?.let {
-            imm.hideSoftInputFromWindow(it, 0)
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            floatingView?.windowToken?.let {
+                imm.hideSoftInputFromWindow(it, 0)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏键盘失败: ${e.message}")
         }
     }
     
@@ -1668,164 +1680,154 @@ class FloatingWindowService : Service() {
     
     // 新增方法：显示搜索界面
     private fun showSearchInterface() {
-        // 记录当前位置
-        initialX = params?.x ?: 0
-        initialY = params?.y ?: 0
-        
-        Log.d(TAG, "显示搜索界面 - 初始位置: x=$initialX, y=$initialY")
-        
-        // 先将搜索界面设为可见但透明，以便测量其尺寸
-        searchContainer?.visibility = View.VISIBLE
-        searchContainer?.alpha = 0f  // 完全透明，避免闪烁
-        
-        // 立即应用更新，保持悬浮球位置不变
-        windowManager?.updateViewLayout(floatingView, params)
-        
-        // 根据当前模式显示相应的搜索引擎容器
-        if (isAIMode) {
-            aiEnginesContainer?.visibility = View.VISIBLE
-            regularEnginesContainer?.visibility = View.GONE
-        } else {
-            aiEnginesContainer?.visibility = View.GONE
-            regularEnginesContainer?.visibility = View.VISIBLE
-        }
-        
-        // 显示保存的引擎组合
-        savedCombosContainer?.visibility = View.VISIBLE
-        
-        // 显示应用搜索容器
-        appSearchContainer?.visibility = View.VISIBLE
-        
-        // 显示搜索模式切换按钮
-        searchModeToggle?.visibility = View.VISIBLE
-        
-        // 修改窗口参数以允许文本操作
-        params?.flags = (params?.flags ?: 0).and(
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-        ).or(
-            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
-        )
-        
         try {
-        windowManager?.updateViewLayout(floatingView, params)
-        } catch (e: Exception) {
-            Log.e(TAG, "更新布局参数失败: ${e.message}")
-        }
-        
-        // 激活输入框和输入法
-        searchInput?.post {
-            searchInput?.requestFocus()
-            showKeyboard(searchInput)
-        }
-        
-        isMenuVisible = true
-        
-        // 等待测量完成后再应用淡入动画
-        searchContainer?.post {
-            // 获取测量后的确切尺寸
-            val searchContainerWidth = searchContainer?.width ?: 0
-            val searchContainerHeight = searchContainer?.height ?: 0
+            // 记录当前悬浮球位置（用于关闭时恢复）
+            initialX = params?.x ?: 0
+            initialY = params?.y ?: 0
             
-            Log.d(TAG, "搜索容器尺寸: 宽=$searchContainerWidth, 高=$searchContainerHeight")
+            // 获取屏幕尺寸
+            val displayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels
             
-            // 获取悬浮球尺寸
-            val floatingBallIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
-            val ballSize = floatingBallIcon?.width ?: 80
+            // 获取状态栏高度
+            val statusBarHeight = getStatusBarHeight()
             
-            // 根据悬浮球位置智能调整搜索界面的位置
-            optimallyPositionSearchInterface(searchContainerWidth, searchContainerHeight, ballSize)
-            
-            // 应用淡入动画效果
-            searchContainer?.animate()
-                ?.alpha(1f)
-                ?.setDuration(200)
-                ?.start()
-        }
-        
-        // 显示应用搜索容器
-        val appSearchContainer = floatingView?.findViewById<LinearLayout>(R.id.app_search_container)
-        appSearchContainer?.visibility = View.VISIBLE
-    }
-    
-    // 新增方法：更新显示搜索界面的位置计算
-    private fun optimallyPositionSearchInterface(width: Int, height: Int, ballSize: Int) {
-        // 获取屏幕尺寸
-        val displayMetrics = resources.displayMetrics
-        val screenWidth = displayMetrics.widthPixels
-        val screenHeight = displayMetrics.heightPixels
-        
-        // 计算屏幕中心位置
-        val centerX = screenWidth / 2
-        val centerY = screenHeight / 2
-        
-        // 计算搜索界面应该显示的位置（屏幕中心）
-        val newX = centerX - width / 2
-        val newY = centerY - height / 2
-        
-        // 确保不超出屏幕边界
-        val finalX = newX.coerceIn(0, screenWidth - width)
-        val finalY = newY.coerceIn(getStatusBarHeight(), screenHeight - height)
-        
-        Log.d(TAG, "搜索界面位置: x=$finalX, y=$finalY (屏幕中心)")
-        
-        // 更新位置
-        params?.x = finalX
-        params?.y = finalY
-        
-        try {
-        windowManager?.updateViewLayout(floatingView, params)
-        } catch (e: Exception) {
-            Log.e(TAG, "更新搜索界面位置失败: ${e.message}")
-        }
-    }
-    
-    // 修改关闭搜索界面的方法，确保正确恢复悬浮球位置
-    private fun hideSearchInterface() {
-        Log.d(TAG, "关闭搜索界面 - 准备恢复位置: x=$initialX, y=$initialY")
-        
-        // 添加淡出动画效果
-        searchContainer?.animate()
-            ?.alpha(0f)
-            ?.setDuration(150)
-            ?.withEndAction {
-                // 动画结束后隐藏所有搜索相关元素
-                searchContainer?.visibility = View.GONE
-                shortcutsContainer?.visibility = View.GONE
-                aiEnginesContainer?.visibility = View.GONE
-                regularEnginesContainer?.visibility = View.GONE
-                savedCombosContainer?.visibility = View.GONE
-                searchModeToggle?.visibility = View.GONE
-                appSearchContainer?.visibility = View.GONE  // 隐藏应用搜索容器
+            // 先将搜索界面设为可见但完全透明
+            searchContainer?.apply {
+                visibility = View.VISIBLE
+                alpha = 0f
                 
-                // 清空输入框内容
-                searchInput?.setText("")
-                
-                // 隐藏键盘
-                hideKeyboard()
-                
-                // 恢复悬浮球原始位置
-                params?.x = initialX
-                params?.y = initialY
-                
-                // 恢复FLAG_NOT_FOCUSABLE标志
-                params?.flags = (params?.flags ?: 0).or(
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                )
-                
-                try {
-                    windowManager?.updateViewLayout(floatingView, params)
-                    Log.d(TAG, "搜索界面已关闭，悬浮球位置已恢复: x=$initialX, y=$initialY")
+                // 等待布局完成后进行位置计算和动画
+                post {
+                    // 计算搜索界面在屏幕上方的位置
+                    val topMargin = statusBarHeight + 10 // 状态栏下方10像素
+                    val centerX = screenWidth / 2 - width / 2
                     
-                    // 确保悬浮球在安全区域内
-                    ensureBallInSafeArea()
-                } catch (e: Exception) {
-                    Log.e(TAG, "更新布局失败: ${e.message}")
+                    // 设置初始位置和缩放
+                    scaleX = 0.85f
+                    scaleY = 0.85f
+                    
+                    // 设置窗口参数
+                    params?.apply {
+                        x = centerX
+                        y = topMargin
+                        
+                        // 移除FLAG_NOT_FOCUSABLE，允许获取焦点
+                        flags = flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                        
+                        // 设置软键盘调整模式
+                        softInputMode = (
+                            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or  // 调整大小以适应键盘
+                            WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN      // 初始时隐藏键盘
+                        )
+                    }
+                    
+                    try {
+                        windowManager?.updateViewLayout(floatingView, params)
+                        
+                        // 应用展开动画
+                        animate()
+                            .alpha(1f)
+                            .scaleX(1f)
+                            .scaleY(1f)
+                            .setDuration(250)
+                            .setInterpolator(android.view.animation.DecelerateInterpolator())
+                            .withStartAction {
+                                // 显示所有需要的UI元素
+                                if (isAIMode) {
+                                    aiEnginesContainer?.visibility = View.VISIBLE
+                                    regularEnginesContainer?.visibility = View.GONE
+                                } else {
+                                    aiEnginesContainer?.visibility = View.GONE
+                                    regularEnginesContainer?.visibility = View.VISIBLE
+                                }
+                                
+                                savedCombosContainer?.visibility = View.VISIBLE
+                                appSearchContainer?.visibility = View.VISIBLE
+                                searchModeToggle?.visibility = View.VISIBLE
+                            }
+                            .withEndAction {
+                                try {
+                                    // 激活输入框和输入法
+                                    searchInput?.post {
+                                        searchInput?.requestFocus()
+                                        showKeyboard(searchInput)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "激活输入框失败: ${e.message}")
+                                }
+                            }
+                            .start()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "更新搜索界面位置失败: ${e.message}")
+                    }
                 }
-                
-                // 重置菜单状态标志
-                isMenuVisible = false
             }
-            ?.start()
+            
+            isMenuVisible = true
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示搜索界面失败: ${e.message}")
+        }
+    }
+    
+    // 修改关闭动画
+    private fun hideSearchInterface() {
+        try {
+            searchContainer?.apply {
+                // 从当前位置开始收起动画
+                animate()
+                    .alpha(0f)
+                    .scaleX(0.85f)
+                    .scaleY(0.85f)
+                    .setDuration(200)
+                    .setInterpolator(android.view.animation.AccelerateInterpolator())
+                    .withEndAction {
+                        // 隐藏所有搜索相关元素
+                        visibility = View.GONE
+                        shortcutsContainer?.visibility = View.GONE
+                        aiEnginesContainer?.visibility = View.GONE
+                        regularEnginesContainer?.visibility = View.GONE
+                        savedCombosContainer?.visibility = View.GONE
+                        searchModeToggle?.visibility = View.GONE
+                        appSearchContainer?.visibility = View.GONE
+                        
+                        // 清空输入框内容
+                        searchInput?.setText("")
+                        
+                        // 隐藏键盘
+                        hideKeyboard()
+                        
+                        // 恢复悬浮球原始位置和参数
+                        params?.apply {
+                            x = initialX
+                            y = initialY
+                            
+                            // 恢复原始标志
+                            flags = flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                            
+                            // 重置软键盘模式
+                            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                        }
+                        
+                        try {
+                            windowManager?.updateViewLayout(floatingView, params)
+                            Log.d(TAG, "搜索界面已关闭，悬浮球位置已恢复: x=$initialX, y=$initialY")
+                            
+                            // 确保悬浮球在安全区域内
+                            ensureBallInSafeArea()
+                        } catch (e: Exception) {
+                            Log.e(TAG, "更新布局失败: ${e.message}")
+                        }
+                        
+                        // 重置菜单状态标志
+                        isMenuVisible = false
+                    }
+                    .start()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭搜索界面失败: ${e.message}")
+        }
     }
     
     // 移除不再需要的计算菜单位置方法
