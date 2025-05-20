@@ -147,9 +147,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:padding="8dp"
-            android:background="@drawable/search_container_background">
+            android:gravity="center">
+
+            <ImageButton
+                android:id="@+id/wechat_app_search_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_margin="4dp"
+                android:background="@drawable/circle_ripple"
+                android:contentDescription="微信搜索"
+                android:padding="8dp"
+                android:src="@drawable/ic_wechat" />
 
             <!-- 淘宝搜索按钮 -->
             <ImageButton

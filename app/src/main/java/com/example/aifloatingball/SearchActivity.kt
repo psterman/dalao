@@ -865,16 +865,16 @@ class SearchActivity : AppCompatActivity() {
     private fun showSearchEnginesByLetter(letter: Char) {
         val filteredEngines = searchEngines.filter { engine ->
             val firstChar = engine.name.first()
-            when {
-                firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                when {
+                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
                     firstChar.uppercaseChar() == letter.uppercaseChar()
-                firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
-                    val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                        val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
                     pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
+                    }
+                    else -> false
                 }
-                else -> false
             }
-        }
         engineAdapter.updateEngines(filteredEngines)
     }
 
@@ -888,20 +888,20 @@ class SearchActivity : AppCompatActivity() {
             engines = newEngines
             notifyDataSetChanged()
         }
-
+        
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
             val view = LayoutInflater.from(parent.context)
                 .inflate(R.layout.item_search_engine, parent, false)
             return ViewHolder(view)
         }
-
+        
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val engine = engines[position]
             holder.bind(engine)
         }
-
+        
         override fun getItemCount() = engines.size
-
+        
         inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
             private val nameTextView: TextView = itemView.findViewById(R.id.engine_name)
             private val descriptionTextView: TextView = itemView.findViewById(R.id.engine_description)
@@ -1409,7 +1409,7 @@ class SearchActivity : AppCompatActivity() {
             )
             history.add(0, entry)
             settingsManager.saveSearchHistory(history.take(100))
-        } catch (e: Exception) {
+            } catch (e: Exception) {
             Log.e("SearchActivity", "保存搜索历史失败", e)
         }
     }

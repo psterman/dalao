@@ -125,8 +125,8 @@ data class SearchEngine(
                     iconResId = parcel.readInt(),
                     description = parcel.readString()!!,
                     searchUrl = parcel.readString()!!
-                )
-            }
+        )
+    }
 
             override fun newArray(size: Int): Array<SearchEngine?> {
                 return arrayOfNulls(size)

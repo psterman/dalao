@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -52,6 +53,8 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
+import com.example.aifloatingball.model.AppSearchSettings
+import android.content.pm.PackageManager
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -165,6 +168,16 @@ class FloatingWindowService : Service() {
         }
     }
 
+    // 添加应用搜索设置更新的广播接收器
+    private val appSearchUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.ACTION_UPDATE_APP_SEARCH") {
+                // 重新初始化应用搜索按钮
+                initializeAppSearchButtons()
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -199,6 +212,10 @@ class FloatingWindowService : Service() {
         
         // 注册透明度更新的广播接收器
         registerReceiver(alphaUpdateReceiver, IntentFilter("com.example.aifloatingball.ACTION_UPDATE_ALPHA"))
+        
+        // 注册应用搜索设置更新的广播接收器
+        registerReceiver(appSearchUpdateReceiver, 
+            IntentFilter("com.example.aifloatingball.ACTION_UPDATE_APP_SEARCH"))
         
         // 确保初始时只显示悬浮球
         ensureOnlyFloatingBallVisible()
@@ -1244,60 +1261,79 @@ class FloatingWindowService : Service() {
     
     // 初始化应用搜索按钮
     private fun initializeAppSearchButtons() {
-        // 初始化淘宝APP搜索按钮
-        val taobaoAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.taobao_app_search_button)
-        taobaoAppSearchButton?.let { button ->
-            // 加载淘宝图标
-            loadFaviconForApp(button, "taobao.com", R.drawable.circle_background_orange)
-            button.setOnClickListener {
-                val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
-                if (searchQuery.isEmpty()) {
-                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
+        try {
+            // 获取应用搜索设置实例
+            val appSearchSettings = AppSearchSettings.getInstance(this)
+            
+            // 获取应用搜索容器
+            val appSearchContainer = floatingView?.findViewById<LinearLayout>(R.id.app_search_container)
+            appSearchContainer?.removeAllViews()  // 清除现有的按钮
+            
+            // 获取已启用的应用配置（已按顺序排序）
+            val enabledApps = appSearchSettings.getEnabledAppConfigs()
+            
+            // 为每个启用的应用创建搜索按钮
+            enabledApps.forEach { config ->
+                val button = ImageButton(this).apply {
+                    id = View.generateViewId()
+                    layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx()).apply {
+                        setMargins(4.dpToPx(), 4.dpToPx(), 4.dpToPx(), 4.dpToPx())
+                    }
+                    background = getDrawable(R.drawable.circle_ripple)
+                    contentDescription = "${config.appName}搜索"
+                    setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
+                    
+                    // 设置图标
+                    setImageResource(config.iconResId)
+                    
+                    // 设置点击事件
+                    setOnClickListener {
+                        val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+                        if (searchQuery.isEmpty()) {
+                            Toast.makeText(this@FloatingWindowService, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                            return@setOnClickListener
+                        }
+                        
+                        // 根据应用ID调用相应的搜索方法
+                        when (config.appId) {
+                            "wechat" -> openWechatApp(searchQuery)
+                            "taobao" -> openTaobaoApp(searchQuery)
+                            "pdd" -> openPDDApp(searchQuery)
+                            "douyin" -> openDouyinApp(searchQuery)
+                            "xiaohongshu" -> openXiaohongshuApp(searchQuery)
+                        }
+                    }
                 }
-                openTaobaoApp(searchQuery)
+                
+                // 加载应用图标
+                loadFaviconForApp(button, getDomainForApp(config.appId), config.iconResId)
+                
+                // 添加按钮到容器
+                appSearchContainer?.addView(button)
             }
+            
+            Log.d(TAG, "应用搜索按钮初始化完成，共添加 ${enabledApps.size} 个按钮")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化应用搜索按钮失败: ${e.message}")
         }
-        
-        // 初始化拼多多APP搜索按钮
-        val pddAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.pdd_app_search_button)
-        pddAppSearchButton?.let { button ->
-            // 加载拼多多图标
-            loadFaviconForApp(button, "pinduoduo.com", R.drawable.circle_background_red)
-            button.setOnClickListener {
-                val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
-                if (searchQuery.isEmpty()) {
-                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                openPDDApp(searchQuery)
-            }
-        }
-
-        // 初始化抖音APP搜索按钮
-        val douyinAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.douyin_app_search_button)
-        douyinAppSearchButton?.setOnClickListener {
-            val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
-            if (searchQuery.isEmpty()) {
-                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            openDouyinApp(searchQuery)
-        }
-
-        // 初始化小红书APP搜索按钮
-        val xiaohongshuAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.xiaohongshu_app_search_button)
-        xiaohongshuAppSearchButton?.let { button ->
-            // 加载小红书图标
-            loadFaviconForApp(button, "xiaohongshu.com", R.drawable.circle_background_red)
-            button.setOnClickListener {
-                val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
-                if (searchQuery.isEmpty()) {
-                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                openXiaohongshuApp(searchQuery)
-            }
+    }
+    
+    // 辅助方法：dp转px
+    private fun Int.dpToPx(): Int {
+        val scale = resources.displayMetrics.density
+        return (this * scale + 0.5f).toInt()
+    }
+    
+    // 获取应用对应的域名
+    private fun getDomainForApp(appId: String): String {
+        return when (appId) {
+            "wechat" -> "weixin.qq.com"
+            "taobao" -> "taobao.com"
+            "pdd" -> "pinduoduo.com"
+            "douyin" -> "douyin.com"
+            "xiaohongshu" -> "xiaohongshu.com"
+            else -> ""
         }
     }
 
@@ -1313,6 +1349,7 @@ class FloatingWindowService : Service() {
         try {
             unregisterReceiver(shortcutsUpdateReceiver)
             unregisterReceiver(alphaUpdateReceiver)
+            unregisterReceiver(appSearchUpdateReceiver)
         } catch (e: Exception) {
             Log.e("FloatingWindowService", "注销广播接收器失败: ${e.message}")
         }
@@ -2519,6 +2556,66 @@ class FloatingWindowService : Service() {
                 // 如果连网页版都无法打开，提示安装APP
                 Toast.makeText(this, "请确认是否已安装小红书APP", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    // 打开微信APP搜索页面
+    private fun openWechatApp(query: String) {
+        try {
+            // 首先尝试使用基础scheme启动微信
+            try {
+                val baseScheme = "weixin://"
+                val searchIntent = Intent(Intent.ACTION_VIEW, Uri.parse(baseScheme))
+                searchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(searchIntent)
+                
+                // 启动成功后，延迟复制搜索词到剪贴板
+                Handler(Looper.getMainLooper()).postDelayed({
+                    // 复制搜索词到剪贴板
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("搜索关键词", query)
+                    clipboard.setPrimaryClip(clip)
+                    
+                    Toast.makeText(this, "搜索词已复制，请在微信中粘贴搜索", Toast.LENGTH_LONG).show()
+                }, 500) // 延迟500毫秒复制
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "微信scheme启动失败: ${e.message}")
+                
+                // 如果scheme失败，尝试直接启动微信
+                val launchIntent = packageManager.getLaunchIntentForPackage("com.tencent.mm")
+                if (launchIntent != null) {
+                    startActivity(launchIntent)
+                    
+                    // 延迟复制搜索词
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("搜索关键词", query)
+                        clipboard.setPrimaryClip(clip)
+                        
+                        Toast.makeText(this, "搜索词已复制，请在微信中粘贴搜索", Toast.LENGTH_LONG).show()
+                    }, 500)
+                } else {
+                    Toast.makeText(this, "未安装微信或无法启动微信", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "微信启动失败: ${e.message}")
+            Toast.makeText(this, "无法启动微信", Toast.LENGTH_SHORT).show()
+        }
+        
+        // 隐藏搜索界面
+        searchContainer?.visibility = View.GONE
+        searchInput?.setText("")
+    }
+    
+    // 检查微信是否已安装
+    private fun isWechatInstalled(): Boolean {
+        return try {
+            packageManager.getPackageInfo("com.tencent.mm", PackageManager.GET_ACTIVITIES)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 }
