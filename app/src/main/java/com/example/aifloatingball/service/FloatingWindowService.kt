@@ -190,10 +190,16 @@ class FloatingWindowService : Service() {
             if (intent?.action == "com.example.aifloatingball.ACTION_VOICE_RESULT") {
                 val result = intent.getStringExtra("result")
                 if (!result.isNullOrEmpty()) {
-                    // 更新搜索框文本
-                    searchInput?.setText(result)
-                    // 执行搜索
-                    performSearch(result)
+                    // 显示搜索界面并填入结果
+                    handler.post {
+                        showSearchInterface()
+                        searchInput?.setText(result)
+                        // 将光标移到文本末尾
+                        searchInput?.setSelection(result.length)
+                        isListening = false
+                    }
+                } else {
+                    isListening = false
                 }
             }
         }
@@ -371,7 +377,7 @@ class FloatingWindowService : Service() {
         
         // 长按检测任务
         val longPressRunnable = Runnable {
-            if (!hasMoved && !hasPerformedAction) {
+            if (!hasMoved && !hasPerformedAction && !isListening) {
                 // 长按动作：启动语音识别
                 Log.d(TAG, "执行长按操作：启动语音识别")
                 hasPerformedAction = true // 标记已执行动作
@@ -2706,13 +2712,18 @@ class FloatingWindowService : Service() {
 
     private fun startVoiceRecognition() {
         try {
+            // 在启动语音识别前，确保UI处于正确状态
+            hideSearchInterface()  // 先隐藏搜索界面
+            isListening = true    // 标记正在进行语音识别
+            
             val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, "无法启动语音识别", Toast.LENGTH_SHORT).show()
             Log.e(TAG, "启动语音识别失败", e)
+            Toast.makeText(this, "无法启动语音识别", Toast.LENGTH_SHORT).show()
+            isListening = false
         }
     }
 
@@ -2722,11 +2733,8 @@ class FloatingWindowService : Service() {
                 if (!isLongPressActive && !isListening) {
                     isLongPressActive = true
                     Log.d(TAG, "触发长按事件，准备启动语音识别")
-                    // 显示搜索界面（如果未显示）
-                    if (!isMenuVisible) {
-                        showSearchInterface()
-                    }
-                    // 启动语音识别
+                    
+                    // 直接启动语音识别，不预先显示搜索界面
                     startVoiceRecognition()
                 }
             } catch (e: Exception) {
