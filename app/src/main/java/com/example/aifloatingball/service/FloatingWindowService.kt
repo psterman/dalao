@@ -79,6 +79,7 @@ class FloatingWindowService : Service() {
     private var isMenuVisible = false
     private var isLongPressActive = false
     private var isListening = false
+    private var hasPerformedAction = false  // 添加动作执行状态标记
     private var searchInput: EditText? = null
     
     // 初始化长按检测
@@ -196,10 +197,18 @@ class FloatingWindowService : Service() {
                         searchInput?.setText(result)
                         // 将光标移到文本末尾
                         searchInput?.setSelection(result.length)
+                        // 重置所有状态
                         isListening = false
+                        isLongPressActive = false
+                        hasPerformedAction = false
                     }
                 } else {
-                    isListening = false
+                    // 即使没有结果也要重置状态
+                    handler.post {
+                        isListening = false
+                        isLongPressActive = false
+                        hasPerformedAction = false
+                    }
                 }
             }
         }
@@ -1408,6 +1417,11 @@ class FloatingWindowService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // 重置所有状态
+        isListening = false
+        isLongPressActive = false
+        hasPerformedAction = false
+        
         floatingView?.let { windowManager?.removeView(it) }
         
         // 注销广播接收器
@@ -2715,33 +2729,47 @@ class FloatingWindowService : Service() {
             // 在启动语音识别前，确保UI处于正确状态
             hideSearchInterface()  // 先隐藏搜索界面
             isListening = true    // 标记正在进行语音识别
+            isLongPressActive = true
             
             val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
+
+            // 添加超时处理，确保状态最终会被重置
+            handler.postDelayed({
+                if (isListening || isLongPressActive) {
+                    isListening = false
+                    isLongPressActive = false
+                    hasPerformedAction = false
+                    Log.d(TAG, "语音识别状态自动重置")
+                }
+            }, 10000) // 10秒超时
+            
         } catch (e: Exception) {
             Log.e(TAG, "启动语音识别失败", e)
             Toast.makeText(this, "无法启动语音识别", Toast.LENGTH_SHORT).show()
+            // 发生错误时重置所有状态
             isListening = false
+            isLongPressActive = false
+            hasPerformedAction = false
         }
     }
 
     private fun initializeLongPressDetection() {
         longPressRunnable = Runnable {
             try {
-                if (!isLongPressActive && !isListening) {
-                    isLongPressActive = true
+                // 放宽检查条件，只要不在语音识别过程中就允许触发
+                if (!isListening) {
                     Log.d(TAG, "触发长按事件，准备启动语音识别")
-                    
                     // 直接启动语音识别，不预先显示搜索界面
                     startVoiceRecognition()
+                } else {
+                    Log.d(TAG, "语音识别正在进行中，忽略长按事件")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "启动语音识别失败: ${e.message}")
                 Toast.makeText(this, "启动语音识别失败", Toast.LENGTH_SHORT).show()
-            } finally {
-                isLongPressActive = false
             }
         }
     }
