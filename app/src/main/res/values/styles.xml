@@ -86,4 +86,19 @@
         <item name="android:padding">8dp</item>
         <item name="android:background">@drawable/shortcut_item_background</item>
     </style>
+
+    <!-- 语音搜索对话框样式 -->
+    <style name="VoiceSearchDialog" parent="Theme.MaterialComponents.Light.Dialog">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@style/VoiceDialogAnimation</item>
+    </style>
+
+    <!-- 语音对话框动画 -->
+    <style name="VoiceDialogAnimation">
+        <item name="android:windowEnterAnimation">@anim/voice_dialog_enter</item>
+        <item name="android:windowExitAnimation">@anim/voice_dialog_exit</item>
+    </style>
 </resources> 

@@ -156,7 +156,7 @@
                 android:layout_margin="4dp"
                 android:background="@drawable/circle_ripple"
                 android:contentDescription="微信搜索"
-                android:padding="8dp"
+            android:padding="8dp"
                 android:src="@drawable/ic_wechat" />
 
             <!-- 淘宝搜索按钮 -->

@@ -24,6 +24,7 @@ import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.preference.PreferenceManager
+import android.speech.RecognizerIntent
 import android.text.TextUtils
 import android.util.Log
 import android.view.*
@@ -37,6 +38,7 @@ import com.example.aifloatingball.DualFloatingWebViewService
 import com.example.aifloatingball.FloatingWebViewService
 import com.example.aifloatingball.HomeActivity
 import com.example.aifloatingball.R
+import com.example.aifloatingball.VoiceRecognitionActivity
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.manager.SearchEngineManager
 import com.example.aifloatingball.model.AISearchEngine
@@ -55,11 +57,14 @@ import java.io.FileOutputStream
 import kotlin.math.abs
 import com.example.aifloatingball.model.AppSearchSettings
 import android.content.pm.PackageManager
+import android.content.ActivityNotFoundException
+import android.app.Activity
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
     companion object {
         private const val TAG = "FloatingWindowService"
+        private const val VOICE_RECOGNITION_REQUEST_CODE = 1001
     }
     
     private var windowManager: WindowManager? = null
@@ -71,7 +76,10 @@ class FloatingWindowService : Service() {
     private var initialTouchY: Float = 0f
     private var lastClickTime: Long = 0
     private var handler: Handler = Handler(Looper.getMainLooper())
-    private var isMenuVisible = false // 记录菜单是否可见
+    private var isMenuVisible = false
+    private var isLongPressActive = false
+    private var isListening = false
+    private var searchInput: EditText? = null
     
     // 初始化长按检测
     private var longPressRunnable: Runnable = Runnable {
@@ -88,7 +96,6 @@ class FloatingWindowService : Service() {
     
     // 添加搜索引擎快捷方式相关变量
     private var shortcutsContainer: LinearLayout? = null
-    private var searchInput: EditText? = null
     private var searchEngineShortcuts: List<SearchEngineShortcut> = emptyList()
     
     // 搜索模式相关变量
@@ -178,10 +185,27 @@ class FloatingWindowService : Service() {
         }
     }
 
+    private val voiceRecognitionReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.ACTION_VOICE_RESULT") {
+                val result = intent.getStringExtra("result")
+                if (!result.isNullOrEmpty()) {
+                    // 更新搜索框文本
+                    searchInput?.setText(result)
+                    // 执行搜索
+                    performSearch(result)
+                }
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
+        
+        // 注册语音识别结果接收器
+        registerReceiver(voiceRecognitionReceiver, IntentFilter("com.example.aifloatingball.ACTION_VOICE_RESULT"))
         
         // 初始化设置管理器
         settingsManager = SettingsManager.getInstance(this)
@@ -195,8 +219,6 @@ class FloatingWindowService : Service() {
         
         // 确保自定义菜单布局已创建
         createTextSelectionMenuLayout()
-        
-        setupSearchInput()
         
         // 注册点击外部关闭搜索菜单的监听器
         setupOutsideTouchListener()
@@ -350,10 +372,10 @@ class FloatingWindowService : Service() {
         // 长按检测任务
         val longPressRunnable = Runnable {
             if (!hasMoved && !hasPerformedAction) {
-                // 长按动作：打开设置
-                Log.d(TAG, "执行长按操作：打开设置")
+                // 长按动作：启动语音识别
+                Log.d(TAG, "执行长按操作：启动语音识别")
                 hasPerformedAction = true // 标记已执行动作
-                openSettings()
+                startVoiceRecognition()
             }
         }
 
@@ -764,25 +786,50 @@ class FloatingWindowService : Service() {
     
     // 执行搜索
     private fun performSearch(query: String) {
-        // 使用默认搜索引擎搜索，或者如果有快捷方式，使用第一个快捷方式
-        if (searchEngineShortcuts.isNotEmpty()) {
-            openSearchWithEngine(query, searchEngineShortcuts[0].searchUrl)
-        } else {
-            // 使用系统默认搜索引擎
-            val searchUrl = SearchEngineListPreference.getSearchEngineUrl(this, 
-                PreferenceManager.getDefaultSharedPreferences(this)
-                    .getString("search_engine", "baidu") ?: "baidu")
-                .replace("{query}", java.net.URLEncoder.encode(query, "UTF-8"))
+        try {
+            Log.d(TAG, "执行搜索: $query")
+            // 获取当前选中的搜索引擎
+            val currentEngine = settingsManager.getDefaultSearchEngine()
             
-            val intent = Intent(this, FloatingWebViewService::class.java).apply {
-                putExtra("url", searchUrl)
+            // 根据搜索引擎类型执行不同的搜索操作
+            when {
+                currentEngine.startsWith("xhs_") -> {
+                    openXiaohongshuApp(query)
+                }
+                currentEngine.startsWith("wx_") -> {
+                    openWechatApp(query)
+                }
+                else -> {
+                    // 检查是否有快捷方式可用
+                    if (searchEngineShortcuts.isNotEmpty()) {
+                        openSearchWithEngine(query, searchEngineShortcuts[0].searchUrl)
+                    } else {
+                        // 使用系统默认搜索引擎
+                        val searchUrl = SearchEngineListPreference.getSearchEngineUrl(this, 
+                            PreferenceManager.getDefaultSharedPreferences(this)
+                                .getString("search_engine", "baidu") ?: "baidu")
+                            .replace("{query}", java.net.URLEncoder.encode(query, "UTF-8"))
+                        
+                        val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                            putExtra("url", searchUrl)
+                        }
+                        startService(intent)
+                    }
+                }
             }
-            startService(intent)
+            
+            // 隐藏搜索界面和键盘
+            searchContainer?.visibility = View.GONE
+            searchInput?.setText("")
+            
+            // 隐藏键盘
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+            imm.hideSoftInputFromWindow(floatingView?.windowToken, 0)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "执行搜索失败: ${e.message}")
+            Toast.makeText(this, "搜索失败，请重试", Toast.LENGTH_SHORT).show()
         }
-        
-        // 隐藏键盘
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        imm.hideSoftInputFromWindow(floatingView?.windowToken, 0)
     }
     
     // 加载已保存的搜索引擎快捷方式但不自动显示
@@ -1362,6 +1409,7 @@ class FloatingWindowService : Service() {
             unregisterReceiver(shortcutsUpdateReceiver)
             unregisterReceiver(alphaUpdateReceiver)
             unregisterReceiver(appSearchUpdateReceiver)
+            unregisterReceiver(voiceRecognitionReceiver)
         } catch (e: Exception) {
             Log.e("FloatingWindowService", "注销广播接收器失败: ${e.message}")
         }
@@ -2618,6 +2666,75 @@ class FloatingWindowService : Service() {
             true
         } catch (e: Exception) {
             false
+        }
+    }
+
+    private fun startSystemVoiceRecognition() {
+        try {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出您要搜索的内容")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            // 注册广播接收器来接收结果
+            val resultReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    val results = intent?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                    if (!results.isNullOrEmpty()) {
+                        val recognizedText = results[0]
+                        searchInput?.setText(recognizedText)
+                        // 执行搜索
+                        performSearch(recognizedText)
+                    }
+                    try {
+                        unregisterReceiver(this)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "注销广播接收器失败", e)
+                    }
+                }
+            }
+            registerReceiver(resultReceiver, IntentFilter("android.speech.action.RECOGNIZE_SPEECH_RESULTS"))
+
+            // 启动语音识别
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "无法启动语音识别", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun startVoiceRecognition() {
+        try {
+            val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "无法启动语音识别", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "启动语音识别失败", e)
+        }
+    }
+
+    private fun initializeLongPressDetection() {
+        longPressRunnable = Runnable {
+            try {
+                if (!isLongPressActive && !isListening) {
+                    isLongPressActive = true
+                    Log.d(TAG, "触发长按事件，准备启动语音识别")
+                    // 显示搜索界面（如果未显示）
+                    if (!isMenuVisible) {
+                        showSearchInterface()
+                    }
+                    // 启动语音识别
+                    startVoiceRecognition()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "启动语音识别失败: ${e.message}")
+                Toast.makeText(this, "启动语音识别失败", Toast.LENGTH_SHORT).show()
+            } finally {
+                isLongPressActive = false
+            }
         }
     }
 }

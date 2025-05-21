@@ -133,5 +133,11 @@
                 android:name="android.app.lib_name"
                 android:value="" />
         </activity>
+
+        <activity
+            android:name=".VoiceRecognitionActivity"
+            android:theme="@style/Theme.AppCompat.Dialog"
+            android:excludeFromRecents="true"
+            android:exported="false" />
     </application>
 </manifest> 
