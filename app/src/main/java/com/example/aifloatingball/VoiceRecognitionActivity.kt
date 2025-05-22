@@ -9,11 +9,16 @@ import android.graphics.drawable.AnimatedVectorDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.ImageView
 import android.widget.TextView
-import com.google.android.material.progressindicator.CircularProgressIndicator
+import androidx.core.content.ContextCompat
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import java.util.*
 
 class VoiceRecognitionActivity : Activity() {
@@ -23,11 +28,17 @@ class VoiceRecognitionActivity : Activity() {
 
     private var animatorSet: AnimatorSet? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var isListening = false
+    private var recognizedText = ""
     
-    private lateinit var voiceWaveImageView: ImageView
-    private lateinit var voiceProgressIndicator: CircularProgressIndicator
-    private lateinit var voiceHintTextView: TextView
-    private lateinit var voiceStatusTextView: TextView
+    // 界面元素
+    private lateinit var micContainer: MaterialCardView
+    private lateinit var micIcon: ImageView
+    private lateinit var listeningText: TextView
+    private lateinit var waveformView: View
+    private lateinit var recognizedTextView: TextView
+    private lateinit var doneButton: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,10 +47,11 @@ class VoiceRecognitionActivity : Activity() {
         // 初始化视图
         initializeViews()
         
-        // 设置窗口透明度动画
-        window.attributes = window.attributes.apply {
-            dimAmount = 0.4f
-        }
+        // 设置点击事件
+        setupClickListeners()
+        
+        // 设置窗口属性
+        setupWindowAttributes()
         
         // 启动动画
         startWaveAnimation()
@@ -49,137 +61,283 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun initializeViews() {
-        voiceWaveImageView = findViewById(R.id.voiceWaveImageView)
-        voiceProgressIndicator = findViewById(R.id.voiceProgressIndicator)
-        voiceHintTextView = findViewById(R.id.voiceHintTextView)
-        voiceStatusTextView = findViewById(R.id.voiceStatusTextView)
+        micContainer = findViewById(R.id.micContainer)
+        micIcon = findViewById(R.id.micIcon)
+        listeningText = findViewById(R.id.listeningText)
+        waveformView = findViewById(R.id.waveformView)
+        recognizedTextView = findViewById(R.id.recognizedText)
+        doneButton = findViewById(R.id.doneButton)
+    }
+    
+    private fun setupClickListeners() {
+        // 设置说完了按钮点击事件
+        doneButton.setOnClickListener {
+            finishRecognition()
+        }
+        
+        // 设置麦克风点击事件
+        micContainer.setOnClickListener {
+            toggleListening()
+        }
+    }
+    
+    private fun setupWindowAttributes() {
+        // 设置窗口背景半透明
+        window.attributes = window.attributes.apply {
+            dimAmount = 0.3f
+        }
+        
+        // 设置窗口动画
+        overridePendingTransition(R.anim.slide_up, 0)
     }
 
     private fun startWaveAnimation() {
-        // 启动AnimatedVectorDrawable动画
-        val drawable = voiceWaveImageView.drawable
-        if (drawable is AnimatedVectorDrawable) {
-            drawable.start()
-        }
-        
-        // 创建脉动动画
-        createPulsingAnimation()
-    }
-    
-    private fun createPulsingAnimation() {
-        // 创建进度条动画
-        val progressAnimator = ObjectAnimator.ofInt(voiceProgressIndicator, "progress", 0, 100).apply {
-            duration = 1500
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.RESTART
-            interpolator = LinearInterpolator()
-        }
-        
-        // 创建组合动画
-        animatorSet = AnimatorSet().apply {
-            play(progressAnimator)
-            start()
+        try {
+            // 创建波形动画
+            val waveformAnimator = ObjectAnimator.ofFloat(waveformView, "amplitude", 0f, 1f).apply {
+                duration = 1000
+                repeatCount = ValueAnimator.INFINITE
+                repeatMode = ValueAnimator.REVERSE
+                interpolator = LinearInterpolator()
+            }
+            
+            // 创建麦克风脉动动画
+            val scaleXAnimator = ObjectAnimator.ofFloat(micContainer, "scaleX", 1f, 1.1f).apply {
+                duration = 1000
+                repeatCount = ValueAnimator.INFINITE
+                repeatMode = ValueAnimator.REVERSE
+                interpolator = LinearInterpolator()
+            }
+            
+            val scaleYAnimator = ObjectAnimator.ofFloat(micContainer, "scaleY", 1f, 1.1f).apply {
+                duration = 1000
+                repeatCount = ValueAnimator.INFINITE
+                repeatMode = ValueAnimator.REVERSE
+                interpolator = LinearInterpolator()
+            }
+            
+            // 创建组合动画
+            animatorSet = AnimatorSet().apply {
+                playTogether(waveformAnimator, scaleXAnimator, scaleYAnimator)
+                start()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
     private fun startVoiceRecognition() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        // 确保前一个识别器被释放
+        releaseSpeechRecognizer()
+        
+        // 创建新的语音识别器
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        speechRecognizer?.setRecognitionListener(createRecognitionListener())
+        
+        // 准备识别意图
+        val recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出您要搜索的内容")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
-
+        
+        // 开始识别
         try {
-            startActivityForResult(intent, VOICE_RECOGNITION_REQUEST_CODE)
+            isListening = true
+            updateListeningState(true)
+            speechRecognizer?.startListening(recognizerIntent)
         } catch (e: Exception) {
+            e.printStackTrace()
             showError("无法启动语音识别")
-            handler.postDelayed({ finish() }, 1500)
         }
     }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
+    
+    private fun toggleListening() {
+        if (isListening) {
+            // 如果正在监听，停止监听
+            stopListening()
+        } else {
+            // 如果没有监听，开始监听
+            startVoiceRecognition()
+        }
+    }
+    
+    private fun stopListening() {
+        isListening = false
+        updateListeningState(false)
+        speechRecognizer?.stopListening()
+    }
+    
+    private fun updateListeningState(listening: Boolean) {
+        isListening = listening
         
-        if (requestCode == VOICE_RECOGNITION_REQUEST_CODE) {
-            when (resultCode) {
-                RESULT_OK -> {
-                    val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                    if (!results.isNullOrEmpty()) {
-                        val recognizedText = results[0]
-                        voiceHintTextView.text = recognizedText
-                        voiceStatusTextView.text = "识别成功"
-                        
-                        // 发送广播给 FloatingWindowService
-                        val resultIntent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT")
-                        resultIntent.putExtra("result", recognizedText)
-                        sendBroadcast(resultIntent)
-                        
-                        // 添加延迟以显示识别结果
-                        handler.postDelayed({
-                            finish()
-                        }, 1000)
-                    }
+        // 更新UI状态
+        if (listening) {
+            listeningText.text = "正在倾听"
+            micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
+            animatorSet?.resume()
+        } else {
+            listeningText.text = "识别已暂停"
+            micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+            animatorSet?.pause()
+        }
+    }
+    
+    private fun createRecognitionListener(): RecognitionListener {
+        return object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                handler.post {
+                    listeningText.text = "请开始说话"
                 }
-                RESULT_CANCELED -> {
-                    showCancelled()
+            }
+
+            override fun onBeginningOfSpeech() {
+                handler.post {
+                    listeningText.text = "正在聆听..."
                 }
-                else -> {
-                    showError("识别失败")
+            }
+
+            override fun onRmsChanged(rmsdB: Float) {
+                // 根据音量大小更新波形动画
+                handler.post {
+                    updateWaveformAmplitude(rmsdB)
                 }
+            }
+
+            override fun onBufferReceived(buffer: ByteArray?) {}
+
+            override fun onEndOfSpeech() {
+                handler.post {
+                    listeningText.text = "正在处理..."
+                }
+            }
+
+            override fun onError(error: Int) {
+                handler.post {
+                    handleRecognitionError(error)
+                }
+            }
+
+            override fun onResults(results: Bundle?) {
+                handler.post {
+                    processRecognitionResults(results)
+                }
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {
+                handler.post {
+                    processPartialResults(partialResults)
+                }
+            }
+
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        }
+    }
+    
+    private fun updateWaveformAmplitude(rmsdB: Float) {
+        // 将音量转换为振幅值 (0.0-1.0)
+        val amplitude = (rmsdB + 100) / 100f  // 音量范围通常在-100到0之间
+        
+        // 更新波形视图（需要在WaveformView中实现setAmplitude方法）
+        if (waveformView is com.example.aifloatingball.ui.WaveformView) {
+            (waveformView as com.example.aifloatingball.ui.WaveformView).setAmplitude(amplitude.coerceIn(0f, 1f))
+        }
+    }
+    
+    private fun processRecognitionResults(results: Bundle?) {
+        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+        if (!matches.isNullOrEmpty()) {
+            val text = matches[0]
+            recognizedText = text
+            
+            // 显示识别结果
+            recognizedTextView.text = text
+            recognizedTextView.visibility = View.VISIBLE
+            
+            // 更新UI状态
+            listeningText.text = "识别完成"
+            stopListening()
+        }
+    }
+    
+    private fun processPartialResults(partialResults: Bundle?) {
+        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+        if (!matches.isNullOrEmpty()) {
+            val text = matches[0]
+            
+            // 显示部分识别结果
+            if (text.isNotEmpty()) {
+                recognizedTextView.text = text
+                recognizedTextView.visibility = View.VISIBLE
             }
         }
     }
     
-    private fun showCancelled() {
-        voiceHintTextView.text = "已取消"
-        voiceStatusTextView.text = "操作已取消"
-        voiceProgressIndicator.isIndeterminate = false
-        voiceProgressIndicator.progress = 0
-        animatorSet?.cancel()
+    private fun handleRecognitionError(error: Int) {
+        when (error) {
+            SpeechRecognizer.ERROR_NO_MATCH -> {
+                listeningText.text = "未能识别，请重试"
+                recognizedTextView.text = "请清晰地说出您要搜索的内容"
+                recognizedTextView.visibility = View.VISIBLE
+            }
+            SpeechRecognizer.ERROR_NETWORK -> {
+                listeningText.text = "网络错误"
+                showError("网络连接失败，请检查网络")
+            }
+            else -> {
+                listeningText.text = "识别错误，请重试"
+                showError("语音识别失败 (错误码: $error)")
+            }
+        }
+        stopListening()
+    }
+    
+    private fun finishRecognition() {
+        if (recognizedText.isNotEmpty()) {
+            // 发送广播通知悬浮球服务
+            val intent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT")
+            intent.putExtra("result", recognizedText)
+            sendBroadcast(intent)
+        }
         
-        handler.postDelayed({
-            finish()
-        }, 1000)
+        // 结束活动
+        finish()
     }
     
     private fun showError(message: String) {
-        voiceHintTextView.text = message
-        voiceStatusTextView.text = "出现错误，请重试"
-        voiceProgressIndicator.isIndeterminate = false
-        voiceProgressIndicator.progress = 0
-        animatorSet?.cancel()
-        
-        // 创建错误状态的动画
-        val errorAnimator = ObjectAnimator.ofArgb(
-            voiceHintTextView, 
-            "textColor", 
-            0xFFFFFFFF.toInt(), 
-            0xFFFF4444.toInt()
-        ).apply {
-            duration = 300
-            repeatCount = 3
-            repeatMode = ValueAnimator.REVERSE
+        listeningText.text = message
+        // 3秒后自动关闭
+        handler.postDelayed({ finish() }, 3000)
+    }
+    
+    private fun releaseSpeechRecognizer() {
+        speechRecognizer?.apply {
+            cancel()
+            destroy()
         }
-        
-        errorAnimator.start()
-        
-        handler.postDelayed({
-            finish()
-        }, 1500)
+        speechRecognizer = null
     }
 
-    override fun finish() {
-        // 清理动画资源
-        animatorSet?.cancel()
-        animatorSet = null
+    override fun onDestroy() {
+        super.onDestroy()
         
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, R.anim.voice_dialog_exit)
-        } else {
-            @Suppress("DEPRECATION")
-            overridePendingTransition(0, R.anim.voice_dialog_exit)
+        // 释放动画资源
+        animatorSet?.apply {
+            cancel()
+            removeAllListeners()
         }
         
-        super.finish()
+        // 释放语音识别器
+        releaseSpeechRecognizer()
+        
+        // 移除所有延迟任务
+        handler.removeCallbacksAndMessages(null)
     }
-} 
+    
+    override fun finish() {
+        super.finish()
+        // 设置退出动画
+        overridePendingTransition(0, R.anim.slide_down)
+    }
+}

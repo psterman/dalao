@@ -60,6 +60,8 @@ import com.example.aifloatingball.model.AppSearchSettings
 import android.content.pm.PackageManager
 import android.content.ActivityNotFoundException
 import android.app.Activity
+import android.os.VibrationEffect
+import android.os.Vibrator
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -2672,17 +2674,35 @@ class FloatingWindowService : Service() {
             hideSearchInterface()  // 先隐藏搜索界面
             isListening = true    // 标记正在进行语音识别
             
-            // 开始语音识别
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出您要搜索的内容")
+            // 添加触觉反馈
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
             }
-
+            
+            // 启动语音识别活动
             try {
                 val recognizerIntent = Intent(this, VoiceRecognitionActivity::class.java)
                 recognizerIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                recognizerIntent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                 startActivity(recognizerIntent)
+                
+                // 添加动画效果
+                val handler = Handler(Looper.getMainLooper())
+                handler.postDelayed({
+                    try {
+                        val floatingBallIcon = floatingView?.findViewById<FloatingActionButton>(R.id.floating_ball_icon)
+                        floatingBallIcon?.animate()
+                            ?.scaleX(0.85f)
+                            ?.scaleY(0.85f)
+                            ?.alpha(0.7f)
+                            ?.setDuration(300)
+                            ?.start()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "悬浮球动画失败: ${e.message}")
+                    }
+                }, 100)
+                
             } catch (e: Exception) {
                 showError("无法启动语音识别")
                 resetVoiceRecognitionState()
@@ -2691,7 +2711,7 @@ class FloatingWindowService : Service() {
             // 添加超时处理
             handler.postDelayed({
                 resetVoiceRecognitionState()
-            }, 10000) // 10秒超时
+            }, 15000) // 15秒超时
             
         } catch (e: Exception) {
             Log.e(TAG, "启动语音识别失败", e)
@@ -2699,11 +2719,24 @@ class FloatingWindowService : Service() {
             resetVoiceRecognitionState()
         }
     }
-
+    
     private fun resetVoiceRecognitionState() {
         if (isListening) {
             isListening = false
             hasPerformedAction = false
+            
+            // 恢复悬浮球状态
+            try {
+                val floatingBallIcon = floatingView?.findViewById<FloatingActionButton>(R.id.floating_ball_icon)
+                floatingBallIcon?.animate()
+                    ?.scaleX(1f)
+                    ?.scaleY(1f)
+                    ?.alpha(1f)
+                    ?.setDuration(200)
+                    ?.start()
+            } catch (e: Exception) {
+                Log.e(TAG, "恢复悬浮球状态失败: ${e.message}")
+            }
         }
     }
 

@@ -69,7 +69,8 @@ class IconDownloader(private val context: Context) {
         // AI搜索引擎
         "chatgpt" to listOf(
             "https://chat.openai.com/favicon.ico",
-            "https://chat.openai.com/apple-touch-icon.png"
+            "https://chat.openai.com/apple-touch-icon.png",
+            "https://openai.com/favicon.ico"
         ),
         "claude" to listOf(
             "https://claude.ai/favicon.ico",

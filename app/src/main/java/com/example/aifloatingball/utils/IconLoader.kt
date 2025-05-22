@@ -138,6 +138,7 @@ class IconLoader(private val context: Context) {
             // AI搜索引擎 - 精准匹配
             domain == "chat.openai.com" || domain.contains("openai.com") -> {
                 urls.add("https://chat.openai.com/apple-touch-icon.png")
+                urls.add("https://chat.openai.com/favicon.ico")
                 urls.add("https://openai.com/favicon.ico")
             }
             domain == "claude.ai" || domain.contains("anthropic.com") -> {
