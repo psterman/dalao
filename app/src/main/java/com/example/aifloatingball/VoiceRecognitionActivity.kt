@@ -12,6 +12,7 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.ImageView
@@ -19,11 +20,11 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
-import java.util.*
 
 class VoiceRecognitionActivity : Activity() {
     companion object {
         private const val VOICE_RECOGNITION_REQUEST_CODE = 1001
+        private const val TAG = "VoiceRecognitionActivity"
     }
 
     private var animatorSet: AnimatorSet? = null
@@ -246,18 +247,27 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     private fun processRecognitionResults(results: Bundle?) {
-        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-        if (!matches.isNullOrEmpty()) {
-            val text = matches[0]
-            recognizedText = text
-            
-            // 显示识别结果
-            recognizedTextView.text = text
-            recognizedTextView.visibility = View.VISIBLE
-            
-            // 更新UI状态
-            listeningText.text = "识别完成"
-            stopListening()
+        try {
+            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            if (!matches.isNullOrEmpty()) {
+                val text = matches[0]
+                recognizedText = text
+                
+                // 显示识别结果
+                recognizedTextView.text = text
+                recognizedTextView.visibility = View.VISIBLE
+                
+                // 更新UI状态
+                listeningText.text = "识别完成，点击确认或继续说话"
+                
+                // 自动发送结果并结束活动
+                handler.postDelayed({
+                    finishRecognition()
+                }, 1000) // 延迟1秒后自动发送结果
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理识别结果失败: ${e.message}")
+            showError("处理识别结果失败")
         }
     }
     
@@ -294,15 +304,24 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     private fun finishRecognition() {
-        if (recognizedText.isNotEmpty()) {
-            // 发送广播通知悬浮球服务
-            val intent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT")
-            intent.putExtra("result", recognizedText)
-            sendBroadcast(intent)
+        try {
+            if (recognizedText.isNotEmpty()) {
+                // 发送广播通知悬浮球服务
+                val intent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT")
+                intent.putExtra("result", recognizedText)
+                sendBroadcast(intent)
+                
+                // 添加延迟以确保广播被处理
+                handler.postDelayed({
+                    finish()
+                }, 200)
+            } else {
+                finish()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "结束识别失败: ${e.message}")
+            finish()
         }
-        
-        // 结束活动
-        finish()
     }
     
     private fun showError(message: String) {

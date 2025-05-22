@@ -62,6 +62,7 @@ import android.content.ActivityNotFoundException
 import android.app.Activity
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.view.inputmethod.InputMethodManager
 
 class FloatingWindowService : Service() {
     // 添加TAG常量
@@ -194,18 +195,52 @@ class FloatingWindowService : Service() {
             if (intent?.action == "com.example.aifloatingball.ACTION_VOICE_RESULT") {
                 val result = intent.getStringExtra("result")
                 if (!result.isNullOrEmpty()) {
-                    // 显示搜索界面并填入结果
+                    Log.d(TAG, "收到语音识别结果: $result")
                     handler.post {
-                        showSearchInterface()
-                        searchInput?.setText(result)
-                        // 将光标移到文本末尾
-                        searchInput?.setSelection(result.length)
-                        // 重置所有状态
-                        isListening = false
-                        isLongPressActive = false
-                    hasPerformedAction = false
+                        try {
+                            // 1. 确保悬浮窗可见
+                            floatingView?.visibility = View.VISIBLE
+                            
+                            // 2. 显示搜索界面
+                            showSearchInterface()
+                            
+                            // 3. 等待搜索界面完全显示后填充文本
+                            handler.postDelayed({
+                                try {
+                                    // 确保搜索容器已显示
+                                    if (searchContainer?.visibility == View.VISIBLE) {
+                                        // 填充文本并激活输入框
+                                        searchInput?.apply {
+                                            setText(result)
+                                            setSelection(result.length)
+                                            requestFocus()
+                                            
+                                            // 显示输入法
+                                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                            imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+                                        }
+                                    } else {
+                                        Log.e(TAG, "搜索界面未正确显示")
+                                        // 重试显示搜索界面
+                                        showSearchInterface()
+                                        handler.postDelayed({
+                                            fillTextToInput(result)
+                                        }, 500)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "填充文本失败: ${e.message}")
+                                }
+                            }, 300)
+                            
+                            // 重置状态
+                            isListening = false
+                            isLongPressActive = false
+                            hasPerformedAction = false
+                        } catch (e: Exception) {
+                            Log.e(TAG, "处理语音识别结果失败: ${e.message}")
+                        }
                     }
-                            } else {
+                } else {
                     // 即使没有结果也要重置状态
                     handler.post {
                         isListening = false
@@ -2760,6 +2795,66 @@ class FloatingWindowService : Service() {
                 Log.e(TAG, "启动语音识别失败: ${e.message}")
                 Toast.makeText(this, "启动语音识别失败", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    // 添加新方法：填充文本到输入框
+    fun fillTextToInput(text: String) {
+        try {
+            // 1. 确保搜索界面可见
+            if (searchContainer?.visibility != View.VISIBLE) {
+                showSearchInterface()
+                // 等待搜索界面显示完成
+                handler.postDelayed({
+                    fillTextToInputInternal(text)
+                }, 300)
+                return
+            }
+            
+            fillTextToInputInternal(text)
+        } catch (e: Exception) {
+            Log.e(TAG, "填充文本到输入框失败: ${e.message}")
+        }
+    }
+
+    // 内部方法：实际执行文本填充
+    private fun fillTextToInputInternal(text: String) {
+        try {
+            // 确保窗口可以获取焦点
+            params?.apply {
+                // 移除阻止获取焦点的标志
+                flags = flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                // 移除阻止输入法的标志
+                flags = flags and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM.inv()
+                // 设置输入法模式
+                softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or
+                        WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                
+                try {
+                    windowManager?.updateViewLayout(floatingView, params)
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新窗口布局参数失败", e)
+                }
+            }
+            
+            // 找到并激活输入框
+            searchInput?.apply {
+                // 设置文本
+                setText(text)
+                // 将光标移到文本末尾
+                setSelection(text.length)
+                // 确保可以获取焦点
+                isFocusableInTouchMode = true
+                isFocusable = true
+                // 请求焦点
+                requestFocus()
+                
+                // 显示输入法
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "填充文本到输入框失败: ${e.message}")
         }
     }
 }
