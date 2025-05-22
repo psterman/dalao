@@ -248,16 +248,16 @@ class VoiceRecognitionActivity : Activity() {
     
     private fun processRecognitionResults(results: Bundle?) {
         try {
-            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-            if (!matches.isNullOrEmpty()) {
-                val text = matches[0]
-                recognizedText = text
-                
-                // 显示识别结果
-                recognizedTextView.text = text
-                recognizedTextView.visibility = View.VISIBLE
-                
-                // 更新UI状态
+        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+        if (!matches.isNullOrEmpty()) {
+            val text = matches[0]
+            recognizedText = text
+            
+            // 显示识别结果
+            recognizedTextView.text = text
+            recognizedTextView.visibility = View.VISIBLE
+            
+            // 更新UI状态
                 listeningText.text = "识别完成，点击确认或继续说话"
                 
                 // 自动发送结果并结束活动
@@ -305,12 +305,12 @@ class VoiceRecognitionActivity : Activity() {
     
     private fun finishRecognition() {
         try {
-            if (recognizedText.isNotEmpty()) {
-                // 发送广播通知悬浮球服务
-                val intent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT")
-                intent.putExtra("result", recognizedText)
-                sendBroadcast(intent)
-                
+        if (recognizedText.isNotEmpty()) {
+            // 发送广播通知悬浮球服务
+            val intent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT")
+            intent.putExtra("result", recognizedText)
+            sendBroadcast(intent)
+        
                 // 添加延迟以确保广播被处理
                 handler.postDelayed({
                     finish()
@@ -320,7 +320,7 @@ class VoiceRecognitionActivity : Activity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "结束识别失败: ${e.message}")
-            finish()
+        finish()
         }
     }
     

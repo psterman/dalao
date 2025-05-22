@@ -364,7 +364,7 @@ class FloatingWindowService : Service() {
         val inflater = LayoutInflater.from(themedContext).cloneInContext(themedContext)
         floatingView = inflater.inflate(R.layout.floating_ball_layout, null)
         
-        // 初始化容器
+        // 初始化所有容器和按钮
         shortcutsContainer = floatingView?.findViewById(R.id.search_shortcuts_container)
         savedCombosContainer = floatingView?.findViewById(R.id.saved_combos_container)
         aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
@@ -372,6 +372,13 @@ class FloatingWindowService : Service() {
         searchContainer = floatingView?.findViewById(R.id.search_container)
         searchInput = floatingView?.findViewById(R.id.search_input)
         searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
+        appSearchContainer = floatingView?.findViewById(R.id.app_search_container)
+        
+        // 设置搜索模式切换按钮点击事件
+        searchModeToggle?.setOnClickListener {
+            Log.d(TAG, "搜索模式切换按钮被点击")
+            toggleSearchMode()
+        }
         
         // 获取悬浮球图标并设置透明度
         val floatingBallIcon = floatingView?.findViewById<FloatingActionButton>(R.id.floating_ball_icon)
@@ -389,9 +396,6 @@ class FloatingWindowService : Service() {
         aiEnginesContainer?.visibility = View.GONE
         regularEnginesContainer?.visibility = View.GONE
         searchModeToggle?.visibility = View.GONE
-        
-        // 隐藏应用搜索容器
-        val appSearchContainer = floatingView?.findViewById<LinearLayout>(R.id.app_search_container)
         appSearchContainer?.visibility = View.GONE
 
         // 完全重写触摸事件处理逻辑
@@ -660,6 +664,10 @@ class FloatingWindowService : Service() {
         val searchIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
         searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
         
+        // 初始化AI和普通搜索引擎容器
+        aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
+        regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
+        
         searchInput?.apply {
             // 基本属性设置
             isFocusableInTouchMode = true
@@ -690,16 +698,16 @@ class FloatingWindowService : Service() {
             
             // 设置输入完成动作
             setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                     val query = text?.toString()?.trim() ?: ""
-                if (query.isNotEmpty()) {
-                    performSearch(query)
-                } else {
+                    if (query.isNotEmpty()) {
+                        performSearch(query)
+                    } else {
                         Toast.makeText(context, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                }
-                true
-            } else {
-                false
+                    }
+                    true
+                } else {
+                    false
                 }
             }
         }
@@ -715,14 +723,8 @@ class FloatingWindowService : Service() {
                 // 2. 显示搜索模式切换按钮
                 searchModeToggle?.visibility = View.VISIBLE
                 
-                // 3. 根据当前模式显示相应的搜索引擎容器
-                if (isAIMode) {
-                    aiEnginesContainer?.visibility = View.VISIBLE
-                    regularEnginesContainer?.visibility = View.GONE
-                } else {
-                    aiEnginesContainer?.visibility = View.GONE
-                    regularEnginesContainer?.visibility = View.VISIBLE
-                }
+                // 3. 更新搜索模式可见性
+                updateSearchModeVisibility()
                 
                 // 4. 显示键盘
                 showKeyboard(searchInput)
@@ -745,6 +747,7 @@ class FloatingWindowService : Service() {
         
         // 设置搜索模式切换按钮点击事件
         searchModeToggle?.setOnClickListener {
+            Log.d(TAG, "搜索模式切换按钮被点击")
             toggleSearchMode()
         }
     }
@@ -1194,6 +1197,21 @@ class FloatingWindowService : Service() {
         searchInput = floatingView?.findViewById(R.id.search_input)
         searchContainer = floatingView?.findViewById(R.id.search_container)
         appSearchContainer = floatingView?.findViewById(R.id.app_search_container)  // 初始化应用搜索容器
+        
+        // 获取搜索模式切换按钮
+        searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
+        
+        // 直接设置搜索模式切换按钮的点击事件
+        searchModeToggle?.setOnClickListener {
+            toggleSearchMode()
+        }
+        
+        // 初始化AI和普通搜索引擎容器
+        aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
+        regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
+        
+        // 根据当前搜索模式设置初始可见性
+        updateSearchModeVisibility()
 
         // 设置搜索输入框行为
         searchInput?.setOnEditorActionListener { _, actionId, _ ->
@@ -1729,9 +1747,9 @@ class FloatingWindowService : Service() {
     private fun showSearchInterface() {
         try {
             // 记录当前悬浮球位置（用于关闭时恢复）
-        initialX = params?.x ?: 0
-        initialY = params?.y ?: 0
-        
+            initialX = params?.x ?: 0
+            initialY = params?.y ?: 0
+            
             // 获取屏幕尺寸
             val displayMetrics = resources.displayMetrics
             val screenWidth = displayMetrics.widthPixels
@@ -1770,8 +1788,8 @@ class FloatingWindowService : Service() {
                     }
                     
                     try {
-        windowManager?.updateViewLayout(floatingView, params)
-        
+                        windowManager?.updateViewLayout(floatingView, params)
+                        
                         // 应用展开动画
                         animate()
                             .alpha(1f)
@@ -1781,25 +1799,22 @@ class FloatingWindowService : Service() {
                             .setInterpolator(android.view.animation.DecelerateInterpolator())
                             .withStartAction {
                                 // 显示所有需要的UI元素
-        if (isAIMode) {
-            aiEnginesContainer?.visibility = View.VISIBLE
-            regularEnginesContainer?.visibility = View.GONE
-        } else {
-            aiEnginesContainer?.visibility = View.GONE
-            regularEnginesContainer?.visibility = View.VISIBLE
-        }
-        
-        savedCombosContainer?.visibility = View.VISIBLE
-        appSearchContainer?.visibility = View.VISIBLE
-        searchModeToggle?.visibility = View.VISIBLE
+                                searchModeToggle?.visibility = View.VISIBLE
+                                
+                                // 先更新搜索模式
+                                updateSearchModeVisibility()
+                                
+                                // 再显示容器
+                                savedCombosContainer?.visibility = View.VISIBLE
+                                appSearchContainer?.visibility = View.VISIBLE
                             }
                             .withEndAction {
                                 try {
-        // 激活输入框和输入法
-        searchInput?.post {
-            searchInput?.requestFocus()
-            showKeyboard(searchInput)
-        }
+                                    // 激活输入框和输入法
+                                    searchInput?.post {
+                                        searchInput?.requestFocus()
+                                        showKeyboard(searchInput)
+                                    }
                                 } catch (e: Exception) {
                                     Log.e(TAG, "激活输入框失败: ${e.message}")
                                 }
@@ -1815,6 +1830,37 @@ class FloatingWindowService : Service() {
             
         } catch (e: Exception) {
             Log.e(TAG, "显示搜索界面失败: ${e.message}")
+        }
+    }
+    
+    // 更新搜索模式可见性
+    private fun updateSearchModeVisibility() {
+        try {
+            Log.d(TAG, "updateSearchModeVisibility: 当前模式=${if (isAIMode) "AI" else "普通"}")
+            Log.d(TAG, "AI容器=${aiEnginesContainer?.id}, 普通容器=${regularEnginesContainer?.id}")
+            
+            // 调试：检查容器是否正确初始化
+            if (aiEnginesContainer == null || regularEnginesContainer == null) {
+                Log.e(TAG, "搜索引擎容器未正确初始化!")
+                aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
+                regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
+            }
+            
+            // 更新搜索模式图标和文本
+            searchModeToggle?.apply {
+                setIconResource(if (isAIMode) R.drawable.ic_ai_search else R.drawable.ic_search)
+                text = if (isAIMode) "AI搜索" else "普通搜索"
+            }
+            
+            // 直接设置容器可见性，不使用动画
+            aiEnginesContainer?.visibility = if (isAIMode) View.VISIBLE else View.GONE
+            regularEnginesContainer?.visibility = if (isAIMode) View.GONE else View.VISIBLE
+            
+            Log.d(TAG, "搜索模式UI已更新: ${if (isAIMode) "AI模式" else "普通模式"}")
+            Log.d(TAG, "AI容器可见性=${aiEnginesContainer?.visibility == View.VISIBLE}, 普通容器可见性=${regularEnginesContainer?.visibility == View.VISIBLE}")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新搜索模式UI失败", e)
+            e.printStackTrace()
         }
     }
     
@@ -1890,26 +1936,33 @@ class FloatingWindowService : Service() {
 
     // 切换搜索模式 (AI / 普通)
     private fun toggleSearchMode() {
-        isAIMode = !isAIMode
-        
-        // 保存搜索模式设置
-        settingsManager.setDefaultAIMode(isAIMode)
-        
-        // 更新UI显示
-        if (isAIMode) {
-            aiEnginesContainer?.visibility = View.VISIBLE
-            regularEnginesContainer?.visibility = View.GONE
-        } else {
-            aiEnginesContainer?.visibility = View.GONE
-            regularEnginesContainer?.visibility = View.VISIBLE
+        try {
+            Log.d(TAG, "toggleSearchMode: 当前模式=${if (isAIMode) "AI" else "普通"}, 切换至=${if (!isAIMode) "AI" else "普通"}")
+            
+            // 切换模式
+            isAIMode = !isAIMode
+            
+            // 保存搜索模式设置
+            settingsManager.setDefaultAIMode(isAIMode)
+            
+            // 更新UI显示
+            updateSearchModeVisibility()
+            
+            // 显示切换提示
+            val modeText = if (isAIMode) "AI搜索模式" else "普通搜索模式"
+            Toast.makeText(this, "已切换至$modeText", Toast.LENGTH_SHORT).show()
+            
+            // 发送广播通知其他组件
+            val intent = Intent("com.example.aifloatingball.SEARCH_MODE_CHANGED")
+            intent.putExtra("is_ai_mode", isAIMode)
+            sendBroadcast(intent)
+            
+            Log.d(TAG, "搜索模式已切换: $modeText")
+        } catch (e: Exception) {
+            Log.e(TAG, "切换搜索模式失败: ${e.message}")
+            e.printStackTrace()
+            Toast.makeText(this, "切换搜索模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-        
-        // 更新搜索模式图标
-        updateSearchModeIcon()
-        
-        // 显示切换提示
-        val modeText = if (isAIMode) "AI搜索模式" else "普通搜索模式"
-        Toast.makeText(this, "已切换至$modeText", Toast.LENGTH_SHORT).show()
     }
     
     // 更新搜索模式图标
