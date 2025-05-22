@@ -34,6 +34,11 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    override fun onSupportNavigateUp(): Boolean {
+        onBackPressed()
+        return true
+    }
+
     class SettingsFragment : PreferenceFragmentCompat() {
         private lateinit var settingsManager: SettingsManager
 

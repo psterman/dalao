@@ -18,6 +18,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.AnimatedVectorDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
@@ -200,9 +201,9 @@ class FloatingWindowService : Service() {
                         // 重置所有状态
                         isListening = false
                         isLongPressActive = false
-                        hasPerformedAction = false
+                    hasPerformedAction = false
                     }
-                } else {
+                            } else {
                     // 即使没有结果也要重置状态
                     handler.post {
                         isListening = false
@@ -365,8 +366,7 @@ class FloatingWindowService : Service() {
 
     // 设置触摸事件处理的新方法
     private fun setupTouchEventHandling() {
-        // 获取悬浮球图标
-        val floatingBallIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
+        val floatingBallIcon = floatingView?.findViewById<FloatingActionButton>(R.id.floating_ball_icon)
         
         // 定义变量
         var initialTouchX = 0f
@@ -376,137 +376,79 @@ class FloatingWindowService : Service() {
         var touchStartTime = 0L
         var isDragging = false
         var hasMoved = false
-        var hasPerformedAction = false // 标记是否已执行了动作
+        var hasPerformedAction = false
         
-        // 触摸阈值常量 - 减小移动阈值，提高拖动检测灵敏度
+        // 触摸阈值常量
         val touchSlop = ViewConfiguration.get(this).scaledTouchSlop / 2
         val tapTimeout = ViewConfiguration.getTapTimeout()
         val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
-        val doubleTapTimeout = DOUBLE_CLICK_TIME // 双击检测时间窗口
+        val doubleTapTimeout = DOUBLE_CLICK_TIME
         
         // 长按检测任务
         val longPressRunnable = Runnable {
             if (!hasMoved && !hasPerformedAction && !isListening) {
-                // 长按动作：启动语音识别
-                Log.d(TAG, "执行长按操作：启动语音识别")
-                hasPerformedAction = true // 标记已执行动作
+                // 开始语音识别
                 startVoiceRecognition()
+                hasPerformedAction = true
             }
         }
 
         // 双击检测任务
         val doubleTapRunnable = Runnable {
             if (!hasPerformedAction && !hasMoved) {
-                // 如果超过双击时间间隔，且没有执行其他操作，视为单击
-                Log.d(TAG, "单击超时：执行单击操作")
                 toggleSearchInterface()
                 hasPerformedAction = true
             }
         }
         
-        // 为悬浮球添加触摸监听器
-        floatingBallIcon?.setOnTouchListener { _, event ->
+        floatingBallIcon?.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    // 记录初始触摸数据
-                    initialX = params?.x ?: 0
-                    initialY = params?.y ?: 0
+                    // 记录初始位置
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
+                    initialX = params?.x ?: 0
+                    initialY = params?.y ?: 0
                     touchStartTime = System.currentTimeMillis()
-                    
-                    // 重置状态
                     isDragging = false
                     hasMoved = false
                     hasPerformedAction = false
                     
-                    // 取消可能的待处理任务
-                    handler.removeCallbacks(longPressRunnable)
-                    handler.removeCallbacks(doubleTapRunnable)
-
-                    // 设置长按检测
+                    // 启动长按检测
                     handler.postDelayed(longPressRunnable, longPressTimeout)
-                    Log.d(TAG, "触摸开始: x=$initialX, y=$initialY")
                     true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    // 计算移动距离
                     val deltaX = event.rawX - initialTouchX
                     val deltaY = event.rawY - initialTouchY
-                    val distance = Math.sqrt((deltaX * deltaX + deltaY * deltaY).toDouble()).toFloat()
                     
-                    // 判断是否开始拖动 - 使用更精确的距离计算
-                    if (!isDragging && distance > touchSlop) {
+                    if (!isDragging && (Math.abs(deltaX) > touchSlop || Math.abs(deltaY) > touchSlop)) {
                         isDragging = true
                         hasMoved = true
-                        
-                        // 取消长按检测和双击检测
                         handler.removeCallbacks(longPressRunnable)
-                        handler.removeCallbacks(doubleTapRunnable)
-                        
-                        Log.d(TAG, "开始拖动，距离: $distance")
-                        
-                        // 如果搜索界面已打开，先关闭它
-                        if (isMenuVisible) {
-                            hideSearchInterface()
-                            hasPerformedAction = true // 标记已执行动作
-                        }
                     }
-
-                    // 如果正在拖动，更新悬浮球位置
+                    
                     if (isDragging) {
-                        // 计算新位置
                         params?.x = (initialX + deltaX).toInt()
                         params?.y = (initialY + deltaY).toInt()
-                        
-                        try {
                         windowManager?.updateViewLayout(floatingView, params)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "更新位置失败: ${e.message}")
-                        }
                     }
                     true
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    // 取消长按检测
                     handler.removeCallbacks(longPressRunnable)
                     
-                    // 计算触摸时间
-                    val touchDuration = System.currentTimeMillis() - touchStartTime
-                    
-                    // 处理事件结束操作
-                    if (isDragging) {
-                        // 拖动结束，保存位置
-                        savePosition()
-                        Log.d(TAG, "拖动结束，保存位置: x=${params?.x}, y=${params?.y}")
-                    } else if (!hasMoved && !hasPerformedAction) {
-                        // 没有移动且没有执行过操作，可能是点击
-                        if (touchDuration < tapTimeout) {
-                            val currentTime = System.currentTimeMillis()
-                            
-                            // 检测双击
-                            if (currentTime - lastClickTime < doubleTapTimeout) {
-                                // 取消单击检测
-                                handler.removeCallbacks(doubleTapRunnable)
-                                
-                                // 执行双击操作
-                                Log.d(TAG, "执行双击操作")
-                                onDoubleClick()
-                                hasPerformedAction = true
-                            } else {
-                                // 可能是单击，但需要等待确认不是双击的一部分
-                                Log.d(TAG, "可能是单击，等待确认...")
-                                // 设置延迟，等待可能的第二次点击
+                    if (!hasMoved && !hasPerformedAction) {
+                        val pressDuration = System.currentTimeMillis() - touchStartTime
+                        if (pressDuration < tapTimeout) {
+                            // 处理点击事件
                                 handler.postDelayed(doubleTapRunnable, doubleTapTimeout)
-                            }
-                            lastClickTime = currentTime
                         }
                     }
                     true
                 }
-
                 else -> false
             }
         }
@@ -774,7 +716,7 @@ class FloatingWindowService : Service() {
     private fun showKeyboard(view: View?) {
         if (view == null) return
         try {
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
             // 确保view可以获取焦点
             view.isFocusable = true
             view.isFocusableInTouchMode = true
@@ -790,9 +732,9 @@ class FloatingWindowService : Service() {
     // 隐藏键盘
     private fun hideKeyboard() {
         try {
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-            floatingView?.windowToken?.let {
-                imm.hideSoftInputFromWindow(it, 0)
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        floatingView?.windowToken?.let {
+            imm.hideSoftInputFromWindow(it, 0)
             }
         } catch (e: Exception) {
             Log.e(TAG, "隐藏键盘失败: ${e.message}")
@@ -816,30 +758,30 @@ class FloatingWindowService : Service() {
                 }
                 else -> {
                     // 检查是否有快捷方式可用
-                    if (searchEngineShortcuts.isNotEmpty()) {
+        if (searchEngineShortcuts.isNotEmpty()) {
                         openSearchWithEngine(query, searchEngineShortcuts[0].searchUrl)
-                    } else {
-                        // 使用系统默认搜索引擎
-                        val searchUrl = SearchEngineListPreference.getSearchEngineUrl(this, 
-                            PreferenceManager.getDefaultSharedPreferences(this)
-                                .getString("search_engine", "baidu") ?: "baidu")
-                            .replace("{query}", java.net.URLEncoder.encode(query, "UTF-8"))
-                        
-                        val intent = Intent(this, FloatingWebViewService::class.java).apply {
-                            putExtra("url", searchUrl)
-                        }
-                        startService(intent)
+        } else {
+            // 使用系统默认搜索引擎
+            val searchUrl = SearchEngineListPreference.getSearchEngineUrl(this, 
+                PreferenceManager.getDefaultSharedPreferences(this)
+                    .getString("search_engine", "baidu") ?: "baidu")
+                .replace("{query}", java.net.URLEncoder.encode(query, "UTF-8"))
+            
+            val intent = Intent(this, FloatingWebViewService::class.java).apply {
+                putExtra("url", searchUrl)
+            }
+            startService(intent)
                     }
                 }
-            }
+        }
             
             // 隐藏搜索界面和键盘
             searchContainer?.visibility = View.GONE
             searchInput?.setText("")
-            
-            // 隐藏键盘
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-            imm.hideSoftInputFromWindow(floatingView?.windowToken, 0)
+        
+        // 隐藏键盘
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(floatingView?.windowToken, 0)
             
         } catch (e: Exception) {
             Log.e(TAG, "执行搜索失败: ${e.message}")
@@ -1362,11 +1304,11 @@ class FloatingWindowService : Service() {
                     
                     // 设置点击事件
                     setOnClickListener {
-                        val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
-                        if (searchQuery.isEmpty()) {
+                val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+                if (searchQuery.isEmpty()) {
                             Toast.makeText(this@FloatingWindowService, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                            return@setOnClickListener
-                        }
+                    return@setOnClickListener
+                }
                         
                         // 根据应用ID调用相应的搜索方法
                         when (config.appId) {
@@ -1750,9 +1692,9 @@ class FloatingWindowService : Service() {
     private fun showSearchInterface() {
         try {
             // 记录当前悬浮球位置（用于关闭时恢复）
-            initialX = params?.x ?: 0
-            initialY = params?.y ?: 0
-            
+        initialX = params?.x ?: 0
+        initialY = params?.y ?: 0
+        
             // 获取屏幕尺寸
             val displayMetrics = resources.displayMetrics
             val screenWidth = displayMetrics.widthPixels
@@ -1791,8 +1733,8 @@ class FloatingWindowService : Service() {
                     }
                     
                     try {
-                        windowManager?.updateViewLayout(floatingView, params)
-                        
+        windowManager?.updateViewLayout(floatingView, params)
+        
                         // 应用展开动画
                         animate()
                             .alpha(1f)
@@ -1802,25 +1744,25 @@ class FloatingWindowService : Service() {
                             .setInterpolator(android.view.animation.DecelerateInterpolator())
                             .withStartAction {
                                 // 显示所有需要的UI元素
-                                if (isAIMode) {
-                                    aiEnginesContainer?.visibility = View.VISIBLE
-                                    regularEnginesContainer?.visibility = View.GONE
-                                } else {
-                                    aiEnginesContainer?.visibility = View.GONE
-                                    regularEnginesContainer?.visibility = View.VISIBLE
-                                }
-                                
-                                savedCombosContainer?.visibility = View.VISIBLE
-                                appSearchContainer?.visibility = View.VISIBLE
-                                searchModeToggle?.visibility = View.VISIBLE
+        if (isAIMode) {
+            aiEnginesContainer?.visibility = View.VISIBLE
+            regularEnginesContainer?.visibility = View.GONE
+        } else {
+            aiEnginesContainer?.visibility = View.GONE
+            regularEnginesContainer?.visibility = View.VISIBLE
+        }
+        
+        savedCombosContainer?.visibility = View.VISIBLE
+        appSearchContainer?.visibility = View.VISIBLE
+        searchModeToggle?.visibility = View.VISIBLE
                             }
                             .withEndAction {
                                 try {
-                                    // 激活输入框和输入法
-                                    searchInput?.post {
-                                        searchInput?.requestFocus()
-                                        showKeyboard(searchInput)
-                                    }
+        // 激活输入框和输入法
+        searchInput?.post {
+            searchInput?.requestFocus()
+            showKeyboard(searchInput)
+        }
                                 } catch (e: Exception) {
                                     Log.e(TAG, "激活输入框失败: ${e.message}")
                                 }
@@ -1853,19 +1795,19 @@ class FloatingWindowService : Service() {
                     .withEndAction {
                         // 隐藏所有搜索相关元素
                         visibility = View.GONE
-                        shortcutsContainer?.visibility = View.GONE
-                        aiEnginesContainer?.visibility = View.GONE
-                        regularEnginesContainer?.visibility = View.GONE
-                        savedCombosContainer?.visibility = View.GONE
-                        searchModeToggle?.visibility = View.GONE
+                shortcutsContainer?.visibility = View.GONE
+                aiEnginesContainer?.visibility = View.GONE
+                regularEnginesContainer?.visibility = View.GONE
+                savedCombosContainer?.visibility = View.GONE
+                searchModeToggle?.visibility = View.GONE
                         appSearchContainer?.visibility = View.GONE
-                        
-                        // 清空输入框内容
-                        searchInput?.setText("")
-                        
-                        // 隐藏键盘
-                        hideKeyboard()
-                        
+                
+                // 清空输入框内容
+                searchInput?.setText("")
+                
+                // 隐藏键盘
+                hideKeyboard()
+                
                         // 恢复悬浮球原始位置和参数
                         params?.apply {
                             x = initialX
@@ -1877,20 +1819,20 @@ class FloatingWindowService : Service() {
                             // 重置软键盘模式
                             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
                         }
-                        
-                        try {
-                            windowManager?.updateViewLayout(floatingView, params)
-                            Log.d(TAG, "搜索界面已关闭，悬浮球位置已恢复: x=$initialX, y=$initialY")
-                            
-                            // 确保悬浮球在安全区域内
-                            ensureBallInSafeArea()
-                        } catch (e: Exception) {
-                            Log.e(TAG, "更新布局失败: ${e.message}")
-                        }
-                        
-                        // 重置菜单状态标志
-                        isMenuVisible = false
-                    }
+                
+                try {
+                    windowManager?.updateViewLayout(floatingView, params)
+                    Log.d(TAG, "搜索界面已关闭，悬浮球位置已恢复: x=$initialX, y=$initialY")
+                    
+                    // 确保悬浮球在安全区域内
+                    ensureBallInSafeArea()
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新布局失败: ${e.message}")
+                }
+                
+                // 重置菜单状态标志
+                isMenuVisible = false
+            }
                     .start()
             }
         } catch (e: Exception) {
@@ -2729,31 +2671,45 @@ class FloatingWindowService : Service() {
             // 在启动语音识别前，确保UI处于正确状态
             hideSearchInterface()  // 先隐藏搜索界面
             isListening = true    // 标记正在进行语音识别
-            isLongPressActive = true
             
-            val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            // 开始语音识别
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "请说出您要搜索的内容")
             }
-            startActivity(intent)
 
-            // 添加超时处理，确保状态最终会被重置
+            try {
+                val recognizerIntent = Intent(this, VoiceRecognitionActivity::class.java)
+                recognizerIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(recognizerIntent)
+            } catch (e: Exception) {
+                showError("无法启动语音识别")
+                resetVoiceRecognitionState()
+            }
+
+            // 添加超时处理
             handler.postDelayed({
-                if (isListening || isLongPressActive) {
-                    isListening = false
-                    isLongPressActive = false
-                    hasPerformedAction = false
-                    Log.d(TAG, "语音识别状态自动重置")
-                }
+                resetVoiceRecognitionState()
             }, 10000) // 10秒超时
             
         } catch (e: Exception) {
             Log.e(TAG, "启动语音识别失败", e)
             Toast.makeText(this, "无法启动语音识别", Toast.LENGTH_SHORT).show()
-            // 发生错误时重置所有状态
+            resetVoiceRecognitionState()
+        }
+    }
+
+    private fun resetVoiceRecognitionState() {
+        if (isListening) {
             isListening = false
-            isLongPressActive = false
             hasPerformedAction = false
         }
+    }
+
+    private fun showError(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        resetVoiceRecognitionState()
     }
 
     private fun initializeLongPressDetection() {

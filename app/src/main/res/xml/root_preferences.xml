@@ -20,9 +20,10 @@
             app:title="悬浮球透明度"
             app:summary="调整悬浮球的透明度"
             android:max="100"
-            android:min="20"
+            app:min="20"
             app:defaultValue="85"
             app:showSeekBarValue="true"
+            app:seekBarIncrement="1"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat

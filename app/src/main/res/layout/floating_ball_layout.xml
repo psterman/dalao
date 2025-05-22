@@ -218,8 +218,8 @@
         app:elevation="2dp"
         app:borderWidth="0dp"
         android:alpha="0.85"
-        app:rippleColor="#20000000"
-        android:background="@drawable/floating_ball_background"
+        app:rippleColor="#40FFFFFF"
+        android:background="@drawable/floating_ball_ripple_effect"
         app:shapeAppearanceOverlay="@style/CircularFAB"
         android:contentDescription="悬浮球" />
 

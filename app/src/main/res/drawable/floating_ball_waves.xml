@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="56dp"
+    android:height="56dp"
+    android:viewportWidth="56"
+    android:viewportHeight="56">
+
+    <!-- 外层波纹 -->
+    <group
+        android:name="wave3_group"
+        android:pivotX="28"
+        android:pivotY="28">
+        <path
+            android:name="wave3"
+            android:pathData="M28,28 m-24,0 a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0"
+            android:strokeWidth="2"
+            android:strokeColor="#20FFFFFF"
+            android:fillColor="#00000000" />
+    </group>
+
+    <!-- 中层波纹 -->
+    <group
+        android:name="wave2_group"
+        android:pivotX="28"
+        android:pivotY="28">
+        <path
+            android:name="wave2"
+            android:pathData="M28,28 m-20,0 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0"
+            android:strokeWidth="2"
+            android:strokeColor="#40FFFFFF"
+            android:fillColor="#00000000" />
+    </group>
+
+    <!-- 内层波纹 -->
+    <group
+        android:name="wave1_group"
+        android:pivotX="28"
+        android:pivotY="28">
+        <path
+            android:name="wave1"
+            android:pathData="M28,28 m-16,0 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0"
+            android:strokeWidth="2"
+            android:strokeColor="#60FFFFFF"
+            android:fillColor="#00000000" />
+    </group>
+</vector> 

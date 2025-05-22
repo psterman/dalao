@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- 外层圆环 -->
+    <group android:name="circle3_group">
+        <path
+            android:name="circle3"
+            android:pathData="M60,60 m-50,0 a50,50 0 1,0 100,0 a50,50 0 1,0 -100,0"
+            android:strokeWidth="1.5"
+            android:strokeColor="#30FFFFFF"
+            android:strokeAlpha="0.4"
+            android:fillColor="#00000000" />
+    </group>
+
+    <!-- 中层圆环 -->
+    <group android:name="circle2_group">
+        <path
+            android:name="circle2"
+            android:pathData="M60,60 m-35,0 a35,35 0 1,0 70,0 a35,35 0 1,0 -70,0"
+            android:strokeWidth="1.5"
+            android:strokeColor="#50FFFFFF"
+            android:strokeAlpha="0.6"
+            android:fillColor="#00000000" />
+    </group>
+
+    <!-- 内层圆环 -->
+    <group android:name="circle1_group">
+        <path
+            android:name="circle1"
+            android:pathData="M60,60 m-20,0 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0"
+            android:strokeWidth="1.5"
+            android:strokeColor="#70FFFFFF"
+            android:strokeAlpha="0.8"
+            android:fillColor="#00000000" />
+    </group>
+
+    <!-- 中心圆 -->
+    <group android:name="center_circle_group">
+        <path
+            android:name="center_circle"
+            android:pathData="M60,60 m-10,0 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0"
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.9" />
+    </group>
+</vector> 

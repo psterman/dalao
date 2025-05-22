@@ -1,17 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:drawable="@drawable/ic_voice_wave_static">
-
-    <target
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    
+    <group
         android:name="wave1"
-        android:animation="@animator/voice_wave_scale" />
-
-    <target
+        android:pivotX="12"
+        android:pivotY="12">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M12,12m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"
+            android:fillAlpha="0.3"/>
+    </group>
+    
+    <group
         android:name="wave2"
-        android:animation="@animator/voice_wave_scale_delayed" />
-
-    <target
+        android:pivotX="12"
+        android:pivotY="12">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M12,12m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0"
+            android:fillAlpha="0.2"/>
+    </group>
+    
+    <group
         android:name="wave3"
-        android:animation="@animator/voice_wave_scale_more_delayed" />
-
-</animated-vector> 
+        android:pivotX="12"
+        android:pivotY="12">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M12,12m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0"
+            android:fillAlpha="0.1"/>
+    </group>
+    
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,12m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0"/>
+</vector> 

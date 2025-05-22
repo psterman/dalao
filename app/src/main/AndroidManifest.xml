@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.example.aifloatingball">
     
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -37,14 +38,14 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse"
-            android:theme="@style/Theme.AppCompat.Light" />
+            android:theme="@style/Theme.MaterialComponents.Light" />
             
         <service
             android:name=".DualFloatingWebViewService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse"
-            android:theme="@style/Theme.AppCompat.Light" />
+            android:theme="@style/Theme.MaterialComponents.Light" />
             
         <service
             android:name=".FloatingService"
@@ -54,7 +55,7 @@
         <activity
             android:name=".PermissionActivity"
             android:exported="true"
-            android:theme="@style/Theme.AppCompat.Light">
+            android:theme="@style/Theme.MaterialComponents.Light">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -136,7 +137,7 @@
 
         <activity
             android:name=".VoiceRecognitionActivity"
-            android:theme="@style/Theme.AppCompat.Dialog"
+            android:theme="@style/Theme.MaterialComponents.Dialog"
             android:excludeFromRecents="true"
             android:exported="false" />
     </application>

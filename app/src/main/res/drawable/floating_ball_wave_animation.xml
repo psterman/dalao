@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/floating_ball_waves">
+    
+    <target
+        android:name="wave1_group"
+        android:animation="@animator/floating_ball_wave_1" />
+        
+    <target
+        android:name="wave2_group"
+        android:animation="@animator/floating_ball_wave_2" />
+        
+    <target
+        android:name="wave3_group"
+        android:animation="@animator/floating_ball_wave_3" />
+</animated-vector> 
