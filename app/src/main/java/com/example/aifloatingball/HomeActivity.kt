@@ -146,6 +146,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private lateinit var tabPreviewList: RecyclerView
     private lateinit var tabPreviewContainer: LinearLayout
     private lateinit var addTabButton: ImageButton
+    private lateinit var progressBar: android.widget.ProgressBar
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -170,6 +171,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         letterIndexBar = findViewById(R.id.letter_index_bar)
         letterTitle = findViewById(R.id.letter_title)
         previewEngineList = findViewById(R.id.preview_engine_list)
+        progressBar = findViewById(R.id.progress_bar)
 
         // 设置抽屉布局
         setupDrawer()
@@ -635,9 +637,32 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
-                    // 页面加载完成后的处理
+                    // 页面加载完成后更新地址栏
+                    url?.let { searchInput.setText(it) }
                     webView.visibility = View.VISIBLE
                     homeContent.visibility = View.GONE
+                    progressBar.visibility = View.GONE
+                }
+
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    // 页面开始加载时显示进度条
+                    progressBar.visibility = View.VISIBLE
+                    progressBar.progress = 0
+                }
+            }
+
+            // 设置WebChromeClient来处理进度条
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                    super.onProgressChanged(view, newProgress)
+                    progressBar.progress = newProgress
+                }
+
+                override fun onReceivedTitle(view: WebView?, title: String?) {
+                    super.onReceivedTitle(view, title)
+                    // 可以选择是否在地址栏显示网页标题
+                    // title?.let { searchInput.setText(it) }
                 }
             }
         }
@@ -920,23 +945,88 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private fun performSearch(query: String) {
         try {
-            // 检查是否是URL
-            val isUrl = URLUtil.isValidUrl(query) || 
-                       (query.contains(".") && !query.contains(" ")) ||
-                       query.startsWith("http://") || 
-                       query.startsWith("https://")
+            // 增强的URL判断逻辑
+            val isUrl = when {
+                // 1. 标准URL格式判断
+                URLUtil.isValidUrl(query) -> true
+                
+                // 2. 常见顶级域名判断
+                query.matches(Regex(".+\\.(com|cn|net|org|gov|edu|mil|biz|info|mobi|name|asia|xxx|pro|wang|top|club|shop|site|vip|ltd|ink|tech|online|store|fun|website|space|press|video|party|cool|email|company|life|world|today|media|work|live|digital|studio|link|design|software|social|dev|cloud|app|games|news|blog|wiki|me|io|tv|cc|co|so|tel|red|kim|xyz|ai|show|art|run|gold|fit|fan|ren|love|beer|luxe|yoga|fund|city|host|zone|cash|guru|pub|bid|plus|chat|law|tax|team|band|cab|tips|jobs|one|men|bet|fish|sale|game|help|gift|loan|cars|auto|care|cafe|pet|fit|hair|baby|toys|land|farm|food|wine|vote|voto|date|wed|sexy|sex|gay|porn|xxx|adult|sex|cam|xxx|porn|bet|tube|cam|pics|gay|sex|porn|xxx|loan)$", RegexOption.IGNORE_CASE)) -> true
+                
+                // 3. IP地址格式判断
+                query.matches(Regex("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")) -> true
+                
+                // 4. 带协议的URL
+                query.startsWith("http://") || query.startsWith("https://") -> true
+                
+                // 5. 常见二级域名格式
+                query.matches(Regex("^[\\w-]+\\.[\\w-]+(\\.[a-zA-Z]{2,})+$")) -> true
+                
+                // 6. 不包含空格且包含点号的简单域名判断
+                query.contains(".") && !query.contains(" ") && !query.contains("。") && query.matches(Regex("^[\\w-]+(\\.[\\w-]+)+$")) -> true
+                
+                // 其他情况视为搜索关键词
+                else -> false
+            }
 
             val url = if (isUrl) {
-                // 如果是URL，确保有http/https前缀
-                if (query.startsWith("http://") || query.startsWith("https://")) {
-                    query
-                } else {
-                    "https://$query"
+                // 处理特殊域名
+                val processedUrl = when {
+                    // Google特殊处理
+                    query.contains("google") -> "https://www.google.com/search"
+                    // 其他域名正常处理
+                    else -> {
+                        if (query.startsWith("http://") || query.startsWith("https://")) {
+                            query
+                        } else {
+                            "https://${if (query.startsWith("www.")) query else "www.$query"}"
+                        }
+                    }
                 }
+                processedUrl
             } else {
                 // 如果不是URL，使用搜索引擎搜索
                 val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
                 "https://www.baidu.com/s?wd=$encodedQuery"
+            }
+
+            // 设置移动端User-Agent和WebView配置
+            webView.settings.apply {
+                // 设置UA
+                userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                
+                // 基本设置
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                
+                // 缓存设置
+                cacheMode = WebSettings.LOAD_DEFAULT
+                
+                // 页面自适应
+                useWideViewPort = true
+                loadWithOverviewMode = true
+                
+                // 缩放设置
+                setSupportZoom(true)
+                builtInZoomControls = true
+                displayZoomControls = false
+                
+                // 多窗口支持
+                setSupportMultipleWindows(true)
+                javaScriptCanOpenWindowsAutomatically = true
+                
+                // 混合内容
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                
+                // 设置默认编码
+                defaultTextEncodingName = "UTF-8"
+                
+                // 允许文件访问
+                allowFileAccess = true
+                
+                // 允许内容URL访问
+                allowContentAccess = true
             }
 
             // 在WebView中加载URL
@@ -945,11 +1035,15 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             // 更新UI显示
             webView.visibility = View.VISIBLE
             homeContent.visibility = View.GONE
+            
+            // 不要立即清空输入框，让 WebViewClient 的 onPageFinished 来处理
+            // searchInput.setText("")
 
-            // 清空输入框
-            searchInput.setText("")
-
-            Log.d(TAG, "正在加载URL: $url")
+            // 记录日志
+            Log.d(TAG, "输入内容: $query")
+            Log.d(TAG, "是否URL: $isUrl")
+            Log.d(TAG, "最终URL: $url")
+            Log.d(TAG, "User-Agent: ${webView.settings.userAgentString}")
 
         } catch (e: Exception) {
             Log.e(TAG, "加载内容失败", e)

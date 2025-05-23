@@ -84,7 +84,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@android:color/transparent"
-            app:elevation="0dp">
+            android:elevation="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -121,6 +121,15 @@
                         android:src="@drawable/ic_voice_search" />
 
                 </LinearLayout>
+
+                <!-- 进度条 -->
+                <ProgressBar
+                    android:id="@+id/progress_bar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="2dp"
+                    android:progressDrawable="@drawable/progress_bar_drawable"
+                    android:visibility="gone" />
 
                 <LinearLayout
                     android:id="@+id/bottom_bar"

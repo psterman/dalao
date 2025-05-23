@@ -2,13 +2,16 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:id="@android:id/background">
         <shape>
-            <solid android:color="#1F000000" />
+            <solid android:color="#EEEEEE"/>
         </shape>
     </item>
     <item android:id="@android:id/progress">
         <clip>
             <shape>
-                <solid android:color="?attr/colorPrimary" />
+                <gradient
+                    android:startColor="@color/colorPrimary"
+                    android:endColor="@color/colorAccent"
+                    android:angle="0"/>
             </shape>
         </clip>
     </item>
