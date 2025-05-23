@@ -598,7 +598,88 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun setupWebView() {
-        // 移除原有的WebView设置代码，现在由TabManager管理WebView
+        webView.apply {
+            settings.apply {
+                // 启用JavaScript
+                javaScriptEnabled = true
+                // 支持缩放
+                setSupportZoom(true)
+                builtInZoomControls = true
+                displayZoomControls = false
+                // 自适应屏幕
+                useWideViewPort = true
+                loadWithOverviewMode = true
+                // 支持多窗口
+                setSupportMultipleWindows(true)
+                // 启用DOM存储
+                domStorageEnabled = true
+                // 允许文件访问
+                allowFileAccess = true
+                // 混合内容
+                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                // 缓存模式
+                cacheMode = WebSettings.LOAD_DEFAULT
+            }
+
+            // 设置WebViewClient
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String): Boolean {
+                    view?.loadUrl(url)
+                    return true
+                }
+
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    request?.url?.toString()?.let { view?.loadUrl(it) }
+                    return true
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    // 页面加载完成后的处理
+                    webView.visibility = View.VISIBLE
+                    homeContent.visibility = View.GONE
+                }
+            }
+        }
+    }
+
+    private fun loadContent(input: String) {
+        try {
+            // 检查是否是URL
+            val isUrl = URLUtil.isValidUrl(input) || 
+                       (input.contains(".") && !input.contains(" ")) ||
+                       input.startsWith("http://") || 
+                       input.startsWith("https://")
+
+            val url = if (isUrl) {
+                // 如果是URL，确保有http/https前缀
+                if (input.startsWith("http://") || input.startsWith("https://")) {
+                    input
+                } else {
+                    "https://$input"
+                }
+            } else {
+                // 如果不是URL，使用搜索引擎搜索
+                val encodedQuery = java.net.URLEncoder.encode(input, "UTF-8")
+                "https://www.baidu.com/s?wd=$encodedQuery"
+            }
+
+            // 在WebView中加载URL
+            webView.loadUrl(url)
+            
+            // 更新UI显示
+            webView.visibility = View.VISIBLE
+            homeContent.visibility = View.GONE
+
+            // 清空输入框
+            searchInput.setText("")
+
+            Log.d(TAG, "正在加载URL: $url")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "加载内容失败", e)
+            Toast.makeText(this, "无法加载页面: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun handleMultiTouchGesture(event: MotionEvent) {
@@ -711,32 +792,168 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
     
     private fun openUrl(url: String) {
-        webView.visibility = View.VISIBLE
+        try {
+            // 确保URL格式正确
+            val processedUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                "https://$url"
+            } else {
+                url
+            }
+            
+            // 在当前标签页或新标签页打开URL
+            val currentTab = tabManager.getCurrentTab()
+            if (currentTab?.webView?.url == null || currentTab.webView?.url == "about:blank") {
+                currentTab?.webView?.loadUrl(processedUrl)
+            } else {
+                tabManager.addTab(processedUrl)
+            }
+            
+            // 更新UI显示
+            viewPager.visibility = View.VISIBLE
+            tabPreviewContainer.visibility = View.VISIBLE
         homeContent.visibility = View.GONE
-        webView.loadUrl(url)
+            
+            Log.d(TAG, "在HomeActivity中打开URL: $processedUrl")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开URL失败", e)
+            Toast.makeText(this, "无法打开页面: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
     
     private fun searchContent(query: String) {
+        try {
         val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
         val searchUrl = "https://www.baidu.com/s?wd=$encodedQuery"
-        webView.visibility = View.VISIBLE
+            
+            // 在当前标签页或新标签页搜索
+            val currentTab = tabManager.getCurrentTab()
+            if (currentTab?.webView?.url == null || currentTab.webView?.url == "about:blank") {
+                currentTab?.webView?.loadUrl(searchUrl)
+            } else {
+                tabManager.addTab(searchUrl)
+            }
+            
+            // 更新UI显示
+            viewPager.visibility = View.VISIBLE
+            tabPreviewContainer.visibility = View.VISIBLE
         homeContent.visibility = View.GONE
-        webView.loadUrl(searchUrl)
+            
+            Log.d(TAG, "在HomeActivity中搜索内容: $query")
+        } catch (e: Exception) {
+            Log.e(TAG, "搜索内容失败", e)
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun setupSearch() {
+        // 初始化WebView
+        webView = findViewById(R.id.webview)
+        if (webView == null) {
+            Log.e(TAG, "WebView not found in layout")
+            return
+        }
+        
+        webView.settings.apply {
+            // 启用JavaScript
+            javaScriptEnabled = true
+            // 支持缩放
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
+            // 自适应屏幕
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            // 支持多窗口
+            setSupportMultipleWindows(true)
+            // 启用DOM存储
+            domStorageEnabled = true
+            // 允许文件访问
+            allowFileAccess = true
+            // 混合内容
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            // 缓存模式
+            cacheMode = WebSettings.LOAD_DEFAULT
+        }
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String): Boolean {
+                view?.loadUrl(url)
+                return true
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                request?.url?.toString()?.let { view?.loadUrl(it) }
+                return true
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                webView.visibility = View.VISIBLE
+                homeContent.visibility = View.GONE
+            }
+        }
+
+        // 设置搜索输入框
+        searchInput = findViewById(R.id.search_input)
         searchInput.setOnEditorActionListener { _, actionId, event ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH ||
                 (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER)) {
-                performSearch(searchInput.text.toString())
+                val query = searchInput.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    performSearch(query)
+                }
                 true
             } else {
                 false
             }
         }
 
+        // 设置搜索按钮
+        voiceSearchButton = findViewById(R.id.voice_search)
         voiceSearchButton.setOnClickListener {
-            performSearch(searchInput.text.toString())
+            val query = searchInput.text.toString().trim()
+            if (query.isNotEmpty()) {
+                performSearch(query)
+            }
+        }
+    }
+
+    private fun performSearch(query: String) {
+        try {
+            // 检查是否是URL
+            val isUrl = URLUtil.isValidUrl(query) || 
+                       (query.contains(".") && !query.contains(" ")) ||
+                       query.startsWith("http://") || 
+                       query.startsWith("https://")
+
+            val url = if (isUrl) {
+                // 如果是URL，确保有http/https前缀
+                if (query.startsWith("http://") || query.startsWith("https://")) {
+                    query
+                } else {
+                    "https://$query"
+                }
+            } else {
+                // 如果不是URL，使用搜索引擎搜索
+                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                "https://www.baidu.com/s?wd=$encodedQuery"
+            }
+
+            // 在WebView中加载URL
+            webView.loadUrl(url)
+            
+            // 更新UI显示
+            webView.visibility = View.VISIBLE
+            homeContent.visibility = View.GONE
+
+            // 清空输入框
+            searchInput.setText("")
+
+            Log.d(TAG, "正在加载URL: $url")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "加载内容失败", e)
+            Toast.makeText(this, "无法加载页面: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -968,25 +1185,6 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             icon.setColorFilter(getColor(android.R.color.darker_gray))
             text.setTextColor(getColor(android.R.color.darker_gray))
             background.background = getDrawable(R.drawable.circle_ripple)
-        }
-    }
-
-    private fun performSearch(query: String) {
-        if (query.isNotEmpty()) {
-            val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-            val searchUrl = "https://www.baidu.com/s?wd=$encodedQuery"
-            
-            // 在当前标签页加载URL，或创建新标签页
-            val currentTab = tabManager.getCurrentTab()
-            if (currentTab?.url == null) {
-                currentTab?.webView?.loadUrl(searchUrl)
-                    } else {
-                tabManager.addTab(searchUrl)
-            }
-            
-            viewPager.visibility = View.VISIBLE
-            tabPreviewContainer.visibility = View.VISIBLE
-            homeContent.visibility = View.GONE
         }
     }
 
