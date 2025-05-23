@@ -55,6 +55,8 @@ import androidx.core.widget.NestedScrollView
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.viewpager2.widget.ViewPager2
+import androidx.recyclerview.widget.LinearLayoutManager
 
 // Google Material imports
 import com.google.android.material.appbar.AppBarLayout
@@ -71,6 +73,7 @@ import com.example.aifloatingball.view.LetterIndexBar
 import com.example.aifloatingball.DualFloatingWebViewService
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
+import com.example.aifloatingball.tab.TabManager
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     companion object {
@@ -138,6 +141,12 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var autoHideSwitch: SwitchCompat? = null
     private var clipboardSwitch: SwitchCompat? = null
 
+    private lateinit var tabManager: TabManager
+    private lateinit var viewPager: ViewPager2
+    private lateinit var tabPreviewList: RecyclerView
+    private lateinit var tabPreviewContainer: LinearLayout
+    private lateinit var addTabButton: ImageButton
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
@@ -170,8 +179,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             updateDrawerGravity()
         }
 
-        // 初始化 WebView
-        setupWebView()
+        // 初始化标签页管理
+        initTabManagement()
 
         // 设置手势检测
         initGestureDetectors()
@@ -566,68 +575,30 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         gestureHintHandler.postDelayed(lastGestureHintRunnable!!, 1500)
     }
 
+    private fun initTabManagement() {
+        viewPager = findViewById(R.id.view_pager)
+        tabPreviewList = findViewById(R.id.tab_preview_list)
+        tabPreviewContainer = findViewById(R.id.tab_preview_container)
+        addTabButton = findViewById(R.id.btn_add_tab)
+        
+        // 设置标签预览列表
+        tabPreviewList.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        
+        // 初始化标签管理器
+        tabManager = TabManager(this)
+        tabManager.initialize(viewPager, tabPreviewList)
+        
+        // 添加新标签页按钮
+        addTabButton.setOnClickListener {
+            tabManager.addTab()
+        }
+        
+        // 添加第一个标签页
+        tabManager.addTab()
+    }
+
     private fun setupWebView() {
-        webView = WebView(this).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            
-            settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY)
-                settings.setEnableSmoothTransition(true)
-                
-                // 移除无图模式设置，改为始终加载图片
-                loadsImagesAutomatically = true
-            }
-
-            webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    visibility = View.VISIBLE
-                    
-                    // 根据无图模式状态应用滤镜
-                    if (isNoImageMode) {
-                        applyImageFilter()
-                    } else {
-                        removeImageFilter()
-                    }
-                }
-
-                override fun shouldInterceptRequest(
-                    view: WebView?,
-                    request: WebResourceRequest?
-                ): WebResourceResponse? {
-                    // 实现广告过滤
-                    if (isAdBlockEnabled && request?.url?.toString()?.containsAdUrl() == true) {
-                        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream("".toByteArray()))
-                    }
-                    return super.shouldInterceptRequest(view, request)
-                }
-            }
-
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        }
-        
-        val nestedScrollView = androidx.core.widget.NestedScrollView(this).apply {
-            layoutParams = CoordinatorLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            ).apply {
-                behavior = AppBarLayout.ScrollingViewBehavior()
-            }
-            addView(webView)
-        }
-        
-        webViewContainer.addView(nestedScrollView)
-        webView.visibility = View.GONE
+        // 移除原有的WebView设置代码，现在由TabManager管理WebView
     }
 
     private fun handleMultiTouchGesture(event: MotionEvent) {
@@ -1004,227 +975,18 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         if (query.isNotEmpty()) {
             val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
             val searchUrl = "https://www.baidu.com/s?wd=$encodedQuery"
-            webView.visibility = View.VISIBLE
+            
+            // 在当前标签页加载URL，或创建新标签页
+            val currentTab = tabManager.getCurrentTab()
+            if (currentTab?.url == null) {
+                currentTab?.webView?.loadUrl(searchUrl)
+                    } else {
+                tabManager.addTab(searchUrl)
+            }
+            
+            viewPager.visibility = View.VISIBLE
+            tabPreviewContainer.visibility = View.VISIBLE
             homeContent.visibility = View.GONE
-            webView.loadUrl(searchUrl)
-        }
-    }
-
-    override fun onBackPressed() {
-        when {
-            webView.visibility == View.VISIBLE && webView.canGoBack() -> webView.goBack()
-            webView.visibility == View.VISIBLE -> {
-                webView.visibility = View.GONE
-                homeContent.visibility = View.VISIBLE
-                webView.loadUrl("about:blank")
-            }
-            else -> super.onBackPressed()
-        }
-    }
-
-    // 手势检测实现
-    override fun onDown(e: MotionEvent): Boolean = true
-
-    override fun onShowPress(e: MotionEvent) {}
-
-    override fun onSingleTapUp(e: MotionEvent): Boolean = false
-
-    override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean = false
-
-    override fun onLongPress(e: MotionEvent) {
-        // TODO: 长按操作
-    }
-
-    override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-        try {
-            if (e1 == null) return false
-            val diffY = e2.y - e1.y
-            val diffX = e2.x - e1.x
-            if (abs(diffX) > abs(diffY)) {
-                if (abs(diffX) > SWIPE_THRESHOLD && abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                    if (diffX > 0) {
-                        // 右滑
-                        onSwipeRight()
-                    } else {
-                        // 左滑
-                        onSwipeLeft()
-                    }
-                }
-            } else {
-                if (abs(diffY) > SWIPE_THRESHOLD && abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
-                    if (diffY > 0) {
-                        // 下滑
-                        onSwipeDown()
-                    } else {
-                        // 上滑
-                        onSwipeUp()
-                    }
-                }
-            }
-        } catch (exception: Exception) {
-            exception.printStackTrace()
-        }
-        return true
-    }
-
-    private fun onSwipeRight() {
-        // TODO: 右滑操作，例如：返回
-    }
-
-    private fun onSwipeLeft() {
-        // TODO: 左滑操作，例如：前进
-    }
-
-    private fun onSwipeUp() {
-        // TODO: 上滑操作，例如：刷新
-    }
-
-    private fun onSwipeDown() {
-        // TODO: 下滑操作，例如：显示通知栏
-    }
-
-    private fun String.containsAdUrl(): Boolean {
-        val adPatterns = listOf(
-            "ads", "analytics", "tracker", "doubleclick",
-            "pagead", "banner", "popup", "stats"
-        )
-        return adPatterns.any { this.contains(it, ignoreCase = true) }
-    }
-
-    private fun applyImageFilter() {
-        val js = """
-            javascript:(function() {
-                var css = `
-                    img, picture, video, canvas {
-                        filter: grayscale(100%) opacity(70%) !important;
-                        transition: filter 0.3s ease-in-out !important;
-                    }
-                    img:hover, picture:hover, video:hover, canvas:hover {
-                        filter: grayscale(0%) opacity(100%) !important;
-                    }
-                `;
-                var style = document.createElement('style');
-                style.id = 'low-image-style';
-                style.type = 'text/css';
-                style.appendChild(document.createTextNode(css));
-                document.head.appendChild(style);
-            })()
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
-
-    private fun removeImageFilter() {
-        val js = """
-            javascript:(function() {
-                var style = document.getElementById('low-image-style');
-                if (style) {
-                    style.remove();
-                }
-            })()
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
-
-    private fun setupLetterIndexBar() {
-        // 直接使用普通搜索引擎列表，移除AI模式切换
-        letterIndexBar.engines = SearchEngine.getNormalSearchEngines()
-
-        letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
-            override fun onLetterSelected(view: View, letter: Char) {
-                updateEngineList(letter)
-            }
-        }
-
-        // 设置搜索引擎点击监听器
-        previewEngineList.setOnClickListener(null)
-    }
-
-    private fun updateEngineList(letter: Char) {
-        // 更新字母标题
-        letterTitle.text = letter.toString()
-        letterTitle.visibility = View.VISIBLE
-        
-        // 显示对应字母的搜索引擎
-        showSearchEnginesByLetter(letter)
-    }
-
-    private fun showSearchEnginesByLetter(letter: Char) {
-        // 清空现有列表
-        previewEngineList.removeAllViews()
-
-        // 获取当前主题模式
-        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-
-        // 直接使用普通搜索引擎列表
-        val engines = SearchEngine.getNormalSearchEngines()
-
-        // 过滤匹配的搜索引擎
-        val matchingEngines = engines.filter { engine ->
-            val firstChar = engine.name.first()
-            when {
-                firstChar.toString().matches(Regex("[A-Za-z]")) -> 
-                    firstChar.uppercaseChar() == letter.uppercaseChar()
-                firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
-                    val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
-                    pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
-                }
-                else -> false
-            }
-        }
-
-        if (matchingEngines.isEmpty()) {
-            // 如果没有匹配的搜索引擎，显示提示信息
-            val noEngineText = TextView(this).apply {
-                text = "没有以 $letter 开头的搜索引擎"
-                textSize = 16f
-                setTextColor(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_name_text_dark else R.color.engine_name_text_light))
-                gravity = android.view.Gravity.CENTER
-                setPadding(16, 32, 16, 32)
-            }
-            previewEngineList.addView(noEngineText)
-        } else {
-            // 添加匹配的搜索引擎
-            matchingEngines.forEach { engine ->
-                val engineItem = LayoutInflater.from(this).inflate(
-                    R.layout.item_search_engine,
-                    previewEngineList,
-                    false
-                )
-
-                // 设置引擎图标
-                engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
-                    setImageResource(engine.iconResId)
-                    setColorFilter(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_icon_dark else R.color.engine_icon_light))
-                }
-
-                // 设置引擎名称
-                engineItem.findViewById<TextView>(R.id.engine_name).apply {
-                    text = engine.name
-                    setTextColor(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_name_text_dark else R.color.engine_name_text_light))
-                }
-
-                // 设置点击事件
-                engineItem.setOnClickListener {
-                    val query = searchInput.text.toString().trim()
-                    openSearchEngine(engine, query)
-                    drawerLayout.closeDrawer(if (settingsManager.getBoolean("right_handed_mode", true)) GravityCompat.START else GravityCompat.END)
-                }
-
-                previewEngineList.addView(engineItem)
-
-                // 添加分隔线（除了最后一项）
-                if (engine != matchingEngines.last()) {
-                    View(this).apply {
-                        setBackgroundColor(ContextCompat.getColor(context, if (isDarkMode) R.color.divider_dark else R.color.divider_light))
-                        layoutParams = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            1
-                        ).apply {
-                            setMargins(16, 0, 16, 0)
-                        }
-                    }.also { previewEngineList.addView(it) }
-                }
-            }
         }
     }
 
@@ -1268,20 +1030,20 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             // 使用普通模式
             if (query.isEmpty()) {
                 // 如果没有查询文本，直接打开搜索引擎主页
-                webView.visibility = View.VISIBLE
-                homeContent.visibility = View.GONE
-                webView.loadUrl(engine.url.replace("{query}", "").replace("search?q=", "")
+                val url = engine.url.replace("{query}", "").replace("search?q=", "")
                     .replace("search?query=", "")
                     .replace("search?word=", "")
-                    .replace("s?wd=", ""))
+                    .replace("s?wd=", "")
+                tabManager.addTab(url)
             } else {
                 // 有查询文本，使用搜索引擎进行搜索
                 val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
                 val searchUrl = engine.url.replace("{query}", encodedQuery)
-                webView.visibility = View.VISIBLE
-                homeContent.visibility = View.GONE
-                webView.loadUrl(searchUrl)
+                tabManager.addTab(searchUrl)
             }
+            viewPager.visibility = View.VISIBLE
+            tabPreviewContainer.visibility = View.VISIBLE
+                homeContent.visibility = View.GONE
         }
     }
 
@@ -1413,6 +1175,239 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
         } catch (e: Exception) {
             Log.e(TAG, "更新开关状态时出错", e)
+        }
+    }
+
+    override fun onDown(e: MotionEvent): Boolean = true
+
+    override fun onShowPress(e: MotionEvent) {}
+
+    override fun onSingleTapUp(e: MotionEvent): Boolean = false
+
+    override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean = false
+
+    override fun onLongPress(e: MotionEvent) {
+        // TODO: 长按操作
+    }
+
+    override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+        try {
+            if (e1 == null) return false
+            val diffY = e2.y - e1.y
+            val diffX = e2.x - e1.x
+            if (abs(diffX) > abs(diffY)) {
+                if (abs(diffX) > SWIPE_THRESHOLD && abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
+                    if (diffX > 0) {
+                        // 右滑
+                        onSwipeRight()
+                    } else {
+                        // 左滑
+                        onSwipeLeft()
+                    }
+                }
+            } else {
+                if (abs(diffY) > SWIPE_THRESHOLD && abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
+                    if (diffY > 0) {
+                        // 下滑
+                        onSwipeDown()
+                    } else {
+                        // 上滑
+                        onSwipeUp()
+                    }
+                }
+            }
+        } catch (exception: Exception) {
+            exception.printStackTrace()
+        }
+        return true
+    }
+
+    private fun onSwipeRight() {
+        // TODO: 右滑操作，例如：返回
+        val currentTab = tabManager.getCurrentTab()
+        if (currentTab?.webView?.canGoBack() == true) {
+            currentTab.webView.goBack()
+        }
+    }
+
+    private fun onSwipeLeft() {
+        // TODO: 左滑操作，例如：前进
+        val currentTab = tabManager.getCurrentTab()
+        if (currentTab?.webView?.canGoForward() == true) {
+            currentTab.webView.goForward()
+        }
+    }
+
+    private fun onSwipeUp() {
+        // TODO: 上滑操作，例如：刷新
+        val currentTab = tabManager.getCurrentTab()
+        currentTab?.webView?.reload()
+    }
+
+    private fun onSwipeDown() {
+        // TODO: 下滑操作，例如：显示通知栏
+    }
+
+    private fun setupLetterIndexBar() {
+        // 直接使用普通搜索引擎列表，移除AI模式切换
+        letterIndexBar.engines = SearchEngine.getNormalSearchEngines()
+
+        letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
+            override fun onLetterSelected(view: View, letter: Char) {
+                updateEngineList(letter)
+            }
+        }
+
+        // 设置搜索引擎点击监听器
+        previewEngineList.setOnClickListener(null)
+    }
+
+    private fun updateEngineList(letter: Char) {
+        // 更新字母标题
+        letterTitle.text = letter.toString()
+        letterTitle.visibility = View.VISIBLE
+        
+        // 显示对应字母的搜索引擎
+        showSearchEnginesByLetter(letter)
+    }
+
+    private fun showSearchEnginesByLetter(letter: Char) {
+        // 清空现有列表
+        previewEngineList.removeAllViews()
+
+        // 获取当前主题模式
+        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+        // 直接使用普通搜索引擎列表
+        val engines = SearchEngine.getNormalSearchEngines()
+
+        // 过滤匹配的搜索引擎
+        val matchingEngines = engines.filter { engine ->
+            val firstChar = engine.name.first()
+            when {
+                firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                    firstChar.uppercaseChar() == letter.uppercaseChar()
+                firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                    val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                    pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
+                }
+                else -> false
+            }
+        }
+
+        if (matchingEngines.isEmpty()) {
+            // 如果没有匹配的搜索引擎，显示提示信息
+            val noEngineText = TextView(this).apply {
+                text = "没有以 $letter 开头的搜索引擎"
+                textSize = 16f
+                setTextColor(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_name_text_dark else R.color.engine_name_text_light))
+                gravity = android.view.Gravity.CENTER
+                setPadding(16, 32, 16, 32)
+            }
+            previewEngineList.addView(noEngineText)
+        } else {
+            // 添加匹配的搜索引擎
+            matchingEngines.forEach { engine ->
+                val engineItem = LayoutInflater.from(this).inflate(
+                    R.layout.item_search_engine,
+                    previewEngineList,
+                    false
+                )
+
+                // 设置引擎图标
+                engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                    setImageResource(engine.iconResId)
+                    setColorFilter(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_icon_dark else R.color.engine_icon_light))
+                }
+
+                // 设置引擎名称
+                engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                    text = engine.name
+                    setTextColor(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_name_text_dark else R.color.engine_name_text_light))
+                }
+
+                // 设置点击事件
+                engineItem.setOnClickListener {
+                    val query = searchInput.text.toString().trim()
+                    openSearchEngine(engine, query)
+                    drawerLayout.closeDrawer(if (settingsManager.getBoolean("right_handed_mode", true)) GravityCompat.START else GravityCompat.END)
+                }
+
+                previewEngineList.addView(engineItem)
+
+                // 添加分隔线（除了最后一项）
+                if (engine != matchingEngines.last()) {
+                    View(this).apply {
+                        setBackgroundColor(ContextCompat.getColor(context, if (isDarkMode) R.color.divider_dark else R.color.divider_light))
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            1
+                        ).apply {
+                            setMargins(16, 0, 16, 0)
+                        }
+                    }.also { previewEngineList.addView(it) }
+                }
+            }
+        }
+    }
+
+    private fun String.containsAdUrl(): Boolean {
+        val adPatterns = listOf(
+            "ads", "analytics", "tracker", "doubleclick",
+            "pagead", "banner", "popup", "stats"
+        )
+        return adPatterns.any { this.contains(it, ignoreCase = true) }
+    }
+
+    private fun applyImageFilter() {
+        val currentTab = tabManager.getCurrentTab()
+        currentTab?.webView?.let { webView ->
+            val js = """
+                javascript:(function() {
+                    var css = `
+                        img, picture, video, canvas {
+                            filter: grayscale(100%) opacity(70%) !important;
+                            transition: filter 0.3s ease-in-out !important;
+                        }
+                        img:hover, picture:hover, video:hover, canvas:hover {
+                            filter: grayscale(0%) opacity(100%) !important;
+                        }
+                    `;
+                    var style = document.createElement('style');
+                    style.id = 'low-image-style';
+                    style.type = 'text/css';
+                    style.appendChild(document.createTextNode(css));
+                    document.head.appendChild(style);
+                })()
+            """.trimIndent()
+            webView.evaluateJavascript(js, null)
+        }
+    }
+
+    private fun removeImageFilter() {
+        val currentTab = tabManager.getCurrentTab()
+        currentTab?.webView?.let { webView ->
+            val js = """
+                javascript:(function() {
+                    var style = document.getElementById('low-image-style');
+                    if (style) {
+                        style.remove();
+                    }
+                })()
+            """.trimIndent()
+            webView.evaluateJavascript(js, null)
+        }
+    }
+
+    override fun onBackPressed() {
+        when {
+            tabManager.onBackPressed() -> return
+            viewPager.visibility == View.VISIBLE -> {
+                viewPager.visibility = View.GONE
+                tabPreviewContainer.visibility = View.GONE
+                homeContent.visibility = View.VISIBLE
+            }
+            else -> super.onBackPressed()
         }
     }
 } 

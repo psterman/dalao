@@ -415,6 +415,7 @@ class FloatingWindowService : Service() {
         var initialX = 0
         var initialY = 0
         var touchStartTime = 0L
+        var lastTapTime = 0L  // 添加这个变量来跟踪上次点击时间
         var isDragging = false
         var hasMoved = false
         var hasPerformedAction = false
@@ -434,8 +435,8 @@ class FloatingWindowService : Service() {
             }
         }
 
-        // 双击检测任务
-        val doubleTapRunnable = Runnable {
+        // 单击处理任务
+        val singleTapRunnable = Runnable {
             if (!hasPerformedAction && !hasMoved) {
                 toggleSearchInterface()
                 hasPerformedAction = true
@@ -468,6 +469,7 @@ class FloatingWindowService : Service() {
                         isDragging = true
                         hasMoved = true
                         handler.removeCallbacks(longPressRunnable)
+                        handler.removeCallbacks(singleTapRunnable)
                     }
                     
                     if (isDragging) {
@@ -482,10 +484,23 @@ class FloatingWindowService : Service() {
                     handler.removeCallbacks(longPressRunnable)
                     
                     if (!hasMoved && !hasPerformedAction) {
-                        val pressDuration = System.currentTimeMillis() - touchStartTime
+                        val currentTime = System.currentTimeMillis()
+                        val pressDuration = currentTime - touchStartTime
+                        
                         if (pressDuration < tapTimeout) {
-                            // 处理点击事件
-                                handler.postDelayed(doubleTapRunnable, doubleTapTimeout)
+                            // 检查是否是双击
+                            if (currentTime - lastTapTime < doubleTapTimeout) {
+                                // 移除可能的单击处理
+                                handler.removeCallbacks(singleTapRunnable)
+                                // 双击事件
+                                onDoubleClick()
+                                lastTapTime = 0 // 重置双击计时
+                                hasPerformedAction = true
+                            } else {
+                                // 单击事件，记录时间并延迟处理
+                                lastTapTime = currentTime
+                                handler.postDelayed(singleTapRunnable, doubleTapTimeout)
+                            }
                         }
                     }
                     true
@@ -617,22 +632,16 @@ class FloatingWindowService : Service() {
 
     private fun onDoubleClick() {
         try {
-            // 启动DualFloatingWebViewService
-            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                // 使用默认设置
-                putExtra("window_count", settingsManager.getDefaultWindowCount())
-                
-                // 设置默认搜索引擎
-                putExtra("left_engine", settingsManager.getLeftWindowSearchEngine())
-                putExtra("center_engine", settingsManager.getCenterWindowSearchEngine())
-                putExtra("right_engine", settingsManager.getRightWindowSearchEngine())
+            // 启动HomeActivity
+            val intent = Intent(this, HomeActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            startService(intent)
+            startActivity(intent)
             
-            Log.d(TAG, "双击启动多窗口服务")
+            Log.d(TAG, "双击启动HomeActivity")
         } catch (e: Exception) {
-            Log.e(TAG, "启动多窗口服务失败: ${e.message}")
-            Toast.makeText(this, "启动多窗口服务失败", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "启动HomeActivity失败: ${e.message}")
+            Toast.makeText(this, "启动HomeActivity失败", Toast.LENGTH_SHORT).show()
         }
     }
 

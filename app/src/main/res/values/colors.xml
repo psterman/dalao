@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Theme Colors -->
-    <color name="colorPrimary">#3F51B5</color>
-    <color name="colorPrimaryDark">#303F9F</color>
+    <color name="colorPrimary">#2196F3</color>
+    <color name="colorPrimaryDark">#1976D2</color>
     <color name="colorAccent">#FF4081</color>
 
     <!-- Theme-specific Colors -->
@@ -80,9 +80,9 @@
     
     <!-- Theme Accent Colors -->
     <color name="fold_accent_light">#2196F3</color>
-    <color name="fold_accent_dark">#64B5F6</color>
+    <color name="fold_accent_dark">#82B1FF</color>
     <color name="glass_accent_light">#00BCD4</color>
-    <color name="glass_accent_dark">#4DD0E1</color>
+    <color name="glass_accent_dark">#80DEEA</color>
     <color name="material_accent_light">#FF4081</color>
     <color name="material_accent_dark">#FF80AB</color>
 
@@ -112,11 +112,11 @@
     <color name="flyme_preview_text_color_dark">#FFFFFF</color>
 
     <!-- Theme Dark/Light Colors -->
-    <color name="colorBackground">#F5F5F5</color>
+    <color name="colorBackground">#FFFFFF</color>
     <color name="colorLightBackground">#FFFFFF</color>
     <color name="colorDarkBackground">#121212</color>
-    <color name="colorLightPrimaryDark">#42A5F5</color>
-    <color name="colorDarkPrimaryDark">#0D47A1</color>
+    <color name="colorLightPrimaryDark">#E3F2FD</color>
+    <color name="colorDarkPrimaryDark">#1A237E</color>
 
     <!-- 搜索框颜色 - 浅色主题 -->
     <color name="search_background_light">#F5F5F5</color>

@@ -16,7 +16,60 @@
             android:id="@+id/webview_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+            <!-- 主页内容 -->
+            <include
+                android:id="@+id/home_content"
+                layout="@layout/content_home" />
+
+            <!-- ViewPager2用于管理多个WebView -->
+            <androidx.viewpager2.widget.ViewPager2
+                android:id="@+id/view_pager"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+
+            <!-- 标签页预览栏 -->
+            <LinearLayout
+                android:id="@+id/tab_preview_container"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_gravity="bottom"
+                android:background="@color/colorBackground"
+                android:elevation="8dp"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/tab_preview_list"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:orientation="horizontal" />
+
+                <ImageButton
+                    android:id="@+id/btn_add_tab"
+                    android:layout_width="48dp"
+                    android:layout_height="match_parent"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="新建标签页"
+                    android:src="@android:drawable/ic_menu_add" />
+
+            </LinearLayout>
+
+            <!-- 手势提示 -->
+            <TextView
+                android:id="@+id/gesture_hint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_gesture_hint"
+                android:padding="8dp"
+                android:textColor="@android:color/white"
+                android:visibility="gone" />
+
+        </FrameLayout>
 
         <!-- 搜索栏容器 -->
         <com.google.android.material.appbar.AppBarLayout
@@ -124,34 +177,6 @@
 
             </LinearLayout>
         </com.google.android.material.appbar.AppBarLayout>
-
-        <!-- 主页内容（当 WebView 隐藏时显示） -->
-        <LinearLayout
-            android:id="@+id/home_content"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_marginTop="80dp"
-            android:orientation="vertical">
-
-            <!-- 快捷方式网格 -->
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/shortcuts_grid"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:padding="16dp"/>
-        </LinearLayout>
-
-        <!-- 添加手势提示视图 -->
-        <TextView
-            android:id="@+id/gesture_hint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:background="@drawable/gesture_hint_background"
-            android:padding="8dp"
-            android:textColor="@android:color/white"
-            android:visibility="gone" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
