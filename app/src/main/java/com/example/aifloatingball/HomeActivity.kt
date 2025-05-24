@@ -33,6 +33,7 @@ import android.webkit.WebSettings
 import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
 import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -41,13 +42,12 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.Switch
+import androidx.appcompat.widget.SwitchCompat
 
 // AndroidX imports
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.appcompat.widget.SwitchCompat
-import androidx.cardview.widget.CardView
-import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.GestureDetectorCompat
 import androidx.core.view.GravityCompat
@@ -74,6 +74,7 @@ import com.example.aifloatingball.DualFloatingWebViewService
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
 import com.example.aifloatingball.tab.TabManager
+import com.example.aifloatingball.utils.WebViewHelper
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     companion object {
@@ -217,14 +218,17 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun setupDrawer() {
-        // 禁用抽屉的自动关闭
-        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+        // 设置抽屉可解锁，允许用户通过手势打开
+        drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
         
         // 根据设置更新抽屉位置
         updateDrawerGravity()
         
         // 应用主题颜色
         applyDrawerTheme()
+        
+        // 初始化字母索引栏
+        setupLetterIndexBar()
         
         // 设置抽屉监听器
         drawerLayout.addDrawerListener(object : DrawerLayout.DrawerListener {
@@ -236,6 +240,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             override fun onDrawerOpened(drawerView: View) {
                 isDrawerEnabled = true
                 drawerView.alpha = 1.0f
+                // 打开抽屉时更新搜索引擎列表
+                updateEngineList('A')
             }
             
             override fun onDrawerClosed(drawerView: View) {
@@ -250,6 +256,32 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             if (view.id == R.id.drawer_layout && drawerLayout.isDrawerOpen(GravityCompat.START)) {
                 drawerLayout.closeDrawer(GravityCompat.START)
             }
+        }
+
+        // 设置退出按钮点击监听器
+        findViewById<View>(R.id.exit_button)?.setOnClickListener {
+            // 显示确认对话框
+            AlertDialog.Builder(this)
+                .setTitle("退出确认")
+                .setMessage("确定要退出应用吗？")
+                .setPositiveButton("确定") { _, _ ->
+                    // 保存必要的状态
+                    saveSettings()
+                    
+                    // 清理资源
+                    webView.clearCache(true)
+                    webView.clearHistory()
+                    
+                    // 关闭所有活动的服务
+                    if (DualFloatingWebViewService.isRunning) {
+                        stopService(Intent(this, DualFloatingWebViewService::class.java))
+                    }
+                    
+                    // 结束应用
+                    finish()
+                }
+                .setNegativeButton("取消", null)
+                .show()
         }
     }
 
@@ -600,70 +632,58 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun setupWebView() {
-        webView.apply {
-            settings.apply {
-                // 启用JavaScript
-                javaScriptEnabled = true
-                // 支持缩放
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                // 自适应屏幕
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                // 支持多窗口
-                setSupportMultipleWindows(true)
-                // 启用DOM存储
-                domStorageEnabled = true
-                // 允许文件访问
-                allowFileAccess = true
-                // 混合内容
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                // 缓存模式
-                cacheMode = WebSettings.LOAD_DEFAULT
+        // 使用WebViewHelper设置WebView
+        WebViewHelper.setupWebView(webView)
+
+        // 设置WebViewClient
+        webView.webViewClient = object : WebViewClient() {
+            @Deprecated("Deprecated in Java")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String): Boolean {
+                return handleUrlLoading(view, url)
             }
 
-            // 设置WebViewClient
-            webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView?, url: String): Boolean {
-                    view?.loadUrl(url)
-                    return true
-                }
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                return request?.url?.toString()?.let { handleUrlLoading(view, it) } ?: false
+            }
 
-                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                    request?.url?.toString()?.let { view?.loadUrl(it) }
-                    return true
-                }
+            private fun handleUrlLoading(view: WebView?, url: String): Boolean {
+                view?.loadUrl(url)
+                return true
+            }
 
-                override fun onPageFinished(view: WebView?, url: String?) {
-                    super.onPageFinished(view, url)
-                    // 页面加载完成后更新地址栏
-                    url?.let { searchInput.setText(it) }
-                    webView.visibility = View.VISIBLE
-                    homeContent.visibility = View.GONE
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // 页面加载完成后更新UI
+                webView.visibility = View.VISIBLE
+                homeContent.visibility = View.GONE
+                progressBar.visibility = View.GONE
+                
+                // 更新地址栏
+                url?.let { searchInput.setText(it) }
+            }
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                // 显示进度条
+                progressBar.visibility = View.VISIBLE
+                progressBar.progress = 0
+            }
+        }
+
+        // 设置WebChromeClient
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                progressBar.progress = newProgress
+                if (newProgress == 100) {
                     progressBar.visibility = View.GONE
                 }
-
-                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                    super.onPageStarted(view, url, favicon)
-                    // 页面开始加载时显示进度条
-                    progressBar.visibility = View.VISIBLE
-                    progressBar.progress = 0
-                }
             }
 
-            // 设置WebChromeClient来处理进度条
-            webChromeClient = object : android.webkit.WebChromeClient() {
-                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                    super.onProgressChanged(view, newProgress)
-                    progressBar.progress = newProgress
-                }
-
-                override fun onReceivedTitle(view: WebView?, title: String?) {
-                    super.onReceivedTitle(view, title)
-                    // 可以选择是否在地址栏显示网页标题
-                    // title?.let { searchInput.setText(it) }
-                }
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                super.onReceivedTitle(view, title)
+                // 可以选择是否在地址栏显示网页标题
+                // title?.let { searchInput.setText(it) }
             }
         }
     }
@@ -1409,29 +1429,25 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         try {
             when (settingsManager.getThemeMode()) {
                 SettingsManager.THEME_MODE_SYSTEM -> {
-                    // 使用默认主题
                     window.statusBarColor = getColor(R.color.colorPrimaryDark)
                     window.navigationBarColor = getColor(R.color.colorPrimaryDark)
-                    rootLayout?.setBackgroundColor(getColor(R.color.colorBackground))
+                    rootLayout.setBackgroundColor(getColor(R.color.colorBackground))
                 }
                 SettingsManager.THEME_MODE_LIGHT -> {
-                    // 使用浅色主题
                     window.statusBarColor = getColor(R.color.colorLightPrimaryDark)
                     window.navigationBarColor = getColor(R.color.colorLightPrimaryDark)
-                    rootLayout?.setBackgroundColor(getColor(R.color.colorLightBackground))
+                    rootLayout.setBackgroundColor(getColor(R.color.colorLightBackground))
                 }
                 SettingsManager.THEME_MODE_DARK -> {
-                    // 使用深色主题
                     window.statusBarColor = getColor(R.color.colorDarkPrimaryDark)
                     window.navigationBarColor = getColor(R.color.colorDarkPrimaryDark)
-                    rootLayout?.setBackgroundColor(getColor(R.color.colorDarkBackground))
+                    rootLayout.setBackgroundColor(getColor(R.color.colorDarkBackground))
                 }
             }
         } catch (e: Resources.NotFoundException) {
-            // 如果颜色资源不存在，使用默认颜色
             Log.e("HomeActivity", "Error applying theme: ${e.message}")
-            window.statusBarColor = Color.parseColor("#1976D2") // Default blue
-            rootLayout?.setBackgroundColor(Color.WHITE)
+            window.statusBarColor = Color.parseColor("#1976D2")
+            rootLayout.setBackgroundColor(Color.WHITE)
         }
     }
 
@@ -1541,106 +1557,227 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun setupLetterIndexBar() {
-        // 直接使用普通搜索引擎列表，移除AI模式切换
-        letterIndexBar.engines = SearchEngine.getNormalSearchEngines()
+        try {
+            // 获取视图引用
+            letterIndexBar = findViewById(R.id.letter_index_bar)
+            letterTitle = findViewById(R.id.letter_title)
+            previewEngineList = findViewById(R.id.preview_engine_list)
 
-        letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
-            override fun onLetterSelected(view: View, letter: Char) {
-                updateEngineList(letter)
+            // 确保视图不为空
+            if (letterIndexBar == null || letterTitle == null || previewEngineList == null) {
+                Log.e(TAG, "setupLetterIndexBar: 视图引用为空")
+                return
             }
-        }
 
-        // 设置搜索引擎点击监听器
-        previewEngineList.setOnClickListener(null)
+            // 设置字母索引栏的搜索引擎数据
+            val allEngines = SearchEngine.getAllSearchEngines()
+            Log.d(TAG, "获取到搜索引擎总数: ${allEngines.size}，其中AI搜索引擎: ${allEngines.count { it.isAI }}个")
+            
+            // 打印所有引擎的名称和图标资源ID
+            allEngines.forEach { engine ->
+                Log.d(TAG, "搜索引擎: ${engine.name}, 图标ID: ${engine.iconResId}, 是否AI: ${engine.isAI}")
+            }
+            
+            try {
+                letterIndexBar.engines = allEngines
+                Log.d(TAG, "成功设置字母索引栏引擎列表")
+            } catch (e: Exception) {
+                Log.e(TAG, "设置字母索引栏引擎列表失败", e)
+            }
+
+            // 设置字母选择监听器
+            letterIndexBar.onLetterSelectedListener = object : LetterIndexBar.OnLetterSelectedListener {
+                override fun onLetterSelected(view: View, letter: Char) {
+                    updateEngineList(letter)
+                }
+            }
+
+            // 初始显示A开头的搜索引擎
+            updateEngineList('A')
+            
+            Log.d(TAG, "setupLetterIndexBar: 初始化完成，搜索引擎总数: ${allEngines.size}")
+        } catch (e: Exception) {
+            Log.e(TAG, "setupLetterIndexBar failed", e)
+        }
     }
 
     private fun updateEngineList(letter: Char) {
-        // 更新字母标题
-        letterTitle.text = letter.toString()
-        letterTitle.visibility = View.VISIBLE
-        
-        // 显示对应字母的搜索引擎
-        showSearchEnginesByLetter(letter)
+        try {
+            // 更新字母标题
+            letterTitle.text = letter.toString()
+            letterTitle.visibility = View.VISIBLE
+            
+            // 清空现有列表
+            previewEngineList.removeAllViews()
+            previewEngineList.visibility = View.VISIBLE
+
+            // 获取当前主题模式
+            val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+
+            // 获取所有搜索引擎
+            val allEngines = SearchEngine.getAllSearchEngines()
+            Log.d(TAG, "updateEngineList: 总搜索引擎数量: ${allEngines.size}")
+
+            // 过滤匹配的搜索引擎
+            val matchingEngines = allEngines.filter { engine ->
+                val firstChar = engine.name.first()
+                when {
+                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                        firstChar.uppercaseChar() == letter.uppercaseChar()
+                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                        try {
+                        val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                            val result = pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
+                            result
+                        } catch (e: Exception) {
+                            Log.e(TAG, "拼音转换失败: ${e.message}", e)
+                            // 如果拼音转换失败，使用简单的首字母匹配
+                            false
+                        }
+                    }
+                    else -> false
+                }
+            }
+
+            Log.d(TAG, "updateEngineList: 匹配的搜索引擎数量: ${matchingEngines.size}")
+
+            if (matchingEngines.isEmpty()) {
+                // 如果没有匹配的搜索引擎，显示提示信息
+                val noEngineText = TextView(this).apply {
+                    text = "没有以 $letter 开头的搜索引擎"
+                    textSize = 16f
+                    setTextColor(ContextCompat.getColor(context, if (isDarkMode) android.R.color.white else android.R.color.black))
+                    gravity = Gravity.CENTER
+                    setPadding(16, 32, 16, 32)
+                }
+                previewEngineList.addView(noEngineText)
+            } else {
+                // 分类显示搜索引擎
+                val aiEngines = matchingEngines.filter { it.isAI }
+                val normalEngines = matchingEngines.filter { !it.isAI }
+
+                // 如果有AI搜索引擎，添加AI分类标题
+                if (aiEngines.isNotEmpty()) {
+                    addCategoryTitle("AI搜索", isDarkMode)
+                    aiEngines.forEach { engine ->
+                        addEngineItem(engine, isDarkMode)
+                    }
+                }
+
+                // 如果有普通搜索引擎，添加普通搜索分类标题
+                if (normalEngines.isNotEmpty()) {
+                    if (aiEngines.isNotEmpty()) {
+                        // 如果之前有AI搜索引擎，添加分隔线
+                        addDivider(isDarkMode)
+                    }
+                    addCategoryTitle("普通搜索", isDarkMode)
+                    normalEngines.forEach { engine ->
+                        addEngineItem(engine, isDarkMode)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateEngineList failed", e)
+            Toast.makeText(this, "更新搜索引擎列表失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
-    private fun showSearchEnginesByLetter(letter: Char) {
-        // 清空现有列表
-        previewEngineList.removeAllViews()
+    private fun addCategoryTitle(title: String, isDarkMode: Boolean) {
+        TextView(this).apply {
+            text = title
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, if (isDarkMode) android.R.color.white else android.R.color.black))
+            setPadding(16, 16, 16, 8)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }.also { previewEngineList.addView(it) }
+    }
 
-        // 获取当前主题模式
-        val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    private fun addEngineItem(engine: SearchEngine, isDarkMode: Boolean) {
+        try {
+            val engineItem = LayoutInflater.from(this).inflate(
+                R.layout.item_search_engine,
+                previewEngineList,
+                false
+            )
 
-        // 直接使用普通搜索引擎列表
-        val engines = SearchEngine.getNormalSearchEngines()
-
-        // 过滤匹配的搜索引擎
-        val matchingEngines = engines.filter { engine ->
-            val firstChar = engine.name.first()
-            when {
-                firstChar.toString().matches(Regex("[A-Za-z]")) -> 
-                    firstChar.uppercaseChar() == letter.uppercaseChar()
-                firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
-                    val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
-                    pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
+            // 设置引擎图标
+            engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
+                try {
+                    // 尝试设置图标资源，如果失败则使用默认图标
+                    if (engine.iconResId != 0) {
+                        setImageResource(engine.iconResId)
+                    } else {
+                        setImageResource(R.drawable.ic_search)
+                    }
+                } catch (e: Exception) {
+                    // 如果无法加载指定的图标，使用默认图标
+                    Log.e(TAG, "加载图标失败: ${engine.name}, 使用默认图标", e)
+                    setImageResource(R.drawable.ic_search)
                 }
-                else -> false
+                
+                // 设置图标颜色
+                setColorFilter(ContextCompat.getColor(context, 
+                    if (isDarkMode) android.R.color.white else android.R.color.black))
             }
+
+            // 设置引擎名称
+            engineItem.findViewById<TextView>(R.id.engine_name).apply {
+                text = engine.name
+                setTextColor(ContextCompat.getColor(context, 
+                    if (isDarkMode) android.R.color.white else android.R.color.black))
+            }
+
+            // 设置引擎描述
+            engineItem.findViewById<TextView>(R.id.engine_description)?.apply {
+                text = engine.description
+                setTextColor(ContextCompat.getColor(context, 
+                    if (isDarkMode) android.R.color.darker_gray else android.R.color.darker_gray))
+                visibility = if (engine.description.isNotEmpty()) View.VISIBLE else View.GONE
+            }
+
+            // 隐藏开关按钮
+            engineItem.findViewById<SwitchCompat>(R.id.engine_toggle)?.visibility = View.GONE
+
+            // 设置点击事件
+            engineItem.setOnClickListener {
+                val query = searchInput.text.toString().trim()
+                openSearchEngine(engine, query)
+                drawerLayout.closeDrawer(if (settingsManager.getBoolean("right_handed_mode", true)) 
+                    GravityCompat.START else GravityCompat.END)
+            }
+
+            // 设置长按事件
+            engineItem.setOnLongClickListener {
+                showEngineSettings(engine)
+                true
+            }
+
+            // 设置水波纹效果
+            engineItem.background = ContextCompat.getDrawable(this, 
+                if (isDarkMode) R.drawable.ripple_dark else R.drawable.ripple_light)
+
+            previewEngineList.addView(engineItem)
+            
+            Log.d(TAG, "添加搜索引擎项目: ${engine.name}, 图标ID: ${engine.iconResId}")
+        } catch (e: Exception) {
+            Log.e(TAG, "添加搜索引擎项目失败: ${engine.name}", e)
         }
+    }
 
-        if (matchingEngines.isEmpty()) {
-            // 如果没有匹配的搜索引擎，显示提示信息
-            val noEngineText = TextView(this).apply {
-                text = "没有以 $letter 开头的搜索引擎"
-                textSize = 16f
-                setTextColor(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_name_text_dark else R.color.engine_name_text_light))
-                gravity = android.view.Gravity.CENTER
-                setPadding(16, 32, 16, 32)
+    private fun addDivider(isDarkMode: Boolean) {
+        View(this).apply {
+            setBackgroundColor(ContextCompat.getColor(context, 
+                if (isDarkMode) R.color.divider_dark else R.color.divider_light))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1
+            ).apply {
+                setMargins(16, 8, 16, 8)
             }
-            previewEngineList.addView(noEngineText)
-        } else {
-            // 添加匹配的搜索引擎
-            matchingEngines.forEach { engine ->
-                val engineItem = LayoutInflater.from(this).inflate(
-                    R.layout.item_search_engine,
-                    previewEngineList,
-                    false
-                )
-
-                // 设置引擎图标
-                engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
-                    setImageResource(engine.iconResId)
-                    setColorFilter(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_icon_dark else R.color.engine_icon_light))
-                }
-
-                // 设置引擎名称
-                engineItem.findViewById<TextView>(R.id.engine_name).apply {
-                    text = engine.name
-                    setTextColor(ContextCompat.getColor(context, if (isDarkMode) R.color.engine_name_text_dark else R.color.engine_name_text_light))
-                }
-
-                // 设置点击事件
-                engineItem.setOnClickListener {
-                    val query = searchInput.text.toString().trim()
-                    openSearchEngine(engine, query)
-                    drawerLayout.closeDrawer(if (settingsManager.getBoolean("right_handed_mode", true)) GravityCompat.START else GravityCompat.END)
-                }
-
-                previewEngineList.addView(engineItem)
-
-                // 添加分隔线（除了最后一项）
-                if (engine != matchingEngines.last()) {
-                    View(this).apply {
-                        setBackgroundColor(ContextCompat.getColor(context, if (isDarkMode) R.color.divider_dark else R.color.divider_light))
-                        layoutParams = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            1
-                        ).apply {
-                            setMargins(16, 0, 16, 0)
-                        }
-                    }.also { previewEngineList.addView(it) }
-                }
-            }
-        }
+        }.also { previewEngineList.addView(it) }
     }
 
     private fun String.containsAdUrl(): Boolean {
@@ -1692,14 +1829,18 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     override fun onBackPressed() {
-        when {
-            tabManager.onBackPressed() -> return
-            viewPager.visibility == View.VISIBLE -> {
-                viewPager.visibility = View.GONE
-                tabPreviewContainer.visibility = View.GONE
-                homeContent.visibility = View.VISIBLE
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            onBackPressedDispatcher.onBackPressed()
+        } else {
+            when {
+                tabManager.onBackPressed() -> return
+                viewPager.visibility == View.VISIBLE -> {
+                    viewPager.visibility = View.GONE
+                    tabPreviewContainer.visibility = View.GONE
+                    homeContent.visibility = View.VISIBLE
+                }
+                else -> super.onBackPressed()
             }
-            else -> super.onBackPressed()
         }
     }
 } 

@@ -3,7 +3,7 @@
     <!-- Theme Colors -->
     <color name="colorPrimary">#2196F3</color>
     <color name="colorPrimaryDark">#1976D2</color>
-    <color name="colorAccent">#FF4081</color>
+    <color name="colorAccent">#03A9F4</color>
 
     <!-- Theme-specific Colors -->
     <!-- Fold Theme -->
@@ -24,6 +24,7 @@
     <color name="glass_text_light">#000000</color>
     <color name="glass_text_dark">#FFFFFF</color>
 
+    <!-- 基础颜色 -->
     <color name="ic_launcher_background">#3DDC84</color>
     <color name="primary">#2196F3</color>
     <color name="primary_dark">#1976D2</color>
@@ -40,8 +41,17 @@
     <color name="background">#FFFFFF</color>
     <color name="text_primary">#212121</color>
     <color name="text_secondary">#757575</color>
+
+    <!-- 搜索相关颜色 -->
     <color name="search_input_background">#F5F5F5</color>
     <color name="search_input_stroke">#E0E0E0</color>
+    <color name="search_background_light">#F5F5F5</color>
+    <color name="search_stroke_light">#1F1F1F</color>
+    <color name="search_text_light">#1F1F1F</color>
+    <color name="search_hint_light">#757575</color>
+    <color name="search_icon_light">#1F1F1F</color>
+    <color name="search_bar_background">#F5F5F5</color>
+    <color name="navigation_bar_background">#F5F5F5</color>
 
     <!-- 悬浮球图标颜色 -->
     <color name="floating_ball_icon_light">#757575</color>
@@ -57,27 +67,27 @@
     <color name="letter_index_background_dark">#212121</color>
     <color name="letter_index_background_light">#FFFFFF</color>
 
-    <!-- Engine List Colors -->
-    <color name="engine_icon_dark">#CCFFFFFF</color>
-    <color name="engine_icon_light">#CC000000</color>
+    <!-- 字母索引栏颜色 -->
+    <color name="letter_text_light">#757575</color>
+    <color name="letter_text_dark">#B3FFFFFF</color>
+    <color name="letter_accent_light">#2196F3</color>
+    <color name="letter_accent_dark">#64B5F6</color>
+
+    <!-- 搜索引擎列表颜色 -->
+    <color name="engine_icon_light">#757575</color>
+    <color name="engine_icon_dark">#B3FFFFFF</color>
+    <color name="engine_name_text_light">#212121</color>
     <color name="engine_name_text_dark">#FFFFFF</color>
-    <color name="engine_name_text_light">#000000</color>
-    <color name="engine_description_text_dark">#99FFFFFF</color>
-    <color name="engine_description_text_light">#99000000</color>
-    <color name="engine_list_background_dark">#1A1A1A</color>
-    <color name="engine_list_background_light">#FFFFFF</color>
+    <color name="divider_light">#1F000000</color>
+    <color name="divider_dark">#1FFFFFFF</color>
 
-    <!-- Divider Colors -->
-    <color name="divider_dark">#1AFFFFFF</color>
-    <color name="divider_light">#1A000000</color>
-    <color name="divider_color">#1F000000</color>
+    <!-- 主题颜色 -->
+    <color name="colorBackground">#FFFFFF</color>
+    <color name="colorLightBackground">#FFFFFF</color>
+    <color name="colorDarkBackground">#303030</color>
+    <color name="colorLightPrimaryDark">#E0E0E0</color>
+    <color name="colorDarkPrimaryDark">#212121</color>
 
-    <!-- Drawer Theme Colors -->
-    <color name="drawer_background_light">#FFFFFF</color>
-    <color name="drawer_background_dark">#1F1F1F</color>
-    <color name="drawer_text_light">#000000</color>
-    <color name="drawer_text_dark">#FFFFFF</color>
-    
     <!-- Theme Accent Colors -->
     <color name="fold_accent_light">#2196F3</color>
     <color name="fold_accent_dark">#82B1FF</color>
@@ -86,11 +96,11 @@
     <color name="material_accent_light">#FF4081</color>
     <color name="material_accent_dark">#FF80AB</color>
 
-    <!-- 添加悬浮窗WebView相关的颜色资源 -->
+    <!-- 悬浮窗相关颜色 -->
+    <color name="floating_window_background">#FFFFFF</color>
+    <color name="floating_window_border">#1A000000</color>
     <color name="floating_background_light">#FFFFFF</color>
     <color name="floating_background_dark">#2C2C2C</color>
-    <color name="search_bar_background">#F5F5F5</color>
-    <color name="navigation_bar_background">#F5F5F5</color>
     <color name="text_color_light">#000000</color>
     <color name="text_color_dark">#FFFFFF</color>
     <color name="icon_color_light">#757575</color>
@@ -104,24 +114,24 @@
     <color name="ai_mode_indicator_bg">#E3F2FD</color>
     <color name="normal_mode_indicator_bg">#E0F2F1</color>
 
-    <color name="floating_window_background">#FFFFFF</color>
-    <color name="floating_window_border">#1A000000</color>
-
     <!-- Flyme 风格颜色 -->
     <color name="flyme_preview_text_color">#333333</color>
     <color name="flyme_preview_text_color_dark">#FFFFFF</color>
 
-    <!-- Theme Dark/Light Colors -->
-    <color name="colorBackground">#FFFFFF</color>
-    <color name="colorLightBackground">#FFFFFF</color>
-    <color name="colorDarkBackground">#121212</color>
-    <color name="colorLightPrimaryDark">#E3F2FD</color>
-    <color name="colorDarkPrimaryDark">#1A237E</color>
+    <!-- 抽屉相关颜色 -->
+    <color name="drawer_background_light">#FFFFFF</color>
+    <color name="drawer_background_dark">#1A1A1A</color>
+    <color name="drawer_text_light">#212121</color>
+    <color name="drawer_text_dark">#FFFFFF</color>
+    
+    <!-- 分隔线颜色 -->
+    <color name="divider_color">#1F000000</color>
+    <color name="divider_color_dark">#1FFFFFFF</color>
+    
+    <!-- 搜索引擎列表相关颜色 -->
+    <color name="engine_list_background_light">#FFFFFF</color>
+    <color name="engine_list_background_dark">#1A1A1A</color>
+    <color name="engine_description_text_light">#757575</color>
+    <color name="engine_description_text_dark">#B3FFFFFF</color>
 
-    <!-- 搜索框颜色 - 浅色主题 -->
-    <color name="search_background_light">#F5F5F5</color>
-    <color name="search_stroke_light">#1F1F1F</color>
-    <color name="search_text_light">#1F1F1F</color>
-    <color name="search_hint_light">#757575</color>
-    <color name="search_icon_light">#1F1F1F</color>
 </resources> 

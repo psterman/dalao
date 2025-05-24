@@ -1,50 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp"
-    android:background="?attr/selectableItemBackground">
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:gravity="center_vertical"
+    android:background="?android:attr/selectableItemBackground">
 
+    <!-- 搜索引擎图标 -->
     <ImageView
         android:id="@+id/engine_icon"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:padding="2dp"
-        android:scaleType="fitCenter"
-        tools:src="@drawable/ic_search"
-        android:contentDescription="@string/search_engine_icon"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginEnd="12dp"
+        android:scaleType="fitCenter" />
 
-    <TextView
-        android:id="@+id/engine_name"
+    <!-- 文本内容容器 -->
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        tools:text="搜索引擎"
-        android:textSize="16sp"
-        android:textColor="?android:attr/textColorPrimary"
-        app:layout_constraintStart_toEndOf="@id/engine_icon"
-        app:layout_constraintEnd_toStartOf="@id/engine_toggle"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        android:layout_weight="1"
+        android:orientation="vertical">
 
-    <Switch
+        <!-- 搜索引擎名称 -->
+        <TextView
+            android:id="@+id/engine_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:textColor="?android:attr/textColorPrimary" />
+
+        <!-- 搜索引擎描述 -->
+        <TextView
+            android:id="@+id/engine_description"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorSecondary"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- 开关按钮（可选） -->
+    <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/engine_toggle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:focusable="false"
-        android:clickable="false"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        android:layout_marginStart="8dp"
+        android:visibility="gone" />
 
-</androidx.constraintlayout.widget.ConstraintLayout> 
+</LinearLayout> 
