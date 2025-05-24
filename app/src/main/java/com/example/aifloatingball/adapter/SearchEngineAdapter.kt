@@ -6,8 +6,8 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import android.widget.Switch
 import android.widget.TextView
+import androidx.appcompat.widget.SwitchCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.BaseSearchEngine
@@ -34,7 +34,7 @@ class SearchEngineAdapter<T : BaseSearchEngine>(
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val nameTextView: TextView = view.findViewById(R.id.engine_name)
         val iconImageView: ImageView = view.findViewById(R.id.engine_icon)
-        val toggleSwitch: Switch = view.findViewById(R.id.engine_toggle)
+        val toggleSwitch: SwitchCompat = view.findViewById(R.id.engine_toggle)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -54,6 +54,9 @@ class SearchEngineAdapter<T : BaseSearchEngine>(
             
             // 设置图标
             holder.iconImageView.setImageResource(engine.iconResId)
+            
+            // 确保开关按钮可见
+            holder.toggleSwitch.visibility = View.VISIBLE
             
             // 设置切换状态
             holder.toggleSwitch.isChecked = enabledEngines.contains(engine.name)

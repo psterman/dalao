@@ -1592,8 +1592,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             allEngines.addAll(defaultEngines)
             allEngines.addAll(aiEngines)
             
-            // 从SettingsManager获取用户已启用的引擎
-            val enabledEngines = settingsManager.getEnabledEngines()
+            // 从SettingsManager获取所有已启用的引擎
+            val enabledEngines = settingsManager.getAllEnabledEngines()
             
             // 仅保留已启用的引擎，如果没有已启用引擎，则使用所有引擎
             val filteredEngines = if (enabledEngines.isNotEmpty()) {
@@ -1668,8 +1668,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             allEngines.addAll(defaultEngines)
             allEngines.addAll(aiEngines)
             
-            // 从SettingsManager获取用户已启用的引擎
-            val enabledEngines = settingsManager.getEnabledEngines()
+            // 从SettingsManager获取所有已启用的引擎
+            val enabledEngines = settingsManager.getAllEnabledEngines()
             
             // 仅保留已启用的引擎，如果没有已启用引擎，则使用所有引擎
             val filteredEngines = if (enabledEngines.isNotEmpty()) {
@@ -1727,9 +1727,14 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 val aiEngines = matchingEngines.filter { it.isAI }
                 val normalEngines = matchingEngines.filter { !it.isAI }
 
+                // 是否显示分类标题
+                val showCategory = settingsManager.showAIEngineCategory()
+
                 // 如果有AI搜索引擎，添加AI分类标题
                 if (aiEngines.isNotEmpty()) {
-                    addCategoryTitle("AI搜索", isDarkMode)
+                    if (showCategory) {
+                        addCategoryTitle("AI搜索", isDarkMode)
+                    }
                     aiEngines.forEach { engine ->
                         addEngineItem(engine, isDarkMode)
                     }
@@ -1737,11 +1742,13 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
                 // 如果有普通搜索引擎，添加普通搜索分类标题
                 if (normalEngines.isNotEmpty()) {
-                    if (aiEngines.isNotEmpty()) {
+                    if (aiEngines.isNotEmpty() && showCategory) {
                         // 如果之前有AI搜索引擎，添加分隔线
                         addDivider(isDarkMode)
                     }
-                    addCategoryTitle("普通搜索", isDarkMode)
+                    if (showCategory) {
+                        addCategoryTitle("普通搜索", isDarkMode)
+                    }
                     normalEngines.forEach { engine ->
                         addEngineItem(engine, isDarkMode)
                     }

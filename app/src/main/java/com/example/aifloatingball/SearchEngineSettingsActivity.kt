@@ -3,6 +3,7 @@ package com.example.aifloatingball
 import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -34,6 +35,7 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
         recyclerView = findViewById(R.id.recyclerViewSearchEngines)
         recyclerView.layoutManager = LinearLayoutManager(this)
         
+        // 创建并设置适配器
         adapter = SearchEngineAdapter(
             context = this,
             engines = SearchEngine.DEFAULT_ENGINES,
@@ -52,7 +54,18 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
             }
         )
         
+        // 设置适配器
         recyclerView.adapter = adapter
+        
+        // 确保所有列表项中的开关控件都可见
+        recyclerView.viewTreeObserver.addOnGlobalLayoutListener {
+            for (i in 0 until recyclerView.childCount) {
+                val viewHolder = recyclerView.getChildViewHolder(recyclerView.getChildAt(i))
+                if (viewHolder is SearchEngineAdapter<*>.ViewHolder) {
+                    viewHolder.toggleSwitch.visibility = View.VISIBLE
+                }
+            }
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

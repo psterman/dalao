@@ -35,7 +35,7 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
         settingsManager = SettingsManager.getInstance(this)
         
         // 获取已启用的AI搜索引擎
-        enabledEngines.addAll(settingsManager.getEnabledEngines())
+        enabledEngines.addAll(settingsManager.getEnabledAIEngines())
 
         // 初始化UI
         setupUI()
@@ -64,7 +64,7 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
                 } else {
                     enabledEngines.remove(engineName)
                 }
-                settingsManager.saveEnabledEngines(enabledEngines)
+                settingsManager.saveEnabledAIEngines(enabledEngines)
                 
                 // 发送广播通知悬浮球服务更新
                 sendBroadcast(Intent("com.example.aifloatingball.ACTION_UPDATE_MENU"))
@@ -73,6 +73,16 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
         
         // 设置适配器
         recyclerView.adapter = adapter
+        
+        // 确保所有列表项中的开关控件都可见
+        recyclerView.viewTreeObserver.addOnGlobalLayoutListener {
+            for (i in 0 until recyclerView.childCount) {
+                val viewHolder = recyclerView.getChildViewHolder(recyclerView.getChildAt(i))
+                if (viewHolder is SearchEngineAdapter<*>.ViewHolder) {
+                    viewHolder.toggleSwitch.visibility = View.VISIBLE
+                }
+            }
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {

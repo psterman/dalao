@@ -183,6 +183,15 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
+            // 搜索引擎分类显示设置
+            findPreference<SwitchPreferenceCompat>("show_ai_engine_category")?.apply {
+                isChecked = settingsManager.showAIEngineCategory()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setShowAIEngineCategory(newValue as Boolean)
+                    true
+                }
+            }
+
             // 菜单管理入口
             findPreference<Preference>("menu_manager")?.setOnPreferenceClickListener {
                 startActivity(Intent(requireContext(), MenuManagerActivity::class.java))

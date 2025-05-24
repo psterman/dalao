@@ -102,17 +102,26 @@ class SettingsManager private constructor(context: Context) {
     // 获取当前模式下的搜索引擎列表
     fun getCurrentSearchEngines(): List<BaseSearchEngine> {
         val isAIMode = isDefaultAIMode()
-        val enabledEngines = getEnabledEngines()
         
         return try {
             val engines = if (isAIMode) {
-                AISearchEngine.DEFAULT_AI_ENGINES
+                val enabledAIEngines = getEnabledAIEngines()
+                AISearchEngine.DEFAULT_AI_ENGINES.filter { engine -> enabledAIEngines.contains(engine.name) }
             } else {
-                SearchEngine.DEFAULT_ENGINES
+                val enabledSearchEngines = getEnabledSearchEngines()
+                SearchEngine.DEFAULT_ENGINES.filter { engine -> enabledSearchEngines.contains(engine.name) }
             }
             
-            // 只返回已启用的搜索引擎
-            engines.filter { engine -> enabledEngines.contains(engine.name) }
+            // 如果没有已启用的引擎，返回默认的几个
+            if (engines.isEmpty()) {
+                if (isAIMode) {
+                    AISearchEngine.DEFAULT_AI_ENGINES.take(3)
+                } else {
+                    SearchEngine.DEFAULT_ENGINES.take(3)
+                }
+            } else {
+                engines
+            }
         } catch (e: Exception) {
             Log.e("SettingsManager", "加载搜索引擎列表失败: ${e.message}", e)
             // 返回默认搜索引擎
@@ -146,6 +155,25 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putStringSet("enabled_engines", enabledEngines).apply()
     }
     
+    // 获取已启用的AI搜索引擎
+    fun getEnabledAIEngines(): Set<String> {
+        return prefs.getStringSet("enabled_ai_engines", null) ?:
+               AISearchEngine.DEFAULT_AI_ENGINES.take(3).map { it.name }.toSet() // 默认只启用前3个AI搜索引擎
+    }
+    
+    // 保存已启用的AI搜索引擎
+    fun saveEnabledAIEngines(enabledEngines: Set<String>) {
+        prefs.edit().putStringSet("enabled_ai_engines", enabledEngines).apply()
+    }
+    
+    // 获取所有已启用的搜索引擎（包括普通搜索引擎和AI搜索引擎）
+    fun getAllEnabledEngines(): Set<String> {
+        val result = mutableSetOf<String>()
+        result.addAll(getEnabledSearchEngines()) // 普通搜索引擎
+        result.addAll(getEnabledAIEngines()) // AI搜索引擎
+        return result
+    }
+    
     @Deprecated("Use getCurrentSearchEngines() instead", ReplaceWith("getCurrentSearchEngines()"))
     fun getFilteredEngineOrder(): List<BaseSearchEngine> = getCurrentSearchEngines()
     
@@ -155,6 +183,15 @@ class SettingsManager private constructor(context: Context) {
     @Deprecated("Use saveEnabledEngines() instead", ReplaceWith("saveEnabledEngines(engines.map { it.name }.toSet())"))
     fun saveEngineOrder(engines: List<SearchEngine>) {
         saveEnabledEngines(engines.map { it.name }.toSet())
+    }
+    
+    // 是否显示AI搜索引擎分类
+    fun showAIEngineCategory(): Boolean {
+        return prefs.getBoolean("show_ai_engine_category", true)
+    }
+    
+    fun setShowAIEngineCategory(show: Boolean) {
+        prefs.edit().putBoolean("show_ai_engine_category", show).apply()
     }
     
     // 清除所有设置

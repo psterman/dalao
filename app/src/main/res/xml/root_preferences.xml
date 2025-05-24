@@ -158,6 +158,13 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
+        <SwitchPreferenceCompat
+            app:key="show_ai_engine_category"
+            app:title="显示搜索引擎分类"
+            app:summary="在抽屉列表中显示AI搜索和普通搜索分类标题"
+            app:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
         <Preference
             app:key="menu_manager"
             app:title="菜单管理"
