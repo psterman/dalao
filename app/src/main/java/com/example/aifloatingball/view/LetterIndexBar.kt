@@ -24,7 +24,7 @@ class LetterIndexBar @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
-    private val letters = ('A'..'Z').toList()
+    private val letters = listOf('#') + ('A'..'Z').toList()
     private var selectedIndex = -1
     private var lastAnimatedIndex = -1
     private var textColor: Int = 0
@@ -33,8 +33,8 @@ class LetterIndexBar @JvmOverloads constructor(
     private var isDarkMode: Boolean = false
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val letterRects = mutableListOf<RectF>()
-    private val letterScales = FloatArray(26) { 1.0f }
-    private val letterOffsets = FloatArray(26) { 0f }
+    private val letterScales = FloatArray(27) { 1.0f }
+    private val letterOffsets = FloatArray(27) { 0f }
     private val scaleAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
         duration = 250
         interpolator = AccelerateDecelerateInterpolator()
@@ -198,7 +198,19 @@ class LetterIndexBar @JvmOverloads constructor(
             paint.style = Paint.Style.FILL
             val textY = centerY + (paint.textSize / 3)
             paint.color = if (index == selectedIndex) accentColor else textColor
-            canvas.drawText(letter.toString(), centerX, textY, paint)
+            
+            // 为"全部"选项显示特殊文本
+            val displayText = if (letter == '#') "全部" else letter.toString()
+            
+            // 第一个选项("全部")使用较小字体，否则会显示不完整
+            if (letter == '#') {
+                val originalTextSize = paint.textSize
+                paint.textSize = originalTextSize * 0.7f
+                canvas.drawText(displayText, centerX, textY, paint)
+                paint.textSize = originalTextSize
+            } else {
+                canvas.drawText(displayText, centerX, textY, paint)
+            }
             
             canvas.restore()
         }

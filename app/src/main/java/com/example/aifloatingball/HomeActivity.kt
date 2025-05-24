@@ -1569,17 +1569,48 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 return
             }
 
-            // 设置字母索引栏的搜索引擎数据
-            val allEngines = SearchEngine.getAllSearchEngines()
-            Log.d(TAG, "获取到搜索引擎总数: ${allEngines.size}，其中AI搜索引擎: ${allEngines.count { it.isAI }}个")
+            // 获取所有可用的搜索引擎(包括普通搜索引擎和AI搜索引擎)
+            val allEngines = ArrayList<SearchEngine>()
+            
+            // 从SearchEngine类获取默认引擎
+            val defaultEngines = SearchEngine.DEFAULT_ENGINES
+            
+            // 从AISearchEngine类获取默认AI引擎
+            val aiEngines = AISearchEngine.DEFAULT_AI_ENGINES.map { 
+                // 将AISearchEngine转换为SearchEngine，保留isAI标记
+                SearchEngine(
+                    name = it.name,
+                    url = it.url,
+                    iconResId = it.iconResId,
+                    description = it.description,
+                    searchUrl = it.searchUrl ?: it.url,
+                    isAI = true
+                )
+            }
+            
+            // 合并所有引擎
+            allEngines.addAll(defaultEngines)
+            allEngines.addAll(aiEngines)
+            
+            // 从SettingsManager获取用户已启用的引擎
+            val enabledEngines = settingsManager.getEnabledEngines()
+            
+            // 仅保留已启用的引擎，如果没有已启用引擎，则使用所有引擎
+            val filteredEngines = if (enabledEngines.isNotEmpty()) {
+                allEngines.filter { enabledEngines.contains(it.name) }
+            } else {
+                allEngines
+            }
+            
+            Log.d(TAG, "获取到搜索引擎总数: ${filteredEngines.size}，其中AI搜索引擎: ${filteredEngines.count { it.isAI }}个")
             
             // 打印所有引擎的名称和图标资源ID
-            allEngines.forEach { engine ->
+            filteredEngines.forEach { engine ->
                 Log.d(TAG, "搜索引擎: ${engine.name}, 图标ID: ${engine.iconResId}, 是否AI: ${engine.isAI}")
             }
             
             try {
-                letterIndexBar.engines = allEngines
+                letterIndexBar.engines = filteredEngines
                 Log.d(TAG, "成功设置字母索引栏引擎列表")
             } catch (e: Exception) {
                 Log.e(TAG, "设置字母索引栏引擎列表失败", e)
@@ -1592,10 +1623,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 }
             }
 
-            // 初始显示A开头的搜索引擎
-            updateEngineList('A')
+            // 初始显示"全部"选项，使用#字符作为标识
+            updateEngineList('#')
             
-            Log.d(TAG, "setupLetterIndexBar: 初始化完成，搜索引擎总数: ${allEngines.size}")
+            Log.d(TAG, "setupLetterIndexBar: 初始化完成，搜索引擎总数: ${filteredEngines.size}")
         } catch (e: Exception) {
             Log.e(TAG, "setupLetterIndexBar failed", e)
         }
@@ -1604,7 +1635,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private fun updateEngineList(letter: Char) {
         try {
             // 更新字母标题
-            letterTitle.text = letter.toString()
+            letterTitle.text = if (letter == '#') "全部" else letter.toString()
             letterTitle.visibility = View.VISIBLE
             
             // 清空现有列表
@@ -1614,28 +1645,65 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             // 获取当前主题模式
             val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
 
-            // 获取所有搜索引擎
-            val allEngines = SearchEngine.getAllSearchEngines()
-            Log.d(TAG, "updateEngineList: 总搜索引擎数量: ${allEngines.size}")
+            // 获取所有可用的搜索引擎(包括普通搜索引擎和AI搜索引擎)
+            val allEngines = ArrayList<SearchEngine>()
+            
+            // 从SearchEngine类获取默认引擎
+            val defaultEngines = SearchEngine.DEFAULT_ENGINES
+            
+            // 从AISearchEngine类获取默认AI引擎
+            val aiEngines = AISearchEngine.DEFAULT_AI_ENGINES.map { 
+                // 将AISearchEngine转换为SearchEngine，保留isAI标记
+                SearchEngine(
+                    name = it.name,
+                    url = it.url,
+                    iconResId = it.iconResId,
+                    description = it.description,
+                    searchUrl = it.searchUrl ?: it.url,
+                    isAI = true
+                )
+            }
+            
+            // 合并所有引擎
+            allEngines.addAll(defaultEngines)
+            allEngines.addAll(aiEngines)
+            
+            // 从SettingsManager获取用户已启用的引擎
+            val enabledEngines = settingsManager.getEnabledEngines()
+            
+            // 仅保留已启用的引擎，如果没有已启用引擎，则使用所有引擎
+            val filteredEngines = if (enabledEngines.isNotEmpty()) {
+                allEngines.filter { enabledEngines.contains(it.name) }
+            } else {
+                allEngines
+            }
 
-            // 过滤匹配的搜索引擎
-            val matchingEngines = allEngines.filter { engine ->
-                val firstChar = engine.name.first()
-                when {
-                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
-                        firstChar.uppercaseChar() == letter.uppercaseChar()
-                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
-                        try {
-                        val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
-                            val result = pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
-                            result
-                        } catch (e: Exception) {
-                            Log.e(TAG, "拼音转换失败: ${e.message}", e)
-                            // 如果拼音转换失败，使用简单的首字母匹配
-                            false
+            Log.d(TAG, "updateEngineList: 总搜索引擎数量: ${filteredEngines.size}")
+
+            // 如果选择的是"全部"（#字符），显示所有引擎，否则按字母筛选
+            val matchingEngines = if (letter == '#') {
+                // 选择全部，返回所有引擎
+                filteredEngines
+            } else {
+                // 按字母筛选
+                filteredEngines.filter { engine ->
+                    val firstChar = engine.name.first()
+                    when {
+                        firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                            firstChar.uppercaseChar() == letter.uppercaseChar()
+                        firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                            try {
+                                val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                                val result = pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
+                                result
+                            } catch (e: Exception) {
+                                Log.e(TAG, "拼音转换失败: ${e.message}", e)
+                                // 如果拼音转换失败，使用简单的首字母匹配
+                                false
+                            }
                         }
+                        else -> false
                     }
-                    else -> false
                 }
             }
 
@@ -1644,7 +1712,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             if (matchingEngines.isEmpty()) {
                 // 如果没有匹配的搜索引擎，显示提示信息
                 val noEngineText = TextView(this).apply {
-                    text = "没有以 $letter 开头的搜索引擎"
+                    text = if (letter == '#') 
+                        "没有可用的搜索引擎" 
+                    else 
+                        "没有以 $letter 开头的搜索引擎"
                     textSize = 16f
                     setTextColor(ContextCompat.getColor(context, if (isDarkMode) android.R.color.white else android.R.color.black))
                     gravity = Gravity.CENTER
