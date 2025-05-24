@@ -2,7 +2,10 @@ package com.example.aifloatingball.tab
 
 import android.content.Context
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebSettings
 import androidx.viewpager2.widget.ViewPager2
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +23,22 @@ class TabManager(private val context: Context) {
         this.viewPager = viewPager
         this.tabPreviewList = tabPreviewList
         
-        // 设置ViewPager适配器
-        viewPager.adapter = TabPagerAdapter(context)
+        // 设置ViewPager触摸事件处理
+        viewPager.apply {
+            // 禁用ViewPager2的嵌套滑动，防止与WebView的触摸事件冲突
+            isUserInputEnabled = false
+            
+            // 设置页面转换动画
+            setPageTransformer { page, position ->
+                page.alpha = 1f
+            }
+            
+            // 预加载相邻页面
+            offscreenPageLimit = 1
+            
+            // 设置适配器
+            adapter = TabPagerAdapter(context)
+        }
         
         // 设置标签预览列表适配器
         tabPreviewList.adapter = TabPreviewAdapter { position ->
@@ -37,7 +54,7 @@ class TabManager(private val context: Context) {
         })
     }
     
-    fun addTab(url: String? = null) {
+    fun addTab(url: String? = null, loadInBackground: Boolean = false) {
         val newTab = WebViewTab(
             id = System.currentTimeMillis(),
             webView = createWebView(),
@@ -53,8 +70,10 @@ class TabManager(private val context: Context) {
         viewPager?.adapter?.notifyItemInserted(currentTabs.size - 1)
         tabPreviewList?.adapter?.notifyItemInserted(currentTabs.size - 1)
         
-        // 切换到新标签页
-        switchTab(currentTabs.size - 1)
+        // 如果不是后台加载，切换到新标签页
+        if (!loadInBackground) {
+            switchTab(currentTabs.size - 1)
+        }
         
         // 加载URL
         url?.let { newTab.webView.loadUrl(it) }
@@ -95,6 +114,20 @@ class TabManager(private val context: Context) {
     
     private fun createWebView(): WebView {
         return WebView(context).apply {
+            // 确保WebView可以接收触摸事件
+            isClickable = true
+            isFocusable = true
+            isFocusableInTouchMode = true
+            
+            // 设置WebView的布局参数
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            
+            // 启用硬件加速
+            setLayerType(View.LAYER_TYPE_HARDWARE, null)
+            
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -103,6 +136,23 @@ class TabManager(private val context: Context) {
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
+                
+                // 启用更多设置以提高性能和用户体验
+                setRenderPriority(WebSettings.RenderPriority.HIGH)
+                cacheMode = WebSettings.LOAD_DEFAULT
+                allowContentAccess = true
+                allowFileAccess = true
+                databaseEnabled = true
+            }
+            
+            // 设置WebViewClient以处理页面加载
+            webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    // 页面加载完成后确保WebView可以接收触摸事件
+                    view?.isClickable = true
+                    view?.isFocusable = true
+                }
             }
         }
     }

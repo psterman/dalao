@@ -145,6 +145,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private lateinit var addTabButton: ImageButton
     private lateinit var progressBar: android.widget.ProgressBar
 
+    // 添加成员变量
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
@@ -934,16 +938,36 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
         }
 
+        // 设置触摸事件监听
+        webView.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+                }
+            }
+            false
+        }
+
         // 设置长按监听器
-        webView.setOnLongClickListener {
+        webView.setOnLongClickListener { view ->
             val hitTestResult = webView.hitTestResult
             when (hitTestResult.type) {
                 WebView.HitTestResult.SRC_ANCHOR_TYPE, // 链接
                 WebView.HitTestResult.IMAGE_TYPE, // 图片
-                WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE, // 图片链接
-                WebView.HitTestResult.UNKNOWN_TYPE -> { // 其他
-                    // 显示长按菜单
-                    showLongClickMenu(webView.url ?: "", webView.title ?: "")
+                WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> { // 图片链接
+                    // 创建一个临时的不可见 View 作为锚点
+                    val anchor = View(this).apply {
+                        x = lastTouchX
+                        y = lastTouchY
+                    }
+                    webViewContainer.addView(anchor, 1, 1)
+                    
+                    // 显示长按菜单，使用 hitTestResult.extra 获取实际的 URL
+                    showLongClickMenu(hitTestResult.extra ?: "", webView.title ?: "", anchor)
+                    
+                    // 移除临时锚点
+                    webViewContainer.removeView(anchor)
                     true
                 }
                 else -> false
@@ -1935,8 +1959,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     // 显示长按菜单
-    private fun showLongClickMenu(url: String, title: String) {
-        val popupMenu = PopupMenu(this, webView)
+    private fun showLongClickMenu(url: String, title: String, anchor: View) {
+        val popupMenu = PopupMenu(this, anchor, Gravity.NO_GRAVITY)
         val inflater = popupMenu.menuInflater
         inflater.inflate(R.menu.long_press_menu, popupMenu.menu)
         
@@ -1967,12 +1991,43 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                     }
                     true
                 }
+                R.id.action_background_open -> {
+                    // 在新标签页后台打开链接
+                    tabManager.addTab(url, loadInBackground = true)
+                    Toast.makeText(this, "已在后台打开链接", Toast.LENGTH_SHORT).show()
+                    true
+                }
                 R.id.action_copy_url -> {
                     // 复制链接
                     val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val clipData = ClipData.newPlainText("URL", url)
                     clipboardManager.setPrimaryClip(clipData)
                     Toast.makeText(this, "链接已复制", Toast.LENGTH_SHORT).show()
+                    true
+                }
+                R.id.action_copy_text -> {
+                    // 复制链接文本
+                    webView.evaluateJavascript("""
+                        (function() {
+                            var links = document.getElementsByTagName('a');
+                            for(var i = 0; i < links.length; i++) {
+                                if(links[i].href === "$url") {
+                                    return links[i].textContent.trim();
+                                }
+                            }
+                            return "";
+                        })()
+                    """.trimIndent()) { result ->
+                        val linkText = result?.replace("\"", "") ?: ""
+                        if (linkText.isNotEmpty()) {
+                            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clipData = ClipData.newPlainText("Link Text", linkText)
+                            clipboardManager.setPrimaryClip(clipData)
+                            Toast.makeText(this, "链接文本已复制", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "无法获取链接文本", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                     true
                 }
                 R.id.action_share -> {

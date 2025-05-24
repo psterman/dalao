@@ -4,8 +4,14 @@
         android:id="@+id/action_add_bookmark"
         android:title="添加到书签" />
     <item
+        android:id="@+id/action_background_open"
+        android:title="后台打开" />
+    <item
         android:id="@+id/action_copy_url"
         android:title="复制链接" />
+    <item
+        android:id="@+id/action_copy_text"
+        android:title="复制链接文本" />
     <item
         android:id="@+id/action_share"
         android:title="分享" />
