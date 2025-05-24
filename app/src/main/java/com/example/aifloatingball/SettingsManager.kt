@@ -155,6 +155,11 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putStringSet("enabled_engines", enabledEngines).apply()
     }
     
+    // 获取已启用的普通搜索引擎
+    fun getEnabledSearchEngines(): Set<String> {
+        return getEnabledEngines()
+    }
+    
     // 获取已启用的AI搜索引擎
     fun getEnabledAIEngines(): Set<String> {
         return prefs.getStringSet("enabled_ai_engines", null) ?:
@@ -368,11 +373,12 @@ class SettingsManager private constructor(context: Context) {
         notifyListeners("right_window_search_engine", engine)
     }
 
-    fun getEnabledSearchEngines(): Set<String> {
+    // 获取选择的搜索引擎（旧的方法，使用不同的键）
+    fun getSelectedSearchEngines(): Set<String> {
         return prefs.getStringSet("enabled_search_engines", setOf("baidu", "google")) ?: setOf("baidu", "google")
     }
 
-    fun setEnabledSearchEngines(engines: Set<String>) {
+    fun setSelectedSearchEngines(engines: Set<String>) {
         prefs.edit().putStringSet("enabled_search_engines", engines).apply()
     }
     

@@ -44,10 +44,9 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.Switch
 import androidx.appcompat.widget.SwitchCompat
-
-// AndroidX imports
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.core.view.GestureDetectorCompat
 import androidx.core.view.GravityCompat
@@ -57,24 +56,21 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import androidx.recyclerview.widget.LinearLayoutManager
-
-// Google Material imports
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.switchmaterial.SwitchMaterial
-
-// Third-party library imports
 import net.sourceforge.pinyin4j.PinyinHelper
-
-// Project imports
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.view.LetterIndexBar
 import com.example.aifloatingball.DualFloatingWebViewService
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
+import com.example.aifloatingball.manager.BookmarkManager
+import com.example.aifloatingball.model.Bookmark
 import com.example.aifloatingball.tab.TabManager
 import com.example.aifloatingball.utils.WebViewHelper
+import com.google.android.material.textfield.TextInputEditText
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     companion object {
@@ -241,7 +237,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 isDrawerEnabled = true
                 drawerView.alpha = 1.0f
                 // 打开抽屉时更新搜索引擎列表
-                updateEngineList('A')
+                updateEngineList('#')
             }
             
             override fun onDrawerClosed(drawerView: View) {
@@ -938,6 +934,22 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
         }
 
+        // 设置长按监听器
+        webView.setOnLongClickListener {
+            val hitTestResult = webView.hitTestResult
+            when (hitTestResult.type) {
+                WebView.HitTestResult.SRC_ANCHOR_TYPE, // 链接
+                WebView.HitTestResult.IMAGE_TYPE, // 图片
+                WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE, // 图片链接
+                WebView.HitTestResult.UNKNOWN_TYPE -> { // 其他
+                    // 显示长按菜单
+                    showLongClickMenu(webView.url ?: "", webView.title ?: "")
+                    true
+                }
+                else -> false
+            }
+        }
+
         // 设置搜索输入框
         searchInput = findViewById(R.id.search_input)
         searchInput.setOnEditorActionListener { _, actionId, event ->
@@ -1087,8 +1099,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
 
         findViewById<ImageButton>(R.id.btn_bookmarks).setOnClickListener {
-            // TODO: 显示书签
-            Toast.makeText(this, "书签功能即将推出", Toast.LENGTH_SHORT).show()
+            // 跳转到书签页面
+            startActivity(Intent(this, BookmarkActivity::class.java))
         }
 
         findViewById<ImageButton>(R.id.btn_settings).setOnClickListener {
@@ -1256,8 +1268,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         // 书签
         view.findViewById<LinearLayout>(R.id.btn_bookmark).apply {
             setOnClickListener {
-                // TODO: 实现书签功能
-                Toast.makeText(this@HomeActivity, "书签功能即将推出", Toast.LENGTH_SHORT).show()
+                // 跳转到书签管理页面
+                startActivity(Intent(this@HomeActivity, BookmarkActivity::class.java))
                 menuDialog.dismiss()
             }
         }
@@ -1687,13 +1699,13 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             } else {
                 // 按字母筛选
                 filteredEngines.filter { engine ->
-                    val firstChar = engine.name.first()
-                    when {
-                        firstChar.toString().matches(Regex("[A-Za-z]")) -> 
-                            firstChar.uppercaseChar() == letter.uppercaseChar()
-                        firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
+                val firstChar = engine.name.first()
+                when {
+                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                        firstChar.uppercaseChar() == letter.uppercaseChar()
+                    firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
                             try {
-                                val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
+                        val pinyinArray = PinyinHelper.toHanyuPinyinStringArray(firstChar)
                                 val result = pinyinArray?.firstOrNull()?.firstOrNull()?.uppercaseChar() == letter.uppercaseChar()
                                 result
                             } catch (e: Exception) {
@@ -1701,8 +1713,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                                 // 如果拼音转换失败，使用简单的首字母匹配
                                 false
                             }
-                        }
-                        else -> false
+                    }
+                    else -> false
                     }
                 }
             }
@@ -1733,7 +1745,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 // 如果有AI搜索引擎，添加AI分类标题
                 if (aiEngines.isNotEmpty()) {
                     if (showCategory) {
-                        addCategoryTitle("AI搜索", isDarkMode)
+                    addCategoryTitle("AI搜索", isDarkMode)
                     }
                     aiEngines.forEach { engine ->
                         addEngineItem(engine, isDarkMode)
@@ -1747,7 +1759,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                         addDivider(isDarkMode)
                     }
                     if (showCategory) {
-                        addCategoryTitle("普通搜索", isDarkMode)
+                    addCategoryTitle("普通搜索", isDarkMode)
                     }
                     normalEngines.forEach { engine ->
                         addEngineItem(engine, isDarkMode)
@@ -1786,7 +1798,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 try {
                     // 尝试设置图标资源，如果失败则使用默认图标
                     if (engine.iconResId != 0) {
-                        setImageResource(engine.iconResId)
+                setImageResource(engine.iconResId)
                     } else {
                         setImageResource(R.drawable.ic_search)
                     }
@@ -1920,5 +1932,155 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 else -> super.onBackPressed()
             }
         }
+    }
+
+    // 显示长按菜单
+    private fun showLongClickMenu(url: String, title: String) {
+        val popupMenu = PopupMenu(this, webView)
+        val inflater = popupMenu.menuInflater
+        inflater.inflate(R.menu.long_press_menu, popupMenu.menu)
+        
+        // 获取书签管理器
+        val bookmarkManager = BookmarkManager.getInstance(this)
+        
+        // 检查当前页面是否已加入书签
+        val isBookmarked = bookmarkManager.isBookmarkExist(url)
+        
+        // 更新菜单项文字
+        val menuItem = popupMenu.menu.findItem(R.id.action_add_bookmark)
+        if (menuItem != null) {
+            menuItem.setTitle(if (isBookmarked) getString(R.string.action_edit_bookmark) else getString(R.string.action_add_bookmark))
+        }
+        
+        popupMenu.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.action_add_bookmark -> {
+                    if (isBookmarked) {
+                        // 编辑现有书签
+                        val bookmark = bookmarkManager.getAllBookmarks().find { bookmark -> bookmark.url == url }
+                        if (bookmark != null) {
+                            showEditBookmarkDialog(bookmark)
+                        }
+                    } else {
+                        // 添加新书签
+                        showAddBookmarkDialog(url, title)
+                    }
+                    true
+                }
+                R.id.action_copy_url -> {
+                    // 复制链接
+                    val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clipData = ClipData.newPlainText("URL", url)
+                    clipboardManager.setPrimaryClip(clipData)
+                    Toast.makeText(this, "链接已复制", Toast.LENGTH_SHORT).show()
+                    true
+                }
+                R.id.action_share -> {
+                    // 分享链接
+                    val intent = Intent(Intent.ACTION_SEND)
+                    intent.type = "text/plain"
+                    intent.putExtra(Intent.EXTRA_TEXT, url)
+                    startActivity(Intent.createChooser(intent, "分享页面"))
+                    true
+                }
+                else -> false
+            }
+        }
+        
+        popupMenu.show()
+    }
+    
+    // 显示添加书签对话框
+    private fun showAddBookmarkDialog(url: String, title: String) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_edit_bookmark, null)
+        val titleField = dialogView.findViewById<TextInputEditText>(R.id.bookmark_title_field)
+        val urlField = dialogView.findViewById<TextInputEditText>(R.id.bookmark_url_field)
+        
+        titleField.setText(title)
+        urlField.setText(url)
+        
+        // 创建对话框
+        AlertDialog.Builder(this)
+            .setTitle("添加书签")
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                val newTitle = titleField.text.toString().trim()
+                val newUrl = urlField.text.toString().trim()
+                
+                if (newTitle.isNotEmpty() && newUrl.isNotEmpty()) {
+                    // 创建书签对象
+                    val bookmark = Bookmark(
+                        title = newTitle,
+                        url = newUrl
+                    )
+                    
+                    // 获取当前网页的favicon
+                    webView.evaluateJavascript(
+                        """
+                        (function() {
+                            var favicon = undefined;
+                            var links = document.getElementsByTagName('link');
+                            for (var i = 0; i < links.length; i++) {
+                                if ((links[i].getAttribute('rel') || '').match(/\b(icon|shortcut icon|apple-touch-icon)\b/i)) {
+                                    favicon = links[i].getAttribute('href');
+                                    break;
+                                }
+                            }
+                            return favicon;
+                        })();
+                        """.trimIndent()
+                    ) { result ->
+                        // 处理JavaScript返回的favicon URL
+                        var faviconUrl = result
+                        
+                        // 清理引号
+                        if (faviconUrl != "null" && faviconUrl.startsWith("\"") && faviconUrl.endsWith("\"")) {
+                            faviconUrl = faviconUrl.substring(1, faviconUrl.length - 1)
+                        }
+                        
+                        // 保存书签
+                        val bookmarkManager = BookmarkManager.getInstance(this)
+                        bookmarkManager.addBookmark(bookmark)
+                        
+                        Toast.makeText(this, "已添加到书签", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
+    // 显示编辑书签对话框
+    private fun showEditBookmarkDialog(bookmark: Bookmark) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_edit_bookmark, null)
+        val titleField = dialogView.findViewById<TextInputEditText>(R.id.bookmark_title_field)
+        val urlField = dialogView.findViewById<TextInputEditText>(R.id.bookmark_url_field)
+        
+        titleField.setText(bookmark.title)
+        urlField.setText(bookmark.url)
+        
+        // 创建对话框
+        AlertDialog.Builder(this)
+            .setTitle("编辑书签")
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                val newTitle = titleField.text.toString().trim()
+                val newUrl = urlField.text.toString().trim()
+                
+                if (newTitle.isNotEmpty() && newUrl.isNotEmpty()) {
+                    // 更新书签
+                    val updatedBookmark = bookmark.copy(
+                        title = newTitle,
+                        url = newUrl
+                    )
+                    
+                    val bookmarkManager = BookmarkManager.getInstance(this)
+                    bookmarkManager.updateBookmark(updatedBookmark)
+                    
+                    Toast.makeText(this, "书签已更新", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 } 

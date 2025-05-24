@@ -5,104 +5,92 @@ import android.os.Parcelable
 import com.example.aifloatingball.R
 
 /**
- * 普通搜索引擎数据类
- * 
- * @param name 搜索引擎名称
- * @param url 搜索引擎URL
- * @param iconResId 搜索引擎图标资源ID
- * @param description 搜索引擎描述
+ * 搜索引擎数据模型
  */
 data class SearchEngine(
     override val name: String,
     override val url: String,
-    override val iconResId: Int,
+    override val iconResId: Int = 0,
     override val description: String = "",
     override val searchUrl: String = url,
     val isAI: Boolean = false
-) : BaseSearchEngine {
+) : BaseSearchEngine, Parcelable {
     override fun getSearchUrl(query: String): String {
         return searchUrl.replace("{query}", query)
     }
 
     companion object {
-        @JvmField
+        // 默认搜索引擎列表
         val DEFAULT_ENGINES = listOf(
             SearchEngine(
-                name = "百度",
+                name = "baidu",
                 url = "https://www.baidu.com",
                 iconResId = R.drawable.ic_baidu,
                 description = "百度搜索",
                 searchUrl = "https://www.baidu.com/s?wd={query}"
             ),
             SearchEngine(
-                name = "谷歌",
+                name = "google",
                 url = "https://www.google.com",
                 iconResId = R.drawable.ic_google,
                 description = "Google搜索",
                 searchUrl = "https://www.google.com/search?q={query}"
             ),
             SearchEngine(
-                name = "必应",
-                url = "https://cn.bing.com",
+                name = "bing",
+                url = "https://www.bing.com",
                 iconResId = R.drawable.ic_bing,
-                description = "微软必应搜索",
-                searchUrl = "https://cn.bing.com/search?q={query}"
+                description = "Microsoft Bing",
+                searchUrl = "https://www.bing.com/search?q={query}"
             ),
             SearchEngine(
-                name = "搜狗",
+                name = "sogou",
                 url = "https://www.sogou.com",
                 iconResId = R.drawable.ic_sogou,
                 description = "搜狗搜索",
                 searchUrl = "https://www.sogou.com/web?query={query}"
             ),
             SearchEngine(
-                name = "360搜索",
+                name = "360",
                 url = "https://www.so.com",
-                iconResId = R.drawable.ic_360search,
+                iconResId = R.drawable.ic_360,
                 description = "360搜索",
                 searchUrl = "https://www.so.com/s?q={query}"
             ),
             SearchEngine(
-                name = "淘宝",
-                url = "https://www.taobao.com",
-                iconResId = R.drawable.ic_taobao,
-                description = "淘宝搜索",
-                searchUrl = "https://s.taobao.com/search?q={query}"
+                name = "duckduckgo",
+                url = "https://duckduckgo.com",
+                iconResId = R.drawable.ic_duckduckgo,
+                description = "DuckDuckGo",
+                searchUrl = "https://duckduckgo.com/?q={query}"
             ),
             SearchEngine(
-                name = "京东",
-                url = "https://www.jd.com",
-                iconResId = R.drawable.ic_jd,
-                description = "京东搜索",
-                searchUrl = "https://search.jd.com/Search?keyword={query}"
+                name = "yandex",
+                url = "https://yandex.com",
+                iconResId = R.drawable.ic_search,
+                description = "Yandex",
+                searchUrl = "https://yandex.com/search/?text={query}"
             ),
             SearchEngine(
-                name = "知乎",
-                url = "https://www.zhihu.com",
-                iconResId = R.drawable.ic_zhihu,
-                description = "知乎搜索",
-                searchUrl = "https://www.zhihu.com/search?type=content&q={query}"
+                name = "yahoo",
+                url = "https://search.yahoo.com",
+                iconResId = R.drawable.ic_search,
+                description = "Yahoo Search",
+                searchUrl = "https://search.yahoo.com/search?p={query}"
             ),
             SearchEngine(
-                name = "小红书",
-                url = "https://www.xiaohongshu.com",
-                iconResId = R.drawable.ic_xiaohongshu,
-                description = "小红书搜索",
-                searchUrl = "https://www.xiaohongshu.com/search_result?keyword={query}"
+                name = "ecosia",
+                url = "https://www.ecosia.org",
+                iconResId = R.drawable.ic_search,
+                description = "Ecosia",
+                searchUrl = "https://www.ecosia.org/search?q={query}"
             ),
             SearchEngine(
-                name = "哔哩哔哩",
-                url = "https://www.bilibili.com",
-                iconResId = R.drawable.ic_bilibili,
-                description = "哔哩哔哩搜索",
-                searchUrl = "https://search.bilibili.com/all?keyword={query}"
-            ),
-            SearchEngine(
-                name = "抖音",
-                url = "https://www.douyin.com",
-                iconResId = R.drawable.ic_douyin,
-                description = "抖音搜索",
-                searchUrl = "https://www.douyin.com/search/{query}"
+                name = "brave",
+                url = "https://search.brave.com",
+                iconResId = R.drawable.ic_search,
+                description = "Brave Search",
+                searchUrl = "https://search.brave.com/search?q={query}"
             )
         )
 

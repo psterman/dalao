@@ -47,7 +47,7 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
                 } else {
                     enabledEngines.remove(engineName)
                 }
-                settingsManager.setEnabledSearchEngines(enabledEngines)
+                settingsManager.saveEnabledEngines(enabledEngines)
                 
                 // 发送广播通知悬浮球服务更新菜单
                 sendBroadcast(Intent("com.example.aifloatingball.ACTION_UPDATE_MENU"))

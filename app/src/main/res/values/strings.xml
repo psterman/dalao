@@ -19,7 +19,7 @@
     <string name="notification_channel_name">AI悬浮球服务</string>
     <string name="notification_channel_description">保持AI悬浮球服务在后台运行</string>
     <string name="service_running">AI悬浮球服务正在运行</string>
-    <string name="search_engine_settings">搜索引擎管理</string>
+    <string name="search_engine_settings">搜索引擎设置</string>
     <string name="drag_to_sort">长按拖动排序</string>
     <string name="settings_title">设置</string>
     <string name="appearance">外观</string>
@@ -71,4 +71,29 @@
     <string name="search_engine_shortcuts">搜索引擎快捷方式</string>
     <string name="please_input_search_content">请输入搜索内容</string>
     <string name="text_selection_handle">Text selection handle</string>
+
+    <!-- 书签相关字符串 -->
+    <string name="action_add_bookmark">添加到书签</string>
+    <string name="action_edit_bookmark">编辑书签</string>
+    <string name="action_delete_bookmark">删除书签</string>
+    <string name="action_move_bookmark">移动书签</string>
+    <string name="bookmark_title">书签标题</string>
+    <string name="bookmark_url">书签链接</string>
+    <string name="bookmark_save">保存</string>
+    <string name="bookmark_cancel">取消</string>
+    <string name="bookmark_delete">删除</string>
+    <string name="bookmark_confirm_delete">确定要删除书签吗？</string>
+    <string name="bookmark_deleted">已删除书签</string>
+    <string name="bookmark_added">已添加到书签</string>
+    <string name="bookmark_updated">已更新书签</string>
+    <string name="bookmark_moved">已移动书签</string>
+    <string name="folder_add">添加文件夹</string>
+    <string name="folder_rename">重命名文件夹</string>
+    <string name="folder_delete">删除文件夹</string>
+    <string name="folder_default">默认</string>
+    <string name="folder_name">文件夹名称</string>
+    <string name="folder_exists">文件夹已存在</string>
+    <string name="folder_renamed">已重命名文件夹</string>
+    <string name="folder_deleted">已删除文件夹</string>
+    <string name="folder_default_unchangeable">无法修改默认文件夹</string>
 </resources> 

@@ -119,20 +119,20 @@ class SearchEngineManagerActivity : AppCompatActivity() {
             }
         }
     }
-
+    
     private fun saveSearchEngines() {
         // 保存普通搜索引擎设置
-        settingsManager.setEnabledSearchEngines(enabledSearchEngines)
+        settingsManager.saveEnabledEngines(enabledSearchEngines)
         
         // 保存AI搜索引擎设置
-        settingsManager.saveEnabledEngines(enabledAIEngines)
+        settingsManager.saveEnabledAIEngines(enabledAIEngines)
     }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == android.R.id.home) {
+    
+    override fun onOptionsItemSelected(menuItem: MenuItem): Boolean {
+        if (menuItem.itemId == android.R.id.home) {
             finish()
             return true
         }
-        return super.onOptionsItemSelected(item)
+        return super.onOptionsItemSelected(menuItem)
     }
 } 

@@ -17,7 +17,7 @@ import androidx.annotation.RequiresApi
 import android.os.Build
 
 class CardLayoutAdapter(
-    private val engines: List<SearchEngine>,
+    private val engines: List<com.example.aifloatingball.model.SearchEngine>,
     private val onCardClick: (Int) -> Unit,
     private val onCardLongClick: (View, Int) -> Boolean
 ) : RecyclerView.Adapter<CardLayoutAdapter.CardViewHolder>() {
@@ -154,7 +154,7 @@ class CardLayoutAdapter(
         notifyDataSetChanged()
         
         // 滚动到全屏卡片
-        val recyclerView = currentRecyclerView as? RecyclerView
+        val recyclerView = currentRecyclerView
         recyclerView?.smoothScrollToPosition(position)
     }
 
@@ -227,7 +227,7 @@ class CardLayoutAdapter(
         }
     }
 
-    fun performSearch(query: String, engine: SearchEngine? = null) {
+    fun performSearch(query: String, engine: com.example.aifloatingball.model.SearchEngine? = null) {
         currentQuery = query
         
         // 如果指定了搜索引擎，先切换到对应的引擎
@@ -270,9 +270,9 @@ class CardLayoutAdapter(
     override fun getItemCount() = engines.size
 
     // 获取当前的RecyclerView
-    private val currentRecyclerView: View?
+    private val currentRecyclerView: RecyclerView?
         get() = try {
-            webViews.values.firstOrNull()?.parent?.parent as? View
+            (webViews.values.firstOrNull()?.parent?.parent as? View)?.parent as? RecyclerView
         } catch (e: Exception) {
             null
         }

@@ -140,5 +140,11 @@
             android:theme="@style/Theme.MaterialComponents.Dialog"
             android:excludeFromRecents="true"
             android:exported="false" />
+            
+        <activity
+            android:name=".BookmarkActivity"
+            android:label="收藏夹"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false" />
     </application>
 </manifest> 

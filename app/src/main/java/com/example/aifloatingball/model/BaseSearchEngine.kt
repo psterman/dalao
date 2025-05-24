@@ -1,11 +1,9 @@
 package com.example.aifloatingball.model
 
-import android.os.Parcelable
-
 /**
  * 搜索引擎基础接口
  */
-interface BaseSearchEngine : Parcelable {
+interface BaseSearchEngine {
     val name: String
     val displayName: String
         get() = name
