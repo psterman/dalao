@@ -172,4 +172,21 @@
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="AI设置">
+        <SwitchPreferenceCompat
+            app:key="default_search_mode"
+            app:title="默认使用AI搜索模式"
+            app:summary="启用后默认使用AI搜索引擎"/>
+            
+        <Preference
+            app:key="ai_api_settings"
+            app:title="AI API设置"
+            app:summary="配置DeepSeek和ChatGPT的API密钥"/>
+            
+        <Preference
+            app:key="ai_search_engine_manager"
+            app:title="AI搜索引擎管理"
+            app:summary="管理AI搜索引擎"/>
+    </PreferenceCategory>
+
 </PreferenceScreen>

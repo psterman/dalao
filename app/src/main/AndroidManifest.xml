@@ -74,9 +74,15 @@
 
         <activity
             android:name=".SettingsActivity"
-            android:label="@string/settings"
-            android:theme="@style/Theme.AIFloatingBall" />
-
+            android:label="设置"
+            android:theme="@style/Theme.AIFloatingBall"/>
+            
+        <activity
+            android:name=".AIApiSettingsActivity"
+            android:label="AI API设置"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:parentActivityName=".SettingsActivity"/>
+            
         <activity
             android:name=".ScreenshotActivity"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"

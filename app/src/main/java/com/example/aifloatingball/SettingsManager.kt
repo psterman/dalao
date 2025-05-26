@@ -27,11 +27,21 @@ class SettingsManager private constructor(context: Context) {
         private const val DEFAULT_PAGE = "home"
         private const val KEY_SEARCH_HISTORY = "search_history"
         
+        // API相关常量
+        private const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
+        private const val KEY_DEEPSEEK_API_URL = "deepseek_api_url"
+        private const val KEY_CHATGPT_API_KEY = "chatgpt_api_key"
+        private const val KEY_CHATGPT_API_URL = "chatgpt_api_url"
+        
         // 主题模式常量
         const val THEME_MODE_SYSTEM = 0    // 跟随系统
         const val THEME_MODE_LIGHT = 1     // 浅色主题
         const val THEME_MODE_DARK = 2      // 深色主题
         const val THEME_MODE_DEFAULT = THEME_MODE_SYSTEM  // 默认主题模式
+        
+        // 默认API地址
+        const val DEFAULT_DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
+        const val DEFAULT_CHATGPT_API_URL = "https://api.openai.com/v1/chat/completions"
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -523,5 +533,33 @@ class SettingsManager private constructor(context: Context) {
     fun saveSearchHistory(history: List<Map<String, Any>>) {
         val json = gson.toJson(history)
         prefs.edit().putString(KEY_SEARCH_HISTORY, json).apply()
+    }
+
+    // API相关方法
+    fun getDeepSeekApiKey(): String = prefs.getString(KEY_DEEPSEEK_API_KEY, "") ?: ""
+    fun getChatGPTApiKey(): String = prefs.getString(KEY_CHATGPT_API_KEY, "") ?: ""
+    
+    fun setDeepSeekApiKey(apiKey: String) {
+        prefs.edit().putString(KEY_DEEPSEEK_API_KEY, apiKey).apply()
+    }
+    
+    fun setChatGPTApiKey(apiKey: String) {
+        prefs.edit().putString(KEY_CHATGPT_API_KEY, apiKey).apply()
+    }
+    
+    fun getDeepSeekApiUrl(): String {
+        return prefs.getString(KEY_DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL) ?: DEFAULT_DEEPSEEK_API_URL
+    }
+    
+    fun saveDeepSeekApiUrl(apiUrl: String) {
+        prefs.edit().putString(KEY_DEEPSEEK_API_URL, apiUrl).apply()
+    }
+    
+    fun getChatGPTApiUrl(): String {
+        return prefs.getString(KEY_CHATGPT_API_URL, DEFAULT_CHATGPT_API_URL) ?: DEFAULT_CHATGPT_API_URL
+    }
+    
+    fun saveChatGPTApiUrl(apiUrl: String) {
+        prefs.edit().putString(KEY_CHATGPT_API_URL, apiUrl).apply()
     }
 }

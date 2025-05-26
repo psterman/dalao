@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        app:key="deepseek_settings"
+        app:title="DeepSeek API设置">
+
+        <EditTextPreference
+            app:key="deepseek_api_key"
+            app:title="API密钥"
+            app:summary="设置DeepSeek API密钥"
+            app:dialogTitle="输入DeepSeek API密钥"
+            android:inputType="textPassword"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="chatgpt_settings"
+        app:title="ChatGPT API设置">
+
+        <EditTextPreference
+            app:key="chatgpt_api_key"
+            app:title="API密钥"
+            app:summary="设置ChatGPT API密钥"
+            app:dialogTitle="输入ChatGPT API密钥"
+            android:inputType="textPassword"/>
+
+    </PreferenceCategory>
+
+</PreferenceScreen> 

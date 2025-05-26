@@ -18,7 +18,8 @@ data class AISearchEngine(
     override val url: String,
     override val iconResId: Int = 0,
     override val description: String = "",
-    override val searchUrl: String = url
+    override val searchUrl: String = url,
+    val isChatMode: Boolean = false
 ) : BaseSearchEngine, Parcelable {
     override val displayName: String
         get() = name  // AI搜索引擎的显示名称与名称相同
@@ -33,6 +34,7 @@ data class AISearchEngine(
         parcel.writeInt(iconResId)
         parcel.writeString(description)
         parcel.writeString(searchUrl)
+        parcel.writeBoolean(isChatMode)
     }
 
     override fun describeContents(): Int = 0
@@ -49,6 +51,22 @@ data class AISearchEngine(
                 iconResId = R.drawable.ic_chatgpt,
                 description = "OpenAI ChatGPT",
                 searchUrl = "https://chat.openai.com/search?q={query}"
+            ),
+            AISearchEngine(
+                name = "ChatGPT对话",
+                url = "chat://chatgpt",
+                iconResId = R.drawable.ic_chatgpt,
+                description = "使用API进行ChatGPT对话",
+                searchUrl = "chat://chatgpt?q={query}",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "DeepSeek对话",
+                url = "chat://deepseek",
+                iconResId = R.drawable.ic_deepseek,
+                description = "使用API进行DeepSeek对话",
+                searchUrl = "chat://deepseek?q={query}",
+                isChatMode = true
             ),
             AISearchEngine(
                 name = "Claude",
@@ -88,7 +106,8 @@ data class AISearchEngine(
                     url = parcel.readString()!!,
                     iconResId = parcel.readInt(),
                     description = parcel.readString()!!,
-                    searchUrl = parcel.readString()!!
+                    searchUrl = parcel.readString()!!,
+                    isChatMode = parcel.readBoolean()
                 )
             }
 

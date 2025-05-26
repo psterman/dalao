@@ -221,6 +221,12 @@ class SettingsActivity : AppCompatActivity() {
                 startActivity(Intent(requireContext(), SearchEngineGroupManagerActivity::class.java))
                 true
             }
+
+            // AI API设置入口
+            findPreference<Preference>("ai_api_settings")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), AIApiSettingsActivity::class.java))
+                true
+            }
         }
 
         /**
