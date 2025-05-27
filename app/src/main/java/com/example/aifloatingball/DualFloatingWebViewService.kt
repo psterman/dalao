@@ -6884,13 +6884,13 @@ class DualFloatingWebViewService : Service() {
                 
                 // 根据URL判断是否为聊天模式
                 if (url.startsWith("chat://")) {
-                    handleAIEngineSelection(name)
+                    handleAIEngineSelection(name, webView)
                 } else {
                     // 加载URL
                     webView.loadUrl(url)
                     // 切换到普通模式
                     isChatMode = false
-                    switchToNormalMode()
+                    resetWebView(webView)
                 }
                 
                 // 保存引擎键值
@@ -7029,59 +7029,145 @@ class DualFloatingWebViewService : Service() {
     }
 
     // 在AISearchEngine选择时切换聊天模式
-    private fun handleAIEngineSelection(engineName: String) {
+    private fun handleAIEngineSelection(engineName: String, webView: WebView?) {
+        if (webView == null) return
+        
         when (engineName) {
             "DeepSeek对话" -> {
-                isChatMode = true
-                isDeepSeekChat = true
-                switchToChatMode()
+                setupChatMode(webView, true)
             }
             "ChatGPT对话" -> {
-                isChatMode = true
-                isDeepSeekChat = false
-                switchToChatMode()
+                setupChatMode(webView, false)
             }
             else -> {
-                isChatMode = false
-                switchToNormalMode()
+                // 对于其他AI引擎，加载正常的URL
+                webViewInputHelper.prepareWebViewForInput(webView)
+                
+                // 查找对应的URL并加载
+                val engine = com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineName }
+                if (engine != null) {
+                    webView.loadUrl(engine.url)
+                }
             }
         }
     }
 
-    private fun switchToChatMode() {
-        // 如果还没有初始化聊天视图，先初始化
-        if (currentChatView == null) {
-            initializeFirstWebView()
-        }
+    private fun setupChatMode(webView: WebView, isDeepSeek: Boolean) {
+        // 获取WebView的父容器
+        val parent = webView.parent as? ViewGroup ?: return
+        
+        // 创建聊天视图
+        val chatView = LayoutInflater.from(this).inflate(R.layout.chat_webview_layout, null)
+        val chatWebView = chatView.findViewById<WebView>(R.id.chatWebView)
+        val messageInput = chatView.findViewById<EditText>(R.id.messageInput)
+        val sendButton = chatView.findViewById<ImageButton>(R.id.sendButton)
+        
+        // 设置布局参数与原WebView相同
+        chatView.layoutParams = webView.layoutParams
+        
+        // 替换WebView
+        val index = parent.indexOfChild(webView)
+        parent.removeView(webView)
+        parent.addView(chatView, index)
+        
+        // 初始化ChatManager
+        val chatManager = ChatManager(this)
+        chatManager.initWebView(chatWebView)
+        
+        // 设置发送按钮点击事件
+        sendButton.setOnClickListener {
+            val message = messageInput.text.toString().trim()
+            if (message.isNotEmpty()) {
+                try {
+                    chatManager.sendMessage(message, chatWebView, isDeepSeek)
+                    messageInput.text.clear()
+                } catch (e: IllegalStateException) {
+                    // 创建输入框布局
+                    val inputLayout = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(50, 30, 50, 30)
+                    }
 
-        // 移除当前的WebView
-        container?.removeAllViews()
+                    val apiKeyInput = EditText(this).apply {
+                        hint = if (isDeepSeek) "请输入 DeepSeek API 密钥" else "请输入 ChatGPT API 密钥"
+                        inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                        setSingleLine()
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
+                    }
+
+                    inputLayout.addView(apiKeyInput)
+
+                    // 创建一个AlertDialog来显示错误信息和API密钥输入框
+                    val builder = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                        .setTitle("设置API密钥")
+                        .setView(inputLayout)
+                        .setPositiveButton("确定") { dialog, _ ->
+                            val apiKey = apiKeyInput.text.toString().trim()
+                            if (apiKey.isNotEmpty()) {
+                                if (isDeepSeek) {
+                                    settingsManager.setDeepSeekApiKey(apiKey)
+                                    Toast.makeText(this, "DeepSeek API密钥已保存", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    settingsManager.setChatGPTApiKey(apiKey)
+                                    Toast.makeText(this, "ChatGPT API密钥已保存", Toast.LENGTH_SHORT).show()
+                                }
+                                // 保存后自动重试发送消息
+                                try {
+                                    chatManager.sendMessage(message, chatWebView, isDeepSeek)
+                                    messageInput.text.clear()
+                                } catch (e: Exception) {
+                                    Toast.makeText(this, "发送失败：${e.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            dialog.dismiss()
+                        }
+                        .setNegativeButton("取消") { dialog, _ ->
+                            dialog.dismiss()
+                        }
+                    
+                    // 确保在系统窗口上显示对话框
+                    builder.create().apply {
+                        window?.setType(
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                            } else {
+                                WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
+                            }
+                        )
+                        show()
+                    }
+                }
+            }
+        }
         
-        // 添加聊天视图
-        container?.addView(currentChatView)
-        
-        // 初始化聊天界面
-        chatManager.initWebView(firstWebView!!)
-        
-        // 显示输入区域
-        messageInput?.visibility = View.VISIBLE
-        sendButton?.visibility = View.VISIBLE
+        // 设置输入框回车发送
+        messageInput.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEND ||
+                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)) {
+                sendButton.performClick()
+                true
+            } else {
+                false
+            }
+        }
         
         // 显示当前模式的提示
-        val modeName = if (isDeepSeekChat) "DeepSeek" else "ChatGPT"
+        val modeName = if (isDeepSeek) "DeepSeek" else "ChatGPT"
         Toast.makeText(this, "已切换到${modeName}对话模式", Toast.LENGTH_SHORT).show()
     }
 
-    private fun switchToNormalMode() {
-        // 移除聊天视图
-        container?.removeAllViews()
+    private fun resetWebView(webView: WebView?) {
+        if (webView == null) return
         
-        // 重新创建普通WebView
-        firstWebView = WebView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.MATCH_PARENT
-            )
+        // 获取WebView的父容器
+        val parent = webView.parent as? ViewGroup ?: return
+        
+        // 创建新的WebView
+        val newWebView = WebView(this).apply {
+            layoutParams = webView.layoutParams
             // 配置WebView设置
             settings.apply {
                 javaScriptEnabled = true
@@ -7090,11 +7176,24 @@ class DualFloatingWebViewService : Service() {
             }
         }
         
-        // 添加普通WebView
-        container?.addView(firstWebView)
+        // 替换WebView
+        val index = parent.indexOfChild(webView)
+        parent.removeView(webView)
+        parent.addView(newWebView, index)
         
-        // 隐藏聊天相关控件
-        messageInput?.visibility = View.GONE
-        sendButton?.visibility = View.GONE
+        // 更新WebView引用
+        when (webView) {
+            firstWebView -> firstWebView = newWebView
+            secondWebView -> secondWebView = newWebView
+            thirdWebView -> thirdWebView = newWebView
+        }
+        
+        // 准备WebView输入
+        webViewInputHelper.prepareWebViewForInput(newWebView)
+        
+        // 加载空白页面
+        newWebView.loadUrl("about:blank")
+        
+        Toast.makeText(this, "已切换到普通浏览模式", Toast.LENGTH_SHORT).show()
     }
 }
