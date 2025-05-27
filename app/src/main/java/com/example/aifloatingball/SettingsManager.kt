@@ -535,12 +535,17 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putString(KEY_SEARCH_HISTORY, json).apply()
     }
 
-    // API相关方法
-    fun getDeepSeekApiKey(): String = prefs.getString(KEY_DEEPSEEK_API_KEY, "") ?: ""
-    fun getChatGPTApiKey(): String = prefs.getString(KEY_CHATGPT_API_KEY, "") ?: ""
+    // API密钥相关方法
+    fun getDeepSeekApiKey(): String {
+        return prefs.getString(KEY_DEEPSEEK_API_KEY, "") ?: ""
+    }
     
     fun setDeepSeekApiKey(apiKey: String) {
         prefs.edit().putString(KEY_DEEPSEEK_API_KEY, apiKey).apply()
+    }
+    
+    fun getChatGPTApiKey(): String {
+        return prefs.getString(KEY_CHATGPT_API_KEY, "") ?: ""
     }
     
     fun setChatGPTApiKey(apiKey: String) {
@@ -551,7 +556,7 @@ class SettingsManager private constructor(context: Context) {
         return prefs.getString(KEY_DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL) ?: DEFAULT_DEEPSEEK_API_URL
     }
     
-    fun saveDeepSeekApiUrl(apiUrl: String) {
+    fun setDeepSeekApiUrl(apiUrl: String) {
         prefs.edit().putString(KEY_DEEPSEEK_API_URL, apiUrl).apply()
     }
     
@@ -559,7 +564,7 @@ class SettingsManager private constructor(context: Context) {
         return prefs.getString(KEY_CHATGPT_API_URL, DEFAULT_CHATGPT_API_URL) ?: DEFAULT_CHATGPT_API_URL
     }
     
-    fun saveChatGPTApiUrl(apiUrl: String) {
+    fun setChatGPTApiUrl(apiUrl: String) {
         prefs.edit().putString(KEY_CHATGPT_API_URL, apiUrl).apply()
     }
 }
