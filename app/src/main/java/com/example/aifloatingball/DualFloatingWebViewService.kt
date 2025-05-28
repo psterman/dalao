@@ -3838,6 +3838,50 @@ class DualFloatingWebViewService : Service() {
      */
     private fun loadEngineIcon(iconView: ImageView, engine: SearchEngine) {
         try {
+            // 如果有自定义图标URL，直接使用
+            if (engine.iconUrl != null) {
+                // 下载图标
+                Log.d(TAG, "开始下载图标: ${engine.name} - ${engine.iconUrl}")
+                Thread {
+                    try {
+                        val url = URL(engine.iconUrl)
+                        val connection = url.openConnection() as HttpURLConnection
+                        connection.connectTimeout = 5000
+                        connection.readTimeout = 5000
+                        connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+                        
+                        val responseCode = connection.responseCode
+                        if (responseCode != HttpURLConnection.HTTP_OK) {
+                            Log.e(TAG, "图标下载失败，HTTP错误: $responseCode - ${engine.iconUrl}")
+                            mainHandler.post {
+                                iconView.setImageResource(R.drawable.ic_search)
+                            }
+                            return@Thread
+                        }
+                        
+                        val inputStream = connection.inputStream
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        
+                        if (bitmap != null) {
+                            mainHandler.post {
+                                iconView.setImageBitmap(bitmap)
+                                iconView.visibility = View.VISIBLE
+                            }
+                        } else {
+                            mainHandler.post {
+                                iconView.setImageResource(R.drawable.ic_search)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "加载图标失败: ${engine.iconUrl} - ${e.message}", e)
+                        mainHandler.post {
+                            iconView.setImageResource(R.drawable.ic_search)
+                        }
+                    }
+                }.start()
+                return
+            }
+            
             // 从URL中提取域名
             val baseUrl = engine.url.split("?")[0]
             val uri = Uri.parse(baseUrl)
@@ -6835,17 +6879,59 @@ class DualFloatingWebViewService : Service() {
         
         // AI搜索引擎列表，使用特定的默认图标
         val aiEngines = listOf(
-            Triple("DeepSeek对话", "chat://deepseek", R.drawable.ic_search),
-            Triple("ChatGPT对话", "chat://chatgpt", R.drawable.ic_search),
-            Triple("ChatGPT", "https://chat.openai.com/", R.drawable.ic_search),
-            Triple("Claude", "https://claude.ai/", R.drawable.ic_search),
-            Triple("文心一言", "https://yiyan.baidu.com/", R.drawable.ic_search),
-            Triple("通义千问", "https://qianwen.aliyun.com/", R.drawable.ic_search),
-            Triple("讯飞星火", "https://xinghuo.xfyun.cn/", R.drawable.ic_search)
+            SearchEngine(
+                name = "DeepSeek对话",
+                url = "chat://deepseek",
+                iconUrl = "https://www.google.com/s2/favicons?domain=deepseek.com&sz=64",
+                description = "DeepSeek AI对话",
+                isAI = true
+            ),
+            SearchEngine(
+                name = "ChatGPT对话",
+                url = "chat://chatgpt",
+                iconUrl = "https://www.google.com/s2/favicons?domain=chat.openai.com&sz=64",
+                description = "ChatGPT对话",
+                isAI = true
+            ),
+            SearchEngine(
+                name = "ChatGPT",
+                url = "https://chat.openai.com/",
+                iconResId = R.drawable.ic_search,
+                description = "OpenAI开发的AI聊天机器人",
+                isAI = true
+            ),
+            SearchEngine(
+                name = "Claude",
+                url = "https://claude.ai/",
+                iconUrl = "https://www.google.com/s2/favicons?domain=anthropic.com&sz=64",
+                description = "Anthropic开发的AI助手",
+                isAI = true
+            ),
+            SearchEngine(
+                name = "文心一言",
+                url = "https://yiyan.baidu.com/",
+                iconUrl = "https://www.google.com/s2/favicons?domain=baidu.com&sz=64",
+                description = "百度开发的AI助手",
+                isAI = true
+            ),
+            SearchEngine(
+                name = "通义千问",
+                url = "https://qianwen.aliyun.com/",
+                iconUrl = "https://www.google.com/s2/favicons?domain=aliyun.com&sz=64",
+                description = "阿里开发的AI助手",
+                isAI = true
+            ),
+            SearchEngine(
+                name = "讯飞星火",
+                url = "https://xinghuo.xfyun.cn/",
+                iconUrl = "https://www.google.com/s2/favicons?domain=xfyun.cn&sz=64",
+                description = "科大讯飞开发的AI助手",
+                isAI = true
+            )
         )
         
         // 为每个AI引擎创建按钮
-        aiEngines.forEach { (name, url, defaultIconRes) ->
+        aiEngines.forEach { engine ->
             // 创建图标
             val iconView = ImageView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
@@ -6866,8 +6952,8 @@ class DualFloatingWebViewService : Service() {
                     8.dpToPx(this@DualFloatingWebViewService)
                 )
                 
-                // 加载Favicon
-                loadFavicon(url, this, defaultIconRes)
+                // 加载图标
+                loadEngineIcon(this, engine)
                 
                 // 设置点击事件
                 isClickable = true
@@ -6880,21 +6966,21 @@ class DualFloatingWebViewService : Service() {
                 }
                             setOnClickListener {
                 // 显示提示信息
-                Toast.makeText(this@DualFloatingWebViewService, "正在打开: $name", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@DualFloatingWebViewService, "正在打开: ${engine.name}", Toast.LENGTH_SHORT).show()
                 
                 // 根据URL判断是否为聊天模式
-                if (url.startsWith("chat://")) {
-                    handleAIEngineSelection(name, webView)
+                if (engine.url.startsWith("chat://")) {
+                    handleAIEngineSelection(engine.name, webView)
                 } else {
                     // 加载URL
-                    webView.loadUrl(url)
+                    webView.loadUrl(engine.url)
                     // 切换到普通模式
                     isChatMode = false
                     resetWebView(webView)
                 }
                 
                 // 保存引擎键值
-                saveEngineFunction("ai_${name.lowercase()}")
+                saveEngineFunction("ai_${engine.name.lowercase()}")
                 
                 // 切换到文字按钮面板
                 switchToButtonPanel(webView, aiContainer)
@@ -6914,7 +7000,7 @@ class DualFloatingWebViewService : Service() {
             }
                 
                 // 设置内容描述，便于无障碍访问
-                contentDescription = name
+                contentDescription = engine.description
             }
             
             // 直接添加图标到布局

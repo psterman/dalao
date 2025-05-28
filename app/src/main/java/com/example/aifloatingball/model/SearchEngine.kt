@@ -13,7 +13,8 @@ data class SearchEngine(
     override val iconResId: Int = 0,
     override val description: String = "",
     override val searchUrl: String = url,
-    val isAI: Boolean = false
+    val isAI: Boolean = false,
+    val iconUrl: String? = null
 ) : BaseSearchEngine, Parcelable {
     override fun getSearchUrl(query: String): String {
         return searchUrl.replace("{query}", query)
@@ -106,7 +107,8 @@ data class SearchEngine(
                     iconResId = parcel.readInt(),
                     description = parcel.readString()!!,
                     searchUrl = parcel.readString()!!,
-                    isAI = parcel.readByte() != 0.toByte()
+                    isAI = parcel.readByte() != 0.toByte(),
+                    iconUrl = parcel.readString()
                 )
             }
 
@@ -179,6 +181,7 @@ data class SearchEngine(
         parcel.writeString(description)
         parcel.writeString(searchUrl)
         parcel.writeByte(if (isAI) 1.toByte() else 0.toByte())
+        parcel.writeString(iconUrl)
     }
 
     override fun describeContents(): Int = 0
