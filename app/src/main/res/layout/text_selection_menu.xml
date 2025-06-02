@@ -8,16 +8,16 @@
     android:elevation="4dp">
 
     <TextView
-        android:id="@+id/menu_copy"
+        android:id="@+id/action_select_all"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="复制"
+        android:text="全选"
         android:textColor="#333333"
         android:textSize="14sp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true" />
@@ -30,16 +30,60 @@
         android:layout_marginBottom="4dp" />
 
     <TextView
-        android:id="@+id/menu_share"
+        android:id="@+id/action_cut"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="分享"
+        android:text="剪切"
         android:textColor="#333333"
         android:textSize="14sp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="#DDDDDD"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:id="@+id/action_copy"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="复制"
+        android:textColor="#333333"
+        android:textSize="14sp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <View
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:background="#DDDDDD"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp" />
+
+    <TextView
+        android:id="@+id/action_paste"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="粘贴"
+        android:textColor="#333333"
+        android:textSize="14sp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true" />

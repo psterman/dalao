@@ -35,7 +35,7 @@ import android.webkit.WebView
 import android.widget.*
 import androidx.core.app.NotificationCompat
 import com.bumptech.glide.Glide
-import com.example.aifloatingball.DualFloatingWebViewService
+import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.FloatingWebViewService
 import com.example.aifloatingball.HomeActivity
 import com.example.aifloatingball.R
@@ -1488,7 +1488,7 @@ class FloatingWindowService : Service() {
             val encodedQuery = Uri.encode(query)
             
             // 使用 DualFloatingWebViewService 打开搜索结果
-                val intent = Intent(this, com.example.aifloatingball.DualFloatingWebViewService::class.java).apply {
+                val intent = Intent(this, com.example.aifloatingball.service.DualFloatingWebViewService::class.java).apply {
                 // 使用统一的参数名
                 putExtra("search_query", query)
                 // 修改为默认使用3个窗口

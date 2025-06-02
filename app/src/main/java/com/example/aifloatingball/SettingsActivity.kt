@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.*
 import com.example.aifloatingball.utils.ServiceUtils
 import com.example.aifloatingball.preference.SearchEnginePreference
+import com.example.aifloatingball.service.DualFloatingWebViewService
 
 class SettingsActivity : AppCompatActivity() {
     

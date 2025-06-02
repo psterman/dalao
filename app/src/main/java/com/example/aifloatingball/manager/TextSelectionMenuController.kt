@@ -175,9 +175,13 @@ object TextSelectionMenuController {
             hideMenu()
         }
 
-        menuView.findViewById<View>(R.id.menu_share)?.setOnClickListener {
-            shareSelectedText(webView, context)
-            hideMenu()
+        // 确保资源ID正确
+        val shareButton = menuView.findViewById<View>(R.id.action_share)
+        if (shareButton != null) {
+            shareButton.setOnClickListener {
+                shareSelectedText(webView, context)
+                hideMenu()
+            }
         }
     }
 

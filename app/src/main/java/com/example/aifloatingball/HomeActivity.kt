@@ -62,8 +62,9 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import net.sourceforge.pinyin4j.PinyinHelper
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.model.BaseSearchEngine
 import com.example.aifloatingball.view.LetterIndexBar
-import com.example.aifloatingball.DualFloatingWebViewService
+import com.example.aifloatingball.service.DualFloatingWebViewService
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
 import com.example.aifloatingball.manager.BookmarkManager

@@ -53,6 +53,7 @@ import android.content.res.Resources
 import com.example.aifloatingball.service.FloatingWindowService
 import android.view.WindowManager
 import android.graphics.PixelFormat
+import com.example.aifloatingball.service.DualFloatingWebViewService
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout

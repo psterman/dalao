@@ -41,7 +41,7 @@
             android:theme="@style/Theme.MaterialComponents.Light" />
             
         <service
-            android:name=".DualFloatingWebViewService"
+            android:name=".service.DualFloatingWebViewService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse"

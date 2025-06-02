@@ -4,7 +4,8 @@ import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.os.Handler
-import com.example.aifloatingball.DualFloatingWebViewService
+import com.example.aifloatingball.FloatingWebViewService
+import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.SettingsManager
 
 /**
