@@ -83,7 +83,7 @@ class DualFloatingWebViewService : FloatingServiceBase() {
             webViewManager = WebViewManager(this, windowManager.getWebViewContainer())
             
             // 获取TextSelectionManager
-            textSelectionManager = webViewManager.getTextSelectionManager()
+            textSelectionManager = webViewManager.textSelectionManager
             
             // 设置WebView的长按监听器
             handler.postDelayed({

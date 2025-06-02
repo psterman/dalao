@@ -6,6 +6,7 @@ import android.view.View
 import android.webkit.WebView
 import android.widget.LinearLayout
 import com.example.aifloatingball.ui.text.TextSelectionManager
+import android.view.WindowManager
 
 /**
  * WebView管理器，负责WebView的创建、加载和销毁
@@ -20,7 +21,7 @@ class WebViewManager(
     
     private val webViews = mutableListOf<CustomWebView>()
     private val webViewFactory = WebViewFactory(context)
-    private val textSelectionManager = webViewFactory.getTextSelectionManager()
+    val textSelectionManager = webViewFactory.textSelectionManager
     private var activeWebView: CustomWebView? = null
     
     init {
@@ -118,11 +119,6 @@ class WebViewManager(
      * 获取WebView数量
      */
     fun getWebViewCount(): Int = webViews.size
-    
-    /**
-     * 获取文本选择管理器
-     */
-    fun getTextSelectionManager(): TextSelectionManager = textSelectionManager
     
     /**
      * 设置所有WebView的长按监听器

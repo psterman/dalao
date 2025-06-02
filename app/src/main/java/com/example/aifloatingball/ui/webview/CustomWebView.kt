@@ -66,49 +66,47 @@ class CustomWebView @JvmOverloads constructor(
                 Log.d(TAG, "ACTION_DOWN: x=${event.x}, y=${event.y}")
                 lastTouchX = event.x
                 lastTouchY = event.y
-                
-                // 取消之前的长按
+                isLongPress = false // 重置长按状态
+                hasSelection = false // 重置选择状态
+                initialSelectionMade = false // 重置初始选择状态
+
                 longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
-                
-                // 创建新的长按检测
-                isLongPress = false
-                initialSelectionMade = false
                 longPressRunnable = Runnable {
                     isLongPress = true
-                    initialSelectionMade = true
+                    // 长按发生时，直接尝试处理长按逻辑，包括选择和显示菜单/选择柄
                     handleLongPress(lastTouchX, lastTouchY)
                 }.also {
                     longPressHandler.postDelayed(it, LONG_PRESS_TIMEOUT)
                 }
             }
             MotionEvent.ACTION_MOVE -> {
-                // 如果已经长按并且初始选择已经建立，处理拖动选择
                 if (isLongPress && initialSelectionMade) {
+                    // 如果已经触发长按并且初始选择已建立，则处理拖动
                     handleSelectionDrag(event.x, event.y)
-                    return true
+                    return true // 消费事件，因为我们在处理拖动选择
                 } else {
-                    // 如果移动距离太大，取消长按
-                    val moveThreshold = 10
+                    // 如果移动距离超过阈值，则取消长按检测
+                    val moveThreshold = 10 // 像素
                     if (Math.abs(event.x - lastTouchX) > moveThreshold || Math.abs(event.y - lastTouchY) > moveThreshold) {
                         longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
                     }
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                Log.d(TAG, "ACTION_UP/CANCEL: isLongPress=$isLongPress, hasSelection=$hasSelection")
                 longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
-                
-                // 如果是长按结束，并且有文本选中，显示操作菜单
+                // 当手指抬起或事件取消时，如果已经标记为长按并且有选择，则检查并显示菜单
+                // 即使没有拖动，如果长按产生了选择，也应该显示菜单
                 if (isLongPress && hasSelection) {
-                    // 延迟一点显示菜单，确保选择已经完成
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        checkSelectionAndShowMenu(event.x.toInt(), event.y.toInt())
-                    }, 100)
-                    return true
+                    // 使用最后一次触摸的精确点（或选择区域的中心点）来定位菜单
+                    // checkSelectionAndShowMenu 会获取当前选择并显示菜单及选择柄
+                     Handler(Looper.getMainLooper()).postDelayed({
+                        checkSelectionAndShowMenu(lastTouchX.toInt(), lastTouchY.toInt(), true)
+                    }, 50) // 稍作延迟以确保JS执行完毕
+                    return true // 消费事件
                 }
+                isLongPress = false // 重置长按状态
             }
         }
-        
         return super.onTouchEvent(event)
     }
     
@@ -130,9 +128,24 @@ class CustomWebView @JvmOverloads constructor(
                         selection.removeAllRanges();
                         selection.addRange(currentRange);
                         
+                        // 获取更新后的选择范围位置
+                        var rects = currentRange.getClientRects();
+                        var left = 0, top = 0, right = 0, bottom = 0;
+                        
+                        if (rects.length > 0) {
+                            left = rects[0].left;
+                            top = rects[0].top;
+                            right = rects[rects.length-1].right;
+                            bottom = rects[rects.length-1].bottom;
+                        }
+                        
                         return JSON.stringify({
                             text: selection.toString(),
-                            hasSelection: selection.toString().length > 0
+                            hasSelection: selection.toString().length > 0,
+                            left: Math.round(left),
+                            top: Math.round(top),
+                            right: Math.round(right),
+                            bottom: Math.round(bottom)
                         });
                     }
                     return JSON.stringify({hasSelection: false});
@@ -144,7 +157,18 @@ class CustomWebView @JvmOverloads constructor(
         
         evaluateJavascript(script) { result ->
             Log.d(TAG, "选择拖动结果: $result")
-            hasSelection = result != null && result.contains("hasSelection\":true")
+            
+            try {
+                val cleanResult = result?.replace("\\\"", "\"")?.trim('"') ?: ""
+                if (cleanResult.contains("hasSelection\":true")) {
+                    hasSelection = true
+                    
+                    // 解析选择范围位置，但不主动更新菜单
+                    // 选择柄管理器会自行处理选择柄位置更新
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "解析拖动选择结果失败", e)
+            }
         }
     }
     
@@ -153,82 +177,200 @@ class CustomWebView @JvmOverloads constructor(
      */
     private fun handleLongPress(x: Float, y: Float) {
         Log.d(TAG, "处理长按: x=$x, y=$y")
-        
-        // 注入JavaScript创建初始选择
         val script = """
             (function() {
                 try {
-                    // 尝试在长按位置创建范围
                     var range = document.caretRangeFromPoint($x, $y);
+                    var selection = window.getSelection();
+                    selection.removeAllRanges();
+
                     if (range) {
-                        // 清除现有选择
-                        window.getSelection().removeAllRanges();
-                        // 设置新选择
-                        window.getSelection().addRange(range);
-                        
-                        // 扩展选择到单词
-                        window.getSelection().modify('extend', 'forward', 'word');
-                        
-                        // 尝试识别是否在输入框内
-                        var isInput = document.activeElement && 
-                                      (document.activeElement.tagName === 'INPUT' || 
-                                       document.activeElement.tagName === 'TEXTAREA' ||
-                                       document.activeElement.isContentEditable);
-                        
-                        return JSON.stringify({
-                            text: window.getSelection().toString(),
-                            hasSelection: window.getSelection().toString().length > 0,
-                            isInput: isInput
-                        });
+                        selection.addRange(range);
+                        selection.modify('extend', 'forward', 'word');
+                        selection.modify('extend', 'backward', 'word');
                     }
-                    return JSON.stringify({hasSelection: false});
+
+                    var selectedText = selection.toString();
+                    var rects = selection.rangeCount > 0 ? selection.getRangeAt(0).getClientRects() : null;
+                    var bounds = { left: 0, top: 0, right: 0, bottom: 0 };
+
+                    if (rects && rects.length > 0) {
+                        bounds.left = rects[0].left;
+                        bounds.top = rects[0].top;
+                        bounds.right = rects[rects.length - 1].right;
+                        bounds.bottom = rects[rects.length - 1].bottom;
+                    } else if (selectedText.length > 0) {
+                        console.error('Selected text found, but no client rects.');
+                    }
+                    
+                    var isInput = document.activeElement && 
+                                  (document.activeElement.tagName === 'INPUT' || 
+                                   document.activeElement.tagName === 'TEXTAREA' ||
+                                   document.activeElement.isContentEditable);
+
+                    return JSON.stringify({
+                        text: selectedText,
+                        hasSelection: selectedText.length > 0,
+                        isInput: isInput,
+                        left: Math.round(bounds.left),
+                        top: Math.round(bounds.top),
+                        right: Math.round(bounds.right),
+                        bottom: Math.round(bounds.bottom)
+                    });
                 } catch (e) {
-                    return JSON.stringify({error: e.toString()});
+                    console.error('Error in handleLongPress JS: ' + e.toString());
+                    return JSON.stringify({error: e.toString(), hasSelection: false});
                 }
             })();
         """.trimIndent()
-        
+
         evaluateJavascript(script) { result ->
-            Log.d(TAG, "长按选择结果: $result")
-            
-            if (result != null && result.contains("hasSelection\":true")) {
-                hasSelection = true
-                
-                // 如果是在输入框内，立即显示菜单
-                if (result.contains("isInput\":true")) {
-                    textSelectionManager?.showTextSelectionMenu(this, x.toInt(), y.toInt())
+            Log.d(TAG, "长按选择JS结果: $result")
+            if (result == null || result.contains("\"error\":")) {
+                Log.e(TAG, "长按JS执行错误或无结果: $result")
+                hasSelection = false
+                initialSelectionMade = false
+                return@evaluateJavascript
+            }
+
+            try {
+                val cleanResult = result.replace("\\\"", "\"").trim('"')
+                val jsonReader = android.util.JsonReader(java.io.StringReader(cleanResult))
+                jsonReader.beginObject()
+
+                var jsonLeft = 0
+                var jsonTop = 0
+                var jsonRight = 0
+                var jsonBottom = 0
+                var jsonIsInput = false
+                var jsonHasSelection = false
+                var selectedText = ""
+
+                while (jsonReader.hasNext()) {
+                    when (jsonReader.nextName()) {
+                        "left" -> jsonLeft = jsonReader.nextInt()
+                        "top" -> jsonTop = jsonReader.nextInt()
+                        "right" -> jsonRight = jsonReader.nextInt()
+                        "bottom" -> jsonBottom = jsonReader.nextInt()
+                        "isInput" -> jsonIsInput = jsonReader.nextBoolean()
+                        "hasSelection" -> jsonHasSelection = jsonReader.nextBoolean()
+                        "text" -> selectedText = jsonReader.nextString()
+                        else -> jsonReader.skipValue()
+                    }
                 }
-                // 否则，让用户可以拖动选择文本，操作结束后再显示菜单
+                jsonReader.endObject()
+                jsonReader.close()
+
+                hasSelection = jsonHasSelection && selectedText.isNotEmpty()
+                initialSelectionMade = hasSelection
+
+                if (hasSelection) {
+                    Log.i(TAG, "handleLongPress: 有效选择. Text: '${selectedText.take(30)}', Bounds LTRB: ($jsonLeft, $jsonTop, $jsonRight, $jsonBottom). 调用 showTextSelectionMenu.")
+                    val menuAnchorX = (jsonLeft + jsonRight) / 2
+                    val menuAnchorY = jsonBottom + 20
+                    Log.d(TAG, "[MENU_TRIGGER_DEBUG] Attempting to call showTextSelectionMenu from handleLongPress (selection). Anchor: ($menuAnchorX, $menuAnchorY)")
+                    textSelectionManager?.showTextSelectionMenu(this, menuAnchorX, menuAnchorY)
+                } else {
+                    Log.i(TAG, "handleLongPress: JS报告无选择. isInput: $jsonIsInput")
+                    if (jsonIsInput) {
+                        Log.i(TAG, "handleLongPress: 无选择但在输入框内. 调用 showTextSelectionMenu 基于点击坐标 ($x, $y).")
+                        Log.d(TAG, "[MENU_TRIGGER_DEBUG] Attempting to call showTextSelectionMenu from handleLongPress (input field click). Anchor: ($x, $y)")
+                        textSelectionManager?.showTextSelectionMenu(this, x.toInt(), y.toInt())
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "解析长按JS结果失败", e)
+                hasSelection = false
+                initialSelectionMade = false
+                Log.d(TAG, "[MENU_TRIGGER_DEBUG] Attempting to call showTextSelectionMenu from handleLongPress (exception case). Anchor: ($x, $y)")
+                textSelectionManager?.showTextSelectionMenu(this, x.toInt(), y.toInt())
             }
         }
     }
     
     /**
-     * 检查选择并显示菜单
+     * 检查选择并显示菜单。增加一个参数，表明是否由长按后的 ACTION_UP 触发。
      */
-    private fun checkSelectionAndShowMenu(x: Int, y: Int) {
+    private fun checkSelectionAndShowMenu(x: Int, y: Int, fromActionUp: Boolean = false) {
         val script = """
             (function() {
                 var selection = window.getSelection();
                 var text = selection.toString();
+                var rects = selection.rangeCount > 0 ? selection.getRangeAt(0).getClientRects() : null;
+                var bounds = { left: 0, top: 0, right: 0, bottom: 0 };
+                if (rects && rects.length > 0) {
+                    bounds.left = rects[0].left;
+                    bounds.top = rects[0].top;
+                    bounds.right = rects[rects.length - 1].right;
+                    bounds.bottom = rects[rects.length - 1].bottom;
+                }
                 return JSON.stringify({
                     text: text,
-                    hasSelection: text.length > 0
+                    hasSelection: text.length > 0,
+                    left: Math.round(bounds.left),
+                    top: Math.round(bounds.top),
+                    right: Math.round(bounds.right),
+                    bottom: Math.round(bounds.bottom)
                 });
             })();
         """.trimIndent()
-        
+
         evaluateJavascript(script) { result ->
-            Log.d(TAG, "检查选择结果: $result")
-            
-            if (result != null && result.contains("hasSelection\":true")) {
-                // 获取选择范围的位置
-                getSelectionPosition { left, top, right, bottom ->
-                    // 使用选择范围的位置显示菜单
-                    Log.d(TAG, "显示菜单位置: left=$left, top=$top, right=$right, bottom=$bottom")
-                    // 在选择区域的下方显示菜单
-                    textSelectionManager?.showTextSelectionMenu(this, (left + right) / 2, bottom + 20)
+            Log.d(TAG, "检查选择JS结果: $result")
+            if (result == null || result.contains("\"error\":")) {
+                 Log.e(TAG, "检查选择JS错误或无结果: $result")
+                if (fromActionUp) {
+                    textSelectionManager?.hideTextSelectionMenu()
                 }
+                return@evaluateJavascript
+            }
+
+            try {
+                val cleanResult = result.replace("\\\"", "\"").trim('"')
+                val jsonReader = android.util.JsonReader(java.io.StringReader(cleanResult))
+                jsonReader.beginObject()
+
+                var jsonLeft = 0
+                var jsonTop = 0
+                var jsonRight = 0
+                var jsonBottom = 0
+                var jsonHasSelection = false
+                var selectedText = ""
+
+                while (jsonReader.hasNext()) {
+                    when (jsonReader.nextName()) {
+                        "left" -> jsonLeft = jsonReader.nextInt()
+                        "top" -> jsonTop = jsonReader.nextInt()
+                        "right" -> jsonRight = jsonReader.nextInt()
+                        "bottom" -> jsonBottom = jsonReader.nextInt()
+                        "hasSelection" -> jsonHasSelection = jsonReader.nextBoolean()
+                        "text" -> selectedText = jsonReader.nextString()
+                        else -> jsonReader.skipValue()
+                    }
+                }
+                jsonReader.endObject()
+                jsonReader.close()
+
+                if (jsonHasSelection && selectedText.isNotEmpty()) {
+                    hasSelection = true
+                    Log.i(TAG, "checkSelectionAndShowMenu: 有效选择. Text: '${selectedText.take(30)}', Bounds LTRB: ($jsonLeft, $jsonTop, $jsonRight, $jsonBottom). fromActionUp: $fromActionUp. 调用 showTextSelectionMenu.")
+                    val menuAnchorX = (jsonLeft + jsonRight) / 2
+                    val menuAnchorY = jsonBottom + 20 
+                    Log.d(TAG, "[MENU_TRIGGER_DEBUG] Attempting to call showTextSelectionMenu from checkSelectionAndShowMenu. Anchor: ($menuAnchorX, $menuAnchorY), fromActionUp: $fromActionUp")
+                    textSelectionManager?.showTextSelectionMenu(this, menuAnchorX, menuAnchorY)
+                } else {
+                    Log.i(TAG, "checkSelectionAndShowMenu: JS报告无选择. fromActionUp: $fromActionUp")
+                    if (fromActionUp) {
+                        textSelectionManager?.hideTextSelectionMenu()
+                    }
+                    hasSelection = false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "解析检查选择JS结果失败", e)
+                if (fromActionUp) {
+                    textSelectionManager?.hideTextSelectionMenu()
+                }
+                hasSelection = false
             }
         }
     }
@@ -236,67 +378,72 @@ class CustomWebView @JvmOverloads constructor(
     /**
      * 获取选择范围的位置
      */
-    private fun getSelectionPosition(callback: (left: Int, top: Int, right: Int, bottom: Int) -> Unit) {
+    private fun getSelectionPosition(callback: (left: Int, top: Int, right: Int, bottom: Int, text: String) -> Unit) {
         val script = """
             (function() {
                 var selection = window.getSelection();
                 if (selection.rangeCount > 0) {
                     var range = selection.getRangeAt(0);
                     var rects = range.getClientRects();
+                    var text = selection.toString();
                     
                     if (rects.length > 0) {
-                        // 获取第一个和最后一个矩形，确定选择范围的边界
                         var firstRect = rects[0];
                         var lastRect = rects[rects.length - 1];
-                        
-                        // 计算整个选择范围的边界
-                        var left = firstRect.left;
-                        var top = firstRect.top;
-                        var right = lastRect.right;
-                        var bottom = lastRect.bottom;
-                        
                         return JSON.stringify({
-                            left: Math.round(left),
-                            top: Math.round(top),
-                            right: Math.round(right),
-                            bottom: Math.round(bottom)
+                            left: Math.round(firstRect.left),
+                            top: Math.round(firstRect.top),
+                            right: Math.round(lastRect.right),
+                            bottom: Math.round(lastRect.bottom),
+                            text: text,
+                            hasSelection: text.length > 0
                         });
                     }
                 }
-                return JSON.stringify({error: "No selection range"});
+                return JSON.stringify({error: "No selection range", hasSelection: false});
             })();
         """.trimIndent()
-        
+
         evaluateJavascript(script) { result ->
+            if (result == null || result.contains("\"error\":")) {
+                Log.e(TAG, "getSelectionPosition JS错误: $result")
+                callback(0,0,0,0, "")
+                return@evaluateJavascript
+            }
             try {
-                // 解析JSON结果
-                val cleanResult = result?.replace("\\\"", "\"")?.trim('"') ?: ""
-                if (!cleanResult.contains("error")) {
-                    val jsonStr = android.util.JsonReader(java.io.StringReader(cleanResult))
-                    jsonStr.beginObject()
-                    
-                    var left = 0
-                    var top = 0
-                    var right = 0
-                    var bottom = 0
-                    
-                    while (jsonStr.hasNext()) {
-                        when (jsonStr.nextName()) {
-                            "left" -> left = jsonStr.nextInt()
-                            "top" -> top = jsonStr.nextInt()
-                            "right" -> right = jsonStr.nextInt()
-                            "bottom" -> bottom = jsonStr.nextInt()
-                            else -> jsonStr.skipValue()
-                        }
+                val cleanResult = result.replace("\\\"", "\"").trim('"')
+                val jsonReader = android.util.JsonReader(java.io.StringReader(cleanResult))
+                jsonReader.beginObject()
+                
+                var jsonLeft = 0
+                var jsonTop = 0
+                var jsonRight = 0
+                var jsonBottom = 0
+                var selectedText = ""
+                var jsonHasSelection = false
+
+                while (jsonReader.hasNext()) {
+                    when (jsonReader.nextName()) {
+                        "left" -> jsonLeft = jsonReader.nextInt()
+                        "top" -> jsonTop = jsonReader.nextInt()
+                        "right" -> jsonRight = jsonReader.nextInt()
+                        "bottom" -> jsonBottom = jsonReader.nextInt()
+                        "text" -> selectedText = jsonReader.nextString()
+                        "hasSelection" -> jsonHasSelection = jsonReader.nextBoolean()
+                        else -> jsonReader.skipValue()
                     }
-                    
-                    jsonStr.endObject()
-                    jsonStr.close()
-                    
-                    callback(left, top, right, bottom)
+                }
+                jsonReader.endObject()
+                jsonReader.close()
+
+                if(jsonHasSelection && selectedText.isNotEmpty()){
+                    callback(jsonLeft, jsonTop, jsonRight, jsonBottom, selectedText)
+                } else {
+                    callback(0,0,0,0, "")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "解析选择位置失败", e)
+                Log.e(TAG, "解析getSelectionPosition JS结果失败", e)
+                callback(0,0,0,0, "")
             }
         }
     }
@@ -305,6 +452,26 @@ class CustomWebView @JvmOverloads constructor(
      * 重写创建ActionMode的方法，替换为自定义实现
      */
     override fun startActionMode(callback: ActionMode.Callback, type: Int): ActionMode? {
+        Log.d(TAG, "startActionMode called, type: $type. Attempting to show custom menu.")
+
+        // 关键：在这里调用 textSelectionManager 来显示或更新菜单
+        // 我们需要获取当前选择的精确位置
+        textSelectionManager?.getSelectionPosition(this) { left, _top, right, bottom, selectedText ->
+            if (selectedText.isNotEmpty()) {
+                val menuX = (left + right) / 2
+                // 根据您的设计，菜单可以显示在选区上方或下方
+                // val menuY = _top - (floatingMenuView?.measuredHeight ?: 100) // 示例：选区上方
+                val menuY = bottom // 当前 TextSelectionManager 似乎倾向于在选区下方或基于底部定位
+                Log.d(TAG, "startActionMode: Selection found ('${selectedText.take(30)}...'), showing custom menu at ($menuX, $menuY)")
+                textSelectionManager?.showTextSelectionMenu(this, menuX, menuY)
+            } else {
+                Log.d(TAG, "startActionMode: No text selected, hiding custom menu.")
+                textSelectionManager?.hideTextSelectionMenu()
+            }
+        }
+
+        // 返回自定义的ActionMode以阻止系统默认菜单，同时允许我们的自定义菜单运作
+        // MyActionMode 应该只阻止默认UI，而不干扰我们的TextSelectionManager
         return MyActionMode(context, callback)
     }
     

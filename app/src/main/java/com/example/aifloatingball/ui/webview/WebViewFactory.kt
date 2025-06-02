@@ -11,6 +11,8 @@ import android.webkit.WebViewClient
 import android.widget.LinearLayout
 import com.example.aifloatingball.R
 import com.example.aifloatingball.ui.text.TextSelectionManager
+import android.content.Context.WINDOW_SERVICE
+import android.view.WindowManager
 
 /**
  * WebView工厂，负责创建和配置WebView实例
@@ -21,7 +23,10 @@ class WebViewFactory(private val context: Context) {
         private const val TAG = "WebViewFactory"
     }
     
-    private val textSelectionManager = TextSelectionManager(context)
+    val textSelectionManager: TextSelectionManager by lazy {
+        val windowManager = context.getSystemService(WINDOW_SERVICE) as WindowManager
+        TextSelectionManager(context, windowManager)
+    }
     
     /**
      * 创建配置好的WebView实例
@@ -74,12 +79,5 @@ class WebViewFactory(private val context: Context) {
             // 启用JavaScript接口支持
             setOnLongClickListener { false } // 确保不拦截长按事件
         }
-    }
-    
-    /**
-     * 获取文本选择管理器实例
-     */
-    fun getTextSelectionManager(): TextSelectionManager {
-        return textSelectionManager
     }
 } 
