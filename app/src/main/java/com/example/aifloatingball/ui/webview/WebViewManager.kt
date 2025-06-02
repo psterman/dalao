@@ -6,74 +6,64 @@ import android.view.View
 import android.webkit.WebView
 import android.widget.LinearLayout
 import com.example.aifloatingball.ui.text.TextSelectionManager
-import android.view.WindowManager
 
 /**
  * WebView管理器，负责WebView的创建、加载和销毁
  */
 class WebViewManager(
     private val context: Context, 
-    private val container: LinearLayout?
+    private val xmlDefinedWebViews: List<CustomWebView?>
 ) {
     companion object {
         private const val TAG = "WebViewManager"
     }
     
-    private val webViews = mutableListOf<CustomWebView>()
     private val webViewFactory = WebViewFactory(context)
     val textSelectionManager = webViewFactory.textSelectionManager
     private var activeWebView: CustomWebView? = null
     
+    private val webViews: List<CustomWebView> = xmlDefinedWebViews.filterNotNull()
+    
     init {
-        // 监听容器的触摸事件，以识别当前活动的WebView
-        container?.setOnTouchListener { _, event ->
-            for (webView in webViews) {
-                val location = IntArray(2)
-                webView.getLocationOnScreen(location)
-                val left = location[0]
-                val top = location[1]
-                val right = left + webView.width
-                val bottom = top + webView.height
-                
-                if (event.rawX >= left && event.rawX <= right && 
-                    event.rawY >= top && event.rawY <= bottom) {
-                    if (activeWebView != webView) {
-                        Log.d(TAG, "切换活动WebView")
-                        activeWebView = webView
-                    }
-                    break
+        this.webViews.forEachIndexed { index, webView -> 
+            Log.d(TAG, "Initializing XML defined WebView at index: $index, ID: ${webView.id}")
+            webView.setTextSelectionManager(textSelectionManager)
+            webView.setOnFocusChangeListener { v, hasFocus ->
+                if (hasFocus && v is CustomWebView) {
+                    activeWebView = v
+                    Log.d(TAG, "WebView ${webView.id} 获得焦点，设置为活动WebView")
                 }
             }
-            false
         }
     }
     
     /**
-     * 添加一个新WebView并加载URL
+     * 修改: 加载URL到指定索引的XML定义的WebView中
+     * @return 返回被操作的 CustomWebView，如果索引有效
      */
-    fun addWebView(url: String): CustomWebView {
-        val webView = webViewFactory.createWebView()
-        
-        // 确保WebView使用相同的文本选择管理器
-        webView.setTextSelectionManager(textSelectionManager)
-        
-        webViews.add(webView)
-        container?.addView(webView)
-        webView.loadUrl(url)
-        
-        // 设置为活动WebView
-        activeWebView = webView
-        
-        // 设置WebView的焦点变化监听器
-        webView.setOnFocusChangeListener { v, hasFocus ->
-            if (hasFocus && v is CustomWebView) {
-                activeWebView = v
-                Log.d(TAG, "WebView获得焦点，设置为活动WebView")
-            }
+    fun loadUrlInWebView(index: Int, url: String): CustomWebView? {
+        if (index < 0 || index >= webViews.size) {
+            Log.e(TAG, "loadUrlInWebView: Invalid index $index, total WebViews: ${webViews.size}")
+            return null
         }
-        
-        Log.d(TAG, "添加WebView并加载URL: $url")
+        val webView = webViews[index]
+        webView.loadUrl(url)
+        activeWebView = webView
+        Log.d(TAG, "加载URL到WebView索引 $index (ID: ${webView.id}): $url")
         return webView
+    }
+
+    /**
+     * 显示或隐藏指定索引的WebView及其父容器（边框FrameLayout）
+     */
+    fun setWebViewVisibility(index: Int, visible: Boolean) {
+        if (index < 0 || index >= webViews.size) {
+            Log.e(TAG, "setWebViewVisibility: Invalid index $index for ${webViews.size} WebViews.")
+            return
+        }
+        val webView = webViews[index]
+        (webView.parent as? View)?.visibility = if (visible) View.VISIBLE else View.GONE
+        Log.d(TAG, "WebView索引 $index (ID: ${webView.id}) 可见性设置为: $visible")
     }
     
     /**
@@ -89,14 +79,22 @@ class WebViewManager(
     fun getWebViews(): List<CustomWebView> = webViews
     
     /**
-     * 清除所有WebView
+     * 修改: 清除指定数量的WebView的内容，并根据需要隐藏它们
      */
-    fun clearWebViews() {
-        Log.d(TAG, "清除所有WebView")
-        webViews.forEach { it.destroy() }
-        webViews.clear()
-        container?.removeAllViews()
-        activeWebView = null
+    fun clearAndHideWebViews(countToKeep: Int) {
+        Log.d(TAG, "clearAndHideWebViews: 保留 $countToKeep 个WebView")
+        webViews.forEachIndexed { index, webView ->
+            if (index < countToKeep) {
+            } else {
+                webView.loadUrl("about:blank")
+                (webView.parent as? View)?.visibility = View.GONE
+            }
+        }
+        if (countToKeep > 0 && webViews.isNotEmpty()) {
+            activeWebView = webViews[0]
+        } else {
+            activeWebView = null
+        }
     }
     
     /**
@@ -124,13 +122,13 @@ class WebViewManager(
      * 设置所有WebView的长按监听器
      */
     fun setupLongPressListeners() {
-        for (webView in webViews) {
-            webView.setOnLongClickListener { view ->
-                if (view is WebView) {
-                    activeWebView = webView
-                    Log.d(TAG, "WebView长按，设置为活动WebView")
+        for (currentWebViewInstance in webViews) {
+            currentWebViewInstance.setOnLongClickListener { view ->
+                if (view is CustomWebView) {
+                    activeWebView = view
+                    Log.d(TAG, "WebView ${view.id} 长按，设置为活动WebView")
                 }
-                false // 返回false以允许默认的长按处理
+                false
             }
         }
     }

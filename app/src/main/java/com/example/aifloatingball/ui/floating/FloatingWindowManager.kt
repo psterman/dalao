@@ -12,6 +12,7 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import com.example.aifloatingball.R
+import com.example.aifloatingball.ui.webview.CustomWebView
 
 /**
  * 浮动窗口管理器，负责创建和管理浮动窗口
@@ -23,6 +24,11 @@ class FloatingWindowManager(private val context: Context) {
     
     private var webViewContainer: LinearLayout? = null
     private var mainScrollView: HorizontalScrollView? = null
+    
+    // 新增: 持有在XML中定义的WebView实例
+    private var firstWebView: CustomWebView? = null
+    private var secondWebView: CustomWebView? = null
+    private var thirdWebView: CustomWebView? = null
     
     /**
      * 初始化窗口管理器
@@ -60,6 +66,11 @@ class FloatingWindowManager(private val context: Context) {
         
         // 初始化视图
         webViewContainer = floatingView?.findViewById(R.id.dual_webview_container)
+        
+        // 新增: 获取在XML中定义的WebView实例
+        firstWebView = floatingView?.findViewById(R.id.first_floating_webview)
+        secondWebView = floatingView?.findViewById(R.id.second_floating_webview)
+        thirdWebView = floatingView?.findViewById(R.id.third_floating_webview)
         
         // 找到主要的HorizontalScrollView（第一个HorizontalScrollView）
         // Note: The original logic to find mainScrollView seems a bit fragile.
@@ -163,6 +174,14 @@ class FloatingWindowManager(private val context: Context) {
      * 获取WebView容器
      */
     fun getWebViewContainer(): LinearLayout? = webViewContainer
+    
+    /**
+     * 新增: 获取在XML中定义的WebView实例列表
+     * 这将用于初始化WebViewManager
+     */
+    fun getXmlDefinedWebViews(): List<CustomWebView?> {
+        return listOf(firstWebView, secondWebView, thirdWebView)
+    }
     
     /**
      * 重置滚动位置
