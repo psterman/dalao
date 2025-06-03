@@ -567,4 +567,9 @@ class SettingsManager private constructor(context: Context) {
     fun setChatGPTApiUrl(apiUrl: String) {
         prefs.edit().putString(KEY_CHATGPT_API_URL, apiUrl).apply()
     }
+
+    // 提供SharedPreferences实例给外部访问
+    fun getSharedPreferences(): SharedPreferences {
+        return prefs
+    }
 }

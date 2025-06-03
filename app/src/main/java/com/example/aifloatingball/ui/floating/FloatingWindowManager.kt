@@ -73,13 +73,30 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), context.resources.displayMetrics).toInt()
     }
     
+    // 获取状态栏高度
+    private fun getStatusBarHeight(): Int {
+        var result = 0
+        val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = context.resources.getDimensionPixelSize(resourceId)
+        }
+        return result
+    }
+
     private fun initializeWindowManager() {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val displayMetrics = context.resources.displayMetrics
+        val statusBarHeight = getStatusBarHeight() // 获取状态栏高度
+
         val defaultWidth = displayMetrics.widthPixels 
-        val defaultHeight = displayMetrics.heightPixels 
+        // 计算可用屏幕高度 (减去状态栏)
+        val usableScreenHeight = displayMetrics.heightPixels - statusBarHeight
+
+        // 设定一个默认的窗口高度，例如可用高度的80%，以便可以居中
+        val defaultHeight = (usableScreenHeight * 0.8f).toInt() 
         val defaultX = 0 
-        val defaultY = 0 
+        // 计算默认Y坐标，使其垂直居中于可用屏幕区域
+        val defaultY = statusBarHeight + (usableScreenHeight - defaultHeight) / 2 
 
         val savedX = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_X, defaultX)
         val savedY = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_Y, defaultY)
@@ -100,6 +117,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             gravity = Gravity.TOP or Gravity.START
             x = savedX
             y = savedY
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
     }
 

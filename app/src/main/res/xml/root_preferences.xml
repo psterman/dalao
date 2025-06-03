@@ -116,6 +116,12 @@
                 app:defaultValue="google"
                 app:iconSpaceReserved="true" />
 
+            <Preference
+                app:key="reset_window_state"
+                app:title="恢复窗口原始状态"
+                app:summary="将浮动窗口的位置和大小恢复到默认设置"
+                app:iconSpaceReserved="false" />
+
         </PreferenceCategory>
 
         <SwitchPreferenceCompat

@@ -228,6 +228,19 @@ class SettingsActivity : AppCompatActivity() {
                 startActivity(Intent(requireContext(), AIApiSettingsActivity::class.java))
                 true
             }
+            
+            // 恢复窗口原始状态
+            findPreference<Preference>("reset_window_state")?.setOnPreferenceClickListener {
+                val editor = settingsManager.getSharedPreferences().edit()
+                editor.remove(DualFloatingWebViewService.KEY_WINDOW_X)
+                editor.remove(DualFloatingWebViewService.KEY_WINDOW_Y)
+                editor.remove(DualFloatingWebViewService.KEY_WINDOW_WIDTH)
+                editor.remove(DualFloatingWebViewService.KEY_WINDOW_HEIGHT)
+                editor.apply()
+                
+                ServiceUtils.restartFloatingService(requireContext())
+                true
+            }
         }
 
         /**

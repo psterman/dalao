@@ -62,6 +62,10 @@ class WebViewFactory(private val context: Context) {
                 cacheMode = WebSettings.LOAD_DEFAULT
             }
             
+            // 确保WebView可获取焦点和触摸焦点，这对于输入法激活至关重要
+            isFocusable = true
+            isFocusableInTouchMode = true
+
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val url = request?.url?.toString()
@@ -95,6 +99,11 @@ class WebViewFactory(private val context: Context) {
                          Log.e(TAG, "CustomWebViewClient onReceivedError (legacy) for URL: ${request?.url}")
                     }
                 }
+            }
+            
+            // 新增：设置WebChromeClient来处理JS对话框、进度、标题等，这对于输入法激活有时是必要的。
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                // 可以根据需要在此处添加其他回调方法，例如 onProgressChanged, onReceivedTitle 等
             }
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

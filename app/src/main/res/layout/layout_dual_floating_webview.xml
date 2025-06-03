@@ -163,28 +163,28 @@
                             android:paddingVertical="0dp">
                             <LinearLayout
                                 android:id="@+id/first_webview_ai_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
                                 android:paddingHorizontal="4dp"
                                 android:gravity="center_vertical"/>
-                        </HorizontalScrollView>
-
+                                </HorizontalScrollView>
+                                    
                         <!-- 标准搜索引擎图标行 -->
-                        <HorizontalScrollView
+                                <HorizontalScrollView
                             android:id="@+id/first_webview_standard_engine_scroll_view"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
                             android:scrollbars="none"
                             android:paddingVertical="0dp">
-                            <LinearLayout
+                                    <LinearLayout
                                 android:id="@+id/first_webview_standard_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
                                 android:paddingHorizontal="4dp"
                                 android:gravity="center_vertical"/>
-                        </HorizontalScrollView>
+                                </HorizontalScrollView>
                     </LinearLayout>
 
                     <com.example.aifloatingball.ui.webview.CustomWebView
@@ -231,28 +231,28 @@
                             android:paddingVertical="0dp">
                             <LinearLayout
                                 android:id="@+id/second_webview_ai_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
                                 android:paddingHorizontal="4dp"
                                 android:gravity="center_vertical"/>
-                        </HorizontalScrollView>
-
+                                </HorizontalScrollView>
+                                    
                         <!-- 标准搜索引擎图标行 -->
-                        <HorizontalScrollView
+                                <HorizontalScrollView
                             android:id="@+id/second_webview_standard_engine_scroll_view"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
                             android:scrollbars="none"
                             android:paddingVertical="0dp">
-                            <LinearLayout
+                                    <LinearLayout
                                 android:id="@+id/second_webview_standard_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
                                 android:paddingHorizontal="4dp"
                                 android:gravity="center_vertical"/>
-                        </HorizontalScrollView>
+                                </HorizontalScrollView>
                     </LinearLayout>
 
                     <com.example.aifloatingball.ui.webview.CustomWebView
@@ -299,28 +299,28 @@
                             android:paddingVertical="0dp">
                             <LinearLayout
                                 android:id="@+id/third_webview_ai_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
                                 android:paddingHorizontal="4dp"
                                 android:gravity="center_vertical"/>
-                        </HorizontalScrollView>
-
+                                </HorizontalScrollView>
+                                    
                         <!-- 标准搜索引擎图标行 -->
-                        <HorizontalScrollView
+                                <HorizontalScrollView
                             android:id="@+id/third_webview_standard_engine_scroll_view"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
                             android:scrollbars="none"
                             android:paddingVertical="0dp">
-                            <LinearLayout
+                                    <LinearLayout
                                 android:id="@+id/third_webview_standard_engine_container"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:orientation="horizontal"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
                                 android:paddingHorizontal="4dp"
                                 android:gravity="center_vertical"/>
-                        </HorizontalScrollView>
+                                </HorizontalScrollView>
                     </LinearLayout>
 
                     <com.example.aifloatingball.ui.webview.CustomWebView
