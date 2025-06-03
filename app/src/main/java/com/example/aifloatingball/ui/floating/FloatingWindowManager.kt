@@ -2,6 +2,7 @@ package com.example.aifloatingball.ui.floating
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.os.Build
 import android.view.GestureDetector
@@ -19,10 +20,14 @@ import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.ui.webview.CustomWebView
 import kotlin.math.abs
 
+interface WindowStateCallback {
+    fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
+}
+
 /**
  * 浮动窗口管理器，负责创建和管理浮动窗口
  */
-class FloatingWindowManager(private val context: Context) {
+class FloatingWindowManager(private val context: Context, private val windowStateCallback: WindowStateCallback) {
     private var windowManager: WindowManager? = null
     var floatingView: View? = null // 改为 var 并设为 public 或 internal 以便 service 访问
     var params: WindowManager.LayoutParams? = null // 改为 var 并设为 public 或 internal
@@ -48,6 +53,10 @@ class FloatingWindowManager(private val context: Context) {
     private var lastDragX: Float = 0f
     private var lastDragY: Float = 0f
     
+    private val sharedPreferences: SharedPreferences by lazy {
+        context.getSharedPreferences(DualFloatingWebViewService.PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    
     init {
         initializeWindowManager()
         gestureDetector = GestureDetector(context, GestureListener())
@@ -57,12 +66,19 @@ class FloatingWindowManager(private val context: Context) {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         // 初始大小可以根据需要调整，例如屏幕的一半
         val displayMetrics = context.resources.displayMetrics
-        val initialWindowWidth = (displayMetrics.widthPixels * 0.8).toInt()
-        val initialWindowHeight = (displayMetrics.heightPixels * 0.6).toInt()
+        val defaultWidth = displayMetrics.widthPixels // 设置为屏幕宽度
+        val defaultHeight = displayMetrics.heightPixels // 设置为屏幕高度
+        val defaultX = 0 // 初始X位置设置为0
+        val defaultY = 0 // 初始Y位置设置为0
+
+        val savedX = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_X, defaultX)
+        val savedY = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_Y, defaultY)
+        val savedWidth = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_WIDTH, defaultWidth)
+        val savedHeight = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_HEIGHT, defaultHeight)
 
         params = WindowManager.LayoutParams(
-            initialWindowWidth,
-            initialWindowHeight,
+            savedWidth,
+            savedHeight,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -74,8 +90,8 @@ class FloatingWindowManager(private val context: Context) {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START //左上角对齐
-            x = 100 // 初始 X 位置
-            y = 100 // 初始 Y 位置
+            x = savedX // 初始 X 位置
+            y = savedY // 初始 Y 位置
         }
     }
     
@@ -122,12 +138,13 @@ class FloatingWindowManager(private val context: Context) {
         }
         
         searchInput?.setOnFocusChangeListener { _, hasFocus ->
+            val currentFlags = params?.flags ?: 0
             params?.flags = if (hasFocus) {
-                (params?.flags ?: 0) and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                currentFlags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
             } else {
-                (params?.flags ?: 0) or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                currentFlags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             }
-            windowManager?.updateViewLayout(floatingView, params)
+            floatingView?.let {fv -> params?.let { p -> windowManager?.updateViewLayout(fv, p) } }
         }
 
 
@@ -190,7 +207,7 @@ class FloatingWindowManager(private val context: Context) {
                     }
                 }
                 MotionEvent.ACTION_UP -> {
-                    // 可选：保存最终大小或执行其他操作
+                    windowStateCallback.onWindowStateChanged(p.x, p.y, p.width, p.height)
                 }
             }
         }
@@ -257,6 +274,10 @@ class FloatingWindowManager(private val context: Context) {
                 p.x = initialX + (e2.rawX - e1.rawX).toInt()
                 p.y = initialY + (e2.rawY - e1.rawY).toInt()
                 windowManager?.updateViewLayout(floatingView, p)
+            }
+            // Save on scroll end (ACTION_UP after scroll)
+            if (e2.action == MotionEvent.ACTION_UP) {
+                 params?.let { p -> windowStateCallback.onWindowStateChanged(p.x, p.y, p.width, p.height) }
             }
             return true
         }

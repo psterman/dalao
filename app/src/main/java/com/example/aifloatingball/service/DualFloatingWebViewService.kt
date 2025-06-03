@@ -1,6 +1,8 @@
 package com.example.aifloatingball.service
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -8,6 +10,7 @@ import android.util.Log
 import com.example.aifloatingball.engine.SearchEngineHandler
 import com.example.aifloatingball.notification.ServiceNotificationManager
 import com.example.aifloatingball.ui.floating.FloatingWindowManager
+import com.example.aifloatingball.ui.floating.WindowStateCallback
 import com.example.aifloatingball.ui.text.TextSelectionManager
 import com.example.aifloatingball.ui.webview.WebViewManager
 import com.example.aifloatingball.utils.IntentParser
@@ -16,7 +19,7 @@ import com.example.aifloatingball.utils.SearchParams
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
  */
-class DualFloatingWebViewService : FloatingServiceBase() {
+class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     companion object {
         private const val TAG = "DualFloatingWebView"
         const val NOTIFICATION_ID = 2
@@ -26,7 +29,15 @@ class DualFloatingWebViewService : FloatingServiceBase() {
         @JvmStatic
         var isRunning = false
         private const val MAX_WINDOW_COUNT = 3 // 最大窗口数量
-        private const val DEFAULT_WINDOW_COUNT = 2 // 默认窗口数量
+        private const val DEFAULT_WINDOW_COUNT = 3 // 默认窗口数量
+
+        // SharedPreferences keys
+        const val PREFS_NAME = "DualFloatingWebViewPrefs"
+        const val KEY_WINDOW_X = "window_x"
+        const val KEY_WINDOW_Y = "window_y"
+        const val KEY_WINDOW_WIDTH = "window_width"
+        const val KEY_WINDOW_HEIGHT = "window_height"
+        const val KEY_WINDOW_COUNT = "window_count"
     }
 
     // 依赖模块
@@ -37,6 +48,7 @@ class DualFloatingWebViewService : FloatingServiceBase() {
     private lateinit var intentParser: IntentParser
     private lateinit var textSelectionManager: TextSelectionManager
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var sharedPreferences: SharedPreferences
 
     private var currentWindowCount = DEFAULT_WINDOW_COUNT
     private var lastQuery: String? = null // 用于在切换窗口数量时重新加载内容
@@ -52,6 +64,11 @@ class DualFloatingWebViewService : FloatingServiceBase() {
         
         Log.d(TAG, "服务创建")
         
+        sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        
+        // Load saved window count
+        currentWindowCount = sharedPreferences.getInt(KEY_WINDOW_COUNT, DEFAULT_WINDOW_COUNT)
+
         // 初始化各模块
         initializeManagers()
         
@@ -82,7 +99,7 @@ class DualFloatingWebViewService : FloatingServiceBase() {
         notificationManager = ServiceNotificationManager(this, CHANNEL_ID)
         // FloatingWindowManager 需要在 service 实例创建后，才能获取到更新后的 windowCountToggleText
         // 因此，其按钮的 UI 更新回调可能需要 service 准备好之后再设置，或者通过接口
-        windowManager = FloatingWindowManager(this) 
+        windowManager = FloatingWindowManager(this, this) 
         searchEngineHandler = SearchEngineHandler()
         intentParser = IntentParser()
         
@@ -239,6 +256,7 @@ class DualFloatingWebViewService : FloatingServiceBase() {
             currentWindowCount = 1
         }
         Log.d(TAG, "窗口数量切换为: $currentWindowCount")
+        saveWindowCount(currentWindowCount) // Save new window count
 
         val queryToUse = lastQuery ?: "" 
         val engineToUse = lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY
@@ -268,10 +286,42 @@ class DualFloatingWebViewService : FloatingServiceBase() {
         super.onDestroy()
         Log.d(TAG, "服务销毁")
         
+        // Save current window state before destroying
+        windowManager.params?.let {
+            saveWindowState(it.x, it.y, it.width, it.height)
+        }
+        saveWindowCount(currentWindowCount)
+
         isRunning = false
         if (::webViewManager.isInitialized) {
             webViewManager.destroyAll()
         }
-        windowManager.removeFloatingWindow()
+        if (::windowManager.isInitialized) {
+            windowManager.removeFloatingWindow()
+        }
+    }
+
+    // WindowStateCallback implementation
+    override fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int) {
+        saveWindowState(x, y, width, height)
+    }
+
+    private fun saveWindowState(x: Int, y: Int, width: Int, height: Int) {
+        Log.d(TAG, "保存窗口状态: X=$x, Y=$y, Width=$width, Height=$height")
+        with(sharedPreferences.edit()) {
+            putInt(KEY_WINDOW_X, x)
+            putInt(KEY_WINDOW_Y, y)
+            putInt(KEY_WINDOW_WIDTH, width)
+            putInt(KEY_WINDOW_HEIGHT, height)
+            apply()
+        }
+    }
+
+    private fun saveWindowCount(count: Int) {
+        Log.d(TAG, "保存窗口数量: $count")
+        with(sharedPreferences.edit()) {
+            putInt(KEY_WINDOW_COUNT, count)
+            apply()
+        }
     }
 } 
