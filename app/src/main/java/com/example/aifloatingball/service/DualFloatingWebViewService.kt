@@ -15,6 +15,7 @@ import com.example.aifloatingball.ui.text.TextSelectionManager
 import com.example.aifloatingball.ui.webview.WebViewManager
 import com.example.aifloatingball.utils.IntentParser
 import com.example.aifloatingball.utils.SearchParams
+import com.example.aifloatingball.utils.EngineUtil
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -43,17 +44,23 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     // 依赖模块
     private lateinit var notificationManager: ServiceNotificationManager
     private lateinit var windowManager: FloatingWindowManager
-    private lateinit var webViewManager: WebViewManager
-    private lateinit var searchEngineHandler: SearchEngineHandler
+    internal lateinit var webViewManager: WebViewManager
+    internal lateinit var searchEngineHandler: SearchEngineHandler
     private lateinit var intentParser: IntentParser
     private lateinit var textSelectionManager: TextSelectionManager
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var sharedPreferences: SharedPreferences
 
+    // Define engine key lists, needed for performSearchInWebView
+    private val aiEngineKeys = listOf("chatgpt", "claude", "gemini", "wenxin", "chatglm", "qianwen", "xinghuo", "perplexity", "phind", "poe")
+    private val standardEngineKeys = listOf("baidu", "google", "bing", "sogou", "360", "quark", "toutiao", "zhihu", "bilibili", "douban", "weibo", "taobao", "jd", "douyin", "xiaohongshu")
+
     private var currentWindowCount = DEFAULT_WINDOW_COUNT
     private var lastQuery: String? = null // 用于在切换窗口数量时重新加载内容
     private var lastEngineKey: String? = null // 用于在切换窗口数量时重新加载内容
 
+    internal fun isWebViewManagerInitialized(): Boolean = ::webViewManager.isInitialized
+    internal fun isSearchEngineHandlerInitialized(): Boolean = ::searchEngineHandler.isInitialized
 
     /**
      * 服务创建时初始化
@@ -245,6 +252,45 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         handleSearchInternal(lastQuery!!, lastEngineKey!!, currentWindowCount)
     }
 
+    /**
+     * 在指定WebView中执行搜索
+     * @param webViewIndex 要加载的WebView索引
+     * @param query 搜索查询字符串
+     * @param engineKey 搜索引擎键
+     */
+    fun performSearchInWebView(webViewIndex: Int, query: String, engineKey: String) {
+        Log.d(TAG, "performSearchInWebView: index=$webViewIndex, query='$query', engineKey='$engineKey'")
+        if (!::webViewManager.isInitialized || !::searchEngineHandler.isInitialized) {
+            Log.e(TAG, "WebViewManager或SearchEngineHandler未初始化，无法执行WebView搜索！")
+            return
+        }
+
+        val urlToLoad = if (query.isBlank()) {
+            // 如果查询为空，加载引擎的首页
+            if (aiEngineKeys.contains(engineKey)) {
+                EngineUtil.getAISearchEngineHomeUrl(engineKey)
+            } else {
+                EngineUtil.getSearchEngineHomeUrl(engineKey)
+            }
+        } else {
+            // 否则，执行搜索
+            searchEngineHandler.getSearchUrl(query, engineKey)
+        }
+
+        if (urlToLoad.isBlank() || !urlToLoad.startsWith("http")) {
+            Log.e(TAG, "生成的URL无效: '$urlToLoad' for engine: $engineKey")
+            return
+        }
+        
+        webViewManager.loadUrlInWebView(webViewIndex, urlToLoad)
+        webViewManager.getWebViews()[webViewIndex]?.let {
+            if(::textSelectionManager.isInitialized) {
+                it.setTextSelectionManager(textSelectionManager)
+            } else {
+                Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${it.id} 设置")
+            }
+        }
+    }
 
     /**
      * 切换 WebView 窗口数量并重新加载内容。

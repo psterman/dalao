@@ -106,6 +106,40 @@
             android:contentDescription="关闭"/>
     </LinearLayout>
 
+    <!-- 全局AI搜索引擎图标行 -->
+    <HorizontalScrollView
+        android:id="@+id/global_ai_engine_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:paddingVertical="4dp"
+        android:background="#E0E0E0"> <!-- A light grey background to distinguish it -->
+        <LinearLayout
+            android:id="@+id/global_ai_engine_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp"
+            android:gravity="center_vertical"/>
+    </HorizontalScrollView>
+
+    <!-- 全局标准搜索引擎图标行 -->
+    <HorizontalScrollView
+        android:id="@+id/global_standard_engine_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:paddingVertical="4dp"
+        android:background="#F0F0F0"> <!-- A slightly lighter grey background -->
+        <LinearLayout
+            android:id="@+id/global_standard_engine_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp"
+            android:gravity="center_vertical"/>
+    </HorizontalScrollView>
+
     <!-- 内容容器 -->
     <FrameLayout
         android:layout_width="match_parent"
@@ -154,118 +188,56 @@
                             android:visibility="gone"
                             android:gravity="center"/>
 
-                        <!-- 搜索引擎切换容器 -->
-                        <LinearLayout
+                        <!-- AI 搜索引擎图标行 -->
+                        <HorizontalScrollView
+                            android:id="@+id/first_webview_ai_engine_scroll_view"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-                            
-                            <!-- 搜索引擎切换按钮 -->
-                            <ImageButton
-                                android:id="@+id/first_engine_toggle"
-                                android:layout_width="36dp"
-                                android:layout_height="36dp"
-                                android:padding="4dp"
-                                android:layout_margin="2dp"
-                                android:background="@android:color/transparent"
-                                android:src="@drawable/ic_search"
-                                android:contentDescription="切换搜索引擎类型"/>
-                            
-                            <!-- 搜索引擎容器 - 使用LinearLayout替代FrameLayout -->
+                            android:scrollbars="none"
+                            android:paddingVertical="2dp">
                             <LinearLayout
-                                android:layout_width="0dp"
+                                android:id="@+id/first_webview_ai_engine_container"
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-                                
-                                <!-- 普通搜索引擎容器 -->
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:orientation="vertical">
-                                    
-                                    <HorizontalScrollView
-                                        android:id="@+id/first_engine_scroll"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:scrollbars="horizontal"
-                                        android:overScrollMode="ifContentScrolls"
-                                        android:scrollbarSize="3dp"
-                                        android:scrollbarStyle="insideOverlay">
-                                    
-                                    <LinearLayout
-                                        android:id="@+id/first_engine_container"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:padding="2dp"/>
-                                </HorizontalScrollView>
-                                    
-                                    <com.example.aifloatingball.view.CustomHorizontalScrollbar
-                                        android:id="@+id/first_engine_scrollbar"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="8dp"
-                                        android:layout_marginTop="2dp"/>
-                                </LinearLayout>
-                                
-                                <!-- 分割线 -->
-                                <View
-                                    android:layout_width="match_parent"
-                                    android:layout_height="1dp"
-                                    android:background="#33FFFFFF"
-                                    android:layout_marginTop="2dp"
-                                    android:layout_marginBottom="2dp"/>
-                                    
-                                <!-- AI搜索引擎容器 -->
-                                <HorizontalScrollView
-                                    android:id="@+id/first_ai_scroll_container"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:scrollbars="horizontal"
-                                    android:overScrollMode="ifContentScrolls"
-                                    android:scrollbarSize="3dp"
-                                    android:scrollbarStyle="insideOverlay">
-                                    
-                                    <LinearLayout
-                                        android:id="@+id/first_ai_engine_container"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:padding="2dp"/>
-                                </HorizontalScrollView>
-                            </LinearLayout>
-                        </LinearLayout>
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="4dp"
+                                android:gravity="center_vertical"/>
+                        </HorizontalScrollView>
+
+                        <!-- 标准搜索引擎图标行 -->
+                        <HorizontalScrollView
+                            android:id="@+id/first_webview_standard_engine_scroll_view"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:scrollbars="none"
+                            android:paddingVertical="2dp">
+                            <LinearLayout
+                                android:id="@+id/first_webview_standard_engine_container"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="4dp"
+                                android:gravity="center_vertical"/>
+                        </HorizontalScrollView>
                     </LinearLayout>
 
-                    <FrameLayout
+                    <com.example.aifloatingball.ui.webview.CustomWebView
+                        android:id="@+id/first_floating_webview"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1"
-                        android:background="#FFCCCCCC"
-                        android:padding="1dp">
-
-                        <com.example.aifloatingball.ui.webview.CustomWebView
-                            android:id="@+id/first_floating_webview"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:background="@android:color/white"/>
-                    </FrameLayout>
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="4dp"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="2dp"/>
                 </LinearLayout>
-
-                <!-- 第一个分割线 -->
-                <View
-                    android:id="@+id/divider1"
-                    android:layout_width="2dp"
-                    android:layout_height="match_parent"
-                    android:background="@color/colorPrimaryDark"
-                    android:layout_marginStart="1dp"
-                    android:layout_marginEnd="1dp"/>
 
                 <!-- 第二个WebView容器 -->
                 <LinearLayout
                     android:layout_width="320dp"
                     android:layout_height="match_parent"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:layout_marginStart="4dp">
 
                     <LinearLayout
                         android:id="@+id/second_title_bar"
@@ -284,118 +256,56 @@
                             android:visibility="gone"
                             android:gravity="center"/>
 
-                        <!-- 搜索引擎切换容器 -->
-                        <LinearLayout
+                        <!-- AI 搜索引擎图标行 -->
+                        <HorizontalScrollView
+                            android:id="@+id/second_webview_ai_engine_scroll_view"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-                            
-                            <!-- 搜索引擎切换按钮 -->
-                            <ImageButton
-                                android:id="@+id/second_engine_toggle"
-                                android:layout_width="36dp"
-                                android:layout_height="36dp"
-                                android:padding="4dp"
-                                android:layout_margin="2dp"
-                                android:background="@android:color/transparent"
-                                android:src="@drawable/ic_search"
-                                android:contentDescription="切换搜索引擎类型"/>
-                            
-                            <!-- 搜索引擎容器 - 使用LinearLayout替代FrameLayout -->
+                            android:scrollbars="none"
+                            android:paddingVertical="2dp">
                             <LinearLayout
-                                android:layout_width="0dp"
+                                android:id="@+id/second_webview_ai_engine_container"
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-                                
-                                <!-- 普通搜索引擎容器 -->
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:orientation="vertical">
-                                    
-                                    <HorizontalScrollView
-                                        android:id="@+id/second_engine_scroll"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:scrollbars="horizontal"
-                                        android:overScrollMode="ifContentScrolls"
-                                        android:scrollbarSize="3dp"
-                                        android:scrollbarStyle="insideOverlay">
-                                    
-                                    <LinearLayout
-                                        android:id="@+id/second_engine_container"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:padding="2dp"/>
-                                </HorizontalScrollView>
-                                    
-                                    <com.example.aifloatingball.view.CustomHorizontalScrollbar
-                                        android:id="@+id/second_engine_scrollbar"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="8dp"
-                                        android:layout_marginTop="2dp"/>
-                                </LinearLayout>
-                                
-                                <!-- 分割线 -->
-                                <View
-                                    android:layout_width="match_parent"
-                                    android:layout_height="1dp"
-                                    android:background="#33FFFFFF"
-                                    android:layout_marginTop="2dp"
-                                    android:layout_marginBottom="2dp"/>
-                                    
-                                <!-- AI搜索引擎容器 -->
-                                <HorizontalScrollView
-                                    android:id="@+id/second_ai_scroll_container"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:scrollbars="horizontal"
-                                    android:overScrollMode="ifContentScrolls"
-                                    android:scrollbarSize="3dp"
-                                    android:scrollbarStyle="insideOverlay">
-                                    
-                                    <LinearLayout
-                                        android:id="@+id/second_ai_engine_container"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:padding="2dp"/>
-                                </HorizontalScrollView>
-                            </LinearLayout>
-                        </LinearLayout>
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="4dp"
+                                android:gravity="center_vertical"/>
+                        </HorizontalScrollView>
+
+                        <!-- 标准搜索引擎图标行 -->
+                        <HorizontalScrollView
+                            android:id="@+id/second_webview_standard_engine_scroll_view"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:scrollbars="none"
+                            android:paddingVertical="2dp">
+                            <LinearLayout
+                                android:id="@+id/second_webview_standard_engine_container"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="4dp"
+                                android:gravity="center_vertical"/>
+                        </HorizontalScrollView>
                     </LinearLayout>
 
-                    <FrameLayout
+                    <com.example.aifloatingball.ui.webview.CustomWebView
+                        android:id="@+id/second_floating_webview"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1"
-                        android:background="#FFCCCCCC"
-                        android:padding="1dp">
-
-                        <com.example.aifloatingball.ui.webview.CustomWebView
-                            android:id="@+id/second_floating_webview"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:background="@android:color/white"/>
-                    </FrameLayout>
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="4dp"
+                        android:layout_marginStart="2dp"
+                        android:layout_marginEnd="2dp"/>
                 </LinearLayout>
-
-                <!-- 第二个分割线 -->
-                <View
-                    android:id="@+id/divider2"
-                    android:layout_width="2dp"
-                    android:layout_height="match_parent"
-                    android:background="@color/colorPrimaryDark"
-                    android:layout_marginStart="1dp"
-                    android:layout_marginEnd="1dp"/>
 
                 <!-- 第三个WebView容器 -->
                 <LinearLayout
                     android:layout_width="320dp"
                     android:layout_height="match_parent"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:layout_marginStart="4dp">
 
                     <LinearLayout
                         android:id="@+id/third_title_bar"
@@ -414,113 +324,58 @@
                             android:visibility="gone"
                             android:gravity="center"/>
 
-                        <!-- 搜索引擎切换容器 -->
-                        <LinearLayout
+                        <!-- AI 搜索引擎图标行 -->
+                        <HorizontalScrollView
+                            android:id="@+id/third_webview_ai_engine_scroll_view"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-                            
-                            <!-- 搜索引擎切换按钮 -->
-                            <ImageButton
-                                android:id="@+id/third_engine_toggle"
-                                android:layout_width="36dp"
-                                android:layout_height="36dp"
-                                android:padding="4dp"
-                                android:layout_margin="2dp"
-                                android:background="@android:color/transparent"
-                                android:src="@drawable/ic_search"
-                                android:contentDescription="切换搜索引擎类型"/>
-                            
-                            <!-- 搜索引擎容器 - 使用LinearLayout替代FrameLayout -->
+                            android:scrollbars="none"
+                            android:paddingVertical="2dp">
                             <LinearLayout
-                                android:layout_width="0dp"
+                                android:id="@+id/third_webview_ai_engine_container"
+                                android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-                                
-                                <!-- 普通搜索引擎容器 -->
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:orientation="vertical">
-                                    
-                                    <HorizontalScrollView
-                                        android:id="@+id/third_engine_scroll"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:scrollbars="horizontal"
-                                        android:overScrollMode="ifContentScrolls"
-                                        android:scrollbarSize="3dp"
-                                        android:scrollbarStyle="insideOverlay">
-                                    
-                                    <LinearLayout
-                                        android:id="@+id/third_engine_container"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:padding="2dp"/>
-                                </HorizontalScrollView>
-                                    
-                                    <com.example.aifloatingball.view.CustomHorizontalScrollbar
-                                        android:id="@+id/third_engine_scrollbar"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="8dp"
-                                        android:layout_marginTop="2dp"/>
-                                </LinearLayout>
-                                
-                                <!-- 分割线 -->
-                                <View
-                                    android:layout_width="match_parent"
-                                    android:layout_height="1dp"
-                                    android:background="#33FFFFFF"
-                                    android:layout_marginTop="2dp"
-                                    android:layout_marginBottom="2dp"/>
-                                    
-                                <!-- AI搜索引擎容器 -->
-                                <HorizontalScrollView
-                                    android:id="@+id/third_ai_scroll_container"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:scrollbars="horizontal"
-                                    android:overScrollMode="ifContentScrolls"
-                                    android:scrollbarSize="3dp"
-                                    android:scrollbarStyle="insideOverlay">
-                                    
-                                    <LinearLayout
-                                        android:id="@+id/third_ai_engine_container"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:padding="2dp"/>
-                                </HorizontalScrollView>
-                            </LinearLayout>
-                        </LinearLayout>
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="4dp"
+                                android:gravity="center_vertical"/>
+                        </HorizontalScrollView>
+
+                        <!-- 标准搜索引擎图标行 -->
+                        <HorizontalScrollView
+                            android:id="@+id/third_webview_standard_engine_scroll_view"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:scrollbars="none"
+                            android:paddingVertical="2dp">
+                            <LinearLayout
+                                android:id="@+id/third_webview_standard_engine_container"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:paddingHorizontal="4dp"
+                                android:gravity="center_vertical"/>
+                        </HorizontalScrollView>
                     </LinearLayout>
 
-                    <FrameLayout
+                    <com.example.aifloatingball.ui.webview.CustomWebView
+                        android:id="@+id/third_floating_webview"
                         android:layout_width="match_parent"
                         android:layout_height="0dp"
                         android:layout_weight="1"
-                        android:background="#FFCCCCCC"
-                        android:padding="1dp">
-
-                        <com.example.aifloatingball.ui.webview.CustomWebView
-                            android:id="@+id/third_floating_webview"
-                            android:layout_width="match_parent"
-                            android:layout_height="match_parent"
-                            android:background="@android:color/white"/>
-                    </FrameLayout>
+                        android:layout_marginTop="4dp"
+                        android:layout_marginBottom="4dp"
+                        android:layout_marginStart="2dp"
+                        android:layout_marginEnd="4dp"/>
                 </LinearLayout>
             </LinearLayout>
         </HorizontalScrollView>
 
-        <!-- 调整大小的手柄 -->
         <View
             android:id="@+id/dual_resize_handle"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="end|bottom"
-            android:background="@drawable/resize_handle"/>
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="bottom|end"
+            android:background="#80FFFFFF"/>
     </FrameLayout>
 </LinearLayout> 
 </androidx.cardview.widget.CardView> 

@@ -230,13 +230,13 @@ object EngineUtil {
      */
     fun getIconResourceByDomain(domain: String): Int {
         return when {
-            domain.contains("baidu.com") -> R.drawable.ic_baidu
-            domain.contains("google.com") -> R.drawable.ic_google
+            domain.contains("baidu.com") -> R.drawable.ic_baidu // 涵盖 baidu, wenxin
+            domain.contains("google.com") || domain.contains("gemini.google.com") -> R.drawable.ic_google // 涵盖 google, gemini
             domain.contains("bing.com") -> R.drawable.ic_bing
             domain.contains("sogou.com") -> R.drawable.ic_sogou
-            domain.contains("so.com") -> R.drawable.ic_360
-            domain.contains("sm.cn") -> R.drawable.ic_search
-            domain.contains("toutiao.com") -> R.drawable.ic_search
+            domain.contains("so.com") -> R.drawable.ic_360 // 360搜索
+            domain.contains("sm.cn") -> R.drawable.ic_quark // 夸克 (建议使用 ic_quark 或 ic_search)
+            domain.contains("toutiao.com") -> R.drawable.ic_toutiao // 头条 (建议使用 ic_toutiao 或 ic_search)
             domain.contains("zhihu.com") -> R.drawable.ic_zhihu
             domain.contains("bilibili.com") -> R.drawable.ic_bilibili
             domain.contains("douban.com") -> R.drawable.ic_douban
@@ -245,15 +245,17 @@ object EngineUtil {
             domain.contains("jd.com") -> R.drawable.ic_jd
             domain.contains("douyin.com") -> R.drawable.ic_douyin
             domain.contains("xiaohongshu.com") -> R.drawable.ic_xiaohongshu
-            domain.contains("qq.com") -> R.drawable.ic_qq
+            domain.contains("qq.com") -> R.drawable.ic_qq // 涵盖 qq, 某种程度上的wechat
             domain.contains("openai.com") -> R.drawable.ic_chatgpt
             domain.contains("claude.ai") -> R.drawable.ic_claude
-            domain.contains("gemini.google.com") -> R.drawable.ic_gemini
-            domain.contains("zhipuai.cn") -> R.drawable.ic_zhipu
+            // 新增 AI 引擎映射
+            domain.contains("zhipuai.cn") -> R.drawable.ic_chatglm 
             domain.contains("aliyun.com") -> R.drawable.ic_qianwen
             domain.contains("xfyun.cn") -> R.drawable.ic_xinghuo
             domain.contains("perplexity.ai") -> R.drawable.ic_perplexity
-            else -> R.drawable.ic_search
+            domain.contains("phind.com") -> R.drawable.ic_phind
+            domain.contains("poe.com") -> R.drawable.ic_poe
+            else -> R.drawable.ic_default_search // 默认图标
         }
     }
 } 
