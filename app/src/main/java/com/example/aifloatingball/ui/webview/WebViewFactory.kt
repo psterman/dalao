@@ -1,10 +1,13 @@
 package com.example.aifloatingball.ui.webview
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Build
 import android.util.Log
 import android.view.ViewGroup
 import android.view.textclassifier.TextClassifier
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -21,6 +24,8 @@ class WebViewFactory(private val context: Context) {
     
     companion object {
         private const val TAG = "WebViewFactory"
+        // 一个通用的移动版Chrome User-Agent 字符串示例 (Android)
+        private const val COMMON_MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
     }
     
     val textSelectionManager: TextSelectionManager by lazy {
@@ -35,7 +40,6 @@ class WebViewFactory(private val context: Context) {
         Log.d(TAG, "创建新的CustomWebView")
         
         return CustomWebView(context).apply {
-            // 基本设置
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
@@ -44,28 +48,59 @@ class WebViewFactory(private val context: Context) {
                 setSupportZoom(true)
                 builtInZoomControls = true
                 displayZoomControls = false
+
+                // 新增：设置一个更通用的User-Agent字符串
+                userAgentString = COMMON_MOBILE_USER_AGENT
+                Log.d(TAG, "Set User-Agent to: $COMMON_MOBILE_USER_AGENT")
                 
-                // Android 8.0及以上支持混合内容模式设置
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 }
                 
-                // 提高渲染性能
                 @Suppress("DEPRECATION")
                 setRenderPriority(WebSettings.RenderPriority.HIGH)
                 cacheMode = WebSettings.LOAD_DEFAULT
             }
             
-            // 设置WebViewClient
-            webViewClient = WebViewClient()
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    val url = request?.url?.toString()
+                    Log.d(TAG, "CustomWebViewClient shouldOverrideUrlLoading: $url")
+                    // 返回false以确保WebView自行处理URL加载
+                    return false
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    Log.d(TAG, "CustomWebViewClient shouldOverrideUrlLoading (legacy): $url")
+                    // 返回false以确保WebView自行处理URL加载
+                    return false
+                }
+
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    super.onPageStarted(view, url, favicon)
+                    Log.d(TAG, "CustomWebViewClient onPageStarted: $url")
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    Log.d(TAG, "CustomWebViewClient onPageFinished: $url")
+                }
+
+                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                    super.onReceivedError(view, request, error)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        Log.e(TAG, "CustomWebViewClient onReceivedError: ${error?.errorCode} - ${error?.description} for URL: ${request?.url}")
+                    } else {
+                         Log.e(TAG, "CustomWebViewClient onReceivedError (legacy) for URL: ${request?.url}")
+                    }
+                }
+            }
             
-            // Android 8.0及以上支持文本分类器
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // 禁用默认文本分类器，使用我们自己的
                 this.setTextClassifier(TextClassifier.NO_OP)
             }
             
-            // 设置布局参数
             layoutParams = LinearLayout.LayoutParams(
                 context.resources.displayMetrics.widthPixels,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -73,11 +108,9 @@ class WebViewFactory(private val context: Context) {
                 marginEnd = context.resources.getDimensionPixelSize(R.dimen.webview_margin)
             }
             
-            // 设置文本选择管理器
             setTextSelectionManager(textSelectionManager)
             
-            // 启用JavaScript接口支持
-            setOnLongClickListener { false } // 确保不拦截长按事件
+            setOnLongClickListener { false }
         }
     }
 } 

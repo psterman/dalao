@@ -152,12 +152,49 @@ class DualFloatingWebViewService : FloatingServiceBase() {
         // 清空并隐藏多余的WebView
         webViewManager.clearAndHideWebViews(windowCountToUse)
         
+        // 获取所有搜索URL
+        val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
+        
+        // 如果搜索URL为空或无效，记录日志并返回
+        if (searchUrl.isBlank() || !searchUrl.startsWith("http")) {
+            Log.e(TAG, "生成的搜索URL无效: '$searchUrl'")
+            return
+        }
+        
+        Log.d(TAG, "准备加载URL到 $windowCountToUse 个WebView: $searchUrl")
+        
         for (i in 0 until windowCountToUse) {
             // 确保我们不会超出实际拥有的WebView数量 (最多3个)
             if (i < webViewManager.getWebViews().size) {
-                webViewManager.setWebViewVisibility(i, true) // 确保目标WebView可见
-                val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
-                val webView = webViewManager.loadUrlInWebView(i, searchUrl)
+                Log.d(TAG, "处理WebView索引 $i")
+                
+                // 确保目标WebView可见
+                webViewManager.setWebViewVisibility(i, true)
+                
+                // 使用不同搜索引擎，避免所有WebView加载相同内容
+                val actualSearchUrl = when(i) {
+                    0 -> searchUrl // 第一个WebView使用原始搜索URL
+                    1 -> { // 第二个WebView使用不同搜索引擎
+                        if (engineKey.contains("google")) {
+                            searchEngineHandler.getSearchUrl(query, "baidu")
+                        } else {
+                            searchEngineHandler.getSearchUrl(query, "google")
+                        }
+                    }
+                    2 -> { // 第三个WebView再使用不同搜索引擎
+                        if (engineKey.contains("google") || engineKey.contains("baidu")) {
+                            searchEngineHandler.getSearchUrl(query, "bing")
+                        } else {
+                            searchEngineHandler.getSearchUrl(query, "360")
+                        }
+                    }
+                    else -> searchUrl
+                }
+                
+                Log.d(TAG, "WebView索引 $i 将加载URL: $actualSearchUrl")
+                
+                // 加载URL到WebView
+                val webView = webViewManager.loadUrlInWebView(i, actualSearchUrl)
                 
                 webView?.let {
                     // 确保WebView启用了文本选择功能

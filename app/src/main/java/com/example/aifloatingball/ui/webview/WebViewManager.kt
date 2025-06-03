@@ -47,9 +47,25 @@ class WebViewManager(
             return null
         }
         val webView = webViews[index]
-        webView.loadUrl(url)
-        activeWebView = webView
-        Log.d(TAG, "加载URL到WebView索引 $index (ID: ${webView.id}): $url")
+        // 增加更详细的日志，记录加载前的URL和WebView信息
+        Log.d(TAG, "正在加载URL到WebView索引 $index (ID: ${webView.id}): $url")
+        Log.d(TAG, "WebView状态：可见性=${webView.visibility}, 是否启用=${webView.isEnabled}, 当前URL=${webView.url}")
+        
+        try {
+            // 确保WebView设置正确
+            webView.settings.javaScriptEnabled = true
+            webView.settings.domStorageEnabled = true
+            
+            // 加载URL
+            webView.loadUrl(url)
+            Log.d(TAG, "URL加载请求已发送: $url")
+            
+            // 设置为活动WebView
+            activeWebView = webView
+        } catch (e: Exception) {
+            Log.e(TAG, "加载URL到WebView时出错: ${e.message}", e)
+        }
+        
         return webView
     }
 

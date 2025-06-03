@@ -6,9 +6,7 @@ import android.webkit.WebViewClient
 
 class CustomWebViewClient : WebViewClient() {
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-        request?.url?.let { url ->
-            view?.loadUrl(url.toString())
-        }
-        return true
+        // 返回false以允许WebView自行处理URL加载
+        return false
     }
 } 
