@@ -122,4 +122,4 @@ tasks.whenTaskAdded { task ->
     if (task.name == 'compileDebugJavaWithJavac' || task.name == 'compileReleaseJavaWithJavac') {
         task.enabled = false
     }
-} 
+}

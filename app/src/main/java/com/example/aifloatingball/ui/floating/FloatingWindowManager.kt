@@ -23,6 +23,7 @@ import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.ui.webview.CustomWebView
 import com.example.aifloatingball.utils.EngineUtil
 import kotlin.math.abs
+import com.bumptech.glide.Glide
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -251,13 +252,17 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         aiContainer?.let {
             it.removeAllViews()
             for (key in aiEngineKeys) {
-                val iconResId = EngineUtil.getIconResourceByDomain(getDomainFromEngineKey(key))
+                val iconUrl = EngineUtil.getEngineIconUrl(key)
                 val imageView = ImageView(context).apply {
                     layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
                         setMargins(iconMargin, 0, iconMargin, 0)
                     }
                     scaleType = ScaleType.FIT_CENTER
-                    setImageResource(iconResId)
+                    Glide.with(context)
+                         .load(iconUrl)
+                         .placeholder(R.drawable.ic_default_search)
+                         .error(R.drawable.ic_default_search)
+                         .into(this)
                     contentDescription = key
                     setOnClickListener {
                         val query = searchInput?.text.toString()
@@ -272,13 +277,17 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         standardContainer?.let {
             it.removeAllViews()
             for (key in standardEngineKeys) {
-                val iconResId = EngineUtil.getIconResourceByDomain(getDomainFromEngineKey(key))
+                val iconUrl = EngineUtil.getEngineIconUrl(key)
                 val imageView = ImageView(context).apply {
                     layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
                         setMargins(iconMargin, 0, iconMargin, 0)
                     }
                     scaleType = ScaleType.FIT_CENTER
-                    setImageResource(iconResId)
+                    Glide.with(context)
+                         .load(iconUrl)
+                         .placeholder(R.drawable.ic_default_search)
+                         .error(R.drawable.ic_default_search)
+                         .into(this)
                     contentDescription = key
                     setOnClickListener {
                         val query = searchInput?.text.toString()
