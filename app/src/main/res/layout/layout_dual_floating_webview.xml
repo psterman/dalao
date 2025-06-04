@@ -5,13 +5,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     app:cardCornerRadius="16dp"
-    app:cardElevation="8dp">
+    app:cardElevation="8dp"
+    android:background="@color/dual_webview_background_light">
 
     <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@android:color/white">
+    android:background="@color/dual_webview_background_light">
 
     <!-- 顶部工具栏 -->
     <LinearLayout
@@ -20,7 +21,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="8dp"
-        android:background="@color/colorPrimary">
+        android:background="@color/dual_webview_top_bar_light">
 
         <EditText
             android:id="@+id/dual_search_input"
@@ -31,9 +32,9 @@
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:singleLine="true"
-            android:textColor="@android:color/white"
-            android:textColorHint="#80FFFFFF"
-            android:background="@android:color/transparent"/>
+            android:textColor="@color/dual_webview_text_dark"
+            android:textColorHint="@color/dual_webview_text_hint"
+            android:background="@drawable/rounded_edittext_background"/>
 
         <ImageButton
             android:id="@+id/btn_save_engines"
@@ -41,7 +42,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_save"
             android:background="@android:color/transparent"
-            android:tint="@android:color/white"
+            android:tint="@color/dual_webview_icon_tint"
             android:contentDescription="保存搜索引擎"/>
 
         <ImageButton
@@ -60,7 +61,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_floating_mode"
             android:background="@android:color/transparent"
-            android:tint="@android:color/white"
+            android:tint="@color/dual_webview_icon_tint"
             android:contentDescription="切换布局"/>
 
         <ImageButton
@@ -90,8 +91,8 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
                 android:textSize="14sp"
-                android:textColor="@android:color/white"
-                android:background="#55000000"
+                android:textColor="@color/dual_webview_text_dark"
+                android:background="#22000000"
                 android:paddingStart="4dp"
                 android:paddingEnd="4dp"
                 android:text="2"/>
@@ -142,14 +143,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:background="@color/colorPrimaryDark">
+                        android:background="@color/dual_webview_top_bar_light">
 
                         <TextView
                             android:id="@+id/first_floating_title"
                             android:layout_width="match_parent"
                             android:layout_height="0dp"
                             android:padding="0dp"
-                            android:textColor="@android:color/white"
+                            android:textColor="@color/dual_webview_text_dark"
                             android:text="搜索"
                             android:visibility="gone"
                             android:gravity="center"/>
@@ -210,14 +211,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:background="@color/colorPrimaryDark">
+                        android:background="@color/dual_webview_top_bar_light">
 
                         <TextView
                             android:id="@+id/second_floating_title"
                             android:layout_width="match_parent"
                             android:layout_height="0dp"
                             android:padding="0dp"
-                            android:textColor="@android:color/white"
+                            android:textColor="@color/dual_webview_text_dark"
                             android:text="搜索"
                             android:visibility="gone"
                             android:gravity="center"/>
@@ -278,14 +279,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:background="@color/colorPrimaryDark">
+                        android:background="@color/dual_webview_top_bar_light">
 
                         <TextView
                             android:id="@+id/third_floating_title"
                             android:layout_width="match_parent"
                             android:layout_height="0dp"
                             android:padding="0dp"
-                            android:textColor="@android:color/white"
+                            android:textColor="@color/dual_webview_text_dark"
                             android:text="搜索"
                             android:visibility="gone"
                             android:gravity="center"/>
@@ -336,12 +337,16 @@
             </LinearLayout>
         </HorizontalScrollView>
 
-        <View
-            android:id="@+id/dual_resize_handle"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_gravity="bottom|end"
-            android:background="#80FFFFFF"/>
     </FrameLayout>
-</LinearLayout> 
+
+    <!-- 调整大小的把手 -->
+    <View
+        android:id="@+id/dual_resize_handle"
+        android:layout_width="match_parent"
+        android:layout_height="24dp"
+        android:background="@drawable/dual_webview_resize_handle_background"
+        android:layout_gravity="bottom"/>
+
+</LinearLayout>
+
 </androidx.cardview.widget.CardView> 

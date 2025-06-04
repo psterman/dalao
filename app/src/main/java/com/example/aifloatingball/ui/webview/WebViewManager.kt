@@ -9,13 +9,17 @@ import android.webkit.WebView
 import android.widget.LinearLayout
 import com.example.aifloatingball.ui.text.TextSelectionManager
 import com.example.aifloatingball.utils.WebViewInputHelper
+import com.example.aifloatingball.service.DualFloatingWebViewService
+import com.example.aifloatingball.ui.floating.FloatingWindowManager
+import com.example.aifloatingball.ui.webview.CustomWebView
 
 /**
  * WebView管理器，负责WebView的创建、加载和销毁
  */
 class WebViewManager(
     private val context: Context, 
-    private val xmlDefinedWebViews: List<CustomWebView?>
+    private val xmlDefinedWebViews: List<CustomWebView?>,
+    private val floatingWindowManager: FloatingWindowManager
 ) {
     companion object {
         private const val TAG = "WebViewManager"
@@ -25,7 +29,7 @@ class WebViewManager(
     val textSelectionManager = webViewFactory.textSelectionManager
     private var activeWebView: CustomWebView? = null
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    private val webViewInputHelper = WebViewInputHelper(context, windowManager, null)
+    private val webViewInputHelper = WebViewInputHelper(context, windowManager, floatingWindowManager.floatingView)
     
     private val webViews: List<CustomWebView> = xmlDefinedWebViews.filterNotNull()
     
@@ -47,6 +51,9 @@ class WebViewManager(
                         Log.d(TAG, "WebView ${v.id} 获得焦点，设置为活动WebView")
                     }
                     
+                    // 通知服务更新窗口焦点状态
+                    (context as? DualFloatingWebViewService)?.onWebViewFocusChanged(true)
+
                     // 确保输入法可用
                     webViewInputHelper.ensureInputMethodAvailable(v)
                 }
@@ -65,8 +72,8 @@ class WebViewManager(
                                 Log.d(TAG, "WebView ${v.id} 被触摸，设置为活动WebView")
                             }
                             
-                            // 确保可以获取焦点
-                            webViewInputHelper.toggleWindowFocusableFlag(true)
+                            // 确保可以获取焦点 - 这将由 FloatingWindowManager 处理
+                            // webViewInputHelper.toggleWindowFocusableFlag(true)
                         }
                         false
                     }

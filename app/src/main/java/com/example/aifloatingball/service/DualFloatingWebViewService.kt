@@ -55,7 +55,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
     // 依赖模块
     private lateinit var notificationManager: ServiceNotificationManager
-    private lateinit var windowManager: FloatingWindowManager
+    internal lateinit var windowManager: FloatingWindowManager
     internal lateinit var webViewManager: WebViewManager
     internal lateinit var searchEngineHandler: SearchEngineHandler
     private lateinit var intentParser: IntentParser
@@ -110,7 +110,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 在浮动窗口创建之后，并且XML中的WebView可用之后，初始化WebViewManager
         val xmlWebViews = windowManager.getXmlDefinedWebViews()
         Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
-        webViewManager = WebViewManager(this, xmlWebViews)
+        webViewManager = WebViewManager(this, xmlWebViews, windowManager)
         textSelectionManager = webViewManager.textSelectionManager
 
         // 注册广播接收器
@@ -164,7 +164,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         
         // 初始化WebViewManager
         val xmlWebViews = windowManager.getXmlDefinedWebViews()
-        webViewManager = WebViewManager(this, xmlWebViews)
+        webViewManager = WebViewManager(this, xmlWebViews, windowManager)
         textSelectionManager = webViewManager.textSelectionManager
         
         // 设置窗口参数
@@ -173,37 +173,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
     private fun updateWindowParameters(enableInput: Boolean) {
         try {
-            val floatingView = windowManager.floatingView ?: return
-            val params = floatingView.layoutParams as? WindowManager.LayoutParams ?: return
-            
-            if (enableInput) {
-                // 移除所有阻止输入的标志
-                params.flags = params.flags and (
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                ).inv()
-                
-                // 设置输入法模式
-                params.softInputMode = (
-                    WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED or
-                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-                    WindowManager.LayoutParams.SOFT_INPUT_IS_FORWARD_NAVIGATION
-                )
-            } else {
-                // 添加阻止获取焦点的标志
-                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                // 重置输入法模式
-                params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
-            }
-            
-            try {
-                val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                wm.updateViewLayout(floatingView, params)
-                Log.d(TAG, "已更新窗口参数: enableInput=$enableInput")
-            } catch (e: Exception) {
-                Log.e(TAG, "更新窗口布局失败", e)
-            }
+            // 将窗口参数的更新委托给 FloatingWindowManager
+            windowManager.setFloatingWindowFocusable(enableInput)
+            Log.d(TAG, "已通过 FloatingWindowManager 更新窗口参数: enableInput=$enableInput")
         } catch (e: Exception) {
             Log.e(TAG, "更新窗口参数失败", e)
         }
@@ -219,7 +191,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         if (!::webViewManager.isInitialized) {
             Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
             val xmlWebViews = windowManager.getXmlDefinedWebViews()
-            webViewManager = WebViewManager(this, xmlWebViews)
+            webViewManager = WebViewManager(this, xmlWebViews, windowManager)
             textSelectionManager = webViewManager.textSelectionManager
         }
         
@@ -416,6 +388,12 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     // WindowStateCallback implementation
     override fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int) {
         saveWindowState(x, y, width, height)
+    }
+
+    // 处理WebView焦点变化
+    fun onWebViewFocusChanged(focusable: Boolean) {
+        Log.d(TAG, "WebView焦点变化: focusable=$focusable")
+        windowManager.setFloatingWindowFocusable(focusable)
     }
 
     private fun saveWindowState(x: Int, y: Int, width: Int, height: Int) {

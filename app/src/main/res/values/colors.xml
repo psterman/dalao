@@ -29,8 +29,8 @@
     <color name="primary">#2196F3</color>
     <color name="primary_dark">#1976D2</color>
     <color name="accent">#FF4081</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
     <color name="transparent_black">#80000000</color>
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
@@ -133,5 +133,12 @@
     <color name="engine_list_background_dark">#1A1A1A</color>
     <color name="engine_description_text_light">#757575</color>
     <color name="engine_description_text_dark">#B3FFFFFF</color>
+
+    <!-- New colors for Apple-like / Material design theme -->
+    <color name="dual_webview_background_light">#F7F8FA</color>
+    <color name="dual_webview_top_bar_light">#E0E5EC</color>
+    <color name="dual_webview_text_dark">#333333</color>
+    <color name="dual_webview_text_hint">#666666</color>
+    <color name="dual_webview_icon_tint">#333333</color>
 
 </resources> 

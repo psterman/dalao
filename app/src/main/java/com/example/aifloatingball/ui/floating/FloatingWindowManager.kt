@@ -26,6 +26,8 @@ import com.example.aifloatingball.utils.EngineUtil
 import kotlin.math.abs
 import com.bumptech.glide.Glide
 import com.example.aifloatingball.manager.ChatManager
+import android.util.Log
+import android.view.ViewTreeObserver
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -60,6 +62,10 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     private var lastDragX: Float = 0f
     private var lastDragY: Float = 0f
     
+    private var originalWindowHeight: Int = 0
+    private var originalWindowY: Int = 0
+    private var isKeyboardShowing: Boolean = false
+
     private val sharedPreferences: SharedPreferences by lazy {
         context.getSharedPreferences(DualFloatingWebViewService.PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -138,7 +144,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             } else {
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
             },
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -146,12 +152,76 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             y = savedY
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         }
+
+        originalWindowHeight = savedHeight
+        originalWindowY = savedY
+        Log.d("FloatingWindowManager", "初始 originalWindowHeight: $originalWindowHeight, originalWindowY: $originalWindowY")
     }
 
     @SuppressLint("ClickableViewAccessibility")
     fun createFloatingWindow() {
         val inflater = LayoutInflater.from(context)
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
+        
+        // 添加GlobalLayoutListener来监听键盘可见性
+        _floatingView?.viewTreeObserver?.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            private var previousFloatingViewHeight = 0
+
+            override fun onGlobalLayout() {
+                _floatingView?.let { fv ->
+                    val currentFloatingViewHeight = fv.height
+                    val currentScreenHeight = windowManager?.defaultDisplay?.height ?: 0
+
+                    if (previousFloatingViewHeight == 0) {
+                        previousFloatingViewHeight = currentFloatingViewHeight
+                        Log.d(TAG, "GlobalLayoutListener: 首次布局，当前浮动视图高度=$currentFloatingViewHeight")
+                        return
+                    }
+
+                    if (currentFloatingViewHeight != previousFloatingViewHeight) {
+                        val heightDelta = previousFloatingViewHeight - currentFloatingViewHeight
+                        val keyboardHeightThreshold = currentScreenHeight / 4 // 假设键盘高度大于屏幕的1/4
+
+                        Log.d(TAG, "GlobalLayoutListener: 布局变化检测到。当前浮动视图高度=$currentFloatingViewHeight, 上次高度=$previousFloatingViewHeight, 变化量=$heightDelta")
+
+                        if (heightDelta > keyboardHeightThreshold) { 
+                            // 高度差大于阈值，通常表示键盘显示
+                            if (!isKeyboardShowing) {
+                                Log.d(TAG, "键盘显示。计算缩减高度: 原始高度=$originalWindowHeight, 键盘高度=$heightDelta")
+                                isKeyboardShowing = true
+                                
+                                params?.apply {
+                                    height = originalWindowHeight - heightDelta
+                                    y = originalWindowY + heightDelta
+                                    try {
+                                        windowManager?.updateViewLayout(fv, this)
+                                        Log.d(TAG, "已更新窗口布局 (键盘显示): 高度=$height, Y=$y, 软键盘模式=${softInputMode}, 标志=${flags}")
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "更新窗口布局失败 (键盘显示)", e)
+                                    }
+                                }
+                            }
+                        } else if (isKeyboardShowing) {
+                            // 高度差不大于阈值，且之前键盘显示，通常表示键盘隐藏
+                            Log.d(TAG, "键盘隐藏。恢复原有高度: 原始高度=$originalWindowHeight, 原始Y=$originalWindowY")
+                            isKeyboardShowing = false
+                            
+                            params?.apply {
+                                height = originalWindowHeight
+                                y = originalWindowY
+                                try {
+                                    windowManager?.updateViewLayout(fv, this)
+                                    Log.d(TAG, "已更新窗口布局 (键盘隐藏): 高度=$height, Y=$y, 软键盘模式=${softInputMode}, 标志=${flags}")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "更新窗口布局失败 (键盘隐藏)", e)
+                                }
+                            }
+                        }
+                    }
+                    previousFloatingViewHeight = currentFloatingViewHeight
+                }
+            }
+        })
         
         webViewContainer = _floatingView?.findViewById(R.id.dual_webview_container)
         firstWebView = _floatingView?.findViewById(R.id.first_floating_webview)
@@ -189,16 +259,6 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             }
         }
         
-        searchInput?.setOnFocusChangeListener { _, hasFocus ->
-            val currentFlags = params?.flags ?: 0
-            params?.flags = if (hasFocus) {
-                currentFlags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-            } else {
-                currentFlags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            }
-            _floatingView?.let {fv -> params?.let { p -> windowManager?.updateViewLayout(fv, p) } }
-        }
-
         saveEnginesButton?.setOnClickListener {
             val query = searchInput?.text.toString()
              (context as? DualFloatingWebViewService)?.performSearch(query)
@@ -523,8 +583,43 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         windowManager = null
     }
 
+    /**
+     * 设置浮动窗口的焦点状态和软键盘模式。
+     * 这是修改窗口焦点和输入法行为的唯一入口。
+     */
+    fun setFloatingWindowFocusable(focusable: Boolean) {
+        params?.let { p ->
+            if (focusable) {
+                // 移除阻止获取焦点的标志、备用输入法焦点标志和不可触摸标志
+                p.flags = p.flags and (
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                ).inv()
+                // 允许输入法调整窗口大小
+                p.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            } else {
+                // 添加阻止获取焦点的标志，并确保不可触摸
+                p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                // 隐藏输入法
+                p.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            }
+            
+            try {
+                _floatingView?.let { fv ->
+                    windowManager?.updateViewLayout(fv, p)
+                    android.util.Log.d(TAG, "窗口焦点状态更新: focusable=$focusable, softInputMode=${p.softInputMode}, flags=${p.flags}")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e(TAG, "更新窗口布局失败 (setFloatingWindowFocusable)", e)
+            }
+        }
+    }
+
     companion object { // Define MIN_WIDTH and MIN_HEIGHT if needed for resize
         private const val MIN_WIDTH = 200 
         private const val MIN_HEIGHT = 150
+        private const val TAG = "FloatingWindowManager"
     }
 } 
