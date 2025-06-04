@@ -12,6 +12,8 @@ import android.util.Log
 import android.view.WindowManager
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.view.View
+import android.graphics.Rect
 import com.example.aifloatingball.R
 import com.example.aifloatingball.engine.SearchEngineHandler
 import com.example.aifloatingball.notification.ServiceNotificationManager
@@ -64,6 +66,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private lateinit var sharedPreferences: SharedPreferences
     internal lateinit var chatManager: ChatManager
     
+    // 添加 floatingView 属性
+    val floatingView: View?
+        get() = windowManager.floatingView
+
     // 广播接收器
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -79,6 +85,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private var currentWindowCount = DEFAULT_WINDOW_COUNT
     private var lastQuery: String? = null
     private var lastEngineKey: String? = null
+    private var originalY = 0
+    private var isKeyboardVisible = false
+    private var keyboardHeight = 0
 
     internal fun isWebViewManagerInitialized(): Boolean = ::webViewManager.isInitialized
     internal fun isSearchEngineHandlerInitialized(): Boolean = ::searchEngineHandler.isInitialized
@@ -106,6 +115,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         
         // 创建浮动窗口
         windowManager.createFloatingWindow()
+
+        // 设置输入法监听
+        setupKeyboardListener()
 
         // 在浮动窗口创建之后，并且XML中的WebView可用之后，初始化WebViewManager
         val xmlWebViews = windowManager.getXmlDefinedWebViews()
@@ -222,8 +234,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun handleSearchInternal(query: String, engineKey: String, windowCount: Int) {
         Log.d(TAG, "处理搜索请求: query='$query', engineKey='$engineKey', windowCount=$windowCount")
         
-        // 启用输入
-        updateWindowParameters(true)
+        // 启用输入 (此处不再每次搜索都调用，由onStartCommand或明确操作控制)
+        // updateWindowParameters(true)
         
         // 获取搜索URL
         val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
@@ -337,6 +349,17 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         
         handleSearchInternal(queryToUse, engineToUse, currentWindowCount)
         
+        // 延迟请求焦点，确保UI更新完成，避免输入法闪烁
+        handler.postDelayed({
+            try {
+                val searchInput = windowManager.floatingView?.findViewById<EditText>(R.id.dual_search_input)
+                searchInput?.requestFocus()
+                Log.d(TAG, "窗口数量切换后，尝试重新聚焦搜索输入框")
+            } catch (e: Exception) {
+                Log.e(TAG, "切换窗口数量后聚焦输入框失败: ${e.message}")
+            }
+        }, 300) // 延迟300毫秒
+        
         return currentWindowCount
     }
     
@@ -412,6 +435,48 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         with(sharedPreferences.edit()) {
             putInt(KEY_WINDOW_COUNT, count)
             apply()
+        }
+    }
+
+    private fun setupKeyboardListener() {
+        val rootView = floatingView?.findViewById<View>(R.id.dual_webview_root)
+        rootView?.viewTreeObserver?.addOnGlobalLayoutListener {
+            val r = Rect()
+            rootView.getWindowVisibleDisplayFrame(r)
+            val screenHeight = rootView.height
+            
+            // 计算输入法高度
+            val newKeyboardHeight = screenHeight - r.bottom
+            
+            if (newKeyboardHeight != keyboardHeight) {
+                val isKeyboardNowVisible = newKeyboardHeight > screenHeight * 0.15
+                
+                if (isKeyboardNowVisible != isKeyboardVisible) {
+                    isKeyboardVisible = isKeyboardNowVisible
+                    
+                    if (isKeyboardVisible) {
+                        // 输入法显示时
+                        if (originalY == 0) {
+                            originalY = windowManager.params?.y ?: 0
+                        }
+                        // 调整窗口位置，向上移动输入法高度
+                        windowManager.params?.y = originalY - newKeyboardHeight.toInt()
+                    } else {
+                        // 输入法隐藏时，恢复原始位置
+                        windowManager.params?.y = originalY
+                        originalY = 0
+                    }
+                    
+                    // 更新窗口布局
+                    try {
+                        windowManager.updateViewLayout(floatingView, windowManager.params)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "更新窗口布局失败: ${e.message}")
+                    }
+                }
+                
+                keyboardHeight = newKeyboardHeight
+            }
         }
     }
 } 

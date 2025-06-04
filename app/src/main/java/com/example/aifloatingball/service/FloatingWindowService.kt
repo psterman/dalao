@@ -370,8 +370,8 @@ class FloatingWindowService : Service() {
         aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
         regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
         searchContainer = floatingView?.findViewById(R.id.search_container)
-        searchInput = floatingView?.findViewById(R.id.search_input)
-        searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
+        searchInput = floatingView?.findViewById<EditText>(R.id.search_input)
+        searchModeToggle = floatingView?.findViewById<MaterialButton>(R.id.search_mode_toggle)
         appSearchContainer = floatingView?.findViewById(R.id.app_search_container)
         
         // 设置搜索模式切换按钮点击事件
@@ -676,7 +676,7 @@ class FloatingWindowService : Service() {
         // 初始化AI和普通搜索引擎容器
         aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
         regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
-        
+
         searchInput?.apply {
             // 基本属性设置
             isFocusableInTouchMode = true

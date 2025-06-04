@@ -16,7 +16,7 @@ class SettingsActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_settings)
+        setContentView(R.layout.settings_activity)
         
         settingsManager = SettingsManager.getInstance(this)
         
@@ -96,7 +96,16 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             // 默认搜索模式设置
-            findPreference<SwitchPreferenceCompat>("default_search_mode")?.apply {
+            findPreference<SwitchPreferenceCompat>("search_default_ai_mode")?.apply {
+                isChecked = settingsManager.isDefaultAIMode()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setDefaultAIMode(newValue as Boolean)
+                    true
+                }
+            }
+
+            // AI设置中的默认搜索模式
+            findPreference<SwitchPreferenceCompat>("ai_default_search_mode")?.apply {
                 isChecked = settingsManager.isDefaultAIMode()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setDefaultAIMode(newValue as Boolean)
@@ -206,7 +215,7 @@ class SettingsActivity : AppCompatActivity() {
             }
             
             // AI搜索引擎管理入口
-            findPreference<Preference>("ai_search_engine_manager")?.setOnPreferenceClickListener {
+            findPreference<Preference>("ai_engine_settings")?.setOnPreferenceClickListener {
                 startActivity(Intent(requireContext(), AISearchEngineSettingsActivity::class.java))
                 true
             }

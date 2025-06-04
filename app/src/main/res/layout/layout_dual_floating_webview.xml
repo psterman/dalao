@@ -2,8 +2,10 @@
 <androidx.cardview.widget.CardView 
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/dual_webview_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     app:cardCornerRadius="16dp"
     app:cardElevation="8dp"
     android:background="@color/dual_webview_background_light">
@@ -12,6 +14,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:fitsSystemWindows="true"
     android:background="@color/dual_webview_background_light">
 
     <!-- 顶部工具栏 -->
@@ -34,7 +37,11 @@
             android:singleLine="true"
             android:textColor="@color/dual_webview_text_dark"
             android:textColorHint="@color/dual_webview_text_hint"
-            android:background="@drawable/rounded_edittext_background"/>
+            android:background="@drawable/rounded_edittext_background"
+            android:textSize="16sp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingVertical="10dp"/>
 
         <ImageButton
             android:id="@+id/btn_save_engines"
@@ -44,33 +51,6 @@
             android:background="@android:color/transparent"
             android:tint="@color/dual_webview_icon_tint"
             android:contentDescription="保存搜索引擎"/>
-
-        <ImageButton
-            android:id="@+id/btn_switch_normal"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_margin="4dp"
-            android:src="@drawable/ic_switch_mode"
-            android:background="@drawable/circle_ripple"
-            android:contentDescription="切换到普通模式"
-            android:padding="8dp" />
-
-        <ImageButton
-            android:id="@+id/btn_toggle_layout"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_floating_mode"
-            android:background="@android:color/transparent"
-            android:tint="@color/dual_webview_icon_tint"
-            android:contentDescription="切换布局"/>
-
-        <ImageButton
-            android:id="@+id/btn_single_window"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:src="@drawable/ic_single_window"
-            android:background="@android:color/transparent"
-            android:contentDescription="单窗口模式"/>
 
         <!-- 窗口数量切换控件 - 包含按钮和文本 -->
         <FrameLayout

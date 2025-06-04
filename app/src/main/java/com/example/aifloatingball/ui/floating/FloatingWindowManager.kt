@@ -42,6 +42,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     val floatingView: View?
         get() = _floatingView
     var params: WindowManager.LayoutParams? = null
+        private set  // 设置为私有set，只允许通过特定方法修改
     
     private var webViewContainer: LinearLayout? = null
     
@@ -230,9 +231,6 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         
         val searchInput = _floatingView?.findViewById<EditText>(R.id.dual_search_input)
         val saveEnginesButton = _floatingView?.findViewById<ImageButton>(R.id.btn_save_engines)
-        val switchNormalModeButton = _floatingView?.findViewById<ImageButton>(R.id.btn_switch_normal)
-        val toggleLayoutButton = _floatingView?.findViewById<ImageButton>(R.id.btn_toggle_layout)
-        val singleWindowButton = _floatingView?.findViewById<ImageButton>(R.id.btn_single_window)
         val windowCountButton = _floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
         val windowCountToggleText = _floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)
         val closeButton = _floatingView?.findViewById<ImageButton>(R.id.btn_dual_close)
@@ -259,14 +257,13 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             }
         }
         
+        // 为searchInput添加点击监听器，使其在被点击时获得焦点并显示键盘
+        searchInput?.setOnClickListener { it.requestFocus() }
+
         saveEnginesButton?.setOnClickListener {
             val query = searchInput?.text.toString()
              (context as? DualFloatingWebViewService)?.performSearch(query)
         }
-
-        switchNormalModeButton?.setOnClickListener { /* (context as? DualFloatingWebViewService)?.switchToNormalMode() */ }
-        toggleLayoutButton?.setOnClickListener { /* (context as? DualFloatingWebViewService)?.toggleWebViewLayout() */ }
-        singleWindowButton?.setOnClickListener { /* (context as? DualFloatingWebViewService)?.switchToSingleWindowMode() */ }
 
         windowCountButton?.setOnClickListener {
             (context as? DualFloatingWebViewService)?.let {
@@ -617,7 +614,29 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         }
     }
 
-    companion object { // Define MIN_WIDTH and MIN_HEIGHT if needed for resize
+    fun updateViewLayout(view: View?, layoutParams: WindowManager.LayoutParams?) {
+        if (view != null && layoutParams != null) {
+            try {
+                params = layoutParams  // 更新内部params
+                windowManager?.updateViewLayout(view, layoutParams)
+            } catch (e: Exception) {
+                Log.e(TAG, "更新窗口布局失败: ${e.message}")
+            }
+        }
+    }
+
+    // 更新窗口Y坐标
+    fun updateWindowY(y: Int) {
+        params?.let { p ->
+            p.y = y
+            updateViewLayout(floatingView, p)
+        }
+    }
+
+    // 获取当前窗口Y坐标
+    fun getWindowY(): Int = params?.y ?: 0
+
+    companion object {
         private const val MIN_WIDTH = 200 
         private const val MIN_HEIGHT = 150
         private const val TAG = "FloatingWindowManager"

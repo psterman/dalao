@@ -19,7 +19,7 @@ import com.example.aifloatingball.ui.webview.CustomWebView
 class WebViewManager(
     private val context: Context, 
     private val xmlDefinedWebViews: List<CustomWebView?>,
-    private val floatingWindowManager: FloatingWindowManager
+    private val floatingWindowManager:  FloatingWindowManager
 ) {
     companion object {
         private const val TAG = "WebViewManager"
