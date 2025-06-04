@@ -26,7 +26,6 @@ class WebViewInputHelper(
         try {
             // 1. 基础设置增强
             webView.settings.apply {
-                // 基本功能设置
                 javaScriptEnabled = true
                 domStorageEnabled = true
                 loadWithOverviewMode = true
@@ -41,14 +40,6 @@ class WebViewInputHelper(
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                 mediaPlaybackRequiresUserGesture = false
                 defaultTextEncodingName = "UTF-8"
-                
-                // 增强功能设置
-                setGeolocationEnabled(true)
-                loadsImagesAutomatically = true
-                allowFileAccess = true
-                allowContentAccess = true
-                databaseEnabled = true
-                setSupportMultipleWindows(true)
             }
 
             // 2. 设置基本属性
@@ -72,51 +63,23 @@ class WebViewInputHelper(
                 }
             }, "InputMethodBridge")
 
-            // 4. 设置触摸监听器
+            // 4. 注入输入法支持脚本
+            injectInputMethodSupport(webView)
+
+            // 5. 设置触摸监听器
             webView.setOnTouchListener { v, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         // 确保窗口可以获取焦点
                         toggleWindowFocusableFlag(true)
-                        
-                        // 检查点击位置是否是输入元素
-                        webView.evaluateJavascript("""
-                            (function() {
-                                var x = ${event.x};
-                                var y = ${event.y};
-                                var element = document.elementFromPoint(x, y);
-                                if (element) {
-                                    var isInput = element.tagName === 'INPUT' || 
-                                                element.tagName === 'TEXTAREA' || 
-                                                element.contentEditable === 'true' ||
-                                                element.role === 'textbox' ||
-                                                window.getComputedStyle(element).webkitUserModify === 'read-write' ||
-                                                window.getComputedStyle(element).userModify === 'read-write';
-                                    if (isInput) {
-                                        element.focus();
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            })();
-                        """.trimIndent()) { result ->
-                            if (result == "true") {
-                                forceShowInputMethod(webView)
-                            }
-                        }
+                        v.requestFocus()
+                        true
                     }
+                    else -> false
                 }
-                false
             }
-
-            // 5. 注入初始化脚本
-            injectInputMethodSupport(webView)
-            
-            // 6. 确保窗口参数正确
-            ensureWindowParameters()
-
         } catch (e: Exception) {
-            Log.e(TAG, "准备WebView输入支持失败", e)
+            Log.e(TAG, "准备WebView输入失败", e)
         }
     }
 
@@ -124,13 +87,19 @@ class WebViewInputHelper(
         try {
             val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
             
-            // 移除阻止获取焦点的标志
-            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-            // 移除阻止输入法的标志
-            params.flags = params.flags and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM.inv()
+            // 移除所有可能阻止输入的标志
+            params.flags = params.flags and (
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            ).inv()
+
             // 设置输入法模式
-            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or
-                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            params.softInputMode = (
+                WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED or
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                WindowManager.LayoutParams.SOFT_INPUT_IS_FORWARD_NAVIGATION
+            )
 
             try {
                 windowManager.updateViewLayout(floatingView, params)
@@ -146,75 +115,68 @@ class WebViewInputHelper(
     fun injectInputMethodSupport(webView: WebView) {
         webView.evaluateJavascript("""
             (function() {
-                // 1. 监听所有可能的输入事件
-                document.addEventListener('focusin', function(e) {
-                    if (isInputElement(e.target)) {
-                        InputMethodBridge.onInputFieldFocused();
-                    }
-                }, true);
-
-                document.addEventListener('click', function(e) {
-                    if (isInputElement(e.target)) {
-                        e.target.focus();
-                        InputMethodBridge.onInputFieldClicked();
-                    }
-                }, true);
-
-                // 2. 监听动态添加的元素
-                var observer = new MutationObserver(function(mutations) {
-                    mutations.forEach(function(mutation) {
-                        if (mutation.addedNodes) {
-                            mutation.addedNodes.forEach(function(node) {
-                                if (node.nodeType === 1) {
-                                    var inputs = node.querySelectorAll(inputSelectors);
-                                    inputs.forEach(setupInputElement);
-                                }
-                            });
-                        }
-                    });
-                });
-
-                observer.observe(document.body, {
-                    childList: true,
-                    subtree: true
-                });
-
-                // 3. 辅助函数
-                var inputSelectors = 'input, textarea, [contenteditable="true"], [role="textbox"]';
-
+                // 1. 定义输入元素选择器
+                const inputSelectors = 'input, textarea, [contenteditable="true"]';
+                
+                // 2. 辅助函数
                 function isInputElement(element) {
-                    return element.matches(inputSelectors) ||
-                           window.getComputedStyle(element).webkitUserModify === 'read-write' ||
-                           window.getComputedStyle(element).userModify === 'read-write';
+                    return element.matches(inputSelectors);
                 }
-
+                
                 function setupInputElement(element) {
-                    element.addEventListener('click', function(e) {
-                        this.focus();
-                        InputMethodBridge.onInputFieldClicked();
-                    });
-
-                    element.addEventListener('focus', function() {
-                        InputMethodBridge.onInputFieldFocused();
-                    });
-
+                    // 确保元素可以获取焦点
+                    element.setAttribute('tabindex', '0');
+                    
                     // 设置输入相关属性
                     if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
                         element.setAttribute('inputmode', 'text');
                         element.setAttribute('enterkeyhint', 'done');
                     }
+                    
+                    // 添加焦点事件监听
+                    element.addEventListener('focus', function() {
+                        InputMethodBridge.onInputFieldFocused();
+                    });
+                    
+                    // 添加点击事件监听
+                    element.addEventListener('click', function() {
+                        InputMethodBridge.onInputFieldClicked();
+                    });
                 }
-
+                
+                // 3. 监听动态添加的输入元素
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        mutation.addedNodes.forEach(function(node) {
+                            if (node.nodeType === 1) { // 元素节点
+                                if (isInputElement(node)) {
+                                    setupInputElement(node);
+                                }
+                                // 检查子元素
+                                node.querySelectorAll(inputSelectors).forEach(setupInputElement);
+                            }
+                        });
+                    });
+                });
+                
+                observer.observe(document.body, {
+                    childList: true,
+                    subtree: true
+                });
+                
                 // 4. 初始化现有输入元素
                 document.querySelectorAll(inputSelectors).forEach(setupInputElement);
-
+                
                 // 5. 注入CSS样式
-                var style = document.createElement('style');
+                const style = document.createElement('style');
                 style.textContent = `
                     input, textarea, [contenteditable="true"] {
                         -webkit-user-select: text !important;
                         user-select: text !important;
                         -webkit-tap-highlight-color: rgba(0,0,0,0.1) !important;
+                    }
+                    input:focus, textarea:focus, [contenteditable="true"]:focus {
+                        outline: 2px solid rgba(0,0,0,0.2) !important;
                     }
                 `;
                 document.head.appendChild(style);
@@ -230,13 +192,17 @@ class WebViewInputHelper(
             // 2. 确保WebView可以获取焦点
             webView.isFocusable = true
             webView.isFocusableInTouchMode = true
-            webView.requestFocus()
 
-            // 3. 显示输入法
+            // 3. 请求焦点
+            if (!webView.hasFocus()) {
+                webView.requestFocus()
+            }
+
+            // 4. 显示输入法
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
             
-            // 4. 如果输入法没有显示，尝试强制显示
+            // 5. 如果输入法没有显示，尝试强制显示
             Handler(Looper.getMainLooper()).postDelayed({
                 if (!imm.isActive(webView)) {
                     forceShowInputMethod(webView)
@@ -275,18 +241,22 @@ class WebViewInputHelper(
             val params = floatingView?.layoutParams as? WindowManager.LayoutParams ?: return
             
             if (focusable) {
-                // 移除阻止获取焦点的标志
-                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                // 移除阻止输入法的标志
-                params.flags = params.flags and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM.inv()
+                // 移除所有阻止输入的标志
+                params.flags = params.flags and (
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                ).inv()
+                
                 // 设置输入法模式
-                params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or
-                        WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                params.softInputMode = (
+                    WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED or
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                    WindowManager.LayoutParams.SOFT_INPUT_IS_FORWARD_NAVIGATION
+                )
             } else {
                 // 添加阻止获取焦点的标志
                 params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                // 添加阻止输入法的标志
-                params.flags = params.flags or WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
                 // 重置输入法模式
                 params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
             }

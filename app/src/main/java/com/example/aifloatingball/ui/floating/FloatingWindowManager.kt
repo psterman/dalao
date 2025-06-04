@@ -34,7 +34,9 @@ interface WindowStateCallback {
  */
 class FloatingWindowManager(private val context: Context, private val windowStateCallback: WindowStateCallback) {
     private var windowManager: WindowManager? = null
-    var floatingView: View? = null
+    private var _floatingView: View? = null
+    val floatingView: View?
+        get() = _floatingView
     var params: WindowManager.LayoutParams? = null
     
     private var webViewContainer: LinearLayout? = null
@@ -124,23 +126,23 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     @SuppressLint("ClickableViewAccessibility")
     fun createFloatingWindow() {
         val inflater = LayoutInflater.from(context)
-        floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
+        _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
         
-        webViewContainer = floatingView?.findViewById(R.id.dual_webview_container)
-        firstWebView = floatingView?.findViewById(R.id.first_floating_webview)
-        secondWebView = floatingView?.findViewById(R.id.second_floating_webview)
-        thirdWebView = floatingView?.findViewById(R.id.third_floating_webview)
+        webViewContainer = _floatingView?.findViewById(R.id.dual_webview_container)
+        firstWebView = _floatingView?.findViewById(R.id.first_floating_webview)
+        secondWebView = _floatingView?.findViewById(R.id.second_floating_webview)
+        thirdWebView = _floatingView?.findViewById(R.id.third_floating_webview)
         
-        val searchInput = floatingView?.findViewById<EditText>(R.id.dual_search_input)
-        val saveEnginesButton = floatingView?.findViewById<ImageButton>(R.id.btn_save_engines)
-        val switchNormalModeButton = floatingView?.findViewById<ImageButton>(R.id.btn_switch_normal)
-        val toggleLayoutButton = floatingView?.findViewById<ImageButton>(R.id.btn_toggle_layout)
-        val singleWindowButton = floatingView?.findViewById<ImageButton>(R.id.btn_single_window)
-        val windowCountButton = floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
-        val windowCountToggleText = floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)
-        val closeButton = floatingView?.findViewById<ImageButton>(R.id.btn_dual_close)
-        val resizeHandle = floatingView?.findViewById<View>(R.id.dual_resize_handle)
-        val topControlBar = floatingView?.findViewById<LinearLayout>(R.id.top_control_bar)
+        val searchInput = _floatingView?.findViewById<EditText>(R.id.dual_search_input)
+        val saveEnginesButton = _floatingView?.findViewById<ImageButton>(R.id.btn_save_engines)
+        val switchNormalModeButton = _floatingView?.findViewById<ImageButton>(R.id.btn_switch_normal)
+        val toggleLayoutButton = _floatingView?.findViewById<ImageButton>(R.id.btn_toggle_layout)
+        val singleWindowButton = _floatingView?.findViewById<ImageButton>(R.id.btn_single_window)
+        val windowCountButton = _floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
+        val windowCountToggleText = _floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)
+        val closeButton = _floatingView?.findViewById<ImageButton>(R.id.btn_dual_close)
+        val resizeHandle = _floatingView?.findViewById<View>(R.id.dual_resize_handle)
+        val topControlBar = _floatingView?.findViewById<LinearLayout>(R.id.top_control_bar)
 
         (context as? DualFloatingWebViewService)?.let {
             val initialCount = it.getCurrentWindowCount()
@@ -169,7 +171,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             } else {
                 currentFlags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             }
-            floatingView?.let {fv -> params?.let { p -> windowManager?.updateViewLayout(fv, p) } }
+            _floatingView?.let {fv -> params?.let { p -> windowManager?.updateViewLayout(fv, p) } }
         }
 
         saveEnginesButton?.setOnClickListener {
@@ -200,19 +202,19 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         }
 
         // Populate engine icons for individual WebViews (existing logic)
-        val firstAiContainer = floatingView?.findViewById<LinearLayout>(R.id.first_webview_ai_engine_container)
-        val firstStdContainer = floatingView?.findViewById<LinearLayout>(R.id.first_webview_standard_engine_container)
+        val firstAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.first_webview_ai_engine_container)
+        val firstStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.first_webview_standard_engine_container)
         populateEngineIconsForWebView(0, firstAiContainer, firstStdContainer, searchInput)
 
-        val secondAiContainer = floatingView?.findViewById<LinearLayout>(R.id.second_webview_ai_engine_container)
-        val secondStdContainer = floatingView?.findViewById<LinearLayout>(R.id.second_webview_standard_engine_container)
+        val secondAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.second_webview_ai_engine_container)
+        val secondStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.second_webview_standard_engine_container)
         populateEngineIconsForWebView(1, secondAiContainer, secondStdContainer, searchInput)
 
-        val thirdAiContainer = floatingView?.findViewById<LinearLayout>(R.id.third_webview_ai_engine_container)
-        val thirdStdContainer = floatingView?.findViewById<LinearLayout>(R.id.third_webview_standard_engine_container)
+        val thirdAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.third_webview_ai_engine_container)
+        val thirdStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.third_webview_standard_engine_container)
         populateEngineIconsForWebView(2, thirdAiContainer, thirdStdContainer, searchInput)
         
-        windowManager?.addView(floatingView, params)
+        windowManager?.addView(_floatingView, params)
     }
 
     private fun getDomainFromEngineKey(engineKey: String): String {
@@ -332,7 +334,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                     if (newWidth > MIN_WIDTH && newHeight > MIN_HEIGHT) { // Assuming MIN_WIDTH/HEIGHT are defined
                         p.width = newWidth
                         p.height = newHeight
-                        windowManager?.updateViewLayout(floatingView, p)
+                        windowManager?.updateViewLayout(_floatingView, p)
                     }
                 }
                 MotionEvent.ACTION_UP -> {
@@ -384,7 +386,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         }
         
         override fun onSingleTapUp(e: MotionEvent): Boolean {
-            floatingView?.findViewById<EditText>(R.id.dual_search_input)?.requestFocus()
+            _floatingView?.findViewById<EditText>(R.id.dual_search_input)?.requestFocus()
             return true
         }
 
@@ -395,7 +397,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             params?.let { p ->
                 p.x = initialX + (e2.rawX - e1.rawX).toInt()
                 p.y = initialY + (e2.rawY - e1.rawY).toInt()
-                windowManager?.updateViewLayout(floatingView, p)
+                windowManager?.updateViewLayout(_floatingView, p)
             }
             return true
         }
@@ -416,14 +418,14 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     }
     
     fun removeFloatingWindow() {
-        floatingView?.let {
+        _floatingView?.let {
             try {
                  windowManager?.removeView(it)
             } catch (e: Exception) {
                 android.util.Log.e("FloatingWindowManager", "Error removing view: ${e.message}")
             }
         }
-        floatingView = null
+        _floatingView = null
         windowManager = null
     }
 

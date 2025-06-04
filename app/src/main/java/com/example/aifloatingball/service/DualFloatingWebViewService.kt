@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
+import android.view.WindowManager
 import com.example.aifloatingball.engine.SearchEngineHandler
 import com.example.aifloatingball.notification.ServiceNotificationManager
 import com.example.aifloatingball.ui.floating.FloatingWindowManager
@@ -104,14 +105,55 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         Log.d(TAG, "初始化管理器")
         
         notificationManager = ServiceNotificationManager(this, CHANNEL_ID)
-        // FloatingWindowManager 需要在 service 实例创建后，才能获取到更新后的 windowCountToggleText
-        // 因此，其按钮的 UI 更新回调可能需要 service 准备好之后再设置，或者通过接口
-        windowManager = FloatingWindowManager(this, this) 
+        windowManager = FloatingWindowManager(this, this)
         searchEngineHandler = SearchEngineHandler()
         intentParser = IntentParser()
         
-        // WebViewManager需要在windowManager创建浮动窗口后初始化
-        // 但此时windowManager还未创建窗口，所以在onStartCommand中延迟初始化
+        // 初始化WebViewManager
+        val xmlWebViews = windowManager.getXmlDefinedWebViews()
+        webViewManager = WebViewManager(this, xmlWebViews)
+        textSelectionManager = webViewManager.textSelectionManager
+        
+        // 设置窗口参数
+        updateWindowParameters(true)
+    }
+
+    private fun updateWindowParameters(enableInput: Boolean) {
+        try {
+            val floatingView = windowManager.floatingView ?: return
+            val params = floatingView.layoutParams as? WindowManager.LayoutParams ?: return
+            
+            if (enableInput) {
+                // 移除所有阻止输入的标志
+                params.flags = params.flags and (
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                ).inv()
+                
+                // 设置输入法模式
+                params.softInputMode = (
+                    WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED or
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+                    WindowManager.LayoutParams.SOFT_INPUT_IS_FORWARD_NAVIGATION
+                )
+            } else {
+                // 添加阻止获取焦点的标志
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                // 重置输入法模式
+                params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            }
+            
+            try {
+                val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                wm.updateViewLayout(floatingView, params)
+                Log.d(TAG, "已更新窗口参数: enableInput=$enableInput")
+            } catch (e: Exception) {
+                Log.e(TAG, "更新窗口布局失败", e)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新窗口参数失败", e)
+        }
     }
 
     /**
@@ -120,126 +162,79 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "处理服务命令")
         
-        // 确保WebViewManager已经初始化 (现在它在onCreate中初始化)
+        // 确保WebViewManager已经初始化
         if (!::webViewManager.isInitialized) {
             Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
-            // 尝试再次初始化，以防万一，但这通常表明onCreate的逻辑流程有问题
             val xmlWebViews = windowManager.getXmlDefinedWebViews()
             webViewManager = WebViewManager(this, xmlWebViews)
             textSelectionManager = webViewManager.textSelectionManager
         }
         
-        // 设置WebView的长按监听器 (可以在这里进行，或者延迟)
-        // handler.postDelayed({
-        //     webViewManager.setupLongPressListeners()
-        // }, 500) 
-        // setupLongPressListeners现在应该在handleSearchInternal中调用，当WebView确实被使用时
-        
         // 处理搜索意图
-        intent?.let { 
-            val searchParams = intentParser.parseSearchIntent(it)
-            if (searchParams != null) {
-                Log.d(TAG, "处理搜索请求: ${searchParams.query}")
-                lastQuery = searchParams.query
-                lastEngineKey = searchParams.engineKey
-                // Intent中的windowCount可以被忽略，因为我们通过按钮控制
-                handleSearchInternal(searchParams.query ?: "", searchParams.engineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
-            } else {
-                 if (lastQuery == null) { // 避免重复加载
-                    // 如果服务被系统重启等，可能没有intent，尝试加载默认/空白内容
-                    Log.d(TAG, "Intent中无搜索参数，加载默认内容 (当前窗口数: $currentWindowCount)")
-                    handleSearchInternal("", SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount) 
-                 }
-            }
-        } ?: run {
-            // Intent 为 null 的情况 (例如服务被系统杀死后重启且没有 sticky intent)
-            if (lastQuery == null) { // 避免重复加载
-                Log.d(TAG, "Intent为null，加载默认内容 (当前窗口数: $currentWindowCount)")
-                handleSearchInternal("", SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount) 
-            }
-        }
-        return START_NOT_STICKY
+        intent?.let { handleSearchIntent(it) }
+        
+        // 启用输入
+        updateWindowParameters(true)
+        
+        return START_STICKY
     }
 
-    /**
-     * 内部处理搜索请求的函数
-     */
-    private fun handleSearchInternal(query: String, engineKey: String, windowCountToUse: Int) {
-        Log.d(TAG, "handleSearchInternal: query='$query', engineKey='$engineKey', windowCount=$windowCountToUse")
-        
-        if (!::webViewManager.isInitialized) {
-            Log.e(TAG, "WebViewManager 未初始化，无法执行搜索！")
-            return
-        }
-        
-        // 根据 windowCountToUse 决定哪些 WebView 是活动的
-        // 清空并隐藏多余的WebView
-        webViewManager.clearAndHideWebViews(windowCountToUse)
-        
-        // 获取所有搜索URL
-        val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
-        
-        // 如果搜索URL为空或无效，记录日志并返回
-        if (searchUrl.isBlank() || !searchUrl.startsWith("http")) {
-            Log.e(TAG, "生成的搜索URL无效: '$searchUrl'")
-            return
-        }
-        
-        Log.d(TAG, "准备加载URL到 $windowCountToUse 个WebView: $searchUrl")
-        
-        for (i in 0 until windowCountToUse) {
-            // 确保我们不会超出实际拥有的WebView数量 (最多3个)
-            if (i < webViewManager.getWebViews().size) {
-                Log.d(TAG, "处理WebView索引 $i")
-                
-                // 确保目标WebView可见
-                webViewManager.setWebViewVisibility(i, true)
-                
-                // 使用不同搜索引擎，避免所有WebView加载相同内容
-                val actualSearchUrl = when(i) {
-                    0 -> searchUrl // 第一个WebView使用原始搜索URL
-                    1 -> { // 第二个WebView使用不同搜索引擎
-                        if (engineKey.contains("google")) {
-                            searchEngineHandler.getSearchUrl(query, "baidu")
-                        } else {
-                            searchEngineHandler.getSearchUrl(query, "google")
-                        }
-                    }
-                    2 -> { // 第三个WebView再使用不同搜索引擎
-                        if (engineKey.contains("google") || engineKey.contains("baidu")) {
-                            searchEngineHandler.getSearchUrl(query, "bing")
-                        } else {
-                            searchEngineHandler.getSearchUrl(query, "360")
-                        }
-                    }
-                    else -> searchUrl
-                }
-                
-                Log.d(TAG, "WebView索引 $i 将加载URL: $actualSearchUrl")
-                
-                // 加载URL到WebView
-                val webView = webViewManager.loadUrlInWebView(i, actualSearchUrl)
-                
-                webView?.let {
-                    // 确保WebView启用了文本选择功能
-                    if(::textSelectionManager.isInitialized) {
-                        it.setTextSelectionManager(textSelectionManager)
-                    } else {
-                        Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${it.id} 设置")
-                    }
-                } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
-            } else {
-                Log.w(TAG, "请求的窗口数量 ($windowCountToUse) 超过了XML中定义的WebView数量 (${webViewManager.getWebViews().size})，索引 $i 将被跳过。")
+    private fun handleSearchIntent(intent: Intent) {
+        val searchParams = intentParser.parseSearchIntent(intent)
+        if (searchParams != null) {
+            Log.d(TAG, "处理搜索请求: ${searchParams.query}")
+            lastQuery = searchParams.query
+            lastEngineKey = searchParams.engineKey
+            handleSearchInternal(searchParams.query ?: "", searchParams.engineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+        } else {
+            if (lastQuery == null) {
+                Log.d(TAG, "Intent中无搜索参数，加载默认内容 (当前窗口数: $currentWindowCount)")
+                handleSearchInternal("", SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
             }
         }
+    }
+
+    private fun handleSearchInternal(query: String, engineKey: String, windowCount: Int) {
+        Log.d(TAG, "处理搜索请求: query='$query', engineKey='$engineKey', windowCount=$windowCount")
         
-        // 重置滚动条 (如果适用)
+        // 启用输入
+        updateWindowParameters(true)
+        
+        // 获取搜索URL
+        val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
+        
+        if (searchUrl.isBlank() || !searchUrl.startsWith("http")) {
+            Log.e(TAG, "无法获取搜索URL: engineKey='$engineKey'")
+            return
+        }
+        
+        // 确定要使用的窗口数量
+        val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
+        currentWindowCount = windowCountToUse
+        
+        // 加载URL到WebView
+        for (i in 0 until windowCountToUse) {
+            val webView = webViewManager.getWebViews().getOrNull(i)
+            webView?.let {
+                // 确保WebView启用了文本选择功能
+                if(::textSelectionManager.isInitialized) {
+                    it.setTextSelectionManager(textSelectionManager)
+                } else {
+                    Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${it.id} 设置")
+                }
+                
+                // 加载URL
+                it.loadUrl(searchUrl)
+            } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
+        }
+        
+        // 重置滚动条
         windowManager.resetScrollPosition()
         
-        // 设置长按监听器给当前活动的WebViews
+        // 设置长按监听器
         handler.postDelayed({
-            webViewManager.setupLongPressListeners() // 这会给所有当前的 webViews 设置监听
-        }, 1000) 
+            webViewManager.setupLongPressListeners()
+        }, 1000)
     }
 
     /**
