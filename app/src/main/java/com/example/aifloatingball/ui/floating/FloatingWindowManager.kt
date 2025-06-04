@@ -25,6 +25,7 @@ import com.example.aifloatingball.ui.webview.CustomWebView
 import com.example.aifloatingball.utils.EngineUtil
 import kotlin.math.abs
 import com.bumptech.glide.Glide
+import com.example.aifloatingball.manager.ChatManager
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -53,7 +54,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     private var initialWidth: Int = 0
     private var initialHeight: Int = 0
 
-    private lateinit var gestureDetector: GestureDetector
+    private val gestureDetector: GestureDetector
 
     private var isDragging = false
     private var lastDragX: Float = 0f
@@ -84,6 +85,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                 "Perplexity" -> "perplexity"
                 "Phind" -> "phind"
                 "Poe" -> "poe"
+                "DeepSeek对话" -> "deepseek"
                 else -> aiEngineName.lowercase()
             }
         }
@@ -288,36 +290,77 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             return
         }
 
-        val iconSize = dpToPx(32) // 稍微小一点的图标
-        val iconMargin = dpToPx(2) // 间距
+        val iconSize = dpToPx(32)
+        val iconMargin = dpToPx(2)
 
         // 获取用户已启用的AI搜索引擎列表
         val enabledAIEngineKeys = getEnabledAIEngineKeys()
-
+        
         // 填充AI引擎图标
-        aiContainer?.let {
-            it.removeAllViews()
+        aiContainer?.let { container ->
+            container.removeAllViews()
             
-            // 只添加用户启用的AI搜索引擎
             for (key in enabledAIEngineKeys) {
-                val iconUrl = EngineUtil.getEngineIconUrl(key)
+                // 根据引擎类型获取正确的图标资源
+                val iconResId = when (key) {
+                    "deepseek" -> R.drawable.ic_deepseek
+                    "chatgpt" -> R.drawable.ic_chatgpt
+                    else -> 0 // 其他引擎使用默认的favicon逻辑
+                }
+                
                 val imageView = ImageView(context).apply {
                     layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
                         setMargins(iconMargin, 0, iconMargin, 0)
                     }
                     scaleType = ScaleType.FIT_CENTER
-                    Glide.with(context)
-                         .load(iconUrl)
-                         .placeholder(R.drawable.ic_default_search)
-                         .error(R.drawable.ic_default_search)
-                         .into(this)
+                    
+                    // 根据是否有特定资源ID来加载图标
+                    if (iconResId != 0) {
+                        setImageResource(iconResId)
+                    } else {
+                        val iconUrl = EngineUtil.getEngineIconUrl(key)
+                        Glide.with(context)
+                            .load(iconUrl)
+                            .placeholder(R.drawable.ic_default_search)
+                            .error(R.drawable.ic_default_search)
+                            .into(this)
+                    }
+                    
                     contentDescription = key
+                    
                     setOnClickListener {
                         val query = searchInput?.text.toString()
-                        service.performSearchInWebView(webViewIndex, query, key)
+                        android.util.Log.d("FloatingWindowManager", "AI Engine icon clicked: key=$key, query=$query")
+                        
+                        when (key) {
+                            "deepseek", "chatgpt" -> {
+                                val isDeepSeek = key == "deepseek"
+                                val webView = getXmlDefinedWebViews()[webViewIndex]
+                                
+                                webView?.let { wv ->
+                                    android.util.Log.d("FloatingWindowManager", "选中WebView，索引: $webViewIndex, WebView实例: $wv")
+                                    // 初始化聊天界面 (同时添加JavaScript接口)
+                                    (context as? DualFloatingWebViewService)?.chatManager?.initWebView(wv)
+                                    
+                                    // 如果有初始查询，发送消息
+                                    if (query.isNotBlank()) {
+                                        try {
+                                            android.util.Log.d("FloatingWindowManager", "发送初始查询到WebView: $query, isDeepSeek: $isDeepSeek")
+                                            (context as? DualFloatingWebViewService)?.sendMessageToWebView(query, wv, isDeepSeek)
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("FloatingWindowManager", "发送消息失败: ${e.message}")
+                                            e.printStackTrace()
+                                        }
+                                    }
+                                } ?: android.util.Log.e("FloatingWindowManager", "无法获取WebView实例，索引: $webViewIndex")
+                            }
+                            else -> {
+                                service.performSearchInWebView(webViewIndex, query, key)
+                            }
+                        }
                     }
                 }
-                it.addView(imageView)
+                container.addView(imageView)
             }
         }
 

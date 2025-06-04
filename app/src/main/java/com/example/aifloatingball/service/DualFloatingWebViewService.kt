@@ -22,6 +22,8 @@ import com.example.aifloatingball.ui.webview.WebViewManager
 import com.example.aifloatingball.utils.IntentParser
 import com.example.aifloatingball.utils.SearchParams
 import com.example.aifloatingball.utils.EngineUtil
+import com.example.aifloatingball.manager.ChatManager
+import com.example.aifloatingball.ui.webview.CustomWebView
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -60,6 +62,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private lateinit var textSelectionManager: TextSelectionManager
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var sharedPreferences: SharedPreferences
+    internal lateinit var chatManager: ChatManager
     
     // 广播接收器
     private val broadcastReceiver = object : BroadcastReceiver() {
@@ -148,10 +151,16 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun initializeManagers() {
         Log.d(TAG, "初始化管理器")
         
-        notificationManager = ServiceNotificationManager(this, CHANNEL_ID)
+        notificationManager = ServiceNotificationManager(
+            this,
+            CHANNEL_ID,
+            "Dual Floating WebView Service",
+            "Keeps the floating webview service running"
+        )
         windowManager = FloatingWindowManager(this, this)
         searchEngineHandler = SearchEngineHandler()
         intentParser = IntentParser()
+        chatManager = ChatManager(this)
         
         // 初始化WebViewManager
         val xmlWebViews = windowManager.getXmlDefinedWebViews()
@@ -229,7 +238,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             Log.d(TAG, "处理搜索请求: ${searchParams.query}")
             lastQuery = searchParams.query
             lastEngineKey = searchParams.engineKey
-            handleSearchInternal(searchParams.query ?: "", searchParams.engineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+            handleSearchInternal(searchParams.query, searchParams.engineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
         } else {
             if (lastQuery == null) {
                 Log.d(TAG, "Intent中无搜索参数，加载默认内容 (当前窗口数: $currentWindowCount)")
@@ -322,7 +331,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         }
         
         webViewManager.loadUrlInWebView(webViewIndex, urlToLoad)
-        webViewManager.getWebViews()[webViewIndex]?.let {
+        webViewManager.getWebViews()[webViewIndex].let {
             if(::textSelectionManager.isInitialized) {
                 it.setTextSelectionManager(textSelectionManager)
             } else {
@@ -336,7 +345,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     private fun isAIEngine(engineKey: String): Boolean {
         return engineKey in listOf("chatgpt", "claude", "gemini", "wenxin", "chatglm", 
-                                   "qianwen", "xinghuo", "perplexity", "phind", "poe")
+                                   "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek")
     }
 
     /**
@@ -366,6 +375,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         return currentWindowCount
     }
 
+    fun sendMessageToWebView(message: String, webView: CustomWebView, isDeepSeek: Boolean) {
+        chatManager.sendMessageToWebView(message, webView, isDeepSeek)
+    }
 
     /**
      * 服务绑定

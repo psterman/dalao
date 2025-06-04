@@ -13,6 +13,11 @@
             app:dialogTitle="输入DeepSeek API密钥"
             android:inputType="textPassword"/>
 
+        <Preference
+            app:key="deepseek_chat"
+            app:title="DeepSeek 对话"
+            app:summary="开启DeepSeek AI对话页面" />
+
     </PreferenceCategory>
 
     <PreferenceCategory

@@ -173,7 +173,7 @@ class SettingsManager private constructor(context: Context) {
     // 获取已启用的AI搜索引擎
     fun getEnabledAIEngines(): Set<String> {
         return prefs.getStringSet("enabled_ai_engines", null) ?:
-               AISearchEngine.DEFAULT_AI_ENGINES.take(3).map { it.name }.toSet() // 默认只启用前3个AI搜索引擎
+               AISearchEngine.DEFAULT_AI_ENGINES.filter { it.isChatMode }.map { it.name }.toSet() // 默认启用所有聊天模式的AI搜索引擎
     }
     
     // 保存已启用的AI搜索引擎

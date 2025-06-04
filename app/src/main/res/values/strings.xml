@@ -96,4 +96,6 @@
     <string name="folder_renamed">已重命名文件夹</string>
     <string name="folder_deleted">已删除文件夹</string>
     <string name="folder_default_unchangeable">无法修改默认文件夹</string>
+    <string name="back_button_desc">返回</string>
+    <string name="send_button_desc">发送消息</string>
 </resources> 

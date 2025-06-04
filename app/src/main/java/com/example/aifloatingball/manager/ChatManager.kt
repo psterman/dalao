@@ -9,16 +9,24 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.*
 import java.io.*
+import android.os.Handler
+import android.os.Looper
 
 class ChatManager(private val context: Context) {
     private val settingsManager = SettingsManager.getInstance(context)
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private val chatHistory = mutableListOf<ChatMessage>()
+    private var webViewRef: WebView? = null
+    
+    init {
+        android.util.Log.d("ChatManager", "ChatManager 实例创建， context: $context, webViewRef: $webViewRef")
+    }
     
     data class ChatMessage(
         val role: String,
         val content: String,
-        val timestamp: Long = System.currentTimeMillis()
+        val timestamp: Long = System.currentTimeMillis(),
+        val isLoading: Boolean = false
     )
 
     companion object {
@@ -29,7 +37,7 @@ class ChatManager(private val context: Context) {
             <head>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <style>
-                    body { 
+                    body {
                         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                         margin: 0;
                         padding: 16px;
@@ -119,6 +127,10 @@ class ChatManager(private val context: Context) {
             </head>
             <body>
                 <div id="messages"></div>
+                <div id="input-area" style="display: flex; padding: 10px; border-top: 1px solid #e5e7eb; position: fixed; bottom: 0; left: 0; right: 0; background: #f9fafb;">
+                    <input type="text" id="message-input" placeholder="输入你的消息..." style="flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px;">
+                    <button id="send-button" style="background: #2563eb; color: white; border: none; border-radius: 8px; padding: 10px 15px; margin-left: 10px; cursor: pointer; font-size: 16px;">发送</button>
+                </div>
                 <script>
                     function addMessage(role, content) {
                         var messagesDiv = document.getElementById('messages');
@@ -136,8 +148,7 @@ class ChatManager(private val context: Context) {
                         messageDiv.className = 'message ' + role;
                         
                         // 处理代码块
-                        content = content.replace(/\\n/g, '\n');  // 先还原换行符
-                        content = content.replace(/```([\\s\\S]*?)```/g, function(match, code) {
+                        content = content.replace(/```([\s\S]*?)```/g, function(match, code) {
                             return '<pre><code>' + code.trim() + '</code></pre>';
                         });
                         
@@ -168,22 +179,69 @@ class ChatManager(private val context: Context) {
                         messagesDiv.appendChild(container);
                         window.scrollTo(0, document.body.scrollHeight);
                     }
+
+                    document.getElementById('send-button').addEventListener('click', function() {
+                        sendMessage();
+                    });
+
+                    document.getElementById('message-input').addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            sendMessage();
+                        }
+                    });
+
+                    function sendMessage() {
+                        var input = document.getElementById('message-input');
+                        var message = input.value.trim();
+                        if (message) {
+                            // 调用 Android 接口发送消息
+                            AndroidChatInterface.sendMessage(message);
+                            input.value = ''; // 清空输入框
+                        }
+                    }
                 </script>
             </body>
             </html>
-        """.trimIndent()
+        """
+
+        // 添加公共方法来获取HTML模板
+        fun getChatHtmlTemplate(): String {
+            return HTML_TEMPLATE
+        }
     }
 
     fun initWebView(webView: WebView) {
+        android.util.Log.d("ChatManager", "initWebView 被调用，WebView实例: $webView")
+        this.webViewRef = webView
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            android.util.Log.d("ChatManager", "WebView 设置已应用: JavaScriptEnabled=$javaScriptEnabled, DomStorageEnabled=$domStorageEnabled")
         }
+        // 添加 JavaScript 接口
+        webView.addJavascriptInterface(AndroidChatInterface(), "AndroidChatInterface")
+        android.util.Log.d("ChatManager", "AndroidChatInterface 已添加到 WebView")
         webView.loadDataWithBaseURL(null, HTML_TEMPLATE, "text/html", "UTF-8", null)
+        android.util.Log.d("ChatManager", "HTML 模板已加载到 WebView")
     }
 
-    fun sendMessage(message: String, webView: WebView, isDeepSeek: Boolean) {
-        // 检查API密钥是否已设置
+    // Android 端与 WebView JavaScript 交互的接口
+    private inner class AndroidChatInterface {
+        @android.webkit.JavascriptInterface
+        fun sendMessage(message: String) {
+            android.util.Log.d("ChatManager", "从 JavaScript 接收到消息: $message")
+            // 在主线程上处理消息发送
+            Handler(Looper.getMainLooper()).post { 
+                webViewRef?.let { wv ->
+                    val isDeepSeek = true
+                    android.util.Log.d("ChatManager", "调用 sendMessageToWebView 发送消息: $message, isDeepSeek: $isDeepSeek")
+                    sendMessageToWebView(message, wv, isDeepSeek)
+                } ?: android.util.Log.e("ChatManager", "webViewRef 为空，无法发送消息")
+            }
+        }
+    }
+
+    fun sendMessageToWebView(message: String, webView: WebView, isDeepSeek: Boolean) {
         if (isDeepSeek) {
             if (settingsManager.getDeepSeekApiKey().isNullOrBlank()) {
                 throw IllegalStateException("请先在设置页面配置 DeepSeek API 密钥")
@@ -194,14 +252,11 @@ class ChatManager(private val context: Context) {
             }
         }
 
-        // 添加用户消息到历史记录
         val userMessage = ChatMessage("user", message)
         chatHistory.add(userMessage)
         
-        // 更新WebView显示
         updateWebViewWithMessage(webView, "user", message)
         
-        // 发送API请求
         scope.launch {
             try {
                 val response = if (isDeepSeek) {
@@ -210,16 +265,13 @@ class ChatManager(private val context: Context) {
                     sendToChatGPT(chatHistory)
                 }
                 
-                // 添加助手回复到历史记录
                 val assistantMessage = ChatMessage("assistant", response)
                 chatHistory.add(assistantMessage)
                 
-                // 更新WebView显示
                 withContext(Dispatchers.Main) {
                     updateWebViewWithMessage(webView, "assistant", response)
                 }
                 
-                // 如果历史记录太长，移除最早的消息
                 if (chatHistory.size > MAX_HISTORY_SIZE) {
                     chatHistory.removeAt(0)
                 }
@@ -231,18 +283,38 @@ class ChatManager(private val context: Context) {
         }
     }
 
+    suspend fun sendMessage(message: String, isDeepSeek: Boolean): String {
+        if (isDeepSeek) {
+            if (settingsManager.getDeepSeekApiKey().isNullOrBlank()) {
+                throw IllegalStateException("请先在设置页面配置 DeepSeek API 密钥")
+            }
+        } else {
+            if (settingsManager.getChatGPTApiKey().isNullOrBlank()) {
+                throw IllegalStateException("请先在设置页面配置 ChatGPT API 密钥")
+            }
+        }
+
+        val currentChatHistory = mutableListOf<ChatMessage>()
+        currentChatHistory.add(ChatMessage("user", message))
+
+        return if (isDeepSeek) {
+            sendToDeepSeek(currentChatHistory)
+        } else {
+            sendToChatGPT(currentChatHistory)
+        }
+    }
+
     private fun updateWebViewWithMessage(webView: WebView, role: String, content: String) {
-        // 转义特殊字符
         val escapedContent = content
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("'", "\\'")
+            .replace("\\", "\\\\") // Escapes backslashes
+            .replace("\"", "\"") // Escapes double quotes
+            .replace("\n", "\\n")   // Escapes newlines
+            .replace("\r", "\\r")   // Escapes carriage returns
+            .replace("'", "\\'")   // Escapes single quotes
 
         val js = """
             (function() {
-                addMessage('$role', "$escapedContent");
+                addMessage("$role", "$escapedContent");
             })();
         """.trimIndent()
         
@@ -334,4 +406,4 @@ class ChatManager(private val context: Context) {
     fun clearHistory() {
         chatHistory.clear()
     }
-} 
+}

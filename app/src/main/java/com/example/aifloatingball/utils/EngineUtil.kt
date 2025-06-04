@@ -83,6 +83,7 @@ object EngineUtil {
             "Perplexity" -> "perplexity"
             "Phind" -> "phind"
             "Poe" -> "poe"
+            "deepseek" -> "deepseek"
             else -> engineName.toLowerCase()
         }
     }
@@ -210,7 +211,7 @@ object EngineUtil {
             "xiaohongshu" -> "xiaohongshu.com"
             "wechat" -> "qq.com"
             "qq" -> "qq.com"
-            "chatgpt" -> "openai.com"
+            "chatgpt" -> "com.example.aifloatingball/drawable/ic_chatgpt"
             "claude" -> "claude.ai"
             "gemini" -> "gemini.google.com"
             "wenxin" -> "baidu.com"
@@ -220,9 +221,14 @@ object EngineUtil {
             "perplexity" -> "perplexity.ai"
             "phind" -> "phind.com"
             "poe" -> "poe.com"
+            "deepseek" -> "com.example.aifloatingball/drawable/ic_deepseek"
             else -> "google.com"
         }
-        return getFaviconUrl(domain, size)
+        if (domain.startsWith("com.example.aifloatingball/drawable/")) {
+            return "android.resource://" + domain
+        } else {
+            return getFaviconUrl(domain, size)
+        }
     }
 
     /**

@@ -1,30 +1,31 @@
 package com.example.aifloatingball.utils
 
 import android.content.Intent
+import android.util.Log
 
 /**
- * 搜索参数数据类，包含从Intent中提取的搜索信息
- */
-data class SearchParams(
-    val query: String,
-    val windowCount: Int,
-    val engineKey: String?
-)
-
-/**
- * 意图解析器，负责从Intent中提取信息
+ * Intent解析器，负责解析搜索相关的Intent
  */
 class IntentParser {
-    
+    companion object {
+        private const val TAG = "IntentParser"
+    }
+
     /**
-     * 解析搜索意图，提取搜索参数
-     * @return 如果意图包含有效的搜索查询，则返回SearchParams，否则返回null
+     * 解析搜索Intent
      */
     fun parseSearchIntent(intent: Intent): SearchParams? {
-        val query = intent.getStringExtra("search_query") ?: return null
-        val windowCount = intent.getIntExtra("window_count", 2)
-        val engineKey = intent.getStringExtra("engine_key")
-        
-        return SearchParams(query, windowCount, engineKey)
+        return try {
+            val query = intent.getStringExtra("search_query") ?: ""
+            val windowCount = intent.getIntExtra("window_count", 3)
+            val engineKey = intent.getStringExtra("engine_key")
+            
+            Log.d(TAG, "解析搜索Intent: query='$query', windowCount=$windowCount, engineKey='$engineKey'")
+            
+            SearchParams(query, windowCount, engineKey)
+        } catch (e: Exception) {
+            Log.e(TAG, "解析搜索Intent失败: ${e.message}")
+            null
+        }
     }
 } 

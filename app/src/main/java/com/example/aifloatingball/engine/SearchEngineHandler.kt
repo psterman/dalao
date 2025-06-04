@@ -10,7 +10,7 @@ import android.util.Log
 class SearchEngineHandler {
 
     companion object {
-        const val DEFAULT_ENGINE_KEY = "default_standard" // 或者您希望的默认标准引擎的键名
+        const val DEFAULT_ENGINE_KEY = "baidu" // 修改为百度作为默认搜索引擎
         // 您也可以为AI引擎定义一个默认键，如果需要的话
         // const val DEFAULT_AI_ENGINE_KEY = "default_ai"
         private const val TAG = "SearchEngineHandler"
@@ -39,7 +39,7 @@ class SearchEngineHandler {
                 val aiUrl = EngineUtil.getAISearchEngineUrl(aiEngineKey, encodedQuery)
                 if (aiUrl.isBlank()) {
                     // 如果AI引擎URL为空，返回一个备用URL
-                    "https://www.google.com/search?q=$encodedQuery"
+                    "https://www.baidu.com/s?wd=$encodedQuery"
                 } else {
                     aiUrl
                 }
@@ -48,12 +48,12 @@ class SearchEngineHandler {
             else -> {
                 // 处理标准搜索引擎，包括我们定义的默认标准引擎
                 if (currentEngineKey == DEFAULT_ENGINE_KEY) {
-                    getDefaultSearchUrl(encodedQuery) // 使用内部的默认逻辑
+                    "https://www.baidu.com/s?wd=$encodedQuery" // 使用百度作为默认搜索引擎
                 } else {
                     val standardUrl = EngineUtil.getSearchEngineSearchUrl(currentEngineKey, encodedQuery)
                     if (standardUrl.isBlank()) {
                         // 如果标准引擎URL为空，返回默认URL
-                        getDefaultSearchUrl(encodedQuery)
+                        "https://www.baidu.com/s?wd=$encodedQuery"
                     } else {
                         standardUrl
                     }
@@ -64,7 +64,7 @@ class SearchEngineHandler {
         // 确保返回的URL是有效的，否则返回一个备用URL
         val finalUrl = if (searchUrl.isBlank() || !searchUrl.startsWith("http")) {
             Log.w(TAG, "获取到无效的搜索URL: '$searchUrl'，使用备用URL")
-            "https://www.google.com/search?q=$encodedQuery"
+            "https://www.baidu.com/s?wd=$encodedQuery"
         } else {
             searchUrl
         }

@@ -152,5 +152,11 @@
             android:label="收藏夹"
             android:theme="@style/Theme.AIFloatingBall"
             android:exported="false" />
+
+        <activity
+            android:name=".ui.chat.DeepSeekChatActivity"
+            android:label="DeepSeek 对话"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false" />
     </application>
 </manifest> 
