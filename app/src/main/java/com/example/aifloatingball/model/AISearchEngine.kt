@@ -53,22 +53,6 @@ data class AISearchEngine(
                 searchUrl = "https://chat.openai.com/search?q={query}"
             ),
             AISearchEngine(
-                name = "ChatGPT对话",
-                url = "chat://chatgpt",
-                iconResId = R.drawable.ic_chatgpt,
-                description = "使用API进行ChatGPT对话",
-                searchUrl = "chat://chatgpt?q={query}",
-                isChatMode = true
-            ),
-            AISearchEngine(
-                name = "DeepSeek对话",
-                url = "chat://deepseek",
-                iconResId = R.drawable.ic_deepseek,
-                description = "使用API进行DeepSeek对话",
-                searchUrl = "chat://deepseek?q={query}",
-                isChatMode = true
-            ),
-            AISearchEngine(
                 name = "Claude",
                 url = "https://claude.ai",
                 iconResId = R.drawable.ic_claude,
@@ -90,11 +74,62 @@ data class AISearchEngine(
                 searchUrl = "https://yiyan.baidu.com/search?query={query}"
             ),
             AISearchEngine(
+                name = "智谱清言",
+                url = "https://chatglm.cn",
+                iconResId = R.drawable.ic_chatglm,
+                description = "智谱AI清言",
+                searchUrl = "https://chatglm.cn/main/explore?query={query}"
+            ),
+            AISearchEngine(
                 name = "通义千问",
                 url = "https://qianwen.aliyun.com",
                 iconResId = R.drawable.ic_qianwen,
                 description = "阿里通义千问",
                 searchUrl = "https://qianwen.aliyun.com/search?query={query}"
+            ),
+            AISearchEngine(
+                name = "讯飞星火",
+                url = "https://xinghuo.xfyun.cn",
+                iconResId = R.drawable.ic_xinghuo,
+                description = "讯飞星火认知大模型",
+                searchUrl = "https://xinghuo.xfyun.cn/desk?q={query}"
+            ),
+            AISearchEngine(
+                name = "Perplexity",
+                url = "https://perplexity.ai",
+                iconResId = R.drawable.ic_perplexity,
+                description = "Perplexity AI",
+                searchUrl = "https://perplexity.ai/search?q={query}"
+            ),
+            AISearchEngine(
+                name = "Phind",
+                url = "https://phind.com",
+                iconResId = R.drawable.ic_phind,
+                description = "Phind - AI搜索引擎",
+                searchUrl = "https://phind.com/search?q={query}"
+            ),
+            AISearchEngine(
+                name = "Poe",
+                url = "https://poe.com",
+                iconResId = R.drawable.ic_poe,
+                description = "Poe - 多模型聊天平台",
+                searchUrl = "https://poe.com/search?q={query}"
+            ),
+            AISearchEngine(
+                name = "ChatGPT对话",
+                url = "chat://chatgpt",
+                iconResId = R.drawable.ic_chatgpt,
+                description = "使用API进行ChatGPT对话",
+                searchUrl = "chat://chatgpt?q={query}",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "DeepSeek对话",
+                url = "chat://deepseek",
+                iconResId = R.drawable.ic_deepseek,
+                description = "使用API进行DeepSeek对话",
+                searchUrl = "chat://deepseek?q={query}",
+                isChatMode = true
             )
         )
 

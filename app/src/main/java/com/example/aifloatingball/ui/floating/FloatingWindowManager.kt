@@ -19,6 +19,7 @@ import android.widget.ImageView.ScaleType
 import android.widget.LinearLayout
 import android.widget.ImageView
 import com.example.aifloatingball.R
+import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.ui.webview.CustomWebView
 import com.example.aifloatingball.utils.EngineUtil
@@ -62,9 +63,31 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         context.getSharedPreferences(DualFloatingWebViewService.PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    // Define engine key lists
-    private val aiEngineKeys = listOf("chatgpt", "claude", "gemini", "wenxin", "chatglm", "qianwen", "xinghuo", "perplexity", "phind", "poe")
+    // 定义搜索引擎键列表
     private val standardEngineKeys = listOf("baidu", "google", "bing", "sogou", "360", "quark", "toutiao", "zhihu", "bilibili", "douban", "weibo", "taobao", "jd", "douyin", "xiaohongshu")
+    
+    // 获取启用的AI搜索引擎列表
+    private fun getEnabledAIEngineKeys(): List<String> {
+        val settingsManager = SettingsManager.getInstance(context)
+        val enabledAIEngines: Set<String> = settingsManager.getEnabledAIEngines()
+        
+        // 将名称转换为键名
+        return enabledAIEngines.map { aiEngineName ->
+            when(aiEngineName) {
+                "ChatGPT" -> "chatgpt"
+                "Claude" -> "claude"
+                "Gemini" -> "gemini"
+                "文心一言" -> "wenxin"
+                "智谱清言" -> "chatglm"
+                "通义千问" -> "qianwen"
+                "讯飞星火" -> "xinghuo"
+                "Perplexity" -> "perplexity"
+                "Phind" -> "phind"
+                "Poe" -> "poe"
+                else -> aiEngineName.lowercase()
+            }
+        }
+    }
     
     init {
         initializeWindowManager()
@@ -268,10 +291,15 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         val iconSize = dpToPx(32) // 稍微小一点的图标
         val iconMargin = dpToPx(2) // 间距
 
+        // 获取用户已启用的AI搜索引擎列表
+        val enabledAIEngineKeys = getEnabledAIEngineKeys()
+
         // 填充AI引擎图标
         aiContainer?.let {
             it.removeAllViews()
-            for (key in aiEngineKeys) {
+            
+            // 只添加用户启用的AI搜索引擎
+            for (key in enabledAIEngineKeys) {
                 val iconUrl = EngineUtil.getEngineIconUrl(key)
                 val imageView = ImageView(context).apply {
                     layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
@@ -415,6 +443,29 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     
     fun resetScrollPosition() {
         // mainScrollView?.scrollTo(0, 0) // Removed as mainScrollView is removed
+    }
+    
+    /**
+     * 刷新所有WebView的搜索引擎图标
+     * 此方法供DualFloatingWebViewService调用
+     */
+    fun refreshEngineIcons() {
+        val searchInput = floatingView?.findViewById<EditText>(R.id.dual_search_input)
+        
+        // 获取WebView容器
+        val firstAiContainer = floatingView?.findViewById<LinearLayout>(R.id.first_webview_ai_engine_container)
+        val firstStdContainer = floatingView?.findViewById<LinearLayout>(R.id.first_webview_standard_engine_container)
+        
+        val secondAiContainer = floatingView?.findViewById<LinearLayout>(R.id.second_webview_ai_engine_container)
+        val secondStdContainer = floatingView?.findViewById<LinearLayout>(R.id.second_webview_standard_engine_container)
+        
+        val thirdAiContainer = floatingView?.findViewById<LinearLayout>(R.id.third_webview_ai_engine_container)
+        val thirdStdContainer = floatingView?.findViewById<LinearLayout>(R.id.third_webview_standard_engine_container)
+        
+        // 重新填充搜索引擎图标
+        populateEngineIconsForWebView(0, firstAiContainer, firstStdContainer, searchInput)
+        populateEngineIconsForWebView(1, secondAiContainer, secondStdContainer, searchInput)
+        populateEngineIconsForWebView(2, thirdAiContainer, thirdStdContainer, searchInput)
     }
     
     fun removeFloatingWindow() {

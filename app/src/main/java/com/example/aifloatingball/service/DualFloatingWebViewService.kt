@@ -1,13 +1,18 @@
 package com.example.aifloatingball.service
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
+import android.widget.EditText
+import android.widget.LinearLayout
+import com.example.aifloatingball.R
 import com.example.aifloatingball.engine.SearchEngineHandler
 import com.example.aifloatingball.notification.ServiceNotificationManager
 import com.example.aifloatingball.ui.floating.FloatingWindowManager
@@ -40,6 +45,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         const val KEY_WINDOW_WIDTH = "window_width"
         const val KEY_WINDOW_HEIGHT = "window_height"
         const val KEY_WINDOW_COUNT = "window_count"
+        
+        // 广播动作
+        const val ACTION_UPDATE_AI_ENGINES = "com.example.aifloatingball.ACTION_UPDATE_AI_ENGINES"
+        const val ACTION_UPDATE_MENU = "com.example.aifloatingball.ACTION_UPDATE_MENU"
     }
 
     // 依赖模块
@@ -51,14 +60,22 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private lateinit var textSelectionManager: TextSelectionManager
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var sharedPreferences: SharedPreferences
-
-    // Define engine key lists, needed for performSearchInWebView
-    private val aiEngineKeys = listOf("chatgpt", "claude", "gemini", "wenxin", "chatglm", "qianwen", "xinghuo", "perplexity", "phind", "poe")
-    private val standardEngineKeys = listOf("baidu", "google", "bing", "sogou", "360", "quark", "toutiao", "zhihu", "bilibili", "douban", "weibo", "taobao", "jd", "douyin", "xiaohongshu")
+    
+    // 广播接收器
+    private val broadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                ACTION_UPDATE_AI_ENGINES, ACTION_UPDATE_MENU -> {
+                    // 重新加载WebView的搜索引擎图标
+                    refreshSearchEngineIcons()
+                }
+            }
+        }
+    }
 
     private var currentWindowCount = DEFAULT_WINDOW_COUNT
-    private var lastQuery: String? = null // 用于在切换窗口数量时重新加载内容
-    private var lastEngineKey: String? = null // 用于在切换窗口数量时重新加载内容
+    private var lastQuery: String? = null
+    private var lastEngineKey: String? = null
 
     internal fun isWebViewManagerInitialized(): Boolean = ::webViewManager.isInitialized
     internal fun isSearchEngineHandlerInitialized(): Boolean = ::searchEngineHandler.isInitialized
@@ -93,9 +110,36 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         webViewManager = WebViewManager(this, xmlWebViews)
         textSelectionManager = webViewManager.textSelectionManager
 
+        // 注册广播接收器
+        registerBroadcastReceiver()
+        
         // 创建时，使用默认窗口数量加载一次
         // 确保此时 webViewManager 已经初始化
         handleSearchInternal(lastQuery ?: "", lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+    }
+
+    /**
+     * 注册广播接收器
+     */
+    private fun registerBroadcastReceiver() {
+        val intentFilter = IntentFilter().apply {
+            addAction(ACTION_UPDATE_AI_ENGINES)
+            addAction(ACTION_UPDATE_MENU)
+        }
+        registerReceiver(broadcastReceiver, intentFilter)
+    }
+    
+    /**
+     * 刷新所有WebView的搜索引擎图标
+     */
+    private fun refreshSearchEngineIcons() {
+        try {
+            // 调用windowManager的方法刷新搜索引擎图标
+            windowManager.refreshEngineIcons()
+            Log.d(TAG, "已刷新搜索引擎图标")
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新搜索引擎图标失败", e)
+        }
     }
 
     /**
@@ -262,7 +306,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
         val urlToLoad = if (query.isBlank()) {
             // 如果查询为空，加载引擎的首页
-            if (aiEngineKeys.contains(engineKey)) {
+            if (isAIEngine(engineKey)) {
                 EngineUtil.getAISearchEngineHomeUrl(engineKey)
             } else {
                 EngineUtil.getSearchEngineHomeUrl(engineKey)
@@ -285,6 +329,14 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${it.id} 设置")
             }
         }
+    }
+    
+    /**
+     * 判断是否是AI搜索引擎
+     */
+    private fun isAIEngine(engineKey: String): Boolean {
+        return engineKey in listOf("chatgpt", "claude", "gemini", "wenxin", "chatglm", 
+                                   "qianwen", "xinghuo", "perplexity", "phind", "poe")
     }
 
     /**
@@ -332,6 +384,13 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             saveWindowState(it.x, it.y, it.width, it.height)
         }
         saveWindowCount(currentWindowCount)
+
+        // 注销广播接收器
+        try {
+            unregisterReceiver(broadcastReceiver)
+        } catch (e: Exception) {
+            Log.e(TAG, "注销广播接收器失败", e)
+        }
 
         isRunning = false
         if (::webViewManager.isInitialized) {

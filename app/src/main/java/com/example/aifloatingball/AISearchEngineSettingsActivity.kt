@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.SearchEngineAdapter
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.utils.IconLoader
+import com.example.aifloatingball.service.DualFloatingWebViewService
 
 class AISearchEngineSettingsActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
@@ -67,7 +68,7 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
                 settingsManager.saveEnabledAIEngines(enabledEngines)
                 
                 // 发送广播通知悬浮球服务更新
-                sendBroadcast(Intent("com.example.aifloatingball.ACTION_UPDATE_MENU"))
+                sendBroadcast(Intent(DualFloatingWebViewService.ACTION_UPDATE_AI_ENGINES))
             }
         )
         
@@ -89,7 +90,7 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
         return when (item.itemId) {
             android.R.id.home -> {
                 // 返回按钮点击时也发送更新广播
-                sendBroadcast(Intent("com.example.aifloatingball.ACTION_UPDATE_MENU"))
+                sendBroadcast(Intent(DualFloatingWebViewService.ACTION_UPDATE_AI_ENGINES))
                 finish()
                 true
             }
