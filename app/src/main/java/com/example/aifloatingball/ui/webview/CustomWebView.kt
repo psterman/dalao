@@ -11,6 +11,7 @@ import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
+import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
 import com.example.aifloatingball.ui.text.TextSelectionManager
 
@@ -40,12 +41,65 @@ class CustomWebView @JvmOverloads constructor(
     private var hasSelection = false
     private var initialSelectionMade = false
     
+    // 输入法管理器
+    private var inputMethodManager: InputMethodManager? = null
+    
     init {
         // 启用内建的文本选择功能
         isLongClickable = true
         setOnLongClickListener { 
             // 使用我们自己的长按处理逻辑
             false 
+        }
+        
+        // 初始化输入法管理器
+        inputMethodManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        
+        // 设置WebView属性以更好地支持输入
+        isFocusable = true
+        isFocusableInTouchMode = true
+    }
+    
+    /**
+     * 显示软键盘
+     */
+    fun showSoftKeyboard() {
+        requestFocus()
+        inputMethodManager?.showSoftInput(this, InputMethodManager.SHOW_FORCED)
+    }
+    
+    /**
+     * 隐藏软键盘
+     */
+    fun hideSoftKeyboard() {
+        inputMethodManager?.hideSoftInputFromWindow(windowToken, 0)
+    }
+    
+    /**
+     * 聚焦到特定输入元素并显示键盘
+     */
+    fun focusInputElement(elementId: String) {
+        requestFocus()
+        
+        // 通过JavaScript获取并聚焦输入元素
+        val script = """
+            (function() {
+                var inputElement = document.getElementById('${elementId}');
+                if (inputElement) {
+                    inputElement.focus();
+                    return true;
+                }
+                return false;
+            })();
+        """.trimIndent()
+        
+        evaluateJavascript(script) { result ->
+            if (result == "true") {
+                // 如果成功聚焦到输入元素，显示软键盘
+                Handler(Looper.getMainLooper()).postDelayed({
+                    showSoftKeyboard()
+                }, 200)
+            }
         }
     }
     

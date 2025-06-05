@@ -26,6 +26,7 @@ import com.example.aifloatingball.utils.SearchParams
 import com.example.aifloatingball.utils.EngineUtil
 import com.example.aifloatingball.manager.ChatManager
 import com.example.aifloatingball.ui.webview.CustomWebView
+import android.view.inputmethod.InputMethodManager
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -248,6 +249,35 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 确定要使用的窗口数量
         val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
         currentWindowCount = windowCountToUse
+
+        // 如果是DeepSeek聊天，使用ChatManager处理，并确保输入法能正常工作
+        if (engineKey == "deepseek_chat") {
+            val webView = webViewManager.getWebViews().firstOrNull()
+            if (webView != null) {
+                // 初始化WebView
+                chatManager.initWebView(webView)
+                
+                // 确保WebView可聚焦并接收输入
+                webView.isFocusable = true
+                webView.isFocusableInTouchMode = true
+                
+                // 允许JavaScript执行
+                webView.settings.javaScriptEnabled = true
+                
+                // 设置WebView可见
+                webView.visibility = View.VISIBLE
+                
+                // 让WebView获取焦点
+                webView.requestFocus()
+                
+                // 通过系统级API显示输入法
+                // 延迟显示输入法，确保WebView完全准备好接收输入
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                    imm?.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+                }, 500) // 稍作延迟以确保WebView渲染完成
+            }
+        }
         
         // 加载URL到WebView
         for (i in 0 until windowCountToUse) {
