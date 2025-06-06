@@ -816,14 +816,61 @@
 
         // 功能：完成响应的函数
         function completeResponse(finalContent) {
-            endResponseGeneration();
+            // 确保状态重置，使输入框可以再次使用
+            isGenerating = false;
+            currentResponseElement = null;
+            updateSendButton();
+
+            // 移除打字指示器
+            const typingAnimations = document.querySelectorAll('.typing-animation');
+            typingAnimations.forEach(animation => animation.remove());
+
+            // 处理最后一条消息中的代码块和行内代码
+            const lastMessage = document.querySelector('.message.assistant:last-child');
+            if (lastMessage) {
+                let content = lastMessage.innerHTML;
+
+                // 移除所有<br>标签以便正确处理代码块
+                content = content.replace(/<br>/g, '\n');
+
+                // 处理代码块
+                content = content.replace(/```([\s\S]*?)```/g, function (match, code) {
+                    return '<pre><code>' + code.trim() + '</code></pre>';
+                });
+
+                // 处理行内代码
+                content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+                // 重新添加<br>标签用于换行
+                content = content.replace(/\n/g, '<br>');
+
+                lastMessage.innerHTML = content;
+
+                // 添加复制按钮
+                const copyButton = document.createElement('button');
+                copyButton.className = 'copy-button';
+                copyButton.textContent = '复制';
+                copyButton.onclick = function () {
+                    // 获取纯文本内容
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = content;
+                    const textContent = tempDiv.textContent || tempDiv.innerText || '';
+
+                    navigator.clipboard.writeText(textContent).then(function () {
+                        copyButton.textContent = '已复制';
+                        setTimeout(function () {
+                            copyButton.textContent = '复制';
+                        }, 2000);
+                    });
+                };
+                lastMessage.appendChild(copyButton);
+            }
 
             // 如果有完整的最终内容，保存到历史记录
             if (finalContent) {
                 saveMessageToHistory('assistant', finalContent);
             } else {
                 // 尝试从DOM中获取内容
-                const lastMessage = document.querySelector('.message.assistant:last-child');
                 if (lastMessage) {
                     let content = lastMessage.innerHTML;
                     // 移除HTML标签以获取纯文本
@@ -835,6 +882,9 @@
                     saveMessageToHistory('assistant', textContent);
                 }
             }
+
+            // 确保输入框可用，重置后可再次输入
+            messageInput.focus();
         }
 
         // 如果没有历史记录，开始新对话

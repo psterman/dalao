@@ -13,7 +13,7 @@ class AIApiSettingsActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_settings)
+        setContentView(R.layout.settings_activity)
         
         // 设置标题栏
         supportActionBar?.apply {

@@ -43,7 +43,9 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
     }
     
     private fun setupUI() {
-        findViewById<View>(R.id.titleTextView).visibility = View.VISIBLE
+        // Find the title TextView and set its visibility. Use safe call in case it's not found.
+        // If it's expected to always be present, and it's null, there might be a deeper layout inflation issue.
+        findViewById<View>(R.id.titleTextView)?.visibility = View.VISIBLE
         
         recyclerView = findViewById(R.id.recyclerViewSearchEngines)
         recyclerView.layoutManager = LinearLayoutManager(this)

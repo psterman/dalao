@@ -3,6 +3,7 @@ package com.example.aifloatingball
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
@@ -27,11 +28,12 @@ import com.google.android.material.snackbar.Snackbar
  * 允许用户查看、启用或禁用搜索引擎组合，并管理显示在FloatingWindowService中的快捷方式
  */
 class SearchEngineGroupManagerActivity : AppCompatActivity() {
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var adapter: SearchEngineGroupAdapter
+    private var recyclerView: RecyclerView? = null
+    private var adapter: SearchEngineGroupAdapter? = null
     private lateinit var settingsManager: SettingsManager
     private lateinit var searchEngineManager: SearchEngineManager
-    private lateinit var emptyView: TextView
+    private var emptyView: TextView? = null
+    private var saveButton: MaterialButton? = null
     
     // 启用的搜索引擎组合
     private val enabledGroups = mutableSetOf<String>()
@@ -55,19 +57,31 @@ class SearchEngineGroupManagerActivity : AppCompatActivity() {
         // 获取启用的搜索引擎组合
         enabledGroups.addAll(settingsManager.getEnabledSearchEngineGroups())
         
-        // 初始化视图
+        // 初始化视图并进行空值检查
         emptyView = findViewById(R.id.empty_view)
         recyclerView = findViewById(R.id.recyclerView)
-        recyclerView.layoutManager = LinearLayoutManager(this)
+        saveButton = findViewById(R.id.saveButton)
+
+        if (recyclerView == null || emptyView == null || saveButton == null) {
+            Log.e("SearchEngineGroupManagerActivity", "One or more required views are null. Check layout file.")
+            Toast.makeText(this, "无法加载设置界面", Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+
+        recyclerView?.layoutManager = LinearLayoutManager(this)
         
         // 加载搜索引擎组合并设置适配器
         loadSearchEngineGroups()
         setupAdapter()
         
         // 设置保存按钮
-        findViewById<MaterialButton>(R.id.saveButton).setOnClickListener {
+        saveButton?.setOnClickListener {
             saveSettings()
         }
+
+        // 更新空视图状态
+        updateEmptyViewVisibility()
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -83,7 +97,6 @@ class SearchEngineGroupManagerActivity : AppCompatActivity() {
      */
     private fun loadSearchEngineGroups() {
         searchEngineGroups = searchEngineManager.getSearchEngineGroups()
-        updateEmptyViewVisibility()
     }
     
     /**
@@ -104,7 +117,7 @@ class SearchEngineGroupManagerActivity : AppCompatActivity() {
                 showDeleteConfirmDialog(group, position)
             }
         )
-        recyclerView.adapter = adapter
+        recyclerView?.adapter = adapter
     }
     
     /**
@@ -137,10 +150,10 @@ class SearchEngineGroupManagerActivity : AppCompatActivity() {
         enabledGroups.remove(group.name)
         
         // 更新适配器
-        adapter.updateData(searchEngineGroups)
+        adapter?.updateData(searchEngineGroups)
         
         // 显示提示
-        Snackbar.make(recyclerView, "已删除\"${group.name}\"", Snackbar.LENGTH_SHORT).show()
+        Snackbar.make(findViewById(android.R.id.content), "已删除\"${group.name}\"", Snackbar.LENGTH_SHORT).show()
         
         // 更新空视图状态
         updateEmptyViewVisibility()
@@ -179,11 +192,11 @@ class SearchEngineGroupManagerActivity : AppCompatActivity() {
      */
     private fun updateEmptyViewVisibility() {
         if (searchEngineGroups.isEmpty()) {
-            emptyView.visibility = View.VISIBLE
-            recyclerView.visibility = View.GONE
+            emptyView?.visibility = View.VISIBLE
+            recyclerView?.visibility = View.GONE
         } else {
-            emptyView.visibility = View.GONE
-            recyclerView.visibility = View.VISIBLE
+            emptyView?.visibility = View.GONE
+            recyclerView?.visibility = View.VISIBLE
         }
     }
     

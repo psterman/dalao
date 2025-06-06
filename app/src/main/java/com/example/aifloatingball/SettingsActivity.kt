@@ -202,40 +202,82 @@ class SettingsActivity : AppCompatActivity() {
                 }
             }
 
-            // 菜单管理入口
-            findPreference<Preference>("menu_manager")?.setOnPreferenceClickListener {
-                startActivity(Intent(requireContext(), MenuManagerActivity::class.java))
-                true
-            }
-            
             // 搜索引擎管理入口
-            findPreference<Preference>("search_engine_manager")?.setOnPreferenceClickListener {
+            findPreference<Preference>("search_engine_manager")?.apply {
+                setOnPreferenceClickListener {
+                    try {
                 startActivity(Intent(requireContext(), SearchEngineSettingsActivity::class.java))
                 true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        false
+                    }
+                }
             }
             
-            // AI搜索引擎管理入口
-            findPreference<Preference>("ai_engine_settings")?.setOnPreferenceClickListener {
+            // AI搜索引擎管理入口（移除重复的ai_engine_settings）
+            findPreference<Preference>("ai_search_engine_manager")?.apply {
+                setOnPreferenceClickListener {
+                    try {
                 startActivity(Intent(requireContext(), AISearchEngineSettingsActivity::class.java))
                 true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        false
+                    }
+                }
             }
             
             // 应用搜索设置入口
-            findPreference<Preference>("app_search_settings")?.setOnPreferenceClickListener {
+            findPreference<Preference>("app_search_settings")?.apply {
+                setOnPreferenceClickListener {
+                    try {
                 startActivity(Intent(requireContext(), AppSearchSettingsActivity::class.java))
                 true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        false
+                    }
+                }
             }
             
             // 搜索引擎组合管理入口
-            findPreference<Preference>("search_engine_group_manager")?.setOnPreferenceClickListener {
+            findPreference<Preference>("search_engine_group_manager")?.apply {
+                setOnPreferenceClickListener {
+                    try {
                 startActivity(Intent(requireContext(), SearchEngineGroupManagerActivity::class.java))
                 true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        false
+                    }
+                }
+            }
+
+            // 菜单管理入口
+            findPreference<Preference>("menu_manager")?.apply {
+                setOnPreferenceClickListener {
+                    try {
+                        startActivity(Intent(requireContext(), MenuManagerActivity::class.java))
+                        true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        false
+                    }
+                }
             }
 
             // AI API设置入口
-            findPreference<Preference>("ai_api_settings")?.setOnPreferenceClickListener {
+            findPreference<Preference>("ai_api_settings")?.apply {
+                setOnPreferenceClickListener {
+                    try {
                 startActivity(Intent(requireContext(), AIApiSettingsActivity::class.java))
                 true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        false
+                    }
+                }
             }
             
             // 恢复窗口原始状态

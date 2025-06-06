@@ -188,11 +188,6 @@
             app:key="ai_api_settings"
             app:title="AI API设置"
             app:summary="配置DeepSeek和ChatGPT的API密钥"/>
-            
-        <Preference
-            app:key="ai_engine_settings"
-            app:title="AI搜索引擎管理"
-            app:summary="管理AI搜索引擎"/>
     </PreferenceCategory>
 
 </PreferenceScreen>

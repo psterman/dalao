@@ -517,6 +517,11 @@ class ChatManager(private val context: Context) {
                     throw Exception("请先设置 DeepSeek API 密钥")
                 }
 
+                // 首先发送一个"正在思考"的消息，让用户知道请求已经开始
+                withContext(Dispatchers.Main) {
+                    webView.evaluateJavascript("appendToResponse(\"正在连接 DeepSeek...\");", null)
+                }
+
                 val url = URL(settingsManager.getDeepSeekApiUrl())
                 val connection = url.openConnection() as HttpURLConnection
                 connection.apply {
@@ -524,6 +529,8 @@ class ChatManager(private val context: Context) {
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Authorization", "Bearer $apiKey")
                     doOutput = true
+                    connectTimeout = 30000 // 30秒连接超时
+                    readTimeout = 60000 // 60秒读取超时
                 }
 
                 val requestBody = JSONObject().apply {
@@ -538,10 +545,17 @@ class ChatManager(private val context: Context) {
                     })
                 }
 
+                // 发送请求前通知用户
+                withContext(Dispatchers.Main) {
+                    webView.evaluateJavascript("appendToResponse(\"正在等待回复...\");", null)
+                }
+
+                // 发送请求
                 connection.outputStream.use { os ->
                     os.write(requestBody.toString().toByteArray())
                 }
 
+                // 获取响应
                 val response = connection.inputStream.bufferedReader().use { it.readText() }
                 val jsonResponse = JSONObject(response)
                 val content = jsonResponse.getJSONArray("choices")
@@ -549,12 +563,17 @@ class ChatManager(private val context: Context) {
                     .getJSONObject("message")
                     .getString("content")
 
+                // 清除之前的"正在思考"消息
+                withContext(Dispatchers.Main) {
+                    webView.evaluateJavascript("currentResponseElement.innerHTML = '';", null)
+                }
+
                 // 将完整响应分成多个小块模拟流式响应
                 val chunks = splitIntoChunks(content)
                 val fullResponse = StringBuilder()
 
                 for (chunk in chunks) {
-                    delay(50) // 模拟网络延迟
+                    delay(30) // 减少延迟使响应更流畅
                     fullResponse.append(chunk)
                     
                     // 转义特殊字符
@@ -574,25 +593,28 @@ class ChatManager(private val context: Context) {
                 val assistantMessage = ChatMessage("assistant", fullResponse.toString())
                 chatHistory.add(assistantMessage)
                 
-                // 标记响应已完成，传递完整响应内容
+                // 确保在主线程上执行UI更新
                 withContext(Dispatchers.Main) {
-                    val escapedFullResponse = fullResponse.toString()
-                        .replace("\\", "\\\\")
-                        .replace("\"", "\\\"")
-                        .replace("\n", "\\n")
-                        .replace("\r", "\\r")
-                        .replace("'", "\\'")
-                    webView.evaluateJavascript("completeResponse(\"$escapedFullResponse\");", null)
+                    try {
+                        // 标记响应已完成，完成后状态会重置
+                        webView.evaluateJavascript("completeResponse();", null)
+                    } catch (e: Exception) {
+                        android.util.Log.e("ChatManager", "完成响应时出错: ${e.message}")
+                        // 强制重置状态
+                        webView.evaluateJavascript("isGenerating = false; updateSendButton();", null)
+                    }
                 }
-                
             } catch (e: Exception) {
+                android.util.Log.e("ChatManager", "流式响应发生错误: ${e.message}")
                 withContext(Dispatchers.Main) {
-                    val errorMessage = "错误：${e.message}"
+                    val errorMessage = "错误：${e.message ?: "未知错误"}"
                         .replace("\\", "\\\\")
                         .replace("\"", "\\\"")
                         .replace("\n", "\\n")
                     webView.evaluateJavascript("appendToResponse(\"$errorMessage\");", null)
-                    webView.evaluateJavascript("completeResponse(null);", null)
+                    webView.evaluateJavascript("completeResponse();", null)
+                    // 确保状态重置
+                    webView.evaluateJavascript("isGenerating = false; updateSendButton();", null)
                 }
             }
         }
