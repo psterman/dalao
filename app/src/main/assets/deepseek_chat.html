@@ -240,60 +240,59 @@
             display: block;
         }
 
-        /* 流动回复效果 */
-        .typing-animation {
-            display: inline-block;
-            position: relative;
-            width: 64px;
-            height: 18px;
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+            margin-left: 8px;
         }
 
-        .typing-dot {
-            position: absolute;
-            top: 8px;
-            width: 8px;
+        .typing-indicator span {
             height: 8px;
-            border-radius: 50%;
+            width: 8px;
             background-color: #3498DB;
-            animation: typing-wave 1.5s infinite ease-in-out;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            opacity: 0.4;
+            animation: typing 1s infinite;
         }
 
-        .typing-dot:nth-child(1) {
-            left: 6px;
+        .typing-indicator span:nth-child(1) {
             animation-delay: 0s;
         }
 
-        .typing-dot:nth-child(2) {
-            left: 26px;
+        .typing-indicator span:nth-child(2) {
             animation-delay: 0.2s;
         }
 
-        .typing-dot:nth-child(3) {
-            left: 46px;
+        .typing-indicator span:nth-child(3) {
             animation-delay: 0.4s;
         }
 
-        @keyframes typing-wave {
-
-            0%,
-            60%,
-            100% {
-                transform: translateY(0);
+        @keyframes typing {
+            0% {
                 opacity: 0.4;
             }
 
-            30% {
-                transform: translateY(-4px);
+            50% {
                 opacity: 1;
+            }
+
+            100% {
+                opacity: 0.4;
             }
         }
 
         #input-area {
             display: flex;
-            padding: 16px;
+            padding: 12px;
             border-top: 1px solid #E5E7EB;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
             background: #FFFFFF;
-            position: relative;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
         }
 
         #message-input {
@@ -304,24 +303,10 @@
             font-size: 16px;
             outline: none;
             transition: border 0.2s;
-            min-height: 24px;
-            max-height: 120px;
-            overflow-y: auto;
-            word-break: break-word;
-            -webkit-appearance: none;
-            appearance: none;
-            background-color: #FFFFFF;
-        }
-
-        #message-input:empty:before {
-            content: attr(placeholder);
-            color: #9CA3AF;
-            pointer-events: none;
         }
 
         #message-input:focus {
             border-color: #3498DB;
-            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
         }
 
         #send-button {
@@ -333,15 +318,10 @@
             height: 44px;
             margin-left: 10px;
             cursor: pointer;
+            font-size: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
-        }
-
-        #send-button:disabled {
-            background: #D1D5DB;
-            cursor: not-allowed;
         }
     </style>
 </head>
@@ -349,45 +329,51 @@
 <body>
     <div class="header">
         <div class="logo-container">
-            <!-- 海豚 logo -->
-            <svg class="logo" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path
-                    d="M13.5 3C13 2 11.5 1 9 1.5C6.5 2 4.5 3.5 3 7C1.5 10.5 0.5 12 0 17C1 17.5 2 16.5 2.5 16C3 17 4.5 18 7 17.5C9.5 17 11.5 15.5 13 12C14.5 8.5 15.5 7 16 2C15 1.5 14 2.5 13.5 3Z"
-                    fill="#3498DB" />
-                <path d="M13.5 7C14.5 5.5 17 3.5 20 5C23 6.5 24 11 22 16C21 14 18.5 12.5 16 14C16.5 11.5 16 9 13.5 7Z"
-                    fill="#3498DB" />
-                <path
-                    d="M14 16.5C15 18 17.5 20 20.5 18.5C23.5 17 24 12.5 22 7.5C21 9.5 18.5 11 16 9.5C16.5 12 16 14.5 14 16.5Z"
-                    fill="#2980B9" />
+            <svg class="logo" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 6L6 34H34L20 6Z" fill="#3498DB" />
             </svg>
-            <div class="logo-text">DeepSeek</div>
+            <span class="logo-text">DeepSeek</span>
         </div>
         <div class="header-buttons">
             <button class="new-chat-btn" id="new-chat-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 4V20M4 12H20" stroke="#3498DB" stroke-width="2" stroke-linecap="round" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                        d="M12 4C11.45 4 11 4.45 11 5V11H5C4.45 11 4 11.45 4 12C4 12.55 4.45 13 5 13H11V19C11 19.55 11.45 20 12 20C12.55 20 13 19.55 13 19V13H19C19.55 13 20 12.55 20 12C20 11.45 19.55 11 19 11H13V5C13 4.45 12.55 4 12 4Z"
+                        fill="#3498DB" />
                 </svg>
                 新对话
             </button>
             <button class="history-btn" id="history-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#5D6D7E" stroke-width="2"
-                        stroke-linecap="round" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 6H20V8H4V6ZM4 11H20V13H4V11ZM4 16H20V18H4V16Z" fill="#5D6D7E" />
                 </svg>
-                历史记录
+                历史
             </button>
         </div>
     </div>
 
     <div class="main-container">
-        <div class="chat-history" id="chat-history">
-            <!-- 历史记录将在这里动态添加 -->
-        </div>
-
-        <div class="chat-container">
-            <div id="messages">
-                <!-- 消息内容 -->
+        <div class="chat-history" id="chat-history-panel">
+            <div id="history-list">
+                <!-- 历史对话列表将在这里渲染 -->
             </div>
+        </div>
+        <div class="chat-container">
+            <div id="welcome-section" class="welcome-container">
+                <h1 class="welcome-title">欢迎使用 DeepSeek 智能助手</h1>
+                <p class="welcome-text">DeepSeek 是一个强大的 AI 助手，可以帮助你解决各种问题、进行创意写作、提供信息或只是聊天交流。</p>
+
+                <div class="example-queries">
+                    <div class="example-title">你可以尝试以下问题：</div>
+                    <div class="example-button" onclick="useExample('如何提高英语口语水平？')">如何提高英语口语水平？</div>
+                    <div class="example-button" onclick="useExample('写一个关于春天的短诗')">写一个关于春天的短诗</div>
+                    <div class="example-button" onclick="useExample('解释量子计算的基本原理')">解释量子计算的基本原理</div>
+                    <div class="example-button" onclick="useExample('帮我写一个简单的Python爬虫程序')">帮我写一个简单的Python爬虫程序</div>
+                </div>
+            </div>
+
+            <div id="messages"></div>
+            <div id="status-message" class="error-message" style="display:none;"></div>
 
             <div id="input-area">
                 <div id="message-input" contenteditable="true" placeholder="输入你的消息..." inputmode="text"
@@ -402,500 +388,342 @@
     </div>
 
     <script>
-        // 全局变量
         let isGenerating = false;
-        let currentResponseElement = null;
-        let currentChatId = Date.now().toString();
-        let chatHistory = [];
+        let currentChatId = null; // 用于管理当前聊天ID
+        let currentResponseElement = null; // 用于跟踪当前正在接收流式响应的元素
 
-        // DOM 元素
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-button');
+        const welcomeSection = document.getElementById('welcome-section');
         const messagesContainer = document.getElementById('messages');
-        const historyContainer = document.getElementById('chat-history');
-        const newChatBtn = document.getElementById('new-chat-btn');
+        const statusMessageDiv = document.getElementById('status-message');
         const historyBtn = document.getElementById('history-btn');
+        const newChatBtn = document.getElementById('new-chat-btn');
+        const chatHistoryPanel = document.getElementById('chat-history-panel');
+        const historyList = document.getElementById('history-list');
 
-        // 初始化
-        initInputArea();
-        loadChatHistory();
+        let chatHistory = []; // 用于存储聊天历史 (改为let以便JSON.parse重新赋值)
 
-        // 功能：初始化输入区域
-        function initInputArea() {
-            const messageInput = document.getElementById('message-input');
+        function hideWelcomeSection() {
+            if (welcomeSection) {
+                welcomeSection.style.display = 'none';
+            }
+        }
 
-            // 监听输入事件以更新发送按钮状态
-            messageInput.addEventListener('input', function () {
-                updateSendButton();
-                // 如果输入内容过长，自动滚动到底部
-                this.scrollTop = this.scrollHeight;
-            });
-
-            // 监听键盘事件来处理回车发送
-            messageInput.addEventListener('keydown', function (e) {
-                // 在Android中，Enter键可能有不同的keyCode
-                if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                    return false;
-                }
-            });
-
-            // 修复Android WebView中contenteditable的placeholder问题 (当内容为空时)
-            messageInput.addEventListener('blur', function (e) {
-                if (this.textContent.trim() === '') {
-                    this.innerHTML = ''; // 清空内容以确保placeholder显示
-                }
-            });
-
-            // 监听页面大小变化（当输入法弹出时），滚动到底部
-            window.addEventListener('resize', function () {
-                setTimeout(function () {
-                    window.scrollTo(0, document.body.scrollHeight);
-                }, 100);
-            });
-
-            // 点击发送按钮
-            sendButton.addEventListener('click', sendMessage);
-
-            // 初始化发送按钮状态
+        function useExample(text) {
+            messageInput.textContent = text;
             updateSendButton();
         }
 
-        // 功能：更新发送按钮状态
+        function showErrorMessage(message) {
+            if (statusMessageDiv) {
+                statusMessageDiv.textContent = message;
+                statusMessageDiv.style.display = 'block';
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }
+
+        function hideErrorMessage() {
+            if (statusMessageDiv) {
+                statusMessageDiv.style.display = 'none';
+                statusMessageDiv.textContent = '';
+            }
+        }
+
+        function showTypingIndicator() {
+            hideErrorMessage();
+            const lastAssistantMessage = messagesContainer.lastElementChild;
+            if (lastAssistantMessage && lastAssistantMessage.classList.contains('assistant-container')) {
+                let typingDiv = lastAssistantMessage.querySelector('.typing-indicator');
+                if (!typingDiv) {
+                    typingDiv = document.createElement('div');
+                    typingDiv.className = 'typing-indicator';
+                    typingDiv.innerHTML = '<span></span><span></span><span></span>';
+                    lastAssistantMessage.querySelector('.message-content').appendChild(typingDiv);
+                }
+                typingDiv.style.display = 'inline-flex';
+            }
+        }
+
+        function removeTypingIndicator() {
+            const typingDiv = messagesContainer.querySelector('.typing-indicator');
+            if (typingDiv) {
+                typingDiv.style.display = 'none';
+            }
+        }
+
+        function addMessageToUI(role, content, isComplete = true) {
+            hideWelcomeSection();
+            hideErrorMessage();
+            const messageContainer = document.createElement('div');
+            messageContainer.className = 'message-container ' + role + '-container';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar ' + role;
+            avatar.textContent = role === 'user' ? '你' : 'AI';
+
+            const messageContentDiv = document.createElement('div');
+            messageContentDiv.className = 'message-content';
+
+            const roleLabel = document.createElement('div');
+            roleLabel.className = 'role-label';
+            roleLabel.textContent = role === 'user' ? '你' : 'AI';
+            messageContentDiv.appendChild(roleLabel);
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.innerHTML = markdownToHtml(content);
+            messageContentDiv.appendChild(messageDiv);
+
+            if (role === 'assistant' && !isComplete) {
+                let typingDiv = document.createElement('div');
+                typingDiv.className = 'typing-indicator';
+                typingDiv.innerHTML = '<span></span><span></span><span></span>';
+                messageContentDiv.appendChild(typingDiv);
+                currentResponseElement = messageDiv; // Store reference to current assistant message div
+            } else if (role === 'assistant' && isComplete) {
+                currentResponseElement = null; // Clear if complete
+            }
+
+            messageContainer.appendChild(avatar);
+            messageContainer.appendChild(messageContentDiv);
+            messagesContainer.appendChild(messageContainer);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            updateSendButton();
+        }
+
+        // This function will be called for streaming updates
+        function appendToResponse(content) {
+            if (currentResponseElement) {
+                currentResponseElement.innerHTML += markdownToHtml(content);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } else {
+                addMessageToUI('assistant', content, false);
+            }
+        }
+
+        // This function will be called when the response is complete
+        function completeResponse(finalContent = '') {
+            if (currentResponseElement) {
+                if (finalContent) {
+                    currentResponseElement.innerHTML = markdownToHtml(finalContent);
+                }
+                currentResponseElement = null;
+            }
+            removeTypingIndicator();
+            isGenerating = false;
+            updateSendButton();
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Add event listeners for send button and message input
+        document.getElementById('send-button').addEventListener('click', function () {
+            if (!sendButton.disabled) {
+                sendMessage();
+            }
+        });
+
+        document.getElementById('message-input').addEventListener('keydown', function (e) {
+            if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
+                e.preventDefault();
+                if (!sendButton.disabled) {
+                    sendMessage();
+                }
+                return false;
+            }
+        });
+
+        function sendMessage() {
+            var messageText = messageInput.textContent.trim();
+            if (messageText && !isGenerating) {
+                try {
+                    isGenerating = true;
+                    updateSendButton();
+                    addMessageToUI('user', messageText);
+                    addMessageToUI('assistant', '', false);
+                    showTypingIndicator();
+
+                    console.log("Sending message to AndroidChatInterface: " + messageText);
+                    AndroidChatInterface.sendMessage(messageText);
+
+                    messageInput.textContent = '';
+                    updateSendButton();
+                } catch (error) {
+                    console.error("Error sending message:", error);
+                    showErrorMessage("发送消息失败: " + error.message);
+                    isGenerating = false;
+                    updateSendButton();
+                }
+            }
+        }
+
+        function markdownToHtml(markdown) {
+            let html = markdown
+                .replace(/```(.*?)```/gs, function (match, p1) { return '<pre><code>' + escapeHtml(p1.trim()) + '</code></pre>'; })
+                .replace(/`(.*?)`/g, function (match, p1) { return '<code>' + escapeHtml(p1) + '</code>'; })
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/^- (.*)/gm, '<li>$1</li>')
+                .replace(/\\n/g, '<br/>');
+
+            let listItems = html.match(/^\d+\. (.*)$/gm);
+            if (listItems) {
+                html = html.replace(/^\d+\. (.*)$/gm, '<li>$1</li>');
+                if (!html.includes('<ol>')) {
+                    html = '<ol>' + html + '</ol>';
+                }
+            }
+            return html;
+        }
+
         function updateSendButton() {
             const text = messageInput.textContent.trim();
             sendButton.disabled = text === '' || isGenerating;
+
+            if (sendButton.disabled) {
+                sendButton.style.opacity = '0.5';
+            } else {
+                sendButton.style.opacity = '1';
+            }
         }
 
-        // 功能：加载聊天历史记录
+        messageInput.addEventListener('input', function () {
+            updateSendButton();
+        });
+
+        messageInput.addEventListener('focus', function () {
+            updateSendButton();
+        });
+
+        // This function will be called by Android to update the UI with streaming content
+        // It's important to keep the naming consistent with Android's evaluateJavascript calls.
+        function updateAssistantMessageContent(newContent) {
+            if (currentResponseElement) {
+                currentResponseElement.innerHTML = markdownToHtml(newContent);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }
+
+        // This function will be called by Android when streaming is complete
+        function finalizeAssistantMessage() {
+            completeResponse();
+        }
+
+        // 功能：加载聊天历史记录 (从 Android 加载)
         function loadChatHistory() {
             try {
-                // 尝试从 localStorage 加载历史记录（如果在 WebView 中可用）
-                const savedHistory = localStorage.getItem('deepseekChatHistory');
-                if (savedHistory) {
-                    chatHistory = JSON.parse(savedHistory);
-                    renderHistoryList();
+                const historyJson = AndroidChatInterface.getChatHistoryJson();
+                if (historyJson) {
+                    chatHistory = JSON.parse(historyJson);
+                    if (chatHistory.length > 0) {
+                        const recentChat = chatHistory[chatHistory.length - 1]; // Get the last chat
+                        loadChat(recentChat.id); // Load the most recent chat
+                    }
                 }
+                console.log("Chat history loaded from Android.", chatHistory);
             } catch (e) {
-                console.error('无法加载历史记录:', e);
-                chatHistory = [];
+                console.error("Error loading chat history from Android:", e);
             }
         }
 
-        // 功能：保存聊天历史记录
+        // 功能：保存聊天历史记录 (到 Android)
         function saveChatHistory() {
             try {
-                localStorage.setItem('deepseekChatHistory', JSON.stringify(chatHistory));
+                AndroidChatInterface.saveChatHistory(JSON.stringify(chatHistory));
+                console.log("Chat history saved to Android.");
             } catch (e) {
-                console.error('无法保存历史记录:', e);
+                console.error("Error saving chat history to Android:", e);
             }
         }
 
-        // 功能：渲染历史记录列表
+        // 功能：渲染历史记录列表 (这里简化，实际应用可能需要更复杂的UI)
         function renderHistoryList() {
-            historyContainer.innerHTML = '';
-
-            if (chatHistory.length === 0) {
-                const emptyMsg = document.createElement('div');
-                emptyMsg.className = 'history-item';
-                emptyMsg.innerHTML = '<div class="history-title">没有历史记录</div>';
-                historyContainer.appendChild(emptyMsg);
-                return;
-            }
-
-            // 按时间逆序排列
-            const sortedHistory = [...chatHistory].sort((a, b) => b.timestamp - a.timestamp);
-
-            sortedHistory.forEach(chat => {
-                const historyItem = document.createElement('div');
-                historyItem.className = 'history-item';
-                historyItem.dataset.chatId = chat.id;
-
-                const date = new Date(chat.timestamp);
-                const formattedDate = `${date.getMonth() + 1}月${date.getDate()}日 ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-
-                historyItem.innerHTML = `
-                    <div class="history-title">${chat.title || '新对话'}</div>
-                    <div class="history-date">${formattedDate}</div>
-                `;
-
-                historyItem.addEventListener('click', () => loadChat(chat.id));
-                historyContainer.appendChild(historyItem);
+            historyList.innerHTML = ''; // Clear existing list
+            chatHistory.forEach(chat => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.setAttribute('data-chat-id', chat.id);
+                item.innerHTML = `<div class="history-title">${escapeHtml(chat.title)}</div><div class="history-date">${new Date(chat.timestamp).toLocaleString()}</div>`;
+                item.onclick = () => loadChat(chat.id);
+                historyList.appendChild(item);
             });
         }
 
-        // 功能：切换历史记录面板
-        historyBtn.addEventListener('click', function () {
-            historyContainer.classList.toggle('open');
-        });
-
         // 功能：创建新对话
-        newChatBtn.addEventListener('click', function () {
+        document.getElementById('new-chat-btn').addEventListener('click', function () {
             startNewChat();
         });
 
-        // 功能：开始新对话
         function startNewChat() {
-            // 生成新的聊天ID
-            currentChatId = Date.now().toString();
+            currentChatId = Date.now().toString(); // Use a unique ID for new chat
+            messagesContainer.innerHTML = ''; // Clear messages from UI
+            hideErrorMessage();
+            messageInput.textContent = '';
+            updateSendButton();
 
-            // 清空消息区域
-            messagesContainer.innerHTML = '';
+            // Clear history in Android side
+            AndroidChatInterface.clearChatHistory();
+            chatHistory.length = 0; // Clear JS side history
 
-            // 添加新的聊天记录
+            // Hide welcome section if it's a new chat after some messages
+            hideWelcomeSection();
+
             const newChat = {
                 id: currentChatId,
                 title: '新对话',
                 timestamp: Date.now(),
                 messages: []
             };
-
             chatHistory.push(newChat);
             saveChatHistory();
             renderHistoryList();
-
-            // 关闭历史面板
-            historyContainer.classList.remove('open');
+            chatHistoryPanel.classList.remove('open');
         }
 
         // 功能：加载指定ID的聊天
         function loadChat(chatId) {
-            const chat = chatHistory.find(c => c.id === chatId);
-            if (!chat) return;
-
-            currentChatId = chatId;
-            messagesContainer.innerHTML = '';
-
-            // 渲染消息
-            chat.messages.forEach(msg => {
-                addMessageToUI(msg.role, msg.content, true);
-            });
-
-            // 关闭历史面板
-            historyContainer.classList.remove('open');
-        }
-
-        // 功能：添加消息到UI
-        function addMessageToUI(role, content, isComplete = true) {
-            // 如果是新消息
-            if (!currentResponseElement || role === 'user' || isComplete) {
-                const container = document.createElement('div');
-                container.className = 'message-container ' + role + '-container';
-
-                // 添加头像
-                const avatar = document.createElement('div');
-                avatar.className = 'avatar ' + role;
-                if (role === 'user') {
-                    avatar.textContent = '你';
-                } else {
-                    // DeepSeek 海豚 logo 作为头像
-                    avatar.innerHTML = `
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M13.5 3C13 2 11.5 1 9 1.5C6.5 2 4.5 3.5 3 7C1.5 10.5 0.5 12 0 17C1 17.5 2 16.5 2.5 16C3 17 4.5 18 7 17.5C9.5 17 11.5 15.5 13 12C14.5 8.5 15.5 7 16 2C15 1.5 14 2.5 13.5 3Z" fill="#3498DB"/>
-                        <path d="M13.5 7C14.5 5.5 17 3.5 20 5C23 6.5 24 11 22 16C21 14 18.5 12.5 16 14C16.5 11.5 16 9 13.5 7Z" fill="#3498DB"/>
-                    </svg>
-                    `;
-                }
-
-                const messageContent = document.createElement('div');
-                messageContent.className = 'message-content';
-
-                const roleLabel = document.createElement('div');
-                roleLabel.className = 'role-label';
-                roleLabel.textContent = role === 'user' ? '你' : 'DeepSeek';
-                messageContent.appendChild(roleLabel);
-
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'message ' + role;
-
-                // 只在完整消息上处理格式
-                if (isComplete && role === 'assistant') {
-                    // 处理代码块
-                    content = content.replace(/```([\s\S]*?)```/g, function (match, code) {
-                        return '<pre><code>' + code.trim() + '</code></pre>';
-                    });
-
-                    // 处理行内代码
-                    content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
-                }
-
-                // 处理换行
-                content = content.replace(/\n/g, '<br>');
-
-                messageDiv.innerHTML = content;
-
-                // 如果是助手且不是完整消息，添加流动式打字指示器
-                if (role === 'assistant' && !isComplete) {
-                    const typingAnimation = document.createElement('div');
-                    typingAnimation.className = 'typing-animation';
-                    typingAnimation.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
-                    messageDiv.appendChild(typingAnimation);
-                }
-
-                messageContent.appendChild(messageDiv);
-
-                // 添加复制按钮（只对完整消息添加）
-                if (isComplete) {
-                    const copyButton = document.createElement('button');
-                    copyButton.className = 'copy-button';
-                    copyButton.textContent = '复制';
-                    copyButton.onclick = function () {
-                        // 获取纯文本内容
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = content;
-                        const textContent = tempDiv.textContent || tempDiv.innerText || '';
-
-                        navigator.clipboard.writeText(textContent).then(function () {
-                            copyButton.textContent = '已复制';
-                            setTimeout(function () {
-                                copyButton.textContent = '复制';
-                            }, 2000);
-                        });
-                    };
-                    messageDiv.appendChild(copyButton);
-                }
-
-                container.appendChild(avatar);
-                container.appendChild(messageContent);
-                messagesContainer.appendChild(container);
-
-                if (role === 'assistant' && !isComplete) {
-                    currentResponseElement = messageDiv;
-                } else {
-                    currentResponseElement = null;
-                }
-            } else {
-                // 更新现有消息
-                content = content.replace(/\n/g, '<br>');
-                // 移除末尾的流动式指示器
-                const typingAnimation = currentResponseElement.querySelector('.typing-animation');
-                if (typingAnimation) {
-                    typingAnimation.remove();
-                }
-                // 添加新内容
-                currentResponseElement.innerHTML += content;
-                // 重新添加流动式指示器
-                if (!isComplete) {
-                    const typingAnimation = document.createElement('div');
-                    typingAnimation.className = 'typing-animation';
-                    typingAnimation.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
-                    currentResponseElement.appendChild(typingAnimation);
-                }
-            }
-
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        // 功能：保存消息到历史记录
-        function saveMessageToHistory(role, content) {
-            // 查找当前聊天记录
-            let currentChat = chatHistory.find(c => c.id === currentChatId);
-
-            // 如果没有找到，创建新的
-            if (!currentChat) {
-                currentChat = {
-                    id: currentChatId,
-                    title: '新对话',
-                    timestamp: Date.now(),
-                    messages: []
-                };
-                chatHistory.push(currentChat);
-            }
-
-            // 添加消息
-            currentChat.messages.push({
-                role,
-                content,
-                timestamp: Date.now()
-            });
-
-            // 如果是第一条用户消息，更新标题
-            if (role === 'user' && currentChat.messages.filter(m => m.role === 'user').length === 1) {
-                // 取前20个字符作为标题
-                currentChat.title = content.length > 20 ? content.substring(0, 20) + '...' : content;
-            }
-
-            // 更新时间戳
-            currentChat.timestamp = Date.now();
-
-            // 保存历史记录
-            saveChatHistory();
-            renderHistoryList();
-        }
-
-        // 功能：开始响应生成
-        function startResponseGeneration() {
-            isGenerating = true;
-            updateSendButton();
-        }
-
-        // 功能：结束响应生成
-        function endResponseGeneration() {
-            isGenerating = false;
-            currentResponseElement = null;
-            updateSendButton();
-
-            // 移除打字指示器
-            const typingAnimations = document.querySelectorAll('.typing-animation');
-            typingAnimations.forEach(animation => animation.remove());
-
-            // 处理最后一条消息中的代码块和行内代码
-            const lastMessage = document.querySelector('.message.assistant:last-child');
-            if (lastMessage) {
-                let content = lastMessage.innerHTML;
-
-                // 移除所有<br>标签以便正确处理代码块
-                content = content.replace(/<br>/g, '\n');
-
-                // 处理代码块
-                content = content.replace(/```([\s\S]*?)```/g, function (match, code) {
-                    return '<pre><code>' + code.trim() + '</code></pre>';
+            const chatToLoad = chatHistory.find(chat => chat.id === chatId);
+            if (chatToLoad) {
+                messagesContainer.innerHTML = ''; // Clear current messages
+                chatToLoad.messages.forEach(msg => {
+                    addMessageToUI(msg.role, msg.content, true);
                 });
-
-                // 处理行内代码
-                content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-                // 重新添加<br>标签用于换行
-                content = content.replace(/\n/g, '<br>');
-
-                lastMessage.innerHTML = content;
-
-                // 添加复制按钮
-                const copyButton = document.createElement('button');
-                copyButton.className = 'copy-button';
-                copyButton.textContent = '复制';
-                copyButton.onclick = function () {
-                    // 获取纯文本内容
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = content;
-                    const textContent = tempDiv.textContent || tempDiv.innerText || '';
-
-                    navigator.clipboard.writeText(textContent).then(function () {
-                        copyButton.textContent = '已复制';
-                        setTimeout(function () {
-                            copyButton.textContent = '复制';
-                        }, 2000);
-                    });
-                };
-                lastMessage.appendChild(copyButton);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                hideWelcomeSection(); // Hide welcome section when a chat is loaded
+                currentChatId = chatId; // Set current chat ID
             }
         }
 
-        // 功能：发送消息
-        function sendMessage() {
-            const messageText = messageInput.textContent.trim();
-            if (messageText && !isGenerating) {
-                // 添加用户消息到UI
-                addMessageToUI('user', messageText);
-
-                // 保存用户消息到历史记录
-                saveMessageToHistory('user', messageText);
-
-                // 开始生成回复
-                startResponseGeneration();
-
-                // 添加一个空的助手消息作为初始响应
-                addMessageToUI('assistant', '', false);
-
-                // 调用 Android 接口发送消息
-                AndroidChatInterface.sendMessage(messageText);
-
-                // 清空输入框
-                messageInput.textContent = '';
-                updateSendButton();
+        // 功能：切换历史记录面板
+        historyBtn.addEventListener('click', function () {
+            chatHistoryPanel.classList.toggle('open');
+            if (chatHistoryPanel.classList.contains('open')) {
+                renderHistoryList(); // Render history when opening
             }
-        }
+        });
 
-        // 功能：处理流式响应的函数
-        function appendToResponse(content) {
-            if (isGenerating) {
-                addMessageToUI('assistant', content, false);
-            }
-        }
-
-        // 功能：完成响应的函数
-        function completeResponse(finalContent) {
-            // 确保状态重置，使输入框可以再次使用
-            isGenerating = false;
-            currentResponseElement = null;
-            updateSendButton();
-
-            // 移除打字指示器
-            const typingAnimations = document.querySelectorAll('.typing-animation');
-            typingAnimations.forEach(animation => animation.remove());
-
-            // 处理最后一条消息中的代码块和行内代码
-            const lastMessage = document.querySelector('.message.assistant:last-child');
-            if (lastMessage) {
-                let content = lastMessage.innerHTML;
-
-                // 移除所有<br>标签以便正确处理代码块
-                content = content.replace(/<br>/g, '\n');
-
-                // 处理代码块
-                content = content.replace(/```([\s\S]*?)```/g, function (match, code) {
-                    return '<pre><code>' + code.trim() + '</code></pre>';
-                });
-
-                // 处理行内代码
-                content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-                // 重新添加<br>标签用于换行
-                content = content.replace(/\n/g, '<br>');
-
-                lastMessage.innerHTML = content;
-
-                // 添加复制按钮
-                const copyButton = document.createElement('button');
-                copyButton.className = 'copy-button';
-                copyButton.textContent = '复制';
-                copyButton.onclick = function () {
-                    // 获取纯文本内容
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = content;
-                    const textContent = tempDiv.textContent || tempDiv.innerText || '';
-
-                    navigator.clipboard.writeText(textContent).then(function () {
-                        copyButton.textContent = '已复制';
-                        setTimeout(function () {
-                            copyButton.textContent = '复制';
-                        }, 2000);
-                    });
-                };
-                lastMessage.appendChild(copyButton);
-            }
-
-            // 如果有完整的最终内容，保存到历史记录
-            if (finalContent) {
-                saveMessageToHistory('assistant', finalContent);
+        // 页面加载完成后调用
+        window.onload = function () {
+            loadChatHistory();
+            if (chatHistory.length === 0) {
+                startNewChat(); // If no history, start a new chat
             } else {
-                // 尝试从DOM中获取内容
-                if (lastMessage) {
-                    let content = lastMessage.innerHTML;
-                    // 移除HTML标签以获取纯文本
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = content;
-                    const textContent = tempDiv.textContent || tempDiv.innerText || '';
-
-                    // 保存到历史记录
-                    saveMessageToHistory('assistant', textContent);
+                // If there's history, load the most recent one
+                const recentChat = [...chatHistory].sort((a, b) => b.timestamp - a.timestamp)[0];
+                if (recentChat) {
+                    loadChat(recentChat.id);
                 }
             }
+            updateSendButton(); // Initial state for send button
+        };
 
-            // 确保输入框可用，重置后可再次输入
-            messageInput.focus();
-        }
-
-        // 如果没有历史记录，开始新对话
-        if (chatHistory.length === 0) {
-            startNewChat();
-        } else {
-            // 加载最近的聊天
-            const recentChat = [...chatHistory].sort((a, b) => b.timestamp - a.timestamp)[0];
-            if (recentChat) {
-                loadChat(recentChat.id);
-            }
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
     </script>
 </body>

@@ -254,6 +254,25 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         if (engineKey == "deepseek_chat") {
             val webView = webViewManager.getWebViews().firstOrNull()
             if (webView != null) {
+                Log.d(TAG, "初始化DeepSeek聊天界面")
+                
+                // 确保其他网页视图隐藏
+                for (i in 1 until webViewManager.getWebViews().size) {
+                    webViewManager.getWebViews()[i].visibility = View.GONE
+                }
+                
+                // 确保首个WebView可见
+                webView.visibility = View.VISIBLE
+                
+                // 初始化WebView前进行一些重置
+                try {
+                    webView.stopLoading()
+                    webView.clearHistory()
+                    webView.clearCache(true)
+                } catch (e: Exception) {
+                    Log.e(TAG, "重置WebView状态失败: ${e.message}")
+                }
+                
                 // 初始化WebView
                 chatManager.initWebView(webView)
                 
@@ -264,9 +283,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 // 允许JavaScript执行
                 webView.settings.javaScriptEnabled = true
                 
-                // 设置WebView可见
-                webView.visibility = View.VISIBLE
-                
                 // 让WebView获取焦点
                 webView.requestFocus()
                 
@@ -275,7 +291,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 Handler(Looper.getMainLooper()).postDelayed({
                     val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                     imm?.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
-                }, 500) // 稍作延迟以确保WebView渲染完成
+                }, 1000) // 增加延迟时间以确保WebView渲染完成
+                
+                return // 已经处理了DeepSeek聊天，不需要继续处理其他WebView
             }
         }
         
@@ -400,8 +418,67 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         return currentWindowCount
     }
 
+    /**
+     * 发送消息到WebView
+     */
     fun sendMessageToWebView(message: String, webView: CustomWebView, isDeepSeek: Boolean) {
-        chatManager.sendMessageToWebView(message, webView, isDeepSeek)
+        // 验证消息不为空
+        if (message.trim().isEmpty()) {
+            Log.w(TAG, "尝试发送空消息，忽略")
+            return
+        }
+        
+        try {
+            Log.d(TAG, "准备发送消息到WebView: '$message', isDeepSeek=$isDeepSeek")
+            
+            // 强制添加JavaScript接口确保可用
+            try {
+                webView.removeJavascriptInterface("AndroidChatInterface")
+            } catch (e: Exception) {
+                // 忽略可能的异常
+            }
+            chatManager.initWebView(webView)
+            
+            // 确保WebView已就绪
+            webView.evaluateJavascript("document.readyState", { readyState ->
+                Log.d(TAG, "WebView状态: $readyState")
+                if (readyState == "null" || readyState == "\"loading\"") {
+                    Log.w(TAG, "WebView未准备好，等待加载完成后再发送")
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        chatManager.sendMessageToWebView(message, webView, isDeepSeek)
+                    }, 1000)
+                } else {
+                    Log.d(TAG, "WebView已准备好，直接发送消息")
+                    // 直接调用JS来添加用户消息并触发发送
+                    webView.evaluateJavascript("""
+                        (function() {
+                            try {
+                                // 添加用户消息到UI
+                                addMessageToUI('user', '${message.replace("'", "\\'")}');
+                                
+                                // 添加助手占位符和打字指示器
+                                addMessageToUI('assistant', '', false);
+                                showTypingIndicator();
+                                
+                                // 直接调用Android接口发送消息
+                                AndroidChatInterface.sendMessage('${message.replace("'", "\\'")}');
+                                
+                                return true;
+                            } catch(e) {
+                                console.error("发送消息时出错:", e);
+                                return false;
+                            }
+                        })();
+                    """, null)
+                }
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "发送消息到WebView失败: ${e.message}", e)
+            // 如果直接调用失败，则回退到原始方法
+            Handler(Looper.getMainLooper()).postDelayed({
+                chatManager.sendMessageToWebView(message, webView, isDeepSeek)
+            }, 500)
+        }
     }
 
     /**

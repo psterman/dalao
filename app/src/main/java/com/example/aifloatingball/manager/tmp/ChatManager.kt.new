@@ -1,0 +1,70 @@
+/**
+ * 安全地在WebView中执行JavaScript代码
+ */
+private fun safeEvaluateJavascript(webView: WebView?, script: String, callback: ((String) -> Unit)? = null) {
+    if (webView == null) {
+        Log.e("ChatManager", "尝试执行JS但WebView为null: $script")
+        return
+    }
+    
+    try {
+        Handler(Looper.getMainLooper()).post {
+            try {
+                webView.evaluateJavascript(script) { result ->
+                    callback?.invoke(result)
+                }
+            } catch (e: Exception) {
+                Log.e("ChatManager", "执行JS失败: $script, 错误: ${e.message}", e)
+            }
+        }
+    } catch (e: Exception) {
+        Log.e("ChatManager", "执行JS失败 (Handler错误): $script, 错误: ${e.message}", e)
+    }
+}
+
+fun initWebView(webView: WebView) {
+    this.webViewRef = webView // Ensure webViewRef is set
+    webView.settings.javaScriptEnabled = true
+    webView.settings.domStorageEnabled = true
+    webView.settings.databaseEnabled = true
+    webView.settings.allowFileAccess = true
+    webView.settings.allowContentAccess = true
+    
+    // 确保WebView可以获得焦点并显示软键盘
+    webView.isFocusable = true
+    webView.isFocusableInTouchMode = true
+    webView.requestFocus()
+    
+    // 添加JavaScript接口 - 确保移除旧的接口以避免重复添加
+    try {
+        webView.removeJavascriptInterface("AndroidChatInterface")
+    } catch (e: Exception) {
+        Log.d("ChatManager", "No previous interface to remove: ${e.message}")
+    }
+    
+    // 添加新的JavaScript接口
+    webView.addJavascriptInterface(AndroidChatInterface(), "AndroidChatInterface")
+    Log.d("ChatManager", "AndroidChatInterface 已添加到 WebView")
+    
+    // 清空聊天历史，确保新会话
+    chatHistory.clear()
+    
+    // 加载HTML内容而不是文件 - 更可靠
+    webView.loadDataWithBaseURL("https://deepseek.ai", HTML_TEMPLATE, "text/html", "UTF-8", null)
+    
+    // 设置网页加载完成的监听器
+    webView.webViewClient = object : android.webkit.WebViewClient() {
+        override fun onPageFinished(view: WebView?, url: String?) {
+            super.onPageFinished(view, url)
+            Log.d("ChatManager", "DeepSeek Chat 网页加载完成")
+            // 确保重置界面状态
+            safeEvaluateJavascript(webView, "document.getElementById('message-input').textContent = '';")
+            safeEvaluateJavascript(webView, "updateSendButton();")
+        }
+        
+        override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+            super.onReceivedError(view, errorCode, description, failingUrl)
+            Log.e("ChatManager", "WebView 加载错误: $errorCode, $description")
+        }
+    }
+} 
