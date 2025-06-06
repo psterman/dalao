@@ -3,6 +3,7 @@ package com.example.aifloatingball.preference
 import android.app.Dialog
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -48,9 +49,17 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
         isAIMode = selectedEngineIdInDialog.startsWith("ai_")
 
         val view = layoutInflater.inflate(R.layout.dialog_search_engine_picker, null)
-
-        tabLayout = view.findViewById(R.id.tabLayout)
-        recyclerView = view.findViewById(R.id.recyclerView)
+        
+        tabLayout = view.findViewById(R.id.tabLayout) ?: run { 
+            Log.e("SearchEnginePickerDialog", "TabLayout with ID R.id.tabLayout not found in dialog_search_engine_picker.xml")
+            dismiss()
+            return MaterialAlertDialogBuilder(requireContext()).create() 
+        }
+        recyclerView = view.findViewById(R.id.recyclerView) ?: run {
+            Log.e("SearchEnginePickerDialog", "RecyclerView with ID R.id.recyclerView not found in dialog_search_engine_picker.xml")
+            dismiss()
+            return MaterialAlertDialogBuilder(requireContext()).create()
+        }
 
         setupTabLayout()
         setupRecyclerView(requireContext())
@@ -141,7 +150,12 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val engine = engines[position]
+            if (engine.iconResId != 0) {
                 holder.icon.setImageResource(engine.iconResId)
+            } else {
+                // Provide a generic default icon if specific one is missing
+                holder.icon.setImageResource(R.drawable.ic_default_search_engine) 
+            }
             holder.name.text = engine.name
             holder.radioButton.isChecked = engine.id == currentSelectedEngineId
 

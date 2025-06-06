@@ -102,10 +102,24 @@ class SettingsManager private constructor(context: Context) {
         return if (id.startsWith("ai_")) {
             val aiName = id.substring(3)
             AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == aiName }
-                ?: AISearchEngine.DEFAULT_AI_ENGINES.first()
+                ?: AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull() // 使用 firstOrNull() 安全地获取第一个元素
+                ?: AISearchEngine( // 如果找不到任何AI引擎，提供一个硬编码的默认AI引擎
+                    name = "ChatGPT",
+                    url = "https://chat.openai.com",
+                    iconResId = R.drawable.ic_chatgpt,
+                    description = "ChatGPT AI助手",
+                    searchUrl = "https://chat.openai.com/search?q={query}"
+                )
         } else {
             SearchEngine.DEFAULT_ENGINES.find { it.name == id }
-                ?: SearchEngine.DEFAULT_ENGINES.first()
+                ?: SearchEngine.DEFAULT_ENGINES.firstOrNull() // 使用 firstOrNull() 安全地获取第一个元素
+                ?: SearchEngine( // 如果找不到任何普通搜索引擎，提供一个硬编码的默认普通搜索引擎
+                    name = "baidu",
+                    url = "https://www.baidu.com",
+                    iconResId = R.drawable.ic_baidu,
+                    description = "百度搜索",
+                    searchUrl = "https://www.baidu.com/s?wd={query}"
+                )
         }
     }
 
