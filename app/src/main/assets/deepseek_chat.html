@@ -512,7 +512,7 @@
             }
             removeTypingIndicator();
             isGenerating = false;
-            updateSendButton();
+                updateSendButton();
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
@@ -524,8 +524,8 @@
         });
 
         document.getElementById('message-input').addEventListener('keydown', function (e) {
-            if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
-                e.preventDefault();
+                if ((e.key === 'Enter' || e.keyCode === 13) && !e.shiftKey) {
+                    e.preventDefault();
                 if (!sendButton.disabled) {
                     sendMessage();
                 }
@@ -552,7 +552,7 @@
                     console.error("Error sending message:", error);
                     showErrorMessage("发送消息失败: " + error.message);
                     isGenerating = false;
-                    updateSendButton();
+            updateSendButton();
                 }
             }
         }
@@ -686,7 +686,7 @@
             if (chatToLoad) {
                 messagesContainer.innerHTML = ''; // Clear current messages
                 chatToLoad.messages.forEach(msg => {
-                    addMessageToUI(msg.role, msg.content, true);
+                addMessageToUI(msg.role, msg.content, true);
                 });
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 hideWelcomeSection(); // Hide welcome section when a chat is loaded
@@ -709,10 +709,10 @@
                 startNewChat(); // If no history, start a new chat
             } else {
                 // If there's history, load the most recent one
-                const recentChat = [...chatHistory].sort((a, b) => b.timestamp - a.timestamp)[0];
-                if (recentChat) {
-                    loadChat(recentChat.id);
-                }
+            const recentChat = [...chatHistory].sort((a, b) => b.timestamp - a.timestamp)[0];
+            if (recentChat) {
+                loadChat(recentChat.id);
+            }
             }
             updateSendButton(); // Initial state for send button
         };

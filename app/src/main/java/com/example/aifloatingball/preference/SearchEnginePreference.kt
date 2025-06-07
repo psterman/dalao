@@ -41,15 +41,15 @@ class SearchEnginePreference @JvmOverloads constructor(
         if (fragmentManager != null) {
             val dialog = SearchEnginePickerDialogFragment.newInstance(currentVal) { newValue ->
                 if (callChangeListener(newValue)) {
-                    value = newValue
+                value = newValue
                 }
             }
             dialog.show(fragmentManager, "SearchEnginePickerDialogFragment")
         } else {
             // Fallback or error handling if FragmentManager is not available
             // This case should ideally not happen if preferences are hosted in a FragmentActivity/AppCompatActivity
+            }
         }
-    }
 
     override fun onSetInitialValue(defaultValue: Any?) {
         super.onSetInitialValue(defaultValue)

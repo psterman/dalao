@@ -24,7 +24,7 @@ import android.util.Log
  */
 class SearchEngineAdapter<T : BaseSearchEngine>(
     private val context: Context,
-    private val engines: List<T>,
+    private var engines: List<T>,
     private val enabledEngines: MutableSet<String>,
     private val onEngineToggled: (String, Boolean) -> Unit
 ) : RecyclerView.Adapter<SearchEngineAdapter<T>.ViewHolder>() {
@@ -78,6 +78,12 @@ class SearchEngineAdapter<T : BaseSearchEngine>(
         } catch (e: Exception) {
             Log.e("SearchEngineAdapter", "Error binding item $position: ${e.message}", e)
         }
+    }
+
+    @SuppressLint("NotifyDataSetChanged")
+    fun updateEngines(newEngines: List<T>) {
+        this.engines = newEngines
+        notifyDataSetChanged()
     }
 
     fun updateEnabledEngines(newEnabledEngines: Set<String>) {

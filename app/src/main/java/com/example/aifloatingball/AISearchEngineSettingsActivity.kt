@@ -22,7 +22,7 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_search_engine_settings)
+        setContentView(R.layout.activity_ai_search_engine_settings)
 
         // 初始化图标加载器
         iconLoader = IconLoader(this)

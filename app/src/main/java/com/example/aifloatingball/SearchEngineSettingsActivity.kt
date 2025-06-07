@@ -7,15 +7,19 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.aifloatingball.adapter.CategoryAdapter
 import com.example.aifloatingball.adapter.SearchEngineAdapter
 import com.example.aifloatingball.model.SearchEngine
-import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.model.SearchEngineCategory
 
 class SearchEngineSettingsActivity : AppCompatActivity() {
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var adapter: SearchEngineAdapter<SearchEngine>
+    private lateinit var recyclerViewCategories: RecyclerView
+    private lateinit var recyclerViewSearchEngines: RecyclerView
+    private lateinit var searchEngineAdapter: SearchEngineAdapter<SearchEngine>
+    private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var settingsManager: SettingsManager
     private val enabledEngines = mutableSetOf<String>()
+    private val allEngines = SearchEngine.DEFAULT_ENGINES
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,40 +36,46 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
         // 获取已启用的搜索引擎
         enabledEngines.addAll(settingsManager.getEnabledSearchEngines())
 
-        recyclerView = findViewById(R.id.recyclerViewSearchEngines)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        
-        // 创建并设置适配器
-        adapter = SearchEngineAdapter(
+        setupCategories()
+        setupSearchEngines()
+
+        // Initial load
+        filterEnginesByCategory(SearchEngineCategory.GENERAL)
+    }
+
+    private fun setupCategories() {
+        recyclerViewCategories = findViewById(R.id.recyclerViewCategories)
+        recyclerViewCategories.layoutManager = LinearLayoutManager(this)
+        val categories = SearchEngineCategory.values().toList()
+        categoryAdapter = CategoryAdapter(categories) { category ->
+            filterEnginesByCategory(category)
+        }
+        recyclerViewCategories.adapter = categoryAdapter
+    }
+
+    private fun setupSearchEngines() {
+        recyclerViewSearchEngines = findViewById(R.id.recyclerViewSearchEngines)
+        recyclerViewSearchEngines.layoutManager = LinearLayoutManager(this)
+        searchEngineAdapter = SearchEngineAdapter(
             context = this,
-            engines = SearchEngine.DEFAULT_ENGINES,
+            engines = emptyList(), // Initially empty
             enabledEngines = enabledEngines,
-            onEngineToggled = { engineName, isEnabled -> 
-                // 处理搜索引擎切换
+            onEngineToggled = { engineName, isEnabled ->
                 if (isEnabled) {
                     enabledEngines.add(engineName)
                 } else {
                     enabledEngines.remove(engineName)
                 }
                 settingsManager.saveEnabledEngines(enabledEngines)
-                
-                // 发送广播通知悬浮球服务更新菜单
                 sendBroadcast(Intent("com.example.aifloatingball.ACTION_UPDATE_MENU"))
             }
         )
-        
-        // 设置适配器
-        recyclerView.adapter = adapter
-        
-        // 确保所有列表项中的开关控件都可见
-        recyclerView.viewTreeObserver.addOnGlobalLayoutListener {
-            for (i in 0 until recyclerView.childCount) {
-                val viewHolder = recyclerView.getChildViewHolder(recyclerView.getChildAt(i))
-                if (viewHolder is SearchEngineAdapter<*>.ViewHolder) {
-                    viewHolder.toggleSwitch.visibility = View.VISIBLE
-                }
-            }
-        }
+        recyclerViewSearchEngines.adapter = searchEngineAdapter
+    }
+
+    private fun filterEnginesByCategory(category: SearchEngineCategory) {
+        val filteredEngines = allEngines.filter { it.category == category }
+        searchEngineAdapter.updateEngines(filteredEngines)
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
