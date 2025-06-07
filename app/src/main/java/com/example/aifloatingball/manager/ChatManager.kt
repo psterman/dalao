@@ -86,7 +86,7 @@ class ChatManager(private val context: Context) {
         
         // 加载HTML文件
         try {
-            webView.loadUrl("file:///android_asset/deepseek_chat.html")
+        webView.loadUrl("file:///android_asset/deepseek_chat.html")
             Log.d("ChatManager", "已加载DeepSeek聊天界面HTML")
         } catch (e: Exception) {
             Log.e("ChatManager", "加载HTML内容失败: ${e.message}", e)
@@ -118,7 +118,7 @@ class ChatManager(private val context: Context) {
         fun sendMessage(message: String) {
             Log.d("ChatManager", "JS-> sendMessage: $message")
             if (message.trim().isEmpty()) return
-            Handler(Looper.getMainLooper()).post {
+            Handler(Looper.getMainLooper()).post { 
                 webViewRef?.let { sendMessageToWebView(message, it, true) }
             }
         }
@@ -172,9 +172,9 @@ class ChatManager(private val context: Context) {
 
     fun sendMessageToWebView(message: String, webView: WebView, isDeepSeek: Boolean) {
         val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
-        if (apiKey.isNullOrBlank()) {
+            if (apiKey.isNullOrBlank()) {
             Log.e("ChatManager", "API Key for ${if (isDeepSeek) "DeepSeek" else "ChatGPT"} is not set.")
-            return
+                return
         }
 
         val userMessage = ChatMessage("user", message)
@@ -186,7 +186,7 @@ class ChatManager(private val context: Context) {
                     simulateStreamingResponse(webView)
                 } else {
                     val response = sendToChatGPT(chatHistory)
-                    withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Main) {
                         webView.evaluateJavascript("completeResponse('${escapeHtml(response)}');", null)
                     }
                 }
@@ -219,7 +219,7 @@ class ChatManager(private val context: Context) {
             put("model", "deepseek-chat")
             put("messages", JSONArray(chatHistory.map { JSONObject().put("role", it.role).put("content", it.content) }))
             put("stream", true)
-        }.toString()
+            }.toString()
 
         connection.outputStream.use { it.write(requestBody.toByteArray(UTF_8)) }
 
@@ -274,7 +274,7 @@ class ChatManager(private val context: Context) {
             connection.setRequestProperty("Content-Type", "application/json")
             connection.setRequestProperty("Authorization", "Bearer $apiKey")
             connection.doOutput = true
-
+            
             val requestBody = JSONObject().put("model", model).put("messages", JSONArray(messages.map {
                 JSONObject().put("role", it.role).put("content", it.content)
             })).toString()

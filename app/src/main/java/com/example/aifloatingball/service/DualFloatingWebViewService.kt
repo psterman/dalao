@@ -27,6 +27,7 @@ import com.example.aifloatingball.utils.EngineUtil
 import com.example.aifloatingball.manager.ChatManager
 import com.example.aifloatingball.ui.webview.CustomWebView
 import android.view.inputmethod.InputMethodManager
+import com.example.aifloatingball.SettingsManager
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -66,6 +67,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var sharedPreferences: SharedPreferences
     internal lateinit var chatManager: ChatManager
+    internal lateinit var settingsManager: SettingsManager
     
     // 添加 floatingView 属性
     val floatingView: View?
@@ -100,7 +102,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         super.onCreate()
         isRunning = true
         
-        Log.d(TAG, "服务创建")
+        Log.d(TAG, "DualFloatingWebViewService: 服务创建 onCreate()")
         
         sharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         
@@ -132,6 +134,23 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 创建时，使用默认窗口数量加载一次
         // 确保此时 webViewManager 已经初始化
         handleSearchInternal(lastQuery ?: "", lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+        
+        // 注册设置变更监听器
+        settingsManager.registerOnSettingChangeListener<String>("left_window_search_engine") { key, value ->
+            Log.d(TAG, "设置变更: $key = $value")
+            // 重新加载第一个WebView
+            handleSearchInternal(lastQuery ?: "", settingsManager.getSearchEngineForPosition(0), currentWindowCount)
+        }
+        settingsManager.registerOnSettingChangeListener<String>("center_window_search_engine") { key, value ->
+            Log.d(TAG, "设置变更: $key = $value")
+            // 重新加载第二个WebView
+            handleSearchInternal(lastQuery ?: "", settingsManager.getSearchEngineForPosition(1), currentWindowCount)
+        }
+        settingsManager.registerOnSettingChangeListener<String>("right_window_search_engine") { key, value ->
+            Log.d(TAG, "设置变更: $key = $value")
+            // 重新加载第三个WebView
+            handleSearchInternal(lastQuery ?: "", settingsManager.getSearchEngineForPosition(2), currentWindowCount)
+        }
     }
 
     /**
@@ -174,6 +193,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         searchEngineHandler = SearchEngineHandler()
         intentParser = IntentParser()
         chatManager = ChatManager(this)
+        settingsManager = SettingsManager.getInstance(this)
         
         // 初始化WebViewManager
         val xmlWebViews = windowManager.getXmlDefinedWebViews()
@@ -250,57 +270,29 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
         currentWindowCount = windowCountToUse
 
-        // 如果是DeepSeek聊天，使用ChatManager处理，并确保输入法能正常工作
-        if (engineKey == "deepseek_chat") {
-            val webView = webViewManager.getWebViews().firstOrNull()
-            if (webView != null) {
-                Log.d(TAG, "初始化DeepSeek聊天界面")
-                
-                // 确保其他网页视图隐藏
-                for (i in 1 until webViewManager.getWebViews().size) {
-                    webViewManager.getWebViews()[i].visibility = View.GONE
-                }
-                
-                // 确保首个WebView可见
-                webView.visibility = View.VISIBLE
-                
-                // 初始化WebView前进行一些重置
-                try {
-                    webView.stopLoading()
-                    webView.clearHistory()
-                    webView.clearCache(true)
-                } catch (e: Exception) {
-                    Log.e(TAG, "重置WebView状态失败: ${e.message}")
-                }
-                
-                // 初始化WebView
-                chatManager.initWebView(webView)
-                
-                // 确保WebView可聚焦并接收输入
-                webView.isFocusable = true
-                webView.isFocusableInTouchMode = true
-                
-                // 允许JavaScript执行
-                webView.settings.javaScriptEnabled = true
-                
-                // 让WebView获取焦点
-                webView.requestFocus()
-                
-                // 通过系统级API显示输入法
-                // 延迟显示输入法，确保WebView完全准备好接收输入
-                Handler(Looper.getMainLooper()).postDelayed({
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                    imm?.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
-                }, 1000) // 增加延迟时间以确保WebView渲染完成
-                
-                return // 已经处理了DeepSeek聊天，不需要继续处理其他WebView
-            }
-        }
-        
         // 加载URL到WebView
         for (i in 0 until windowCountToUse) {
             val webView = webViewManager.getWebViews().getOrNull(i)
             webView?.let {
+                // 获取该窗口位置对应的搜索引擎
+                val currentWindowEngineKey = SettingsManager.getInstance(this@DualFloatingWebViewService).getSearchEngineForPosition(i)
+                
+                // 根据该搜索引擎和查询，获取新的搜索URL
+                val currentWindowSearchUrl = if (query.isBlank()) {
+                    if (isAIEngine(currentWindowEngineKey)) {
+                        EngineUtil.getAISearchEngineHomeUrl(currentWindowEngineKey)
+                    } else {
+                        EngineUtil.getSearchEngineHomeUrl(currentWindowEngineKey)
+                    }
+                } else {
+                    searchEngineHandler.getSearchUrl(query, currentWindowEngineKey)
+                }
+
+                if (currentWindowSearchUrl.isBlank() || !currentWindowSearchUrl.startsWith("http")) {
+                    Log.e(TAG, "无法获取窗口 $i 的搜索URL: engineKey='$currentWindowEngineKey'")
+                    return@let // 继续处理下一个WebView
+                }
+
                 // 确保WebView启用了文本选择功能
                 if(::textSelectionManager.isInitialized) {
                     it.setTextSelectionManager(textSelectionManager)
@@ -308,8 +300,37 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${it.id} 设置")
                 }
                 
-                // 加载URL
-                it.loadUrl(searchUrl)
+                // 如果是DeepSeek聊天，需要进行特殊处理，确保输入法能正常工作
+                if (currentWindowEngineKey == "deepseek_chat" || currentWindowEngineKey == "chatgpt_chat") { // 添加chatgpt_chat处理
+                    Log.d(TAG, "初始化聊天界面 for WebView $i")
+                    // 重置WebView状态
+                    try {
+                        it.stopLoading()
+                        it.clearHistory()
+                        it.clearCache(true)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "重置WebView $i 状态失败: ${e.message}")
+                    }
+                    
+                    chatManager.initWebView(it) // 初始化聊天界面
+                    
+                    // 让WebView获取焦点并显示输入法 (仅对第一个WebView)
+                    if (i == 0) { // 仅对第一个窗口处理输入法
+                        it.isFocusable = true
+                        it.isFocusableInTouchMode = true
+                        it.requestFocus()
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+                            imm?.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT)
+                        }, 1000)
+                    }
+                    // 如果是聊天模式，并且有查询，则发送消息
+                    if (query.isNotBlank()) {
+                        chatManager.sendMessageToWebView(query, it, currentWindowEngineKey == "deepseek_chat")
+                    }
+                } else { // 非聊天模式，直接加载URL
+                    it.loadUrl(currentWindowSearchUrl)
+                }
             } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
         }
         
@@ -476,7 +497,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             Log.e(TAG, "发送消息到WebView失败: ${e.message}", e)
             // 如果直接调用失败，则回退到原始方法
             Handler(Looper.getMainLooper()).postDelayed({
-                chatManager.sendMessageToWebView(message, webView, isDeepSeek)
+        chatManager.sendMessageToWebView(message, webView, isDeepSeek)
             }, 500)
         }
     }
@@ -491,7 +512,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "服务销毁")
+        Log.d(TAG, "DualFloatingWebViewService: 服务销毁 onDestroy()")
         
         // Save current window state before destroying
         windowManager.params?.let {

@@ -161,6 +161,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
 
     @SuppressLint("ClickableViewAccessibility")
     fun createFloatingWindow() {
+        Log.d(TAG, "FloatingWindowManager: 创建浮动窗口 createFloatingWindow()")
         val inflater = LayoutInflater.from(context)
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
         
@@ -392,7 +393,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                         when (key) {
                             "deepseek", "chatgpt" -> {
                                 val isDeepSeek = key == "deepseek"
-                                val webView = getXmlDefinedWebViews()[webViewIndex]
+                                val webView = getXmlDefinedWebViews()[webViewIndex] // Restore original index
                                 
                                 webView?.let { wv ->
                                     android.util.Log.d("FloatingWindowManager", "选中WebView，索引: $webViewIndex, WebView实例: $wv")
@@ -412,7 +413,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                                 } ?: android.util.Log.e("FloatingWindowManager", "无法获取WebView实例，索引: $webViewIndex")
                             }
                             else -> {
-                                service.performSearchInWebView(webViewIndex, query, key)
+                                service.performSearchInWebView(webViewIndex, query, key) // Restore original index
                             }
                         }
                     }
@@ -439,7 +440,8 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                     contentDescription = key
                     setOnClickListener {
                         val query = searchInput?.text.toString()
-                        service.performSearchInWebView(webViewIndex, query, key)
+                        
+                        service.performSearchInWebView(webViewIndex, query, key) // Restore original index
                     }
                 }
                 it.addView(imageView)
@@ -569,6 +571,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     }
     
     fun removeFloatingWindow() {
+        Log.d(TAG, "FloatingWindowManager: 移除浮动窗口 removeFloatingWindow()")
         _floatingView?.let {
             try {
                  windowManager?.removeView(it)

@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.*
 import com.example.aifloatingball.utils.ServiceUtils
+import com.example.aifloatingball.preference.SearchEnginePreference
 
 class SettingsFragment : PreferenceFragmentCompat() {
     private lateinit var settingsManager: SettingsManager
@@ -99,6 +100,24 @@ class SettingsFragment : PreferenceFragmentCompat() {
         findPreference<Preference>("ai_search_engine_manager")?.setOnPreferenceClickListener {
             startActivity(Intent(requireContext(), AISearchEngineSettingsActivity::class.java))
             true
+        }
+
+        // 多窗口搜索引擎设置
+        setupWindowSearchEnginePreference("left_window_search_engine", 0)
+        setupWindowSearchEnginePreference("center_window_search_engine", 1)
+        setupWindowSearchEnginePreference("right_window_search_engine", 2)
+    }
+
+    private fun setupWindowSearchEnginePreference(key: String, position: Int) {
+        val preference = findPreference<SearchEnginePreference>(key)
+        preference?.let { pref ->
+            // 确保初始摘要是正确的
+            pref.summary = (pref.summaryProvider as SearchEnginePreference.SimpleSummaryProvider).provideSummary(pref)
+
+            // 注册监听器以实时更新摘要
+            settingsManager.registerOnSettingChangeListener<String>(key) { _, newValue ->
+                pref.summary = (pref.summaryProvider as SearchEnginePreference.SimpleSummaryProvider).provideSummary(pref)
+            }
         }
     }
 } 
