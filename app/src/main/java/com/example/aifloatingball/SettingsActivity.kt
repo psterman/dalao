@@ -127,7 +127,6 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getDefaultWindowCount().toString()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setDefaultWindowCount((newValue as String).toInt())
-                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
@@ -137,7 +136,6 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getLeftWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setLeftWindowSearchEngine(newValue.toString())
-                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
@@ -147,7 +145,6 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getCenterWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setCenterWindowSearchEngine(newValue.toString())
-                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
@@ -157,7 +154,6 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getRightWindowSearchEngine()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setRightWindowSearchEngine(newValue.toString())
-                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }
@@ -289,7 +285,6 @@ class SettingsActivity : AppCompatActivity() {
                 editor.remove(DualFloatingWebViewService.KEY_WINDOW_HEIGHT)
                 editor.apply()
                 
-                ServiceUtils.restartFloatingService(requireContext())
                 true
             }
         }
