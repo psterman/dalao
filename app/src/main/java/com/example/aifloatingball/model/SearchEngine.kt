@@ -24,201 +24,103 @@ data class SearchEngine(
     companion object {
         // 默认搜索引擎列表
         val DEFAULT_ENGINES = listOf(
-            // --- 通用分类 ---
-            SearchEngine(
-                name = "baidu",
-                url = "https://www.baidu.com",
-                iconResId = R.drawable.ic_baidu,
-                description = "百度搜索",
-                searchUrl = "https://www.baidu.com/s?wd={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "google",
-                url = "https://www.google.com",
-                iconResId = R.drawable.ic_google,
-                description = "Google搜索",
-                searchUrl = "https://www.google.com/search?q={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "bing",
-                url = "https://www.bing.com",
-                iconResId = R.drawable.ic_bing,
-                description = "Microsoft Bing",
-                searchUrl = "https://www.bing.com/search?q={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "sogou",
-                url = "https://www.sogou.com",
-                iconResId = R.drawable.ic_sogou,
-                description = "搜狗搜索",
-                searchUrl = "https://www.sogou.com/web?query={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "360",
-                url = "https://www.so.com",
-                iconResId = R.drawable.ic_360,
-                description = "360搜索",
-                searchUrl = "https://www.so.com/s?q={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "duckduckgo",
-                url = "https://duckduckgo.com",
-                iconResId = R.drawable.ic_duckduckgo,
-                description = "DuckDuckGo",
-                searchUrl = "https://duckduckgo.com/?q={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "yandex",
-                url = "https://yandex.com",
-                iconResId = R.drawable.ic_search,
-                description = "Yandex",
-                searchUrl = "https://yandex.com/search/?text={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "yahoo",
-                url = "https://search.yahoo.com",
-                iconResId = R.drawable.ic_search,
-                description = "Yahoo Search",
-                searchUrl = "https://search.yahoo.com/search?p={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "ecosia",
-                url = "https://www.ecosia.org",
-                iconResId = R.drawable.ic_search,
-                description = "Ecosia",
-                searchUrl = "https://www.ecosia.org/search?q={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
-            SearchEngine(
-                name = "brave",
-                url = "https://search.brave.com",
-                iconResId = R.drawable.ic_search,
-                description = "Brave Search",
-                searchUrl = "https://search.brave.com/search?q={query}",
-                category = SearchEngineCategory.GENERAL
-            ),
+            // --- 通用分类 (General) ---
+            SearchEngine("baidu", "https://www.baidu.com", R.drawable.ic_baidu, "百度", "https://www.baidu.com/s?wd={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("google", "https://www.google.com", R.drawable.ic_google, "Google", "https://www.google.com/search?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("bing", "https://www.bing.com", R.drawable.ic_bing, "Bing", "https://www.bing.com/search?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("sogou", "https://www.sogou.com", R.drawable.ic_sogou, "搜狗", "https://www.sogou.com/web?query={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("360", "https://www.so.com", R.drawable.ic_360, "360搜索", "https://www.so.com/s?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("duckduckgo", "https://duckduckgo.com", R.drawable.ic_duckduckgo, "DuckDuckGo", "https://duckduckgo.com/?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("yandex", "https://yandex.com", R.drawable.ic_search, "Yandex", "https://yandex.com/search/?text={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("yahoo", "https://search.yahoo.com", R.drawable.ic_search, "Yahoo", "https://search.yahoo.com/search?p={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("ecosia", "https://www.ecosia.org", R.drawable.ic_search, "Ecosia", "https://www.ecosia.org/search?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("brave", "https://search.brave.com", R.drawable.ic_search, "Brave", "https://search.brave.com/search?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("startpage", "https://www.startpage.com", R.drawable.ic_search, "Startpage", "https://www.startpage.com/sp/search?query={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("qwant", "https://www.qwant.com", R.drawable.ic_search, "Qwant", "https://www.qwant.com/?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("swisscows", "https://swisscows.com", R.drawable.ic_search, "Swisscows", "https://swisscows.com/web?query={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("mojeek", "https://www.mojeek.com", R.drawable.ic_search, "Mojeek", "https://www.mojeek.com/search?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine("metager", "https://metager.org", R.drawable.ic_search, "MetaGer", "https://metager.org/meta/meta.ger?eingabe={query}", category = SearchEngineCategory.GENERAL),
 
-            // --- 社交分类 ---
-            SearchEngine(
-                name = "weibo",
-                url = "https://www.weibo.com",
-                iconResId = R.drawable.ic_weibo,
-                description = "微博",
-                searchUrl = "https://s.weibo.com/weibo?q={query}",
-                category = SearchEngineCategory.SOCIAL
-            ),
-            SearchEngine(
-                name = "douban",
-                url = "https://www.douban.com",
-                iconResId = R.drawable.ic_douban,
-                description = "豆瓣",
-                searchUrl = "https://www.douban.com/search?q={query}",
-                category = SearchEngineCategory.SOCIAL
-            ),
-             SearchEngine(
-                name = "xiaohongshu",
-                url = "https://www.xiaohongshu.com",
-                iconResId = R.drawable.ic_xiaohongshu,
-                description = "小红书",
-                searchUrl = "https://www.xiaohongshu.com/search_result?keyword={query}",
-                category = SearchEngineCategory.SOCIAL
-            ),
+            // --- 社交分类 (Social) ---
+            SearchEngine("weibo", "https://www.weibo.com", R.drawable.ic_weibo, "微博", "https://s.weibo.com/weibo?q={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine("douban", "https://www.douban.com", R.drawable.ic_douban, "豆瓣", "https://www.douban.com/search?q={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine("xiaohongshu", "https://www.xiaohongshu.com", R.drawable.ic_xiaohongshu, "小红书", "https://www.xiaohongshu.com/search_result?keyword={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine("twitter", "https://twitter.com", R.drawable.ic_search, "Twitter / X", "https://twitter.com/search?q={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine("reddit", "https://www.reddit.com", R.drawable.ic_search, "Reddit", "https://www.reddit.com/search/?q={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine("pinterest", "https://www.pinterest.com", R.drawable.ic_search, "Pinterest", "https://www.pinterest.com/search/pins/?q={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine("linkedin", "https://www.linkedin.com", R.drawable.ic_search, "LinkedIn", "https://www.linkedin.com/search/results/all/?keywords={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine("facebook", "https://www.facebook.com", R.drawable.ic_search, "Facebook", "https://www.facebook.com/search/top/?q={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine("instagram", "https://www.instagram.com", R.drawable.ic_search, "Instagram", "https://www.instagram.com/explore/tags/{query}/", category = SearchEngineCategory.SOCIAL),
 
-            // --- 购物分类 ---
-            SearchEngine(
-                name = "taobao",
-                url = "https://www.taobao.com",
-                iconResId = R.drawable.ic_taobao,
-                description = "淘宝",
-                searchUrl = "https://s.taobao.com/search?q={query}",
-                category = SearchEngineCategory.SHOPPING
-            ),
-            SearchEngine(
-                name = "jd",
-                url = "https://www.jd.com",
-                iconResId = R.drawable.ic_jd,
-                description = "京东",
-                searchUrl = "https://search.jd.com/Search?keyword={query}",
-                category = SearchEngineCategory.SHOPPING
-            ),
-             SearchEngine(
-                name = "pinduoduo",
-                url = "https://mobile.pinduoduo.com",
-                iconResId = R.drawable.ic_search,
-                description = "拼多多",
-                searchUrl = "https://mobile.pinduoduo.com/search_result.html?keyword={query}",
-                category = SearchEngineCategory.SHOPPING
-            ),
+            // --- 购物分类 (Shopping) ---
+            SearchEngine("taobao", "https://www.taobao.com", R.drawable.ic_taobao, "淘宝", "https://s.taobao.com/search?q={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("jd", "https://www.jd.com", R.drawable.ic_jd, "京东", "https://search.jd.com/Search?keyword={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("pinduoduo", "https://mobile.pinduoduo.com", R.drawable.ic_search, "拼多多", "https://mobile.pinduoduo.com/search_result.html?keyword={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("amazon", "https://www.amazon.com", R.drawable.ic_search, "Amazon", "https://www.amazon.com/s?k={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("ebay", "https://www.ebay.com", R.drawable.ic_search, "eBay", "https://www.ebay.com/sch/i.html?_nkw={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("walmart", "https://www.walmart.com", R.drawable.ic_search, "Walmart", "https://www.walmart.com/search/?query={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("aliexpress", "https://www.aliexpress.com", R.drawable.ic_search, "AliExpress", "https://www.aliexpress.com/wholesale?SearchText={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("suning", "https://www.suning.com", R.drawable.ic_search, "苏宁易购", "https://search.suning.com/{query}/", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("gome", "https://www.gome.com.cn", R.drawable.ic_search, "国美", "https://search.gome.com.cn/search?question={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine("dangdang", "http://www.dangdang.com", R.drawable.ic_search, "当当网", "http://search.dangdang.com/?key={query}", category = SearchEngineCategory.SHOPPING),
 
-            // --- 知识分类 ---
-            SearchEngine(
-                name = "zhihu",
-                url = "https://www.zhihu.com",
-                iconResId = R.drawable.ic_zhihu,
-                description = "知乎",
-                searchUrl = "https://www.zhihu.com/search?q={query}",
-                category = SearchEngineCategory.KNOWLEDGE
-            ),
-            SearchEngine(
-                name = "wikipedia",
-                url = "https://www.wikipedia.org",
-                iconResId = R.drawable.ic_search,
-                description = "维基百科",
-                searchUrl = "https://en.wikipedia.org/wiki/Special:Search?search={query}",
-                category = SearchEngineCategory.KNOWLEDGE
-            ),
+            // --- 知识分类 (Knowledge) ---
+            SearchEngine("zhihu", "https://www.zhihu.com", R.drawable.ic_zhihu, "知乎", "https://www.zhihu.com/search?q={query}", category = SearchEngineCategory.KNOWLEDGE),
+            SearchEngine("wikipedia", "https://www.wikipedia.org", R.drawable.ic_search, "Wikipedia", "https://en.wikipedia.org/wiki/Special:Search?search={query}", category = SearchEngineCategory.KNOWLEDGE),
+            SearchEngine("baike", "https://baike.baidu.com", R.drawable.ic_search, "百度百科", "https://baike.baidu.com/item/{query}", category = SearchEngineCategory.KNOWLEDGE),
+            SearchEngine("quora", "https://www.quora.com", R.drawable.ic_search, "Quora", "https://www.quora.com/search?q={query}", category = SearchEngineCategory.KNOWLEDGE),
+            SearchEngine("wolframalpha", "https://www.wolframalpha.com", R.drawable.ic_search, "WolframAlpha", "https://www.wolframalpha.com/input/?i={query}", category = SearchEngineCategory.KNOWLEDGE),
+            SearchEngine("scholar", "https://scholar.google.com", R.drawable.ic_search, "Google Scholar", "https://scholar.google.com/scholar?q={query}", category = SearchEngineCategory.KNOWLEDGE),
 
-            // --- 视频分类 ---
-            SearchEngine(
-                name = "bilibili",
-                url = "https://www.bilibili.com",
-                iconResId = R.drawable.ic_bilibili,
-                description = "哔哩哔哩",
-                searchUrl = "https://search.bilibili.com/all?keyword={query}",
-                category = SearchEngineCategory.VIDEO
-            ),
-             SearchEngine(
-                name = "douyin",
-                url = "https://www.douyin.com",
-                iconResId = R.drawable.ic_douyin,
-                description = "抖音",
-                searchUrl = "https://www.douyin.com/search/{query}",
-                category = SearchEngineCategory.VIDEO
-            ),
-            SearchEngine(
-                name = "youtube",
-                url = "https://www.youtube.com",
-                iconResId = R.drawable.ic_search,
-                description = "YouTube",
-                searchUrl = "https://www.youtube.com/results?search_query={query}",
-                category = SearchEngineCategory.VIDEO
-            ),
+            // --- 视频分类 (Video) ---
+            SearchEngine("bilibili", "https://www.bilibili.com", R.drawable.ic_bilibili, "哔哩哔哩", "https://search.bilibili.com/all?keyword={query}", category = SearchEngineCategory.VIDEO),
+            SearchEngine("douyin", "https://www.douyin.com", R.drawable.ic_douyin, "抖音", "https://www.douyin.com/search/{query}", category = SearchEngineCategory.VIDEO),
+            SearchEngine("youtube", "https://www.youtube.com", R.drawable.ic_search, "YouTube", "https://www.youtube.com/results?search_query={query}", category = SearchEngineCategory.VIDEO),
+            SearchEngine("vimeo", "https://vimeo.com", R.drawable.ic_search, "Vimeo", "https://vimeo.com/search?q={query}", category = SearchEngineCategory.VIDEO),
+            SearchEngine("iqiyi", "https://www.iq.com", R.drawable.ic_search, "爱奇艺", "https://www.iq.com/search?q={query}", category = SearchEngineCategory.VIDEO),
+            SearchEngine("tencentvideo", "https://v.qq.com", R.drawable.ic_search, "腾讯视频", "https://v.qq.com/x/search/?q={query}", category = SearchEngineCategory.VIDEO),
+            SearchEngine("youku", "https://www.youku.com", R.drawable.ic_search, "优酷", "https://www.soku.com/search_video/q_{query}", category = SearchEngineCategory.VIDEO),
 
-            // --- 开发分类 ---
-            SearchEngine(
-                name = "github",
-                url = "https://github.com",
-                iconResId = R.drawable.ic_search,
-                description = "GitHub",
-                searchUrl = "https://github.com/search?q={query}",
-                category = SearchEngineCategory.DEVELOPMENT
-            ),
-            SearchEngine(
-                name = "stackoverflow",
-                url = "https://stackoverflow.com",
-                iconResId = R.drawable.ic_search,
-                description = "Stack Overflow",
-                searchUrl = "https://stackoverflow.com/search?q={query}",
-                category = SearchEngineCategory.DEVELOPMENT
-            )
+            // --- 开发分类 (Development) ---
+            SearchEngine("github", "https://github.com", R.drawable.ic_search, "GitHub", "https://github.com/search?q={query}", category = SearchEngineCategory.DEVELOPMENT),
+            SearchEngine("stackoverflow", "https://stackoverflow.com", R.drawable.ic_search, "Stack Overflow", "https://stackoverflow.com/search?q={query}", category = SearchEngineCategory.DEVELOPMENT),
+            SearchEngine("gitlab", "https://gitlab.com", R.drawable.ic_search, "GitLab", "https://gitlab.com/search?search={query}", category = SearchEngineCategory.DEVELOPMENT),
+            SearchEngine("mdn", "https://developer.mozilla.org", R.drawable.ic_search, "MDN Web Docs", "https://developer.mozilla.org/en-US/search?q={query}", category = SearchEngineCategory.DEVELOPMENT),
+            SearchEngine("devto", "https://dev.to", R.drawable.ic_search, "dev.to", "https://dev.to/search?q={query}", category = SearchEngineCategory.DEVELOPMENT),
+            SearchEngine("juejin", "https://juejin.cn", R.drawable.ic_search, "稀土掘金", "https://juejin.cn/search?query={query}", category = SearchEngineCategory.DEVELOPMENT),
+            SearchEngine("csdn", "https://www.csdn.net", R.drawable.ic_search, "CSDN", "https://so.csdn.net/so/search?q={query}", category = SearchEngineCategory.DEVELOPMENT),
+            SearchEngine("packagist", "https://packagist.org", R.drawable.ic_search, "Packagist", "https://packagist.org/?q={query}", category = SearchEngineCategory.DEVELOPMENT),
+            SearchEngine("npm", "https://www.npmjs.com", R.drawable.ic_search, "npm", "https://www.npmjs.com/search?q={query}", category = SearchEngineCategory.DEVELOPMENT),
+
+            // --- 设计分类 (Design) ---
+            SearchEngine("dribbble", "https://dribbble.com", R.drawable.ic_search, "Dribbble", "https://dribbble.com/search/{query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine("behance", "https://www.behance.net", R.drawable.ic_search, "Behance", "https://www.behance.net/search?search={query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine("pinterest_design", "https://www.pinterest.com", R.drawable.ic_search, "Pinterest", "https://www.pinterest.com/search/pins/?q={query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine("unsplash", "https://unsplash.com", R.drawable.ic_search, "Unsplash", "https://unsplash.com/s/photos/{query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine("pexels", "https://www.pexels.com", R.drawable.ic_search, "Pexels", "https://www.pexels.com/search/{query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine("huaban", "https://huaban.com", R.drawable.ic_search, "花瓣", "https://huaban.com/search/?q={query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine("zcool", "https://www.zcool.com.cn", R.drawable.ic_search, "站酷", "https://www.zcool.com.cn/search/content?word={query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine("iconfinder", "https://www.iconfinder.com", R.drawable.ic_search, "Iconfinder", "https://www.iconfinder.com/search?q={query}", category = SearchEngineCategory.DESIGN),
+
+            // --- 生活分类 (Lifestyle) ---
+            SearchEngine("tripadvisor", "https://www.tripadvisor.com", R.drawable.ic_search, "Tripadvisor", "https://www.tripadvisor.com/Search?q={query}", category = SearchEngineCategory.LIFESTYLE),
+            SearchEngine("imdb", "https://www.imdb.com", R.drawable.ic_search, "IMDb", "https://www.imdb.com/find?q={query}", category = SearchEngineCategory.LIFESTYLE),
+            SearchEngine("douban_movie", "https://movie.douban.com", R.drawable.ic_search, "豆瓣电影", "https://movie.douban.com/subject_search?search_text={query}", category = SearchEngineCategory.LIFESTYLE),
+            SearchEngine("meituan", "https://www.meituan.com", R.drawable.ic_search, "美团", "https://www.meituan.com/s/{query}/", category = SearchEngineCategory.LIFESTYLE),
+            SearchEngine("dianping", "https://www.dianping.com", R.drawable.ic_search, "大众点评", "https://www.dianping.com/search/keyword/1/0_{query}", category = SearchEngineCategory.LIFESTYLE),
+            SearchEngine("ctrip", "https://www.ctrip.com", R.drawable.ic_search, "携程", "https://www.ctrip.com/search/hotel/deal?kwd={query}", category = SearchEngineCategory.LIFESTYLE),
+            SearchEngine("autohome", "https://www.autohome.com.cn", R.drawable.ic_search, "汽车之家", "https://sou.autohome.com.cn/zonghe?q={query}", category = SearchEngineCategory.LIFESTYLE),
+
+            // --- 新闻分类 (News) ---
+            SearchEngine("googlenews", "https://news.google.com", R.drawable.ic_search, "Google News", "https://news.google.com/search?q={query}", category = SearchEngineCategory.NEWS),
+            SearchEngine("toutiao", "https://www.toutiao.com", R.drawable.ic_toutiao, "今日头条", "https://www.toutiao.com/search/?keyword={query}", category = SearchEngineCategory.NEWS),
+            SearchEngine("bbc", "https://www.bbc.co.uk", R.drawable.ic_search, "BBC", "https://www.bbc.co.uk/search?q={query}", category = SearchEngineCategory.NEWS),
+            SearchEngine("reuters", "https://www.reuters.com", R.drawable.ic_search, "Reuters", "https://www.reuters.com/search/news?blob={query}", category = SearchEngineCategory.NEWS),
+            SearchEngine("apnews", "https://apnews.com", R.drawable.ic_search, "AP News", "https://apnews.com/search?q={query}", category = SearchEngineCategory.NEWS),
+
+            // --- 其他分类 (Others) ---
+            SearchEngine("archiveorg", "https://archive.org", R.drawable.ic_search, "Internet Archive", "https://archive.org/search.php?query={query}", category = SearchEngineCategory.OTHERS),
+            SearchEngine("torrentz2", "https://torrentz2.eu", R.drawable.ic_search, "Torrentz2", "https://torrentz2.eu/search?f={query}", category = SearchEngineCategory.OTHERS)
         )
 
         @JvmStatic
