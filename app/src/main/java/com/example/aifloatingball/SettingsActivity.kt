@@ -127,6 +127,7 @@ class SettingsActivity : AppCompatActivity() {
                 value = settingsManager.getDefaultWindowCount().toString()
                 setOnPreferenceChangeListener { _, newValue ->
                     settingsManager.setDefaultWindowCount((newValue as String).toInt())
+                    ServiceUtils.restartFloatingService(requireContext())
                     true
                 }
             }

@@ -23,6 +23,15 @@ class SearchEnginePreference @JvmOverloads constructor(
         summaryProvider = SimpleSummaryProvider.getInstance()
     }
 
+    var value: String?
+        get() = getPersistedString(settingsManager.getDefaultSearchEngine())
+        set(value) {
+            if (shouldPersist()) {
+                persistString(value)
+                notifyChanged()
+            }
+        }
+
     override fun onClick() {
         val currentVal = value ?: settingsManager.getDefaultSearchEngine()
         
@@ -31,7 +40,9 @@ class SearchEnginePreference @JvmOverloads constructor(
 
         if (fragmentManager != null) {
             val dialog = SearchEnginePickerDialogFragment.newInstance(currentVal) { newValue ->
-                value = newValue
+                if (callChangeListener(newValue)) {
+                    value = newValue
+                }
             }
             dialog.show(fragmentManager, "SearchEnginePickerDialogFragment")
         } else {
@@ -39,14 +50,6 @@ class SearchEnginePreference @JvmOverloads constructor(
             // This case should ideally not happen if preferences are hosted in a FragmentActivity/AppCompatActivity
         }
     }
-
-    var value: String?
-        get() = getPersistedString(settingsManager.getDefaultSearchEngine())
-        set(value) {
-            if (callChangeListener(value)) {
-                persistString(value)
-            }
-        }
 
     override fun onSetInitialValue(defaultValue: Any?) {
         super.onSetInitialValue(defaultValue)
