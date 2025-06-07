@@ -116,6 +116,62 @@ data class AISearchEngine(
                 searchUrl = "https://poe.com/search?q={query}"
             ),
             AISearchEngine(
+                name = "天工AI",
+                url = "https://www.tiangong.cn",
+                iconResId = R.drawable.ic_search,
+                description = "昆仑万维 天工AI搜索",
+                searchUrl = "https://www.tiangong.cn/search?q={query}"
+            ),
+            AISearchEngine(
+                name = "秘塔AI搜索",
+                url = "https://metaso.cn",
+                iconResId = R.drawable.ic_search,
+                description = "秘塔科技 AI搜索",
+                searchUrl = "https://metaso.cn/?q={query}"
+            ),
+            AISearchEngine(
+                name = "夸克AI",
+                url = "https://www.quark.cn",
+                iconResId = R.drawable.ic_quark,
+                description = "夸克AI搜索",
+                searchUrl = "https://www.quark.cn/s?q={query}"
+            ),
+            AISearchEngine(
+                name = "360AI搜索",
+                url = "https://sou.ai.360.cn",
+                iconResId = R.drawable.ic_360,
+                description = "360AI搜索",
+                searchUrl = "https://sou.ai.360.cn/?q={query}"
+            ),
+            AISearchEngine(
+                name = "百度AI",
+                url = "https://www.baidu.com",
+                iconResId = R.drawable.ic_baidu,
+                description = "百度AI搜索",
+                searchUrl = "https://www.baidu.com/s?wd={query}"
+            ),
+            AISearchEngine(
+                name = "You.com",
+                url = "https://you.com",
+                iconResId = R.drawable.ic_search,
+                description = "You.com AI Search",
+                searchUrl = "https://you.com/search?q={query}"
+            ),
+            AISearchEngine(
+                name = "Brave Search",
+                url = "https://search.brave.com",
+                iconResId = R.drawable.ic_search,
+                description = "Brave AI Search",
+                searchUrl = "https://search.brave.com/search?q={query}"
+            ),
+            AISearchEngine(
+                name = "WolframAlpha",
+                url = "https://www.wolframalpha.com",
+                iconResId = R.drawable.ic_search,
+                description = "WolframAlpha 计算知识引擎",
+                searchUrl = "https://www.wolframalpha.com/input?i={query}"
+            ),
+            AISearchEngine(
                 name = "ChatGPT对话",
                 url = "chat://chatgpt",
                 iconResId = R.drawable.ic_chatgpt,
