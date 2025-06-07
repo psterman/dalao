@@ -104,7 +104,7 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
     private fun getEngineList(isAI: Boolean): List<EngineItem> {
         return if (isAI) {
             AISearchEngine.DEFAULT_AI_ENGINES.map { 
-                EngineItem("ai_${it.name}", it.name, it.iconResId, true)
+                EngineItem("ai_${it.name}", it.displayName, it.iconResId, true)
             }
         } else {
             SearchEngine.DEFAULT_ENGINES.map { 
@@ -115,7 +115,7 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
 
     data class EngineItem(
         val id: String,
-        val name: String,
+        val displayName: String,
         val iconResId: Int,
         val isAi: Boolean
     )
@@ -156,7 +156,7 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
                 // Provide a generic default icon if specific one is missing
                 holder.icon.setImageResource(R.drawable.ic_default_search_engine) 
             }
-            holder.name.text = engine.name
+            holder.name.text = engine.displayName
             holder.radioButton.isChecked = engine.id == currentSelectedEngineId
 
             holder.itemView.setOnClickListener {

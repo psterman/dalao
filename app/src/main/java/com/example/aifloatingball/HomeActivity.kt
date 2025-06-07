@@ -1617,6 +1617,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 // 将AISearchEngine转换为SearchEngine，保留isAI标记
                 SearchEngine(
                     name = it.name,
+                    displayName = it.name,
                     url = it.url,
                     iconResId = it.iconResId,
                     description = it.description,
@@ -1693,6 +1694,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 // 将AISearchEngine转换为SearchEngine，保留isAI标记
                 SearchEngine(
                     name = it.name,
+                    displayName = it.name,
                     url = it.url,
                     iconResId = it.iconResId,
                     description = it.description,
@@ -2138,5 +2140,36 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    private fun getDefaultAIEngine(): BaseSearchEngine {
+        return AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull() ?: AISearchEngine(
+            name = "ChatGPT",
+            url = "https://chat.openai.com",
+            iconResId = R.drawable.ic_chatgpt,
+            description = "ChatGPT AI助手"
+        )
+    }
+
+    private fun setDefaultEngine(engines: MutableList<BaseSearchEngine>) {
+        if (engines.isEmpty()) {
+            val defaultEngine = if (isAIMode) {
+                AISearchEngine(
+                    name = "ChatGPT",
+                    url = "https://chat.openai.com",
+                    iconResId = R.drawable.ic_chatgpt,
+                    description = "默认AI搜索引擎"
+                )
+            } else {
+                SearchEngine(
+                    name = "baidu",
+                    displayName = "百度",
+                    url = "https://www.baidu.com",
+                    iconResId = R.drawable.ic_baidu,
+                    description = "默认搜索引擎"
+                )
+            }
+            engines.add(defaultEngine)
+        }
     }
 } 

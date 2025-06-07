@@ -115,6 +115,7 @@ class SettingsManager private constructor(context: Context) {
                 ?: SearchEngine.DEFAULT_ENGINES.firstOrNull() // 使用 firstOrNull() 安全地获取第一个元素
                 ?: SearchEngine( // 如果找不到任何普通搜索引擎，提供一个硬编码的默认普通搜索引擎
                     name = "baidu",
+                    displayName = "百度",
                     url = "https://www.baidu.com",
                     iconResId = R.drawable.ic_baidu,
                     description = "百度搜索",
@@ -160,6 +161,7 @@ class SettingsManager private constructor(context: Context) {
             } else {
                 listOf(SearchEngine(
                     name = "baidu",
+                    displayName = "百度",
                     url = "https://www.baidu.com",
                     iconResId = R.drawable.ic_baidu,
                     description = "百度搜索",

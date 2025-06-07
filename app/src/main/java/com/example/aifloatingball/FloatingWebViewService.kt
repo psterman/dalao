@@ -59,6 +59,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.model.BaseSearchEngine
 
 class FloatingWebViewService : Service() {
     companion object {
@@ -87,12 +89,12 @@ class FloatingWebViewService : Service() {
         private const val DEFAULT_BACKGROUND_COLOR = 0xFFFFFFFF.toInt() // 白色
         private const val DEFAULT_BORDER_COLOR = 0x1A000000.toInt() // 半透明黑色
         private const val FAVICON_SIZE_DP = 40 // 悬浮球大小
-        
+
         // 前台服务通知相关常量
         private const val CHANNEL_ID = "webview_channel"
         private const val NOTIFICATION_ID = 1002
     }
-    
+
     private lateinit var windowManager: WindowManager
     private var floatingView: View? = null
     private var webView: WebView? = null
@@ -108,22 +110,22 @@ class FloatingWebViewService : Service() {
     private var floatingTitle: TextView? = null
     private var resizeHandle: View? = null
     private var saveButton: ImageButton? = null
-    
+
     private val halfCircleWindow by lazy { HalfCircleFloatingWindow(this) }
-    
+
     private var initialX = 0
     private var initialY = 0
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var isMoving = false
     private var isExpanded = false
-    
+
     // 浏览器设置状态
     private var isNoImageMode = false
     private var isDesktopMode = false
     private var isAdBlockEnabled = true
     private var isIncognitoMode = false
-    
+
     // 手势相关变量
     private lateinit var gestureDetector: GestureDetector
     private lateinit var scaleGestureDetector: ScaleGestureDetector
@@ -131,50 +133,50 @@ class FloatingWebViewService : Service() {
     private var isScaling = false
     private var lastGestureHintRunnable: Runnable? = null
     private val gestureHintHandler = Handler(Looper.getMainLooper())
-    
+
     private lateinit var settingsManager: SettingsManager
-    
+
     private var initialWidth = 0
     private var initialHeight = 0
     private var minWidth = 0
     private var minHeight = 0
-    
+
     private var isResizing = false
-    
+
     // 添加贴边隐藏相关变量
     private var isHidden = false
     private var lastVisibleX = 0
     private var screenWidth = 0
     private var screenHeight = 0
     private var edgeSnapAnimator: ValueAnimator? = null
-    
+
     // 添加变量保存原始状态
     private var originalWidth = 0
     private var originalHeight = 0
     private var originalX = 0
     private var originalY = 0
-    
+
     // 添加变量跟踪最后一次按下的时间
     private var lastActionDownTime = 0L
-    
+
     // 添加一个新的变量来保存悬浮窗的默认尺寸
     private var defaultWidth = 0
     private var defaultHeight = 0
-    
+
     private var isAnimating = false
     private var edgePosition = EDGE_NONE
-    
+
     // 修改成员变量声明
     private var originalBackground: android.graphics.drawable.Drawable? = null
-    
+
     private var lastTapTime = 0L
     private var lastWindowState: WindowState? = null
     private var searchBar: View? = null
     private var navigationBar: View? = null
-    
+
     private var faviconView: ImageView? = null
     private var currentFavicon: Bitmap? = null
-    
+
     private data class WindowState(
         val width: Int,
         val height: Int,
@@ -216,25 +218,25 @@ class FloatingWebViewService : Service() {
 
     private fun getMinWidth(): Int = (MIN_WIDTH_DP * resources.displayMetrics.density).toInt()
     private fun getMinHeight(): Int = (MIN_HEIGHT_DP * resources.displayMetrics.density).toInt()
-    
+
     override fun onBind(intent: Intent?): IBinder? = null
-    
+
     override fun onCreate() {
         super.onCreate()
         try {
             // 创建并启动前台服务
             startForeground()
-            
+
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-            
+
             // 获取屏幕尺寸
             val displayMetrics = resources.displayMetrics
                 screenWidth = displayMetrics.widthPixels
                 screenHeight = displayMetrics.heightPixels
-            
+
             // 创建浮动窗口
         createFloatingView()
-        
+
             // 加载上次的窗口状态
             val savedState = loadWindowState()
             val params = floatingView?.layoutParams as? WindowManager.LayoutParams
@@ -244,23 +246,17 @@ class FloatingWebViewService : Service() {
                 params.height = maxOf(savedState.height, getMinHeight())
                 params.x = savedState.x
                 params.y = savedState.y
-                
+
                 try {
                     windowManager.updateViewLayout(floatingView, params)
                 } catch (e: Exception) {
-                    Log.e(TAG, "恢复窗口状态失败", e)
+                    Log.e(TAG, "Failed to update view layout on create: ${e.message}")
                 }
             }
-            
-            // 设置双击标题栏最大化
-            setupTitleBarDoubleTap()
-            
-            // 确保导航栏和保存按钮可见
-            saveButton?.visibility = View.VISIBLE
-            navigationBar?.visibility = View.VISIBLE
-            
+
+            settingsManager = SettingsManager.getInstance(this)
         } catch (e: Exception) {
-            Log.e(TAG, "创建服务失败", e)
+            Log.e(TAG, "Error in onCreate: ${e.message}")
             stopSelf()
         }
     }
@@ -1879,6 +1875,7 @@ class FloatingWebViewService : Service() {
             
             return SearchEngine(
                 name = getSearchEngineName(host),
+                displayName = getSearchEngineName(host),
                 url = url,
                 searchUrl = searchUrlTemplate,
                 iconResId = R.drawable.ic_search,
@@ -1900,5 +1897,24 @@ class FloatingWebViewService : Service() {
             host.contains("bilibili") -> "哔哩哔哩"
             else -> host.split(".")[0].capitalize()
         }
+    }
+
+    private fun getDefaultAIEngine(): BaseSearchEngine {
+        return AISearchEngine.DEFAULT_AI_ENGINES.firstOrNull() ?: AISearchEngine(
+            name = "ChatGPT",
+            url = "https://chat.openai.com",
+            iconResId = R.drawable.ic_chatgpt,
+            description = "ChatGPT AI助手"
+        )
+    }
+
+    private fun getDefaultSearchEngine(): SearchEngine {
+        return SearchEngine.DEFAULT_ENGINES.find { it.name == "baidu" } ?: SearchEngine(
+            name = "baidu",
+            displayName = "百度",
+            url = "https://www.baidu.com",
+            iconResId = R.drawable.ic_baidu,
+            description = "百度搜索"
+        )
     }
 } 
