@@ -126,9 +126,10 @@ class ChatManager(private val context: Context) {
         fun sendMessage(message: String) {
             if (currentSessionId == null) return
             val session = sessions.find { it.id == currentSessionId } ?: return
+            val webView = webViewRef ?: return
 
             scope.launch {
-                handleMessageSend(message, isDeepSeekEngine, session)
+                handleMessageSend(webView, message, isDeepSeekEngine, session)
             }
         }
         
@@ -163,17 +164,17 @@ class ChatManager(private val context: Context) {
 
         // Then, perform the actual API call.
         scope.launch {
-            handleMessageSend(message, isDeepSeek, session)
+            handleMessageSend(webView, message, isDeepSeek, session)
         }
     }
 
-    private suspend fun handleMessageSend(message: String, isDeepSeek: Boolean, session: ChatSession) {
+    private suspend fun handleMessageSend(webView: WebView, message: String, isDeepSeek: Boolean, session: ChatSession) {
         val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
         if (apiKey.isBlank()) {
             val error = "API Key for ${if (isDeepSeek) "DeepSeek" else "ChatGPT"} is not set."
             Log.e("ChatManager", error)
             withContext(Dispatchers.Main) {
-                webViewRef?.evaluateJavascript("showErrorMessage('${escapeJs(error)}');", null)
+                webView.evaluateJavascript("showErrorMessage('${escapeJs(error)}');", null)
             }
             return
         }
@@ -219,7 +220,7 @@ class ChatManager(private val context: Context) {
                                 val contentChunk = delta.getString("content")
                                 fullResponse.append(contentChunk)
                                             withContext(Dispatchers.Main) {
-                                    webViewRef?.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
+                                    webView.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
                                 }
                             }
                         } catch (e: Exception) {
@@ -240,13 +241,13 @@ class ChatManager(private val context: Context) {
             saveSessions()
 
             withContext(Dispatchers.Main) {
-                webViewRef?.evaluateJavascript("completeResponse();", null)
-                webViewRef?.evaluateJavascript("updateSessionTitle('${session.id}', '${escapeJs(session.title)}');", null)
+                webView.evaluateJavascript("completeResponse();", null)
+                webView.evaluateJavascript("updateSessionTitle('${session.id}', '${escapeJs(session.title)}');", null)
             }
         } catch (e: Exception) {
             Log.e("ChatManager", "API call failed: ${e.message}", e)
             withContext(Dispatchers.Main) {
-                webViewRef?.evaluateJavascript("showErrorMessage('Error: ${escapeJs(e.message ?: "Unknown API error")}');", null)
+                webView.evaluateJavascript("showErrorMessage('Error: ${escapeJs(e.message ?: "Unknown API error")}');", null)
             }
         }
     }

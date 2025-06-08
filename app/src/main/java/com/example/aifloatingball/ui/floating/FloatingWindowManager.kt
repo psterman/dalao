@@ -73,14 +73,15 @@ class FloatingWindowManager(private val context: Context, private val windowStat
 
     // 定义搜索引擎键列表
     private val standardEngineKeys = listOf("baidu", "google", "bing", "sogou", "360", "quark", "toutiao", "zhihu", "bilibili", "douban", "weibo", "taobao", "jd", "douyin", "xiaohongshu")
-    
+
     // 获取启用的AI搜索引擎列表
     private fun getEnabledAIEngineKeys(): List<String> {
+        val allAIEngineKeys = setOf("chatgpt_chat", "claude", "gemini", "wenxin", "chatglm", "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek_chat")
         val settingsManager = SettingsManager.getInstance(context)
         val enabledAIEngines: Set<String> = settingsManager.getEnabledAIEngines()
         
         // 将名称转换为键名
-        return enabledAIEngines.map { aiEngineName ->
+        val enabledKeys = enabledAIEngines.map { aiEngineName ->
             when(aiEngineName) {
                 "ChatGPT" -> "chatgpt_chat"
                 "Claude" -> "claude"
@@ -96,6 +97,8 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                 else -> aiEngineName.lowercase()
             }
         }
+        // 过滤掉不在白名单里的key
+        return enabledKeys.filter { it in allAIEngineKeys }
     }
     
     init {

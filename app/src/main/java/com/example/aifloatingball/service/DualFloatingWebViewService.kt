@@ -330,7 +330,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     }
                     // 如果是聊天模式，并且有查询，则发送消息
                     if (query.isNotBlank()) {
-                        chatManager.sendMessageToWebView(query, it, currentWindowEngineKey.startsWith("deepseek"))
+                        val webView = it as android.webkit.WebView
+                        chatManager.sendMessageToWebView(query, webView, currentWindowEngineKey.startsWith("deepseek"))
                     }
                 } else { // 非聊天模式，直接加载URL
                     it.loadUrl(currentWindowSearchUrl)

@@ -173,8 +173,7 @@ class SettingsManager private constructor(context: Context) {
     
     // 获取和保存启用的搜索引擎
     fun getEnabledEngines(): Set<String> {
-        return prefs.getStringSet("enabled_engines", null) ?: 
-               SearchEngine.DEFAULT_ENGINES.map { it.name }.toSet()
+        return prefs.getStringSet("enabled_engines", emptySet()) ?: emptySet()
     }
     
     fun saveEnabledEngines(enabledEngines: Set<String>) {
@@ -188,8 +187,7 @@ class SettingsManager private constructor(context: Context) {
     
     // 获取已启用的AI搜索引擎
     fun getEnabledAIEngines(): Set<String> {
-        return prefs.getStringSet("enabled_ai_engines", null) ?:
-               AISearchEngine.DEFAULT_AI_ENGINES.filter { it.isChatMode }.map { it.name }.toSet() // 默认启用所有聊天模式的AI搜索引擎
+        return prefs.getStringSet("enabled_ai_engines", emptySet()) ?: emptySet()
     }
     
     // 保存已启用的AI搜索引擎
