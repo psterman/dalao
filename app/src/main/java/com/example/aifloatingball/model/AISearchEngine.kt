@@ -5,14 +5,6 @@ import android.os.Parcelable
 import com.example.aifloatingball.R
 import android.util.Log
 
-/**
- * AI搜索引擎数据类
- * 
- * @param name 搜索引擎名称
- * @param url 搜索引擎URL
- * @param iconResId 搜索引擎图标资源ID
- * @param description 搜索引擎描述
- */
 data class AISearchEngine(
     override val name: String,
     override val url: String,
@@ -22,7 +14,7 @@ data class AISearchEngine(
     val isChatMode: Boolean = false
 ) : BaseSearchEngine, Parcelable {
     override val displayName: String
-        get() = name  // AI搜索引擎的显示名称与名称相同
+        get() = name
 
     override fun getSearchUrl(query: String): String {
         return searchUrl.replace("{query}", query)
@@ -40,9 +32,6 @@ data class AISearchEngine(
     override fun describeContents(): Int = 0
 
     companion object {
-        /**
-         * 默认AI搜索引擎列表
-         */
         @JvmField
         val DEFAULT_AI_ENGINES = listOf(
             AISearchEngine(
@@ -118,14 +107,14 @@ data class AISearchEngine(
             AISearchEngine(
                 name = "天工AI",
                 url = "https://www.tiangong.cn",
-                iconResId = R.drawable.ic_search,
+                iconResId = R.drawable.ic_search, // Placeholder icon
                 description = "昆仑万维 天工AI搜索",
                 searchUrl = "https://www.tiangong.cn/search?q={query}"
             ),
             AISearchEngine(
                 name = "秘塔AI搜索",
                 url = "https://metaso.cn",
-                iconResId = R.drawable.ic_search,
+                iconResId = R.drawable.ic_search, // Placeholder icon
                 description = "秘塔科技 AI搜索",
                 searchUrl = "https://metaso.cn/?q={query}"
             ),
@@ -153,7 +142,7 @@ data class AISearchEngine(
             AISearchEngine(
                 name = "You.com",
                 url = "https://you.com",
-                iconResId = R.drawable.ic_search,
+                iconResId = R.drawable.ic_search, // Placeholder icon
                 description = "You.com AI Search",
                 searchUrl = "https://you.com/search?q={query}"
             ),
@@ -171,20 +160,21 @@ data class AISearchEngine(
                 description = "WolframAlpha 计算知识引擎",
                 searchUrl = "https://www.wolframalpha.com/input?i={query}"
             ),
+            // API 对话模式
             AISearchEngine(
-                name = "ChatGPT对话",
+                name = "ChatGPT (API)",
                 url = "chat://chatgpt",
                 iconResId = R.drawable.ic_chatgpt,
                 description = "使用API进行ChatGPT对话",
-                searchUrl = "chat://chatgpt?q={query}",
+                searchUrl = "chat://chatgpt",
                 isChatMode = true
             ),
             AISearchEngine(
-                name = "DeepSeek对话",
+                name = "DeepSeek (API)",
                 url = "chat://deepseek",
                 iconResId = R.drawable.ic_deepseek,
                 description = "使用API进行DeepSeek对话",
-                searchUrl = "chat://deepseek?q={query}",
+                searchUrl = "chat://deepseek",
                 isChatMode = true
             )
         )

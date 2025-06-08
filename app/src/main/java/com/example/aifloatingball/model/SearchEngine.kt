@@ -65,9 +65,9 @@ data class SearchEngine(
             // C1. 视频
             SearchEngine(name = "bilibili", displayName = "哔哩哔哩", url = "https://www.bilibili.com", iconResId = R.drawable.ic_bilibili, description = "国内领先的年轻人文化社区和视频平台", searchUrl = "https://search.bilibili.com/all?keyword={query}", category = SearchEngineCategory.VIDEO),
             SearchEngine(name = "douyin", displayName = "抖音", url = "https://www.douyin.com", iconResId = R.drawable.ic_douyin, description = "记录美好生活的短视频平台", searchUrl = "https://www.douyin.com/search/{query}", category = SearchEngineCategory.VIDEO),
-            SearchEngine(name = "youku", displayName = "优酷", url = "https://www.youku.com", iconResId = R.drawable.ic_search, description = "阿里巴巴旗下的在线视频平台", searchUrl = "https://www.soku.com/search_video/q_{query}", category = SearchEngineCategory.VIDEO),
+            SearchEngine(name = "youku", displayName = "优酷", url = "https://www.youku.com", iconResId = R.drawable.ic_search, description = "阿里巴巴旗下的在线视频平台", searchUrl = "https://www.soku.com/list/pack?keyword={query}", category = SearchEngineCategory.VIDEO),
             SearchEngine(name = "tencent_video", displayName = "腾讯视频", url = "https://v.qq.com", iconResId = R.drawable.ic_search, description = "腾讯旗下的在线视频媒体平台", searchUrl = "https://v.qq.com/x/search/?q={query}", category = SearchEngineCategory.VIDEO),
-            SearchEngine(name = "ixigua", displayName = "西瓜视频", url = "https://www.ixigua.com", iconResId = R.drawable.ic_search, description = "字节跳动旗下的中长视频平台", searchUrl = "https://www.ixigua.com/search/{query}", category = SearchEngineCategory.VIDEO),
+            SearchEngine(name = "ixigua", displayName = "西瓜视频", url = "https://www.ixigua.com", iconResId = R.drawable.ic_search, description = "字节跳动旗下的中长视频平台", searchUrl = "https://www.ixigua.com/search?keyword={query}", category = SearchEngineCategory.VIDEO),
 
             // D1. 学术与专业
             SearchEngine(name = "google_scholar", displayName = "Google学术", url = "https://scholar.google.com", iconResId = R.drawable.ic_search, description = "Google提供的免费学术搜索引擎", searchUrl = "https://scholar.google.com/scholar?q={query}", category = SearchEngineCategory.ACADEMIC),
@@ -77,8 +77,8 @@ data class SearchEngine(
             SearchEngine(name = "pubmed", displayName = "PubMed", url = "https://pubmed.ncbi.nlm.nih.gov", iconResId = R.drawable.ic_search, description = "生物医学和生命科学文献数据库", searchUrl = "https://pubmed.ncbi.nlm.nih.gov/?term={query}", category = SearchEngineCategory.ACADEMIC),
 
             // E1. 生活与服务
-            SearchEngine(name = "dianping", displayName = "大众点评", url = "https://www.dianping.com", iconResId = R.drawable.ic_search, description = "本地生活信息及交易平台", searchUrl = "https://www.dianping.com/search/keyword/1/0_{query}", category = SearchEngineCategory.LIFESTYLE),
-            SearchEngine(name = "meituan", displayName = "美团", url = "https://www.meituan.com", iconResId = R.drawable.ic_search, description = "一站式吃喝玩乐消费平台", searchUrl = "https://www.meituan.com/s/{query}/", category = SearchEngineCategory.LIFESTYLE),
+            SearchEngine(name = "dianping", displayName = "大众点评", url = "https://www.dianping.com", iconResId = R.drawable.ic_search, description = "本地生活信息及交易平台", searchUrl = "https://www.dianping.com/search/keyword?keyword={query}", category = SearchEngineCategory.LIFESTYLE),
+            SearchEngine(name = "meituan", displayName = "美团", url = "https://www.meituan.com", iconResId = R.drawable.ic_search, description = "一站式吃喝玩乐消费平台", searchUrl = "https://www.meituan.com/s/?w={query}", category = SearchEngineCategory.LIFESTYLE),
             SearchEngine(name = "58tongcheng", displayName = "58同城", url = "https://www.58.com", iconResId = R.drawable.ic_search, description = "本地分类信息网站", searchUrl = "https://www.58.com/sou/?key={query}", category = SearchEngineCategory.LIFESTYLE),
             SearchEngine(name = "ganji", displayName = "赶集网", url = "https://www.ganji.com", iconResId = R.drawable.ic_search, description = "专业的分类信息网", searchUrl = "https://www.ganji.com/so.php?keyword={query}", category = SearchEngineCategory.LIFESTYLE),
 
@@ -128,67 +128,8 @@ data class SearchEngine(
         }
 
         fun getAllSearchEngines(): List<SearchEngine> {
-            return getNormalSearchEngines() + getAISearchEngines()
+            return getNormalSearchEngines()
         }
-
-        fun getAISearchEngines(): List<SearchEngine> = listOf(
-            SearchEngine(
-                name = "ChatGPT",
-                displayName = "ChatGPT",
-                url = "https://chat.openai.com/",
-                iconResId = R.drawable.ic_chatgpt,
-                description = "OpenAI开发的AI聊天机器人",
-                isAI = true
-            ),
-            SearchEngine(
-                name = "Bard",
-                displayName = "Bard",
-                url = "https://bard.google.com/",
-                iconResId = R.drawable.ic_gemini,
-                description = "Google开发的AI助手",
-                isAI = true
-            ),
-            SearchEngine(
-                name = "Claude",
-                displayName = "Claude",
-                url = "https://claude.ai/",
-                iconResId = R.drawable.ic_claude,
-                description = "Anthropic开发的AI助手",
-                isAI = true
-            ),
-            SearchEngine(
-                name = "文心一言",
-                displayName = "文心一言",
-                url = "https://yiyan.baidu.com/",
-                iconResId = R.drawable.ic_wenxin,
-                description = "百度开发的AI助手",
-                isAI = true
-            ),
-            SearchEngine(
-                name = "通义千问",
-                displayName = "通义千问",
-                url = "https://qianwen.aliyun.com/",
-                iconResId = R.drawable.ic_qianwen,
-                description = "阿里开发的AI助手",
-                isAI = true
-            ),
-            SearchEngine(
-                name = "讯飞星火",
-                displayName = "讯飞星火",
-                url = "https://xinghuo.xfyun.cn/",
-                iconResId = R.drawable.ic_xinghuo,
-                description = "科大讯飞开发的AI助手",
-                isAI = true
-            ),
-            SearchEngine(
-                name = "Poe",
-                displayName = "Poe",
-                url = "https://poe.com/",
-                iconResId = R.drawable.ic_poe,
-                description = "Quora开发的AI聊天平台",
-                isAI = true
-            )
-        )
     }
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
@@ -204,4 +145,4 @@ data class SearchEngine(
     }
 
     override fun describeContents(): Int = 0
-}
+} 

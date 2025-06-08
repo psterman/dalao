@@ -240,14 +240,14 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun handleSearchIntent(intent: Intent) {
         val searchParams = intentParser.parseSearchIntent(intent)
         if (searchParams != null) {
-            Log.d(TAG, "处理搜索请求: ${searchParams.query}")
-            lastQuery = searchParams.query
-            lastEngineKey = searchParams.engineKey
-            handleSearchInternal(searchParams.query, searchParams.engineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+            Log.d(TAG, "处理搜索请求 from intent: ${searchParams.query}")
+            // 委托给 performSearch 处理，它有正确的引擎回退逻辑
+            performSearch(searchParams.query, searchParams.engineKey)
         } else {
             if (lastQuery == null) {
                 Log.d(TAG, "Intent中无搜索参数，加载默认内容 (当前窗口数: $currentWindowCount)")
-                handleSearchInternal("", SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+                // 使用 performSearch 来确保使用正确的默认引擎加载主页
+                performSearch("", null)
             }
         }
     }
@@ -275,7 +275,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             val webView = webViewManager.getWebViews().getOrNull(i)
             webView?.let {
                 // 获取该窗口位置对应的搜索引擎
-                val currentWindowEngineKey = SettingsManager.getInstance(this@DualFloatingWebViewService).getSearchEngineForPosition(i)
+                val currentWindowEngineKey = if (i == 0) {
+                    engineKey // 点击的引擎或左侧默认引擎优先用于第一个窗口
+                } else {
+                    SettingsManager.getInstance(this@DualFloatingWebViewService).getSearchEngineForPosition(i)
+                }
                 
                 // 根据该搜索引擎和查询，获取新的搜索URL
                 val currentWindowSearchUrl = if (query.isBlank()) {
@@ -301,7 +305,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 }
                 
                 // 如果是DeepSeek聊天，需要进行特殊处理，确保输入法能正常工作
-                if (currentWindowEngineKey == "deepseek_chat" || currentWindowEngineKey == "chatgpt_chat") { // 添加chatgpt_chat处理
+                if (currentWindowEngineKey == "deepseek" || currentWindowEngineKey == "deepseek_chat" || currentWindowEngineKey == "chatgpt" || currentWindowEngineKey == "chatgpt_chat") {
                     Log.d(TAG, "初始化聊天界面 for WebView $i")
                     // 重置WebView状态
                     try {
@@ -312,7 +316,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                         Log.e(TAG, "重置WebView $i 状态失败: ${e.message}")
                     }
                     
-                    chatManager.initWebView(it) // 初始化聊天界面
+                    chatManager.initWebView(it, currentWindowEngineKey) // 初始化聊天界面
                     
                     // 让WebView获取焦点并显示输入法 (仅对第一个WebView)
                     if (i == 0) { // 仅对第一个窗口处理输入法
@@ -326,7 +330,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     }
                     // 如果是聊天模式，并且有查询，则发送消息
                     if (query.isNotBlank()) {
-                        chatManager.sendMessageToWebView(query, it, currentWindowEngineKey == "deepseek_chat")
+                        chatManager.sendMessageToWebView(query, it, currentWindowEngineKey.startsWith("deepseek"))
                     }
                 } else { // 非聊天模式，直接加载URL
                     it.loadUrl(currentWindowSearchUrl)
@@ -348,9 +352,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     fun performSearch(query: String, engineKey: String? = null) {
         lastQuery = query
-        lastEngineKey = engineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY // 使用默认或指定的引擎
-        Log.d(TAG, "performSearch called: query='$lastQuery', engineKey='$lastEngineKey', currentWindowCount=$currentWindowCount")
-        handleSearchInternal(lastQuery!!, lastEngineKey!!, currentWindowCount)
+        // 如果没有指定引擎（例如，通过点击搜索按钮），则使用为第一个窗口位置设置的默认引擎
+        val primaryEngine = engineKey ?: settingsManager.getSearchEngineForPosition(0)
+        lastEngineKey = primaryEngine
+        Log.d(TAG, "performSearch called: query='$query', primaryEngine='$primaryEngine', currentWindowCount=$currentWindowCount")
+        handleSearchInternal(query, primaryEngine, currentWindowCount)
     }
 
     /**
@@ -397,8 +403,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 判断是否是AI搜索引擎
      */
     private fun isAIEngine(engineKey: String): Boolean {
-        return engineKey in listOf("chatgpt", "claude", "gemini", "wenxin", "chatglm", 
-                                   "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek")
+        return engineKey in listOf("chatgpt", "chatgpt_chat", "claude", "gemini", "wenxin", "chatglm", 
+                                   "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek", "deepseek_chat")
     }
 
     /**
@@ -437,69 +443,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     fun getCurrentWindowCount(): Int {
         return currentWindowCount
-    }
-
-    /**
-     * 发送消息到WebView
-     */
-    fun sendMessageToWebView(message: String, webView: CustomWebView, isDeepSeek: Boolean) {
-        // 验证消息不为空
-        if (message.trim().isEmpty()) {
-            Log.w(TAG, "尝试发送空消息，忽略")
-            return
-        }
-        
-        try {
-            Log.d(TAG, "准备发送消息到WebView: '$message', isDeepSeek=$isDeepSeek")
-            
-            // 强制添加JavaScript接口确保可用
-            try {
-                webView.removeJavascriptInterface("AndroidChatInterface")
-            } catch (e: Exception) {
-                // 忽略可能的异常
-            }
-            chatManager.initWebView(webView)
-            
-            // 确保WebView已就绪
-            webView.evaluateJavascript("document.readyState", { readyState ->
-                Log.d(TAG, "WebView状态: $readyState")
-                if (readyState == "null" || readyState == "\"loading\"") {
-                    Log.w(TAG, "WebView未准备好，等待加载完成后再发送")
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        chatManager.sendMessageToWebView(message, webView, isDeepSeek)
-                    }, 1000)
-                } else {
-                    Log.d(TAG, "WebView已准备好，直接发送消息")
-                    // 直接调用JS来添加用户消息并触发发送
-                    webView.evaluateJavascript("""
-                        (function() {
-                            try {
-                                // 添加用户消息到UI
-                                addMessageToUI('user', '${message.replace("'", "\\'")}');
-                                
-                                // 添加助手占位符和打字指示器
-                                addMessageToUI('assistant', '', false);
-                                showTypingIndicator();
-                                
-                                // 直接调用Android接口发送消息
-                                AndroidChatInterface.sendMessage('${message.replace("'", "\\'")}');
-                                
-                                return true;
-                            } catch(e) {
-                                console.error("发送消息时出错:", e);
-                                return false;
-                            }
-                        })();
-                    """, null)
-                }
-            })
-        } catch (e: Exception) {
-            Log.e(TAG, "发送消息到WebView失败: ${e.message}", e)
-            // 如果直接调用失败，则回退到原始方法
-            Handler(Looper.getMainLooper()).postDelayed({
-        chatManager.sendMessageToWebView(message, webView, isDeepSeek)
-            }, 500)
-        }
     }
 
     /**

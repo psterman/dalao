@@ -82,7 +82,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         // 将名称转换为键名
         return enabledAIEngines.map { aiEngineName ->
             when(aiEngineName) {
-                "ChatGPT" -> "chatgpt"
+                "ChatGPT" -> "chatgpt_chat"
                 "Claude" -> "claude"
                 "Gemini" -> "gemini"
                 "文心一言" -> "wenxin"
@@ -92,7 +92,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                 "Perplexity" -> "perplexity"
                 "Phind" -> "phind"
                 "Poe" -> "poe"
-                "DeepSeek对话" -> "deepseek"
+                "DeepSeek对话" -> "deepseek_chat"
                 else -> aiEngineName.lowercase()
             }
         }
@@ -319,7 +319,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             "douyin" -> "douyin.com"
             "xiaohongshu" -> "xiaohongshu.com"
             // AI Engines
-            "chatgpt" -> "openai.com"
+            "chatgpt_chat" -> "openai.com"
             "claude" -> "claude.ai"
             "gemini" -> "gemini.google.com"
             "wenxin" -> "baidu.com" // Wenxin is under baidu.com domain for icons
@@ -329,6 +329,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             "perplexity" -> "perplexity.ai"
             "phind" -> "phind.com"
             "poe" -> "poe.com"
+            "deepseek_chat" -> "deepseek.com"
             else -> "google.com" // Default domain if key is unknown
         }
     }
@@ -361,8 +362,8 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             for (key in enabledAIEngineKeys) {
                 // 根据引擎类型获取正确的图标资源
                 val iconResId = when (key) {
-                    "deepseek" -> R.drawable.ic_deepseek
-                    "chatgpt" -> R.drawable.ic_chatgpt
+                    "deepseek_chat" -> R.drawable.ic_deepseek
+                    "chatgpt_chat" -> R.drawable.ic_chatgpt
                     else -> 0 // 其他引擎使用默认的favicon逻辑
                 }
                 
@@ -389,33 +390,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                     setOnClickListener {
                         val query = searchInput?.text.toString()
                         android.util.Log.d("FloatingWindowManager", "AI Engine icon clicked: key=$key, query=$query")
-                        
-                        when (key) {
-                            "deepseek", "chatgpt" -> {
-                                val isDeepSeek = key == "deepseek"
-                                val webView = getXmlDefinedWebViews()[webViewIndex] // Restore original index
-                                
-                                webView?.let { wv ->
-                                    android.util.Log.d("FloatingWindowManager", "选中WebView，索引: $webViewIndex, WebView实例: $wv")
-                                    // 初始化聊天界面 (同时添加JavaScript接口)
-                                    (context as? DualFloatingWebViewService)?.chatManager?.initWebView(wv)
-                                    
-                                    // 如果有初始查询，发送消息
-                                    if (query.isNotBlank()) {
-                                        try {
-                                            android.util.Log.d("FloatingWindowManager", "发送初始查询到WebView: $query, isDeepSeek: $isDeepSeek")
-                                            (context as? DualFloatingWebViewService)?.sendMessageToWebView(query, wv, isDeepSeek)
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("FloatingWindowManager", "发送消息失败: ${e.message}")
-                                            e.printStackTrace()
-                                        }
-                                    }
-                                } ?: android.util.Log.e("FloatingWindowManager", "无法获取WebView实例，索引: $webViewIndex")
-                            }
-                            else -> {
-                                service.performSearchInWebView(webViewIndex, query, key) // Restore original index
-                            }
-                        }
+                        service.performSearch(query, key)
                     }
                 }
                 container.addView(imageView)
@@ -440,8 +415,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                     contentDescription = key
                     setOnClickListener {
                         val query = searchInput?.text.toString()
-                        
-                        service.performSearchInWebView(webViewIndex, query, key) // Restore original index
+                        service.performSearch(query, key)
                     }
                 }
                 it.addView(imageView)

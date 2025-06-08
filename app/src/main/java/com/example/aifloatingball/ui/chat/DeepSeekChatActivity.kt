@@ -108,7 +108,7 @@ class DeepSeekChatActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val response = chatManager.sendMessage(messageText, isDeepSeek)
+                val response = chatManager.sendMessageAndGetResponse(messageText, isDeepSeek, false)
                 withContext(Dispatchers.Main) {
                     removeLoadingMessage()
                     addMessage(ChatMessage("assistant", response))
