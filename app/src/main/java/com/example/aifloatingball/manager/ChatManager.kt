@@ -18,18 +18,36 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
+data class ChatMessage(val role: String, val content: String, val isLoading: Boolean = false)
+data class ChatSession(
+    val id: String,
+    var title: String,
+    val timestamp: Long,
+    var messages: MutableList<ChatMessage>
+)
 
 class ChatManager(private val context: Context) {
     private val settingsManager = SettingsManager.getInstance(context)
     private val scope = CoroutineScope(Dispatchers.IO + Job())
-    private val chatHistory = mutableListOf<ChatMessage>()
     private var webViewRef: WebView? = null
     private var isDeepSeekEngine: Boolean = false
+    private val gson = Gson()
 
-    data class ChatMessage(val role: String, val content: String, val isLoading: Boolean = false)
+    private val sessions = mutableListOf<ChatSession>()
+    private var currentSessionId: String? = null
 
     companion object {
-        private const val MAX_HISTORY_SIZE = 50
+        private const val MAX_HISTORY_SIZE = 50 // Per session
+        private const val PREFS_NAME = "ChatManagerPrefs"
+        private const val KEY_SESSIONS = "chat_sessions_v2"
+        private const val KEY_CURRENT_SESSION_ID = "current_session_id_v2"
+    }
+
+    init {
+        loadSessions()
     }
 
     fun initWebView(webView: WebView, engineKey: String) {
@@ -60,25 +78,96 @@ class ChatManager(private val context: Context) {
 
     private inner class AndroidChatInterface {
         @android.webkit.JavascriptInterface
-        fun sendMessage(message: String) {
-            scope.launch {
-                handleMessageSend(message, isDeepSeekEngine)
+        fun getSessions(): String {
+            val sortedSessions = sessions.sortedByDescending { it.timestamp }
+            val metadata = sortedSessions.map { mapOf("id" to it.id, "title" to it.title, "timestamp" to it.timestamp) }
+            return gson.toJson(metadata)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun getInitialSession(): String {
+            val session = if (currentSessionId != null) sessions.find { it.id == currentSessionId } else sessions.firstOrNull()
+            return if (session != null) {
+                currentSessionId = session.id
+                gson.toJson(session)
+            } else {
+                startNewChat() // If no session exists, create one
             }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun getMessages(sessionId: String): String {
+            val session = sessions.find { it.id == sessionId }
+            return if (session != null) {
+                currentSessionId = sessionId
+                saveCurrentSessionId()
+                gson.toJson(session.messages)
+            } else {
+                "[]"
+            }
+        }
+
+        @android.webkit.JavascriptInterface
+        fun startNewChat(): String {
+            val newSession = ChatSession(
+                id = System.currentTimeMillis().toString(),
+                title = "新对话",
+                timestamp = System.currentTimeMillis(),
+                messages = mutableListOf()
+            )
+            sessions.add(0, newSession)
+            currentSessionId = newSession.id
+            saveSessions()
+            saveCurrentSessionId()
+            return gson.toJson(newSession)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun sendMessage(message: String) {
+            if (currentSessionId == null) return
+            val session = sessions.find { it.id == currentSessionId } ?: return
+
+            scope.launch {
+                handleMessageSend(message, isDeepSeekEngine, session)
+            }
+        }
+        
+        @android.webkit.JavascriptInterface
+        fun deleteSession(sessionId: String) {
+            sessions.removeAll { it.id == sessionId }
+            if (currentSessionId == sessionId) {
+                currentSessionId = sessions.firstOrNull()?.id
+                saveCurrentSessionId()
+            }
+            saveSessions()
         }
     }
 
     fun sendMessageToWebView(message: String, webView: WebView, isDeepSeek: Boolean) {
-        val escapedMessage = escapeJs(message)
-        webView.evaluateJavascript("""
-            (function() {
-                addMessageToUI('user', '$escapedMessage');
-                showTypingIndicator();
-                AndroidChatInterface.sendMessage('$escapedMessage');
-            })();
-        """, null)
+        if (currentSessionId == null) {
+            Log.w("ChatManager", "Cannot send message, no current session.")
+            return
+        }
+        val session = sessions.find { it.id == currentSessionId }
+        if (session == null) {
+            Log.w("ChatManager", "Cannot send message, current session not found.")
+            return
+        }
+        
+        // Emulate the JS sendMessage function to update the UI from native code
+        webView.post {
+            webView.evaluateJavascript("addMessageToUI('user', '${escapeJs(message)}', true);", null)
+            webView.evaluateJavascript("addMessageToUI('assistant', '', false);", null)
+            webView.evaluateJavascript("showTypingIndicator();", null)
+        }
+
+        // Then, perform the actual API call.
+        scope.launch {
+            handleMessageSend(message, isDeepSeek, session)
+        }
     }
 
-    private suspend fun handleMessageSend(message: String, isDeepSeek: Boolean) {
+    private suspend fun handleMessageSend(message: String, isDeepSeek: Boolean, session: ChatSession) {
         val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
         if (apiKey.isBlank()) {
             val error = "API Key for ${if (isDeepSeek) "DeepSeek" else "ChatGPT"} is not set."
@@ -91,9 +180,14 @@ class ChatManager(private val context: Context) {
 
         val apiUrl = if (isDeepSeek) settingsManager.getDeepSeekApiUrl() else settingsManager.getChatGPTApiUrl()
         val model = if (isDeepSeek) "deepseek-chat" else "gpt-3.5-turbo"
-        
-        chatHistory.add(ChatMessage("user", message))
 
+        session.messages.add(ChatMessage("user", message))
+        if (session.title == "新对话" && session.messages.size == 1) {
+            session.title = message
+        }
+
+        val contextMessages = session.messages.toMutableList()
+        
         try {
             val url = URL(apiUrl)
             val connection = url.openConnection() as HttpURLConnection
@@ -106,12 +200,8 @@ class ChatManager(private val context: Context) {
                 readTimeout = 60000
             }
 
-            val requestBody = JSONObject().apply {
-                put("model", model)
-                put("messages", JSONArray(chatHistory.map { JSONObject().put("role", it.role).put("content", it.content) }))
-                put("stream", true)
-            }.toString()
-
+            val requestBody = gson.toJson(mapOf("model" to model, "messages" to contextMessages, "stream" to true))
+            
             connection.outputStream.use { it.write(requestBody.toByteArray(StandardCharsets.UTF_8)) }
 
             val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
@@ -123,12 +213,12 @@ class ChatManager(private val context: Context) {
                     val jsonData = line.substring(5).trim()
                     if (jsonData != "[DONE]") {
                         try {
-                            val choice = JSONObject(jsonData).getJSONArray("choices").getJSONObject(0)
+                            val choice = org.json.JSONObject(jsonData).getJSONArray("choices").getJSONObject(0)
                             val delta = choice.getJSONObject("delta")
                             if (delta.has("content")) {
                                 val contentChunk = delta.getString("content")
                                 fullResponse.append(contentChunk)
-                                withContext(Dispatchers.Main) {
+                                            withContext(Dispatchers.Main) {
                                     webViewRef?.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
                                 }
                             }
@@ -142,13 +232,16 @@ class ChatManager(private val context: Context) {
             connection.disconnect()
 
             val assistantMessage = ChatMessage("assistant", fullResponse.toString())
-            chatHistory.add(assistantMessage)
-            if (chatHistory.size > MAX_HISTORY_SIZE) {
-                chatHistory.removeAt(0)
+            session.messages.add(assistantMessage)
+            if (session.messages.size > MAX_HISTORY_SIZE * 2) {
+                session.messages.removeAt(0)
+                session.messages.removeAt(0)
             }
+            saveSessions()
 
             withContext(Dispatchers.Main) {
                 webViewRef?.evaluateJavascript("completeResponse();", null)
+                webViewRef?.evaluateJavascript("updateSessionTitle('${session.id}', '${escapeJs(session.title)}');", null)
             }
         } catch (e: Exception) {
             Log.e("ChatManager", "API call failed: ${e.message}", e)
@@ -158,67 +251,8 @@ class ChatManager(private val context: Context) {
         }
     }
 
-    suspend fun sendMessageAndGetResponse(message: String, isDeepSeek: Boolean, isStream: Boolean = false): String {
-        if (isStream) {
-            return "Error: Streaming is not supported in this context."
-        }
-
-        val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
-        if (apiKey.isBlank()) {
-            val error = "API Key for ${if (isDeepSeek) "DeepSeek" else "ChatGPT"} is not set."
-            Log.e("ChatManager", error)
-            return "Error: $error"
-        }
-
-        val apiUrl = if (isDeepSeek) settingsManager.getDeepSeekApiUrl() else settingsManager.getChatGPTApiUrl()
-        val model = if (isDeepSeek) "deepseek-chat" else "gpt-3.5-turbo"
-
-        chatHistory.add(ChatMessage("user", message))
-
-        return try {
-            val url = URL(apiUrl)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Authorization", "Bearer $apiKey")
-                doOutput = true
-                connectTimeout = 30000
-                readTimeout = 60000
-            }
-
-            val requestBody = JSONObject().apply {
-                put("model", model)
-                put("messages", JSONArray(chatHistory.map { JSONObject().put("role", it.role).put("content", it.content) }))
-                put("stream", false)
-            }.toString()
-
-            connection.outputStream.use { it.write(requestBody.toByteArray(StandardCharsets.UTF_8)) }
-
-            val reader = BufferedReader(InputStreamReader(connection.inputStream))
-            val response = reader.readText()
-            val jsonResponse = JSONObject(response)
-            val fullResponse = jsonResponse.getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
-            reader.close()
-            
-            connection.disconnect()
-
-            val assistantMessage = ChatMessage("assistant", fullResponse)
-            chatHistory.add(assistantMessage)
-            if (chatHistory.size > MAX_HISTORY_SIZE) {
-                chatHistory.removeAt(0)
-            }
-            fullResponse
-        } catch (e: Exception) {
-            Log.e("ChatManager", "API call failed: ${e.message}", e)
-            "Error: ${e.message ?: "Unknown API error"}"
-        }
-    }
-
     private fun chatHistoryToJson(): String {
-        return JSONArray(chatHistory.map {
-            JSONObject().put("role", it.role).put("content", it.content)
-        }).toString()
+        return gson.toJson(sessions.flatMap { it.messages })
     }
 
     private fun escapeJs(s: String): String {
@@ -227,5 +261,35 @@ class ChatManager(private val context: Context) {
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
                 .replace("\r", "")
+    }
+
+    private fun saveSessions() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_SESSIONS, gson.toJson(sessions)).apply()
+    }
+
+    private fun loadSessions() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_SESSIONS, null)
+        if (json != null) {
+            val type = object : TypeToken<MutableList<ChatSession>>() {}.type
+            try {
+                val loadedSessions: MutableList<ChatSession> = gson.fromJson(json, type)
+                sessions.clear()
+                sessions.addAll(loadedSessions)
+            } catch (e: Exception) {
+                Log.e("ChatManager", "Failed to load sessions", e)
+                sessions.clear()
+            }
+        }
+        currentSessionId = prefs.getString(KEY_CURRENT_SESSION_ID, null)
+        if (sessions.find { it.id == currentSessionId } == null) {
+            currentSessionId = sessions.sortedByDescending { it.timestamp }.firstOrNull()?.id
+        }
+    }
+
+    private fun saveCurrentSessionId() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_CURRENT_SESSION_ID, currentSessionId).apply()
     }
 }

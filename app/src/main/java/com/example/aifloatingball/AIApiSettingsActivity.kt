@@ -7,7 +7,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
-import com.example.aifloatingball.ui.chat.DeepSeekChatActivity
 
 class AIApiSettingsActivity : AppCompatActivity() {
     
@@ -31,7 +30,7 @@ class AIApiSettingsActivity : AppCompatActivity() {
     }
 
     override fun onSupportNavigateUp(): Boolean {
-        onBackPressed()
+        onBackPressedDispatcher.onBackPressed()
         return true
     }
 
@@ -50,13 +49,6 @@ class AIApiSettingsActivity : AppCompatActivity() {
                     Toast.makeText(context, "DeepSeek API密钥已保存", Toast.LENGTH_SHORT).show()
                     true
                 }
-            }
-
-            // DeepSeek 对话入口
-            findPreference<Preference>("deepseek_chat")?.setOnPreferenceClickListener {
-                val intent = Intent(requireContext(), DeepSeekChatActivity::class.java)
-                startActivity(intent)
-                true
             }
 
             // ChatGPT API设置
