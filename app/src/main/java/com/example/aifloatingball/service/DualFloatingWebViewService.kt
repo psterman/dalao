@@ -119,9 +119,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 创建浮动窗口
         windowManager.createFloatingWindow()
 
-        // 设置输入法监听
-        setupKeyboardListener()
-
         // 在浮动窗口创建之后，并且XML中的WebView可用之后，初始化WebViewManager
         val xmlWebViews = windowManager.getXmlDefinedWebViews()
         Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
@@ -502,48 +499,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         with(sharedPreferences.edit()) {
             putInt(KEY_WINDOW_COUNT, count)
             apply()
-        }
-    }
-
-    private fun setupKeyboardListener() {
-        val rootView = floatingView?.findViewById<View>(R.id.dual_webview_root)
-        rootView?.viewTreeObserver?.addOnGlobalLayoutListener {
-            val r = Rect()
-            rootView.getWindowVisibleDisplayFrame(r)
-            val screenHeight = rootView.height
-            
-            // 计算输入法高度
-            val newKeyboardHeight = screenHeight - r.bottom
-            
-            if (newKeyboardHeight != keyboardHeight) {
-                val isKeyboardNowVisible = newKeyboardHeight > screenHeight * 0.15
-                
-                if (isKeyboardNowVisible != isKeyboardVisible) {
-                    isKeyboardVisible = isKeyboardNowVisible
-                    
-                    if (isKeyboardVisible) {
-                        // 输入法显示时
-                        if (originalY == 0) {
-                            originalY = windowManager.params?.y ?: 0
-                        }
-                        // 调整窗口位置，向上移动输入法高度
-                        windowManager.params?.y = originalY - newKeyboardHeight.toInt()
-                    } else {
-                        // 输入法隐藏时，恢复原始位置
-                        windowManager.params?.y = originalY
-                        originalY = 0
-                    }
-                    
-                    // 更新窗口布局
-                    try {
-                        windowManager.updateViewLayout(floatingView, windowManager.params)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "更新窗口布局失败: ${e.message}")
-                    }
-                }
-                
-                keyboardHeight = newKeyboardHeight
-            }
         }
     }
 } 

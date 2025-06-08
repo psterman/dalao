@@ -168,66 +168,6 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         val inflater = LayoutInflater.from(context)
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
         
-        // 添加GlobalLayoutListener来监听键盘可见性
-        _floatingView?.viewTreeObserver?.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
-            private var previousFloatingViewHeight = 0
-
-            override fun onGlobalLayout() {
-                _floatingView?.let { fv ->
-                    val currentFloatingViewHeight = fv.height
-                    val currentScreenHeight = windowManager?.defaultDisplay?.height ?: 0
-
-                    if (previousFloatingViewHeight == 0) {
-                        previousFloatingViewHeight = currentFloatingViewHeight
-                        Log.d(TAG, "GlobalLayoutListener: 首次布局，当前浮动视图高度=$currentFloatingViewHeight")
-                        return
-                    }
-
-                    if (currentFloatingViewHeight != previousFloatingViewHeight) {
-                        val heightDelta = previousFloatingViewHeight - currentFloatingViewHeight
-                        val keyboardHeightThreshold = currentScreenHeight / 4 // 假设键盘高度大于屏幕的1/4
-
-                        Log.d(TAG, "GlobalLayoutListener: 布局变化检测到。当前浮动视图高度=$currentFloatingViewHeight, 上次高度=$previousFloatingViewHeight, 变化量=$heightDelta")
-
-                        if (heightDelta > keyboardHeightThreshold) { 
-                            // 高度差大于阈值，通常表示键盘显示
-                            if (!isKeyboardShowing) {
-                                Log.d(TAG, "键盘显示。计算缩减高度: 原始高度=$originalWindowHeight, 键盘高度=$heightDelta")
-                                isKeyboardShowing = true
-                                
-                                params?.apply {
-                                    height = originalWindowHeight - heightDelta
-                                    y = originalWindowY + heightDelta
-                                    try {
-                                        windowManager?.updateViewLayout(fv, this)
-                                        Log.d(TAG, "已更新窗口布局 (键盘显示): 高度=$height, Y=$y, 软键盘模式=${softInputMode}, 标志=${flags}")
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "更新窗口布局失败 (键盘显示)", e)
-                                    }
-                                }
-                            }
-                        } else if (isKeyboardShowing) {
-                            // 高度差不大于阈值，且之前键盘显示，通常表示键盘隐藏
-                            Log.d(TAG, "键盘隐藏。恢复原有高度: 原始高度=$originalWindowHeight, 原始Y=$originalWindowY")
-                            isKeyboardShowing = false
-                            
-                            params?.apply {
-                                height = originalWindowHeight
-                                y = originalWindowY
-                                try {
-                                    windowManager?.updateViewLayout(fv, this)
-                                    Log.d(TAG, "已更新窗口布局 (键盘隐藏): 高度=$height, Y=$y, 软键盘模式=${softInputMode}, 标志=${flags}")
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "更新窗口布局失败 (键盘隐藏)", e)
-                                }
-                            }
-                        }
-                    }
-                    previousFloatingViewHeight = currentFloatingViewHeight
-                }
-            }
-        })
-        
         webViewContainer = _floatingView?.findViewById(R.id.dual_webview_container)
         firstWebView = _floatingView?.findViewById(R.id.first_floating_webview)
         secondWebView = _floatingView?.findViewById(R.id.second_floating_webview)

@@ -2128,22 +2128,26 @@ class FloatingWindowService : Service() {
         val iconResId: Int
         val url: String
         val domain: String
+        val key: String // 添加一个key来传递给图标加载程序
         
         if (isAI && engine is com.example.aifloatingball.model.AISearchEngine) {
             name = engine.name
             iconResId = engine.iconResId
             url = engine.url
             domain = extractDomain(url)
+            key = engine.name // AI引擎的name就是key
         } else if (!isAI && engine is com.example.aifloatingball.model.SearchEngine) {
-            name = engine.name
+            name = engine.displayName // <-- 使用displayName
             iconResId = engine.iconResId
             url = engine.url
             domain = extractDomain(url)
+            key = engine.name // 普通引擎的name是key
         } else {
             name = "未知"
             iconResId = R.drawable.ic_search
             url = ""
             domain = ""
+            key = ""
         }
         
         // 创建视图
@@ -2167,9 +2171,9 @@ class FloatingWindowService : Service() {
         iconView.setBackgroundResource(R.drawable.search_item_background)
         (iconView.background as GradientDrawable).setColor(Color.parseColor(backgroundColor))
         
-        // 如果有有效的域名，尝试从网络加载图标
-        if (domain.isNotEmpty() && !domain.equals("localhost")) {
-            loadIconForDomain(domain, iconView, finalIconResId)
+        // 如果有有效的key，尝试从网络加载图标
+        if (key.isNotEmpty()) {
+            loadIconWithEngineUtil(key, iconView, finalIconResId)
         }
         
         // 设置名称
@@ -2191,6 +2195,27 @@ class FloatingWindowService : Service() {
     }
     
     // 使用Glide库加载网站图标
+    private fun loadIconWithEngineUtil(engineKey: String, imageView: ImageView, fallbackResId: Int) {
+        try {
+            val iconUrl = EngineUtil.getEngineIconUrl(engineKey)
+            
+            if (iconUrl.isEmpty()) {
+                imageView.setImageResource(fallbackResId)
+                return
+            }
+            
+            Glide.with(this)
+                .load(iconUrl)
+                .placeholder(fallbackResId)
+                .error(fallbackResId)
+                .into(imageView)
+                
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "使用Glide加载图标失败 for key: $engineKey", e)
+            imageView.setImageResource(fallbackResId)
+        }
+    }
+
     private fun loadIconForDomain(domain: String, imageView: ImageView, fallbackResId: Int) {
         try {
             // 如果域名为空或无效，直接使用备用图标
