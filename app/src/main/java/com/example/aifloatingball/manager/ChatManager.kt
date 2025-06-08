@@ -50,7 +50,7 @@ class ChatManager(private val context: Context) {
         loadSessions()
     }
 
-    fun initWebView(webView: WebView, engineKey: String) {
+    fun initWebView(webView: WebView, engineKey: String, initialMessage: String? = null) {
         this.webViewRef = webView
         this.isDeepSeekEngine = engineKey.startsWith("deepseek")
         
@@ -72,6 +72,9 @@ class ChatManager(private val context: Context) {
         webView.webViewClient = object : android.webkit.WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 view?.evaluateJavascript("loadChatHistoryFromAndroid('${chatHistoryToJson()}');", null)
+                if (view != null && !initialMessage.isNullOrBlank()) {
+                    sendMessageToWebView(initialMessage, view, isDeepSeekEngine)
+                }
             }
         }
     }

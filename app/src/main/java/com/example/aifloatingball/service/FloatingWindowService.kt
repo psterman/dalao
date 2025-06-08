@@ -1484,6 +1484,21 @@ class FloatingWindowService : Service() {
     // 使用搜索引擎进行搜索
     private fun searchWithEngine(engineName: String, query: String, isAI: Boolean) {
         try {
+            // 对聊天模式进行特殊处理
+            if (engineName == "DeepSeek (API)") {
+                val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                    putExtra("search_query", query)
+                    putExtra("engine_key", "deepseek_chat") // 直接使用正确的engine key
+                }
+                startService(intent)
+
+                // 清空搜索框并隐藏界面
+                searchInput?.setText("")
+                hideSearchInterface()
+                Toast.makeText(this, "正在打开 DeepSeek 对话...", Toast.LENGTH_SHORT).show()
+                return // 提前返回
+            }
+
             // 编码查询字符串，防止特殊字符问题
             val encodedQuery = Uri.encode(query)
             
@@ -1513,7 +1528,7 @@ class FloatingWindowService : Service() {
             searchInput?.setText("")
             
             // 隐藏搜索界面
-            searchContainer?.visibility = View.GONE
+            hideSearchInterface()
             
             // 显示提示
             val mode = if (isAI) "AI模式" else "普通模式"

@@ -316,7 +316,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                         Log.e(TAG, "重置WebView $i 状态失败: ${e.message}")
                     }
                     
-                    chatManager.initWebView(it, currentWindowEngineKey) // 初始化聊天界面
+                    chatManager.initWebView(it, currentWindowEngineKey, query) // 初始化聊天界面并传递查询
                     
                     // 让WebView获取焦点并显示输入法 (仅对第一个WebView)
                     if (i == 0) { // 仅对第一个窗口处理输入法
@@ -327,11 +327,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
                             imm?.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT)
                         }, 1000)
-                    }
-                    // 如果是聊天模式，并且有查询，则发送消息
-                    if (query.isNotBlank()) {
-                        val webView = it as android.webkit.WebView
-                        chatManager.sendMessageToWebView(query, webView, currentWindowEngineKey.startsWith("deepseek"))
                     }
                 } else { // 非聊天模式，直接加载URL
                     it.loadUrl(currentWindowSearchUrl)
