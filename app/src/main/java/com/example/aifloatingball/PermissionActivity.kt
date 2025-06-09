@@ -22,6 +22,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.view.WindowManager
 import com.example.aifloatingball.service.FloatingWindowService
+import com.example.aifloatingball.SettingsManager
 
 class PermissionActivity : AppCompatActivity() {
     
@@ -139,12 +140,18 @@ class PermissionActivity : AppCompatActivity() {
             val settingsIntent = Intent(this, SettingsActivity::class.java)
             startActivity(settingsIntent)
             
-            // 启动悬浮球服务
-            val serviceIntent = Intent(this, FloatingWindowService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
+            // 根据显示模式决定是否启动悬浮球服务
+            val settingsManager = SettingsManager.getInstance(this)
+            if (settingsManager.getDisplayMode() == "floating_ball") {
+                // 启动悬浮球服务
+                val serviceIntent = Intent(this, FloatingWindowService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
             } else {
-                startService(serviceIntent)
+                Toast.makeText(this, "当前为灵动岛模式，悬浮球未启动", Toast.LENGTH_SHORT).show()
             }
             
             // 关闭权限Activity

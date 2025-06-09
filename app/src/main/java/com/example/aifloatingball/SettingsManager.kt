@@ -15,7 +15,7 @@ import com.example.aifloatingball.model.MenuItem
 import androidx.appcompat.app.AppCompatDelegate
 
 class SettingsManager private constructor(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
     private val appContext = context.applicationContext
     private val gson = Gson()
     private val listeners = mutableMapOf<String, MutableList<(String, Any?) -> Unit>>()
@@ -26,6 +26,8 @@ class SettingsManager private constructor(context: Context) {
         private const val DEFAULT_LAYOUT_THEME = 0
         private const val DEFAULT_PAGE = "home"
         private const val KEY_SEARCH_HISTORY = "search_history"
+        private const val KEY_DISPLAY_MODE = "display_mode"
+        private const val DEFAULT_DISPLAY_MODE = "floating_ball"
         
         // API相关常量
         private const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
@@ -63,19 +65,31 @@ class SettingsManager private constructor(context: Context) {
         notifyListeners("ball_alpha", alpha)
     }
 
+    // 显示模式设置
+    fun getDisplayMode(): String {
+        return prefs.getString(KEY_DISPLAY_MODE, DEFAULT_DISPLAY_MODE) ?: DEFAULT_DISPLAY_MODE
+    }
+
+    fun setDisplayMode(mode: String) {
+        prefs.edit().putString(KEY_DISPLAY_MODE, mode).apply()
+        notifyListeners(KEY_DISPLAY_MODE, mode)
+    }
+
     // 统一主题设置
     fun getThemeMode(): Int {
-        return prefs.getInt("theme_mode", THEME_MODE_SYSTEM)
+        val themeValue = prefs.getString("theme_mode", THEME_MODE_SYSTEM.toString())
+        return themeValue?.toIntOrNull() ?: THEME_MODE_SYSTEM
     }
     
     fun setThemeMode(mode: Int) {
-        prefs.edit().putInt("theme_mode", mode).apply()
+        prefs.edit().putString("theme_mode", mode.toString()).apply()
         // 根据主题模式设置应用主题
         when (mode) {
             THEME_MODE_LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
             THEME_MODE_DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
             else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         }
+        notifyListeners("theme_mode", mode)
     }
 
     // 隐私模式设置
@@ -85,6 +99,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun setPrivacyModeEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("privacy_mode", enabled).apply()
+        notifyListeners("privacy_mode", enabled)
     }
     
     // 搜索引擎设置
@@ -151,22 +166,9 @@ class SettingsManager private constructor(context: Context) {
             Log.e("SettingsManager", "加载搜索引擎列表失败: ${e.message}", e)
             // 返回默认搜索引擎
             if (isAIMode) {
-                listOf(AISearchEngine(
-                    name = "ChatGPT",
-                    url = "https://chat.openai.com",
-                    iconResId = R.drawable.ic_chatgpt,
-                    description = "ChatGPT AI助手",
-                    searchUrl = "https://chat.openai.com/search?q={query}"
-                ))
+                listOf(AISearchEngine.DEFAULT_AI_ENGINES.first())
             } else {
-                listOf(SearchEngine(
-                    name = "baidu",
-                    displayName = "百度",
-                    url = "https://www.baidu.com",
-                    iconResId = R.drawable.ic_baidu,
-                    description = "百度搜索",
-                    searchUrl = "https://www.baidu.com/s?wd={query}"
-                ))
+                listOf(SearchEngine.DEFAULT_ENGINES.first())
             }
         }
     }
@@ -178,6 +180,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun saveEnabledEngines(enabledEngines: Set<String>) {
         prefs.edit().putStringSet("enabled_engines", enabledEngines).apply()
+        notifyListeners("enabled_engines", enabledEngines)
     }
     
     // 获取已启用的普通搜索引擎
@@ -193,6 +196,7 @@ class SettingsManager private constructor(context: Context) {
     // 保存已启用的AI搜索引擎
     fun saveEnabledAIEngines(enabledEngines: Set<String>) {
         prefs.edit().putStringSet("enabled_ai_engines", enabledEngines).apply()
+        notifyListeners("enabled_ai_engines", enabledEngines)
     }
     
     // 获取所有已启用的搜索引擎（包括普通搜索引擎和AI搜索引擎）
@@ -235,6 +239,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun saveDefaultPage(page: String) {
         prefs.edit().putString("default_page", page).apply()
+        notifyListeners("default_page", page)
     }
     
     // 剪贴板监听设置
@@ -244,6 +249,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun setClipboardListenerEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("clipboard_listener", enabled).apply()
+        notifyListeners("clipboard_listener", enabled)
     }
     
     // 左手模式设置
@@ -253,6 +259,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun setLeftHandedMode(enabled: Boolean) {
         prefs.edit().putBoolean("left_handed_mode", enabled).apply()
+        notifyListeners("left_handed_mode", enabled)
     }
     
     // AI模式设置
@@ -262,6 +269,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun setDefaultAIMode(enabled: Boolean) {
         prefs.edit().putBoolean("default_search_mode", enabled).apply()
+        notifyListeners("default_search_mode", enabled)
     }
     
     // 当前AI模式状态
@@ -303,9 +311,8 @@ class SettingsManager private constructor(context: Context) {
     }
 
     fun saveMenuItems(items: List<MenuItem>) {
-        val editor = prefs.edit()
-        editor.putString("menu_items", gson.toJson(items))
-        editor.apply()
+        prefs.edit().putString("menu_items", gson.toJson(items)).apply()
+        notifyListeners("menu_items", items)
     }
 
     fun getMenuItems(): List<MenuItem> {
@@ -313,8 +320,7 @@ class SettingsManager private constructor(context: Context) {
         if (json.isNullOrEmpty()) return emptyList()
         
         return try {
-            val type = object : TypeToken<List<MenuItem>>() {}.type
-            gson.fromJson(json, type)
+            gson.fromJson(json, object : TypeToken<List<MenuItem>>() {}.type)
         } catch (e: Exception) {
             emptyList()
         }
@@ -418,6 +424,7 @@ class SettingsManager private constructor(context: Context) {
      */
     fun setEnabledSearchEngineGroups(groupNames: Set<String>) {
         prefs.edit().putStringSet("enabled_search_engine_groups", groupNames).apply()
+        notifyListeners("enabled_search_engine_groups", groupNames)
     }
 
     // 获取指定位置的搜索引擎
@@ -475,8 +482,7 @@ class SettingsManager private constructor(context: Context) {
 
     // 设置应用搜索排序
     fun setAppSearchOrder(order: List<String>) {
-        val json = gson.toJson(order)
-        prefs.edit().putString("app_search_order", json).apply()
+        prefs.edit().putString("app_search_order", gson.toJson(order)).apply()
         notifyListeners("app_search_order", order)
     }
 
@@ -540,50 +546,34 @@ class SettingsManager private constructor(context: Context) {
 
     fun getSearchHistory(): List<Map<String, Any>> {
         val json = prefs.getString(KEY_SEARCH_HISTORY, "[]")
-        val type = object : TypeToken<List<Map<String, Any>>>() {}.type
-        return gson.fromJson(json, type) ?: emptyList()
+        return gson.fromJson(json, object : TypeToken<List<Map<String, Any>>>() {}.type) ?: emptyList()
     }
 
     fun saveSearchHistory(history: List<Map<String, Any>>) {
-        val json = gson.toJson(history)
-        prefs.edit().putString(KEY_SEARCH_HISTORY, json).apply()
+        prefs.edit().putString(KEY_SEARCH_HISTORY, gson.toJson(history)).apply()
     }
 
     // API密钥相关方法
-    fun getDeepSeekApiKey(): String {
-        return prefs.getString(KEY_DEEPSEEK_API_KEY, "") ?: ""
-    }
-    
-    fun setDeepSeekApiKey(apiKey: String) {
-        prefs.edit().putString(KEY_DEEPSEEK_API_KEY, apiKey).apply()
-    }
-    
-    fun getChatGPTApiKey(): String {
-        return prefs.getString(KEY_CHATGPT_API_KEY, "") ?: ""
-    }
-    
-    fun setChatGPTApiKey(apiKey: String) {
-        prefs.edit().putString(KEY_CHATGPT_API_KEY, apiKey).apply()
-    }
-    
-    fun getDeepSeekApiUrl(): String {
-        return prefs.getString(KEY_DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL) ?: DEFAULT_DEEPSEEK_API_URL
-    }
-    
-    fun setDeepSeekApiUrl(apiUrl: String) {
-        prefs.edit().putString(KEY_DEEPSEEK_API_URL, apiUrl).apply()
-    }
-    
-    fun getChatGPTApiUrl(): String {
-        return prefs.getString(KEY_CHATGPT_API_URL, DEFAULT_CHATGPT_API_URL) ?: DEFAULT_CHATGPT_API_URL
-    }
-    
-    fun setChatGPTApiUrl(apiUrl: String) {
-        prefs.edit().putString(KEY_CHATGPT_API_URL, apiUrl).apply()
-    }
+    fun getDeepSeekApiKey(): String = prefs.getString(KEY_DEEPSEEK_API_KEY, "") ?: ""
+    fun setDeepSeekApiKey(apiKey: String) = prefs.edit().putString(KEY_DEEPSEEK_API_KEY, apiKey).apply()
+    fun getChatGPTApiKey(): String = prefs.getString(KEY_CHATGPT_API_KEY, "") ?: ""
+    fun setChatGPTApiKey(apiKey: String) = prefs.edit().putString(KEY_CHATGPT_API_KEY, apiKey).apply()
+    fun getDeepSeekApiUrl(): String = prefs.getString(KEY_DEEPSEEK_API_URL, DEFAULT_DEEPSEEK_API_URL) ?: DEFAULT_DEEPSEEK_API_URL
+    fun setDeepSeekApiUrl(apiUrl: String) = prefs.edit().putString(KEY_DEEPSEEK_API_URL, apiUrl).apply()
+    fun getChatGPTApiUrl(): String = prefs.getString(KEY_CHATGPT_API_URL, DEFAULT_CHATGPT_API_URL) ?: DEFAULT_CHATGPT_API_URL
+    fun setChatGPTApiUrl(apiUrl: String) = prefs.edit().putString(KEY_CHATGPT_API_URL, apiUrl).apply()
 
     // 提供SharedPreferences实例给外部访问
     fun getSharedPreferences(): SharedPreferences {
         return prefs
+    }
+
+    // 注册偏好设置更改监听器
+    fun registerOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+    }
+
+    fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+        prefs.unregisterOnSharedPreferenceChangeListener(listener)
     }
 }

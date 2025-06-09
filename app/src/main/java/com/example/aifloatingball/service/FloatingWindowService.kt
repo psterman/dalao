@@ -63,8 +63,9 @@ import android.app.Activity
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.inputmethod.InputMethodManager
+import android.content.SharedPreferences
 
-class FloatingWindowService : Service() {
+class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
     // 添加TAG常量
     companion object {
         private const val TAG = "FloatingWindowService"
@@ -86,6 +87,8 @@ class FloatingWindowService : Service() {
     private var hasPerformedAction = false  // 添加动作执行状态标记
     private var searchInput: EditText? = null
     
+    private lateinit var sharedPreferences: SharedPreferences
+
     // 初始化长按检测
     private var longPressRunnable: Runnable = Runnable {
         // 长按时的操作，比如显示设置菜单
@@ -254,6 +257,20 @@ class FloatingWindowService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // 初始化SharedPreferences和监听器
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+        sharedPreferences.registerOnSharedPreferenceChangeListener(this)
+
+        // 初始化设置管理器
+        settingsManager = SettingsManager.getInstance(this)
+
+        // 如果是灵动岛模式，则不启动服务
+        if (settingsManager.getDisplayMode() == "dynamic_island") {
+            stopSelf()
+            return
+        }
+
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
         
@@ -402,6 +419,7 @@ class FloatingWindowService : Service() {
         setupTouchEventHandling()
 
         windowManager?.addView(floatingView, params)
+
         isMenuVisible = false
     }
 
@@ -1436,8 +1454,18 @@ class FloatingWindowService : Service() {
             unregisterReceiver(alphaUpdateReceiver)
             unregisterReceiver(appSearchUpdateReceiver)
             unregisterReceiver(voiceRecognitionReceiver)
+            sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         } catch (e: Exception) {
             Log.e("FloatingWindowService", "注销广播接收器失败: ${e.message}")
+        }
+    }
+
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
+        if (key == "display_mode") {
+            val displayMode = sharedPreferences?.getString(key, "floating_ball")
+            if (displayMode == "dynamic_island") {
+                stopSelf()
+            }
         }
     }
 

@@ -1,10 +1,12 @@
 package com.example.aifloatingball
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.*
-import com.example.aifloatingball.utils.ServiceUtils
+import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.preference.SearchEnginePreference
 
 class SettingsFragment : PreferenceFragmentCompat() {
@@ -14,14 +16,38 @@ class SettingsFragment : PreferenceFragmentCompat() {
         setPreferencesFromResource(R.xml.root_preferences, rootKey)
         settingsManager = SettingsManager.getInstance(requireContext())
 
+        // 显示模式设置
+        findPreference<ListPreference>("display_mode")?.apply {
+            value = settingsManager.getDisplayMode()
+            summary = if (value == "dynamic_island") "灵动岛" else "悬浮球"
+
+            setOnPreferenceChangeListener { _, newValue ->
+                val mode = newValue.toString()
+                settingsManager.setDisplayMode(mode)
+                summary = if (mode == "dynamic_island") "灵动岛" else "悬浮球"
+
+                val serviceIntent = Intent(requireContext(), FloatingWindowService::class.java)
+                if (mode == "dynamic_island") {
+                    requireContext().stopService(serviceIntent)
+                    Toast.makeText(requireContext(), "切换到灵动岛模式，悬浮球已关闭", Toast.LENGTH_SHORT).show()
+                } else {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        requireContext().startForegroundService(serviceIntent)
+                    } else {
+                        requireContext().startService(serviceIntent)
+                    }
+                    Toast.makeText(requireContext(), "切换到悬浮球模式", Toast.LENGTH_SHORT).show()
+                }
+                true
+            }
+        }
+
         // 主题设置
         findPreference<ListPreference>("theme_mode")?.apply {
             value = settingsManager.getThemeMode().toString()
             setOnPreferenceChangeListener { _, newValue ->
                 val mode = newValue.toString().toInt()
                 settingsManager.setThemeMode(mode)
-                AppCompatDelegate.setDefaultNightMode(mode)
-                activity?.recreate()
                 true
             }
         }
@@ -30,10 +56,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
         findPreference<SeekBarPreference>("ball_alpha")?.apply {
             value = settingsManager.getBallAlpha()
             setOnPreferenceChangeListener { _, newValue ->
-                settingsManager.setBallAlpha(newValue as Int)
-                // 立即更新悬浮球透明度，不需要重启服务
+                val alpha = newValue as Int
+                settingsManager.setBallAlpha(alpha)
                 val intent = Intent("com.example.aifloatingball.ACTION_UPDATE_ALPHA")
-                intent.putExtra("alpha", newValue as Int)
+                intent.putExtra("alpha", alpha)
                 requireContext().sendBroadcast(intent)
                 true
             }
@@ -109,14 +135,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setupWindowSearchEnginePreference(key: String, position: Int) {
-        val preference = findPreference<SearchEnginePreference>(key)
-        preference?.let { pref ->
-            // 确保初始摘要是正确的
-            pref.summary = (pref.summaryProvider as SearchEnginePreference.SimpleSummaryProvider).provideSummary(pref)
-
-            // 注册监听器以实时更新摘要
-            settingsManager.registerOnSettingChangeListener<String>(key) { _, newValue ->
-                pref.summary = (pref.summaryProvider as SearchEnginePreference.SimpleSummaryProvider).provideSummary(pref)
+        findPreference<SearchEnginePreference>(key)?.let { pref ->
+            pref.summary = (pref.summaryProvider as? SearchEnginePreference.SimpleSummaryProvider)?.provideSummary(pref)
+            settingsManager.registerOnSettingChangeListener<String>(key) { _, _ ->
+                pref.summary = (pref.summaryProvider as? SearchEnginePreference.SimpleSummaryProvider)?.provideSummary(pref)
             }
         }
     }

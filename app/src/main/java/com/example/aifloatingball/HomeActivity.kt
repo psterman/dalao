@@ -72,6 +72,9 @@ import com.example.aifloatingball.model.Bookmark
 import com.example.aifloatingball.tab.TabManager
 import com.example.aifloatingball.utils.WebViewHelper
 import com.google.android.material.textfield.TextInputEditText
+import com.example.aifloatingball.service.FloatingWindowService
+import com.example.aifloatingball.service.DynamicIslandService
+import android.content.SharedPreferences
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     companion object {
@@ -150,6 +153,12 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var lastTouchX = 0f
     private var lastTouchY = 0f
 
+    private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "display_mode") {
+            updateDisplayMode()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
@@ -215,6 +224,31 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
         findViewById<ImageButton>(R.id.btn_floating_mode).setOnClickListener {
             toggleFloatingMode()
+        }
+
+        updateDisplayMode()
+    }
+
+    private fun updateDisplayMode() {
+        val displayMode = settingsManager.getDisplayMode()
+        Log.d(TAG, "Updating display mode to: $displayMode")
+
+        // 停止所有相关服务
+        stopService(Intent(this, FloatingWindowService::class.java))
+        stopService(Intent(this, DynamicIslandService::class.java))
+
+        // 根据新模式启动正确的服务
+        when (displayMode) {
+            "floating_ball" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                    startService(Intent(this, FloatingWindowService::class.java))
+                }
+            }
+            "dynamic_island" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                    startService(Intent(this, DynamicIslandService::class.java))
+                }
+            }
         }
     }
 
@@ -2171,5 +2205,9 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
             engines.add(defaultEngine)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
     }
 } 

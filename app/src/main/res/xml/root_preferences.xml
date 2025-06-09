@@ -7,6 +7,15 @@
         app:iconSpaceReserved="false">
 
         <ListPreference
+            app:key="display_mode"
+            app:title="显示模式"
+            app:summary="选择应用的显示方式"
+            app:entries="@array/display_mode_entries"
+            app:entryValues="@array/display_mode_values"
+            app:defaultValue="floating_ball"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
             app:key="theme_mode"
             app:title="主题模式"
             app:summary="选择应用的主题模式"
