@@ -32,6 +32,13 @@
             android:exported="false"
             android:foregroundServiceType="specialUse"
             android:stopWithTask="false" />
+
+        <service
+            android:name=".service.DynamicIslandService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false" />
             
         <service
             android:name=".FloatingWebViewService"
@@ -46,6 +53,19 @@
             android:exported="false"
             android:foregroundServiceType="specialUse"
             android:theme="@style/Theme.MaterialComponents.Light" />
+            
+        <service
+            android:name=".service.MyAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:label="@string/app_name"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
             
         <service
             android:name=".FloatingService"

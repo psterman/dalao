@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dynamic_island_container"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/dynamic_island_background">
+
+    <!-- 未来可以在这里添加灵动岛的内容，比如图标或文本 -->
+
+</FrameLayout> 

@@ -16,6 +16,7 @@ import android.net.Uri
 import android.util.Log
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
+import android.widget.Toast
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -63,19 +64,19 @@ class SettingsActivity : AppCompatActivity() {
         val displayMode = settingsManager.getDisplayMode()
         Log.d("SettingsActivity", "Updating display mode to: $displayMode")
 
-        // 停止所有相关服务
-        stopService(Intent(this, FloatingWindowService::class.java))
-        stopService(Intent(this, DynamicIslandService::class.java))
-
-        // 根据新模式启动正确的服务
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            // 请求悬浮窗权限
+            Toast.makeText(this, "需要'显示在其他应用上层'的权限才能切换模式", Toast.LENGTH_LONG).show()
             val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:$packageName"))
             startActivity(intent)
             return
         }
-        
+
+        // 停止所有相关服务
+        stopService(Intent(this, FloatingWindowService::class.java))
+        stopService(Intent(this, DynamicIslandService::class.java))
+
+        // 根据新模式启动正确的服务
         when (displayMode) {
             "floating_ball" -> {
                 startService(Intent(this, FloatingWindowService::class.java))

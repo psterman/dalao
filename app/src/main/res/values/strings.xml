@@ -99,4 +99,6 @@
     <string name="folder_default_unchangeable">无法修改默认文件夹</string>
     <string name="back_button_desc">返回</string>
     <string name="send_button_desc">发送消息</string>
+    <string name="title_activity_scrolling">ScrollingActivity</string>
+    <string name="accessibility_service_description">此服务用于实现灵动岛的持续显示。开启后，应用将有权限在屏幕顶部创建和管理视图，为您提供类似灵动岛的体验。我们承诺不会使用此权限收集您的任何个人信息或进行其他操作。</string>
 </resources> 
