@@ -155,6 +155,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "display_mode") {
+            Log.d(TAG, "Display mode changed, updating services.")
             updateDisplayMode()
         }
     }
@@ -163,6 +164,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
         settingsManager = SettingsManager.getInstance(this)
+        settingsManager.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
         
         rootLayout = findViewById(R.id.webview_container)
 
@@ -226,7 +228,17 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             toggleFloatingMode()
         }
 
-        updateDisplayMode()
+        // 应用启动时，根据当前设置启动正确的服务
+        val displayMode = settingsManager.getDisplayMode()
+        if (displayMode == "floating_ball") {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                startService(Intent(this, FloatingWindowService::class.java))
+            }
+        } else if (displayMode == "dynamic_island") {
+             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                startService(Intent(this, DynamicIslandService::class.java))
+            }
+        }
     }
 
     private fun updateDisplayMode() {
@@ -2209,5 +2221,6 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        settingsManager.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
 } 

@@ -9,16 +9,30 @@ import androidx.preference.*
 import com.example.aifloatingball.utils.ServiceUtils
 import com.example.aifloatingball.preference.SearchEnginePreference
 import com.example.aifloatingball.service.DualFloatingWebViewService
+import android.content.SharedPreferences
+import android.os.Build
+import android.provider.Settings
+import android.net.Uri
+import android.util.Log
+import com.example.aifloatingball.service.FloatingWindowService
+import com.example.aifloatingball.service.DynamicIslandService
 
 class SettingsActivity : AppCompatActivity() {
     
     private lateinit var settingsManager: SettingsManager
+    private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "display_mode") {
+            Log.d("SettingsActivity", "Display mode changed, updating services.")
+            updateDisplayMode()
+        }
+    }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.settings_activity)
-        
         settingsManager = SettingsManager.getInstance(this)
+        settingsManager.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
+
+        setContentView(R.layout.settings_activity)
         
         // 设置标题栏
         supportActionBar?.apply {
@@ -35,9 +49,41 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        settingsManager.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
+    }
+
     override fun onSupportNavigateUp(): Boolean {
         onBackPressed()
         return true
+    }
+
+    private fun updateDisplayMode() {
+        val displayMode = settingsManager.getDisplayMode()
+        Log.d("SettingsActivity", "Updating display mode to: $displayMode")
+
+        // 停止所有相关服务
+        stopService(Intent(this, FloatingWindowService::class.java))
+        stopService(Intent(this, DynamicIslandService::class.java))
+
+        // 根据新模式启动正确的服务
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            // 请求悬浮窗权限
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName"))
+            startActivity(intent)
+            return
+        }
+        
+        when (displayMode) {
+            "floating_ball" -> {
+                startService(Intent(this, FloatingWindowService::class.java))
+            }
+            "dynamic_island" -> {
+                startService(Intent(this, DynamicIslandService::class.java))
+            }
+        }
     }
 
     class SettingsFragment : PreferenceFragmentCompat() {
