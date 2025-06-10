@@ -28,6 +28,7 @@ import com.bumptech.glide.Glide
 import com.example.aifloatingball.manager.ChatManager
 import android.util.Log
 import android.view.ViewTreeObserver
+import com.example.aifloatingball.model.AISearchEngine
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -77,29 +78,17 @@ class FloatingWindowManager(private val context: Context, private val windowStat
 
     // 获取启用的AI搜索引擎列表
     private fun getEnabledAIEngineKeys(): List<String> {
-        val allAIEngineKeys = setOf("chatgpt_chat", "claude", "gemini", "wenxin", "chatglm", "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek_chat")
+        val allAIEngineKeys = AISearchEngine.DEFAULT_AI_ENGINES.map { it.name }
         val settingsManager = SettingsManager.getInstance(context)
         val enabledAIEngines: Set<String> = settingsManager.getEnabledAIEngines()
         
-        // 将名称转换为键名
-        val enabledKeys = enabledAIEngines.map { aiEngineName ->
-            when(aiEngineName) {
-                "ChatGPT" -> "chatgpt_chat"
-                "Claude" -> "claude"
-                "Gemini" -> "gemini"
-                "文心一言" -> "wenxin"
-                "智谱清言" -> "chatglm"
-                "通义千问" -> "qianwen"
-                "讯飞星火" -> "xinghuo"
-                "Perplexity" -> "perplexity"
-                "Phind" -> "phind"
-                "Poe" -> "poe"
-                "DeepSeek对话" -> "deepseek_chat"
-                else -> aiEngineName.lowercase()
-            }
+        // 如果没有启用任何AI引擎，则默认显示所有AI引擎
+        if (enabledAIEngines.isEmpty()) {
+            return allAIEngineKeys
         }
-        // 过滤掉不在白名单里的key
-        return enabledKeys.filter { it in allAIEngineKeys }
+
+        // 直接返回已启用的key，因为保存的就是key
+        return enabledAIEngines.toList().filter { it in allAIEngineKeys }
     }
     
     init {
@@ -280,90 +269,67 @@ class FloatingWindowManager(private val context: Context, private val windowStat
 
     /**
      * 填充指定WebView的搜索引擎图标
-     * @param webViewIndex WebView的索引 (0, 1, 2)
+     * @param position WebView的索引 (0, 1, 2)
      * @param aiContainer 用于AI搜索引擎图标的LinearLayout
-     * @param standardContainer 用于标准搜索引擎图标的LinearLayout
+     * @param stdContainer 用于标准搜索引擎图标的LinearLayout
      * @param searchInput EditText，用于获取当前搜索框内容，以便点击图标时进行搜索
      */
     @SuppressLint("ClickableViewAccessibility")
-    private fun populateEngineIconsForWebView(webViewIndex: Int, aiContainer: LinearLayout?, standardContainer: LinearLayout?, searchInput: EditText?) {
-        val service = context as? DualFloatingWebViewService ?: return
-        if (!service.isSearchEngineHandlerInitialized()) {
-            android.util.Log.e("FloatingWindowManager", "SearchEngineHandler未准备好填充WebView图标")
-            return
+    private fun populateEngineIconsForWebView(
+        position: Int,
+        aiContainer: LinearLayout?,
+        stdContainer: LinearLayout?,
+        searchInput: EditText?
+    ) {
+        // 清空两个容器
+        aiContainer?.removeAllViews()
+        stdContainer?.removeAllViews()
+
+        val iconSize = dpToPx(24)
+        val iconMargin = dpToPx(4)
+
+        // --- AI 搜索引擎加载逻辑 ---
+        val aiEngineKeys = getEnabledAIEngineKeys()
+        if (aiEngineKeys.isNotEmpty()) {
+            aiContainer?.visibility = View.VISIBLE
+            aiEngineKeys.forEach { key ->
+                val imageUrl = EngineUtil.getEngineIconUrl(key)
+                val imageView = ImageView(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
+                        setMargins(iconMargin, iconMargin, iconMargin, iconMargin)
+                    }
+                    scaleType = ScaleType.CENTER_CROP
+                    setOnClickListener {
+                        (context as? DualFloatingWebViewService)?.performSearchForPosition(searchInput?.text.toString(), key, position)
+                    }
+                }
+                Glide.with(context).load(imageUrl).into(imageView)
+                aiContainer?.addView(imageView)
+            }
+        } else {
+            aiContainer?.visibility = View.GONE
         }
-
-        val iconSize = dpToPx(32)
-        val iconMargin = dpToPx(2)
-
-        // 获取用户已启用的AI搜索引擎列表
-        val enabledAIEngineKeys = getEnabledAIEngineKeys()
         
-        // 填充AI引擎图标
-        aiContainer?.let { container ->
-            container.removeAllViews()
-            
-            for (key in enabledAIEngineKeys) {
-                // 根据引擎类型获取正确的图标资源
-                val iconResId = when (key) {
-                    "deepseek_chat" -> R.drawable.ic_deepseek
-                    "chatgpt_chat" -> R.drawable.ic_chatgpt
-                    else -> 0 // 其他引擎使用默认的favicon逻辑
-                }
-                
+        // --- 普通搜索引擎加载逻辑 ---
+        val standardEngineKeys = this.standardEngineKeys
+        if (standardEngineKeys.isNotEmpty()) {
+            stdContainer?.visibility = View.VISIBLE
+            standardEngineKeys.forEach { key ->
+                val imageUrl = EngineUtil.getEngineIconUrl(key)
                 val imageView = ImageView(context).apply {
                     layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
-                        setMargins(iconMargin, 0, iconMargin, 0)
+                        setMargins(iconMargin, iconMargin, iconMargin, iconMargin)
                     }
-                    scaleType = ScaleType.FIT_CENTER
-                    
-                    // 根据是否有特定资源ID来加载图标
-                    if (iconResId != 0) {
-                        setImageResource(iconResId)
-                    } else {
-                        val iconUrl = EngineUtil.getEngineIconUrl(key)
-                        Glide.with(context)
-                            .load(iconUrl)
-                            .placeholder(R.drawable.ic_default_search)
-                            .error(R.drawable.ic_default_search)
-                            .into(this)
-                    }
-                    
-                    contentDescription = key
-                    
+                    scaleType = ScaleType.CENTER_CROP
                     setOnClickListener {
-                        val query = searchInput?.text.toString()
-                        android.util.Log.d("FloatingWindowManager", "AI Engine icon clicked: key=$key, query=$query")
-                        service.performSearch(query, key)
+                        (context as? DualFloatingWebViewService)?.performSearchForPosition(searchInput?.text.toString(), key, position)
                     }
                 }
-                container.addView(imageView)
+                Glide.with(context).load(imageUrl).into(imageView)
+                stdContainer?.addView(imageView)
             }
-        }
-
-        // 填充标准引擎图标
-        standardContainer?.let {
-            it.removeAllViews()
-            for (key in standardEngineKeys) {
-                val iconUrl = EngineUtil.getEngineIconUrl(key)
-                val imageView = ImageView(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
-                        setMargins(iconMargin, 0, iconMargin, 0)
-                    }
-                    scaleType = ScaleType.FIT_CENTER
-                    Glide.with(context)
-                         .load(iconUrl)
-                         .placeholder(R.drawable.ic_default_search)
-                         .error(R.drawable.ic_default_search)
-                         .into(this)
-                    contentDescription = key
-                    setOnClickListener {
-                        val query = searchInput?.text.toString()
-                        service.performSearch(query, key)
-                    }
-                }
-                it.addView(imageView)
-            }
+        } else {
+            stdContainer?.visibility = View.GONE
         }
     }
 
@@ -467,25 +433,24 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     
     /**
      * 刷新所有WebView的搜索引擎图标
-     * 此方法供DualFloatingWebViewService调用
      */
     fun refreshEngineIcons() {
-        val searchInput = floatingView?.findViewById<EditText>(R.id.dual_search_input)
-        
-        // 获取WebView容器
-        val firstAiContainer = floatingView?.findViewById<LinearLayout>(R.id.first_webview_ai_engine_container)
-        val firstStdContainer = floatingView?.findViewById<LinearLayout>(R.id.first_webview_standard_engine_container)
-        
-        val secondAiContainer = floatingView?.findViewById<LinearLayout>(R.id.second_webview_ai_engine_container)
-        val secondStdContainer = floatingView?.findViewById<LinearLayout>(R.id.second_webview_standard_engine_container)
-        
-        val thirdAiContainer = floatingView?.findViewById<LinearLayout>(R.id.third_webview_ai_engine_container)
-        val thirdStdContainer = floatingView?.findViewById<LinearLayout>(R.id.third_webview_standard_engine_container)
-        
-        // 重新填充搜索引擎图标
+        Log.d("FloatingWindowManager", "刷新搜索引擎图标...")
+        // 重新填充第一个WebView的图标
+        val firstAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.first_webview_ai_engine_container)
+        val firstStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.first_webview_standard_engine_container)
         populateEngineIconsForWebView(0, firstAiContainer, firstStdContainer, searchInput)
+
+        // 重新填充第二个WebView的图标
+        val secondAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.second_webview_ai_engine_container)
+        val secondStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.second_webview_standard_engine_container)
         populateEngineIconsForWebView(1, secondAiContainer, secondStdContainer, searchInput)
+
+        // 重新填充第三个WebView的图标
+        val thirdAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.third_webview_ai_engine_container)
+        val thirdStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.third_webview_standard_engine_container)
         populateEngineIconsForWebView(2, thirdAiContainer, thirdStdContainer, searchInput)
+        Log.d("FloatingWindowManager", "搜索引擎图标刷新完毕。")
     }
     
     fun removeFloatingWindow() {
@@ -562,6 +527,15 @@ class FloatingWindowManager(private val context: Context, private val windowStat
      */
     fun getSearchInputText(): String {
         return searchInput?.text?.toString()?.trim() ?: ""
+    }
+
+    fun getWebView(position: Int): CustomWebView? {
+        return when (position) {
+            0 -> firstWebView
+            1 -> secondWebView
+            2 -> thirdWebView
+            else -> null
+        }
     }
 
     companion object {

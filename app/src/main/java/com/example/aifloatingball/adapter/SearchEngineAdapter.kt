@@ -91,4 +91,8 @@ class SearchEngineAdapter<T : BaseSearchEngine>(
         enabledEngines.addAll(newEnabledEngines)
         notifyDataSetChanged()
     }
+
+    fun getEnabledEngines(): List<T> {
+        return engines.filter { enabledEngines.contains(it.name) }
+    }
 } 

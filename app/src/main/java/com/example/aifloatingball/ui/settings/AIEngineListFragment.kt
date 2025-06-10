@@ -64,6 +64,10 @@ class AIEngineListFragment : Fragment() {
         recyclerView.adapter = adapter
     }
 
+    fun getEnabledEngines(): List<AISearchEngine> {
+        return adapter.getEnabledEngines()
+    }
+
     companion object {
         fun newInstance(engines: List<AISearchEngine>): AIEngineListFragment {
             val fragment = AIEngineListFragment()

@@ -178,12 +178,14 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 刷新所有WebView的搜索引擎图标
      */
     private fun refreshSearchEngineIcons() {
-        try {
-            // 调用windowManager的方法刷新搜索引擎图标
-            windowManager.refreshEngineIcons()
-            Log.d(TAG, "已刷新搜索引擎图标")
-        } catch (e: Exception) {
-            Log.e(TAG, "刷新搜索引擎图标失败", e)
+        handler.post {
+            try {
+                // 调用windowManager的方法刷新搜索引擎图标
+                windowManager.refreshEngineIcons()
+                Log.d(TAG, "已在主线程刷新搜索引擎图标")
+            } catch (e: Exception) {
+                Log.e(TAG, "刷新搜索引擎图标失败", e)
+            }
         }
     }
 
@@ -518,6 +520,34 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         with(sharedPreferences.edit()) {
             putInt(KEY_WINDOW_COUNT, count)
             apply()
+        }
+    }
+
+    /**
+     * 为指定位置的WebView执行搜索
+     */
+    fun performSearchForPosition(query: String, engineKey: String, position: Int) {
+        if (!::webViewManager.isInitialized) {
+            Log.e(TAG, "WebViewManager not initialized, cannot perform search for position.")
+            return
+        }
+
+        val webViewId = when (position) {
+            0 -> R.id.first_floating_webview
+            1 -> R.id.second_floating_webview
+            2 -> R.id.third_floating_webview
+            else -> -1
+        }
+
+        if (webViewId != -1) {
+            val webView = windowManager.floatingView?.findViewById<CustomWebView>(webViewId)
+            webView?.let {
+                val url = searchEngineHandler.getSearchUrl(engineKey, query)
+                it.loadUrl(url)
+                Log.d(TAG, "Position $position search: engine=$engineKey, query=$query, url=$url")
+            }
+        } else {
+            Log.e(TAG, "Invalid position $position, cannot perform search.")
         }
     }
 } 
