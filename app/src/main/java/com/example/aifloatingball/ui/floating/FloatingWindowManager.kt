@@ -49,6 +49,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     private var firstWebView: CustomWebView? = null
     private var secondWebView: CustomWebView? = null
     private var thirdWebView: CustomWebView? = null
+    private var searchInput: EditText? = null
 
     private var initialX: Int = 0
     private var initialY: Int = 0
@@ -173,7 +174,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         secondWebView = _floatingView?.findViewById(R.id.second_floating_webview)
         thirdWebView = _floatingView?.findViewById(R.id.third_floating_webview)
         
-        val searchInput = _floatingView?.findViewById<EditText>(R.id.dual_search_input)
+        searchInput = _floatingView?.findViewById<EditText>(R.id.dual_search_input)
         val saveEnginesButton = _floatingView?.findViewById<ImageButton>(R.id.btn_save_engines)
         val windowCountButton = _floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
         val windowCountToggleText = _floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)
@@ -555,6 +556,13 @@ class FloatingWindowManager(private val context: Context, private val windowStat
 
     // 获取当前窗口Y坐标
     fun getWindowY(): Int = params?.y ?: 0
+
+    /**
+     * 获取搜索输入框的文本
+     */
+    fun getSearchInputText(): String {
+        return searchInput?.text?.toString()?.trim() ?: ""
+    }
 
     companion object {
         private const val MIN_WIDTH = 200 

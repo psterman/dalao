@@ -51,12 +51,13 @@ class AIEngineListFragment : Fragment() {
             engines = engines,
             enabledEngines = enabledEngines,
             onEngineToggled = { engineName, isEnabled ->
+                val allEnabledEngines = settingsManager.getEnabledAIEngines().toMutableSet()
                 if (isEnabled) {
-                    enabledEngines.add(engineName)
+                    allEnabledEngines.add(engineName)
                 } else {
-                    enabledEngines.remove(engineName)
+                    allEnabledEngines.remove(engineName)
                 }
-                settingsManager.saveEnabledAIEngines(enabledEngines)
+                settingsManager.saveEnabledAIEngines(allEnabledEngines)
                 requireContext().sendBroadcast(Intent(DualFloatingWebViewService.ACTION_UPDATE_AI_ENGINES))
             }
         )

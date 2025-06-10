@@ -28,6 +28,12 @@ import com.example.aifloatingball.manager.ChatManager
 import com.example.aifloatingball.ui.webview.CustomWebView
 import android.view.inputmethod.InputMethodManager
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.model.AISearchEngine
+import android.widget.ImageView
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -65,6 +71,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private lateinit var intentParser: IntentParser
     private lateinit var textSelectionManager: TextSelectionManager
     private val handler = Handler(Looper.getMainLooper())
+    private val menuAutoHideHandler = Handler(Looper.getMainLooper())
     private lateinit var sharedPreferences: SharedPreferences
     internal lateinit var chatManager: ChatManager
     internal lateinit var settingsManager: SettingsManager
@@ -119,18 +126,21 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 创建浮动窗口
         windowManager.createFloatingWindow()
 
-        // 在浮动窗口创建之后，并且XML中的WebView可用之后，初始化WebViewManager
-        val xmlWebViews = windowManager.getXmlDefinedWebViews()
-        Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
-        webViewManager = WebViewManager(this, xmlWebViews, windowManager)
-        textSelectionManager = webViewManager.textSelectionManager
+        // 延迟初始化，确保UI已经准备就绪
+        handler.postDelayed({
+            val xmlWebViews = windowManager.getXmlDefinedWebViews()
+            Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
+            if (xmlWebViews.any { it != null }) {
+                webViewManager = WebViewManager(this, xmlWebViews, windowManager)
+                textSelectionManager = webViewManager.textSelectionManager
 
-        // 注册广播接收器
-        registerBroadcastReceiver()
-        
-        // 创建时，使用默认窗口数量加载一次
-        // 确保此时 webViewManager 已经初始化
-        handleSearchInternal(lastQuery ?: "", lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+                // 创建时，使用默认窗口数量加载一次
+                handleSearchInternal(lastQuery ?: "", lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+            } else {
+                Log.e(TAG, "错误: XML中的WebView未找到，无法初始化WebViewManager。")
+                stopSelf() // 如果关键视图找不到，停止服务
+            }
+        }, 100) // 延迟100毫秒
         
         // 注册设置变更监听器
         settingsManager.registerOnSettingChangeListener<String>("left_window_search_engine") { key, value ->
@@ -148,6 +158,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             // 重新加载第三个WebView
             handleSearchInternal(lastQuery ?: "", settingsManager.getSearchEngineForPosition(2), currentWindowCount)
         }
+        
+        // 注册广播接收器
+        registerBroadcastReceiver()
     }
 
     /**
@@ -220,13 +233,15 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 确保WebViewManager已经初始化
         if (!::webViewManager.isInitialized) {
             Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
-            val xmlWebViews = windowManager.getXmlDefinedWebViews()
-            webViewManager = WebViewManager(this, xmlWebViews, windowManager)
-            textSelectionManager = webViewManager.textSelectionManager
+            // 在这种情况下，我们依赖onCreate中的postDelayed来初始化。
+            // 延迟处理意图，以确保UI和管理器已准备就绪。
+            handler.postDelayed({
+                intent?.let { handleSearchIntent(it) }
+            }, 200) // 稍微长一点的延迟，以确保onCreate的延迟已经执行
+        } else {
+            // 如果已经初始化，则立即处理
+            intent?.let { handleSearchIntent(it) }
         }
-        
-        // 处理搜索意图
-        intent?.let { handleSearchIntent(it) }
         
         // 启用输入
         updateWindowParameters(true)
@@ -264,6 +279,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         }
         
         // 确定要使用的窗口数量
+        if (webViewManager.getWebViews().isEmpty()) {
+            Log.e(TAG, "无法确定要使用的窗口数量，因为没有可用的 WebView。")
+            // 可以在这里尝试重新初始化或延迟，但现在只返回以防止崩溃
+            return 
+        }
         val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
         currentWindowCount = windowCountToUse
 
@@ -448,28 +468,27 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     override fun onDestroy() {
         super.onDestroy()
-        Log.d(TAG, "DualFloatingWebViewService: 服务销毁 onDestroy()")
+        isRunning = false
         
-        // Save current window state before destroying
-        windowManager.params?.let {
-            saveWindowState(it.x, it.y, it.width, it.height)
-        }
-        saveWindowCount(currentWindowCount)
-
-        // 注销广播接收器
+        // 取消注册广播接收器
         try {
             unregisterReceiver(broadcastReceiver)
-        } catch (e: Exception) {
-            Log.e(TAG, "注销广播接收器失败", e)
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "广播接收器未注册或已被取消注册。")
         }
 
-        isRunning = false
-        if (::webViewManager.isInitialized) {
-            webViewManager.destroyAll()
-        }
+        // 移除所有窗口
         if (::windowManager.isInitialized) {
             windowManager.removeFloatingWindow()
         }
+
+        // 停止前台服务
+        stopForeground(true)
+        
+        // 移除所有 Handler 回调
+        handler.removeCallbacksAndMessages(null)
+        
+        Log.d(TAG, "DualFloatingWebViewService: 服务销毁 onDestroy()")
     }
 
     // WindowStateCallback implementation
