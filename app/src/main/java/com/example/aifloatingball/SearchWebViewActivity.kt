@@ -37,6 +37,11 @@ import com.example.aifloatingball.models.SearchEngine as ModelSearchEngine
 import com.example.aifloatingball.service.FloatingWindowService
 
 class SearchWebViewActivity : AppCompatActivity() {
+
+    companion object {
+        const val EXTRA_QUERY = "EXTRA_QUERY"
+    }
+
     private lateinit var searchInput: EditText
     private lateinit var searchButton: ImageButton
     private lateinit var closeButton: ImageButton

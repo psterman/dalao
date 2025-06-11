@@ -73,7 +73,11 @@ object TextSelectionMenuController {
                     setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
                     
                     setOnDismissListener {
+                        // This check is a good safeguard against rogue dismissals.
+                        // Only clean up the state if this popup is the one being dismissed.
+                        if (this == currentPopupWindow) {
                         cleanupState()
+                        }
                     }
                 }
 
@@ -124,40 +128,57 @@ object TextSelectionMenuController {
                 return@withLock
             }
 
-            try {
+            val popupToHide = currentPopupWindow
+            // If there's nothing to hide, we might as well cleanup and leave.
+            if (popupToHide == null) {
+                cleanupState()
+                return@withLock
+            }
+            
+            isMenuShowing.set(false)
                 isMenuAnimating.set(true)
                 
-                currentPopupWindow?.contentView?.animate()
+            try {
+                popupToHide.contentView?.animate()
                     ?.alpha(0f)
                     ?.scaleX(0.8f)
                     ?.scaleY(0.8f)
                     ?.setDuration(150)
                     ?.setInterpolator(AccelerateInterpolator())
                     ?.withEndAction {
-                        dismissPopupSafely()
-                        cleanupState()
+                        dismissPopupSafely(popupToHide)
+                        // Only fully clean up if no new menu has been shown in the meantime.
+                        if (currentPopupWindow === popupToHide) {
+                            cleanupState()
+                        }
                     }
-                    ?.start()
-
+                    ?.start() ?: run {
+                        // If animation can't start, just dismiss and potentially cleanup.
+                        dismissPopupSafely(popupToHide)
+                        if (currentPopupWindow === popupToHide) {
+                        cleanupState()
+                        }
+                    }
             } catch (e: Exception) {
                 Log.e("TextSelectionMenu", "隐藏菜单失败", e)
-                dismissPopupSafely()
+                dismissPopupSafely(popupToHide)
+                if (currentPopupWindow === popupToHide) {
                 cleanupState()
+            }
             }
         }
     }
 
-    private fun dismissPopupSafely() {
+    private fun dismissPopupSafely(popup: PopupWindow?) {
         try {
-            currentPopupWindow?.let { popup ->
-                if (popup.isShowing) {
-                    popup.dismiss()
+            popup?.let {
+                if (it.isShowing) {
+                    it.dismiss()
                 }
             }
         } catch (e: Exception) {
             Log.e("TextSelectionMenu", "关闭弹出窗口失败", e)
         }
-        currentPopupWindow = null
     }
 
     private fun cleanupState() {

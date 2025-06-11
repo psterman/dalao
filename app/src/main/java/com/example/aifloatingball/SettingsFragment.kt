@@ -8,6 +8,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.preference.*
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.preference.SearchEnginePreference
+import com.example.aifloatingball.service.DynamicIslandService
 
 class SettingsFragment : PreferenceFragmentCompat() {
     private lateinit var settingsManager: SettingsManager
@@ -26,16 +27,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 settingsManager.setDisplayMode(mode)
                 summary = if (mode == "dynamic_island") "灵动岛" else "悬浮球"
 
-                val serviceIntent = Intent(requireContext(), FloatingWindowService::class.java)
                 if (mode == "dynamic_island") {
-                    requireContext().stopService(serviceIntent)
-                    Toast.makeText(requireContext(), "切换到灵动岛模式，悬浮球已关闭", Toast.LENGTH_SHORT).show()
+                    requireActivity().startService(Intent(requireContext(), DynamicIslandService::class.java))
+                    requireActivity().stopService(Intent(requireContext(), FloatingWindowService::class.java))
+                    Toast.makeText(requireContext(), "切换到灵动岛模式", Toast.LENGTH_SHORT).show()
                 } else {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        requireContext().startForegroundService(serviceIntent)
-                    } else {
-                        requireContext().startService(serviceIntent)
-                    }
+                    requireActivity().stopService(Intent(requireContext(), DynamicIslandService::class.java))
+                    requireActivity().startService(Intent(requireContext(), FloatingWindowService::class.java))
                     Toast.makeText(requireContext(), "切换到悬浮球模式", Toast.LENGTH_SHORT).show()
                 }
                 true

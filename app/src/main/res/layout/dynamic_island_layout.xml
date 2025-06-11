@@ -2,11 +2,10 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/dynamic_island_background"
     android:clipChildren="false"
     android:clipToPadding="false">
 
-    <!-- 用于显示通知图标的容器 -->
+    <!-- Container for notification icons -->
     <LinearLayout
         android:id="@+id/notification_icon_container"
         android:layout_width="wrap_content"
@@ -16,5 +15,67 @@
         android:orientation="horizontal"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"/>
+
+    <!-- Container for search view -->
+    <LinearLayout
+        android:id="@+id/search_view_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:visibility="gone">
+
+        <EditText
+            android:id="@+id/search_input"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:hint="搜索..."
+            android:textColor="@android:color/white"
+            android:textColorHint="#CCCCCC"
+            android:imeOptions="actionSearch"
+            android:singleLine="true"
+            android:textSize="14sp" />
+
+        <ImageView
+            android:id="@+id/search_button"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_search"
+            android:background="@android:color/transparent"
+            android:tint="@android:color/white" />
+    </LinearLayout>
+
+    <!-- Container for "Copied" toast -->
+    <LinearLayout
+        android:id="@+id/copy_toast_container"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/copy_toast_icon"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_check"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/copy_toast_text"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+            android:text="已复制"
+            android:textColor="@android:color/white"
+            android:textSize="14sp"/>
+    </LinearLayout>
 
 </FrameLayout> 
