@@ -5,27 +5,63 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.graphics.BitmapFactory
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.preference.PreferenceManager
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.aifloatingball.HomeActivity
 import com.example.aifloatingball.R
+import java.util.concurrent.ConcurrentHashMap
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var windowManager: WindowManager
     private var dynamicIslandView: View? = null
+    private lateinit var notificationIconContainer: LinearLayout
+
+    private val activeNotifications = ConcurrentHashMap<String, ImageView>()
+    private val uiHandler = Handler(Looper.getMainLooper())
+
+    private val notificationReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent ?: return
+            val command = intent.getStringExtra(NotificationListener.EXTRA_COMMAND)
+            val key = intent.getStringExtra(NotificationListener.EXTRA_NOTIFICATION_KEY)
+            key ?: return
+
+            when (command) {
+                NotificationListener.COMMAND_POSTED -> {
+                    val packageName = intent.getStringExtra(NotificationListener.EXTRA_PACKAGE_NAME)
+                    val iconByteArray = intent.getByteArrayExtra(NotificationListener.EXTRA_ICON)
+                    if (packageName != null && iconByteArray != null) {
+                        val iconBitmap = BitmapFactory.decodeByteArray(iconByteArray, 0, iconByteArray.size)
+                        addNotificationIcon(key, iconBitmap)
+                    }
+                }
+                NotificationListener.COMMAND_REMOVED -> {
+                    removeNotificationIcon(key)
+                }
+            }
+        }
+    }
 
     companion object {
         private const val NOTIFICATION_ID = 2
@@ -46,6 +82,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         showDynamicIsland()
+
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            notificationReceiver,
+            IntentFilter(NotificationListener.ACTION_NOTIFICATION)
+        )
 
         Toast.makeText(this, "灵动岛服务已启动", Toast.LENGTH_SHORT).show()
     }
@@ -80,20 +121,20 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun showDynamicIsland() {
-        // 如果视图已存在，则不重复创建
         if (dynamicIslandView != null) {
             return
         }
 
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         dynamicIslandView = inflater.inflate(R.layout.dynamic_island_layout, null)
+        notificationIconContainer = dynamicIslandView!!.findViewById(R.id.notification_icon_container)
 
         val statusBarHeight = getStatusBarHeight()
-        val islandWidth = (resources.displayMetrics.widthPixels * 0.4).toInt() // 宽度设为屏幕宽度的40%
+        val islandWidth = (resources.displayMetrics.widthPixels * 0.4).toInt()
 
         val params = WindowManager.LayoutParams(
             islandWidth,
-            statusBarHeight,  // 高度与状态栏一致
+            statusBarHeight,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
@@ -106,7 +147,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            y = 0 // Y坐标为0，紧贴顶部
+            y = 0
         }
 
         try {
@@ -116,12 +157,50 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
+    private fun addNotificationIcon(key: String, icon: android.graphics.Bitmap) {
+        uiHandler.post {
+            if (activeNotifications.containsKey(key)) {
+                return@post
+            }
+
+            val imageView = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    getStatusBarHeight() - 16.dpToPx(),
+                    getStatusBarHeight() - 16.dpToPx()
+                ).also { params ->
+                    params.setMargins(4.dpToPx(), 0, 4.dpToPx(), 0)
+                }
+                setImageBitmap(icon)
+            }
+            notificationIconContainer.addView(imageView)
+            activeNotifications[key] = imageView
+            updateIslandVisibility()
+        }
+    }
+
+    private fun removeNotificationIcon(key: String) {
+        uiHandler.post {
+            activeNotifications[key]?.let {
+                notificationIconContainer.removeView(it)
+                activeNotifications.remove(key)
+                updateIslandVisibility()
+            }
+        }
+    }
+
+    private fun updateIslandVisibility() {
+        dynamicIslandView?.visibility = if (activeNotifications.isEmpty()) {
+            View.GONE
+        } else {
+            View.VISIBLE
+        }
+    }
+
     private fun getStatusBarHeight(): Int {
         val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
         return if (resourceId > 0) {
             resources.getDimensionPixelSize(resourceId)
         } else {
-            // 提供一个合理的默认值
             (24 * resources.displayMetrics.density).toInt()
         }
     }
@@ -132,14 +211,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 在这里处理启动命令
         return START_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
-        // 移除视图
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
+
         dynamicIslandView?.let {
             try {
                 windowManager.removeView(it)
@@ -154,7 +233,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         if (key == "display_mode") {
             val displayMode = sharedPreferences?.getString(key, "floating_ball")
-            if (displayMode == "floating_ball") {
+            if (displayMode != "dynamic_island") {
                 stopSelf()
             }
         }

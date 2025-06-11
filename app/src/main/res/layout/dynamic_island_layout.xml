@@ -1,10 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/dynamic_island_container"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:background="@drawable/dynamic_island_background">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/dynamic_island_background"
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
-    <!-- 未来可以在这里添加灵动岛的内容，比如图标或文本 -->
+    <!-- 用于显示通知图标的容器 -->
+    <LinearLayout
+        android:id="@+id/notification_icon_container"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"/>
 
 </FrameLayout> 

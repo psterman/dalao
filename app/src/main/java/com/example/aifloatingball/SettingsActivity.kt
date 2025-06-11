@@ -17,6 +17,9 @@ import android.util.Log
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
 import android.widget.Toast
+import android.text.TextUtils
+import androidx.core.app.NotificationManagerCompat
+import com.example.aifloatingball.service.NotificationListener
 
 class SettingsActivity : AppCompatActivity() {
     
@@ -93,6 +96,29 @@ class SettingsActivity : AppCompatActivity() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
             settingsManager = SettingsManager.getInstance(requireContext())
+
+            // 显示模式设置
+            findPreference<ListPreference>("display_mode")?.apply {
+                value = settingsManager.getDisplayMode()
+                setOnPreferenceChangeListener { _, newValue ->
+                    settingsManager.setDisplayMode(newValue as String)
+                    true
+                }
+            }
+
+            // 启用灵动岛通知
+            val notificationPref = findPreference<SwitchPreferenceCompat>("enable_notification_listener")
+            notificationPref?.setOnPreferenceChangeListener { _, newValue ->
+                val isEnabled = newValue as Boolean
+                if (isEnabled) {
+                    if (!isNotificationListenerEnabled()) {
+                        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        // Don't update the switch until the user has actually granted the permission.
+                        return@setOnPreferenceChangeListener false
+                    }
+                }
+                true
+            }
 
             // 主题设置
             findPreference<ListPreference>("theme_mode")?.apply {
@@ -335,6 +361,18 @@ class SettingsActivity : AppCompatActivity() {
                 
                 true
             }
+        }
+
+        override fun onResume() {
+            super.onResume()
+            // Update the switch state based on whether the permission is currently granted.
+            val notificationPref = findPreference<SwitchPreferenceCompat>("enable_notification_listener")
+            notificationPref?.isChecked = isNotificationListenerEnabled()
+        }
+
+        private fun isNotificationListenerEnabled(): Boolean {
+            val enabledListeners = NotificationManagerCompat.getEnabledListenerPackages(requireContext())
+            return enabledListeners.contains(requireContext().packageName)
         }
 
         /**

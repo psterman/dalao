@@ -1,0 +1,18 @@
+<PreferenceCategory
+    app:key="display_mode_category"
+    app:title="显示模式">
+
+    <ListPreference
+        app:key="display_mode"
+        app:title="显示模式"
+        app:summary="选择应用的主要显示方式"
+        app.entries="@array/display_mode_entries"
+        app:entryValues="@array/display_mode_values"
+        app:defaultValue="floating_ball" />
+
+    <SwitchPreferenceCompat
+        app:key="enable_notification_listener"
+        app:title="启用灵动岛通知"
+        app:summary="允许访问通知以在灵动岛上显示内容" />
+
+</PreferenceCategory> 

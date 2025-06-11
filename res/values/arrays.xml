@@ -1,0 +1,13 @@
+<resources>
+    <!-- Display Mode Entries -->
+    <string-array name="display_mode_entries">
+        <item>悬浮球</item>
+        <item>灵动岛</item>
+    </string-array>
+
+    <!-- Display Mode Values -->
+    <string-array name="display_mode_values">
+        <item>floating_ball</item>
+        <item>dynamic_island</item>
+    </string-array>
+</resources> 
