@@ -38,7 +38,7 @@ import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.aifloatingball.HomeActivity
 import com.example.aifloatingball.R
-import com.example.aifloatingball.SearchWebViewActivity
+import com.example.aifloatingball.service.DualFloatingWebViewService
 import java.util.concurrent.ConcurrentHashMap
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
@@ -285,11 +285,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun performSearch() {
         val query = searchInput?.text.toString().trim()
         if (query.isNotEmpty()) {
-            val intent = Intent(this, SearchWebViewActivity::class.java).apply {
-                putExtra(SearchWebViewActivity.EXTRA_QUERY, query)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            startActivity(intent)
+            val intent = Intent(this, DualFloatingWebViewService::class.java)
+            intent.putExtra("search_query", query)
+            startService(intent)
+            
+            // Just transition back to the compact state.
             transitionToCompactState()
         }
     }

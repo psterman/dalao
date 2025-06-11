@@ -151,7 +151,6 @@ class LetterIndexBar @JvmOverloads constructor(
 
     // 辅助方法，查找以指定字母开头的搜索引擎
     private fun findEngineByLetter(letter: Char): com.example.aifloatingball.models.SearchEngine? {
-        // 从SearchWebViewActivity获取引擎列表
         val engines = getEnginesFromActivity()
         
         // 查找匹配的引擎
