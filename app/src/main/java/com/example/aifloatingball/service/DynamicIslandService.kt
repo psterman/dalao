@@ -44,6 +44,7 @@ import com.example.aifloatingball.R
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.WindowInsets
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -86,7 +87,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var islandContentView: View? = null // The content (icons, searchbox)
     private var touchProxyView: View? = null
     private var configPanelView: View? = null
-    private var backgroundScrimView: View? = null // For background scrim
     private var searchEngineSelectorView: View? = null
     private var selectorScrimView: View? = null
 
@@ -99,6 +99,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var compactWidth: Int = 0
     private var expandedWidth: Int = 0
     private var statusBarHeight: Int = 0
+
+    private var currentKeyboardHeight = 0
 
     private val activeNotifications = ConcurrentHashMap<String, ImageView>()
     private val activeSlots = ConcurrentHashMap<Int, SearchEngine>()
@@ -232,18 +234,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         updateIslandVisibility()
 
-        windowContainerView!!.setOnTouchListener { _, event ->
-            if (isSearchModeActive && event.action == MotionEvent.ACTION_DOWN) {
-                val islandRect = android.graphics.Rect()
-                animatingIslandView?.getGlobalVisibleRect(islandRect)
-                if (!islandRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
-                    transitionToCompactState()
-                    return@setOnTouchListener true
-                }
-            }
-            false
-        }
-
         try {
             windowManager.addView(windowContainerView, stageParams)
         } catch (e: Exception) {
@@ -255,28 +245,19 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (isSearchModeActive) return
         isSearchModeActive = true
 
-        if (backgroundScrimView == null) {
-            backgroundScrimView = View(this).apply {
-                setBackgroundColor(Color.argb(1, 0, 0, 0))
-                layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-                setOnClickListener { transitionToCompactState() }
-            }
-            val scrimParams = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT
-            )
-            try { windowManager.addView(backgroundScrimView, scrimParams) } catch (e: Exception) { e.printStackTrace() }
-        }
-
         touchProxyView?.visibility = View.GONE
 
         val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
         windowParams?.let {
+            it.width = WindowManager.LayoutParams.MATCH_PARENT
+            it.height = WindowManager.LayoutParams.MATCH_PARENT
             it.flags = it.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
             windowManager.updateViewLayout(windowContainerView, it)
         }
+        
+        windowContainerView?.setBackgroundColor(Color.argb(128, 0, 0, 0))
+        setupOutsideTouchListener()
+        setupInsetsListener()
 
         val islandParams = animatingIslandView?.layoutParams as FrameLayout.LayoutParams
         ValueAnimator.ofInt(0, statusBarHeight).apply {
@@ -319,9 +300,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
         windowParams?.let {
+            it.width = expandedWidth
+            it.height = statusBarHeight * 2
             it.flags = it.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             windowManager.updateViewLayout(windowContainerView, it)
         }
+
+        windowContainerView?.setBackgroundColor(Color.TRANSPARENT)
+        windowContainerView?.setOnTouchListener(null)
+        windowContainerView?.setOnApplyWindowInsetsListener(null)
 
         val islandParams = animatingIslandView?.layoutParams as FrameLayout.LayoutParams
         ValueAnimator.ofInt(statusBarHeight, 0).apply {
@@ -352,6 +339,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 performSearch()
                 true
             } else false
+        }
+        searchInput?.setOnFocusChangeListener { v, hasFocus ->
+            if (!hasFocus) {
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(v.windowToken, 0)
+            }
         }
     }
 
@@ -452,30 +445,43 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         updateSlotView(2, activeSlots[2])
         updateSlotView(3, activeSlots[3])
 
-        val panelParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.TOP
-            val islandRect = android.graphics.Rect()
-            windowContainerView?.getGlobalVisibleRect(islandRect)
-            y = islandRect.bottom + 10
-        }
         try {
-            windowManager.addView(configPanelView, panelParams)
+            val panelParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                bottomMargin = 16.dpToPx()
+            }
+            windowContainerView?.addView(configPanelView, panelParams)
+            configPanelView?.apply {
+                alpha = 0f
+                val finalTranslationY = -currentKeyboardHeight.toFloat()
+                translationY = finalTranslationY + 100f
+                animate()
+                    .alpha(1f)
+                    .translationY(finalTranslationY)
+                    .setDuration(350)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .start()
+            }
         } catch (e: Exception) { e.printStackTrace() }
     }
 
     private fun cleanupExpandedViews() {
-        if (backgroundScrimView != null) {
-            try { windowManager.removeView(backgroundScrimView) } catch (e: Exception) { e.printStackTrace() }
-            backgroundScrimView = null
-        }
-        if (configPanelView != null) {
-            try { windowManager.removeView(configPanelView) } catch (e: Exception) { e.printStackTrace() }
+        val panelToRemove = configPanelView
+        if (panelToRemove != null) {
+            panelToRemove.animate()
+                .alpha(0f)
+                .translationY(100f)
+                .setDuration(250)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .withEndAction {
+                    try {
+                        windowContainerView?.removeView(panelToRemove)
+                    } catch (e: Exception) { /* ignore */ }
+                }
+                .start()
             configPanelView = null
             slot1View = null
             slot2View = null
@@ -492,6 +498,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             animatingIslandView?.setRenderEffect(blurEffect)
             configPanelView?.setRenderEffect(blurEffect)
         }
+        configPanelView?.visibility = View.GONE
 
         val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
         val inflater = LayoutInflater.from(themedContext)
@@ -509,35 +516,27 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
             setOnClickListener { dismissSearchEngineSelector() }
         }
-        val scrimParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        )
-        try { windowManager.addView(selectorScrimView, scrimParams) } catch (e: Exception) { e.printStackTrace() }
+        try {
+             windowContainerView?.addView(selectorScrimView)
+        } catch (e: Exception) { e.printStackTrace() }
 
-        val selectorParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
+        val selectorParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            gravity = Gravity.TOP
-            val configPanelRect = android.graphics.Rect()
-            configPanelView?.getGlobalVisibleRect(configPanelRect)
-            y = if (configPanelRect.isEmpty) 300 else configPanelRect.bottom + 8.dpToPx()
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            bottomMargin = 16.dpToPx()
         }
 
         try {
-            windowManager.addView(searchEngineSelectorView, selectorParams)
+            windowContainerView?.addView(searchEngineSelectorView, selectorParams)
             searchEngineSelectorView?.apply {
                 alpha = 0f
-                translationY = -40f
+                val finalTranslationY = -currentKeyboardHeight.toFloat()
+                translationY = finalTranslationY + 100f
                 animate()
                     .alpha(1f)
-                    .translationY(0f)
+                    .translationY(finalTranslationY)
                     .setDuration(350)
                     .setInterpolator(AccelerateDecelerateInterpolator())
                     .start()
@@ -581,6 +580,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
             icon.setImageResource(engine.iconResId)
             title.text = engine.name
+            title.visibility = View.VISIBLE
             subtitle.text = engine.description
             subtitle.visibility = View.VISIBLE
         } else {
@@ -595,6 +595,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             animatingIslandView?.setRenderEffect(null)
             configPanelView?.setRenderEffect(null)
         }
+        configPanelView?.visibility = View.VISIBLE
 
         val viewToRemove = searchEngineSelectorView
         val scrimToRemove = selectorScrimView
@@ -606,13 +607,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         viewToRemove.animate()
             .alpha(0f)
-            .translationY(-40f)
+            .translationY(100f)
             .setDuration(250)
             .setInterpolator(AccelerateDecelerateInterpolator())
             .withEndAction {
                 try {
-                    windowManager.removeView(viewToRemove)
-                    scrimToRemove?.let { windowManager.removeView(it) }
+                    windowContainerView?.removeView(viewToRemove)
+                    scrimToRemove?.let { windowContainerView?.removeView(it) }
                 } catch (e: Exception) { /* ignore */ }
             }
             .start()
@@ -622,6 +623,68 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (key == "display_mode") {
             if (sharedPreferences?.getString(key, "floating_ball") != "dynamic_island") {
                 stopSelf()
+            }
+        }
+    }
+
+    private fun setupOutsideTouchListener() {
+        windowContainerView?.setOnTouchListener { _, event ->
+            if (isSearchModeActive && event.action == MotionEvent.ACTION_DOWN) {
+                if (isTouchOutsideAllViews(event)) {
+                    transitionToCompactState()
+                    return@setOnTouchListener true // 消费掉外部点击事件
+                }
+            }
+            false // 对于内部点击，不消费事件，让子视图处理
+        }
+    }
+
+    private fun isTouchOutsideAllViews(event: MotionEvent): Boolean {
+        val x = event.rawX.toInt()
+        val y = event.rawY.toInt()
+
+        // 检查触摸点是否在灵动岛主体内部
+        val islandRect = android.graphics.Rect()
+        animatingIslandView?.getGlobalVisibleRect(islandRect)
+        if (islandRect.contains(x, y)) return false
+
+        // 检查触摸点是否在配置面板内部
+        val configRect = android.graphics.Rect()
+        configPanelView?.let {
+            if (it.isShown) {
+                it.getGlobalVisibleRect(configRect)
+                if (configRect.contains(x, y)) return false
+            }
+        }
+
+        // 检查触摸点是否在搜索引擎选择器内部
+        val selectorRect = android.graphics.Rect()
+        searchEngineSelectorView?.let {
+            if (it.isShown) {
+                it.getGlobalVisibleRect(selectorRect)
+                if (selectorRect.contains(x, y)) return false
+            }
+        }
+
+        // 如果触摸点不在任何一个UI视图内，则视为外部点击
+        return true
+    }
+
+    private fun setupInsetsListener() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowContainerView?.setOnApplyWindowInsetsListener { _, insets ->
+                val imeVisible = insets.isVisible(WindowInsets.Type.ime())
+                currentKeyboardHeight = if (imeVisible) insets.getInsets(WindowInsets.Type.ime()).bottom else 0
+                val targetTranslation = -currentKeyboardHeight.toFloat()
+
+                if (configPanelView?.isShown == true) {
+                    configPanelView?.animate()?.translationY(targetTranslation)?.setDuration(250)?.start()
+                }
+                if (searchEngineSelectorView?.isShown == true) {
+                    searchEngineSelectorView?.animate()?.translationY(targetTranslation)?.setDuration(250)?.start()
+                }
+
+                insets
             }
         }
     }
