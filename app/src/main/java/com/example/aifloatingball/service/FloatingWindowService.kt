@@ -265,8 +265,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         // 初始化设置管理器
         settingsManager = SettingsManager.getInstance(this)
 
-        // 如果是灵动岛模式，则不启动服务
+        // 如果是灵动岛模式，则启动灵动岛服务并停止自身
         if (settingsManager.getDisplayMode() == "dynamic_island") {
+            Log.d(TAG, "当前为灵动岛模式，启动 DynamicIslandService 并停止 FloatingWindowService")
+            startService(Intent(this, DynamicIslandService::class.java))
             stopSelf()
             return
         }
@@ -2579,7 +2581,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             try {
                 // 重新编码查询字符串，确保在这个作用域中可用
                 val encodedQuery = Uri.encode(query)
-                val webUrl = "https://www.douyin.com/search/$encodedQuery"
+                val webUrl = "https://www.douyin.com/search_result?keyword=$encodedQuery"
                 val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }

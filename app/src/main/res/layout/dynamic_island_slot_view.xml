@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="0dp"
+    android:layout_height="100dp"
+    android:layout_margin="8dp"
+    android:layout_weight="1"
+    app:cardBackgroundColor="#333333"
+    app:cardCornerRadius="16dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="#555555">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp">
+
+        <!-- Default state: Hint text -->
+        <TextView
+            android:id="@+id/slot_hint_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="拖拽填充"
+            android:textColor="#999999"
+            android:textSize="12sp"
+            android:visibility="visible"
+            tools:visibility="gone"/>
+
+        <!-- Filled state: Icon and Text -->
+        <LinearLayout
+            android:id="@+id/slot_filled_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_centerInParent="true"
+            android:gravity="center"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <ImageView
+                android:id="@+id/slot_icon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                tools:src="@drawable/ic_launcher_background" />
+
+            <TextView
+                android:id="@+id/slot_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                tools:text="百度搜索" />
+
+            <TextView
+                android:id="@+id/slot_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#AAAAAA"
+                android:textSize="10sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                tools:text="代码分析"
+                android:visibility="gone"
+                tools:visibility="visible"/>
+
+        </LinearLayout>
+
+        <!-- Close button to clear the slot -->
+        <ImageView
+            android:id="@+id/slot_clear_button"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentEnd="true"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="#888888"
+            android:visibility="gone"
+            tools:visibility="visible"
+            android:background="?attr/selectableItemBackgroundBorderless"/>
+
+    </RelativeLayout>
+</com.google.android.material.card.MaterialCardView> 

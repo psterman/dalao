@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#222222"
+    android:padding="8dp">
+
+    <!-- Section 1: Preview Slots -->
+    <LinearLayout
+        android:id="@+id/slots_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <!-- Slot 1: Empty by default -->
+        <include layout="@layout/dynamic_island_slot_view"
+            android:id="@+id/slot_1"/>
+
+        <!-- Slot 2: Filled with a web search engine for preview -->
+        <include layout="@layout/dynamic_island_slot_view"
+            android:id="@+id/slot_2"/>
+
+        <!-- Slot 3: Filled with an AI engine and prompt for preview -->
+        <include layout="@layout/dynamic_island_slot_view"
+            android:id="@+id/slot_3"/>
+
+    </LinearLayout>
+
+    <!-- Section 2: Ability Source Panel -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Web Search Engines -->
+            <TextView
+                style="@style/TextAppearance.AppCompat.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌐 网页搜索"
+                android:textColor="#CCCCCC"
+                android:layout_marginStart="8dp"
+                android:layout_marginBottom="4dp"/>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/web_searches_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:background="#333"
+                tools:layout_height="80dp"/>
+
+            <!-- AI Engines -->
+            <TextView
+                style="@style/TextAppearance.AppCompat.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💬 AI 对话"
+                android:textColor="#CCCCCC"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"/>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/ai_engines_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:background="#333"
+                tools:layout_height="80dp"/>
+
+
+            <!-- AI Prompts -->
+            <TextView
+                style="@style/TextAppearance.AppCompat.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💡 AI 提示词"
+                android:textColor="#CCCCCC"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"/>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/ai_prompts_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:background="#333"
+                tools:layout_height="80dp"/>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout> 

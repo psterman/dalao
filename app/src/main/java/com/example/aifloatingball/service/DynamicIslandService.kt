@@ -3,6 +3,7 @@ package com.example.aifloatingball.service
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -23,8 +24,11 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.preference.PreferenceManager
+import android.view.ContextThemeWrapper
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
@@ -40,6 +44,13 @@ import com.example.aifloatingball.HomeActivity
 import com.example.aifloatingball.R
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import java.util.concurrent.ConcurrentHashMap
+import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.graphics.Point
+import android.provider.Settings
+import android.util.DisplayMetrics
+import android.util.Log
+import android.view.animation.AccelerateDecelerateInterpolator
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -50,6 +61,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var animatingIslandView: FrameLayout? = null // The moving/transforming view
     private var islandContentView: View? = null // The content (icons, searchbox)
     private var touchProxyView: View? = null
+    private var configPanelView: View? = null
+    private var backgroundScrimView: View? = null // For background scrim
 
     private lateinit var notificationIconContainer: LinearLayout
     private var searchViewContainer: View? = null
@@ -188,7 +201,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // Set Listeners
         touchProxyView?.setOnClickListener { if (!isSearchModeActive) transitionToSearchState() }
         setupSearchListeners()
-        
+
+        // 初始时就应该可见
+        updateIslandVisibility()
+
+        windowContainerView!!.setOnTouchListener { _, event ->
+            if (isSearchModeActive && event.action == MotionEvent.ACTION_DOWN) {
+                val islandRect = android.graphics.Rect()
+                animatingIslandView?.getGlobalVisibleRect(islandRect)
+                if (!islandRect.contains(event.rawX.toInt(), event.rawY.toInt())) {
+                    transitionToCompactState()
+                    return@setOnTouchListener true
+                }
+            }
+            false
+        }
+
         try {
             windowManager.addView(windowContainerView, stageParams)
         } catch (e: Exception) {
@@ -197,7 +225,25 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun transitionToSearchState() {
+        if (isSearchModeActive) return
         isSearchModeActive = true
+
+        // --- Create and show background scrim ---
+        if (backgroundScrimView == null) {
+            backgroundScrimView = View(this).apply {
+                setBackgroundColor(Color.argb(1, 0, 0, 0)) // Almost transparent, but clickable
+                layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+                setOnClickListener { transitionToCompactState() }
+            }
+            val scrimParams = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+            )
+            try { windowManager.addView(backgroundScrimView, scrimParams) } catch (e: Exception) { e.printStackTrace() }
+        }
+
         touchProxyView?.visibility = View.GONE
 
         // Allow window to be focusable
@@ -223,8 +269,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
                 override fun onAnimationEnd(animation: Animator) {
                     searchViewContainer?.visibility = View.VISIBLE
+                    showConfigurationPanel()
+                    
+                    // --- BEGIN: Show Panel Logic ---
+                    if (configPanelView == null) {
+                        val inflater = LayoutInflater.from(this@DynamicIslandService)
+                        configPanelView = inflater.inflate(R.layout.dynamic_island_config_panel, null)
+                        val params = WindowManager.LayoutParams(
+                            WindowManager.LayoutParams.MATCH_PARENT,
+                            WindowManager.LayoutParams.WRAP_CONTENT,
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                            PixelFormat.TRANSLUCENT
+                        ).apply {
+                            gravity = Gravity.TOP
+                            val islandRect = android.graphics.Rect()
+                            windowContainerView?.getGlobalVisibleRect(islandRect)
+                            y = islandRect.bottom + 10
+                        }
+                        try {
+                            windowManager.addView(configPanelView, params)
+                        } catch (e: Exception) { e.printStackTrace() }
+                    }
+                    // --- END: Show Panel Logic ---
+
                     searchInput?.requestFocus()
-                    // Post-delay to ensure window has focus before showing keyboard
                     uiHandler.postDelayed({
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
@@ -236,7 +305,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun transitionToCompactState() {
+        if (!isSearchModeActive) return
         isSearchModeActive = false
+
+        cleanupExpandedViews()
+
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(windowContainerView?.windowToken, 0)
         searchInput?.clearFocus()
@@ -326,11 +399,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun updateIslandVisibility() {
-        windowContainerView?.visibility = if (activeNotifications.isEmpty() && !isSearchModeActive) {
-            View.GONE
-        } else {
-            View.VISIBLE
-        }
+        // 始终保持灵动岛可见，即使没有通知
+        windowContainerView?.visibility = View.VISIBLE
     }
 
     private fun getStatusBarHeight(): Int {
@@ -348,6 +418,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Removed temporary preview logic
         return START_STICKY
     }
 
@@ -355,16 +426,57 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         super.onDestroy()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
+        cleanupViews()
+    }
 
-            try {
+    private fun cleanupViews() {
+        try {
             windowContainerView?.let { windowManager.removeView(it) }
-            } catch (e: Exception) {
-                e.printStackTrace()
+            configPanelView?.let { windowManager.removeView(it) }
+            backgroundScrimView?.let { windowManager.removeView(it) }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
         windowContainerView = null
-        animatingIslandView = null
+        configPanelView = null
+        backgroundScrimView = null
         islandContentView = null
         touchProxyView = null
+    }
+
+    private fun showConfigurationPanel() {
+        if (configPanelView != null) return
+
+        // Create a themed context to inflate the layout with Material Components theme
+        val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
+        configPanelView = LayoutInflater.from(themedContext).inflate(R.layout.dynamic_island_config_panel, null)
+
+        val panelParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP
+            val islandRect = android.graphics.Rect()
+            windowContainerView?.getGlobalVisibleRect(islandRect)
+            y = islandRect.bottom + 10
+        }
+        try {
+            windowManager.addView(configPanelView, panelParams)
+        } catch (e: Exception) { e.printStackTrace() }
+    }
+
+    private fun cleanupExpandedViews() {
+        if (backgroundScrimView != null) {
+            try { windowManager.removeView(backgroundScrimView) } catch (e: Exception) { e.printStackTrace() }
+            backgroundScrimView = null
+        }
+        if (configPanelView != null) {
+            try { windowManager.removeView(configPanelView) } catch (e: Exception) { e.printStackTrace() }
+            configPanelView = null
+        }
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
