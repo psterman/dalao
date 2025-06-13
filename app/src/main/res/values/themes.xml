@@ -27,4 +27,11 @@
         <!-- 确保Material组件可以正常工作 -->
         <item name="materialButtonStyle">@style/Widget.MaterialComponents.Button</item>
     </style>
+
+    <style name="YourTitleTextStyle" parent="Widget.MaterialComponents.TextView">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">?attr/colorOnSurface</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:layout_marginBottom">8dp</item>
+    </style>
 </resources> 

@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Robot Body -->
+    <path
+        android:fillColor="#FFCCCCCC"
+        android:pathData="M16,18H8c-1.1,0 -2,-0.9 -2,-2V10h12v6C18,17.1 17.1,18 16,18z"/>
+
+    <!-- Robot Head, wrapped in a group for animation -->
+    <group
+        android:name="robot_head"
+        android:pivotX="12"
+        android:pivotY="7">
+        <path
+            android:fillColor="#FFCCCCCC"
+            android:pathData="M16,9H8C6.9,9 6,8.1 6,7V5c0,-1.1 0.9,-2 2,-2h8c1.1,0 2,0.9 2,2v2C18,8.1 17.1,9 16,9z"/>
+        <!-- Antenna -->
+        <path
+            android:fillColor="#FFCCCCCC"
+            android:pathData="M12,3V1.5c0,-0.28 0.22,-0.5 0.5,-0.5s0.5,0.22 0.5,0.5V3h-1z"/>
+    </group>
+
+</vector> 

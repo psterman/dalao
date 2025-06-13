@@ -18,6 +18,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.RenderEffect
 import android.graphics.Shader
+import android.graphics.drawable.AnimatedVectorDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -81,7 +82,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var windowManager: WindowManager
-
+    
     private var windowContainerView: FrameLayout? = null // The stage
     private var animatingIslandView: FrameLayout? = null // The moving/transforming view
     private var islandContentView: View? = null // The content (icons, searchbox)
@@ -143,7 +144,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         super.onCreate()
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
-
+        
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
 
@@ -210,7 +211,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             background = getDrawable(R.drawable.dynamic_island_background)
             layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
         }
-
+        
         // 3. The Content
         islandContentView = inflater.inflate(R.layout.dynamic_island_layout, animatingIslandView, false)
         notificationIconContainer = islandContentView!!.findViewById(R.id.notification_icon_container)
@@ -225,7 +226,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 topMargin = statusBarHeight
             }
         }
-
+        
         windowContainerView!!.addView(animatingIslandView)
         windowContainerView!!.addView(touchProxyView)
         
@@ -276,7 +277,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 override fun onAnimationEnd(animation: Animator) {
                     searchViewContainer?.visibility = View.VISIBLE
                     showConfigurationPanel()
-                    
+
                     searchInput?.requestFocus()
                     uiHandler.postDelayed({
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -349,13 +350,27 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun performSearch() {
-        val query = searchInput?.text.toString().trim()
-        if (query.isNotEmpty()) {
-            val searchEngine = activeSlots[1] ?: searchCategories.first().engines.first()
-            val searchUrl = searchEngine.searchUrl + URLEncoder.encode(query, "UTF-8")
+        // 优先使用卡槽1中的增强指令
+        val aiEnhancedEngine = activeSlots[1]
+        val queryToSearch = if (aiEnhancedEngine != null && aiEnhancedEngine.name == "AI 增强指令") {
+            searchInput?.text.toString().trim() // 直接使用输入框里已经增强过的完整文本
+        } else {
+            searchInput?.text.toString().trim() // 否则使用普通文本
+        }
+
+        if (queryToSearch.isNotEmpty()) {
+            // 决定用哪个搜索引擎
+            // 如果是增强指令，强制使用AI引擎，否则用默认引擎
+            val searchEngineToUse = if (aiEnhancedEngine != null && aiEnhancedEngine.name == "AI 增强指令") {
+                searchCategories.find { it.title == "AI 搜索引擎" }?.engines?.first() // 例如总是用Kimi
+            } else {
+                activeSlots[1] // 否则使用卡槽1里用户选择的普通引擎
+            } ?: searchCategories.first().engines.first() // 最终的兜底
+
+            val searchUrl = searchEngineToUse.searchUrl + URLEncoder.encode(queryToSearch, "UTF-8")
 
             val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("search_query", query)
+                putExtra("search_query", queryToSearch)
                 putExtra("search_url", searchUrl)
             }
             startService(intent)
@@ -432,6 +447,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         slot1View = configPanelView?.findViewById(R.id.slot_1)
         slot2View = configPanelView?.findViewById(R.id.slot_2)
         slot3View = configPanelView?.findViewById(R.id.slot_3)
+
+        val addPromptButton = configPanelView?.findViewById<View>(R.id.btn_add_master_prompt)
+        addPromptButton?.setOnClickListener {
+            enhanceSearchPrompt()
+        }
 
         slot1View?.setOnClickListener { showSearchEngineSelector(it, 1) }
         slot2View?.setOnClickListener { showSearchEngineSelector(it, 2) }
@@ -688,4 +708,56 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         }
     }
-}
+
+    private fun createEnhancedPrompt(originalText: String): String {
+        return """
+        # 角色
+        你是一位顶级的分析师和思想梳理专家。
+
+        # 任务
+        你的任务是分析、提炼并拓展用户提供的[原始文本]，将其转化为一个更清晰、更有条理、更具深度的问题或指令，以便AI能够给出更高质量的回答。
+
+        # 输出要求
+        直接返回优化后的问题或指令，不需要任何额外的解释。
+
+        # 原始文本
+        "$originalText"
+        """.trimIndent()
+    }
+
+    private fun enhanceSearchPrompt() {
+        val originalQuery = searchInput?.text?.toString()
+        if (originalQuery.isNullOrEmpty()) {
+            // 可以给个提示，让用户先输入内容
+            return
+        }
+
+        // 1. 创建增强后的提示词
+        val enhancedQuery = createEnhancedPrompt(originalQuery)
+
+        // 2. 文本变化动画
+        searchInput?.animate()?.alpha(0f)?.setDuration(250)?.withEndAction {
+            searchInput?.setText(enhancedQuery)
+            searchInput?.animate()?.alpha(1f)?.setDuration(250)?.start()
+        }?.start()
+
+        // 3. 放入AI对话卡槽 (我们假设用第一个卡槽代表AI对话)
+        // 创建一个临时的SearchEngine对象来代表这个自定义指令
+        val aiPromptEngine = SearchEngine(
+            name = "AI 增强指令",
+            description = originalQuery, // 用原始查询作为描述
+            iconResId = R.drawable.ic_robot_icon, // 使用我们的机器人图标
+            searchUrl = "" // searchUrl 在这里不重要，因为我们会直接使用完整文本
+        )
+        // 将这个对象放入卡槽1
+        activeSlots[1] = aiPromptEngine
+        updateSlotView(1, aiPromptEngine)
+
+        // 4. 播放机器人旋转动画
+        slot1View?.findViewById<ImageView>(R.id.slot_icon)?.let { iconView ->
+            val avd = getDrawable(R.drawable.avd_robot_rotate) as? AnimatedVectorDrawable
+            iconView.setImageDrawable(avd)
+            avd?.start()
+        }
+    }
+} 

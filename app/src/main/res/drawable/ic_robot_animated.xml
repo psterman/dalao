@@ -1,0 +1,19 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/ic_robot_vector">
+
+    <target android:name="robot_head">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="1200"
+                android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:propertyName="rotation"
+                android:repeatCount="infinite"
+                android:repeatMode="reverse"
+                android:valueFrom="-10"
+                android:valueTo="10"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+
+</animated-vector> 
