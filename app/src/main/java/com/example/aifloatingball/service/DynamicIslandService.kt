@@ -564,6 +564,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
+        // 3. Animate the AI Engines panel to indicate readiness
+        val aiEnginesPanel = configPanelView?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.ai_engines_recycler_view)
+        aiEnginesPanel?.let {
+            it.alpha = 0.5f
+            it.animate()
+                .alpha(1f)
+                .setDuration(400)
+                .start()
+        }
     }
 
     private fun selectSearchEngineForSlot(engine: SearchEngine, slotIndex: Int) {
@@ -746,18 +756,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val aiPromptEngine = SearchEngine(
             name = "AI 增强指令",
             description = originalQuery, // 用原始查询作为描述
-            iconResId = R.drawable.ic_robot_icon, // 使用我们的机器人图标
+            iconResId = R.drawable.ic_robot_vector, // Use static vector for now
             searchUrl = "" // searchUrl 在这里不重要，因为我们会直接使用完整文本
         )
         // 将这个对象放入卡槽1
         activeSlots[1] = aiPromptEngine
         updateSlotView(1, aiPromptEngine)
 
-        // 4. 播放机器人旋转动画
-        slot1View?.findViewById<ImageView>(R.id.slot_icon)?.let { iconView ->
-            val avd = getDrawable(R.drawable.avd_robot_rotate) as? AnimatedVectorDrawable
-            iconView.setImageDrawable(avd)
-            avd?.start()
+        // 4. Animate the target slot to confirm placement
+        slot1View?.let {
+            it.animate()
+                .alpha(0.5f)
+                .withEndAction {
+                    it.animate().alpha(1.0f).setDuration(300).start()
+                }
+                .setDuration(300)
+                .start()
         }
     }
 } 

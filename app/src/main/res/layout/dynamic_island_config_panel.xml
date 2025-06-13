@@ -1,64 +1,130 @@
-    <!-- 全新的 "智能指令工坊" 卡片式布局 -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/helper_card"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        app:cardCornerRadius="16dp"
-        app:cardBackgroundColor="#303030"
-        app:layout_constraintTop_toBottomOf="@id/search_engine_slots_container"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#222222"
+    android:padding="8dp">
 
-        <androidx.constraintlayout.widget.ConstraintLayout
+    <!-- Section 1: Preview Slots -->
+    <LinearLayout
+        android:id="@+id/slots_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <!-- Slot 1: Empty by default -->
+        <include layout="@layout/dynamic_island_slot_view"
+            android:id="@+id/slot_1"/>
+
+        <!-- Slot 2: Filled with a web search engine for preview -->
+        <include layout="@layout/dynamic_island_slot_view"
+            android:id="@+id/slot_2"/>
+
+        <!-- Slot 3: Filled with an AI engine and prompt for preview -->
+        <include layout="@layout/dynamic_island_slot_view"
+            android:id="@+id/slot_3"/>
+
+    </LinearLayout>
+
+    <!-- Section 2: Ability Source Panel -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp">
+            android:orientation="vertical">
+
+            <!-- Web Search Engines -->
+            <TextView
+                style="@style/TextAppearance.AppCompat.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🌐 网页搜索"
+                android:textColor="#CCCCCC"
+                android:layout_marginStart="8dp"
+                android:layout_marginBottom="4dp"/>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/web_searches_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:background="#333"
+                tools:layout_height="80dp"/>
+
+            <!-- AI Engines -->
+            <TextView
+                style="@style/TextAppearance.AppCompat.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💬 AI 对话"
+                android:textColor="#CCCCCC"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"/>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/ai_engines_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:background="#333"
+                tools:layout_height="80dp"/>
+
+
+            <!-- AI Prompts -->
+            <TextView
+                style="@style/TextAppearance.AppCompat.Caption"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💡 AI 提示词"
+                android:textColor="#CCCCCC"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="4dp"/>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/ai_prompts_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                tools:background="#333"
+                tools:layout_height="80dp"/>
+
+            <!-- Re-styled "帮你忙" section -->
+            <TextView
+                android:id="@+id/title_drag_fill"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="拖拽填充" />
 
             <TextView
                 android:id="@+id/title_helper"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="4dp"
                 android:text="帮你忙"
-                android:textColor="@android:color/white"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
+                android:textAppearance="?attr/textAppearanceSubtitle2"
+                android:textColor="?android:attr/textColorSecondary" />
 
-            <TextView
-                android:id="@+id/subtitle_helper"
-                android:layout_width="0dp"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_add_master_prompt"
+                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="一键优化你的提问，释放AI全部潜能"
-                android:textColor="#B0B0B0"
-                android:textSize="14sp"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/title_helper" />
+                android:layout_marginStart="-8dp"
+                android:text="加提示词"
+                android:textAppearance="?attr/textAppearanceBody1"
+                android:textColor="?attr/colorPrimary"
+                app:icon="@drawable/ic_magic_wand"
+                app:iconTint="?attr/colorPrimary" />
 
-            <!-- The new "Add Prompt" button, designed as a prominent action -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/btn_add_master_prompt_container"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardBackgroundColor="#4285F4"
-                app:layout_constraintTop_toBottomOf="@id/subtitle_helper"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                android:clickable="true"
-                android:focusable="true">
+        </LinearLayout>
+    </ScrollView>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="12dp"
-                    android:gravity="center_vertical">
-
-                    <ImageView
-                        android:id="@+id/ic_add_prompt"
-                        android:layout_width="
+</LinearLayout> 
