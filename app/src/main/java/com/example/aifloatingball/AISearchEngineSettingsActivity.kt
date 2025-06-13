@@ -3,6 +3,7 @@ package com.example.aifloatingball
 import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.adapter.AIEngineCategoryAdapter
@@ -45,8 +46,26 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
         val searchBasedEngines = allEngines.filter { !it.isChatMode && isSearchEngine(it.name) }
         val chatPlatformEngines = allEngines.filter { !it.isChatMode && !isSearchEngine(it.name) }
 
-        val categories = listOf(chatPlatformEngines, searchBasedEngines, apiBasedEngines)
-        val categoryTitles = listOf("AI对话平台", "AI搜索引擎", "API对话")
+        val allCategoryData = linkedMapOf<String, List<AISearchEngine>>()
+        if (chatPlatformEngines.isNotEmpty()) {
+            allCategoryData["AI对话平台"] = chatPlatformEngines
+        }
+        if (searchBasedEngines.isNotEmpty()) {
+            allCategoryData["AI搜索引擎"] = searchBasedEngines
+        }
+        if (apiBasedEngines.isNotEmpty()) {
+            allCategoryData["API对话"] = apiBasedEngines
+        }
+
+        val categories = allCategoryData.values.toList()
+        val categoryTitles = allCategoryData.keys.toList()
+
+        if (categories.isEmpty()) {
+            tabLayout.visibility = View.GONE
+            viewPager.visibility = View.GONE
+            // Optionally, show a message that there are no engines
+            return
+        }
 
         // 2. 创建并设置适配器
         adapter = AIEngineCategoryAdapter(this, categories)
