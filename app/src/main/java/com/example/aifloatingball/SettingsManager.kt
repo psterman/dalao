@@ -199,6 +199,12 @@ class SettingsManager private constructor(context: Context) {
         notifyListeners("enabled_ai_engines", enabledEngines)
     }
     
+    // 获取默认的AI搜索引擎
+    fun getDefaultAIEngine(): String {
+        val enabledAIEngines = getEnabledAIEngines()
+        return enabledAIEngines.firstOrNull() ?: "deepseek_chat" // 如果没有启用的AI引擎，则返回一个默认值
+    }
+    
     // 获取所有已启用的搜索引擎（包括普通搜索引擎和AI搜索引擎）
     fun getAllEnabledEngines(): Set<String> {
         val result = mutableSetOf<String>()

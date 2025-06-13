@@ -87,6 +87,23 @@
             android:contentDescription="关闭"/>
     </LinearLayout>
 
+    <!-- 全局AI搜索引擎栏 (这是新添加的部分) -->
+    <HorizontalScrollView
+        android:id="@+id/global_ai_engine_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:background="@color/dual_webview_top_bar_light"
+        android:paddingVertical="2dp">
+        <LinearLayout
+            android:id="@+id/global_ai_engine_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp"
+            android:gravity="center_vertical"/>
+    </HorizontalScrollView>
+
     <!-- 内容容器 -->
     <FrameLayout
         android:layout_width="match_parent"
@@ -141,6 +158,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:scrollbars="none"
+                            android:visibility="gone"
                             android:paddingVertical="0dp">
                             <LinearLayout
                                 android:id="@+id/first_webview_ai_engine_container"
@@ -215,6 +233,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:scrollbars="none"
+                            android:visibility="gone"
                             android:paddingVertical="0dp">
                             <LinearLayout
                                 android:id="@+id/second_webview_ai_engine_container"
@@ -289,6 +308,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:scrollbars="none"
+                            android:visibility="gone"
                             android:paddingVertical="0dp">
                             <LinearLayout
                                 android:id="@+id/third_webview_ai_engine_container"

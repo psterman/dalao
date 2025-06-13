@@ -66,7 +66,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     // 依赖模块
     private lateinit var notificationManager: ServiceNotificationManager
     internal lateinit var windowManager: FloatingWindowManager
-    internal lateinit var webViewManager: WebViewManager
+    lateinit var webViewManager: WebViewManager
     internal lateinit var searchEngineHandler: SearchEngineHandler
     private lateinit var intentParser: IntentParser
     private lateinit var textSelectionManager: TextSelectionManager
