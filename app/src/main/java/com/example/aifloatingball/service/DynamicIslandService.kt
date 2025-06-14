@@ -54,6 +54,9 @@ import java.util.concurrent.ConcurrentHashMap
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.WindowInsets
 import android.widget.HorizontalScrollView
+import com.example.aifloatingball.model.AppSearchSettings
+import android.net.Uri
+import android.content.ActivityNotFoundException
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -90,6 +93,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private lateinit var sharedPreferences: SharedPreferences
     private lateinit var windowManager: WindowManager
+    private lateinit var appSearchSettings: AppSearchSettings
     
     private var windowContainerView: FrameLayout? = null // The stage
     private var animatingIslandView: FrameLayout? = null // The moving/transforming view
@@ -108,6 +112,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var compactWidth: Int = 0
     private var expandedWidth: Int = 0
     private var statusBarHeight: Int = 0
+
+    private var appSearchIconContainer: LinearLayout? = null
+    private var appSearchIconScrollView: HorizontalScrollView? = null
 
     private var currentKeyboardHeight = 0
     private var editingScrimView: View? = null // New scrim view for background blur/dim
@@ -146,6 +153,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
+    private val appSearchUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.ACTION_UPDATE_APP_SEARCH") {
+                if (isSearchModeActive) {
+                    populateAppSearchIcons()
+                }
+            }
+        }
+    }
+
     companion object {
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "DynamicIslandChannel"
@@ -157,6 +174,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         super.onCreate()
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
+        appSearchSettings = AppSearchSettings.getInstance(this)
         
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
@@ -168,6 +186,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             notificationReceiver,
             IntentFilter(NotificationListener.ACTION_NOTIFICATION)
         )
+        // Register receiver for app search updates
+        val filter = IntentFilter("com.example.aifloatingball.ACTION_UPDATE_APP_SEARCH")
+        registerReceiver(appSearchUpdateReceiver, filter)
     }
 
     private fun createNotificationChannel() {
@@ -228,6 +249,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 3. The Content
         islandContentView = inflater.inflate(R.layout.dynamic_island_layout, animatingIslandView, false)
         notificationIconContainer = islandContentView!!.findViewById(R.id.notification_icon_container)
+        appSearchIconScrollView = islandContentView!!.findViewById(R.id.app_search_icon_scroll_view)
+        appSearchIconContainer = islandContentView!!.findViewById(R.id.app_search_icon_container)
         animatingIslandView!!.addView(islandContentView)
 
         // 4. The Proxy
@@ -270,21 +293,37 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         setupInsetsListener()
 
         val islandParams = animatingIslandView?.layoutParams as FrameLayout.LayoutParams
-        ValueAnimator.ofInt(0, statusBarHeight).apply {
+        val targetHeight = 56.dpToPx() // New height for icons (48dp icon + 8dp padding)
+
+        val originalBackground = animatingIslandView?.background?.mutate() // Mutate to avoid changing original drawable
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
             duration = 350
+            interpolator = AccelerateDecelerateInterpolator()
+            val startWidth = islandParams.width
+            val startHeight = islandParams.height
+
             addUpdateListener {
-                val value = it.animatedValue as Int
-                val fraction = it.animatedFraction
-                islandParams.topMargin = value
-                islandParams.width = compactWidth + ((expandedWidth - compactWidth) * fraction).toInt()
+                val fraction = it.animatedValue as Float
+                
+                // Animate position and size
+                islandParams.topMargin = (statusBarHeight * fraction).toInt() // Moves down
+                islandParams.width = (startWidth + (expandedWidth - startWidth) * fraction).toInt()
+                islandParams.height = (startHeight + (targetHeight - startHeight) * fraction).toInt()
                 animatingIslandView?.layoutParams = islandParams
+                
+                // Fade out background
+                originalBackground?.alpha = ((1 - fraction) * 255).toInt()
             }
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationStart(animation: Animator) {
                     notificationIconContainer.visibility = View.GONE
                 }
                 override fun onAnimationEnd(animation: Animator) {
+                    animatingIslandView?.background = null // Remove background at the end
                     showConfigPanel()
+                    populateAppSearchIcons()
+                    appSearchIconScrollView?.visibility = View.VISIBLE
 
                     searchInput?.requestFocus()
                     uiHandler.postDelayed({
@@ -320,17 +359,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         windowContainerView?.setOnApplyWindowInsetsListener(null)
 
         val islandParams = animatingIslandView?.layoutParams as FrameLayout.LayoutParams
-        ValueAnimator.ofInt(statusBarHeight, 0).apply {
+        ValueAnimator.ofFloat(1f, 0f).apply { // Animate from 1 down to 0
             duration = 350
+            interpolator = AccelerateDecelerateInterpolator()
+
+            val startWidth = islandParams.width
+            val startHeight = islandParams.height
+            val background = getDrawable(R.drawable.dynamic_island_background)
+            animatingIslandView?.background = background // Set it immediately
+
             addUpdateListener {
-                val value = it.animatedValue as Int
-                val fraction = it.animatedFraction
-                islandParams.topMargin = value
-                islandParams.width = expandedWidth + ((compactWidth - expandedWidth) * fraction).toInt()
+                val fraction = it.animatedValue as Float // fraction goes from 1 to 0
+                
+                // Animate position and size
+                islandParams.topMargin = (statusBarHeight * fraction).toInt()
+                islandParams.width = (compactWidth + (startWidth - compactWidth) * fraction).toInt()
+                islandParams.height = (statusBarHeight + (startHeight - statusBarHeight) * fraction).toInt()
                 animatingIslandView?.layoutParams = islandParams
+                
+                // Fade in background
+                background?.alpha = ((1 - fraction) * 255).toInt()
             }
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationStart(animation: Animator) {
+                    appSearchIconScrollView?.visibility = View.GONE
+                    clearAppSearchIcons()
                 }
                 override fun onAnimationEnd(animation: Animator) {
                     notificationIconContainer.visibility = View.VISIBLE
@@ -382,7 +435,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
             val searchUrl = searchEngineToUse.searchUrl + URLEncoder.encode(queryToSearch, "UTF-8")
 
-            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+            val intent = Intent(this@DynamicIslandService, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", queryToSearch)
                 putExtra("search_url", searchUrl)
             }
@@ -438,6 +491,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         super.onDestroy()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
+        unregisterReceiver(appSearchUpdateReceiver)
         cleanupViews()
         hideEditingScrim()
     }
@@ -967,4 +1021,54 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         })
         animation?.start()
     }
-} 
+
+    private fun populateAppSearchIcons() {
+        clearAppSearchIcons()
+        val enabledApps = appSearchSettings.getAppConfigs().filter { it.isEnabled }.sortedBy { it.order }
+
+        enabledApps.forEach { appConfig ->
+            val imageView = ImageView(ContextThemeWrapper(this, R.style.Theme_FloatingWindow)).apply {
+                val iconSize = 48.dpToPx()
+                val iconMargin = 8.dpToPx()
+                layoutParams = LinearLayout.LayoutParams(
+                    iconSize,
+                    iconSize
+                ).also { params ->
+                    params.setMargins(iconMargin, 0, iconMargin, 0)
+                }
+                setImageResource(appConfig.iconResId)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setBackgroundResource(R.drawable.app_icon_background)
+                clipToOutline = true
+                contentDescription = appConfig.appName
+                setOnClickListener {
+                    val query = searchInput?.text?.toString()?.trim() ?: ""
+                    if (query.isNotEmpty()) {
+                        try {
+                            val searchUri = Uri.parse(appConfig.searchUrl + URLEncoder.encode(query, "UTF-8"))
+                            val intent = Intent(Intent.ACTION_VIEW, searchUri).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                appConfig.packageName.takeIf { it.isNotEmpty() }?.let { setPackage(it) }
+                            }
+                            startActivity(intent)
+                            transitionToCompactState()
+                        } catch (e: ActivityNotFoundException) {
+                            // Handle cases where the app is not installed or the URL scheme is incorrect
+                            android.widget.Toast.makeText(this@DynamicIslandService, "${appConfig.appName} 未安装或无法响应搜索", android.widget.Toast.LENGTH_SHORT).show()
+                        } catch (e: Exception) {
+                            // Handle other potential errors
+                             android.widget.Toast.makeText(this@DynamicIslandService, "无法打开 ${appConfig.appName}", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        android.widget.Toast.makeText(this@DynamicIslandService, "请输入搜索内容", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            appSearchIconContainer?.addView(imageView)
+        }
+    }
+
+    private fun clearAppSearchIcons() {
+        appSearchIconContainer?.removeAllViews()
+    }
+}

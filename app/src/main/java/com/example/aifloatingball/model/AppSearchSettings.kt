@@ -12,7 +12,8 @@ data class AppSearchConfig(
     val packageName: String,    // 应用包名
     var isEnabled: Boolean,     // 是否启用
     var order: Int,            // 排序顺序
-    val iconResId: Int         // 图标资源ID
+    val iconResId: Int,         // 图标资源ID
+    val searchUrl: String       // 搜索URL模板
 )
 
 class AppSearchSettings(context: Context) {
@@ -70,7 +71,8 @@ class AppSearchSettings(context: Context) {
                 packageName = "com.tencent.mm",
                 isEnabled = true,
                 order = 1,
-                iconResId = R.drawable.ic_wechat
+                iconResId = R.drawable.ic_wechat,
+                searchUrl = "weixin://sogousearch/search/" // 示例URL，实际可能不同
             ),
             AppSearchConfig(
                 appId = "taobao",
@@ -78,7 +80,8 @@ class AppSearchSettings(context: Context) {
                 packageName = "com.taobao.taobao",
                 isEnabled = true,
                 order = 2,
-                iconResId = R.drawable.ic_taobao
+                iconResId = R.drawable.ic_taobao,
+                searchUrl = "taobao://s.taobao.com/search?q="
             ),
             AppSearchConfig(
                 appId = "pdd",
@@ -86,7 +89,8 @@ class AppSearchSettings(context: Context) {
                 packageName = "com.xunmeng.pinduoduo",
                 isEnabled = true,
                 order = 3,
-                iconResId = R.drawable.ic_app_search_default
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "pinduoduo://com.xunmeng.pinduoduo/search_result.html?keyword="
             ),
             AppSearchConfig(
                 appId = "douyin",
@@ -94,7 +98,8 @@ class AppSearchSettings(context: Context) {
                 packageName = "com.ss.android.ugc.aweme",
                 isEnabled = true,
                 order = 4,
-                iconResId = R.drawable.ic_douyin
+                iconResId = R.drawable.ic_douyin,
+                searchUrl = "snssdk1128://search/live?keyword="
             ),
             AppSearchConfig(
                 appId = "xiaohongshu",
@@ -102,7 +107,8 @@ class AppSearchSettings(context: Context) {
                 packageName = "com.xingin.xhs",
                 isEnabled = true,
                 order = 5,
-                iconResId = R.drawable.ic_app_search_default
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "xhsdiscover://search/notes?keyword="
             )
         )
     }
