@@ -1,81 +1,102 @@
 <?xml version="1.0" encoding="utf-8"?>
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="100dp"
-    app:cardBackgroundColor="#2C2C2E"
-    app:cardCornerRadius="18dp"
-    app:strokeWidth="0dp">
+    android:layout_height="match_parent"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="#33FFFFFF"
+    app:strokeWidth="1dp"
+    app:strokeColor="#55FFFFFF">
 
-    <FrameLayout
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="8dp">
+        android:layout_height="match_parent">
 
-        <!-- Hint text for empty state -->
-        <TextView
-            android:id="@+id/slot_hint_text"
+        <!-- Hint state (empty) -->
+        <LinearLayout
+            android:id="@+id/slot_hint_state"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:text="拖拽填充"
-            android:textColor="#8AFFFFFF"
-            android:textSize="12sp"
-            android:visibility="visible"
-            tools:visibility="gone" />
-
-        <!-- Content for filled state -->
-        <LinearLayout
-            android:id="@+id/slot_filled_content"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
+            android:layout_centerInParent="true"
             android:orientation="vertical"
-            android:visibility="gone"
-            tools:visibility="visible">
+            android:gravity="center"
+            android:visibility="visible">
 
             <ImageView
-                android:id="@+id/slot_icon"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                tools:src="@mipmap/ic_launcher" />
+                android:src="@drawable/ic_add_circle_outline"
+                app:tint="@android:color/white"
+                android:alpha="0.7"/>
 
             <TextView
-                android:id="@+id/slot_title"
+                android:id="@+id/slot_hint_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:ellipsize="end"
-                android:maxLines="1"
+                android:text="设置"
                 android:textColor="@android:color/white"
                 android:textSize="12sp"
-                tools:text="Kimi" />
+                android:alpha="0.7"/>
 
-            <TextView
-                android:id="@+id/slot_subtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#8AFFFFFF"
-                android:textSize="10sp"
-                android:visibility="gone"
-                tools:text="长文本深度对话" />
         </LinearLayout>
 
-        <!-- Clear button -->
-        <ImageView
-            android:id="@+id/slot_clear_button"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:layout_gravity="top|end"
-            android:background="@drawable/ic_close_background"
-            android:padding="4dp"
-            android:src="@drawable/ic_close"
+        <!-- Filled state (like a browser window) -->
+        <RelativeLayout
+            android:id="@+id/slot_filled_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/browser_preview_background"
             android:visibility="gone"
-            app:tint="@android:color/white"
-            tools:visibility="visible" />
+            android:padding="4dp">
 
-    </FrameLayout>
+            <!-- Tiny address bar -->
+            <View
+                android:id="@+id/address_bar"
+                android:layout_width="match_parent"
+                android:layout_height="12dp"
+                android:layout_margin="4dp"
+                android:background="@drawable/browser_address_bar_background" />
+
+            <!-- Content (Icon + Title) -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:orientation="vertical"
+                android:gravity="center">
+
+                <ImageView
+                    android:id="@+id/slot_icon"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:scaleType="fitCenter"/>
+
+                <TextView
+                    android:id="@+id/slot_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@android:color/black"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"/>
+            </LinearLayout>
+
+            <!-- Clear button -->
+            <ImageView
+                android:id="@+id/slot_clear_button"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentEnd="true"
+                android:layout_margin="2dp"
+                android:src="@drawable/ic_close"
+                android:background="@drawable/ic_close_background"
+                android:padding="4dp"
+                app:tint="@android:color/darker_gray" />
+
+        </RelativeLayout>
+    </RelativeLayout>
 </com.google.android.material.card.MaterialCardView> 

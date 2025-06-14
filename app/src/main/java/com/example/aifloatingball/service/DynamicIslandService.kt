@@ -689,26 +689,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             else -> null
         } ?: return
 
-        val hintText = slotView.findViewById<TextView>(R.id.slot_hint_text)
+        val hintState = slotView.findViewById<View>(R.id.slot_hint_state)
         val filledContent = slotView.findViewById<View>(R.id.slot_filled_content)
         val clearButton = slotView.findViewById<View>(R.id.slot_clear_button)
 
         if (engine != null) {
-            hintText.visibility = View.GONE
+            hintState.visibility = View.GONE
             filledContent.visibility = View.VISIBLE
             clearButton.visibility = View.VISIBLE
 
             val icon = filledContent.findViewById<ImageView>(R.id.slot_icon)
             val title = filledContent.findViewById<TextView>(R.id.slot_title)
-            val subtitle = filledContent.findViewById<TextView>(R.id.slot_subtitle)
+            // The subtitle view was removed in the new layout
+            // val subtitle = filledContent.findViewById<TextView>(R.id.slot_subtitle)
 
             icon.setImageResource(engine.iconResId)
             title.text = engine.name
-            title.visibility = View.VISIBLE
-            subtitle.text = engine.description
-            subtitle.visibility = View.VISIBLE
+            // subtitle.text = engine.description
+            // subtitle.visibility = View.VISIBLE
         } else {
-            hintText.visibility = View.VISIBLE
+            hintState.visibility = View.VISIBLE
             filledContent.visibility = View.GONE
             clearButton.visibility = View.GONE
         }
