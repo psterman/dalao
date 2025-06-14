@@ -106,4 +106,8 @@
     <string name="pref_title_enabled_ai_engines">启用的AI引擎</string>
     <string name="ai_engine_management">AI搜索引擎管理</string>
     <string name="enter_text">输入文本...</string>
+    <string name="select_all">全选</string>
+    <string name="cut">剪切</string>
+    <string name="copy">复制</string>
+    <string name="paste">粘贴</string>
 </resources> 

@@ -19,6 +19,7 @@ import android.graphics.PixelFormat
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.drawable.AnimatedVectorDrawable
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -26,9 +27,12 @@ import android.os.Looper
 import android.preference.PreferenceManager
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.ActionMode
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
@@ -38,6 +42,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -111,6 +116,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var slot1View: View? = null
     private var slot2View: View? = null
     private var slot3View: View? = null
+    private var textActionMenu: PopupWindow? = null
 
     private val uiHandler = Handler(Looper.getMainLooper())
     private val notificationReceiver = object : BroadcastReceiver() {
@@ -462,6 +468,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         })
 
+        // We abandon ActionMode as it's unreliable in overlays.
+        // Instead, we manually show our popup menu on long click.
+        searchInput?.setOnLongClickListener {
+            // We post this to the handler to ensure the default text selection
+            // has occurred before we try to position our menu.
+            uiHandler.post { showCustomTextMenu() }
+            true // Consume the event
+        }
+
         slot1View = configPanelView?.findViewById(R.id.slot_1)
         slot2View = configPanelView?.findViewById(R.id.slot_2)
         slot3View = configPanelView?.findViewById(R.id.slot_3)
@@ -493,6 +508,75 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             translationY = 1000f
             animate().translationY(0f).setDuration(300).start()
         }
+    }
+
+    private fun showCustomTextMenu() {
+        if (textActionMenu?.isShowing == true) {
+            // If it's already showing, hide and re-show to update position.
+            hideCustomTextMenu()
+        }
+
+        val editText = searchInput ?: return
+        val context = editText.context
+
+        val inflater = LayoutInflater.from(context)
+        val menuView = inflater.inflate(R.layout.custom_text_menu, null)
+
+        val cut = menuView.findViewById<TextView>(R.id.action_cut)
+        val copy = menuView.findViewById<TextView>(R.id.action_copy)
+        val paste = menuView.findViewById<TextView>(R.id.action_paste)
+        val selectAll = menuView.findViewById<TextView>(R.id.action_select_all)
+
+        cut.setOnClickListener {
+            editText.onTextContextMenuItem(android.R.id.cut)
+            hideCustomTextMenu()
+        }
+        copy.setOnClickListener {
+            editText.onTextContextMenuItem(android.R.id.copy)
+            hideCustomTextMenu()
+        }
+        paste.setOnClickListener {
+            editText.onTextContextMenuItem(android.R.id.paste)
+            hideCustomTextMenu()
+        }
+        selectAll.setOnClickListener {
+            editText.onTextContextMenuItem(android.R.id.selectAll)
+            hideCustomTextMenu()
+        }
+
+        // Make the popup focusable and dismissable on outside touch.
+        textActionMenu = PopupWindow(menuView, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, true).apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        }
+
+        val layout = editText.layout ?: return
+        val startOffset = editText.selectionStart
+        val endOffset = editText.selectionEnd
+
+        // Only show menu if there is a selection or if the whole text is not empty
+        if (startOffset == endOffset && editText.text.isEmpty()) {
+            return
+        }
+
+        val line = layout.getLineForOffset(startOffset)
+        val x = layout.getPrimaryHorizontal(startOffset) + editText.paddingLeft
+        val y = layout.getLineTop(line) + editText.paddingTop
+
+        val location = IntArray(2)
+        editText.getLocationOnScreen(location)
+        val screenX = location[0] + x.toInt()
+        val screenY = location[1] + y.toInt()
+
+        menuView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val menuHeight = menuView.measuredHeight
+        val finalY = screenY - menuHeight - 16 // Position above text with a small margin
+
+        textActionMenu?.showAtLocation(editText, Gravity.NO_GRAVITY, screenX, finalY)
+    }
+
+    private fun hideCustomTextMenu() {
+        textActionMenu?.dismiss()
+        textActionMenu = null
     }
 
     private fun cleanupExpandedViews() {
@@ -669,6 +753,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun setupOutsideTouchListener() {
         windowContainerView?.setOnTouchListener { _, event ->
+            if (textActionMenu?.isShowing == true) {
+                hideCustomTextMenu()
+                return@setOnTouchListener true
+            }
+
             if (isSearchModeActive && event.action == MotionEvent.ACTION_DOWN) {
                 if (isTouchOutsideAllViews(event)) {
                     transitionToCompactState()

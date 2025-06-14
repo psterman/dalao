@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/custom_menu_background"
+    android:orientation="horizontal"
+    android:padding="4dp">
+
+    <TextView
+        android:id="@+id/action_cut"
+        style="@style/CustomMenuAction"
+        android:text="@string/cut" />
+
+    <View style="@style/CustomMenuDivider" />
+
+    <TextView
+        android:id="@+id/action_copy"
+        style="@style/CustomMenuAction"
+        android:text="@string/copy" />
+
+    <View style="@style/CustomMenuDivider" />
+
+    <TextView
+        android:id="@+id/action_paste"
+        style="@style/CustomMenuAction"
+        android:text="@string/paste" />
+
+    <View style="@style/CustomMenuDivider" />
+
+    <TextView
+        android:id="@+id/action_select_all"
+        style="@style/CustomMenuAction"
+        android:text="@string/select_all" />
+
+</LinearLayout> 
