@@ -3,89 +3,46 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:background="@drawable/text_selection_menu_background"
-    android:padding="4dp"
-    android:elevation="4dp">
+    android:background="@drawable/custom_text_menu_background"
+    android:padding="8dp">
 
     <TextView
-        android:id="@+id/action_select_all"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="全选"
-        android:textColor="#333333"
-        android:textSize="14sp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <View
-        android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#DDDDDD"
-        android:layout_marginTop="4dp"
-        android:layout_marginBottom="4dp" />
-
-    <TextView
-        android:id="@+id/action_cut"
+        android:id="@+id/menu_cut"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="剪切"
-        android:textColor="#333333"
-        android:textSize="14sp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <View
-        android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#DDDDDD"
-        android:layout_marginTop="4dp"
-        android:layout_marginBottom="4dp" />
+        android:textColor="@android:color/white"
+        android:padding="8dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:layout_marginEnd="8dp"/>
 
     <TextView
-        android:id="@+id/action_copy"
+        android:id="@+id/menu_copy"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="复制"
-        android:textColor="#333333"
-        android:textSize="14sp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <View
-        android:layout_width="1dp"
-        android:layout_height="match_parent"
-        android:background="#DDDDDD"
-        android:layout_marginTop="4dp"
-        android:layout_marginBottom="4dp" />
+        android:textColor="@android:color/white"
+        android:padding="8dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:layout_marginEnd="8dp"/>
 
     <TextView
-        android:id="@+id/action_paste"
+        android:id="@+id/menu_paste"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="粘贴"
-        android:textColor="#333333"
-        android:textSize="14sp"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
+        android:textColor="@android:color/white"
+        android:padding="8dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:layout_marginEnd="8dp"/>
+
+    <TextView
+        android:id="@+id/menu_select_all"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="全选"
+        android:textColor="@android:color/white"
+        android:padding="8dp"
+        android:background="?android:attr/selectableItemBackground"/>
 
 </LinearLayout> 

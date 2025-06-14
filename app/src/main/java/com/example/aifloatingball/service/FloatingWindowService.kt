@@ -86,6 +86,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private var isListening = false
     private var hasPerformedAction = false  // 添加动作执行状态标记
     private var searchInput: EditText? = null
+    private var textActionMenu: PopupWindow? = null // <-- 添加这一行
     
     private lateinit var sharedPreferences: SharedPreferences
 
@@ -672,15 +673,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         startActivity(intent)
     }
 
-    private fun openSearchEngine() {
-        val url = getSearchEngineUrl()
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = android.net.Uri.parse(url)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        startActivity(intent)
-    }
-
     private fun getSearchEngineUrl(): String {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         val searchEngine = prefs.getString("search_engine", "baidu") ?: "baidu"
@@ -693,39 +685,23 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         val searchIcon = floatingView?.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
         searchModeToggle = floatingView?.findViewById(R.id.search_mode_toggle)
         
-        // 初始化AI和普通搜索引擎容器
         aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
         regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
 
         searchInput?.apply {
-            // 基本属性设置
             isFocusableInTouchMode = true
             isFocusable = true
             isLongClickable = true
             isCursorVisible = true
             setTextIsSelectable(true)
             
-            // 设置输入框背景为透明但可触摸
             setBackgroundResource(android.R.color.transparent)
             
-            // 设置长按监听器来显示自定义菜单
             setOnLongClickListener {
-                showCustomTextMenu()
-                true
+                handler.post { showCustomTextMenu() }
+                true 
             }
             
-            // 设置触摸监听器，用于选择文本后显示自定义菜单
-            setOnTouchListener { v, event ->
-                if (event.action == MotionEvent.ACTION_UP) {
-                    if (hasSelection()) {
-                        showCustomTextMenu()
-                    }
-                }
-                // 调用默认的onTouchEvent处理选择等操作
-                v.onTouchEvent(event)
-            }
-            
-            // 设置输入完成动作
             setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                     val query = text?.toString()?.trim() ?: ""
@@ -741,43 +717,30 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             }
         }
         
-        // 设置搜索框获得焦点和失去焦点时的行为
-        searchInput?.setOnFocusChangeListener { _, hasFocus ->
+        searchInput?.setOnFocusChangeListener { view, hasFocus ->
             if (hasFocus) {
-                // 获得焦点时：
-                // 1. 允许输入法显示
                 params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) ?: 0
                 windowManager?.updateViewLayout(floatingView, params)
-                
-                // 2. 显示搜索模式切换按钮
                 searchModeToggle?.visibility = View.VISIBLE
-                
-                // 3. 更新搜索模式可见性
                 updateSearchModeVisibility()
-                
-                // 4. 显示键盘
-                showKeyboard(searchInput)
+                showKeyboard(view)
             } else {
-                // 失去焦点时：
-                // 1. 隐藏键盘
                 hideKeyboard()
-                
-                // 2. 隐藏搜索模式切换按钮（延迟执行，避免干扰操作）
                 handler.postDelayed({
                     searchModeToggle?.visibility = View.GONE
+                    // 当失去焦点时，也恢复窗口的FLAG_NOT_FOCUSABLE属性
+                    params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                    try {
+                        windowManager?.updateViewLayout(floatingView, params)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to update window layout on focus lost", e)
+                    }
                 }, 200)
             }
         }
         
-        // 设置搜索图标点击事件
         searchIcon?.setOnClickListener {
             toggleSearchInterface()
-        }
-        
-        // 设置搜索模式切换按钮点击事件
-        searchModeToggle?.setOnClickListener {
-            Log.d(TAG, "搜索模式切换按钮被点击")
-            toggleSearchMode()
         }
     }
     
@@ -814,44 +777,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private fun performSearch(query: String) {
         try {
             Log.d(TAG, "执行搜索: $query")
-            // 获取当前选中的搜索引擎
-            val currentEngine = settingsManager.getDefaultSearchEngine()
-            
-            // 根据搜索引擎类型执行不同的搜索操作
-            when {
-                currentEngine.startsWith("xhs_") -> {
-                    openXiaohongshuApp(query)
-                }
-                currentEngine.startsWith("wx_") -> {
-                    openWechatApp(query)
-                }
-                else -> {
-                    // 检查是否有快捷方式可用
-        if (searchEngineShortcuts.isNotEmpty()) {
-                        openSearchWithEngine(query, searchEngineShortcuts[0].searchUrl)
-        } else {
-            // 使用系统默认搜索引擎
-            val searchUrl = SearchEngineListPreference.getSearchEngineUrl(this, 
-                PreferenceManager.getDefaultSharedPreferences(this)
-                    .getString("search_engine", "baidu") ?: "baidu")
-                .replace("{query}", java.net.URLEncoder.encode(query, "UTF-8"))
-            
-            val intent = Intent(this, FloatingWebViewService::class.java).apply {
-                putExtra("url", searchUrl)
-            }
-            startService(intent)
-                    }
-                }
-        }
-            
-            // 隐藏搜索界面和键盘
-            searchContainer?.visibility = View.GONE
-            searchInput?.setText("")
-        
-        // 隐藏键盘
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
-        imm.hideSoftInputFromWindow(floatingView?.windowToken, 0)
-            
+            val selectedEngine = settingsManager.getDefaultSearchEngine()
+            openSearchWithEngine(query, selectedEngine)
         } catch (e: Exception) {
             Log.e(TAG, "执行搜索失败: ${e.message}")
             Toast.makeText(this, "搜索失败，请重试", Toast.LENGTH_SHORT).show()
@@ -1243,20 +1170,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         updateSearchModeVisibility()
 
         // 设置搜索输入框行为
-        searchInput?.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                val query = searchInput?.text?.toString()?.trim() ?: ""
-                if (query.isNotEmpty()) {
-                    performSearch(query)
-                } else {
-                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                }
-                true
-            } else {
-                false
-            }
-        }
-
+        setupSearchInput()
+        
         // 加载并显示已保存的搜索引擎快捷方式
         loadSearchEngineShortcuts()
         
@@ -1592,86 +1507,88 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     // 显示自定义文本操作菜单
     private fun showCustomTextMenu() {
-        searchInput?.let { editText ->
-            // 创建自定义弹出菜单
-            val popupView = LayoutInflater.from(this).inflate(R.layout.text_selection_menu, null)
-            
-            // 创建PopupWindow
-            val popupWindow = PopupWindow(
-                popupView,
-                WRAP_CONTENT,
-                WRAP_CONTENT,
-                true
-            ).apply {
-                isOutsideTouchable = true
-                setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
-            }
-            
-            // 设置菜单项点击事件
-            val copyButton = popupView.findViewById<TextView>(R.id.menu_copy)
-            val pasteButton = popupView.findViewById<TextView>(R.id.menu_paste)
-            val cutButton = popupView.findViewById<TextView>(R.id.menu_cut)
-            val selectAllButton = popupView.findViewById<TextView>(R.id.menu_select_all)
-            
-            // 复制
-            copyButton?.setOnClickListener {
-                val selectedText = editText.text.toString().substring(
-                    editText.selectionStart,
-                    editText.selectionEnd
-                )
-                copyToClipboard(selectedText)
-                popupWindow.dismiss()
-            }
-            
-            // 粘贴
-            pasteButton?.setOnClickListener {
-                pasteFromClipboard(editText)
-                popupWindow.dismiss()
-            }
-            
-            // 剪切
-            cutButton?.setOnClickListener {
-                val selectedText = editText.text.toString().substring(
-                    editText.selectionStart,
-                    editText.selectionEnd
-                )
-                copyToClipboard(selectedText)
-                editText.text.delete(editText.selectionStart, editText.selectionEnd)
-                popupWindow.dismiss()
-            }
-            
-            // 全选
-            selectAllButton?.setOnClickListener {
-                editText.selectAll()
-                popupWindow.dismiss()
-            }
-            
-            // 显示PopupWindow
-            val location = IntArray(2)
-            editText.getLocationOnScreen(location)
-            
-            // 根据是否有选中的文本来决定菜单的位置
-            val xOffset = if (editText.hasSelection()) {
-                val selectionMiddle = (editText.selectionStart + editText.selectionEnd) / 2
-                try {
-                    editText.getOffsetForPosition(
-                        editText.text.toString().substring(0, selectionMiddle).width(editText.paint).toFloat(),
-                        editText.lineHeight / 2f
-                    )
-                } catch (e: Exception) {
-                    0
-                }
-            } else {
-                editText.width / 2
-            }
-            
-            popupWindow.showAtLocation(
-                editText,
-                Gravity.TOP or Gravity.START,
-                location[0] + xOffset,
-                location[1] - editText.height
-            )
+        if (textActionMenu?.isShowing == true) {
+            hideCustomTextMenu()
+            return
         }
+
+        val editText = searchInput ?: return
+        // Only show menu if there is text or selection is active
+        if (editText.text.isEmpty() && !editText.hasSelection()) {
+            return
+        }
+
+        val context = editText.context
+
+        val inflater = LayoutInflater.from(context)
+        val menuView = inflater.inflate(R.layout.text_selection_menu, null)
+
+        val cut = menuView.findViewById<TextView>(R.id.menu_cut)
+        val copy = menuView.findViewById<TextView>(R.id.menu_copy)
+        val paste = menuView.findViewById<TextView>(R.id.menu_paste)
+        val selectAll = menuView.findViewById<TextView>(R.id.menu_select_all)
+
+        cut.setOnClickListener {
+            if (editText.hasSelection()) {
+                val start = editText.selectionStart
+                val end = editText.selectionEnd
+                val selectedText = editText.text.substring(start, end)
+                copyToClipboard(selectedText)
+                editText.text.delete(start, end)
+            }
+            hideCustomTextMenu()
+        }
+        copy.setOnClickListener {
+            if (editText.hasSelection()) {
+                val start = editText.selectionStart
+                val end = editText.selectionEnd
+                val selectedText = editText.text.substring(start, end)
+                copyToClipboard(selectedText)
+            }
+            hideCustomTextMenu()
+        }
+        paste.setOnClickListener {
+            pasteFromClipboard(editText)
+            hideCustomTextMenu()
+        }
+        selectAll.setOnClickListener {
+            editText.selectAll()
+            // Don't hide menu after select all to allow cut/copy
+        }
+
+        // Show/hide menu items based on context
+        val hasSelection = editText.hasSelection()
+        cut.visibility = if (hasSelection) View.VISIBLE else View.GONE
+        copy.visibility = if (hasSelection) View.VISIBLE else View.GONE
+        selectAll.visibility = if (editText.text.isNotEmpty()) View.VISIBLE else View.GONE
+
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        paste.visibility = if (clipboard.hasPrimaryClip()) View.VISIBLE else View.GONE
+
+
+        textActionMenu = PopupWindow(menuView, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, true).apply {
+            isOutsideTouchable = true
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+        }
+
+        val layout = editText.layout ?: return
+        val startOffset = editText.selectionStart
+        if (startOffset < 0) return
+
+        val line = layout.getLineForOffset(startOffset)
+        val x = layout.getPrimaryHorizontal(startOffset) + editText.paddingLeft
+        val y = layout.getLineTop(line) + editText.paddingTop
+
+        val location = IntArray(2)
+        editText.getLocationOnScreen(location)
+        val screenX = location[0] + x.toInt()
+        val screenY = location[1] + y.toInt()
+
+        menuView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val menuHeight = menuView.measuredHeight
+        val finalY = screenY - menuHeight - 16
+
+        textActionMenu?.showAtLocation(editText, Gravity.NO_GRAVITY, screenX, finalY)
     }
 
     // 计算字符串在给定Paint下的宽度
@@ -2419,20 +2336,20 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     // 添加点击外部关闭搜索菜单的功能
     private fun setupOutsideTouchListener() {
-        // 监听外部触摸事件
         floatingView?.let { view ->
-            // 获取搜索容器和悬浮球图标
             val searchContainer = view.findViewById<LinearLayout>(R.id.search_container)
             val floatingBallIcon = view.findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.floating_ball_icon)
             
-            // 监听未处理的触摸事件
             view.setOnTouchListener { _, event ->
+                if (textActionMenu?.isShowing == true) {
+                    hideCustomTextMenu()
+                    return@setOnTouchListener true
+                }
+
                 if (event.action == MotionEvent.ACTION_DOWN && isMenuVisible) {
-                    // 检查触摸点是否在搜索容器或悬浮球图标内
                     val isTouchOnSearchContainer = isTouchOnView(event, searchContainer)
                     val isTouchOnFloatingBall = isTouchOnView(event, floatingBallIcon)
                     
-                    // 如果触摸点不在搜索容器和悬浮球图标内，关闭搜索界面
                     if (!isTouchOnSearchContainer && !isTouchOnFloatingBall) {
                         hideSearchInterface()
                         return@setOnTouchListener true
@@ -2988,5 +2905,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         } catch (e: Exception) {
             Log.e(TAG, "填充文本到输入框失败: ${e.message}")
         }
+    }
+
+    private fun hideCustomTextMenu() {
+        textActionMenu?.dismiss()
+        textActionMenu = null
     }
 }
