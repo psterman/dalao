@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/triple_browser_container_background"
+    android:padding="8dp">
+
+    <HorizontalScrollView
+        android:id="@+id/triple_browser_scrollview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@+id/scrollbar_track"
+        android:layout_marginBottom="6dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/triple_browser_linear_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal">
+
+            <include
+                android:id="@+id/page_preview_1"
+                layout="@layout/mini_page_preview"
+                android:layout_width="110dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="8dp"/>
+
+            <include
+                android:id="@+id/page_preview_2"
+                layout="@layout/mini_page_preview"
+                android:layout_width="110dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="8dp"/>
+
+            <include
+                android:id="@+id/page_preview_3"
+                layout="@layout/mini_page_preview"
+                android:layout_width="110dp"
+                android:layout_height="match_parent"/>
+
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Custom Scrollbar -->
+    <View
+        android:id="@+id/scrollbar_track"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_alignParentBottom="true"
+        android:background="#44FFFFFF"/>
+
+    <View
+        android:id="@+id/scrollbar_thumb"
+        android:layout_width="50dp"
+        android:layout_height="4dp"
+        android:layout_alignParentBottom="true"
+        android:background="@android:color/white"/>
+
+</RelativeLayout> 

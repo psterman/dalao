@@ -53,6 +53,7 @@ import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.WindowInsets
+import android.widget.HorizontalScrollView
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -113,9 +114,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private val activeNotifications = ConcurrentHashMap<String, ImageView>()
     private val activeSlots = ConcurrentHashMap<Int, SearchEngine>()
-    private var slot1View: View? = null
-    private var slot2View: View? = null
-    private var slot3View: View? = null
+    
+    // New variables for the triple browser preview UI
+    private var pagePreview1: View? = null
+    private var pagePreview2: View? = null
+    private var pagePreview3: View? = null
+    
     private var textActionMenu: PopupWindow? = null
 
     private val uiHandler = Handler(Looper.getMainLooper())
@@ -477,26 +481,35 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             true // Consume the event
         }
 
-        slot1View = configPanelView?.findViewById(R.id.slot_1)
-        slot2View = configPanelView?.findViewById(R.id.slot_2)
-        slot3View = configPanelView?.findViewById(R.id.slot_3)
+        // --- New UI Setup for Triple Browser Preview ---
+        pagePreview1 = configPanelView?.findViewById(R.id.page_preview_1)
+        pagePreview2 = configPanelView?.findViewById(R.id.page_preview_2)
+        pagePreview3 = configPanelView?.findViewById(R.id.page_preview_3)
 
+        // Dynamically set the width of each page preview to ensure the container is scrollable
+        val screenWidth = resources.displayMetrics.widthPixels
+        val previewWidth = (screenWidth * 0.35).toInt() // Each preview is 35% of screen width, total 105%
+        pagePreview1?.layoutParams?.width = previewWidth
+        pagePreview2?.layoutParams?.width = previewWidth
+        pagePreview3?.layoutParams?.width = previewWidth
+
+        pagePreview1?.setOnClickListener { showSearchEngineSelector(it, 1) }
+        pagePreview2?.setOnClickListener { showSearchEngineSelector(it, 2) }
+        pagePreview3?.setOnClickListener { showSearchEngineSelector(it, 3) }
+
+        pagePreview1?.findViewById<View>(R.id.page_clear_button)?.setOnClickListener { it.cancelPendingInputEvents(); clearSlot(1) }
+        pagePreview2?.findViewById<View>(R.id.page_clear_button)?.setOnClickListener { it.cancelPendingInputEvents(); clearSlot(2) }
+        pagePreview3?.findViewById<View>(R.id.page_clear_button)?.setOnClickListener { it.cancelPendingInputEvents(); clearSlot(3) }
+
+        setupCustomScrollbar()
+        
+        updateAllMiniPages()
+        // --- End of New UI Setup ---
+        
         val addPromptButton = configPanelView?.findViewById<View>(R.id.btn_add_master_prompt)
         addPromptButton?.setOnClickListener {
             enterEditingMode()
         }
-
-        slot1View?.setOnClickListener { showSearchEngineSelector(it, 1) }
-        slot2View?.setOnClickListener { showSearchEngineSelector(it, 2) }
-        slot3View?.setOnClickListener { showSearchEngineSelector(it, 3) }
-
-        slot1View?.findViewById<View>(R.id.slot_clear_button)?.setOnClickListener { clearSlot(1) }
-        slot2View?.findViewById<View>(R.id.slot_clear_button)?.setOnClickListener { clearSlot(2) }
-        slot3View?.findViewById<View>(R.id.slot_clear_button)?.setOnClickListener { clearSlot(3) }
-
-        updateSlotView(1, activeSlots[1])
-        updateSlotView(2, activeSlots[2])
-        updateSlotView(3, activeSlots[3])
 
         val panelParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
@@ -594,9 +607,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
                 .start()
             configPanelView = null
-            slot1View = null
-            slot2View = null
-            slot3View = null
+            // Nullify new views as well
+            pagePreview1 = null
+            pagePreview2 = null
+            pagePreview3 = null
         }
         dismissSearchEngineSelector()
     }
@@ -672,45 +686,100 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun selectSearchEngineForSlot(engine: SearchEngine, slotIndex: Int) {
         activeSlots[slotIndex] = engine
-        updateSlotView(slotIndex, engine)
+        updateMiniPage(slotIndex)
         dismissSearchEngineSelector()
     }
 
     private fun clearSlot(slotIndex: Int) {
         activeSlots.remove(slotIndex)
-        updateSlotView(slotIndex, null)
+        updateMiniPage(slotIndex)
     }
 
-    private fun updateSlotView(slotIndex: Int, engine: SearchEngine?) {
-        val slotView = when(slotIndex) {
-            1 -> slot1View
-            2 -> slot2View
-            3 -> slot3View
+    private fun updateAllMiniPages() {
+        updateMiniPage(1)
+        updateMiniPage(2)
+        updateMiniPage(3)
+    }
+
+    private fun updateMiniPage(pageIndex: Int) {
+        val pageView = when(pageIndex) {
+            1 -> pagePreview1
+            2 -> pagePreview2
+            3 -> pagePreview3
             else -> null
         } ?: return
 
-        val hintState = slotView.findViewById<View>(R.id.slot_hint_state)
-        val filledContent = slotView.findViewById<View>(R.id.slot_filled_content)
-        val clearButton = slotView.findViewById<View>(R.id.slot_clear_button)
+        val engine = activeSlots[pageIndex]
+
+        val hintState = pageView.findViewById<View>(R.id.page_hint_state)
+        val filledContent = pageView.findViewById<View>(R.id.page_filled_content)
+        val addOverlay = pageView.findViewById<View>(R.id.page_add_overlay)
+        val clearButton = pageView.findViewById<View>(R.id.page_clear_button)
+        val aiPromptInfo = pageView.findViewById<TextView>(R.id.page_ai_prompt_info)
+        val hintText = hintState.findViewById<TextView>(R.id.page_hint_text)
 
         if (engine != null) {
             hintState.visibility = View.GONE
+            addOverlay.visibility = View.GONE
             filledContent.visibility = View.VISIBLE
             clearButton.visibility = View.VISIBLE
 
-            val icon = filledContent.findViewById<ImageView>(R.id.slot_icon)
-            val title = filledContent.findViewById<TextView>(R.id.slot_title)
-            // The subtitle view was removed in the new layout
-            // val subtitle = filledContent.findViewById<TextView>(R.id.slot_subtitle)
+            val icon = filledContent.findViewById<ImageView>(R.id.page_icon)
+            val title = filledContent.findViewById<TextView>(R.id.page_title)
 
             icon.setImageResource(engine.iconResId)
             title.text = engine.name
-            // subtitle.text = engine.description
-            // subtitle.visibility = View.VISIBLE
+
+            val isAiEngine = searchCategories.any { category ->
+                category.title == "AI 搜索引擎" && category.engines.contains(engine)
+            }
+
+            if (isAiEngine) {
+                aiPromptInfo.visibility = View.VISIBLE
+            } else {
+                aiPromptInfo.visibility = View.GONE
+            }
+
         } else {
             hintState.visibility = View.VISIBLE
+            addOverlay.visibility = View.VISIBLE
             filledContent.visibility = View.GONE
             clearButton.visibility = View.GONE
+            aiPromptInfo.visibility = View.GONE
+            hintText.text = "点击加载搜索引擎"
+        }
+    }
+
+    private fun setupCustomScrollbar() {
+        val scrollView = configPanelView?.findViewById<HorizontalScrollView>(R.id.triple_browser_scrollview)
+        val scrollThumb = configPanelView?.findViewById<View>(R.id.scrollbar_thumb)
+        val contentLayout = configPanelView?.findViewById<LinearLayout>(R.id.triple_browser_linear_layout)
+
+        scrollView?.post {
+            val contentWidth = contentLayout?.width ?: 0
+            val scrollViewWidth = scrollView.width
+
+            if (contentWidth > scrollViewWidth) {
+                configPanelView?.findViewById<View>(R.id.scrollbar_track)?.visibility = View.VISIBLE
+                scrollThumb?.visibility = View.VISIBLE
+
+                val thumbWidth = (scrollViewWidth.toFloat() / contentWidth * scrollViewWidth).toInt()
+                scrollThumb?.layoutParams?.width = thumbWidth
+                scrollThumb?.requestLayout()
+
+                scrollView.setOnScrollChangeListener { _, scrollX, _, _, _ ->
+                    val scrollRange = contentWidth - scrollViewWidth
+                    if (scrollRange > 0) {
+                        val thumbRange = scrollViewWidth - thumbWidth
+                        val thumbX = (scrollX.toFloat() / scrollRange * thumbRange)
+                        scrollThumb?.translationX = thumbX
+                    }
+                }
+            } else {
+                // Hide scrollbar if content is not wide enough to scroll
+                configPanelView?.findViewById<View>(R.id.scrollbar_track)?.visibility = View.GONE
+                scrollThumb?.visibility = View.GONE
+            }
         }
     }
 
