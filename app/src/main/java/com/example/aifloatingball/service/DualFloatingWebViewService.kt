@@ -300,54 +300,34 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     SettingsManager.getInstance(this@DualFloatingWebViewService).getSearchEngineForPosition(i)
                 }
                 
-                // 根据该搜索引擎和查询，获取新的搜索URL
-                val currentWindowSearchUrl = if (query.isBlank()) {
-                    if (isAIEngine(currentWindowEngineKey)) {
-                        EngineUtil.getAISearchEngineHomeUrl(currentWindowEngineKey)
-                    } else {
-                        EngineUtil.getSearchEngineHomeUrl(currentWindowEngineKey)
-                    }
-                } else {
-                    searchEngineHandler.getSearchUrl(query, currentWindowEngineKey)
-                }
-
-                if (currentWindowSearchUrl.isBlank() || !currentWindowSearchUrl.startsWith("http")) {
-                    Log.e(TAG, "无法获取窗口 $i 的搜索URL: engineKey='$currentWindowEngineKey'")
-                    return@let // 继续处理下一个WebView
-                }
-
                 // 确保WebView启用了文本选择功能
                 if(::textSelectionManager.isInitialized) {
                     it.setTextSelectionManager(textSelectionManager)
                 } else {
                     Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${it.id} 设置")
                 }
-                
-                // 如果是DeepSeek聊天，需要进行特殊处理，确保输入法能正常工作
-                if (currentWindowEngineKey == "deepseek" || currentWindowEngineKey == "deepseek_chat" || currentWindowEngineKey == "chatgpt" || currentWindowEngineKey == "chatgpt_chat") {
-                    Log.d(TAG, "初始化聊天界面 for WebView $i")
-                    // 重置WebView状态
-                    try {
-                        it.stopLoading()
-                        it.clearHistory()
-                        it.clearCache(true)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "重置WebView $i 状态失败: ${e.message}")
+
+                // 核心修复：将特殊聊天引擎的判断提前
+                if (currentWindowEngineKey.equals("deepseek", ignoreCase = true) || currentWindowEngineKey.equals("deepseek_chat", ignoreCase = true) || currentWindowEngineKey.equals("chatgpt", ignoreCase = true) || currentWindowEngineKey.equals("chatgpt_chat", ignoreCase = true)) {
+                    Log.d(TAG, "检测到聊天引擎，使用ChatManager初始化: $currentWindowEngineKey")
+                    chatManager.initWebView(it, currentWindowEngineKey, query)
+                } else {
+                    // 对于其他所有引擎，走标准URL加载流程
+                    val currentWindowSearchUrl = if (query.isBlank()) {
+                        if (isAIEngine(currentWindowEngineKey)) {
+                            EngineUtil.getAISearchEngineHomeUrl(currentWindowEngineKey)
+                        } else {
+                            EngineUtil.getSearchEngineHomeUrl(currentWindowEngineKey)
+                        }
+                    } else {
+                        searchEngineHandler.getSearchUrl(query, currentWindowEngineKey)
+                    }
+
+                    if (currentWindowSearchUrl.isBlank() || !currentWindowSearchUrl.startsWith("http")) {
+                        Log.e(TAG, "无法获取窗口 $i 的搜索URL: engineKey='$currentWindowEngineKey'")
+                        return@let // 继续处理下一个WebView
                     }
                     
-                    chatManager.initWebView(it, currentWindowEngineKey, query) // 初始化聊天界面并传递查询
-                    
-                    // 让WebView获取焦点并显示输入法 (仅对第一个WebView)
-                    if (i == 0) { // 仅对第一个窗口处理输入法
-                        it.isFocusable = true
-                        it.isFocusableInTouchMode = true
-                        it.requestFocus()
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-                            imm?.showSoftInput(it, InputMethodManager.SHOW_IMPLICIT)
-                        }, 1000)
-                    }
-                } else { // 非聊天模式，直接加载URL
                     it.loadUrl(currentWindowSearchUrl)
                 }
             } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
@@ -400,7 +380,22 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         }
 
         if (urlToLoad.isBlank() || !urlToLoad.startsWith("http")) {
-            Log.e(TAG, "生成的URL无效: '$urlToLoad' for engine: $engineKey")
+            // 对于聊天引擎，允许 chat:// 协议
+            if (!urlToLoad.startsWith("chat://")) {
+                Log.e(TAG, "生成的URL无效: '$urlToLoad' for engine: $engineKey")
+                return
+            }
+        }
+
+        // 如果是聊天引擎，则由ChatManager处理
+        if (urlToLoad.startsWith("chat://")) {
+            val webView = webViewManager.getWebViews().getOrNull(webViewIndex)
+            if (webView != null) {
+                val chatEngineKey = urlToLoad.substringAfter("chat://")
+                chatManager.initWebView(webView, chatEngineKey, query)
+            } else {
+                Log.e(TAG, "在 performSearchInWebView 中找不到索引为 $webViewIndex 的WebView")
+            }
             return
         }
         

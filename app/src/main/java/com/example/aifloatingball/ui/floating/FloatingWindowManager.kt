@@ -285,9 +285,9 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             val icon = ImageView(context).apply {
                 layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).also {
                     it.marginEnd = dpToPx(8)
-                }
-                scaleType = ScaleType.CENTER_CROP
-                setOnClickListener {
+                    }
+                    scaleType = ScaleType.CENTER_CROP
+                    setOnClickListener {
                     val query = searchInput?.text.toString()
                     (context as? DualFloatingWebViewService)?.performSearchInWebView(webViewIndex, query, engineKey)
                 }
@@ -524,10 +524,16 @@ class FloatingWindowManager(private val context: Context, private val windowStat
                 }
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setOnClickListener {
-                    // 直接加载AI主页，忽略搜索框内容
                     (context as? DualFloatingWebViewService)?.let { service ->
+                        // 终极修复：直接获取URL并让WebView加载，绕开所有搜索逻辑
                         val url = EngineUtil.getAISearchEngineHomeUrl(engineKey)
-                        service.webViewManager.loadUrlInWebView(0, url)
+                        // 对于聊天引擎，其"首页URL"就是特殊的 "chat://" 协议
+                        if (url.startsWith("chat://")) {
+                            val chatEngineKey = url.substringAfter("chat://")
+                            service.chatManager.initWebView(service.webViewManager.getWebViews()[0], chatEngineKey, "")
+                        } else {
+                            service.webViewManager.loadUrlInWebView(0, url)
+                        }
                     }
                 }
             }
