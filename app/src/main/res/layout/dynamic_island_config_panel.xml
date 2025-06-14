@@ -29,9 +29,13 @@
                 android:hint="输入文本..."
                 android:imeOptions="actionSearch"
                 android:inputType="text"
-                android:minHeight="48dp"
+                android:lineSpacingExtra="4dp"
+                android:maxLines="10"
+                android:minHeight="56dp"
                 android:paddingStart="16dp"
-                android:paddingEnd="48dp"
+                android:paddingTop="16dp"
+                android:paddingEnd="56dp"
+                android:paddingBottom="16dp"
                 android:textColor="@android:color/black"
                 android:textColorHint="#808080" />
 
@@ -39,9 +43,10 @@
                 android:id="@+id/search_button"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:layout_gravity="end|center_vertical"
+                android:layout_gravity="end|bottom"
                 android:layout_marginEnd="16dp"
-                android:src="@android:drawable/ic_menu_search"
+                android:layout_marginBottom="16dp"
+                android:src="@drawable/ic_send_plane"
                 app:tint="@android:color/black" />
         </FrameLayout>
 

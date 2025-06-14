@@ -24,6 +24,8 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.preference.PreferenceManager
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -449,6 +451,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         searchInput = configPanelView?.findViewById(R.id.search_input)
         searchButton = configPanelView?.findViewById(R.id.search_button)
         setupSearchListeners()
+
+        // Set initial state and add listener for the send button's alpha
+        searchButton?.alpha = 0.5f // Start as semi-transparent
+        searchInput?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                searchButton?.alpha = if (s.isNullOrEmpty()) 0.5f else 1.0f
+            }
+        })
 
         slot1View = configPanelView?.findViewById(R.id.slot_1)
         slot2View = configPanelView?.findViewById(R.id.slot_2)
