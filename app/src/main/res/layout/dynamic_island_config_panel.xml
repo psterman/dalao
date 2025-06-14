@@ -26,9 +26,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/rounded_white_background"
+                android:gravity="top"
                 android:hint="输入文本..."
                 android:imeOptions="actionSearch"
-                android:inputType="text"
+                android:inputType="textMultiLine"
                 android:lineSpacingExtra="4dp"
                 android:maxLines="10"
                 android:minHeight="56dp"
@@ -36,6 +37,7 @@
                 android:paddingTop="16dp"
                 android:paddingEnd="56dp"
                 android:paddingBottom="16dp"
+                android:scrollbars="vertical"
                 android:textColor="@android:color/black"
                 android:textColorHint="#808080" />
 
