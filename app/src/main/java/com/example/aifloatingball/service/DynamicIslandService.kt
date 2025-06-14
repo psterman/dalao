@@ -97,11 +97,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var searchButton: ImageView? = null
 
     private var isSearchModeActive = false
+    private var isEditingModeActive = false // New state for editing
     private var compactWidth: Int = 0
     private var expandedWidth: Int = 0
+    private var editingWidth: Int = 0 // New dimension for editing mode
+    private var editingHeight: Int = 0 // New dimension for editing mode
     private var statusBarHeight: Int = 0
 
     private var currentKeyboardHeight = 0
+    private var editingScrimView: View? = null // New scrim view for background blur/dim
 
     private val activeNotifications = ConcurrentHashMap<String, ImageView>()
     private val activeSlots = ConcurrentHashMap<Int, SearchEngine>()
@@ -133,6 +137,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
+    private val editingResultReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == EditingWindowService.ACTION_UPDATE_TEXT) {
+                val updatedText = intent.getStringExtra(EditingWindowService.EXTRA_UPDATED_TEXT)
+                searchInput?.setText(updatedText)
+                searchInput?.setSelection(updatedText?.length ?: 0)
+            }
+        }
+    }
+
     companion object {
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "DynamicIslandChannel"
@@ -154,6 +168,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         LocalBroadcastManager.getInstance(this).registerReceiver(
             notificationReceiver,
             IntentFilter(NotificationListener.ACTION_NOTIFICATION)
+        )
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            editingResultReceiver,
+            IntentFilter(EditingWindowService.ACTION_UPDATE_TEXT)
         )
     }
 
@@ -192,6 +210,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         statusBarHeight = getStatusBarHeight()
         compactWidth = (resources.displayMetrics.widthPixels * 0.4).toInt()
         expandedWidth = (resources.displayMetrics.widthPixels * 0.9).toInt()
+        editingWidth = (resources.displayMetrics.widthPixels * 0.95).toInt()
+        editingHeight = (resources.displayMetrics.heightPixels * 0.4).toInt()
 
         // 1. The Stage
         windowContainerView = FrameLayout(this)
@@ -276,7 +296,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
                 override fun onAnimationEnd(animation: Animator) {
                     searchViewContainer?.visibility = View.VISIBLE
-                    showConfigurationPanel()
+                    showConfigPanel()
 
                     searchInput?.requestFocus()
                     uiHandler.postDelayed({
@@ -334,18 +354,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     private fun setupSearchListeners() {
-        searchButton?.setOnClickListener { performSearch() }
+        val searchAction = {
+            val query = searchInput?.text?.toString()
+            if (!query.isNullOrEmpty()) {
+                val engine = activeSlots[1] ?: searchCategories.first().engines.first()
+                val searchUrl = engine.searchUrl + URLEncoder.encode(query, "UTF-8")
+                android.util.Log.d("DynamicIsland", "Searching for: $query with url: $searchUrl")
+            }
+        }
+
         searchInput?.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                performSearch()
+                searchAction()
                 true
-            } else false
-        }
-        searchInput?.setOnFocusChangeListener { v, hasFocus ->
-            if (!hasFocus) {
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(v.windowToken, 0)
+            } else {
+                false
             }
+        }
+
+        searchButton?.setOnClickListener {
+            searchAction()
         }
     }
 
@@ -425,6 +453,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         super.onDestroy()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(editingResultReceiver)
         cleanupViews()
     }
 
@@ -438,7 +467,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         windowContainerView = null
     }
 
-    private fun showConfigurationPanel() {
+    private fun showConfigPanel() {
         if (configPanelView != null) return
 
         val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
@@ -450,7 +479,18 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         val addPromptButton = configPanelView?.findViewById<View>(R.id.btn_add_master_prompt)
         addPromptButton?.setOnClickListener {
-            enhanceSearchPrompt()
+            val masterPrompt = "请你扮演一个拥有多年经验的资深行业专家，以我提供的主题为核心，草拟一篇详尽的报告大纲。你的回答需要满足以下要求：<br>1. 采用结构化、层级化的方式呈现，确保逻辑清晰，层次分明。<br>2. 涵盖主题的背景、现状、核心问题、解决方案及未来趋势等关键部分。<br>3. 在每个要点下，提出3-5个具有深度和启发性的子问题或探讨方向。<br>4. 语言风格需专业、严谨，符合正式报告要求。<br>5. 你的产出只包含报告大纲本身，不要有其他无关内容。"
+            val currentText = searchInput?.text?.toString() ?: ""
+            val initialTextForEditing = "$masterPrompt\n\n$currentText"
+
+            val intent = Intent(this, EditingWindowService::class.java).apply {
+                putExtra(EditingWindowService.EXTRA_INITIAL_TEXT, initialTextForEditing)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startService(intent)
+            
+            // 隐藏配置面板，因为编辑将在新窗口中进行
+            hideConfigPanel()
         }
 
         slot1View?.setOnClickListener { showSearchEngineSelector(it, 1) }
@@ -465,27 +505,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         updateSlotView(2, activeSlots[2])
         updateSlotView(3, activeSlots[3])
 
-        try {
-            val panelParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-                bottomMargin = 16.dpToPx()
-            }
-            windowContainerView?.addView(configPanelView, panelParams)
-            configPanelView?.apply {
-                alpha = 0f
-                val finalTranslationY = -currentKeyboardHeight.toFloat()
-                translationY = finalTranslationY + 100f
-                animate()
-                    .alpha(1f)
-                    .translationY(finalTranslationY)
-                    .setDuration(350)
-                    .setInterpolator(AccelerateDecelerateInterpolator())
-                    .start()
-            }
-        } catch (e: Exception) { e.printStackTrace() }
+        val panelParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM
+        )
+        windowContainerView?.addView(configPanelView, panelParams)
+        configPanelView?.apply {
+            translationY = 1000f
+            animate().translationY(0f).setDuration(300).start()
+        }
     }
 
     private fun cleanupExpandedViews() {
@@ -719,59 +748,20 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
-    private fun createEnhancedPrompt(originalText: String): String {
-        return """
-        # 角色
-        你是一位顶级的分析师和思想梳理专家。
-
-        # 任务
-        你的任务是分析、提炼并拓展用户提供的[原始文本]，将其转化为一个更清晰、更有条理、更具深度的问题或指令，以便AI能够给出更高质量的回答。
-
-        # 输出要求
-        直接返回优化后的问题或指令，不需要任何额外的解释。
-
-        # 原始文本
-        "$originalText"
-        """.trimIndent()
-    }
-
-    private fun enhanceSearchPrompt() {
-        val originalQuery = searchInput?.text?.toString()
-        if (originalQuery.isNullOrEmpty()) {
-            // 可以给个提示，让用户先输入内容
-            return
-        }
-
-        // 1. 创建增强后的提示词
-        val enhancedQuery = createEnhancedPrompt(originalQuery)
-
-        // 2. 文本变化动画
-        searchInput?.animate()?.alpha(0f)?.setDuration(250)?.withEndAction {
-            searchInput?.setText(enhancedQuery)
-            searchInput?.animate()?.alpha(1f)?.setDuration(250)?.start()
-        }?.start()
-
-        // 3. 放入AI对话卡槽 (我们假设用第一个卡槽代表AI对话)
-        // 创建一个临时的SearchEngine对象来代表这个自定义指令
-        val aiPromptEngine = SearchEngine(
-            name = "AI 增强指令",
-            description = originalQuery, // 用原始查询作为描述
-            iconResId = R.drawable.ic_robot_vector, // Use static vector for now
-            searchUrl = "" // searchUrl 在这里不重要，因为我们会直接使用完整文本
-        )
-        // 将这个对象放入卡槽1
-        activeSlots[1] = aiPromptEngine
-        updateSlotView(1, aiPromptEngine)
-
-        // 4. Animate the target slot to confirm placement
-        slot1View?.let {
-            it.animate()
-                .alpha(0.5f)
-                .withEndAction {
-                    it.animate().alpha(1.0f).setDuration(300).start()
+    private fun hideConfigPanel() {
+        if (configPanelView != null) {
+            configPanelView?.animate()
+                ?.alpha(0f)
+                ?.translationY(100f)
+                ?.setDuration(250)
+                ?.setInterpolator(AccelerateDecelerateInterpolator())
+                ?.withEndAction {
+                    try {
+                        windowContainerView?.removeView(configPanelView)
+                    } catch (e: Exception) { /* ignore */ }
                 }
-                .setDuration(300)
-                .start()
+                ?.start()
+            configPanelView = null
         }
     }
 } 

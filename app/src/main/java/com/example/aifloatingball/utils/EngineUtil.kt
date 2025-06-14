@@ -13,7 +13,7 @@ import com.example.aifloatingball.model.SearchEngine
  * 用于处理搜索引擎相关的公共逻辑
  */
 object EngineUtil {
-
+    
     /**
      * 获取搜索引擎名称
      */
@@ -25,28 +25,28 @@ object EngineUtil {
             SearchEngine.DEFAULT_ENGINES.find { it.name == engineKey }?.displayName ?: "搜索"
         }
     }
-
+    
     /**
      * 获取搜索引擎键名
      */
     fun getEngineKey(engineName: String): String {
         return engineName.lowercase().replace(" ", "_")
     }
-
+    
     /**
      * 获取搜索引擎首页URL
      */
     fun getSearchEngineHomeUrl(engineKey: String): String {
         return SearchEngine.DEFAULT_ENGINES.find { it.name == engineKey }?.url ?: "https://www.baidu.com"
     }
-
+    
     /**
      * 获取AI搜索引擎首页URL
      */
     fun getAISearchEngineHomeUrl(engineKey: String): String {
         return AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineKey }?.url ?: "https://chat.openai.com"
     }
-
+    
     /**
      * 获取搜索引擎搜索URL
      */
@@ -54,7 +54,7 @@ object EngineUtil {
         val engine = SearchEngine.DEFAULT_ENGINES.find { it.name == engineKey }
         return engine?.getSearchUrl(query) ?: "https://www.baidu.com/s?wd=$query"
     }
-
+    
     /**
      * 获取AI搜索引擎搜索URL
      */
@@ -62,14 +62,14 @@ object EngineUtil {
         val engine = AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineKey }
         return engine?.getSearchUrl(query) ?: "https://chat.openai.com"
     }
-
+    
     /**
      * 获取谷歌Favicon服务的图标URL
      */
     private fun getFaviconUrl(domain: String, size: Int = 32): String {
         return "https://www.google.com/s2/favicons?domain=$domain&sz=$size"
     }
-
+    
     /**
      * 获取搜索引擎图标URL
      */
@@ -98,7 +98,7 @@ object EngineUtil {
             "google.com"
         }
     }
-    
+
     /**
      * [新方法] 获取普通搜索引擎的占位图资源ID
      */
@@ -136,7 +136,7 @@ object EngineUtil {
             domain.contains("xiaohongshu.com") -> R.drawable.ic_xiaohongshu
             domain.contains("openai.com") || domain.contains("chatgpt.com") -> R.drawable.ic_chatgpt
             domain.contains("claude.ai") -> R.drawable.ic_claude
-            domain.contains("zhipuai.cn") -> R.drawable.ic_chatglm
+            domain.contains("zhipuai.cn") -> R.drawable.ic_chatglm 
             domain.contains("deepseek.com") -> R.drawable.ic_deepseek
             else -> R.drawable.ic_search
         }

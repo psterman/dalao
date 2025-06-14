@@ -313,21 +313,21 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     chatManager.initWebView(it, currentWindowEngineKey, query)
                 } else {
                     // 对于其他所有引擎，走标准URL加载流程
-                    val currentWindowSearchUrl = if (query.isBlank()) {
-                        if (isAIEngine(currentWindowEngineKey)) {
-                            EngineUtil.getAISearchEngineHomeUrl(currentWindowEngineKey)
-                        } else {
-                            EngineUtil.getSearchEngineHomeUrl(currentWindowEngineKey)
-                        }
+                val currentWindowSearchUrl = if (query.isBlank()) {
+                    if (isAIEngine(currentWindowEngineKey)) {
+                        EngineUtil.getAISearchEngineHomeUrl(currentWindowEngineKey)
                     } else {
-                        searchEngineHandler.getSearchUrl(query, currentWindowEngineKey)
+                        EngineUtil.getSearchEngineHomeUrl(currentWindowEngineKey)
                     }
+                } else {
+                    searchEngineHandler.getSearchUrl(query, currentWindowEngineKey)
+                }
 
-                    if (currentWindowSearchUrl.isBlank() || !currentWindowSearchUrl.startsWith("http")) {
-                        Log.e(TAG, "无法获取窗口 $i 的搜索URL: engineKey='$currentWindowEngineKey'")
-                        return@let // 继续处理下一个WebView
-                    }
-                    
+                if (currentWindowSearchUrl.isBlank() || !currentWindowSearchUrl.startsWith("http")) {
+                    Log.e(TAG, "无法获取窗口 $i 的搜索URL: engineKey='$currentWindowEngineKey'")
+                    return@let // 继续处理下一个WebView
+                }
+
                     it.loadUrl(currentWindowSearchUrl)
                 }
             } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
@@ -382,7 +382,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         if (urlToLoad.isBlank() || !urlToLoad.startsWith("http")) {
             // 对于聊天引擎，允许 chat:// 协议
             if (!urlToLoad.startsWith("chat://")) {
-                Log.e(TAG, "生成的URL无效: '$urlToLoad' for engine: $engineKey")
+            Log.e(TAG, "生成的URL无效: '$urlToLoad' for engine: $engineKey")
                 return
             }
         }

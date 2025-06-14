@@ -37,7 +37,9 @@
             android:textColor="@android:color/white"
             android:textColorHint="#CCCCCC"
             android:imeOptions="actionSearch"
-            android:singleLine="true"
+            android:inputType="textMultiLine"
+            android:minHeight="48dp"
+            android:maxLines="5"
             android:textSize="14sp" />
 
         <ImageView

@@ -181,5 +181,7 @@
             android:label="DeepSeek 对话"
             android:theme="@style/Theme.AIFloatingBall"
             android:exported="false" />
+
+        <service android:name=".service.EditingWindowService" />
     </application>
 </manifest> 
