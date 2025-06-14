@@ -137,16 +137,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
-    private val editingResultReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == EditingWindowService.ACTION_UPDATE_TEXT) {
-                val updatedText = intent.getStringExtra(EditingWindowService.EXTRA_UPDATED_TEXT)
-                searchInput?.setText(updatedText)
-                searchInput?.setSelection(updatedText?.length ?: 0)
-            }
-        }
-    }
-
     companion object {
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "DynamicIslandChannel"
@@ -168,10 +158,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         LocalBroadcastManager.getInstance(this).registerReceiver(
             notificationReceiver,
             IntentFilter(NotificationListener.ACTION_NOTIFICATION)
-        )
-        LocalBroadcastManager.getInstance(this).registerReceiver(
-            editingResultReceiver,
-            IntentFilter(EditingWindowService.ACTION_UPDATE_TEXT)
         )
     }
 
@@ -361,6 +347,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val searchUrl = engine.searchUrl + URLEncoder.encode(query, "UTF-8")
                 android.util.Log.d("DynamicIsland", "Searching for: $query with url: $searchUrl")
             }
+            if (isEditingModeActive) {
+                exitEditingMode()
+            }
         }
 
         searchInput?.setOnEditorActionListener { _, actionId, _ ->
@@ -453,8 +442,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         super.onDestroy()
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(editingResultReceiver)
         cleanupViews()
+        hideEditingScrim()
     }
 
     private fun cleanupViews() {
@@ -468,7 +457,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun showConfigPanel() {
-        if (configPanelView != null) return
+        if (configPanelView != null || isEditingModeActive) return
 
         val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
         configPanelView = LayoutInflater.from(themedContext).inflate(R.layout.dynamic_island_config_panel, null)
@@ -479,18 +468,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         val addPromptButton = configPanelView?.findViewById<View>(R.id.btn_add_master_prompt)
         addPromptButton?.setOnClickListener {
-            val masterPrompt = "请你扮演一个拥有多年经验的资深行业专家，以我提供的主题为核心，草拟一篇详尽的报告大纲。你的回答需要满足以下要求：<br>1. 采用结构化、层级化的方式呈现，确保逻辑清晰，层次分明。<br>2. 涵盖主题的背景、现状、核心问题、解决方案及未来趋势等关键部分。<br>3. 在每个要点下，提出3-5个具有深度和启发性的子问题或探讨方向。<br>4. 语言风格需专业、严谨，符合正式报告要求。<br>5. 你的产出只包含报告大纲本身，不要有其他无关内容。"
-            val currentText = searchInput?.text?.toString() ?: ""
-            val initialTextForEditing = "$masterPrompt\n\n$currentText"
-
-            val intent = Intent(this, EditingWindowService::class.java).apply {
-                putExtra(EditingWindowService.EXTRA_INITIAL_TEXT, initialTextForEditing)
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startService(intent)
-            
-            // 隐藏配置面板，因为编辑将在新窗口中进行
-            hideConfigPanel()
+            enterEditingMode()
         }
 
         slot1View?.setOnClickListener { showSearchEngineSelector(it, 1) }
@@ -748,20 +726,144 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
-    private fun hideConfigPanel() {
-        if (configPanelView != null) {
-            configPanelView?.animate()
-                ?.alpha(0f)
-                ?.translationY(100f)
-                ?.setDuration(250)
-                ?.setInterpolator(AccelerateDecelerateInterpolator())
-                ?.withEndAction {
-                    try {
-                        windowContainerView?.removeView(configPanelView)
-                    } catch (e: Exception) { /* ignore */ }
-                }
-                ?.start()
-            configPanelView = null
+    private fun enterEditingMode() {
+        if (isEditingModeActive) return
+
+        isEditingModeActive = true
+
+        // 1. Show the blurred scrim behind everything
+        showEditingScrim()
+        
+        // 2. Hide the config panel so it gets blurred by the scrim
+        hideConfigPanel(true)
+        
+        // 3. Add prompt text
+        val masterPrompt = "请你扮演一个拥有多年经验的资深行业专家，以我提供的主题为核心，草拟一篇详尽的报告大纲。你的回答需要满足以下要求：<br>1. 采用结构化、层级化的方式呈现，确保逻辑清晰，层次分明。<br>2. 涵盖主题的背景、现状、核心问题、解决方案及未来趋势等关键部分。<br>3. 在每个要点下，提出3-5个具有深度和启发性的子问题或探讨方向。<br>4. 语言风格需专业、严谨，符合正式报告要求。<br>5. 你的产出只包含报告大纲本身，不要有其他无关内容。"
+        val currentText = searchInput?.text?.toString() ?: ""
+        searchInput?.setText("$masterPrompt\n\n$currentText")
+        searchInput?.setSelection(searchInput?.text?.length ?: 0)
+
+        // 4. Animate the island to editing dimensions
+        transitionToEditingState()
+    }
+
+    private fun exitEditingMode() {
+        if (!isEditingModeActive) return
+
+        isEditingModeActive = false
+        
+        // 1. Animate the island back to its search state dimensions
+        transitionFromEditingState()
+        
+        // 2. Hide the scrim
+        hideEditingScrim()
+        
+        // 3. Re-show the config panel
+        showConfigPanel()
+
+        // 4. Hide keyboard
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(searchInput?.windowToken, 0)
+    }
+    
+    private fun transitionToEditingState() {
+        val startWidth = animatingIslandView?.width ?: expandedWidth
+        val startHeight = animatingIslandView?.height ?: statusBarHeight
+
+        // Make window focusable to receive keyboard input
+        val stageParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
+        stageParams?.let {
+            it.flags = it.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            it.width = WindowManager.LayoutParams.MATCH_PARENT // Let container be full width for scrim
+            windowManager.updateViewLayout(windowContainerView, it)
         }
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 300
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener {
+                val fraction = it.animatedValue as Float
+                val currentWidth = startWidth + (editingWidth - startWidth) * fraction
+                val currentHeight = startHeight + (editingHeight - startHeight) * fraction
+                animatingIslandView?.layoutParams?.width = currentWidth.toInt()
+                animatingIslandView?.layoutParams?.height = currentHeight.toInt()
+                animatingIslandView?.requestLayout()
+            }
+            start()
+        }
+    }
+
+    private fun transitionFromEditingState() {
+        val startWidth = animatingIslandView?.width ?: editingWidth
+        val startHeight = animatingIslandView?.height ?: editingHeight
+
+        val stageParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
+        stageParams?.let {
+            it.flags = it.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            it.width = expandedWidth // Return container to its normal expanded width
+            windowManager.updateViewLayout(windowContainerView, it)
+        }
+
+        ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 300
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener {
+                val fraction = it.animatedValue as Float
+                val currentWidth = startWidth + (expandedWidth - startWidth) * fraction
+                val currentHeight = startHeight + (statusBarHeight - startHeight) * fraction
+                animatingIslandView?.layoutParams?.width = currentWidth.toInt()
+                animatingIslandView?.layoutParams?.height = currentHeight.toInt()
+                animatingIslandView?.requestLayout()
+            }
+            start()
+        }
+    }
+
+    private fun showEditingScrim() {
+        if (editingScrimView != null) return
+        
+        editingScrimView = View(this).apply {
+            // Clicking the scrim will exit editing mode
+            setOnClickListener { exitEditingMode() }
+        }
+
+        val scrimParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, // Not focusable, but can receive touch
+            PixelFormat.TRANSLUCENT
+        )
+        // Set a high Z-order but lower than the island itself
+        scrimParams.gravity = Gravity.CENTER
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            scrimParams.blurBehindRadius = 25
+        } else {
+            editingScrimView?.setBackgroundColor(Color.parseColor("#99000000"))
+        }
+
+        windowManager.addView(editingScrimView, scrimParams)
+    }
+
+    private fun hideEditingScrim() {
+        editingScrimView?.let {
+            windowManager.removeView(it)
+        }
+        editingScrimView = null
+    }
+
+    private fun hideConfigPanel(isForEditing: Boolean = false) {
+        if (configPanelView == null) return
+        val panelToRemove = configPanelView
+        configPanelView = null
+
+        val animation = panelToRemove?.animate()?.translationY(panelToRemove.height.toFloat())?.setDuration(300)
+        animation?.setListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                windowContainerView?.removeView(panelToRemove)
+            }
+        })
+        animation?.start()
     }
 } 
