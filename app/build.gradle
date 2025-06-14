@@ -118,10 +118,3 @@ tasks.register('cleanJdkImageCache', Delete) {
         include "**/temp/jmod/**"
     }
 }
-
-// Add this task to completely skip the Java compilation if it fails
-tasks.whenTaskAdded { task ->
-    if (task.name == 'compileDebugJavaWithJavac' || task.name == 'compileReleaseJavaWithJavac') {
-        task.enabled = false
-    }
-}
