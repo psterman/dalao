@@ -92,7 +92,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var selectorScrimView: View? = null
 
     private lateinit var notificationIconContainer: LinearLayout
-    private var searchViewContainer: View? = null
     private var searchInput: EditText? = null
     private var searchButton: ImageView? = null
 
@@ -100,8 +99,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var isEditingModeActive = false // New state for editing
     private var compactWidth: Int = 0
     private var expandedWidth: Int = 0
-    private var editingWidth: Int = 0 // New dimension for editing mode
-    private var editingHeight: Int = 0 // New dimension for editing mode
     private var statusBarHeight: Int = 0
 
     private var currentKeyboardHeight = 0
@@ -196,8 +193,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         statusBarHeight = getStatusBarHeight()
         compactWidth = (resources.displayMetrics.widthPixels * 0.4).toInt()
         expandedWidth = (resources.displayMetrics.widthPixels * 0.9).toInt()
-        editingWidth = (resources.displayMetrics.widthPixels * 0.95).toInt()
-        editingHeight = (resources.displayMetrics.heightPixels * 0.4).toInt()
 
         // 1. The Stage
         windowContainerView = FrameLayout(this)
@@ -221,9 +216,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 3. The Content
         islandContentView = inflater.inflate(R.layout.dynamic_island_layout, animatingIslandView, false)
         notificationIconContainer = islandContentView!!.findViewById(R.id.notification_icon_container)
-        searchViewContainer = islandContentView!!.findViewById(R.id.search_view_container)
-        searchInput = islandContentView!!.findViewById(R.id.search_input)
-        searchButton = islandContentView!!.findViewById(R.id.search_button)
         animatingIslandView!!.addView(islandContentView)
 
         // 4. The Proxy
@@ -237,7 +229,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         windowContainerView!!.addView(touchProxyView)
         
         touchProxyView?.setOnClickListener { if (!isSearchModeActive) transitionToSearchState() }
-        setupSearchListeners()
 
         updateIslandVisibility()
 
@@ -281,7 +272,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     notificationIconContainer.visibility = View.GONE
                 }
                 override fun onAnimationEnd(animation: Animator) {
-                    searchViewContainer?.visibility = View.VISIBLE
                     showConfigPanel()
 
                     searchInput?.requestFocus()
@@ -329,7 +319,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationStart(animation: Animator) {
-                    searchViewContainer?.visibility = View.GONE
                 }
                 override fun onAnimationEnd(animation: Animator) {
                     notificationIconContainer.visibility = View.VISIBLE
@@ -341,12 +330,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     
     private fun setupSearchListeners() {
         val searchAction = {
-            val query = searchInput?.text?.toString()
-            if (!query.isNullOrEmpty()) {
-                val engine = activeSlots[1] ?: searchCategories.first().engines.first()
-                val searchUrl = engine.searchUrl + URLEncoder.encode(query, "UTF-8")
-                android.util.Log.d("DynamicIsland", "Searching for: $query with url: $searchUrl")
-            }
+            performSearch()
             if (isEditingModeActive) {
                 exitEditingMode()
             }
@@ -462,6 +446,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
         configPanelView = LayoutInflater.from(themedContext).inflate(R.layout.dynamic_island_config_panel, null)
 
+        searchInput = configPanelView?.findViewById(R.id.search_input)
+        searchButton = configPanelView?.findViewById(R.id.search_button)
+        setupSearchListeners()
+
         slot1View = configPanelView?.findViewById(R.id.slot_1)
         slot2View = configPanelView?.findViewById(R.id.slot_2)
         slot3View = configPanelView?.findViewById(R.id.slot_3)
@@ -573,6 +561,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
 
         // 3. Animate the AI Engines panel to indicate readiness
+        // This view was removed, so the animation is no longer needed.
+        /*
         val aiEnginesPanel = configPanelView?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.ai_engines_recycler_view)
         aiEnginesPanel?.let {
             it.alpha = 0.5f
@@ -581,6 +571,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 .setDuration(400)
                 .start()
         }
+        */
     }
 
     private fun selectSearchEngineForSlot(engine: SearchEngine, slotIndex: Int) {
@@ -734,17 +725,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 1. Show the blurred scrim behind everything
         showEditingScrim()
         
-        // 2. Hide the config panel so it gets blurred by the scrim
-        hideConfigPanel(true)
-        
-        // 3. Add prompt text
+        // 2. Add prompt text to the existing search input
         val masterPrompt = "请你扮演一个拥有多年经验的资深行业专家，以我提供的主题为核心，草拟一篇详尽的报告大纲。你的回答需要满足以下要求：<br>1. 采用结构化、层级化的方式呈现，确保逻辑清晰，层次分明。<br>2. 涵盖主题的背景、现状、核心问题、解决方案及未来趋势等关键部分。<br>3. 在每个要点下，提出3-5个具有深度和启发性的子问题或探讨方向。<br>4. 语言风格需专业、严谨，符合正式报告要求。<br>5. 你的产出只包含报告大纲本身，不要有其他无关内容。"
         val currentText = searchInput?.text?.toString() ?: ""
         searchInput?.setText("$masterPrompt\n\n$currentText")
         searchInput?.setSelection(searchInput?.text?.length ?: 0)
+        searchInput?.requestFocus()
 
-        // 4. Animate the island to editing dimensions
-        transitionToEditingState()
+        // 3. Show keyboard
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
     }
 
     private fun exitEditingMode() {
@@ -752,73 +742,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         isEditingModeActive = false
         
-        // 1. Animate the island back to its search state dimensions
-        transitionFromEditingState()
-        
-        // 2. Hide the scrim
+        // 1. Hide the scrim
         hideEditingScrim()
         
-        // 3. Re-show the config panel
-        showConfigPanel()
-
-        // 4. Hide keyboard
+        // 2. Hide keyboard
         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(searchInput?.windowToken, 0)
     }
     
-    private fun transitionToEditingState() {
-        val startWidth = animatingIslandView?.width ?: expandedWidth
-        val startHeight = animatingIslandView?.height ?: statusBarHeight
-
-        // Make window focusable to receive keyboard input
-        val stageParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
-        stageParams?.let {
-            it.flags = it.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-            it.width = WindowManager.LayoutParams.MATCH_PARENT // Let container be full width for scrim
-            windowManager.updateViewLayout(windowContainerView, it)
-        }
-
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 300
-            interpolator = AccelerateDecelerateInterpolator()
-            addUpdateListener {
-                val fraction = it.animatedValue as Float
-                val currentWidth = startWidth + (editingWidth - startWidth) * fraction
-                val currentHeight = startHeight + (editingHeight - startHeight) * fraction
-                animatingIslandView?.layoutParams?.width = currentWidth.toInt()
-                animatingIslandView?.layoutParams?.height = currentHeight.toInt()
-                animatingIslandView?.requestLayout()
-            }
-            start()
-        }
-    }
-
-    private fun transitionFromEditingState() {
-        val startWidth = animatingIslandView?.width ?: editingWidth
-        val startHeight = animatingIslandView?.height ?: editingHeight
-
-        val stageParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
-        stageParams?.let {
-            it.flags = it.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            it.width = expandedWidth // Return container to its normal expanded width
-            windowManager.updateViewLayout(windowContainerView, it)
-        }
-
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 300
-            interpolator = AccelerateDecelerateInterpolator()
-            addUpdateListener {
-                val fraction = it.animatedValue as Float
-                val currentWidth = startWidth + (expandedWidth - startWidth) * fraction
-                val currentHeight = startHeight + (statusBarHeight - startHeight) * fraction
-                animatingIslandView?.layoutParams?.width = currentWidth.toInt()
-                animatingIslandView?.layoutParams?.height = currentHeight.toInt()
-                animatingIslandView?.requestLayout()
-            }
-            start()
-        }
-    }
-
     private fun showEditingScrim() {
         if (editingScrimView != null) return
         

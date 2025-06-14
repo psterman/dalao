@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="100dp"
+    app:cardBackgroundColor="#2C2C2E"
+    app:cardCornerRadius="18dp"
+    app:strokeWidth="0dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp">
+
+        <!-- Hint text for empty state -->
+        <TextView
+            android:id="@+id/slot_hint_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="拖拽填充"
+            android:textColor="#8AFFFFFF"
+            android:textSize="12sp"
+            android:visibility="visible"
+            tools:visibility="gone" />
+
+        <!-- Content for filled state -->
+        <LinearLayout
+            android:id="@+id/slot_filled_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <ImageView
+                android:id="@+id/slot_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                tools:src="@mipmap/ic_launcher" />
+
+            <TextView
+                android:id="@+id/slot_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                tools:text="Kimi" />
+
+            <TextView
+                android:id="@+id/slot_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#8AFFFFFF"
+                android:textSize="10sp"
+                android:visibility="gone"
+                tools:text="长文本深度对话" />
+        </LinearLayout>
+
+        <!-- Clear button -->
+        <ImageView
+            android:id="@+id/slot_clear_button"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_gravity="top|end"
+            android:background="@drawable/ic_close_background"
+            android:padding="4dp"
+            android:src="@drawable/ic_close"
+            android:visibility="gone"
+            app:tint="@android:color/white"
+            tools:visibility="visible" />
+
+    </FrameLayout>
+</com.google.android.material.card.MaterialCardView> 
