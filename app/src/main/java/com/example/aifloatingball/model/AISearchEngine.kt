@@ -11,7 +11,8 @@ data class AISearchEngine(
     override val iconResId: Int = 0,
     override val description: String = "",
     override val searchUrl: String = url,
-    val isChatMode: Boolean = false
+    val isChatMode: Boolean = false,
+    var isEnabled: Boolean = false
 ) : BaseSearchEngine, Parcelable {
     override val displayName: String
         get() = name
@@ -27,6 +28,7 @@ data class AISearchEngine(
         parcel.writeString(description)
         parcel.writeString(searchUrl)
         parcel.writeBoolean(isChatMode)
+        parcel.writeBoolean(isEnabled)
     }
 
     override fun describeContents(): Int = 0
@@ -188,7 +190,8 @@ data class AISearchEngine(
                     iconResId = parcel.readInt(),
                     description = parcel.readString()!!,
                     searchUrl = parcel.readString()!!,
-                    isChatMode = parcel.readBoolean()
+                    isChatMode = parcel.readBoolean(),
+                    isEnabled = parcel.readBoolean()
                 )
             }
 

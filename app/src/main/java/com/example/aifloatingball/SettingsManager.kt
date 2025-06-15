@@ -13,6 +13,7 @@ import android.util.Log
 import android.content.Intent
 import com.example.aifloatingball.model.MenuItem
 import androidx.appcompat.app.AppCompatDelegate
+import com.example.aifloatingball.model.SearchEngineGroup
 
 class SettingsManager private constructor(context: Context) {
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -28,6 +29,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_SEARCH_HISTORY = "search_history"
         private const val KEY_DISPLAY_MODE = "display_mode"
         private const val DEFAULT_DISPLAY_MODE = "floating_ball"
+        private const val KEY_SEARCH_ENGINE_GROUPS = "search_engine_groups"
         
         // API相关常量
         private const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
@@ -581,5 +583,23 @@ class SettingsManager private constructor(context: Context) {
 
     fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
         prefs.unregisterOnSharedPreferenceChangeListener(listener)
+    }
+
+    fun saveSearchEngineGroups(groups: List<SearchEngineGroup>) {
+        val json = gson.toJson(groups)
+        prefs.edit().putString(KEY_SEARCH_ENGINE_GROUPS, json).apply()
+    }
+
+    fun getSearchEngineGroups(): MutableList<SearchEngineGroup> {
+        val json = prefs.getString(KEY_SEARCH_ENGINE_GROUPS, null)
+        return if (json != null) {
+            val type = object : TypeToken<MutableList<SearchEngineGroup>>() {}.type
+            gson.fromJson(json, type)
+        } else {
+            // 返回默认分组
+            mutableListOf(
+                SearchEngineGroup(id = 1, name = "默认分组", engines = SearchEngine.DEFAULT_ENGINES.toMutableList(), isEnabled = true)
+            )
+        }
     }
 }

@@ -1,9 +1,10 @@
 package com.example.aifloatingball.model
 
+import java.io.Serializable
+
 data class SearchEngineGroup(
-    val id: Long = 0,
-    val name: String,
-    val engines: List<SearchEngine>,
-    val createdAt: Long = System.currentTimeMillis(),
-    val order: Int = 0
-) 
+    var id: Long,
+    var name: String,
+    var engines: MutableList<SearchEngine>,
+    var isEnabled: Boolean
+) : Serializable 

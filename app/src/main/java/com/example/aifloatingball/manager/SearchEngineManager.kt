@@ -67,8 +67,10 @@ class SearchEngineManager private constructor(context: Context) {
 
     fun saveSearchEngineGroup(name: String, engines: List<SearchEngine>) {
         val group = SearchEngineGroup(
+            id = System.currentTimeMillis(),
             name = name,
-            engines = engines
+            engines = engines.toMutableList(),
+            isEnabled = true
         )
         saveSearchEngineGroup(group)
     }

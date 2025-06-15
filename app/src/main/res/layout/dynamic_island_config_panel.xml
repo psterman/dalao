@@ -44,7 +44,7 @@
                 android:inputType="textMultiLine"
                 android:maxLines="5" />
 
-            <ImageView
+        <ImageView
                 android:id="@+id/search_button"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
@@ -53,7 +53,7 @@
                 android:padding="6dp"
                 android:layout_marginStart="8dp"
                 android:alpha="0.5"/>
-        </LinearLayout>
+    </LinearLayout>
 
         <!-- Slot Container -->
         <LinearLayout
@@ -61,7 +61,7 @@
             android:layout_width="match_parent"
             android:layout_height="120dp"
             android:layout_below="@id/input_area"
-            android:layout_marginTop="16dp"
+                android:layout_marginTop="16dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -73,18 +73,18 @@
         </LinearLayout>
 
         <!-- "Add Prompt" Button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_add_master_prompt"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_add_master_prompt"
             style="@style/Widget.MaterialComponents.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
             android:layout_below="@id/slots_container"
             android:layout_alignParentEnd="true"
             android:layout_marginTop="8dp"
             android:text="+ 加提示词"
-            android:textColor="?attr/colorPrimary"
-            app:icon="@drawable/ic_magic_wand"
-            app:iconTint="?attr/colorPrimary" />
+                android:textColor="?attr/colorPrimary"
+                app:icon="@drawable/ic_magic_wand"
+                app:iconTint="?attr/colorPrimary" />
 
     </RelativeLayout>
 </com.google.android.material.card.MaterialCardView> 
