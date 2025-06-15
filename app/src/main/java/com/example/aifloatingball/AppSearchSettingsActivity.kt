@@ -45,7 +45,8 @@ class AppSearchSettingsActivity : AppCompatActivity() {
             },
             onStartDrag = { viewHolder ->
                 itemTouchHelper.startDrag(viewHolder)
-        }
+        },
+        getDomainForApp = { appId -> getDomainForApp(appId) }
         )
         recyclerView.adapter = adapter
 
@@ -87,13 +88,25 @@ class AppSearchSettingsActivity : AppCompatActivity() {
         itemTouchHelper = ItemTouchHelper(callback)
         itemTouchHelper.attachToRecyclerView(recyclerView)
     }
+
+    private fun getDomainForApp(appId: String): String {
+        return when (appId) {
+            "wechat" -> "weixin.qq.com"
+            "taobao" -> "taobao.com"
+            "pdd" -> "pinduoduo.com"
+            "douyin" -> "douyin.com"
+            "xiaohongshu" -> "xiaohongshu.com"
+            else -> ""
+        }
+    }
 }
 
 @SuppressLint("ClickableViewAccessibility")
 class AppSearchAdapter(
     val apps: MutableList<AppSearchConfig>,
     private val onToggleEnabled: (AppSearchConfig, Boolean) -> Unit,
-    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit
+    private val onStartDrag: (RecyclerView.ViewHolder) -> Unit,
+    private val getDomainForApp: (String) -> String
     ) : RecyclerView.Adapter<AppSearchAdapter.ViewHolder>() {
 
         class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -114,6 +127,12 @@ class AppSearchAdapter(
         
         holder.iconView.setImageResource(app.iconResId)
         holder.nameView.text = app.appName
+        
+        val domain = getDomainForApp(app.appId)
+        
+        if (domain.isNotEmpty()) {
+            com.example.aifloatingball.utils.FaviconLoader.loadIcon(holder.iconView, "https://$domain", app.iconResId)
+        }
         
         holder.switchView.setOnCheckedChangeListener(null)
         holder.switchView.isChecked = app.isEnabled
