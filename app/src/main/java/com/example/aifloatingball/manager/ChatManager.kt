@@ -79,6 +79,14 @@ class ChatManager(private val context: Context) {
         }
     }
 
+    fun startChat(webView: WebView, engineKey: String, query: String) {
+        // 首先，使用查询初始化或重新初始化WebView
+        initWebView(webView, engineKey, query)
+
+        // initWebView中的onPageFinished会在页面加载后发送初始消息
+        // 所以这里不需要再调用sendMessageToWebView
+    }
+
     private inner class AndroidChatInterface {
         @android.webkit.JavascriptInterface
         fun getSessions(): String {

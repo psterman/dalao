@@ -84,6 +84,49 @@ class WebViewManager(
     }
     
     /**
+     * 加载多个URL到对应的WebView中
+     */
+    fun loadUrls(urls: List<String>) {
+        urls.forEachIndexed { index, url ->
+            if (index < webViews.size) {
+                loadUrlInWebView(index, url)
+            }
+        }
+    }
+
+    /**
+     * 切换到多窗口视图
+     */
+    fun switchToMultiWebView(windowCount: Int) {
+        // 显示指定数量的WebView，隐藏其他的
+        for (i in webViews.indices) {
+            setWebViewVisibility(i, i < windowCount)
+        }
+        // 确保聊天视图(如果存在)被隐藏
+        (getChatWebView()?.parent as? View)?.visibility = View.GONE
+    }
+
+    /**
+     * 获取用于聊天的WebView，这里我们约定使用第一个WebView
+     */
+    fun getChatWebView(): CustomWebView? {
+        return if (webViews.isNotEmpty()) webViews[0] else null
+    }
+
+    /**
+     * 切换到单窗口聊天视图
+     */
+    fun switchToSingleChatView() {
+        // 隐藏所有普通WebView
+        for (i in webViews.indices) {
+             (webViews[i].parent as? View)?.visibility = View.GONE
+        }
+        // 显示聊天WebView
+        val chatWebView = getChatWebView()
+        (chatWebView?.parent as? View)?.visibility = View.VISIBLE
+    }
+
+    /**
      * 修改: 加载URL到指定索引的XML定义的WebView中
      * @return 返回被操作的 CustomWebView，如果索引有效
      */
