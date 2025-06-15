@@ -47,6 +47,7 @@ import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.HomeActivity
 import com.example.aifloatingball.R
@@ -60,6 +61,7 @@ import android.net.Uri
 import android.content.ActivityNotFoundException
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.utils.EngineUtil
+import com.google.android.material.tabs.TabLayout
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -413,10 +415,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             putExtra("search_query", query)
             // 使用引擎键名，让 DualFloatingWebViewService 处理 URL
             putExtra("engine_key", engine.name.lowercase())
-        }
-        startService(intent)
-
-        transitionToCompactState()
+            }
+            startService(intent)
+            
+            transitionToCompactState()
     }
 
     private fun addNotificationIcon(key: String, icon: android.graphics.Bitmap) {
@@ -656,13 +658,80 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
         val inflater = LayoutInflater.from(themedContext)
         val panelWrapper = inflater.inflate(R.layout.search_engine_panel_wrapper, null) as com.google.android.material.card.MaterialCardView
-        inflater.inflate(R.layout.search_engine_selector, panelWrapper, true)
+
+        // --- Programmatically create Tabbed UI ---
+        val mainLayout = LinearLayout(themedContext).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val tabLayout = TabLayout(themedContext).apply {
+            setSelectedTabIndicatorColor(Color.WHITE)
+            setTabTextColors(Color.LTGRAY, Color.WHITE)
+        }
+
+        val regularEnginesRecyclerView = RecyclerView(themedContext)
+        val aiEnginesRecyclerView = RecyclerView(themedContext).apply { visibility = View.GONE }
+
+        val recyclerContainer = FrameLayout(themedContext).apply {
+            addView(regularEnginesRecyclerView)
+            addView(aiEnginesRecyclerView)
+        }
+
+        // Use a fixed height for the container to ensure it's scrollable and doesn't overflow
+        val containerHeight = (resources.displayMetrics.heightPixels * 0.4).toInt()
+        mainLayout.addView(tabLayout, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        mainLayout.addView(recyclerContainer, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, containerHeight))
+
+        panelWrapper.addView(mainLayout)
         searchEngineSelectorView = panelWrapper
 
-        val recyclerView = searchEngineSelectorView?.findViewById<RecyclerView>(R.id.main_recycler_view)
-        recyclerView?.adapter = SearchCategoryAdapter(loadSearchCategories()) { selectedEngine ->
+        // --- Data Loading and Adapter Setup ---
+        val allCategories = loadSearchCategories()
+        val regularEngines = allCategories.find { it.title == "普通搜索引擎" }?.engines ?: emptyList()
+        val aiEngines = allCategories.find { it.title == "AI 搜索引擎" }?.engines ?: emptyList()
+
+        regularEnginesRecyclerView.layoutManager = LinearLayoutManager(themedContext)
+        regularEnginesRecyclerView.adapter = EngineAdapter(regularEngines) { selectedEngine ->
             selectSearchEngineForSlot(selectedEngine, slotIndex)
         }
+
+        aiEnginesRecyclerView.layoutManager = LinearLayoutManager(themedContext)
+        aiEnginesRecyclerView.adapter = EngineAdapter(aiEngines) { selectedEngine ->
+            selectSearchEngineForSlot(selectedEngine, slotIndex)
+        }
+
+        // --- Setup Tabs ---
+        tabLayout.addTab(tabLayout.newTab().setText("普通搜索"))
+        tabLayout.addTab(tabLayout.newTab().setText("AI 搜索"))
+
+        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                when (tab?.position) {
+                    0 -> {
+                        regularEnginesRecyclerView.visibility = View.VISIBLE
+                        aiEnginesRecyclerView.visibility = View.GONE
+                    }
+                    1 -> {
+                        regularEnginesRecyclerView.visibility = View.GONE
+                        aiEnginesRecyclerView.visibility = View.VISIBLE
+                    }
+                }
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {}
+        })
+
+        // Default to the first tab that has content
+        if (regularEngines.isNotEmpty()) {
+            tabLayout.getTabAt(0)?.select()
+            regularEnginesRecyclerView.visibility = View.VISIBLE
+            aiEnginesRecyclerView.visibility = View.GONE
+        } else {
+            tabLayout.getTabAt(1)?.select()
+            regularEnginesRecyclerView.visibility = View.GONE
+            aiEnginesRecyclerView.visibility = View.VISIBLE
+        }
+
 
         selectorScrimView = View(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
@@ -697,19 +766,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         } catch (e: Exception) {
             e.printStackTrace()
         }
-
-        // 3. Animate the AI Engines panel to indicate readiness
-        // This view was removed, so the animation is no longer needed.
-        /*
-        val aiEnginesPanel = configPanelView?.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.ai_engines_recycler_view)
-        aiEnginesPanel?.let {
-            it.alpha = 0.5f
-            it.animate()
-                .alpha(1f)
-                .setDuration(400)
-                .start()
-        }
-        */
     }
 
     private fun selectSearchEngineForSlot(engine: SearchEngine, slotIndex: Int) {
@@ -758,9 +814,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             icon.setImageResource(engine.iconResId)
             title.text = engine.name
 
-            val isAiEngine = loadSearchCategories().any { category ->
-                category.title == "AI 搜索引擎" && category.engines.any { it.name == engine.name }
-            }
+            val enabledAIEngineNames = settingsManager.getEnabledAIEngines()
+            val isAiEngine = enabledAIEngineNames.contains(engine.name)
 
             if (isAiEngine) {
                 aiPromptInfo.visibility = View.VISIBLE
@@ -1046,126 +1101,72 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         appSearchIconContainer?.removeAllViews()
     }
 
-    // Adapter for Search Engine Selector RecyclerView
-    private inner class SearchCategoryAdapter(
-        private val categories: List<SearchCategory>,
+    private inner class EngineAdapter(
+        private val engines: List<SearchEngine>,
         private val onEngineClick: (SearchEngine) -> Unit
-    ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+    ) : RecyclerView.Adapter<EngineAdapter.EngineViewHolder>() {
 
-        private val items = mutableListOf<Any>()
-        private val VIEW_TYPE_TITLE = 0
-        private val VIEW_TYPE_ENGINE = 1
-
-        init {
-            categories.forEach { category ->
-                // We only add app search engines to the list if they are not empty.
-                if (category.title != "App 搜索" || category.engines.isNotEmpty()) {
-                    items.add(category.title)
-                    items.addAll(category.engines)
-                }
-            }
-        }
-
-        override fun getItemViewType(position: Int): Int {
-            return when (items[position]) {
-                is String -> VIEW_TYPE_TITLE
-                is SearchEngine -> VIEW_TYPE_ENGINE
-                else -> throw IllegalArgumentException("Invalid type of data at position $position")
-            }
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-            return when (viewType) {
-                VIEW_TYPE_TITLE -> TitleViewHolder(
-                    TextView(ContextThemeWrapper(parent.context, R.style.Theme_FloatingWindow)).apply {
-                        layoutParams = RecyclerView.LayoutParams(
-                            RecyclerView.LayoutParams.MATCH_PARENT,
-                            RecyclerView.LayoutParams.WRAP_CONTENT
-                        )
-                        val padding = 16.dpToPx()
-                        setPadding(padding, padding, padding, padding)
-                        textSize = 16f
-                        setTextColor(Color.WHITE)
-                        setTypeface(null, android.graphics.Typeface.BOLD)
-                    }
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EngineViewHolder {
+            val context = ContextThemeWrapper(parent.context, R.style.Theme_FloatingWindow)
+            // Root LinearLayout
+            val rootLayout = LinearLayout(context).apply {
+                layoutParams = RecyclerView.LayoutParams(
+                    RecyclerView.LayoutParams.MATCH_PARENT,
+                    RecyclerView.LayoutParams.WRAP_CONTENT
                 )
-                VIEW_TYPE_ENGINE -> {
-                    val context = ContextThemeWrapper(parent.context, R.style.Theme_FloatingWindow)
-                    // Root LinearLayout
-                    val rootLayout = LinearLayout(context).apply {
-                        layoutParams = RecyclerView.LayoutParams(
-                            RecyclerView.LayoutParams.MATCH_PARENT,
-                            RecyclerView.LayoutParams.WRAP_CONTENT
-                        )
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                        val padding = 16.dpToPx()
-                        setPadding(padding, padding, padding, padding)
-                        background = context.getDrawable(androidx.appcompat.R.drawable.abc_item_background_holo_dark)
-                    }
-
-                    // Icon
-                    val icon = ImageView(context).apply {
-                        id = android.R.id.icon
-                        layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx())
-                    }
-                    rootLayout.addView(icon)
-
-                    // Text container
-                    val textLayout = LinearLayout(context).apply {
-                        layoutParams = LinearLayout.LayoutParams(
-                            0,
-                            LinearLayout.LayoutParams.WRAP_CONTENT,
-                            1f
-                        ).apply {
-                            marginStart = 16.dpToPx()
-                        }
-                        orientation = LinearLayout.VERTICAL
-                    }
-                    rootLayout.addView(textLayout)
-
-                    // Name
-                    val name = TextView(context).apply {
-                        id = android.R.id.text1
-                        textSize = 16f
-                        setTextColor(Color.WHITE)
-                    }
-                    textLayout.addView(name)
-
-                    // Description
-                    val description = TextView(context).apply {
-                        id = android.R.id.text2
-                        textSize = 14f
-                        setTextColor(Color.LTGRAY)
-                    }
-                    textLayout.addView(description)
-
-                    EngineViewHolder(rootLayout)
-                }
-                else -> throw IllegalArgumentException("Invalid view type")
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val padding = 16.dpToPx()
+                setPadding(padding, padding, padding, padding)
+                background = context.getDrawable(androidx.appcompat.R.drawable.abc_item_background_holo_dark)
             }
+
+            // Icon
+            val icon = ImageView(context).apply {
+                id = android.R.id.icon
+                layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx())
+            }
+            rootLayout.addView(icon)
+
+            // Text container
+            val textLayout = LinearLayout(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1f
+                ).apply {
+                    marginStart = 16.dpToPx()
+                }
+                orientation = LinearLayout.VERTICAL
+            }
+            rootLayout.addView(textLayout)
+
+            // Name
+            val name = TextView(context).apply {
+                id = android.R.id.text1
+                textSize = 16f
+                setTextColor(Color.WHITE)
+            }
+            textLayout.addView(name)
+
+            // Description
+            val description = TextView(context).apply {
+                id = android.R.id.text2
+                textSize = 14f
+                setTextColor(Color.LTGRAY)
+            }
+            textLayout.addView(description)
+
+            return EngineViewHolder(rootLayout)
         }
 
-        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-            when (holder) {
-                is TitleViewHolder -> {
-                    holder.bind(items[position] as String)
-                }
-                is EngineViewHolder -> {
-                    val engine = items[position] as SearchEngine
-                    holder.bind(engine)
-                    holder.itemView.setOnClickListener { onEngineClick(engine) }
-                }
-            }
+        override fun onBindViewHolder(holder: EngineViewHolder, position: Int) {
+            val engine = engines[position]
+            holder.bind(engine)
+            holder.itemView.setOnClickListener { onEngineClick(engine) }
         }
 
-        override fun getItemCount(): Int = items.size
-
-        inner class TitleViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-            fun bind(title: String) {
-                (itemView as TextView).text = title
-            }
-        }
+        override fun getItemCount(): Int = engines.size
 
         inner class EngineViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
             private val iconView: ImageView = itemView.findViewById(android.R.id.icon)
@@ -1182,15 +1183,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun loadSearchCategories(): List<SearchCategory> {
         val categories = mutableListOf<SearchCategory>()
-        
-        // 1. 加载普通搜索引擎
+
+        // 1. 从设置中加载启用的普通搜索引擎
         val enabledSearchEngineNames = settingsManager.getEnabledSearchEngines()
         val regularEngines = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES
             .filter { enabledSearchEngineNames.contains(it.name) }
             .map {
                 SearchEngine(
                     name = it.name,
-                    description = it.name, // You can add a real description later
+                    description = it.name, // 您可以稍后添加更详细的描述
                     iconResId = it.iconResId,
                     searchUrl = it.searchUrl
                 )
@@ -1200,14 +1201,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             categories.add(SearchCategory("普通搜索引擎", regularEngines))
         }
 
-        // 2. 加载AI搜索引擎
+        // 2. 从设置中加载启用的AI搜索引擎
         val enabledAIEngineNames = settingsManager.getEnabledAIEngines()
         val aiEngines = com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES
             .filter { enabledAIEngineNames.contains(it.name) }
             .map {
                 SearchEngine(
                     name = it.name,
-                    description = it.name, // You can add a real description later
+                    description = it.name, // 您可以稍后添加更详细的描述
                     iconResId = it.iconResId,
                     searchUrl = it.searchUrl
                 )
@@ -1216,8 +1217,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (aiEngines.isNotEmpty()) {
             categories.add(SearchCategory("AI 搜索引擎", aiEngines))
         }
-
-        // 3. Load App search engines (from existing logic is kept separate)
 
         return categories
     }
