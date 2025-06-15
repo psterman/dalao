@@ -460,6 +460,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         else (24 * resources.displayMetrics.density).toInt()
     }
 
+    private fun getDomainForApp(appId: String): String {
+        return when (appId) {
+            "wechat" -> "weixin.qq.com"
+            "taobao" -> "taobao.com"
+            "pdd" -> "pinduoduo.com"
+            "douyin" -> "douyin.com"
+            "xiaohongshu" -> "xiaohongshu.com"
+            else -> ""
+        }
+    }
+
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density + 0.5f).toInt()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -1067,6 +1078,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     params.setMargins(iconMargin, 0, iconMargin, 0)
                 }
                 setImageResource(appConfig.iconResId)
+
+                val domain = getDomainForApp(appConfig.appId)
+                if (domain.isNotEmpty()) {
+                    FaviconLoader.loadIcon(this, "https://$domain", appConfig.iconResId)
+                }
+
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundResource(R.drawable.app_icon_background)
                 clipToOutline = true

@@ -1068,6 +1068,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         val iconResId = getIconResourceForDomain(shortcut.domain)
         
         // 设置图标，优先使用本地资源，然后尝试从网络加载
+        iconView.setImageResource(iconResId)
         FaviconLoader.loadIcon(iconView, shortcut.url, iconResId)
         
         // 设置图标背景色 - 更柔和的颜色
@@ -1298,6 +1299,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
                     
                     // 设置图标
+                    setImageResource(config.iconResId)
                     
                     // 设置点击事件
                     setOnClickListener {
