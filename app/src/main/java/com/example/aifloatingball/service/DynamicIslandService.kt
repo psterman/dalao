@@ -61,6 +61,7 @@ import android.net.Uri
 import android.content.ActivityNotFoundException
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.utils.EngineUtil
+import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.tabs.TabLayout
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
@@ -1176,7 +1177,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             fun bind(engine: SearchEngine) {
                 nameView.text = engine.name
                 descriptionView.text = engine.description
-                iconView.setImageResource(engine.iconResId)
+                FaviconLoader.loadIcon(iconView, engine.searchUrl, engine.iconResId)
             }
         }
     }

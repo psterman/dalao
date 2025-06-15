@@ -29,6 +29,8 @@ import com.example.aifloatingball.manager.ChatManager
 import android.util.Log
 import android.view.ViewTreeObserver
 import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.utils.FaviconLoader
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -235,6 +237,56 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         windowManager?.addView(_floatingView, params)
     }
 
+    private fun populateGlobalAIEngineIcons(container: LinearLayout?) {
+        container ?: return
+        container.removeAllViews()
+        val settingsManager = SettingsManager.getInstance(context)
+        val enabledAIEngineKeys = settingsManager.getEnabledAIEngines()
+
+        val enabledAIEngines = AISearchEngine.DEFAULT_AI_ENGINES.filter {
+            enabledAIEngineKeys.contains(it.name)
+        }
+
+        for (engine in enabledAIEngines) {
+            val iconView = createIconView(engine.name) {
+                (context as? DualFloatingWebViewService)?.performSearch(searchInput?.text.toString(), engine.name)
+            }
+            FaviconLoader.loadIcon(iconView, engine.url, engine.iconResId)
+            container.addView(iconView)
+        }
+    }
+
+    private fun populateEngineIconsForWebView(webViewIndex: Int, container: LinearLayout?, searchInput: EditText?) {
+        container ?: return
+        container.removeAllViews()
+        val settingsManager = SettingsManager.getInstance(context)
+        val enabledEngineKeys = settingsManager.getEnabledSearchEngines()
+
+        val enabledEngines = SearchEngine.DEFAULT_ENGINES.filter {
+            enabledEngineKeys.contains(it.name)
+        }
+
+        for (engine in enabledEngines) {
+            val iconView = createIconView(engine.name) {
+                val query = searchInput?.text?.toString() ?: ""
+                (context as? DualFloatingWebViewService)?.performSearchInWebView(webViewIndex, query, engine.name)
+            }
+            FaviconLoader.loadIcon(iconView, engine.url, engine.iconResId)
+            container.addView(iconView)
+        }
+    }
+
+    private fun createIconView(engineKey: String, onClick: () -> Unit): ImageView {
+        return ImageView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(36), dpToPx(36)).also {
+                it.setMargins(dpToPx(4), 0, dpToPx(4), 0)
+            }
+            scaleType = ScaleType.CENTER_CROP
+            contentDescription = engineKey
+            setOnClickListener { onClick() }
+        }
+    }
+
     private fun getDomainFromEngineKey(engineKey: String): String {
         // This logic is derived from EngineUtil.getEngineIconUrl's internal domain resolution
         return when(engineKey) {
@@ -266,43 +318,6 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             "poe" -> "poe.com"
             "deepseek_chat" -> "deepseek.com"
             else -> "google.com" // Default domain if key is unknown
-        }
-    }
-
-    /**
-     * 填充指定WebView的搜索引擎图标
-     * @param position WebView的索引 (0, 1, 2)
-     * @param stdContainer 用于标准搜索引擎图标的LinearLayout
-     * @param searchInput EditText，用于获取当前搜索框内容，以便点击图标时进行搜索
-     */
-    @SuppressLint("ClickableViewAccessibility")
-    private fun populateEngineIconsForWebView(webViewIndex: Int, stdContainer: LinearLayout?, searchInput: EditText?) {
-        // AI容器现在是全局的，这个方法不再处理它
-        stdContainer?.removeAllViews()
-
-        // 只处理标准搜索引擎
-        standardEngineKeys.forEach { engineKey ->
-            val icon = ImageView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).also {
-                    it.marginEnd = dpToPx(8)
-                    }
-                    scaleType = ScaleType.CENTER_CROP
-                    setOnClickListener {
-                    val query = searchInput?.text.toString()
-                    (context as? DualFloatingWebViewService)?.performSearchInWebView(webViewIndex, query, engineKey)
-                }
-            }
-
-            val iconUrl = EngineUtil.getEngineIconUrl(engineKey)
-            val placeholderResId = EngineUtil.getPlaceholder(engineKey)
-            
-            Glide.with(context)
-                .load(iconUrl)
-                .placeholder(placeholderResId)
-                .error(placeholderResId)
-                .into(icon)
-            
-            stdContainer?.addView(icon)
         }
     }
 
@@ -508,46 +523,6 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             1 -> secondWebView
             2 -> thirdWebView
             else -> null
-        }
-    }
-
-    // 新增方法：填充全局AI搜索引擎栏
-    private fun populateGlobalAIEngineIcons(container: LinearLayout?) {
-        if (container == null) return
-        container.removeAllViews()
-        val enabledKeys = getEnabledAIEngineKeys()
-
-        for (engineKey in enabledKeys) {
-            val icon = ImageView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).also {
-                    it.marginEnd = dpToPx(8)
-                }
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setOnClickListener {
-                    (context as? DualFloatingWebViewService)?.let { service ->
-                        // 终极修复：直接获取URL并让WebView加载，绕开所有搜索逻辑
-                        val url = EngineUtil.getAISearchEngineHomeUrl(engineKey)
-                        // 对于聊天引擎，其"首页URL"就是特殊的 "chat://" 协议
-                        if (url.startsWith("chat://")) {
-                            val chatEngineKey = url.substringAfter("chat://")
-                            service.chatManager.initWebView(service.webViewManager.getWebViews()[0], chatEngineKey, "")
-                        } else {
-                            service.webViewManager.loadUrlInWebView(0, url)
-                        }
-                    }
-                }
-            }
-            
-            val iconUrl = EngineUtil.getAIEngineIconUrl(engineKey)
-            val placeholder = EngineUtil.getAIEnginePlaceholder(engineKey, context)
-
-            Glide.with(context)
-                .load(iconUrl)
-                .placeholder(placeholder)
-                .error(placeholder)
-                .into(icon)
-            
-            container.addView(icon)
         }
     }
 

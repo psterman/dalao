@@ -47,6 +47,7 @@ import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.SearchEngineShortcut
 import com.example.aifloatingball.preference.SearchEngineListPreference
 import com.example.aifloatingball.utils.EngineUtil
+import com.example.aifloatingball.utils.FaviconLoader
 import com.example.aifloatingball.utils.TextSelectionHelper
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -120,6 +121,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private var aiSearchEngines: List<AISearchEngine> = emptyList()
     private var regularSearchEngines: List<SearchEngine> = emptyList()
     private lateinit var settingsManager: SettingsManager
+    private lateinit var faviconLoader: FaviconLoader
     
     // 广播接收器，用于接收搜索引擎快捷方式更新通知
     private val shortcutsUpdateReceiver = object : BroadcastReceiver() {
@@ -1066,7 +1068,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         val iconResId = getIconResourceForDomain(shortcut.domain)
         
         // 设置图标，优先使用本地资源，然后尝试从网络加载
-        iconView.setImageResource(iconResId)
+        FaviconLoader.loadIcon(iconView, shortcut.url, iconResId)
         
         // 设置图标背景色 - 更柔和的颜色
         iconView.setBackgroundResource(R.drawable.search_item_background)
@@ -1076,10 +1078,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         nameView.text = shortcut.name
         nameView.setTextColor(Color.parseColor("#5F6368"))
         
-        // 如果有有效的域名，尝试从网络加载图标
-        if (shortcut.domain.isNotEmpty() && !shortcut.domain.equals("localhost")) {
-            loadIconForDomain(shortcut.domain, iconView, iconResId)
-        }
+        // 旧的图标加载逻辑已被 FaviconLoader 替代
         
         // 为多引擎快捷方式添加标记
         if (shortcut.name.contains("+") && iconContainer != null) {
@@ -1299,7 +1298,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
                     
                     // 设置图标
-                    setImageResource(config.iconResId)
                     
                     // 设置点击事件
                     setOnClickListener {
@@ -1321,7 +1319,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 }
                 
                 // 加载应用图标
-                loadFaviconForApp(button, getDomainForApp(config.appId), config.iconResId)
+                val domain = getDomainForApp(config.appId)
+                if (domain.isNotEmpty()) {
+                    FaviconLoader.loadIcon(button, "https://$domain", config.iconResId)
+                }
                 
                 // 添加按钮到容器
                 appSearchContainer?.addView(button)
@@ -2119,9 +2120,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         (iconView.background as GradientDrawable).setColor(Color.parseColor(backgroundColor))
         
         // 如果有有效的key，尝试从网络加载图标
-        if (key.isNotEmpty()) {
-            loadIconWithEngineUtil(key, iconView, finalIconResId)
-        }
+        FaviconLoader.loadIcon(iconView, url, finalIconResId)
         
         // 设置名称
         nameView.text = name
@@ -2141,85 +2140,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         return view
     }
     
-    // 使用Glide库加载网站图标
-    private fun loadIconWithEngineUtil(engineKey: String, imageView: ImageView, fallbackResId: Int) {
-        try {
-            val iconUrl = EngineUtil.getEngineIconUrl(engineKey)
-            
-            if (iconUrl.isEmpty()) {
-                imageView.setImageResource(fallbackResId)
-                return
-            }
-            
-            Glide.with(this)
-                .load(iconUrl)
-                .placeholder(fallbackResId)
-                .error(fallbackResId)
-                .into(imageView)
-                
-        } catch (e: Exception) {
-            Log.e("FloatingWindowService", "使用Glide加载图标失败 for key: $engineKey", e)
-            imageView.setImageResource(fallbackResId)
-        }
-    }
-
-    private fun loadIconForDomain(domain: String, imageView: ImageView, fallbackResId: Int) {
-        try {
-            // 如果域名为空或无效，直接使用备用图标
-            if (domain.isEmpty() || domain == "localhost") {
-                imageView.setImageResource(fallbackResId)
-                return
-            }
-            
-            // 准备favicon URL
-            val faviconUrl = "https://www.google.com/s2/favicons?sz=64&domain_url=https://$domain"
-            
-            // 使用Glide加载图标 - 自动处理缓存和线程
-            Glide.with(applicationContext)  // 使用applicationContext避免内存泄漏
-                .load(faviconUrl)
-                .placeholder(fallbackResId) // 加载过程中显示
-                .error(fallbackResId) // 加载失败时显示
-                .fallback(fallbackResId) // URL为null时显示
-                .timeout(5000) // 设置超时时间
-                .transition(com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions.withCrossFade(200))
-                .into(object : com.bumptech.glide.request.target.CustomTarget<android.graphics.drawable.Drawable>() {
-                    override fun onResourceReady(
-                        resource: android.graphics.drawable.Drawable,
-                        transition: com.bumptech.glide.request.transition.Transition<in android.graphics.drawable.Drawable>?
-                    ) {
-                        try {
-                            // 确保ImageView仍然有效
-                            if (imageView.isAttachedToWindow) {
-                                imageView.setImageDrawable(resource)
-                            }
-                        } catch (e: Exception) {
-                            Log.e(TAG, "设置图标失败: ${e.message}")
-                            imageView.setImageResource(fallbackResId)
-                        }
-                    }
-                    
-                    override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) {
-                        // 当资源被清除时回调
-                        try {
-                            imageView.setImageResource(fallbackResId)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "清除图标失败: ${e.message}")
-                        }
-                    }
-                })
-            
-            Log.d(TAG, "请求加载图标: $domain")
-        } catch (e: Exception) {
-            Log.e(TAG, "图标加载初始化失败: ${e.message}")
-            // 出错时直接显示备用图标
-            try {
-                imageView.setImageResource(fallbackResId)
-            } catch (ex: Exception) {
-                Log.e(TAG, "备用图标设置失败: ${ex.message}")
-            }
-        }
-    }
-
     // 根据域名获取正确的图标资源
     private fun getIconResourceForDomain(domain: String): Int {
         // 尝试使用EngineUtil获取图标
