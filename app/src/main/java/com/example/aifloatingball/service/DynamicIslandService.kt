@@ -1184,31 +1184,40 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun loadSearchCategories(): List<SearchCategory> {
         val categories = mutableListOf<SearchCategory>()
 
-        // 1. 从设置中加载启用的普通搜索引擎
-        val enabledSearchEngineNames = settingsManager.getEnabledSearchEngines()
-        val regularEngines = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES
-            .filter { enabledSearchEngineNames.contains(it.name) }
-            .map {
-                SearchEngine(
-                    name = it.name,
-                    description = it.name, // 您可以稍后添加更详细的描述
-                    iconResId = it.iconResId,
-                    searchUrl = it.searchUrl
-                )
-            }
+        // Part 1: Load REGULAR search engines using the group logic (the "before" logic)
+        val allGroups = settingsManager.getSearchEngineGroups()
+        val enabledGroups = allGroups.filter { it.isEnabled }
+        val regularEnginesFromGroups = mutableListOf<SearchEngine>()
 
-        if (regularEngines.isNotEmpty()) {
-            categories.add(SearchCategory("普通搜索引擎", regularEngines))
+        enabledGroups.forEach { group ->
+            group.engines.forEach { engine ->
+                // Ensure we don't add AI engines here to avoid duplication
+                val isAI = com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES.any { it.name == engine.name }
+                if (!isAI) {
+                    regularEnginesFromGroups.add(
+                        SearchEngine(
+                            name = engine.name,
+                            description = engine.name,
+                            iconResId = engine.iconResId,
+                            searchUrl = engine.searchUrl
+                        )
+                    )
+                }
+            }
         }
 
-        // 2. 从设置中加载启用的AI搜索引擎
+        if (regularEnginesFromGroups.isNotEmpty()) {
+            categories.add(SearchCategory("普通搜索引擎", regularEnginesFromGroups.distinctBy { it.name }))
+        }
+
+        // Part 2: Load AI search engines using the enabled list logic (the "new, correct" logic)
         val enabledAIEngineNames = settingsManager.getEnabledAIEngines()
         val aiEngines = com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES
             .filter { enabledAIEngineNames.contains(it.name) }
             .map {
                 SearchEngine(
                     name = it.name,
-                    description = it.name, // 您可以稍后添加更详细的描述
+                    description = it.name,
                     iconResId = it.iconResId,
                     searchUrl = it.searchUrl
                 )
