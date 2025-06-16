@@ -72,7 +72,7 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 1,
                 iconResId = R.drawable.ic_wechat,
-                searchUrl = "weixin://sogousearch/search/" // 示例URL，实际可能不同
+                searchUrl = "weixin://" // 微信没有直接的搜索Scheme，只能启动应用
             ),
             AppSearchConfig(
                 appId = "taobao",
@@ -81,7 +81,7 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 2,
                 iconResId = R.drawable.ic_taobao,
-                searchUrl = "taobao://s.taobao.com/search?q="
+                searchUrl = "taobao://s.taobao.com/search?q={q}"
             ),
             AppSearchConfig(
                 appId = "pdd",
@@ -90,7 +90,7 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 3,
                 iconResId = R.drawable.ic_app_search_default,
-                searchUrl = "pinduoduo://com.xunmeng.pinduoduo/search_result.html?keyword="
+                searchUrl = "pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key={q}"
             ),
             AppSearchConfig(
                 appId = "douyin",
@@ -99,7 +99,7 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 4,
                 iconResId = R.drawable.ic_douyin,
-                searchUrl = "snssdk1128://search/live?keyword="
+                searchUrl = "snssdk1128://search/tabs?keyword={q}"
             ),
             AppSearchConfig(
                 appId = "xiaohongshu",
@@ -107,8 +107,143 @@ class AppSearchSettings(context: Context) {
                 packageName = "com.xingin.xhs",
                 isEnabled = true,
                 order = 5,
+                iconResId = R.drawable.ic_xiaohongshu,
+                searchUrl = "xhsdiscover://search/result?keyword={q}"
+            ),
+            AppSearchConfig(
+                appId = "meituan",
+                appName = "美团",
+                packageName = "com.sankuai.meituan",
+                isEnabled = true,
+                order = 6,
                 iconResId = R.drawable.ic_app_search_default,
-                searchUrl = "xhsdiscover://search/notes?keyword="
+                searchUrl = "imeituan://www.meituan.com/search?q={q}"
+            ),
+            AppSearchConfig(
+                appId = "douban",
+                appName = "豆瓣",
+                packageName = "com.douban.frodo",
+                isEnabled = false,
+                order = 7,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "douban:///search?q={q}"
+            ),
+            AppSearchConfig(
+                appId = "weibo",
+                appName = "微博",
+                packageName = "com.sina.weibo",
+                isEnabled = false,
+                order = 8,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "sinaweibo://searchall?q={q}"
+            ),
+            AppSearchConfig(
+                appId = "tiktok",
+                appName = "TikTok",
+                packageName = "com.zhiliaoapp.musically",
+                isEnabled = false,
+                order = 9,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "snssdk1128://search/tabs?keyword={q}" // 与抖音相同
+            ),
+            AppSearchConfig(
+                appId = "twitter",
+                appName = "Twitter-X",
+                packageName = "com.twitter.android",
+                isEnabled = false,
+                order = 10,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "twitter://search?query={q}"
+            ),
+            AppSearchConfig(
+                appId = "zhihu",
+                appName = "知乎",
+                packageName = "com.zhihu.android",
+                isEnabled = false,
+                order = 11,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "zhihu://search?q={q}"
+            ),
+            AppSearchConfig(
+                appId = "bilibili",
+                appName = "哔哩哔哩",
+                packageName = "tv.danmaku.bili",
+                isEnabled = false,
+                order = 12,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "bilibili://search?keyword={q}"
+            ),
+            AppSearchConfig(
+                appId = "youtube",
+                appName = "YouTube",
+                packageName = "com.google.android.youtube",
+                isEnabled = false,
+                order = 13,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "youtube://results?search_query={q}"
+            ),
+            AppSearchConfig(
+                appId = "spotify",
+                appName = "Spotify",
+                packageName = "com.spotify.music",
+                isEnabled = false,
+                order = 14,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "spotify:search:{q}"
+            ),
+            AppSearchConfig(
+                appId = "tmall",
+                appName = "天猫",
+                packageName = "com.tmall.wireless",
+                isEnabled = false,
+                order = 15,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "tmall://page.tm/search?q={q}"
+            ),
+            AppSearchConfig(
+                appId = "jd",
+                appName = "京东",
+                packageName = "com.jingdong.app.mall",
+                isEnabled = false,
+                order = 16,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "openjd://virtual?params={\"des\":\"productList\",\"keyWord\":\"{q}\"}"
+            ),
+            AppSearchConfig(
+                appId = "xianyu",
+                appName = "闲鱼",
+                packageName = "com.taobao.idlefish",
+                isEnabled = false,
+                order = 17,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "fleamarket://x_search_items" // 闲鱼不支持直接带关键词
+            ),
+            AppSearchConfig(
+                appId = "dianping",
+                appName = "大众点评",
+                packageName = "com.dianping.v1",
+                isEnabled = false,
+                order = 18,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "dianping://searchshoplist?keyword={q}"
+            ),
+            AppSearchConfig(
+                appId = "chrome",
+                appName = "Chrome",
+                packageName = "com.android.chrome",
+                isEnabled = false,
+                order = 19,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "googlechrome://www.google.com/search?q={q}"
+            ),
+            AppSearchConfig(
+                appId = "eudic",
+                appName = "欧路词典",
+                packageName = "com.eusoft.eudic",
+                isEnabled = false,
+                order = 20,
+                iconResId = R.drawable.ic_app_search_default,
+                searchUrl = "eudic://dict/{q}"
             )
         )
     }

@@ -496,12 +496,20 @@ class SettingsManager private constructor(context: Context) {
 
     // 获取默认的应用搜索列表
     private fun getDefaultAppSearches(): Set<String> {
-        return setOf("taobao", "pdd", "douyin", "xiaohongshu")
+        return setOf(
+            "taobao", "pdd", "douyin", "xiaohongshu",
+            "meituan", "douban", "weibo", "weibo_lite", "tiktok", "twitter", "zhihu", "bilibili",
+            "youtube", "spotify", "tmall", "jd", "xianyu", "dianping", "chrome", "eudic"
+        )
     }
 
     // 获取默认的应用搜索排序
     private fun getDefaultAppSearchOrder(): List<String> {
-        return listOf("taobao", "pdd", "douyin", "xiaohongshu")
+        return listOf(
+            "taobao", "pdd", "douyin", "xiaohongshu",
+            "meituan", "douban", "weibo", "weibo_lite", "tiktok", "twitter", "zhihu", "bilibili",
+            "youtube", "spotify", "tmall", "jd", "xianyu", "dianping", "chrome", "eudic"
+        )
     }
 
     // 获取应用搜索配置
@@ -511,7 +519,7 @@ class SettingsManager private constructor(context: Context) {
                 id = "taobao",
                 name = "淘宝",
                 packageName = "com.taobao.taobao",
-                searchScheme = "taobao://search.taobao.com/search?q={query}",
+                searchScheme = "taobao://s.taobao.com/search?q={query}",
                 webUrl = "https://s.taobao.com/search?q={query}",
                 iconResId = R.drawable.ic_taobao
             ),
@@ -538,6 +546,134 @@ class SettingsManager private constructor(context: Context) {
                 searchScheme = "xhsdiscover://search/result?keyword={query}",
                 webUrl = "https://www.xiaohongshu.com/search_result?keyword={query}",
                 iconResId = R.drawable.ic_xiaohongshu
+            ),
+            "meituan" to AppSearchConfig(
+                id = "meituan",
+                name = "美团",
+                packageName = "com.sankuai.meituan",
+                searchScheme = "imeituan://www.meituan.com/search?q={query}",
+                webUrl = "https://i.meituan.com/s?w={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "douban" to AppSearchConfig(
+                id = "douban",
+                name = "豆瓣",
+                packageName = "com.douban.frodo",
+                searchScheme = "douban://search?q={query}",
+                webUrl = "https://www.douban.com/search?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "weibo" to AppSearchConfig(
+                id = "weibo",
+                name = "微博",
+                packageName = "com.sina.weibo",
+                searchScheme = "sinaweibo://searchall?q={query}",
+                webUrl = "https://s.weibo.com/weibo?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "weibo_lite" to AppSearchConfig(
+                id = "weibo_lite",
+                name = "微博轻享版",
+                packageName = "com.weico.international",
+                searchScheme = "weibolife://search?q={query}",
+                webUrl = "https://s.weibo.com/weibo?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "tiktok" to AppSearchConfig(
+                id = "tiktok",
+                name = "TikTok",
+                packageName = "com.zhiliaoapp.musically",
+                searchScheme = "snssdk1233://search?keyword={query}",
+                webUrl = "https://www.tiktok.com/search?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "twitter" to AppSearchConfig(
+                id = "twitter",
+                name = "Twitter-X",
+                packageName = "com.twitter.android",
+                searchScheme = "twitter://search?query={query}",
+                webUrl = "https://twitter.com/search?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "zhihu" to AppSearchConfig(
+                id = "zhihu",
+                name = "知乎",
+                packageName = "com.zhihu.android",
+                searchScheme = "zhihu://search?q={query}",
+                webUrl = "https://www.zhihu.com/search?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "bilibili" to AppSearchConfig(
+                id = "bilibili",
+                name = "哔哩哔哩",
+                packageName = "tv.danmaku.bili",
+                searchScheme = "bilibili://search?keyword={query}",
+                webUrl = "https://search.bilibili.com/all?keyword={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "youtube" to AppSearchConfig(
+                id = "youtube",
+                name = "YouTube",
+                packageName = "com.google.android.youtube",
+                searchScheme = "youtube://results?search_query={query}",
+                webUrl = "https://m.youtube.com/results?search_query={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "spotify" to AppSearchConfig(
+                id = "spotify",
+                name = "Spotify",
+                packageName = "com.spotify.music",
+                searchScheme = "spotify:search:{query}",
+                webUrl = "https://open.spotify.com/search/{query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "tmall" to AppSearchConfig(
+                id = "tmall",
+                name = "天猫",
+                packageName = "com.tmall.wireless",
+                searchScheme = "tmall://page.tm/search?q={query}",
+                webUrl = "https://list.tmall.com/search_product.htm?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "jd" to AppSearchConfig(
+                id = "jd",
+                name = "京东",
+                packageName = "com.jingdong.app.mall",
+                searchScheme = "openapp.jdmobile://virtual?params={\"category\":\"jump\",\"des\":\"search\",\"keyword\":\"{query}\"}",
+                webUrl = "https://so.m.jd.com/ware/search.action?keyword={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "xianyu" to AppSearchConfig(
+                id = "xianyu",
+                name = "闲鱼",
+                packageName = "com.taobao.idlefish",
+                searchScheme = "xianyu://search?q={query}",
+                webUrl = "https://s.2.taobao.com/list/list.htm?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "dianping" to AppSearchConfig(
+                id = "dianping",
+                name = "大众点评",
+                packageName = "com.dianping.v1",
+                searchScheme = "dianping://searchshop?keyword={query}",
+                webUrl = "https://m.dianping.com/search/keyword?keyword={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "chrome" to AppSearchConfig(
+                id = "chrome",
+                name = "Chrome",
+                packageName = "com.android.chrome",
+                searchScheme = "googlechrome://navigate?url=https://www.google.com/search?q={query}",
+                webUrl = "https://www.google.com/search?q={query}",
+                iconResId = R.drawable.ic_search
+            ),
+            "eudic" to AppSearchConfig(
+                id = "eudic",
+                name = "欧路词典",
+                packageName = "com.eusoft.eudic",
+                searchScheme = "eudic://dict/{query}",
+                webUrl = "https://dict.eudic.net/dicts/en/{query}",
+                iconResId = R.drawable.ic_search
             )
         )
     }

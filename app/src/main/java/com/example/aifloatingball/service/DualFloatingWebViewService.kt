@@ -279,7 +279,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         if (webViewManager.getWebViews().isEmpty()) {
             Log.e(TAG, "无法确定要使用的窗口数量，因为没有可用的 WebView。")
             // 可以在这里尝试重新初始化或延迟，但现在只返回以防止崩溃
-            return
+            return 
         }
         val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
         currentWindowCount = windowCountToUse
@@ -409,7 +409,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     private fun isAIEngine(engineKey: String): Boolean {
         val aiEngineKeys = listOf("chatgpt", "chatgpt_chat", "claude", "gemini", "wenxin", "chatglm",
-            "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek", "deepseek_chat")
+                                   "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek", "deepseek_chat")
         return aiEngineKeys.any { it.equals(engineKey, ignoreCase = true) }
     }
 

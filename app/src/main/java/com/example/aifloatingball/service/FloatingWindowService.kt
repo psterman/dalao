@@ -43,6 +43,7 @@ import com.example.aifloatingball.VoiceRecognitionActivity
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.manager.SearchEngineManager
 import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.model.AppSearchConfig
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.SearchEngineShortcut
 import com.example.aifloatingball.preference.SearchEngineListPreference
@@ -65,6 +66,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.inputmethod.InputMethodManager
 import android.content.SharedPreferences
+import java.net.URLEncoder
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
     // 添加TAG常量
@@ -87,7 +89,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private var isListening = false
     private var hasPerformedAction = false  // 添加动作执行状态标记
     private var searchInput: EditText? = null
-    private var textActionMenu: PopupWindow? = null // <-- 添加这一行
+    private var textActionMenu: PopupWindow? = null
     
     private lateinit var sharedPreferences: SharedPreferences
 
@@ -1279,70 +1281,121 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         try {
             // 获取应用搜索设置实例
             val appSearchSettings = AppSearchSettings.getInstance(this)
-            
+
             // 获取应用搜索容器
             val appSearchContainer = floatingView?.findViewById<LinearLayout>(R.id.app_search_container)
-            appSearchContainer?.removeAllViews()  // 清除现有的按钮
-            
+            appSearchContainer?.removeAllViews()  // 清除现有的视图
+
             // 获取已启用的应用配置（已按顺序排序）
             val enabledApps = appSearchSettings.getEnabledAppConfigs()
-            
-            // 为每个启用的应用创建搜索按钮
-            enabledApps.forEach { config ->
-                val button = ImageButton(this).apply {
-                    id = View.generateViewId()
-                    layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx()).apply {
-                        setMargins(4.dpToPx(), 4.dpToPx(), 4.dpToPx(), 4.dpToPx())
-                    }
-                    background = getDrawable(R.drawable.circle_ripple)
-                    contentDescription = "${config.appName}搜索"
-                    setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
-                    
-                    // 设置图标
-                    setImageResource(config.iconResId)
-                    
-                    // 设置点击事件
-                    setOnClickListener {
-                val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
-                if (searchQuery.isEmpty()) {
-                            Toast.makeText(this@FloatingWindowService, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                        
-                        // 根据应用ID调用相应的搜索方法
-                        when (config.appId) {
-                            "wechat" -> openWechatApp(searchQuery)
-                            "taobao" -> openTaobaoApp(searchQuery)
-                            "pdd" -> openPDDApp(searchQuery)
-                            "douyin" -> openDouyinApp(searchQuery)
-                            "xiaohongshu" -> openXiaohongshuApp(searchQuery)
-                        }
-                    }
-                }
-                
-                // 加载应用图标
-                val domain = getDomainForApp(config.appId)
-                if (domain.isNotEmpty()) {
-                    FaviconLoader.loadIcon(button, "https://$domain", config.iconResId)
-                }
-                
-                // 添加按钮到容器
-                appSearchContainer?.addView(button)
+            if (enabledApps.isEmpty()) {
+                appSearchContainer?.visibility = View.GONE
+                return
             }
-            
-            Log.d(TAG, "应用搜索按钮初始化完成，共添加 ${enabledApps.size} 个按钮")
-            
+            appSearchContainer?.visibility = View.VISIBLE
+
+            // 创建水平滚动视图
+            val horizontalScrollView = HorizontalScrollView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                isHorizontalScrollBarEnabled = false
+            }
+
+            // 创建一个新的线性布局来放置按钮
+            val buttonContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            // 遍历启用的应用配置，为每个应用创建和添加按钮
+            for (appConfig in enabledApps) {
+                val button = ImageButton(this).apply {
+                    // 设置布局参数
+                    val size = (48 * resources.displayMetrics.density).toInt()
+                    layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                        marginEnd = (8 * resources.displayMetrics.density).toInt()
+                    }
+                    // 加载图标
+                    val domain = getDomainForApp(appConfig.appId)
+                    FaviconLoader.loadIcon(this, "https://$domain", appConfig.iconResId)
+
+                    // 为按钮设置点击监听器
+                    setOnClickListener {
+                        val query = floatingView?.findViewById<EditText>(R.id.search_bar)?.text?.toString() ?: ""
+                        if (query.isNotEmpty()) {
+                            openAppSearch(appConfig, query)
+                        } else {
+                            // 如果没有输入，则直接打开应用
+                            val intent = packageManager.getLaunchIntentForPackage(appConfig.packageName)
+                            if (intent != null) {
+                                context.startActivity(intent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                            } else {
+                                Toast.makeText(context, "未安装 ${appConfig.appName}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        // 点击后关闭悬浮窗
+                        this@FloatingWindowService.stopSelf()
+                    }
+                }
+                buttonContainer.addView(button)
+            }
+            // 将按钮容器添加到水平滚动视图中
+            horizontalScrollView.addView(buttonContainer)
+            // 将水平滚动视图添加到主容器中
+            appSearchContainer?.addView(horizontalScrollView)
+
         } catch (e: Exception) {
-            Log.e(TAG, "初始化应用搜索按钮失败: ${e.message}")
+            Log.e("FloatingWindowService", "Error in initializeAppSearchButtons", e)
+            Toast.makeText(this, "初始化应用搜索按钮时出错", Toast.LENGTH_SHORT).show()
         }
     }
-    
-    // 辅助方法：dp转px
-    private fun Int.dpToPx(): Int {
-        val scale = resources.displayMetrics.density
-        return (this * scale + 0.5f).toInt()
+
+    // 通用的应用内搜索启动方法
+    private fun openAppSearch(config: AppSearchConfig, query: String) {
+        if (config.searchUrl.isBlank() || config.searchUrl.endsWith("://")) {
+            Toast.makeText(this, "${config.appName} 不支持搜索", Toast.LENGTH_SHORT).show()
+            // 尝试直接启动应用
+            val intent = packageManager.getLaunchIntentForPackage(config.packageName)
+            if (intent != null) {
+                startActivity(intent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+            }
+            return
+        }
+
+        try {
+            val encodedQuery = URLEncoder.encode(query, "UTF-8")
+            val url = config.searchUrl.replace("{q}", encodedQuery)
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                setPackage(config.packageName) // 明确指定包名，避免歧义
+            }
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "未安装 ${config.appName} 或不支持此操作", Toast.LENGTH_SHORT).show()
+            // 尝试通过Play Store打开
+            try {
+                val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${config.packageName}")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(marketIntent)
+            } catch (anfe: ActivityNotFoundException) {
+                // 如果没有安装Play Store，则通过浏览器打开
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=${config.packageName}")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(webIntent)
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowService", "无法打开 ${config.appName}", e)
+            Toast.makeText(this, "打开 ${config.appName} 时出错", Toast.LENGTH_SHORT).show()
+        }
     }
-    
+
     // 获取应用对应的域名
     private fun getDomainForApp(appId: String): String {
         return when (appId) {
@@ -1351,7 +1404,22 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             "pdd" -> "pinduoduo.com"
             "douyin" -> "douyin.com"
             "xiaohongshu" -> "xiaohongshu.com"
-            else -> ""
+            "meituan" -> "meituan.com"
+            "douban" -> "douban.com"
+            "weibo" -> "weibo.com"
+            "tiktok" -> "tiktok.com"
+            "twitter" -> "twitter.com"
+            "zhihu" -> "zhihu.com"
+            "bilibili" -> "bilibili.com"
+            "youtube" -> "youtube.com"
+            "spotify" -> "spotify.com"
+            "tmall" -> "tmall.com"
+            "jd" -> "jd.com"
+            "xianyu" -> "2.taobao.com"
+            "dianping" -> "dianping.com"
+            "chrome" -> "google.com"
+            "eudic" -> "eudic.net"
+            else -> "example.com"
         }
     }
 
