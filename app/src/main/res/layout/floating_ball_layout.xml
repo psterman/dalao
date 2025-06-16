@@ -13,28 +13,28 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:background="@drawable/search_container_background"
-        android:elevation="4dp"
-        android:padding="12dp"
-        android:layout_marginBottom="8dp"
+        android:elevation="8dp"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="12dp"
+        android:animateLayoutChanges="true"
         android:visibility="gone">
 
-        <!-- 搜索框容器 - 极简风格 -->
+        <!-- 搜索框 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:background="@drawable/search_input_background"
-            android:layout_marginBottom="8dp">
+            android:layout_marginBottom="12dp">
 
-            <!-- 搜索图标 -->
             <ImageView
-                android:layout_width="18dp"
-                android:layout_height="18dp"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
                 android:src="@drawable/ic_search"
-                android:layout_marginStart="12dp"
-                android:layout_marginEnd="8dp"
-                android:tint="#5F6368"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="12dp"
+                app:tint="#5F6368"
                 android:contentDescription="搜索图标" />
 
             <EditText
@@ -47,163 +47,135 @@
                 android:imeOptions="actionSearch"
                 android:inputType="text"
                 android:paddingStart="0dp"
-                android:paddingEnd="8dp"
+                android:paddingEnd="12dp"
                 android:singleLine="true"
                 android:textSize="16sp"
                 android:textColor="#202124"
                 android:textColorHint="#9AA0A6" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/search_mode_toggle"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                app:icon="@drawable/ic_search"
-                app:iconTint="#5F6368"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                android:background="@android:color/transparent"
-                app:backgroundTint="@android:color/transparent"
-                app:cornerRadius="18dp"
-                android:visibility="gone"
-                android:contentDescription="切换搜索模式" />
+            <ImageButton
+                android:id="@+id/settings_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_settings"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="设置"
+                app:tint="#5F6368"
+                android:layout_marginEnd="8dp"/>
         </LinearLayout>
 
-        <!-- 已保存的搜索引擎组合 - 极简风格 -->
+        <!-- 多组合搜索 -->
+        <TextView
+            android:id="@+id/combo_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="组合搜索"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:textColor="?android:attr/textColorSecondary"
+            android:paddingHorizontal="8dp"
+            android:layout_marginTop="8dp"
+            android:visibility="gone"/>
+
         <LinearLayout
             android:id="@+id/saved_combos_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="@drawable/engine_container_background"
-            android:paddingVertical="6dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:visibility="gone"/>
+        
+        <View
+            android:id="@+id/combo_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="?android:attr/listDivider"
+            android:layout_marginHorizontal="8dp"
+            android:layout_marginTop="4dp"
             android:layout_marginBottom="8dp"
-            android:visibility="gone">
-            
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="收藏"
-                android:textSize="12sp"
-                android:textColor="#5F6368"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="4dp"/>
-                
-            <!-- 水平滚动容器将在代码中添加 -->
-        </LinearLayout>
+            android:visibility="gone"/>
 
-        <!-- AI搜索引擎容器 - 极简风格 -->
+        <!-- AI 搜索 -->
+        <TextView
+            android:id="@+id/ai_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI 搜索"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:textColor="?android:attr/textColorSecondary"
+            android:paddingHorizontal="8dp"
+            android:visibility="gone"/>
+
         <LinearLayout
             android:id="@+id/ai_engines_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="@drawable/engine_container_background"
-            android:paddingVertical="6dp"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone">
-            
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="AI 搜索"
-                android:textSize="12sp"
-                android:textColor="#5F6368"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="4dp"/>
-                
-            <!-- 水平滚动容器将在代码中添加 -->
-        </LinearLayout>
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:visibility="gone"/>
 
-        <!-- 普通搜索引擎容器 - 极简风格 -->
+        <View
+            android:id="@+id/ai_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="?android:attr/listDivider"
+            android:layout_marginHorizontal="8dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone"/>
+
+        <!-- 网络搜索 -->
+        <TextView
+            android:id="@+id/regular_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="网络搜索"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:textColor="?android:attr/textColorSecondary"
+            android:paddingHorizontal="8dp"
+            android:visibility="gone"/>
+
         <LinearLayout
             android:id="@+id/regular_engines_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:background="@drawable/engine_container_background"
-            android:paddingVertical="6dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:visibility="gone"/>
+
+        <View
+            android:id="@+id/regular_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="?android:attr/listDivider"
+            android:layout_marginHorizontal="8dp"
+            android:layout_marginTop="4dp"
             android:layout_marginBottom="8dp"
-            android:visibility="gone">
-            
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="网络搜索"
-                android:textSize="12sp"
-                android:textColor="#5F6368"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="4dp"/>
-                
-            <!-- 水平滚动容器将在代码中添加 -->
-        </LinearLayout>
+            android:visibility="gone"/>
         
-        <!-- 应用搜索容器 -->
+        <!-- 应用内搜索 -->
+        <TextView
+            android:id="@+id/app_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="应用内搜索"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:textColor="?android:attr/textColorSecondary"
+            android:paddingHorizontal="8dp"
+            android:visibility="gone"/>
+
         <LinearLayout
             android:id="@+id/app_search_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:gravity="start|center_vertical"
+            android:visibility="gone"/>
 
-            <ImageButton
-                android:id="@+id/wechat_app_search_button"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_margin="4dp"
-                android:background="@drawable/circle_ripple"
-                android:contentDescription="微信搜索"
-            android:padding="8dp"
-                android:src="@drawable/ic_wechat" />
-
-            <!-- 淘宝搜索按钮 -->
-            <ImageButton
-                android:id="@+id/taobao_app_search_button"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@android:drawable/ic_menu_search"
-                android:background="@drawable/circle_background_orange"
-                android:padding="8dp"
-                android:contentDescription="淘宝搜索"
-                android:layout_marginEnd="8dp"/>
-
-            <!-- 拼多多搜索按钮 -->
-            <ImageButton
-                android:id="@+id/pdd_app_search_button"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@android:drawable/ic_menu_search"
-                android:background="@drawable/circle_background_red"
-                android:padding="8dp"
-                android:contentDescription="拼多多搜索"
-                android:layout_marginEnd="8dp"/>
-
-            <!-- 抖音搜索按钮 -->
-            <ImageButton
-                android:id="@+id/douyin_app_search_button"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@drawable/ic_douyin"
-                android:background="@drawable/circle_background_black"
-                android:padding="8dp"
-                android:contentDescription="抖音搜索"
-                android:layout_marginEnd="8dp"/>
-
-            <!-- 小红书搜索按钮 -->
-            <ImageButton
-                android:id="@+id/xiaohongshu_app_search_button"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@android:drawable/ic_menu_search"
-                android:background="@drawable/circle_background_red"
-                android:padding="8dp"
-                android:contentDescription="小红书搜索"
-                android:layout_marginEnd="8dp"/>
-
-        </LinearLayout>
     </LinearLayout>
 
     <!-- 悬浮球图标，始终显示 -->

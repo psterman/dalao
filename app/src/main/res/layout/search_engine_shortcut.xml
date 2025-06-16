@@ -4,9 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:gravity="center"
-    android:padding="8dp"
-    android:layout_margin="4dp"
-    android:background="@drawable/shortcut_item_background">
+    android:padding="8dp">
 
     <FrameLayout
         android:layout_width="40dp"

@@ -13,7 +13,15 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
+import android.webkit.WebView.HitTestResult
 import com.example.aifloatingball.ui.text.TextSelectionManager
+
+/**
+ * 链接长按监听器
+ */
+interface LinkMenuListener {
+    fun onLinkLongPressed(url: String, x: Int, y: Int)
+}
 
 /**
  * 自定义WebView类
@@ -31,6 +39,7 @@ class CustomWebView @JvmOverloads constructor(
     }
     
     private var textSelectionManager: TextSelectionManager? = null
+    var linkMenuListener: LinkMenuListener? = null
     
     // 长按处理
     private var longPressHandler = Handler(Looper.getMainLooper())
@@ -47,9 +56,22 @@ class CustomWebView @JvmOverloads constructor(
     init {
         // 启用内建的文本选择功能
         isLongClickable = true
-        setOnLongClickListener { 
-            // 使用我们自己的长按处理逻辑
-            false 
+        setOnLongClickListener { v ->
+            val result = (v as WebView).hitTestResult
+            val x = lastTouchX.toInt()
+            val y = lastTouchY.toInt()
+
+            // 检查是否长按了链接
+            if (result.type == HitTestResult.SRC_ANCHOR_TYPE || result.type == HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+                result.extra?.let { url ->
+                    Log.d(TAG, "Link long pressed: $url at ($x, $y)")
+                    linkMenuListener?.onLinkLongPressed(url, x, y)
+                    return@setOnLongClickListener true // 消费事件
+                }
+            }
+            
+            // 如果不是链接，则允许我们自己的文本选择逻辑接管
+            false
         }
         
         // 初始化输入法管理器

@@ -32,6 +32,7 @@ import com.example.aifloatingball.model.AISearchEngine
 import android.widget.ImageView
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.view.MotionEvent
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 
@@ -128,6 +129,16 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         
         // 创建浮动窗口
         windowManager.createFloatingWindow()
+
+        windowManager.floatingView?.setOnTouchListener { _, event ->
+            if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
+                Log.d(TAG, "Outside touch detected, stopping service.")
+                this.stopSelf()
+                true
+            } else {
+                false
+            }
+        }
 
         // 延迟初始化，确保UI已经准备就绪
         handler.postDelayed({
@@ -330,11 +341,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         
         // 重置滚动条
         windowManager.resetScrollPosition()
-        
-        // 设置长按监听器
-        handler.postDelayed({
-            webViewManager.setupLongPressListeners()
-        }, 1000)
     }
 
     /**

@@ -20,7 +20,7 @@ class WebViewManager(
     private val context: Context, 
     private val xmlDefinedWebViews: List<CustomWebView?>,
     private val floatingWindowManager:  FloatingWindowManager
-) {
+) : LinkMenuListener {
     companion object {
         private const val TAG = "WebViewManager"
     }
@@ -37,6 +37,7 @@ class WebViewManager(
         this.webViews.forEachIndexed { index, webView -> 
             Log.d(TAG, "Initializing XML defined WebView at index: $index, ID: ${webView.id}")
             webView.setTextSelectionManager(textSelectionManager)
+            webView.linkMenuListener = this // 设置链接菜单监听器
             
             // 设置输入支持
             webViewInputHelper.prepareWebViewForInput(webView)
@@ -223,15 +224,10 @@ class WebViewManager(
      */
     fun getWebViewCount(): Int = webViews.size
     
-    /**
-     * 设置所有WebView的长按监听器
-     */
-    fun setupLongPressListeners() {
-        webViews.forEach { webView ->
-            webView.setOnLongClickListener { view ->
-                // 处理长按事件
-                true
-            }
+    override fun onLinkLongPressed(url: String, x: Int, y: Int) {
+        activeWebView?.let {
+            Log.d(TAG, "Link menu triggered for URL: $url")
+            textSelectionManager.showLinkMenu(it, url, x, y)
         }
     }
 

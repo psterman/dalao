@@ -689,4 +689,88 @@ class TextSelectionManager(private val context: Context, private val windowManag
             }
         }
     }
+
+    /**
+     * 显示链接操作菜单
+     */
+    fun showLinkMenu(webView: WebView, url: String, x: Int, y: Int) {
+        Log.i(TAG, "[MENU_LIFECYCLE] showLinkMenu: URL=$url, x=$x, y=$y")
+
+        // 如果有其他菜单正在显示，先隐藏
+        if (isMenuShowing.get() || isMenuAnimating.get()) {
+            hideTextSelectionMenu(true)
+            handler.postDelayed({
+                doShowLinkMenu(webView, url, x, y)
+            }, 160)
+            return
+        }
+        doShowLinkMenu(webView, url, x, y)
+    }
+
+    private fun doShowLinkMenu(webView: WebView, url: String, x: Int, y: Int) {
+        if (Looper.myLooper() != Looper.getMainLooper()) return
+
+        val themedContext = ContextThemeWrapper(context, R.style.Theme_AIFloatingBall)
+        floatingMenuView = LayoutInflater.from(themedContext)
+            .inflate(R.layout.link_selection_menu, null).apply {
+                alpha = 0f
+                scaleX = 0.8f
+                scaleY = 0.8f
+                setOnTouchListener { _, event ->
+                    if (event.action == MotionEvent.ACTION_OUTSIDE) {
+                        hideTextSelectionMenu()
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+
+        // Setup menu items for the link menu
+        setupLinkMenuItems(floatingMenuView!!, webView, url)
+
+        val webViewLocation = IntArray(2)
+        webView.getLocationOnScreen(webViewLocation)
+        val absoluteMenuX = webViewLocation[0] + x
+        val absoluteMenuY = webViewLocation[1] + y
+
+        val layoutParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            OVERLAY_WINDOW_TYPE,
+            MENU_WINDOW_FLAGS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            this.x = absoluteMenuX
+            this.y = absoluteMenuY
+        }
+        
+        try {
+            windowManager.addView(floatingMenuView, layoutParams)
+            showMenuWithAnimation(floatingMenuView!!)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding link menu to WindowManager", e)
+        }
+    }
+
+    private fun setupLinkMenuItems(menuView: View, webView: WebView, url: String) {
+        // TODO: Implement actions for link menu
+        // Example:
+        menuView.findViewById<View>(R.id.action_open_in_new_window)?.setOnClickListener {
+            Toast.makeText(context, "新窗口打开: $url", Toast.LENGTH_SHORT).show()
+            hideTextSelectionMenu()
+        }
+        menuView.findViewById<View>(R.id.action_open_in_background)?.setOnClickListener {
+            Toast.makeText(context, "后台打开: $url", Toast.LENGTH_SHORT).show()
+            hideTextSelectionMenu()
+        }
+        menuView.findViewById<View>(R.id.action_copy_link)?.setOnClickListener {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("link URL", url)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(context, "链接已复制", Toast.LENGTH_SHORT).show()
+            hideTextSelectionMenu()
+        }
+    }
 } 

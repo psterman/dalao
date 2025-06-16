@@ -143,7 +143,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
             } else {
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
             },
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -162,6 +162,16 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         Log.d(TAG, "FloatingWindowManager: 创建浮动窗口 createFloatingWindow()")
         val inflater = LayoutInflater.from(context)
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
+        
+        _floatingView?.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_OUTSIDE) {
+                Log.d(TAG, "Outside touch detected, stopping service.")
+                (context as? DualFloatingWebViewService)?.stopSelf()
+                true
+            } else {
+                false
+            }
+        }
         
         webViewContainer = _floatingView?.findViewById(R.id.dual_webview_container)
         webviewsScrollContainer = _floatingView?.findViewById(R.id.webviews_scroll_container)
