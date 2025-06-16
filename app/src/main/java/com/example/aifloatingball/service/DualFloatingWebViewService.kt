@@ -63,6 +63,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         const val ACTION_UPDATE_MENU = "com.example.aifloatingball.ACTION_UPDATE_MENU"
     }
 
+    // 需要自定义UI的聊天引擎列表
+    private val CHAT_UI_ENGINES = listOf("deepseek", "deepseek_chat", "chatgpt", "chatgpt_chat")
+
     // 依赖模块
     private lateinit var notificationManager: ServiceNotificationManager
     internal lateinit var windowManager: FloatingWindowManager
@@ -272,19 +275,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 启用输入 (此处不再每次搜索都调用，由onStartCommand或明确操作控制)
         // updateWindowParameters(true)
         
-        // 获取搜索URL
-        val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
-        
-        if (searchUrl.isBlank() || !searchUrl.startsWith("http")) {
-            Log.e(TAG, "无法获取搜索URL: engineKey='$engineKey'")
-            return
-        }
-        
         // 确定要使用的窗口数量
         if (webViewManager.getWebViews().isEmpty()) {
             Log.e(TAG, "无法确定要使用的窗口数量，因为没有可用的 WebView。")
             // 可以在这里尝试重新初始化或延迟，但现在只返回以防止崩溃
-            return 
+            return
         }
         val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
         currentWindowCount = windowCountToUse
@@ -308,7 +303,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 }
 
                 // 核心修复：将特殊聊天引擎的判断提前
-                if (currentWindowEngineKey.equals("deepseek", ignoreCase = true) || currentWindowEngineKey.equals("deepseek_chat", ignoreCase = true) || currentWindowEngineKey.equals("chatgpt", ignoreCase = true) || currentWindowEngineKey.equals("chatgpt_chat", ignoreCase = true)) {
+                if (CHAT_UI_ENGINES.any { it.equals(currentWindowEngineKey, ignoreCase = true) }) {
                     Log.d(TAG, "检测到聊天引擎，使用ChatManager初始化: $currentWindowEngineKey")
                     chatManager.initWebView(it, currentWindowEngineKey, query)
                 } else {
@@ -413,8 +408,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 判断是否是AI搜索引擎
      */
     private fun isAIEngine(engineKey: String): Boolean {
-        return engineKey in listOf("chatgpt", "chatgpt_chat", "claude", "gemini", "wenxin", "chatglm", 
-                                   "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek", "deepseek_chat")
+        val aiEngineKeys = listOf("chatgpt", "chatgpt_chat", "claude", "gemini", "wenxin", "chatglm",
+            "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek", "deepseek_chat")
+        return aiEngineKeys.any { it.equals(engineKey, ignoreCase = true) }
     }
 
     /**

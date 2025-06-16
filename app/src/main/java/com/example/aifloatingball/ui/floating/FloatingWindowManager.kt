@@ -31,6 +31,7 @@ import android.view.ViewTreeObserver
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.utils.FaviconLoader
+import android.widget.HorizontalScrollView
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -48,6 +49,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         private set  // 设置为私有set，只允许通过特定方法修改
     
     private var webViewContainer: LinearLayout? = null
+    private var webviewsScrollContainer: HorizontalScrollView? = null
     
     private var firstWebView: CustomWebView? = null
     private var secondWebView: CustomWebView? = null
@@ -66,6 +68,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
     private var isDragging = false
     private var lastDragX: Float = 0f
     private var lastDragY: Float = 0f
+    private var lastActiveWebViewIndex = 0 // 追踪当前活动的WebView
     
     private var originalWindowHeight: Int = 0
     private var originalWindowY: Int = 0
@@ -161,6 +164,7 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
         
         webViewContainer = _floatingView?.findViewById(R.id.dual_webview_container)
+        webviewsScrollContainer = _floatingView?.findViewById(R.id.webviews_scroll_container)
         firstWebView = _floatingView?.findViewById(R.id.first_floating_webview)
         secondWebView = _floatingView?.findViewById(R.id.second_floating_webview)
         thirdWebView = _floatingView?.findViewById(R.id.third_floating_webview)
@@ -175,6 +179,8 @@ class FloatingWindowManager(private val context: Context, private val windowStat
 
         // 新增：获取全局AI引擎容器
         val globalAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.global_ai_engine_container)
+        // 新增：获取全局标准引擎容器
+        val globalStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.global_standard_engine_container)
 
         (context as? DualFloatingWebViewService)?.let {
             val initialCount = it.getCurrentWindowCount()
@@ -223,18 +229,32 @@ class FloatingWindowManager(private val context: Context, private val windowStat
 
         // 新增：填充全局AI搜索引擎栏
         populateGlobalAIEngineIcons(globalAiContainer)
+        // 新增：填充全局标准搜索引擎栏
+        populateGlobalStandardEngineIcons(globalStdContainer)
 
-        // 修改：只填充各个WebView的标准搜索引擎
-        val firstStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.first_webview_standard_engine_container)
-        populateEngineIconsForWebView(0, firstStdContainer, searchInput)
-
-        val secondStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.second_webview_standard_engine_container)
-        populateEngineIconsForWebView(1, secondStdContainer, searchInput)
-
-        val thirdStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.third_webview_standard_engine_container)
-        populateEngineIconsForWebView(2, thirdStdContainer, searchInput)
         
         windowManager?.addView(_floatingView, params)
+    }
+
+    private fun determineActiveWebViewIndex(): Int {
+        val container = webviewsScrollContainer ?: return lastActiveWebViewIndex
+
+        // 获取每个WebView容器的宽度（假设它们是固定的320dp）
+        val webViewWidthPx = dpToPx(320)
+        if (webViewWidthPx == 0) return lastActiveWebViewIndex
+
+        // 计算可见区域的中心点
+        val scrollX = container.scrollX
+        val containerWidth = container.width
+        val visibleCenter = scrollX + containerWidth / 2
+
+        // 计算哪个WebView的中心最接近可见区域的中心
+        // (visibleCenter / webViewWidthPx) 会直接给出粗略的索引
+        val activeIndex = (visibleCenter / webViewWidthPx).coerceIn(0, 2)
+
+        Log.d(TAG, "Determined active WebView index: $activeIndex (ScrollX: $scrollX, Center: $visibleCenter)")
+        lastActiveWebViewIndex = activeIndex
+        return activeIndex
     }
 
     private fun populateGlobalAIEngineIcons(container: LinearLayout?) {
@@ -249,7 +269,32 @@ class FloatingWindowManager(private val context: Context, private val windowStat
 
         for (engine in enabledAIEngines) {
             val iconView = createIconView(engine.name) {
-                (context as? DualFloatingWebViewService)?.performSearch(searchInput?.text.toString(), engine.name)
+                // 修改：在当前活动的WebView中执行AI搜索
+                val query = searchInput?.text.toString()
+                val activeIndex = determineActiveWebViewIndex()
+                (context as? DualFloatingWebViewService)?.performSearchInWebView(activeIndex, query, engine.name)
+            }
+            FaviconLoader.loadIcon(iconView, engine.url, engine.iconResId)
+            container.addView(iconView)
+        }
+    }
+
+    private fun populateGlobalStandardEngineIcons(container: LinearLayout?) {
+        container ?: return
+        container.removeAllViews()
+        val settingsManager = SettingsManager.getInstance(context)
+        val enabledEngineKeys = settingsManager.getEnabledSearchEngines()
+
+        val enabledEngines = SearchEngine.DEFAULT_ENGINES.filter {
+            enabledEngineKeys.contains(it.name)
+        }
+
+        for (engine in enabledEngines) {
+            val iconView = createIconView(engine.name) {
+                // 在当前活动的WebView中执行标准搜索
+                val query = searchInput?.text?.toString() ?: ""
+                val activeIndex = determineActiveWebViewIndex()
+                (context as? DualFloatingWebViewService)?.performSearchInWebView(activeIndex, query, engine.name)
             }
             FaviconLoader.loadIcon(iconView, engine.url, engine.iconResId)
             container.addView(iconView)
@@ -424,20 +469,12 @@ class FloatingWindowManager(private val context: Context, private val windowStat
      */
     fun refreshEngineIcons() {
         Log.d("FloatingWindowManager", "刷新搜索引擎图标...")
-        // 重新填充第一个WebView的图标
-        val firstAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.first_webview_ai_engine_container)
-        val firstStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.first_webview_standard_engine_container)
-        populateEngineIconsForWebView(0, firstStdContainer, searchInput)
+        // 更新为刷新全局图标栏
+        val globalAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.global_ai_engine_container)
+        populateGlobalAIEngineIcons(globalAiContainer)
 
-        // 重新填充第二个WebView的图标
-        val secondAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.second_webview_ai_engine_container)
-        val secondStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.second_webview_standard_engine_container)
-        populateEngineIconsForWebView(1, secondStdContainer, searchInput)
-
-        // 重新填充第三个WebView的图标
-        val thirdAiContainer = _floatingView?.findViewById<LinearLayout>(R.id.third_webview_ai_engine_container)
-        val thirdStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.third_webview_standard_engine_container)
-        populateEngineIconsForWebView(2, thirdStdContainer, searchInput)
+        val globalStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.global_standard_engine_container)
+        populateGlobalStandardEngineIcons(globalStdContainer)
         Log.d("FloatingWindowManager", "搜索引擎图标刷新完毕。")
     }
     

@@ -2141,7 +2141,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         
         return view
     }
-    
+
     // 根据域名获取正确的图标资源
     private fun getIconResourceForDomain(domain: String): Int {
         // 尝试使用EngineUtil获取图标
