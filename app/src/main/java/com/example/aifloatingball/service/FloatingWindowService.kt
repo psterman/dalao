@@ -35,6 +35,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.app.NotificationCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsActivity
@@ -194,12 +195,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         searchInput = floatingView?.findViewById(R.id.search_input)
         setupSearchInput()
 
-        val settingsButton = floatingView?.findViewById<ImageButton>(R.id.settings_button)
-        settingsButton?.setOnClickListener {
-            val intent = Intent(this, SettingsActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            hideSearchInterface()
+        val searchModeButton = floatingView?.findViewById<ImageButton>(R.id.search_mode_button)
+        searchModeButton?.setOnClickListener { view ->
+            showSearchModeMenu(view)
         }
 
         updateSearchModeVisibility()
@@ -213,6 +211,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        val savedPosition = settingsManager.getFloatingBallPosition()
+
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -221,8 +221,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = 100
+            x = savedPosition.first
+            y = savedPosition.second
         }
 
         try {
@@ -337,12 +337,29 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             screenWidth = size.x
         }
 
-        if ((params?.x ?: 0) < screenWidth / 2) {
-            params?.x = 0
-        } else {
-            params?.x = screenWidth - (floatingView?.width ?: 0)
+        val handedness = settingsManager.getHandedness()
+
+        when (handedness) {
+            "left" -> { // 左手习惯，靠右
+                params?.x = screenWidth - (floatingView?.width ?: 0)
+            }
+            "right" -> { // 右手习惯，靠左
+                params?.x = 0
+            }
+            else -> { // 自动
+                if ((params?.x ?: 0) < screenWidth / 2) {
+                    params?.x = 0
+                } else {
+                    params?.x = screenWidth - (floatingView?.width ?: 0)
+                }
+            }
         }
+
         windowManager.updateViewLayout(floatingView, params)
+        // 保存最后的位置
+        params?.let {
+            settingsManager.setFloatingBallPosition(it.x, it.y)
+        }
     }
 
     private fun showSearchInterface() {
@@ -656,5 +673,53 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun dpToPx(dp: Int): Int {
         return (dp * resources.displayMetrics.density).toInt()
+    }
+
+    private fun showSearchModeMenu(anchor: View) {
+        val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
+        val popup = PopupMenu(themedContext, anchor)
+        popup.menuInflater.inflate(R.menu.search_display_menu, popup.menu)
+
+        // Set the initial checked state from settings
+        val currentModes = settingsManager.getFloatingWindowDisplayModes()
+        popup.menu.findItem(R.id.menu_show_combo).isChecked = currentModes.contains("combo")
+        popup.menu.findItem(R.id.menu_show_ai).isChecked = currentModes.contains("ai")
+        popup.menu.findItem(R.id.menu_show_normal).isChecked = currentModes.contains("normal")
+        popup.menu.findItem(R.id.menu_show_app).isChecked = currentModes.contains("app")
+
+
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.menu_settings -> {
+                    val intent = Intent(this, SettingsActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    hideSearchInterface()
+                    true // Handled
+                }
+                else -> {
+                    // This block handles the checkable items
+                    item.isChecked = !item.isChecked
+
+                    // Prevent the menu from closing on check/uncheck
+                    item.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW)
+                    item.setActionView(View(this))
+
+                    // Update settings based on the new checked state
+                    val modesToSave = mutableSetOf<String>()
+                    if (popup.menu.findItem(R.id.menu_show_combo).isChecked) modesToSave.add("combo")
+                    if (popup.menu.findItem(R.id.menu_show_ai).isChecked) modesToSave.add("ai")
+                    if (popup.menu.findItem(R.id.menu_show_normal).isChecked) modesToSave.add("normal")
+                    if (popup.menu.findItem(R.id.menu_show_app).isChecked) modesToSave.add("app")
+
+                    settingsManager.setFloatingWindowDisplayModes(modesToSave)
+                    
+                    // Return false to keep the menu open for checkable items
+                    false
+                }
+            }
+        }
+
+        popup.show()
     }
 }

@@ -568,15 +568,35 @@ class SettingsManager private constructor(context: Context) {
     }
 
     fun getFloatingWindowDisplayModes(): Set<String> {
-        try {
-            return prefs.getStringSet("floating_window_display_mode", setOf("normal")) ?: setOf("normal")
-        } catch (e: ClassCastException) {
-            // The preference was likely stored as a String from a previous version.
-            // Read it as a string, convert to a set, and re-save it.
-            val oldValue = prefs.getString("floating_window_display_mode", "normal") ?: "normal"
-            val newValue = setOf(oldValue)
-            prefs.edit().putStringSet("floating_window_display_mode", newValue).apply()
-            return newValue
-        }
+        return prefs.getStringSet("floating_window_display_mode", setOf("combo", "ai", "normal", "app")) ?: setOf("combo", "ai", "normal", "app")
+    }
+
+    fun setFloatingWindowDisplayModes(modes: Set<String>) {
+        prefs.edit().putStringSet("floating_window_display_mode", modes).apply()
+        notifyListeners("floating_window_display_mode", modes)
+    }
+
+    // 新增：保存和获取悬浮球位置
+    fun getFloatingBallPosition(): Pair<Int, Int> {
+        val x = prefs.getInt("floating_ball_x", 0)
+        val y = prefs.getInt("floating_ball_y", 100)
+        return Pair(x, y)
+    }
+
+    fun setFloatingBallPosition(x: Int, y: Int) {
+        prefs.edit()
+            .putInt("floating_ball_x", x)
+            .putInt("floating_ball_y", y)
+            .apply()
+    }
+
+    // 新增：保存和获取左右手习惯
+    fun getHandedness(): String {
+        return prefs.getString("handedness", "auto") ?: "auto"
+    }
+
+    fun setHandedness(mode: String) {
+        prefs.edit().putString("handedness", mode).apply()
+        notifyListeners("handedness", mode)
     }
 }

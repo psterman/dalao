@@ -21,47 +21,38 @@
 
         <!-- 搜索框 -->
         <LinearLayout
+            android:id="@+id/search_bar"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:background="@drawable/search_input_background"
-            android:layout_marginBottom="12dp">
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
 
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+            <ImageButton
+                android:id="@+id/search_mode_button"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
                 android:src="@drawable/ic_search"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="12dp"
-                app:tint="#5F6368"
-                android:contentDescription="搜索图标" />
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="切换搜索模式"
+                android:layout_marginEnd="8dp"/>
 
             <EditText
                 android:id="@+id/search_input"
                 android:layout_width="0dp"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:background="@null"
                 android:hint="搜索..."
                 android:imeOptions="actionSearch"
                 android:inputType="text"
-                android:paddingStart="0dp"
-                android:paddingEnd="12dp"
-                android:singleLine="true"
-                android:textSize="16sp"
-                android:textColor="#202124"
-                android:textColorHint="#9AA0A6" />
-
-            <ImageButton
-                android:id="@+id/settings_button"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:src="@drawable/ic_settings"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="设置"
-                app:tint="#5F6368"
-                android:layout_marginEnd="8dp"/>
+                android:maxLines="1"
+                android:background="@null"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textColorHint="?android:attr/textColorHint"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"/>
         </LinearLayout>
 
         <!-- 多组合搜索 -->
