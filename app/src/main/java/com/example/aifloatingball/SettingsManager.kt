@@ -739,7 +739,16 @@ class SettingsManager private constructor(context: Context) {
         }
     }
 
-    fun getFloatingWindowDisplayMode(): String {
-        return prefs.getString("floating_window_display_mode", "normal") ?: "normal"
+    fun getFloatingWindowDisplayModes(): Set<String> {
+        try {
+            return prefs.getStringSet("floating_window_display_mode", setOf("normal")) ?: setOf("normal")
+        } catch (e: ClassCastException) {
+            // The preference was likely stored as a String from a previous version.
+            // Read it as a string, convert to a set, and re-save it.
+            val oldValue = prefs.getString("floating_window_display_mode", "normal") ?: "normal"
+            val newValue = setOf(oldValue)
+            prefs.edit().putStringSet("floating_window_display_mode", newValue).apply()
+            return newValue
+        }
     }
 }

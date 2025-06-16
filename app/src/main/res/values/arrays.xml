@@ -169,6 +169,10 @@
         <item>combo</item>
     </string-array>
 
+    <string-array name="floating_window_display_mode_default_values">
+        <item>normal</item>
+    </string-array>
+
     <!-- Theme Mode -->
     <string-array name="theme_mode_entries">
         <item>跟随系统</item>

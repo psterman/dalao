@@ -1880,55 +1880,21 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             // 调试：检查容器是否正确初始化
             if (aiEnginesContainer == null || regularEnginesContainer == null || appSearchContainer == null || savedCombosContainer == null) {
                 Log.e(TAG, "搜索引擎容器未正确初始化!")
-                aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
-                regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
-                appSearchContainer = floatingView?.findViewById(R.id.app_search_container)
-                savedCombosContainer = floatingView?.findViewById(R.id.saved_combos_container)
-            }
-            
-            // 根据设置的显示模式，决定显示哪些容器
-            val displayMode = settingsManager.getFloatingWindowDisplayMode()
-            // 新逻辑下，模式切换按钮不再需要，直接隐藏
-            searchModeToggle?.visibility = View.GONE 
-
-            when (displayMode) {
-                "ai" -> {
-                    aiEnginesContainer?.visibility = View.VISIBLE
-                    regularEnginesContainer?.visibility = View.GONE
-                    savedCombosContainer?.visibility = View.GONE
-                    appSearchContainer?.visibility = View.GONE
-                }
-                "app" -> {
-                    aiEnginesContainer?.visibility = View.GONE
-                    regularEnginesContainer?.visibility = View.GONE
-                    savedCombosContainer?.visibility = View.GONE
-                    appSearchContainer?.visibility = View.VISIBLE
-                }
-                "normal" -> {
-                    aiEnginesContainer?.visibility = View.GONE
-                    regularEnginesContainer?.visibility = View.VISIBLE
-                    savedCombosContainer?.visibility = View.GONE
-                    appSearchContainer?.visibility = View.GONE
-                }
-                "combo" -> {
-                    aiEnginesContainer?.visibility = View.GONE
-                    regularEnginesContainer?.visibility = View.GONE
-                    savedCombosContainer?.visibility = View.VISIBLE
-                    appSearchContainer?.visibility = View.GONE
-                }
-                else -> { // 默认为普通模式
-                    aiEnginesContainer?.visibility = View.GONE
-                    regularEnginesContainer?.visibility = View.VISIBLE
-                    savedCombosContainer?.visibility = View.GONE
-                    appSearchContainer?.visibility = View.GONE
-                }
+                return
             }
 
-            Log.d(TAG, "Visibility updated for mode: $displayMode")
-            
+            // 从SettingsManager获取启用的显示模式集合
+            val enabledModes = settingsManager.getFloatingWindowDisplayModes()
+            Log.d(TAG, "Enabled modes: $enabledModes")
+
+            // 根据集合内容设置各个容器的可见性
+            aiEnginesContainer?.visibility = if (enabledModes.contains("ai")) View.VISIBLE else View.GONE
+            regularEnginesContainer?.visibility = if (enabledModes.contains("normal")) View.VISIBLE else View.GONE
+            appSearchContainer?.visibility = if (enabledModes.contains("app")) View.VISIBLE else View.GONE
+            savedCombosContainer?.visibility = if (enabledModes.contains("combo")) View.VISIBLE else View.GONE
+
         } catch (e: Exception) {
-            Log.e(TAG, "更新搜索模式UI失败", e)
-            e.printStackTrace()
+            Log.e(TAG, "更新搜索模式可见性时出错", e)
         }
     }
     

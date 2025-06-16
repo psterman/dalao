@@ -15,14 +15,13 @@
             app:defaultValue="floating_ball"
             app:iconSpaceReserved="false" />
 
-        <ListPreference
+        <MultiSelectListPreference
             app:key="floating_window_display_mode"
             app:title="悬浮窗显示模式"
-            app:summary="选择悬浮窗搜索界面要显示的模块"
+            app:summary="选择悬浮窗搜索界面要显示的模块（可多选）"
             app:entries="@array/floating_window_display_mode_entries"
             app:entryValues="@array/floating_window_display_mode_values"
-            app:defaultValue="normal"
-            app:dependency="display_mode"
+            app:defaultValue="@array/floating_window_display_mode_default_values"
             app:iconSpaceReserved="false" />
 
         <ListPreference
