@@ -20,6 +20,7 @@ import android.view.WindowManager
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
 import android.webkit.WebView
+import android.widget.EditText
 import android.widget.Toast
 import com.example.aifloatingball.R
 import java.util.concurrent.atomic.AtomicBoolean
@@ -770,6 +771,106 @@ class TextSelectionManager(private val context: Context, private val windowManag
             val clip = ClipData.newPlainText("link URL", url)
             clipboard.setPrimaryClip(clip)
             Toast.makeText(context, "链接已复制", Toast.LENGTH_SHORT).show()
+            hideTextSelectionMenu()
+        }
+    }
+
+    /**
+     * 显示针对EditText的文本选择菜单
+     */
+    fun showEditTextSelectionMenu(editText: EditText) {
+        if (isMenuShowing.get() || isMenuAnimating.get()) {
+            hideTextSelectionMenu(false)
+            handler.postDelayed({ doShowEditTextMenu(editText) }, 160)
+        } else {
+            doShowEditTextMenu(editText)
+        }
+    }
+
+    private fun doShowEditTextMenu(editText: EditText) {
+        if (Looper.myLooper() != Looper.getMainLooper()) return
+
+        val themedContext = ContextThemeWrapper(context, R.style.Theme_AIFloatingBall)
+        floatingMenuView = LayoutInflater.from(themedContext)
+            .inflate(R.layout.text_selection_menu, null).apply {
+                alpha = 0f
+                scaleX = 0.8f
+                scaleY = 0.8f
+                setOnTouchListener { _, event ->
+                    if (event.action == MotionEvent.ACTION_OUTSIDE) {
+                        hideTextSelectionMenu()
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+
+        setupEditTextMenuItems(floatingMenuView!!, editText)
+
+        val editTextLocation = IntArray(2)
+        editText.getLocationOnScreen(editTextLocation)
+        val absoluteMenuX = editTextLocation[0] + editText.width / 2
+        val absoluteMenuY = editTextLocation[1] + editText.height
+
+        val layoutParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            OVERLAY_WINDOW_TYPE,
+            MENU_WINDOW_FLAGS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            this.x = absoluteMenuX
+            this.y = absoluteMenuY
+        }
+        
+        try {
+            windowManager.addView(floatingMenuView, layoutParams)
+            showMenuWithAnimation(floatingMenuView!!)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding edit text menu to WindowManager", e)
+        }
+    }
+
+    private fun setupEditTextMenuItems(menuView: View, editText: EditText) {
+        menuView.findViewById<View>(R.id.action_select_all)?.setOnClickListener {
+            editText.selectAll()
+            animateMenuItemAndHide(menuView)
+        }
+        menuView.findViewById<View>(R.id.action_cut)?.setOnClickListener {
+            val start = editText.selectionStart.coerceAtLeast(0)
+            val end = editText.selectionEnd.coerceAtLeast(0)
+            if (start != end) {
+                val textToCut = editText.text.substring(start, end)
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("cut text", textToCut)
+                clipboard.setPrimaryClip(clip)
+                editText.text.delete(start, end)
+                Toast.makeText(context, "已剪切", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+        menuView.findViewById<View>(R.id.action_copy)?.setOnClickListener {
+            val start = editText.selectionStart.coerceAtLeast(0)
+            val end = editText.selectionEnd.coerceAtLeast(0)
+            if (start != end) {
+                val textToCopy = editText.text.substring(start, end)
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("copied text", textToCopy)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+        menuView.findViewById<View>(R.id.action_paste)?.setOnClickListener {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.primaryClip?.getItemAt(0)?.text?.let { pasteData ->
+                val start = editText.selectionStart.coerceAtLeast(0)
+                val end = editText.selectionEnd.coerceAtLeast(0)
+                editText.text.replace(start, end, pasteData)
+                Toast.makeText(context, "已粘贴", Toast.LENGTH_SHORT).show()
+            }
             hideTextSelectionMenu()
         }
     }

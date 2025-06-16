@@ -32,6 +32,7 @@ import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.utils.FaviconLoader
 import android.widget.HorizontalScrollView
+import com.example.aifloatingball.ui.text.TextSelectionManager
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -40,7 +41,11 @@ interface WindowStateCallback {
 /**
  * 浮动窗口管理器，负责创建和管理浮动窗口
  */
-class FloatingWindowManager(private val context: Context, private val windowStateCallback: WindowStateCallback) {
+class FloatingWindowManager(
+    private val context: Context,
+    private val windowStateCallback: WindowStateCallback,
+    private val textSelectionManager: TextSelectionManager
+) {
     private var windowManager: WindowManager? = null
     private var _floatingView: View? = null
     val floatingView: View?
@@ -213,6 +218,10 @@ class FloatingWindowManager(private val context: Context, private val windowStat
         }
         
         searchInput?.setOnClickListener { it.requestFocus() }
+        searchInput?.setOnLongClickListener {
+            textSelectionManager.showEditTextSelectionMenu(it as EditText)
+            true
+        }
 
         saveEnginesButton?.setOnClickListener {
             val query = searchInput?.text.toString()

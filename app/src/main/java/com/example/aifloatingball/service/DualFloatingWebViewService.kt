@@ -215,7 +215,12 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             "Dual Floating WebView Service",
             "Keeps the floating webview service running"
         )
-        windowManager = FloatingWindowManager(this, this)
+        
+        // 提前创建 WebViewManager 和 TextSelectionManager
+        val tempWebViewFactory = com.example.aifloatingball.ui.webview.WebViewFactory(this)
+        textSelectionManager = tempWebViewFactory.textSelectionManager
+        
+        windowManager = FloatingWindowManager(this, this, textSelectionManager)
         searchEngineHandler = SearchEngineHandler()
         intentParser = IntentParser()
         chatManager = ChatManager(this)
@@ -224,7 +229,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 初始化WebViewManager
         val xmlWebViews = windowManager.getXmlDefinedWebViews()
         webViewManager = WebViewManager(this, xmlWebViews, windowManager)
-        textSelectionManager = webViewManager.textSelectionManager
         
         // 设置窗口参数
         updateWindowParameters(true)

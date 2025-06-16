@@ -49,6 +49,7 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.net.URLEncoder
+import com.example.aifloatingball.ui.text.TextSelectionManager
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -83,6 +84,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private lateinit var settingsManager: SettingsManager
     private lateinit var appSearchSettings: AppSearchSettings
+    private lateinit var textSelectionManager: TextSelectionManager
     private var isMenuVisible: Boolean = false
 
     private var aiSearchEngines: List<AISearchEngine> = emptyList()
@@ -117,6 +119,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         settingsManager.registerOnSharedPreferenceChangeListener(this)
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        textSelectionManager = TextSelectionManager(this, windowManager)
         initializeViews()
         setupFloatingBall()
         loadSearchEngines()
@@ -191,6 +194,14 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         searchInput = floatingView?.findViewById(R.id.search_input)
         setupSearchInput()
 
+        val settingsButton = floatingView?.findViewById<ImageButton>(R.id.settings_button)
+        settingsButton?.setOnClickListener {
+            val intent = Intent(this, SettingsActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            hideSearchInterface()
+        }
+
         updateSearchModeVisibility()
     }
 
@@ -230,6 +241,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             } else {
                 false
             }
+        }
+        searchInput?.setOnLongClickListener {
+            // It's safe to cast here as we know searchInput is an EditText
+            textSelectionManager.showEditTextSelectionMenu(it as EditText)
+            true // Consume the long click event
         }
     }
 
