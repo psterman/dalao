@@ -725,13 +725,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             if (hasFocus) {
                 params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) ?: 0
                 windowManager?.updateViewLayout(floatingView, params)
-                searchModeToggle?.visibility = View.VISIBLE
                 updateSearchModeVisibility()
                 showKeyboard(view)
             } else {
                 hideKeyboard()
                 handler.postDelayed({
-                    searchModeToggle?.visibility = View.GONE
                     // 当失去焦点时，也恢复窗口的FLAG_NOT_FOCUSABLE属性
                     params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
                     try {
@@ -1455,6 +1453,12 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 stopSelf()
             }
         }
+        if (key == "floating_window_display_mode") {
+            // 当显示模式改变时，如果搜索界面是可见的，就更新它
+            if(isMenuVisible) {
+                updateSearchModeVisibility()
+            }
+        }
     }
 
     // 使用特定搜索引擎进行搜索
@@ -1840,15 +1844,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                             .setDuration(250)
                             .setInterpolator(android.view.animation.DecelerateInterpolator())
                             .withStartAction {
-                                // 显示所有需要的UI元素
-                                searchModeToggle?.visibility = View.VISIBLE
-                                
-                                // 先更新搜索模式
+                                // 更新模块可见性
                                 updateSearchModeVisibility()
-                                
-                                // 再显示容器
-                                savedCombosContainer?.visibility = View.VISIBLE
-                                appSearchContainer?.visibility = View.VISIBLE
                             }
                             .withEndAction {
                                 try {
@@ -1878,28 +1875,57 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     // 更新搜索模式可见性
     private fun updateSearchModeVisibility() {
         try {
-            Log.d(TAG, "updateSearchModeVisibility: 当前模式=${if (isAIMode) "AI" else "普通"}")
-            Log.d(TAG, "AI容器=${aiEnginesContainer?.id}, 普通容器=${regularEnginesContainer?.id}")
-            
+            Log.d(TAG, "updateSearchModeVisibility called")
+
             // 调试：检查容器是否正确初始化
-            if (aiEnginesContainer == null || regularEnginesContainer == null) {
+            if (aiEnginesContainer == null || regularEnginesContainer == null || appSearchContainer == null || savedCombosContainer == null) {
                 Log.e(TAG, "搜索引擎容器未正确初始化!")
                 aiEnginesContainer = floatingView?.findViewById(R.id.ai_engines_container)
                 regularEnginesContainer = floatingView?.findViewById(R.id.regular_engines_container)
+                appSearchContainer = floatingView?.findViewById(R.id.app_search_container)
+                savedCombosContainer = floatingView?.findViewById(R.id.saved_combos_container)
             }
             
-            // 更新搜索模式图标和文本
-            searchModeToggle?.apply {
-                setIconResource(if (isAIMode) R.drawable.ic_ai_search else R.drawable.ic_search)
-                text = if (isAIMode) "AI搜索" else "普通搜索"
+            // 根据设置的显示模式，决定显示哪些容器
+            val displayMode = settingsManager.getFloatingWindowDisplayMode()
+            // 新逻辑下，模式切换按钮不再需要，直接隐藏
+            searchModeToggle?.visibility = View.GONE 
+
+            when (displayMode) {
+                "ai" -> {
+                    aiEnginesContainer?.visibility = View.VISIBLE
+                    regularEnginesContainer?.visibility = View.GONE
+                    savedCombosContainer?.visibility = View.GONE
+                    appSearchContainer?.visibility = View.GONE
+                }
+                "app" -> {
+                    aiEnginesContainer?.visibility = View.GONE
+                    regularEnginesContainer?.visibility = View.GONE
+                    savedCombosContainer?.visibility = View.GONE
+                    appSearchContainer?.visibility = View.VISIBLE
+                }
+                "normal" -> {
+                    aiEnginesContainer?.visibility = View.GONE
+                    regularEnginesContainer?.visibility = View.VISIBLE
+                    savedCombosContainer?.visibility = View.GONE
+                    appSearchContainer?.visibility = View.GONE
+                }
+                "combo" -> {
+                    aiEnginesContainer?.visibility = View.GONE
+                    regularEnginesContainer?.visibility = View.GONE
+                    savedCombosContainer?.visibility = View.VISIBLE
+                    appSearchContainer?.visibility = View.GONE
+                }
+                else -> { // 默认为普通模式
+                    aiEnginesContainer?.visibility = View.GONE
+                    regularEnginesContainer?.visibility = View.VISIBLE
+                    savedCombosContainer?.visibility = View.GONE
+                    appSearchContainer?.visibility = View.GONE
+                }
             }
+
+            Log.d(TAG, "Visibility updated for mode: $displayMode")
             
-            // 直接设置容器可见性，不使用动画
-            aiEnginesContainer?.visibility = if (isAIMode) View.VISIBLE else View.GONE
-            regularEnginesContainer?.visibility = if (isAIMode) View.GONE else View.VISIBLE
-            
-            Log.d(TAG, "搜索模式UI已更新: ${if (isAIMode) "AI模式" else "普通模式"}")
-            Log.d(TAG, "AI容器可见性=${aiEnginesContainer?.visibility == View.VISIBLE}, 普通容器可见性=${regularEnginesContainer?.visibility == View.VISIBLE}")
         } catch (e: Exception) {
             Log.e(TAG, "更新搜索模式UI失败", e)
             e.printStackTrace()
@@ -1978,33 +2004,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     // 切换搜索模式 (AI / 普通)
     private fun toggleSearchMode() {
-        try {
-            Log.d(TAG, "toggleSearchMode: 当前模式=${if (isAIMode) "AI" else "普通"}, 切换至=${if (!isAIMode) "AI" else "普通"}")
-            
-            // 切换模式
-            isAIMode = !isAIMode
-            
-            // 保存搜索模式设置
-            settingsManager.setDefaultAIMode(isAIMode)
-            
-            // 更新UI显示
-            updateSearchModeVisibility()
-            
-            // 显示切换提示
-            val modeText = if (isAIMode) "AI搜索模式" else "普通搜索模式"
-            Toast.makeText(this, "已切换至$modeText", Toast.LENGTH_SHORT).show()
-            
-            // 发送广播通知其他组件
-            val intent = Intent("com.example.aifloatingball.SEARCH_MODE_CHANGED")
-            intent.putExtra("is_ai_mode", isAIMode)
-            sendBroadcast(intent)
-            
-            Log.d(TAG, "搜索模式已切换: $modeText")
-        } catch (e: Exception) {
-            Log.e(TAG, "切换搜索模式失败: ${e.message}")
-            e.printStackTrace()
-            Toast.makeText(this, "切换搜索模式失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+        // 此功能现在由设置中的 floating_window_display_mode 控制
+        // 可以保留此方法以备将来使用，或者提示用户去设置中更改
+        Toast.makeText(this, "请在设置中更改悬浮窗显示模式", Toast.LENGTH_SHORT).show()
     }
     
     // 更新搜索模式图标
@@ -2074,8 +2076,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             }
             
             // 2. 设置AI搜索引擎
-            aiEnginesContainer?.visibility = if (isAIMode) View.VISIBLE else View.GONE
-            
             // 创建水平滚动视图显示AI搜索引擎
             val aiHorizontalScroll = HorizontalScrollView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
@@ -2103,8 +2103,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             aiEnginesContainer?.addView(aiHorizontalScroll)
             
             // 3. 设置普通搜索引擎
-            regularEnginesContainer?.visibility = if (isAIMode) View.GONE else View.VISIBLE
-            
             // 创建水平滚动视图显示普通搜索引擎
             val regularHorizontalScroll = HorizontalScrollView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(

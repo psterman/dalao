@@ -738,4 +738,8 @@ class SettingsManager private constructor(context: Context) {
             )
         }
     }
+
+    fun getFloatingWindowDisplayMode(): String {
+        return prefs.getString("floating_window_display_mode", "normal") ?: "normal"
+    }
 }

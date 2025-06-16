@@ -36,18 +36,6 @@
     <string name="floating_mode">悬浮窗模式</string>
     <string name="open_in_floating_mode">在悬浮窗中打开</string>
     <string name="engine_icon">搜索引擎图标</string>
-    <string-array name="theme_mode_entries">
-        <item>跟随系统</item>
-        <item>浅色模式</item>
-        <item>深色模式</item>
-    </string-array>
-
-    <string-array name="theme_mode_values">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-    </string-array>
-
     <string name="search_engine_icon">Search Engine Icon</string>
     <string name="normal_search">普通搜索</string>
     <string name="ai_search">AI搜索</string>
