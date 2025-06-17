@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- =============================================================== -->
+    <!-- ============== FLOATING WINDOW THEME COLORS V2 ================ -->
+    <!-- =============================================================== -->
+    <!-- Use these for the dual webview floating window -->
+    <color name="floating_window_background">#F7F8FA</color>
+    <color name="floating_control_bar_background">#E0E5EC</color>
+    <color name="floating_text_primary">#333333</color>
+    <color name="floating_text_hint">#888888</color>
+    <color name="floating_icon_tint">#333333</color>
+    <color name="floating_search_input_background">#FFFFFF</color>
+    <color name="floating_search_input_stroke">#D0D4D8</color>
+    <color name="floating_resize_handle_color">#D0D4D8</color>
+    <color name="floating_window_count_background">#22000000</color>
+
     <!-- Theme Colors -->
     <color name="colorPrimary">#2196F3</color>
     <color name="colorPrimaryDark">#1976D2</color>
@@ -97,7 +111,6 @@
     <color name="material_accent_dark">#FF80AB</color>
 
     <!-- 悬浮窗相关颜色 -->
-    <color name="floating_window_background">#FFFFFF</color>
     <color name="floating_window_border">#1A000000</color>
     <color name="floating_background_light">#FFFFFF</color>
     <color name="floating_background_dark">#2C2C2C</color>

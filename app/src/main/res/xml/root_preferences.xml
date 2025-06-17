@@ -30,7 +30,7 @@
             app:summary="选择应用的主题模式"
             app:entries="@array/theme_mode_entries"
             app:entryValues="@array/theme_mode_values"
-            app:defaultValue="0"
+            app:defaultValue="-1"
             app:iconSpaceReserved="false" />
 
         <SeekBarPreference

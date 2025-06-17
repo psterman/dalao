@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.AIFloatingBall" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <style name="Theme.AIFloatingBall" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Primary brand color. -->
         <item name="colorPrimary">@color/purple_500</item>
         <item name="colorPrimaryVariant">@color/purple_700</item>
@@ -16,7 +16,7 @@
     </style>
 
     <!-- 悬浮窗服务使用的主题 -->
-    <style name="Theme.FloatingWindow" parent="Theme.MaterialComponents.Light.NoActionBar">
+    <style name="Theme.FloatingWindow" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/purple_500</item>
         <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>

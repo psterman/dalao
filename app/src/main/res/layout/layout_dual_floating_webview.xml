@@ -8,14 +8,14 @@
     android:fitsSystemWindows="true"
     app:cardCornerRadius="16dp"
     app:cardElevation="8dp"
-    android:background="@color/dual_webview_background_light">
+    android:background="@color/floating_window_background">
 
     <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:fitsSystemWindows="true"
-    android:background="@color/dual_webview_background_light">
+    android:background="@color/floating_window_background">
 
     <!-- 顶部工具栏 -->
     <LinearLayout
@@ -24,7 +24,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="8dp"
-        android:background="@color/dual_webview_top_bar_light">
+        android:background="@color/floating_control_bar_background">
 
         <EditText
             android:id="@+id/dual_search_input"
@@ -35,8 +35,8 @@
             android:imeOptions="actionSearch"
             android:inputType="text"
             android:singleLine="true"
-            android:textColor="@color/dual_webview_text_dark"
-            android:textColorHint="@color/dual_webview_text_hint"
+            android:textColor="@color/floating_text_primary"
+            android:textColorHint="@color/floating_text_hint"
             android:background="@drawable/rounded_edittext_background"
             android:textSize="16sp"
             android:paddingStart="16dp"
@@ -49,7 +49,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_save"
             android:background="@android:color/transparent"
-            android:tint="@color/dual_webview_icon_tint"
+            android:tint="@color/floating_icon_tint"
             android:contentDescription="保存搜索引擎"/>
 
         <!-- 窗口数量切换控件 - 包含按钮和文本 -->
@@ -62,6 +62,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:src="@drawable/ic_layers"
+                android:tint="@color/floating_icon_tint"
                 android:background="@android:color/transparent"
                 android:contentDescription="窗口数量切换"/>
                 
@@ -71,8 +72,8 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom|end"
                 android:textSize="14sp"
-                android:textColor="@color/dual_webview_text_dark"
-                android:background="#22000000"
+                android:textColor="@color/floating_text_primary"
+                android:background="@color/floating_window_count_background"
                 android:paddingStart="4dp"
                 android:paddingEnd="4dp"
                 android:text="2"/>
@@ -83,6 +84,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:src="@drawable/ic_close"
+            android:tint="@color/floating_icon_tint"
             android:background="@android:color/transparent"
             android:contentDescription="关闭"/>
     </LinearLayout>
@@ -93,7 +95,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:scrollbars="none"
-        android:background="@color/dual_webview_top_bar_light"
+        android:background="@color/floating_control_bar_background"
         android:paddingVertical="2dp">
         <LinearLayout
             android:id="@+id/global_ai_engine_container"
@@ -110,7 +112,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:scrollbars="none"
-        android:background="@color/dual_webview_top_bar_light"
+        android:background="@color/floating_control_bar_background"
         android:paddingVertical="2dp">
         <LinearLayout
             android:id="@+id/global_standard_engine_container"

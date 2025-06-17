@@ -38,9 +38,9 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_CHATGPT_API_URL = "chatgpt_api_url"
         
         // 主题模式常量
-        const val THEME_MODE_SYSTEM = 0    // 跟随系统
-        const val THEME_MODE_LIGHT = 1     // 浅色主题
-        const val THEME_MODE_DARK = 2      // 深色主题
+        const val THEME_MODE_SYSTEM = -1   // 跟随系统 (AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        const val THEME_MODE_LIGHT = 1     // 浅色主题 (AppCompatDelegate.MODE_NIGHT_NO)
+        const val THEME_MODE_DARK = 2      // 深色主题 (AppCompatDelegate.MODE_NIGHT_YES)
         const val THEME_MODE_DEFAULT = THEME_MODE_SYSTEM  // 默认主题模式
         
         // 默认API地址
@@ -79,8 +79,8 @@ class SettingsManager private constructor(context: Context) {
 
     // 统一主题设置
     fun getThemeMode(): Int {
-        val themeValue = prefs.getString("theme_mode", THEME_MODE_SYSTEM.toString())
-        return themeValue?.toIntOrNull() ?: THEME_MODE_SYSTEM
+        val themeValue = prefs.getString("theme_mode", THEME_MODE_DEFAULT.toString())
+        return themeValue?.toIntOrNull() ?: THEME_MODE_DEFAULT
     }
     
     fun setThemeMode(mode: Int) {
@@ -89,6 +89,7 @@ class SettingsManager private constructor(context: Context) {
         when (mode) {
             THEME_MODE_LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
             THEME_MODE_DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            THEME_MODE_SYSTEM -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
             else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         }
         notifyListeners("theme_mode", mode)
