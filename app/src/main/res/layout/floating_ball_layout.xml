@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/floating_view_root_container"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content">
 
@@ -12,24 +11,11 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <!-- 悬浮球图标 -->
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/floating_ball_icon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_margin="8dp"
-            android:src="@drawable/ic_ai_ball"
-            app:fabSize="mini" />
-
-        <!-- 搜索界面容器 (默认隐藏) -->
+        <!-- Search menu container (hidden by default) -->
         <LinearLayout
             android:id="@+id/search_container"
-            android:layout_width="300dp"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@drawable/floating_window_background"
-            android:visibility="gone"
-            android:padding="8dp">
+            style="@style/SearchContainerStyle"
+            android:visibility="gone">
 
             <!-- 搜索框 -->
             <LinearLayout
@@ -144,18 +130,14 @@
 
             </LinearLayout>
         </LinearLayout>
+
+        <!-- The floating ball icon itself, now a sibling to the menu -->
+        <ImageView
+            android:id="@+id/floating_ball_icon"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:src="@drawable/floating_ball_background"
+            android:contentDescription="@string/floating_ball_description" />
+
     </LinearLayout>
-
-    <!-- 搜索引擎快捷方式容器 -->
-    <LinearLayout
-        android:id="@+id/search_shortcuts_container"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:background="@drawable/shortcuts_container_background"
-        android:padding="6dp"
-        android:layout_marginTop="8dp"
-        android:elevation="4dp"
-        android:visibility="gone" />
-
 </FrameLayout> 

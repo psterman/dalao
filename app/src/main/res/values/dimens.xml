@@ -77,4 +77,6 @@
     <dimen name="search_engine_icon_size">40dp</dimen>
 
     <dimen name="menu_elevation">8dp</dimen>
+
+    <dimen name="floating_menu_width">300dp</dimen>
 </resources> 

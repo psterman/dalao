@@ -15,6 +15,7 @@ import android.graphics.Point
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.Gravity
@@ -65,7 +66,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private var isMoving: Boolean = false
     private val touchSlop: Int by lazy { ViewConfiguration.get(this).scaledTouchSlop }
 
-    private var floatingBallIcon: FloatingActionButton? = null
+    private val idleHandler = Handler(android.os.Looper.getMainLooper())
+    private var fadeOutRunnable: Runnable? = null
+
+    private var floatingBallIcon: ImageView? = null
     private var searchContainer: LinearLayout? = null
     private var aiEnginesContainer: LinearLayout? = null
     private var regularEnginesContainer: LinearLayout? = null
@@ -127,6 +131,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         loadSavedCombos()
         loadAndDisplayAppSearch()
         startForegroundService()
+        resetIdleTimer() // Start idle timer on creation
 
         val filter = IntentFilter("com.example.aifloatingball.SETTINGS_CHANGED")
 
@@ -150,6 +155,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         if (floatingView != null) windowManager.removeView(floatingView)
         settingsManager.unregisterOnSharedPreferenceChangeListener(this)
         unregisterReceiver(settingsChangeReceiver)
+        idleHandler.removeCallbacksAndMessages(null) // Clean up handler
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -159,8 +165,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 if (isMenuVisible) updateSearchModeVisibility()
             }
             "left_handed_mode" -> {
-                // Reposition the ball when the handedness mode changes
-                snapToEdge()
+                // No-op. The change will be reflected the next time the menu is opened.
+                // This respects the user's ability to place the ball anywhere.
+            }
+            "ball_alpha" -> {
+                updateBallAlpha()
             }
         }
     }
@@ -205,6 +214,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
 
         updateSearchModeVisibility()
+        updateBallAlpha()
     }
 
     private fun setupFloatingBall() {
@@ -295,6 +305,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isMoving = false
+                    resetIdleTimer() // Reset timer on touch
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -312,8 +323,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 }
                 MotionEvent.ACTION_UP -> {
                     if (isMoving) {
-                        snapToEdge()
+                        // Just save the new position, don't snap to edge.
+                        params?.let {
+                            settingsManager.setFloatingBallPosition(it.x, it.y)
+                        }
+                        resetIdleTimer()
                     } else {
+                        // Toggle menu visibility on click
                         if (isMenuVisible) {
                             hideSearchInterface()
                         } else {
@@ -363,23 +379,37 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private fun showSearchInterface() {
         if (isMenuVisible) return
         isMenuVisible = true
+        cancelIdleTimer() // Don't fade while menu is open
+        floatingBallIcon?.animate()?.alpha(1f)?.setDuration(150)?.start() // Ensure ball is fully visible
+
+        val menuWidth = resources.getDimensionPixelSize(R.dimen.floating_menu_width)
+
+        // Adjust position before showing menu to keep ball stationary
+        if (!settingsManager.isLeftHandModeEnabled()) { // Right-handed, menu appears on the left
+            params?.x = params?.x?.minus(menuWidth)
+        }
 
         val contentContainer = floatingView?.findViewById<LinearLayout>(R.id.floating_view_content_container)
         val layoutParams = contentContainer?.layoutParams as? FrameLayout.LayoutParams
+        // Re-order views for handedness
+        val searchContainer = floatingView?.findViewById<View>(R.id.search_container)
+        val ballIcon = floatingView?.findViewById<View>(R.id.floating_ball_icon)
+        contentContainer?.removeView(searchContainer)
+        contentContainer?.removeView(ballIcon)
         if (settingsManager.isLeftHandModeEnabled()) {
             layoutParams?.gravity = Gravity.START
+            contentContainer?.addView(ballIcon)
+            contentContainer?.addView(searchContainer)
         } else {
             layoutParams?.gravity = Gravity.END
+            contentContainer?.addView(searchContainer)
+            contentContainer?.addView(ballIcon)
         }
         contentContainer?.layoutParams = layoutParams
 
         searchContainer?.visibility = View.VISIBLE
         updateSearchModeVisibility()
 
-        params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
-            ?.or(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
-        @Suppress("DEPRECATION")
-        params?.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
         windowManager.updateViewLayout(floatingView, params)
 
         searchInput?.requestFocus()
@@ -389,24 +419,25 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private fun hideSearchInterface() {
         if (!isMenuVisible) return
         isMenuVisible = false
+        resetIdleTimer() // Restart idle timer when menu closes
+
+        val menuWidth = resources.getDimensionPixelSize(R.dimen.floating_menu_width)
 
         searchContainer?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
             searchContainer?.visibility = View.GONE
             searchContainer?.alpha = 1f
 
-            // Reset gravity after hiding
-            val contentContainer = floatingView?.findViewById<LinearLayout>(R.id.floating_view_content_container)
-            val layoutParams = contentContainer?.layoutParams as? FrameLayout.LayoutParams
-            layoutParams?.gravity = Gravity.NO_GRAVITY
-            contentContainer?.layoutParams = layoutParams
+            // Adjust position and flags AFTER menu is gone
+            if (!settingsManager.isLeftHandModeEnabled()) { // Right-handed, menu was on the left
+                params?.x = params?.x?.plus(menuWidth)
+            }
+            params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                ?.and(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH.inv())
+
+            windowManager.updateViewLayout(floatingView, params)
         }
 
         hideKeyboard()
-
-        params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-            ?.and(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH.inv())
-        params?.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
-        windowManager.updateViewLayout(floatingView, params)
     }
 
     private fun showKeyboard() {
@@ -734,5 +765,29 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
 
         popup.show()
+    }
+
+    private fun updateBallAlpha() {
+        val alphaPercentage = settingsManager.getBallAlpha()
+        val alpha = alphaPercentage / 100f
+        floatingBallIcon?.alpha = alpha
+    }
+
+    private fun resetIdleTimer() {
+        // Cancel any previous timer and bring ball to full alpha
+        cancelIdleTimer()
+        floatingBallIcon?.animate()?.alpha(1.0f)?.setDuration(150)?.start()
+
+        // Set a new timer to fade ONLY the ball
+        fadeOutRunnable = Runnable {
+            val alphaPercentage = settingsManager.getBallAlpha()
+            val idleAlpha = (alphaPercentage / 100f) * 0.5f // Fade to 50% of the set alpha
+            floatingBallIcon?.animate()?.alpha(idleAlpha)?.setDuration(500)?.start()
+        }
+        idleHandler.postDelayed(fadeOutRunnable!!, 3000) // 3-second delay
+    }
+
+    private fun cancelIdleTimer() {
+        fadeOutRunnable?.let { idleHandler.removeCallbacks(it) }
     }
 }

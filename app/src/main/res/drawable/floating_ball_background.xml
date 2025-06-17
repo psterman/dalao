@@ -1,23 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 外层阴影 -->
+    <!-- Outermost dark grey circle -->
     <item>
         <shape android:shape="oval">
-            <solid android:color="#20000000" />
-            <padding
-                android:bottom="1.5dp"
-                android:left="1.5dp"
-                android:right="1.5dp"
-                android:top="1.5dp" />
+            <solid android:color="#BEBEBE" />
+            <size android:width="56dp" android:height="56dp"/>
         </shape>
     </item>
-    <!-- 内层圆形 -->
-    <item>
+    <!-- Middle lighter grey circle -->
+    <item android:top="5dp" android:bottom="5dp" android:left="5dp" android:right="5dp">
         <shape android:shape="oval">
-            <solid android:color="#CCFFFFFF" />
-            <stroke
-                android:width="0.2dp"
-                android:color="#10000000" />
+            <solid android:color="#E0E0E0" />
+        </shape>
+    </item>
+    <!-- Central white circle, larger radius -->
+    <item android:top="10dp" android:bottom="10dp" android:left="10dp" android:right="10dp">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF" />
         </shape>
     </item>
 </layer-list> 
