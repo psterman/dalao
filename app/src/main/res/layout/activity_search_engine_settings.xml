@@ -6,13 +6,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="horizontal"
-    android:background="?android:attr/colorBackground">
+    android:background="?attr/colorSurface">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerViewCategories"
         android:layout_width="100dp"
         android:layout_height="match_parent"
-        android:background="?android:attr/colorBackground"
+        android:background="?attr/colorSurface"
         android:scrollbars="vertical"
         android:clipToPadding="false"
         android:paddingTop="8dp"
@@ -28,6 +28,7 @@
         android:layout_width="0dp"
         android:layout_height="match_parent"
         android:layout_weight="1"
+        android:background="?attr/colorSurface"
         android:paddingBottom="16dp"
         android:clipToPadding="false"
         android:scrollbars="vertical"

@@ -126,8 +126,7 @@
         <activity
             android:name=".SearchEngineSettingsActivity"
             android:exported="false"
-            android:label="@string/search_engine_settings"
-            android:theme="@style/Theme.AppCompat.Light.DarkActionBar" />
+            android:label="@string/search_engine_settings" />
 
         <activity
             android:name="com.example.aifloatingball.HomeActivity"
