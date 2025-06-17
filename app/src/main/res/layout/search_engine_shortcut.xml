@@ -25,7 +25,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="12sp"
-        android:textColor="#5F6368"
+        android:textColor="@color/floating_menu_text_secondary"
         android:maxLines="1"
         android:ellipsize="end" />
 </LinearLayout> 

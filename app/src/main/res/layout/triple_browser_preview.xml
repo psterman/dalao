@@ -48,13 +48,13 @@
         android:layout_width="match_parent"
         android:layout_height="4dp"
         android:layout_alignParentBottom="true"
-        android:background="#44FFFFFF"/>
+        android:background="@color/dynamic_island_scrollbar_track"/>
 
     <View
         android:id="@+id/scrollbar_thumb"
         android:layout_width="50dp"
         android:layout_height="4dp"
         android:layout_alignParentBottom="true"
-        android:background="@android:color/white"/>
+        android:background="@color/dynamic_island_scrollbar_thumb"/>
 
 </RelativeLayout> 

@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.net.Uri
@@ -91,6 +92,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private lateinit var appSearchSettings: AppSearchSettings
     private lateinit var textSelectionManager: TextSelectionManager
     private var isMenuVisible: Boolean = false
+    private var themedContext: Context? = null // Make themedContext a member variable
 
     private var aiSearchEngines: List<AISearchEngine> = emptyList()
     private var regularSearchEngines: List<SearchEngine> = emptyList()
@@ -160,6 +162,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
+            "theme_mode" -> recreateViews()
             "search_engine_shortcuts" -> loadSavedCombos()
             "floating_window_display_mode" -> {
                 if (isMenuVisible) updateSearchModeVisibility()
@@ -174,9 +177,59 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
     }
 
+    private fun recreateViews() {
+        // Preserve the current position to prevent the ball from resetting its location
+        val currentParams = params
+
+        if (floatingView?.isAttachedToWindow == true) {
+            windowManager.removeView(floatingView)
+        }
+
+        // This will inflate a new view with the correct theme based on the latest settings
+        initializeViews()
+        setupTouchListener()
+
+        // Repopulate the content. This was the missing piece.
+        loadSearchEngines()
+        loadSavedCombos()
+        loadAndDisplayAppSearch()
+
+        // Restore the previous params (especially position) and add the new view
+        params = currentParams
+        try {
+            windowManager.addView(floatingView, params)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to add floating view after recreation", e)
+        }
+
+        // Restore the visibility of the search menu if it was open
+        if (isMenuVisible) {
+            // We need to re-show the interface, but without animation to avoid weird jumps
+            showSearchInterface(shouldAnimate = false)
+        }
+    }
+
     private fun initializeViews() {
-        // Create a themed context
-        val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
+        // 1. Get the app's theme mode from SettingsManager to correctly apply dark/light theme
+        val themeMode = settingsManager.getThemeMode()
+
+        // 2. Create a new configuration object based on the service's current configuration
+        val config = Configuration(resources.configuration)
+        val currentNightMode = config.uiMode and Configuration.UI_MODE_NIGHT_MASK
+
+        // 3. Determine the correct night mode flag based on app settings
+        val newNightMode = when (themeMode) {
+            SettingsManager.THEME_MODE_DARK -> Configuration.UI_MODE_NIGHT_YES
+            SettingsManager.THEME_MODE_LIGHT -> Configuration.UI_MODE_NIGHT_NO
+            else -> currentNightMode // Follow system, so use the config's current value
+        }
+        config.uiMode = newNightMode or (config.uiMode and currentNightMode.inv())
+
+        // 4. Create a new context with the overridden configuration
+        val contextWithOverride = createConfigurationContext(config)
+
+        // 5. Create a themed context using the overridden context and assign to member variable
+        themedContext = ContextThemeWrapper(contextWithOverride, R.style.Theme_FloatingWindow)
         val inflater = LayoutInflater.from(themedContext)
         floatingView = inflater.inflate(R.layout.floating_ball_layout, null)
 
@@ -376,7 +429,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
     }
 
-    private fun showSearchInterface() {
+    private fun showSearchInterface(shouldAnimate: Boolean = true) {
         if (isMenuVisible) return
         isMenuVisible = true
         cancelIdleTimer() // Don't fade while menu is open
@@ -407,9 +460,16 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
         contentContainer?.layoutParams = layoutParams
 
-        searchContainer?.visibility = View.VISIBLE
+        if (shouldAnimate) {
+            searchContainer?.visibility = View.VISIBLE
+        } else {
+            searchContainer?.visibility = View.VISIBLE // Should already be visible, but just in case
+        }
+        
         updateSearchModeVisibility()
 
+        // Make search container focusable
+        params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
         windowManager.updateViewLayout(floatingView, params)
 
         searchInput?.requestFocus()
@@ -720,8 +780,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     }
 
     private fun showSearchModeMenu(anchor: View) {
-        val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
-        val popup = PopupMenu(themedContext, anchor)
+        // Use the themedContext, which is now a member variable, to ensure correct theming
+        val context = themedContext ?: this
+        val popup = PopupMenu(context, anchor)
+
+        // Inflate the correct menu resource
         popup.menuInflater.inflate(R.menu.search_display_menu, popup.menu)
 
         // Set the initial checked state from settings
@@ -731,10 +794,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         popup.menu.findItem(R.id.menu_show_normal).isChecked = currentModes.contains("normal")
         popup.menu.findItem(R.id.menu_show_app).isChecked = currentModes.contains("app")
 
-
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_settings -> {
+                    // Handle settings click
                     val intent = Intent(this, SettingsActivity::class.java)
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(intent)
@@ -747,7 +810,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
                     // Prevent the menu from closing on check/uncheck
                     item.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW)
-                    item.setActionView(View(this))
+                    item.actionView = View(this) // This is a trick to prevent menu from closing
 
                     // Update settings based on the new checked state
                     val modesToSave = mutableSetOf<String>()
@@ -763,7 +826,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 }
             }
         }
-
         popup.show()
     }
 
@@ -789,5 +851,17 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun cancelIdleTimer() {
         fadeOutRunnable?.let { idleHandler.removeCallbacks(it) }
+    }
+
+    private fun calculateTargetX(): Int {
+        val menuWidth = resources.getDimensionPixelSize(R.dimen.floating_menu_width)
+        val screenWidth = getScreenWidth()
+        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
+
+        return if (isLeftHanded) {
+            params?.x ?: 0
+        } else {
+            screenWidth - menuWidth
+        }
     }
 }

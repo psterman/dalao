@@ -63,6 +63,9 @@ import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.utils.EngineUtil
 import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.tabs.TabLayout
+import android.content.res.Configuration
+import android.util.TypedValue
+import androidx.annotation.AttrRes
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -497,7 +500,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun showConfigPanel() {
         if (configPanelView != null || isEditingModeActive) return
 
-        val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
+        val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
         configPanelView = LayoutInflater.from(themedContext).inflate(R.layout.dynamic_island_config_panel, null)
 
         searchInput = configPanelView?.findViewById(R.id.search_input)
@@ -667,7 +670,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
         configPanelView?.visibility = View.GONE
 
-        val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
+        val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
         val inflater = LayoutInflater.from(themedContext)
         val panelWrapper = inflater.inflate(R.layout.search_engine_panel_wrapper, null) as com.google.android.material.card.MaterialCardView
 
@@ -677,8 +680,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
 
         val tabLayout = TabLayout(themedContext).apply {
-            setSelectedTabIndicatorColor(Color.WHITE)
-            setTabTextColors(Color.LTGRAY, Color.WHITE)
+            val accentColor = getColorFromAttr(themedContext, com.google.android.material.R.attr.colorAccent)
+            val textColor = getColorFromAttr(themedContext, com.google.android.material.R.attr.colorOnSurface)
+            val mutedTextColor = Color.argb(
+                (Color.alpha(textColor) * 0.7f).toInt(),
+                Color.red(textColor),
+                Color.green(textColor),
+                Color.blue(textColor)
+            )
+
+            setSelectedTabIndicatorColor(accentColor)
+            setTabTextColors(mutedTextColor, textColor)
         }
 
         val regularEnginesRecyclerView = RecyclerView(themedContext)
@@ -908,9 +920,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-        if (key == "display_mode") {
-            if (sharedPreferences?.getString(key, "floating_ball") != "dynamic_island") {
-                stopSelf()
+        when (key) {
+            "display_mode" -> {
+                if (sharedPreferences?.getString(key, "floating_ball") != "dynamic_island") {
+                    stopSelf()
+                }
+            }
+            "theme_mode" -> {
+                recreateAllViews()
             }
         }
     }
@@ -1125,57 +1142,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     ) : RecyclerView.Adapter<EngineAdapter.EngineViewHolder>() {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EngineViewHolder {
-            val context = ContextThemeWrapper(parent.context, R.style.Theme_FloatingWindow)
-            // Root LinearLayout
-            val rootLayout = LinearLayout(context).apply {
-                layoutParams = RecyclerView.LayoutParams(
-                    RecyclerView.LayoutParams.MATCH_PARENT,
-                    RecyclerView.LayoutParams.WRAP_CONTENT
-                )
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                val padding = 16.dpToPx()
-                setPadding(padding, padding, padding, padding)
-                background = context.getDrawable(androidx.appcompat.R.drawable.abc_item_background_holo_dark)
-            }
-
-            // Icon
-            val icon = ImageView(context).apply {
-                id = android.R.id.icon
-                layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx())
-            }
-            rootLayout.addView(icon)
-
-            // Text container
-            val textLayout = LinearLayout(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
-                ).apply {
-                    marginStart = 16.dpToPx()
-                }
-                orientation = LinearLayout.VERTICAL
-            }
-            rootLayout.addView(textLayout)
-
-            // Name
-            val name = TextView(context).apply {
-                id = android.R.id.text1
-                textSize = 16f
-                setTextColor(Color.WHITE)
-            }
-            textLayout.addView(name)
-
-            // Description
-            val description = TextView(context).apply {
-                id = android.R.id.text2
-                textSize = 14f
-                setTextColor(Color.LTGRAY)
-            }
-            textLayout.addView(description)
-
-            return EngineViewHolder(rootLayout)
+            val context = parent.context
+            val view = LayoutInflater.from(context).inflate(R.layout.item_dynamic_island_search_engine, parent, false)
+            return EngineViewHolder(view)
         }
 
         override fun onBindViewHolder(holder: EngineViewHolder, position: Int) {
@@ -1187,9 +1156,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         override fun getItemCount(): Int = engines.size
 
         inner class EngineViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-            private val iconView: ImageView = itemView.findViewById(android.R.id.icon)
-            private val nameView: TextView = itemView.findViewById(android.R.id.text1)
-            private val descriptionView: TextView = itemView.findViewById(android.R.id.text2)
+            private val iconView: ImageView = itemView.findViewById(R.id.engine_icon)
+            private val nameView: TextView = itemView.findViewById(R.id.engine_name)
+            private val descriptionView: TextView = itemView.findViewById(R.id.engine_description)
 
             fun bind(engine: SearchEngine) {
                 nameView.text = engine.name
@@ -1246,5 +1215,43 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
 
         return categories
+    }
+
+    private fun getColorFromAttr(context: Context, @AttrRes attrRes: Int): Int {
+        val typedValue = TypedValue()
+        context.theme.resolveAttribute(attrRes, typedValue, true)
+        return typedValue.data
+    }
+
+    private fun getThemedContext(): Context {
+        // Create a context that respects the user's theme choice, which might be different from the system's
+        val themeMode = settingsManager.getThemeMode() // -1 system, 1 light, 2 dark
+        val nightModeFlags = when (themeMode) {
+            1 -> Configuration.UI_MODE_NIGHT_NO
+            2 -> Configuration.UI_MODE_NIGHT_YES
+            else -> resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        }
+
+        val config = Configuration(resources.configuration)
+        config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or nightModeFlags
+
+        return createConfigurationContext(config)
+    }
+
+    private fun recreateAllViews() {
+        val wasSearchModeActive = isSearchModeActive
+        val currentSearchText = searchInput?.text?.toString()
+
+        cleanupViews()
+        showDynamicIsland()
+
+        if (wasSearchModeActive) {
+            transitionToSearchState()
+            // We need a slight delay to ensure the config panel is laid out before setting text
+            uiHandler.post {
+                searchInput?.setText(currentSearchText)
+                searchInput?.setSelection(currentSearchText?.length ?: 0)
+            }
+        }
     }
 }

@@ -33,4 +33,34 @@
     <color name="search_text_dark">#E0E0E0</color>
     <color name="search_hint_dark">#9E9E9E</color>
     <color name="search_icon_dark">#E0E0E0</color>
+
+    <!-- Floating Menu Colors -->
+    <color name="floating_menu_background">#333739</color>
+    <color name="floating_menu_stroke">#44CCCCCC</color>
+    <color name="floating_menu_text_secondary">#BDC1C6</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== DYNAMIC ISLAND THEME COLORS =================== -->
+    <!-- =============================================================== -->
+    <color name="dynamic_island_panel_background">#1A1A1A</color>
+    <color name="dynamic_island_input_background">#2C2C2E</color>
+    <color name="dynamic_island_input_text">@android:color/white</color>
+    <color name="dynamic_island_input_hint">#AAAAAA</color>
+    <color name="dynamic_island_preview_background">#1AFFFFFF</color>
+    <color name="dynamic_island_scrollbar_track">#1AFFFFFF</color>
+    <color name="dynamic_island_scrollbar_thumb">#80FFFFFF</color>
+    <color name="dynamic_island_mini_preview_background">#2C2C2E</color>
+    <color name="dynamic_island_mini_preview_stroke">#5A5A5A</color>
+    <color name="dynamic_island_mini_preview_placeholder">#5A5A5A</color>
+    <color name="dynamic_island_mini_preview_text_primary">@android:color/white</color>
+    <color name="dynamic_island_mini_preview_text_secondary">#AAAAAA</color>
+    <color name="dynamic_island_mini_preview_add_icon">#AAAAAA</color>
+    <color name="dynamic_island_mini_preview_clear_icon_tint">#BDBDBD</color>
+    <color name="dynamic_island_mini_preview_clear_icon_background">#33FFFFFF</color>
+    <color name="dynamic_island_send_icon_tint">#FFFFFF</color>
+
+    <!-- Dual Webview Text Colors -->
+    <color name="dual_webview_text_dark">#FFFFFF</color>
+    <color name="dual_webview_text_hint">#AAAAAA</color>
+    <color name="dual_webview_icon_tint">#FFFFFF</color>
 </resources> 
