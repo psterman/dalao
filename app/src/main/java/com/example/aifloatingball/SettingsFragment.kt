@@ -26,16 +26,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 val mode = newValue.toString()
                 settingsManager.setDisplayMode(mode)
                 summary = if (mode == "dynamic_island") "灵动岛" else "悬浮球"
-
-                if (mode == "dynamic_island") {
-                    requireActivity().startService(Intent(requireContext(), DynamicIslandService::class.java))
-                    requireActivity().stopService(Intent(requireContext(), FloatingWindowService::class.java))
-                    Toast.makeText(requireContext(), "切换到灵动岛模式", Toast.LENGTH_SHORT).show()
-                } else {
-                    requireActivity().stopService(Intent(requireContext(), DynamicIslandService::class.java))
-                    requireActivity().startService(Intent(requireContext(), FloatingWindowService::class.java))
-                    Toast.makeText(requireContext(), "切换到悬浮球模式", Toast.LENGTH_SHORT).show()
-                }
+                Toast.makeText(requireContext(), "显示模式已切换，重启应用或返回主页后生效", Toast.LENGTH_LONG).show()
                 true
             }
         }

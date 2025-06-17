@@ -2223,4 +2223,33 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         super.onDestroy()
         settingsManager.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
     }
+
+    override fun onResume() {
+        super.onResume()
+        // 每次Activity可见时，都确保正确的服务正在运行
+        startCorrectService()
+    }
+
+    private fun startCorrectService() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            // 如果需要，可以引导用户去授权。
+            // 也可以弹出一个Toast提示用户。
+            Log.w(TAG, "Overlay permission not granted, cannot start services.")
+            // 如果没有权限，最好直接返回，避免崩溃。
+            return
+        }
+
+        val displayMode = settingsManager.getDisplayMode()
+        Log.d(TAG, "Ensuring correct service for display mode: $displayMode")
+
+        if (displayMode == "floating_ball") {
+            // 先停止另一个服务，再启动正确的服务
+            stopService(Intent(this, DynamicIslandService::class.java))
+            startService(Intent(this, FloatingWindowService::class.java))
+        } else if (displayMode == "dynamic_island") {
+            // 先停止另一个服务，再启动正确的服务
+            stopService(Intent(this, FloatingWindowService::class.java))
+            startService(Intent(this, DynamicIslandService::class.java))
+        }
+    }
 } 

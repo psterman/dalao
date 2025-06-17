@@ -66,6 +66,7 @@ import com.google.android.material.tabs.TabLayout
 import android.content.res.Configuration
 import android.util.TypedValue
 import androidx.annotation.AttrRes
+import android.content.pm.PackageManager
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -278,10 +279,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             it.width = WindowManager.LayoutParams.MATCH_PARENT
             it.height = WindowManager.LayoutParams.MATCH_PARENT
             it.flags = it.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                it.blurBehindRadius = 60 // Apply blur
+                windowContainerView?.setBackgroundColor(Color.argb(90, 0, 0, 0)) // Add a slight dim
+            } else {
+                windowContainerView?.setBackgroundColor(Color.argb(128, 0, 0, 0)) // Fallback to dimming
+            }
+
             windowManager.updateViewLayout(windowContainerView, it)
         }
         
-        windowContainerView?.setBackgroundColor(Color.argb(128, 0, 0, 0))
         setupOutsideTouchListener()
         setupInsetsListener()
 
@@ -344,6 +352,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             it.width = expandedWidth
             it.height = statusBarHeight * 2
             it.flags = it.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                it.blurBehindRadius = 0 // Remove blur
+            }
+
             windowManager.updateViewLayout(windowContainerView, it)
         }
 
@@ -835,7 +848,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             val icon = filledContent.findViewById<ImageView>(R.id.page_icon)
             val title = filledContent.findViewById<TextView>(R.id.page_title)
 
-            icon.setImageResource(engine.iconResId)
+            FaviconLoader.loadIcon(icon, engine.searchUrl, engine.iconResId)
             title.text = engine.name
 
             val enabledAIEngineNames = settingsManager.getEnabledAIEngines()
@@ -1094,11 +1107,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 ).also { params ->
                     params.setMargins(iconMargin, 0, iconMargin, 0)
                 }
-                setImageResource(appConfig.iconResId)
-
-                val domain = getDomainForApp(appConfig.appId)
-                if (domain.isNotEmpty()) {
-                    FaviconLoader.loadIcon(this, "https://$domain", appConfig.iconResId)
+                
+                try {
+                    val iconDrawable = packageManager.getApplicationIcon(appConfig.packageName)
+                    setImageDrawable(iconDrawable)
+                } catch (e: PackageManager.NameNotFoundException) {
+                    setImageResource(appConfig.iconResId) // Fallback icon
                 }
 
                 scaleType = ImageView.ScaleType.CENTER_CROP

@@ -22,6 +22,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.view.WindowManager
 import com.example.aifloatingball.service.FloatingWindowService
+import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.SettingsManager
 
 class PermissionActivity : AppCompatActivity() {
@@ -90,7 +91,7 @@ class PermissionActivity : AppCompatActivity() {
         when {
             permissionsToRequest.isEmpty() -> {
                 // 所有权限都已授予，启动服务
-                startFloatingService()
+                startCorrectServiceAndFinish()
             }
             else -> {
                 // 请求缺少的权限
@@ -125,40 +126,38 @@ class PermissionActivity : AppCompatActivity() {
             val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
             
             if (allGranted) {
-                startFloatingService()
+                startCorrectServiceAndFinish()
             } else {
                 // 即使有权限未授予也启动服务，服务会相应地禁用相关功能
-                    startFloatingService()
+                startCorrectServiceAndFinish()
                 Toast.makeText(this, "部分功能可能无法使用", Toast.LENGTH_LONG).show()
             }
         }
     }
     
-    private fun startFloatingService() {
+    private fun startCorrectServiceAndFinish() {
         try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val displayMode = settingsManager.getDisplayMode()
+            
+            if (displayMode == "floating_ball") {
+                val serviceIntent = Intent(this, FloatingWindowService::class.java)
+                ContextCompat.startForegroundService(this, serviceIntent)
+            } else if (displayMode == "dynamic_island") {
+                val serviceIntent = Intent(this, DynamicIslandService::class.java)
+                ContextCompat.startForegroundService(this, serviceIntent)
+            }
+            
             // 启动设置界面
             val settingsIntent = Intent(this, SettingsActivity::class.java)
             startActivity(settingsIntent)
             
-            // 根据显示模式决定是否启动悬浮球服务
-            val settingsManager = SettingsManager.getInstance(this)
-            if (settingsManager.getDisplayMode() == "floating_ball") {
-                // 启动悬浮球服务
-                val serviceIntent = Intent(this, FloatingWindowService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(serviceIntent)
-                } else {
-                    startService(serviceIntent)
-                }
-            } else {
-                Toast.makeText(this, "当前为灵动岛模式，悬浮球未启动", Toast.LENGTH_SHORT).show()
-            }
-            
             // 关闭权限Activity
             finish()
         } catch (e: Exception) {
-            Log.e(TAG, "启动服务失败", e)
-            Toast.makeText(this, "启动服务失败: ${e.message}", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "启动服务或Activity失败", e)
+            Toast.makeText(this, "启动失败: ${e.message}", Toast.LENGTH_LONG).show()
+            finish() // 即使失败也要关闭，避免卡在透明界面
         }
     }
     
