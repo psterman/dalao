@@ -152,9 +152,9 @@ class SettingsActivity : AppCompatActivity() {
 
             // 左手模式设置
             findPreference<SwitchPreferenceCompat>("left_handed_mode")?.apply {
-                isChecked = settingsManager.isLeftHandedMode()
+                isChecked = settingsManager.isLeftHandModeEnabled()
                 setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setLeftHandedMode(newValue as Boolean)
+                    settingsManager.setLeftHandModeEnabled(newValue as Boolean)
                     true
                 }
             }

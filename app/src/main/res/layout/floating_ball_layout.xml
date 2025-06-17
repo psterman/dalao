@@ -1,190 +1,150 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/floating_view_root_container"
     android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="4dp">
+    android:layout_height="wrap_content">
 
-    <!-- 搜索容器，默认隐藏 -->
     <LinearLayout
-        android:id="@+id/search_container"
-        android:layout_width="300dp"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="@drawable/search_container_background"
-        android:elevation="8dp"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="12dp"
-        android:animateLayoutChanges="true"
-        android:visibility="gone">
-
-        <!-- 搜索框 -->
-        <LinearLayout
-            android:id="@+id/search_bar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/search_input_background"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp">
-
-            <ImageButton
-                android:id="@+id/search_mode_button"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:src="@drawable/ic_search"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="切换搜索模式"
-                android:layout_marginEnd="8dp"/>
-
-            <EditText
-                android:id="@+id/search_input"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:hint="搜索..."
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:maxLines="1"
-                android:background="@null"
-                android:textColor="?android:attr/textColorPrimary"
-                android:textColorHint="?android:attr/textColorHint"
-                android:paddingTop="12dp"
-                android:paddingBottom="12dp"/>
-        </LinearLayout>
-
-        <!-- 多组合搜索 -->
-        <TextView
-            android:id="@+id/combo_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="组合搜索"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:textColor="?android:attr/textColorSecondary"
-            android:paddingHorizontal="8dp"
-            android:layout_marginTop="8dp"
-            android:visibility="gone"/>
-
-        <LinearLayout
-            android:id="@+id/saved_combos_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:visibility="gone"/>
-        
-        <View
-            android:id="@+id/combo_divider"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="?android:attr/listDivider"
-            android:layout_marginHorizontal="8dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone"/>
-
-        <!-- AI 搜索 -->
-        <TextView
-            android:id="@+id/ai_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="AI 搜索"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:textColor="?android:attr/textColorSecondary"
-            android:paddingHorizontal="8dp"
-            android:visibility="gone"/>
-
-        <LinearLayout
-            android:id="@+id/ai_engines_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:visibility="gone"/>
-
-        <View
-            android:id="@+id/ai_divider"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="?android:attr/listDivider"
-            android:layout_marginHorizontal="8dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone"/>
-
-        <!-- 网络搜索 -->
-        <TextView
-            android:id="@+id/regular_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="网络搜索"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:textColor="?android:attr/textColorSecondary"
-            android:paddingHorizontal="8dp"
-            android:visibility="gone"/>
-
-        <LinearLayout
-            android:id="@+id/regular_engines_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:visibility="gone"/>
-
-        <View
-            android:id="@+id/regular_divider"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="?android:attr/listDivider"
-            android:layout_marginHorizontal="8dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone"/>
-        
-        <!-- 应用内搜索 -->
-        <TextView
-            android:id="@+id/app_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="应用内搜索"
-            android:textAppearance="?attr/textAppearanceCaption"
-            android:textColor="?android:attr/textColorSecondary"
-            android:paddingHorizontal="8dp"
-            android:visibility="gone"/>
-
-        <LinearLayout
-            android:id="@+id/app_search_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:gravity="start|center_vertical"
-            android:visibility="gone"/>
-
-    </LinearLayout>
-
-    <!-- 悬浮球图标，始终显示 -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/floating_ball_icon"
+        android:id="@+id/floating_view_content_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:fabSize="normal"
-        app:maxImageSize="0dp"
-        app:tint="#00000000"
-        app:backgroundTint="#00000000"
-        app:elevation="2dp"
-        app:borderWidth="0dp"
-        android:alpha="0.85"
-        app:rippleColor="#40FFFFFF"
-        android:background="@drawable/floating_ball_ripple_effect"
-        app:shapeAppearanceOverlay="@style/CircularFAB"
-        android:contentDescription="悬浮球" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- 悬浮球图标 -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/floating_ball_icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:src="@drawable/ic_ai_ball"
+            app:fabSize="mini" />
+
+        <!-- 搜索界面容器 (默认隐藏) -->
+        <LinearLayout
+            android:id="@+id/search_container"
+            android:layout_width="300dp"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/floating_window_background"
+            android:visibility="gone"
+            android:padding="8dp">
+
+            <!-- 搜索框 -->
+            <LinearLayout
+                android:id="@+id/search_bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/search_input_background"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp">
+
+                <ImageButton
+                    android:id="@+id/search_mode_button"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_search"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="切换搜索模式"
+                    android:layout_marginEnd="8dp"/>
+
+                <EditText
+                    android:id="@+id/search_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:hint="搜索..."
+                    android:imeOptions="actionSearch"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:background="@null"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textColorHint="?android:attr/textColorHint"
+                    android:paddingTop="12dp"
+                    android.paddingBottom="12dp"/>
+
+            </LinearLayout>
+
+            <!-- 各类搜索结果的容器 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="8dp">
+
+                <!-- 组合搜索 -->
+                <TextView
+                    android:id="@+id/combo_title"
+                    style="@style/CategoryTitle"
+                    android:text="组合搜索" />
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none">
+                    <LinearLayout
+                        android:id="@+id/saved_combos_container"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"/>
+                </HorizontalScrollView>
+                <View
+                    android:id="@+id/combo_divider"
+                    style="@style/Divider" />
+
+                <!-- AI引擎 -->
+                <TextView
+                    android:id="@+id/ai_title"
+                    style="@style/CategoryTitle"
+                    android:text="AI 搜索" />
+                <LinearLayout
+                    android:id="@+id/ai_engines_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+                <View
+                    android:id="@+id/ai_divider"
+                    style="@style/Divider" />
+
+                <!-- 普通搜索引擎 -->
+                <TextView
+                    android:id="@+id/regular_title"
+                    style="@style/CategoryTitle"
+                    android:text="网页搜索" />
+                <LinearLayout
+                    android:id="@+id/regular_engines_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+                <View
+                    android:id="@+id/regular_divider"
+                    style="@style/Divider" />
+
+                <!-- 应用内搜索 -->
+                <TextView
+                    android:id="@+id/app_title"
+                    style="@style/CategoryTitle"
+                    android:text="应用内搜索" />
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none">
+                    <LinearLayout
+                        android:id="@+id/app_search_container"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"/>
+                </HorizontalScrollView>
+
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
 
     <!-- 搜索引擎快捷方式容器 -->
     <LinearLayout
@@ -198,4 +158,4 @@
         android:elevation="4dp"
         android:visibility="gone" />
 
-</LinearLayout> 
+</FrameLayout> 

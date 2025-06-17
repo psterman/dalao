@@ -261,11 +261,11 @@ class SettingsManager private constructor(context: Context) {
     }
     
     // 左手模式设置
-    fun isLeftHandedMode(): Boolean {
+    fun isLeftHandModeEnabled(): Boolean {
         return prefs.getBoolean("left_handed_mode", false)
     }
     
-    fun setLeftHandedMode(enabled: Boolean) {
+    fun setLeftHandModeEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("left_handed_mode", enabled).apply()
         notifyListeners("left_handed_mode", enabled)
     }
@@ -588,15 +588,5 @@ class SettingsManager private constructor(context: Context) {
             .putInt("floating_ball_x", x)
             .putInt("floating_ball_y", y)
             .apply()
-    }
-
-    // 新增：保存和获取左右手习惯
-    fun getHandedness(): String {
-        return prefs.getString("handedness", "auto") ?: "auto"
-    }
-
-    fun setHandedness(mode: String) {
-        prefs.edit().putString("handedness", mode).apply()
-        notifyListeners("handedness", mode)
     }
 }

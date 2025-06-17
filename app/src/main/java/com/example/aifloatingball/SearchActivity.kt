@@ -521,7 +521,7 @@ class SearchActivity : AppCompatActivity() {
     private fun setupBasicClickListeners() {
         // 设置菜单按钮点击事件
         menuButton.setOnClickListener {
-            val isLeftHanded = settingsManager.isLeftHandedMode()
+            val isLeftHanded = settingsManager.isLeftHandModeEnabled()
             if (isLeftHanded) {
                 if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
                     drawerLayout.closeDrawer(GravityCompat.END)
@@ -987,7 +987,7 @@ class SearchActivity : AppCompatActivity() {
             loadUrl(searchUrl)
         }
         drawerLayout.closeDrawer(
-            if (settingsManager.isLeftHandedMode()) GravityCompat.END else GravityCompat.START
+            if (settingsManager.isLeftHandModeEnabled()) GravityCompat.END else GravityCompat.START
         )
     }
 
@@ -997,7 +997,7 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun updateLayoutForHandedness() {
-        val isLeftHanded = settingsManager.isLeftHandedMode()
+        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
         
         // 更新抽屉位置
         (drawerLayout.getChildAt(1) as? LinearLayout)?.let { drawer ->
@@ -1154,7 +1154,7 @@ class SearchActivity : AppCompatActivity() {
         })
 
         // 根据当前模式设置初始抽屉位置
-        val isLeftHanded = settingsManager.isLeftHandedMode()
+        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
         (drawerLayout.getChildAt(1) as? LinearLayout)?.let { drawer ->
             drawer.layoutParams = (drawer.layoutParams as DrawerLayout.LayoutParams).apply {
                 gravity = if (isLeftHanded) Gravity.END else Gravity.START
@@ -1172,7 +1172,7 @@ class SearchActivity : AppCompatActivity() {
             engines = emptyList(),
             onEngineSelected = { engine ->
                 openSearchEngine(engine)
-                drawerLayout.closeDrawer(if (settingsManager.isLeftHandedMode()) GravityCompat.END else GravityCompat.START)
+                drawerLayout.closeDrawer(if (settingsManager.isLeftHandModeEnabled()) GravityCompat.END else GravityCompat.START)
             }
         )
         
@@ -1431,7 +1431,7 @@ class SearchActivity : AppCompatActivity() {
 
     // 更新布局位置
     private fun updateLayoutPosition() {
-        val isLeftHanded = settingsManager.isLeftHandedMode()
+        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
         val layoutParams = searchLayout?.layoutParams as? FrameLayout.LayoutParams
         
         layoutParams?.gravity = if (isLeftHanded) Gravity.START else Gravity.END

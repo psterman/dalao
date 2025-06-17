@@ -158,6 +158,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             "floating_window_display_mode" -> {
                 if (isMenuVisible) updateSearchModeVisibility()
             }
+            "left_handed_mode" -> {
+                // Reposition the ball when the handedness mode changes
+                snapToEdge()
+            }
         }
     }
 
@@ -212,6 +216,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
 
         val savedPosition = settingsManager.getFloatingBallPosition()
+        val screenWidth = getScreenWidth()
+        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
 
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -221,7 +227,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = savedPosition.first
+            x = if (isLeftHanded) 0 else screenWidth
             y = savedPosition.second
         }
 
@@ -305,14 +311,14 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!isMoving) {
+                    if (isMoving) {
+                        snapToEdge()
+                    } else {
                         if (isMenuVisible) {
                             hideSearchInterface()
                         } else {
                             showSearchInterface()
                         }
-                    } else {
-                        snapToEdge()
                     }
                     isMoving = false
                     true
@@ -323,36 +329,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     }
 
     private fun snapToEdge() {
-        val screenWidth: Int
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val windowMetrics = windowManager.currentWindowMetrics
-            val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars())
-            screenWidth = windowMetrics.bounds.width() - insets.left - insets.right
+        val screenWidth = getScreenWidth()
+        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
+
+        params?.x = if (isLeftHanded) {
+            0
         } else {
-            @Suppress("DEPRECATION")
-            val display = windowManager.defaultDisplay
-            val size = Point()
-            @Suppress("DEPRECATION")
-            display.getSize(size)
-            screenWidth = size.x
-        }
-
-        val handedness = settingsManager.getHandedness()
-
-        when (handedness) {
-            "left" -> { // 左手习惯，靠右
-                params?.x = screenWidth - (floatingView?.width ?: 0)
-            }
-            "right" -> { // 右手习惯，靠左
-                params?.x = 0
-            }
-            else -> { // 自动
-                if ((params?.x ?: 0) < screenWidth / 2) {
-                    params?.x = 0
-                } else {
-                    params?.x = screenWidth - (floatingView?.width ?: 0)
-                }
-            }
+            screenWidth - (floatingView?.width ?: 0)
         }
 
         windowManager.updateViewLayout(floatingView, params)
@@ -362,9 +345,33 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
     }
 
+    private fun getScreenWidth(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val windowMetrics = windowManager.currentWindowMetrics
+            val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars())
+            windowMetrics.bounds.width() - insets.left - insets.right
+        } else {
+            @Suppress("DEPRECATION")
+            val display = windowManager.defaultDisplay
+            val size = Point()
+            @Suppress("DEPRECATION")
+            display.getSize(size)
+            size.x
+        }
+    }
+
     private fun showSearchInterface() {
         if (isMenuVisible) return
         isMenuVisible = true
+
+        val contentContainer = floatingView?.findViewById<LinearLayout>(R.id.floating_view_content_container)
+        val layoutParams = contentContainer?.layoutParams as? FrameLayout.LayoutParams
+        if (settingsManager.isLeftHandModeEnabled()) {
+            layoutParams?.gravity = Gravity.START
+        } else {
+            layoutParams?.gravity = Gravity.END
+        }
+        contentContainer?.layoutParams = layoutParams
 
         searchContainer?.visibility = View.VISIBLE
         updateSearchModeVisibility()
@@ -386,6 +393,12 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         searchContainer?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
             searchContainer?.visibility = View.GONE
             searchContainer?.alpha = 1f
+
+            // Reset gravity after hiding
+            val contentContainer = floatingView?.findViewById<LinearLayout>(R.id.floating_view_content_container)
+            val layoutParams = contentContainer?.layoutParams as? FrameLayout.LayoutParams
+            layoutParams?.gravity = Gravity.NO_GRAVITY
+            contentContainer?.layoutParams = layoutParams
         }
 
         hideKeyboard()
