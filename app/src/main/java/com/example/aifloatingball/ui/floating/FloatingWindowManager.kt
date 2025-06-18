@@ -33,6 +33,9 @@ import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.utils.FaviconLoader
 import android.widget.HorizontalScrollView
 import com.example.aifloatingball.ui.text.TextSelectionManager
+import android.view.inputmethod.InputMethodManager
+import android.os.Handler
+import android.os.Looper
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -154,7 +157,7 @@ class FloatingWindowManager(
             gravity = Gravity.TOP or Gravity.START
             x = savedX
             y = savedY
-            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
         }
 
         originalWindowHeight = savedHeight
@@ -185,6 +188,11 @@ class FloatingWindowManager(
         thirdWebView = _floatingView?.findViewById(R.id.third_floating_webview)
         
         searchInput = _floatingView?.findViewById<EditText>(R.id.dual_search_input)
+        
+        // 移除所有之前添加的复杂焦点管理监听器
+        searchInput?.onFocusChangeListener = null
+        searchInput?.setOnTouchListener(null)
+        
         val saveEnginesButton = _floatingView?.findViewById<ImageButton>(R.id.btn_save_engines)
         val windowCountButton = _floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
         val windowCountToggleText = _floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)
@@ -217,7 +225,15 @@ class FloatingWindowManager(
             }
         }
         
-        searchInput?.setOnClickListener { it.requestFocus() }
+        // 当焦点因任何原因从搜索框移走时，隐藏键盘
+        searchInput?.setOnFocusChangeListener { view, hasFocus ->
+            if (!hasFocus) {
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(view.windowToken, 0)
+                Log.d(TAG, "Search input lost focus, explicitly hiding keyboard.")
+            }
+        }
+
         searchInput?.setOnLongClickListener {
             textSelectionManager.showEditTextSelectionMenu(it as EditText)
             true
@@ -251,8 +267,16 @@ class FloatingWindowManager(
         // 新增：填充全局标准搜索引擎栏
         populateGlobalStandardEngineIcons(globalStdContainer)
 
-        
-        windowManager?.addView(_floatingView, params)
+        setupKeyboardManagement()
+        setupWebViewFocusManagementOnScroll()
+
+        try {
+            if (_floatingView?.isAttachedToWindow == false) {
+                windowManager?.addView(_floatingView, params)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingWindowManager", "Error adding view: ${e.message}")
+        }
     }
 
     private fun determineActiveWebViewIndex(): Int {
@@ -579,6 +603,77 @@ class FloatingWindowManager(
             1 -> secondWebView
             2 -> thirdWebView
             else -> null
+        }
+    }
+
+    /**
+     * 设置键盘管理，用于在点击WebView时隐藏键盘
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupKeyboardManagement() {
+        val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+        val scrollContainer = _floatingView?.findViewById<HorizontalScrollView>(R.id.webviews_scroll_container)
+
+        // 创建一个统一的监听器来处理所有"应隐藏键盘"的交互
+        val hideKeyboardListener = View.OnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                if (searchInput?.isFocused == true) {
+                    // 当用户触摸网页区域时，清除搜索框的焦点
+                    // 这将触发上面的 OnFocusChangeListener 来隐藏键盘
+                    searchInput?.clearFocus()
+                    Log.d(TAG, "Web content area touched, clearing search input focus.")
+                    // 消费此事件以防止立即开始滚动
+                    return@OnTouchListener true
+                }
+            }
+            // 允许其他事件（如滚动）正常进行
+            false
+        }
+
+        // 将此监听器应用于所有WebView和其滚动容器
+        webViews.forEach { webView ->
+            webView.setOnTouchListener(hideKeyboardListener)
+        }
+        scrollContainer?.setOnTouchListener(hideKeyboardListener)
+    }
+
+    /**
+     * 新增：设置滚动时对WebView焦点的管理，以防止内部输入框自动激活
+     */
+    private fun setupWebViewFocusManagementOnScroll() {
+        val scrollContainer = _floatingView?.findViewById<HorizontalScrollView>(R.id.webviews_scroll_container)
+        val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+        val handler = Handler(Looper.getMainLooper())
+        var scrollStopRunnable: Runnable? = null
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+
+        scrollContainer?.viewTreeObserver?.addOnScrollChangedListener {
+            // 当滚动开始时，立即禁用所有WebView的焦点并隐藏键盘
+            if (imm.isActive) {
+                imm.hideSoftInputFromWindow(scrollContainer.windowToken, 0)
+            }
+            if (webViews.any { it.isFocusable }) {
+                Log.d(TAG, "Scroll detected, disabling WebView focus.")
+                webViews.forEach {
+                    it.isFocusable = false
+                    it.isFocusableInTouchMode = false
+                }
+            }
+
+            // 移除上一个等待执行的"滚动停止"任务
+            scrollStopRunnable?.let { handler.removeCallbacks(it) }
+
+            // 设置一个新的"滚动停止"任务
+            scrollStopRunnable = Runnable {
+                Log.d(TAG, "Scroll stopped, re-enabling WebView focus.")
+                // 滚动停止后，重新启用所有WebView的焦点
+                webViews.forEach {
+                    it.isFocusable = true
+                    it.isFocusableInTouchMode = true
+                }
+            }
+            // 250毫秒后执行，如果期间没有新的滚动事件
+            handler.postDelayed(scrollStopRunnable!!, 250)
         }
     }
 
