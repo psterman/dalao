@@ -36,6 +36,7 @@ import com.example.aifloatingball.ui.text.TextSelectionManager
 import android.view.inputmethod.InputMethodManager
 import android.os.Handler
 import android.os.Looper
+import com.example.aifloatingball.ui.floating.KeyEventInterceptorView
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -48,7 +49,7 @@ class FloatingWindowManager(
     private val context: Context,
     private val windowStateCallback: WindowStateCallback,
     private val textSelectionManager: TextSelectionManager
-) {
+) : KeyEventInterceptorView.BackPressListener {
     private var windowManager: WindowManager? = null
     private var _floatingView: View? = null
     val floatingView: View?
@@ -261,6 +262,9 @@ class FloatingWindowManager(
             handleDrag(event) 
             true
         }
+
+        // 新增：设置返回键监听器
+        (_floatingView as? KeyEventInterceptorView)?.backPressListener = this
 
         // 新增：填充全局AI搜索引擎栏
         populateGlobalAIEngineIcons(globalAiContainer)
@@ -615,13 +619,21 @@ class FloatingWindowManager(
         val scrollContainer = _floatingView?.findViewById<HorizontalScrollView>(R.id.webviews_scroll_container)
 
         // 创建一个统一的监听器来处理所有"应隐藏键盘"的交互
-        val hideKeyboardListener = View.OnTouchListener { _, event ->
+        val hideKeyboardListener = View.OnTouchListener { view, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 if (searchInput?.isFocused == true) {
                     // 当用户触摸网页区域时，清除搜索框的焦点
                     // 这将触发上面的 OnFocusChangeListener 来隐藏键盘
                     searchInput?.clearFocus()
                     Log.d(TAG, "Web content area touched, clearing search input focus.")
+
+                    // 记录哪个WebView被触摸了
+                    val touchedIndex = webViews.indexOf(view)
+                    if (touchedIndex != -1) {
+                        lastActiveWebViewIndex = touchedIndex
+                        Log.d(TAG, "Last active WebView index set to: $lastActiveWebViewIndex")
+                    }
+
                     // 消费此事件以防止立即开始滚动
                     return@OnTouchListener true
                 }
@@ -675,6 +687,39 @@ class FloatingWindowManager(
             // 250毫秒后执行，如果期间没有新的滚动事件
             handler.postDelayed(scrollStopRunnable!!, 250)
         }
+    }
+
+    /**
+     * 实现 BackPressListener 接口来处理返回键事件
+     */
+    override fun onBackButtonPressed(): Boolean {
+        val webViews = getXmlDefinedWebViews()
+        val activeWebView = webViews.getOrNull(lastActiveWebViewIndex)
+
+        // 检查当前活动的WebView是否可以后退
+        activeWebView?.let {
+            if (it.canGoBack()) {
+                Log.d(TAG, "Back press handled by WebView index $lastActiveWebViewIndex")
+                it.goBack()
+                return true // 事件已处理
+            }
+        }
+
+        // 如果没有活动的WebView或它不能后退，则检查其他WebView
+        for (i in webViews.indices) {
+            if (i == lastActiveWebViewIndex) continue // 已经检查过了
+            val webView = webViews[i]
+            if (webView?.isShown == true && webView.canGoBack()) {
+                Log.d(TAG, "Back press handled by fallback WebView index $i")
+                webView.goBack()
+                return true // 事件已处理
+            }
+        }
+
+        // 如果所有WebView都不能后退，则关闭服务
+        Log.d(TAG, "No WebView can go back, stopping service.")
+        (context as? DualFloatingWebViewService)?.stopSelf()
+        return true // 事件已处理（通过关闭窗口）
     }
 
     companion object {

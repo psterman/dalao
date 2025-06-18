@@ -249,7 +249,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "处理服务命令")
-
+        
         // 确保WebViewManager已经初始化
         if (!::webViewManager.isInitialized) {
             Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
@@ -262,10 +262,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             // 如果已经初始化，则立即处理
             intent?.let { handleSearchIntent(it) }
         }
-
+        
         // 启用输入的逻辑已移至 handleSearchIntent, 以避免焦点问题
         // updateWindowParameters(true)
-
+        
         return START_STICKY
     }
 
@@ -437,11 +437,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         Log.d(TAG, "窗口数量切换为: $currentWindowCount")
         saveWindowCount(currentWindowCount) // Save new window count
 
-        val queryToUse = lastQuery ?: ""
+        val queryToUse = lastQuery ?: "" 
         val engineToUse = lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY
-
+        
         handleSearchInternal(queryToUse, engineToUse, currentWindowCount)
-
+        
         // 移除延迟请求焦点的逻辑，因为这可能导致输入法闪烁问题
         // handler.postDelayed({
         //     try {
@@ -452,7 +452,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         //         Log.e(TAG, "切换窗口数量后聚焦输入框失败: ${e.message}")
         //     }
         // }, 300) // 延迟300毫秒
-
+        
         return currentWindowCount
     }
     
