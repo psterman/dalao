@@ -148,8 +148,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 webViewManager = WebViewManager(this, xmlWebViews, windowManager)
                 textSelectionManager = webViewManager.textSelectionManager
 
-                // 创建时，使用默认窗口数量加载一次
-                handleSearchInternal(lastQuery ?: "", lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY, currentWindowCount)
+                // 创建时，使用为第一个窗口配置的默认引擎加载一次
+                val initialEngine = lastEngineKey ?: settingsManager.getSearchEngineForPosition(0)
+                handleSearchInternal(lastQuery ?: "", initialEngine, currentWindowCount)
             } else {
                 Log.e(TAG, "错误: XML中的WebView未找到，无法初始化WebViewManager。")
                 stopSelf() // 如果关键视图找不到，停止服务
@@ -157,20 +158,20 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         }, 100) // 延迟100毫秒
         
         // 注册设置变更监听器
-        settingsManager.registerOnSettingChangeListener<String>("left_window_search_engine") { key, value ->
-            Log.d(TAG, "设置变更: $key = $value")
-            // 重新加载第一个WebView
-            handleSearchInternal(lastQuery ?: "", settingsManager.getSearchEngineForPosition(0), currentWindowCount)
+        settingsManager.registerOnSettingChangeListener<String>("left_window_search_engine") { _, value ->
+            Log.d(TAG, "左侧窗口引擎变更为: $value")
+            // 仅重新加载第一个WebView
+            performSearchInWebView(0, lastQuery ?: "", value)
         }
-        settingsManager.registerOnSettingChangeListener<String>("center_window_search_engine") { key, value ->
-            Log.d(TAG, "设置变更: $key = $value")
-            // 重新加载第二个WebView
-            handleSearchInternal(lastQuery ?: "", settingsManager.getSearchEngineForPosition(1), currentWindowCount)
+        settingsManager.registerOnSettingChangeListener<String>("center_window_search_engine") { _, value ->
+            Log.d(TAG, "中间窗口引擎变更为: $value")
+            // 仅重新加载第二个WebView
+            performSearchInWebView(1, lastQuery ?: "", value)
         }
-        settingsManager.registerOnSettingChangeListener<String>("right_window_search_engine") { key, value ->
-            Log.d(TAG, "设置变更: $key = $value")
-            // 重新加载第三个WebView
-            handleSearchInternal(lastQuery ?: "", settingsManager.getSearchEngineForPosition(2), currentWindowCount)
+        settingsManager.registerOnSettingChangeListener<String>("right_window_search_engine") { _, value ->
+            Log.d(TAG, "右侧窗口引擎变更为: $value")
+            // 仅重新加载第三个WebView
+            performSearchInWebView(2, lastQuery ?: "", value)
         }
         
         // 注册广播接收器
@@ -221,10 +222,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         textSelectionManager = tempWebViewFactory.textSelectionManager
         
         windowManager = FloatingWindowManager(this, this, textSelectionManager)
-        searchEngineHandler = SearchEngineHandler()
+        settingsManager = SettingsManager.getInstance(this)
+        searchEngineHandler = SearchEngineHandler(settingsManager)
         intentParser = IntentParser()
         chatManager = ChatManager(this)
-        settingsManager = SettingsManager.getInstance(this)
         
         // 初始化WebViewManager
         val xmlWebViews = windowManager.getXmlDefinedWebViews()
@@ -254,7 +255,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         if (!::webViewManager.isInitialized) {
             Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
             // 在这种情况下，我们依赖onCreate中的postDelayed来初始化。
-            // 延迟处理意图，以确保UI和管理器已准备就绪。
+            // 延迟处理意图，确保UI和管理器已准备就绪。
             handler.postDelayed({
                 intent?.let { handleSearchIntent(it) }
             }, 200) // 稍微长一点的延迟，以确保onCreate的延迟已经执行
@@ -272,14 +273,14 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun handleSearchIntent(intent: Intent) {
         val searchParams = intentParser.parseSearchIntent(intent)
         if (searchParams != null) {
-            Log.d(TAG, "处理搜索请求 from intent: ${searchParams.query}")
-            // 委托给 performSearch 处理，它有正确的引擎回退逻辑
+            // 这是一个来自外部的、明确的新搜索请求，执行它。
+            Log.d(TAG, "处理来自intent的新搜索: ${searchParams.query}")
             performSearch(searchParams.query, searchParams.engineKey)
         } else {
+            // 这不是一个新的搜索请求。首次加载完全由onCreate处理。
+            // 此处不做任何操作，以避免与onCreate产生竞争和重复加载。
             if (lastQuery == null) {
-                Log.d(TAG, "Intent中无搜索参数，加载默认内容 (当前窗口数: $currentWindowCount)")
-                // 使用 performSearch 来确保使用正确的默认引擎加载主页
-                performSearch("", null)
+                Log.d(TAG, "Intent中无搜索参数，忽略以防止重复加载。首次加载由onCreate处理。")
             }
         }
         // 在处理完所有搜索逻辑、WebView开始加载后再启用输入，避免焦点冲突
@@ -374,8 +375,27 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             return
         }
 
+        val webView = webViewManager.getWebViews().getOrNull(webViewIndex)
+        if (webView == null) {
+            Log.e(TAG, "在 performSearchInWebView 中找不到索引为 $webViewIndex 的WebView")
+            return
+        }
+
+        // 确保WebView启用了文本选择功能
+        if(::textSelectionManager.isInitialized) {
+            webView.setTextSelectionManager(textSelectionManager)
+        }
+
+        // 首先，检查是否是特殊的聊天引擎
+        if (CHAT_UI_ENGINES.any { it.equals(engineKey, ignoreCase = true) }) {
+            Log.d(TAG, "聊天引擎检测到，使用ChatManager初始化: $engineKey")
+            chatManager.initWebView(webView, engineKey, query)
+            return
+        }
+
+        // 如果不是聊天引擎，则继续正常的URL加载
         val urlToLoad = if (query.isBlank()) {
-            // 如果查询为空，加载引擎的首页
+            // 如果查询为空，加载引擎的主页
             if (isAIEngine(engineKey)) {
                 EngineUtil.getAISearchEngineHomeUrl(engineKey)
             } else {
@@ -387,33 +407,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         }
 
         if (urlToLoad.isBlank() || !urlToLoad.startsWith("http")) {
-            // 对于聊天引擎，允许 chat:// 协议
-            if (!urlToLoad.startsWith("chat://")) {
             Log.e(TAG, "生成的URL无效: '$urlToLoad' for engine: $engineKey")
-                return
-            }
-        }
-
-        // 如果是聊天引擎，则由ChatManager处理
-        if (urlToLoad.startsWith("chat://")) {
-            val webView = webViewManager.getWebViews().getOrNull(webViewIndex)
-            if (webView != null) {
-                val chatEngineKey = urlToLoad.substringAfter("chat://")
-                chatManager.initWebView(webView, chatEngineKey, query)
-            } else {
-                Log.e(TAG, "在 performSearchInWebView 中找不到索引为 $webViewIndex 的WebView")
-            }
             return
         }
-        
+
         webViewManager.loadUrlInWebView(webViewIndex, urlToLoad)
-        webViewManager.getWebViews()[webViewIndex].let {
-            if(::textSelectionManager.isInitialized) {
-                it.setTextSelectionManager(textSelectionManager)
-            } else {
-                Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${it.id} 设置")
-            }
-        }
     }
     
     /**
@@ -438,7 +436,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         saveWindowCount(currentWindowCount) // Save new window count
 
         val queryToUse = lastQuery ?: "" 
-        val engineToUse = lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY
+        val engineToUse = lastEngineKey ?: settingsManager.getSearchEngineForPosition(0)
         
         handleSearchInternal(queryToUse, engineToUse, currentWindowCount)
         

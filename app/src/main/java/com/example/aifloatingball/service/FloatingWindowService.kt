@@ -320,8 +320,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun performSearch(query: String) {
         if (query.isNotBlank()) {
-            // Default to starting the dual webview service with the first regular engine
-            val engineName = regularSearchEngines.firstOrNull()?.name ?: SearchEngine.DEFAULT_ENGINES.first().name
+            // 修复：不再使用此服务中的第一个引擎作为默认值，
+            // 而是从设置中获取为DualFloatingWebViewService的第一个窗口配置的默认引擎。
+            val engineName = settingsManager.getSearchEngineForPosition(0)
             val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", query)
                 putExtra("engine_key", engineName)
