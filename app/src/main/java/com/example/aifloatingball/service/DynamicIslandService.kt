@@ -834,14 +834,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         val hintState = pageView.findViewById<View>(R.id.page_hint_state)
         val filledContent = pageView.findViewById<View>(R.id.page_filled_content)
-        val addOverlay = pageView.findViewById<View>(R.id.page_add_overlay)
         val clearButton = pageView.findViewById<View>(R.id.page_clear_button)
         val aiPromptInfo = pageView.findViewById<TextView>(R.id.page_ai_prompt_info)
-        val hintText = hintState.findViewById<TextView>(R.id.page_hint_text)
 
         if (engine != null) {
             hintState.visibility = View.GONE
-            addOverlay.visibility = View.GONE
             filledContent.visibility = View.VISIBLE
             clearButton.visibility = View.VISIBLE
 
@@ -862,11 +859,19 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         } else {
             hintState.visibility = View.VISIBLE
-            addOverlay.visibility = View.VISIBLE
             filledContent.visibility = View.GONE
             clearButton.visibility = View.GONE
             aiPromptInfo.visibility = View.GONE
-            hintText.text = "点击加载搜索引擎"
+        }
+        updateGlobalHintVisibility()
+    }
+
+    private fun updateGlobalHintVisibility() {
+        val globalHint = configPanelView?.findViewById<TextView>(R.id.global_hint_text)
+        if (activeSlots.isEmpty()) {
+            globalHint?.visibility = View.VISIBLE
+        } else {
+            globalHint?.visibility = View.GONE
         }
     }
 
@@ -935,8 +940,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
             "display_mode" -> {
-                if (sharedPreferences?.getString(key, "floating_ball") != "dynamic_island") {
-                    stopSelf()
+            if (sharedPreferences?.getString(key, "floating_ball") != "dynamic_island") {
+                stopSelf()
                 }
             }
             "theme_mode" -> {

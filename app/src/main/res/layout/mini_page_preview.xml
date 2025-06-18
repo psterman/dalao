@@ -20,36 +20,15 @@
             android:id="@+id/page_hint_state"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:gravity="center"
             android:orientation="vertical"
-            android:padding="8dp"
-            android:gravity="center_horizontal"
             android:visibility="visible">
 
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="8dp"
-                android:background="@color/dynamic_island_mini_preview_placeholder"
-                android:layout_marginBottom="12dp"/>
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="6dp"
-                android:background="@color/dynamic_island_mini_preview_placeholder"
-                android:layout_marginBottom="6dp"/>
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="6dp"
-                android:layout_marginStart="24dp"
-                android:background="@color/dynamic_island_mini_preview_placeholder" />
-
-            <TextView
-                android:id="@+id/page_hint_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="点击加载搜索引擎"
-                android:textColor="@color/dynamic_island_mini_preview_text_secondary"
-                android:textSize="10sp"
-                android:gravity="center" />
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_add_circle_outline"
+                app:tint="@color/dynamic_island_mini_preview_add_icon" />
 
         </LinearLayout>
 
@@ -94,17 +73,6 @@
                 android:textSize="9sp"
                 android:visibility="gone" />
         </LinearLayout>
-
-        <!-- Plus icon overlay for empty state -->
-        <ImageView
-            android:id="@+id/page_add_overlay"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_alignParentBottom="true"
-            android:layout_centerHorizontal="true"
-            android:layout_marginBottom="8dp"
-            android:src="@drawable/ic_add_circle_outline"
-            app:tint="@color/dynamic_island_mini_preview_add_icon"/>
 
         <!-- Clear button (on top of everything) -->
         <ImageView
