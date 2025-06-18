@@ -143,8 +143,17 @@
 
         <activity
             android:name=".MenuManagerActivity"
-            android:label="菜单管理"
-            android:theme="@style/Theme.AIFloatingBall" />
+            android:label="@string/title_activity_menu_manager"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".MasterPromptSettingsActivity"
+            android:label="@string/title_master_prompt_settings"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".SubSettingsActivity"
+            android:parentActivityName=".MasterPromptSettingsActivity" />
 
         <activity
             android:name=".AISearchEngineSettingsActivity"

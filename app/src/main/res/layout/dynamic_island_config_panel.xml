@@ -72,19 +72,37 @@
 
         </LinearLayout>
 
-        <!-- "Add Prompt" Button -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_add_master_prompt"
-            style="@style/Widget.MaterialComponents.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_below="@id/slots_container"
             android:layout_alignParentEnd="true"
             android:layout_marginTop="8dp"
-            android:text="+ 加提示词"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_generate_prompt"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="生成 Prompt"
+                android:textColor="?attr/colorPrimary"
+                app:icon="@drawable/ic_edit"
+                app:iconTint="?attr/colorPrimary" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_add_master_prompt"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="+ 加提示词"
                 android:textColor="?attr/colorPrimary"
                 app:icon="@drawable/ic_magic_wand"
                 app:iconTint="?attr/colorPrimary" />
+
+        </LinearLayout>
 
     </RelativeLayout>
 </com.google.android.material.card.MaterialCardView> 

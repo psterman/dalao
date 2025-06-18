@@ -2,6 +2,15 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <Preference
+        app:key="master_prompt_settings"
+        app:title="@string/title_master_prompt_settings"
+        app:summary="@string/summary_master_prompt_settings"
+        app:icon="@drawable/ic_magic_wand">
+        <intent android:targetPackage="com.example.aifloatingball"
+                android:targetClass="com.example.aifloatingball.MasterPromptSettingsActivity"/>
+    </Preference>
+
     <PreferenceCategory
         app:title="外观设置"
         app:iconSpaceReserved="false">
@@ -50,6 +59,11 @@
             app:summary="将悬浮球默认显示在屏幕左侧"
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
+
+        <Preference
+            app:key="ai_api_settings"
+            app:title="AI API设置"
+            app:summary="配置DeepSeek和ChatGPT的API密钥"/>
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -201,11 +215,6 @@
             app:key="ai_default_search_mode"
             app:title="默认使用AI搜索模式"
             app:summary="启用后默认使用AI搜索引擎"/>
-
-        <Preference
-            app:key="ai_api_settings"
-            app:title="AI API设置"
-            app:summary="配置DeepSeek和ChatGPT的API密钥"/>
     </PreferenceCategory>
 
 </PreferenceScreen>

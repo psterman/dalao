@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+    <PreferenceCategory app:title="兴趣与偏好">
+        <MultiSelectListPreference
+            app:key="prompt_interests_entertainment"
+            app:title="日常娱乐"
+            app:entries="@array/prompt_interests_entertainment_entries"
+            app:entryValues="@array/prompt_interests_entertainment_values"/>
+        <MultiSelectListPreference
+            app:key="prompt_interests_shopping"
+            app:title="购物喜好"
+            app:entries="@array/prompt_interests_shopping_entries"
+            app:entryValues="@array/prompt_interests_shopping_values"/>
+        <MultiSelectListPreference
+            app:key="prompt_interests_niche"
+            app:title="小众爱好"
+            app:entries="@array/prompt_interests_niche_entries"
+            app:entryValues="@array/prompt_interests_niche_values"/>
+    </PreferenceCategory>
+    <PreferenceCategory app:title="观念与取向">
+        <ListPreference
+            app:key="prompt_interests_orientation"
+            app:title="性取向"
+            app:entries="@array/prompt_interests_orientation_entries"
+            app:entryValues="@array/prompt_interests_orientation_values"
+            app:useSimpleSummaryProvider="true"/>
+        <MultiSelectListPreference
+            app:key="prompt_interests_values"
+            app:title="三观倾向"
+            app:entries="@array/prompt_interests_values_entries"
+            app:entryValues="@array/prompt_interests_values_values"/>
+    </PreferenceCategory>
+</PreferenceScreen> 

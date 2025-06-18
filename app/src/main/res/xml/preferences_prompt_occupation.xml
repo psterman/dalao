@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+    <PreferenceCategory app:title="职业背景">
+        <MultiSelectListPreference
+            app:key="prompt_occupation_current"
+            app:title="目前从事的职业"
+            app:entries="@array/prompt_occupation_current_entries"
+            app:entryValues="@array/prompt_occupation_current_values" />
+        <MultiSelectListPreference
+            app:key="prompt_occupation_interest"
+            app:title="感兴趣的职业方向"
+            app:entries="@array/prompt_occupation_interest_entries"
+            app:entryValues="@array/prompt_occupation_interest_values" />
+    </PreferenceCategory>
+</PreferenceScreen> 

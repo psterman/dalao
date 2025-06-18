@@ -89,7 +89,28 @@
     <string name="send_button_desc">发送消息</string>
     <string name="title_activity_scrolling">ScrollingActivity</string>
     <string name="accessibility_service_description">此服务用于实现灵动岛的持续显示。开启后，应用将有权限在屏幕顶部创建和管理视图，为您提供类似灵动岛的体验。我们承诺不会使用此权限收集您的任何个人信息或进行其他操作。</string>
-    <string name="title_activity_ai_search_engine_settings">AISearchEngineSettingsActivity</string>
+    <string name="title_activity_ai_search_engine_settings">AI搜索引擎管理</string>
+    <string name="title_activity_menu_manager">菜单管理</string>
+
+    <!-- Master Prompt Settings -->
+    <string name="title_master_prompt_settings">AI 指令中心</string>
+    <string name="summary_master_prompt_settings">设置您的个人信息与偏好，让AI更懂你</string>
+    <string name="prompt_category_personal_info">个人信息</string>
+    <string name="prompt_gender_title">性别</string>
+    <string name="prompt_gender_summary">提供性别以便AI使用更贴切的称谓和语气</string>
+    <string name="prompt_birth_date_title">出生年月</string>
+    <string name="prompt_birth_date_summary">提供年龄信息有助于AI给出更合身的建议</string>
+    <string name="prompt_occupation_title">职业</string>
+    <string name="prompt_occupation_summary">您从事的行业或职位</string>
+    <string name="prompt_interests_title">兴趣爱好</string>
+    <string name="prompt_interests_summary">使用逗号分隔，例如：编程, 音乐, 徒步</string>
+    <string name="prompt_education_title">教育程度</string>
+    <string name="prompt_health_title">健康状况</string>
+    <string name="prompt_health_summary">例如：对花粉过敏，需要低糖饮食建议</string>
+    <string name="prompt_category_reply_preferences">AI 回复偏好</string>
+    <string name="prompt_reply_format_title">回复呈现形式</string>
+    <string name="prompt_refused_topics_title">不希望看到的内容</string>
+    <string name="prompt_tone_style_title">语气风格</string>
     <string name="pref_header_ai_engines">AI 搜索引擎</string>
     <string name="pref_title_enabled_ai_engines">启用的AI引擎</string>
     <string name="ai_engine_management">AI搜索引擎管理</string>
@@ -98,4 +119,27 @@
     <string name="cut">剪切</string>
     <string name="copy">复制</string>
     <string name="paste">粘贴</string>
+
+    <!-- Detailed Health Prompt Settings -->
+    <string name="health_category_clinical">临床信息</string>
+    <string name="health_diagnosed_title">确诊疾病</string>
+    <string name="health_surgery_history_title">过去1年有无手术史</string>
+    <string name="health_surgery_details_title">手术名称和时间</string>
+    <string name="health_allergy_history_title">有无药物/食物过敏史</string>
+    <string name="health_allergy_details_title">过敏原具体名称</string>
+    <string name="health_family_history_title">直系亲属健康状况</string>
+    <string name="health_family_history_summary">仅用于评估遗传风险，不收集具体亲属信息</string>
+
+    <string name="health_category_lifestyle">生活方式评估</string>
+    <string name="health_diet_preference_title">饮食偏好</string>
+    <string name="health_sleep_pattern_title">睡眠模式</string>
+    <string name="health_coping_style_title">压力应对方式</string>
+
+    <string name="health_category_alerts">重要健康提醒</string>
+    <string name="health_alert_chest_pain_title">⚠️ 胸痛警报</string>
+    <string name="health_alert_chest_pain_summary">若胸痛伴随：左臂麻木、冒冷汗、窒息感，请立即就医</string>
+    <string name="health_alert_headache_title">⚠️ 头痛警报</string>
+    <string name="health_alert_headache_summary">若头痛伴随：呕吐、视物模糊、意识模糊，请立即就医</string>
+    <string name="health_alert_bleeding_title">⚠️ 出血警报</string>
+    <string name="health_alert_bleeding_summary">若大量出血伴随：头晕、心跳过快、面色苍白，请立即就医</string>
 </resources> 

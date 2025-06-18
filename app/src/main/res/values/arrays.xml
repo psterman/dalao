@@ -196,4 +196,570 @@
         <item>in_app</item>
         <item>external</item>
     </string-array>
+
+    <!-- Master Prompt Settings Arrays -->
+    <!-- Gender -->
+    <string-array name="gender_entries">
+        <item>男</item>
+        <item>女</item>
+        <item>不指定</item>
+    </string-array>
+    <string-array name="gender_values">
+        <item>male</item>
+        <item>female</item>
+        <item>unspecified</item>
+    </string-array>
+
+    <!-- Education Level -->
+    <string-array name="education_entries">
+        <item>小学</item>
+        <item>初中</item>
+        <item>高中</item>
+        <item>本科</item>
+        <item>硕士</item>
+        <item>博士</item>
+        <item>其他</item>
+    </string-array>
+    <string-array name="education_values">
+        <item>primary</item>
+        <item>junior_high</item>
+        <item>senior_high</item>
+        <item>bachelor</item>
+        <item>master</item>
+        <item>doctorate</item>
+        <item>other</item>
+    </string-array>
+
+    <!-- AI Reply Format (Multi-select) -->
+    <string-array name="reply_format_entries">
+        <item>图文并茂</item>
+        <item>表格</item>
+        <item>分步步骤</item>
+        <item>纯文本</item>
+        <item>包含视频（如果可能）</item>
+        <item>提供参考链接</item>
+    </string-array>
+    <string-array name="reply_format_values">
+        <item>image_text</item>
+        <item>table</item>
+        <item>steps</item>
+        <item>plain_text</item>
+        <item>video</item>
+        <item>links</item>
+    </string-array>
+
+    <!-- Refused AI Topics (Multi-select) -->
+    <string-array name="refused_topics_entries">
+        <item>血腥暴力</item>
+        <item>政治敏感</item>
+        <item>儿童不宜 (NSFW)</item>
+        <item>过度营销/广告</item>
+        <item>心灵鸡汤/空洞说教</item>
+        <item>AI自我幻想/虚构内容</item>
+        <item>其他</item>
+    </string-array>
+    <string-array name="refused_topics_values">
+        <item>gore</item>
+        <item>politics</item>
+        <item>nsfw</item>
+        <item>marketing</item>
+        <item>fluff</item>
+        <item>hallucination</item>
+        <item>other</item>
+    </string-array>
+
+    <!-- AI Tone/Style -->
+    <string-array name="tone_style_entries">
+        <item>严谨专业</item>
+        <item>亲切鼓励</item>
+        <item>幽默风趣</item>
+        <item>简洁直白</item>
+    </string-array>
+    <string-array name="tone_style_values">
+        <item>professional</item>
+        <item>encouraging</item>
+        <item>humorous</item>
+        <item>direct</item>
+    </string-array>
+
+    <!-- Occupation -->
+    <string-array name="occupation_entries">
+        <item>学生</item>
+        <item>信息技术/软件开发</item>
+        <item>医疗健康</item>
+        <item>教育/科研</item>
+        <item>金融/会计</item>
+        <item>艺术/设计</item>
+        <item>制造业</item>
+        <item>自由职业</item>
+        <item>其他</item>
+    </string-array>
+    <string-array name="occupation_values">
+        <item>student</item>
+        <item>it</item>
+        <item>healthcare</item>
+        <item>education</item>
+        <item>finance</item>
+        <item>art_design</item>
+        <item>manufacturing</item>
+        <item>freelancer</item>
+        <item>other</item>
+    </string-array>
+
+    <!-- Interests (Multi-select) -->
+    <string-array name="interests_entries">
+        <item>编程与技术</item>
+        <item>音乐</item>
+        <item>徒步与户外</item>
+        <item>阅读</item>
+        <item>电影与剧集</item>
+        <item>电子游戏</item>
+        <item>体育运动</item>
+        <item>旅行</item>
+        <item>烹饪美食</item>
+    </string-array>
+    <string-array name="interests_values">
+        <item>tech</item>
+        <item>music</item>
+        <item>outdoors</item>
+        <item>reading</item>
+        <item>movies</item>
+        <item>gaming</item>
+        <item>sports</item>
+        <item>travel</item>
+        <item>cooking</item>
+    </string-array>
+
+    <!-- Health Status (Multi-select) -->
+    <string-array name="health_status_entries">
+        <item>对花粉过敏</item>
+        <item>需要低糖饮食</item>
+        <item>高血压</item>
+        <item>素食主义者</item>
+        <item>纯素食主义者</item>
+        <item>关注健身与营养</item>
+    </string-array>
+    <string-array name="health_status_values">
+        <item>pollen_allergy</item>
+        <item>low_sugar</item>
+        <item>high_blood_pressure</item>
+        <item>vegetarian</item>
+        <item>vegan</item>
+        <item>fitness_nutrition</item>
+    </string-array>
+
+    <string-array name="ic_toutiao">
+        <item>@drawable/ic_toutiao</item>
+    </string-array>
+
+    <string-array name="ic_sogou">
+        <item>@drawable/ic_sogou</item>
+    </string-array>
+
+    <!-- ========= NEW DETAILED PROMPT SETTINGS ========= -->
+
+    <!-- == Occupation Sub-categories == -->
+    <string-array name="prompt_occupation_current_entries">
+        <item>学生</item>
+        <item>信息技术/互联网</item>
+        <item>医疗/健康</item>
+        <item>教育/科研</item>
+        <item>金融/法律/咨询</item>
+        <item>艺术/设计/媒体</item>
+        <item>销售/市场/运营</item>
+        <item>建筑/房地产</item>
+        <item>制造业/物流</item>
+        <item>自由职业/创业者</item>
+        <item>政府/非营利组织</item>
+        <item>其他</item>
+    </string-array>
+    <string-array name="prompt_occupation_current_values">
+        <item>student</item>
+        <item>it</item>
+        <item>healthcare</item>
+        <item>education_research</item>
+        <item>finance_legal</item>
+        <item>art_media</item>
+        <item>sales_marketing</item>
+        <item>real_estate</item>
+        <item>manufacturing</item>
+        <item>freelance</item>
+        <item>gov_npo</item>
+        <item>other</item>
+    </string-array>
+
+    <string-array name="prompt_occupation_interest_entries">
+        <item>人工智能/数据科学</item>
+        <item>产品管理</item>
+        <item>市场营销</item>
+        <item>用户体验(UX)设计</item>
+        <item>新能源/环保</item>
+        <item>生物技术</item>
+        <item>短视频/直播</item>
+        <item>电子商务</item>
+    </string-array>
+    <string-array name="prompt_occupation_interest_values">
+        <item>ai_data_science</item>
+        <item>product_management</item>
+        <item>marketing</item>
+        <item>ux_design</item>
+        <item>new_energy</item>
+        <item>biotech</item>
+        <item>short_video</item>
+        <item>e_commerce</item>
+    </string-array>
+
+    <!-- == Interests Sub-categories == -->
+    <string-array name="prompt_interests_entertainment_entries">
+        <item>电影/剧集</item>
+        <item>音乐</item>
+        <item>阅读</item>
+        <item>电子游戏</item>
+        <item>动漫</item>
+        <item>综艺/脱口秀</item>
+        <item>播客</item>
+    </string-array>
+    <string-array name="prompt_interests_entertainment_values">
+        <item>movies</item>
+        <item>music</item>
+        <item>reading</item>
+        <item>gaming</item>
+        <item>anime</item>
+        <item>variety_show</item>
+        <item>podcast</item>
+    </string-array>
+
+    <string-array name="prompt_interests_shopping_entries">
+        <item>数码产品</item>
+        <item>服饰美妆</item>
+        <item>图书文创</item>
+        <item>家居生活</item>
+        <item>汽车</item>
+    </string-array>
+    <string-array name="prompt_interests_shopping_values">
+        <item>digital</item>
+        <item>fashion</item>
+        <item>books_culture</item>
+        <item>home_living</item>
+        <item>automotive</item>
+    </string-array>
+
+    <string-array name="prompt_interests_niche_entries">
+        <item>徒步/露营</item>
+        <item>潜水/冲浪</item>
+        <item>滑雪</item>
+        <item>手办/模型</item>
+        <item>咖啡/茶艺</item>
+        <item>烘焙/烹饪</item>
+        <item>天文学</item>
+        <item>历史</item>
+    </string-array>
+    <string-array name="prompt_interests_niche_values">
+        <item>hiking_camping</item>
+        <item>diving_surfing</item>
+        <item>skiing</item>
+        <item>collectibles</item>
+        <item>coffee_tea</item>
+        <item>baking_cooking</item>
+        <item>astronomy</item>
+        <item>history</item>
+    </string-array>
+
+    <string-array name="prompt_interests_orientation_entries">
+        <item>异性恋</item>
+        <item>同性恋</item>
+        <item>双性恋</item>
+        <item>泛性恋</item>
+        <item>无性恋</item>
+        <item>不愿透露</item>
+    </string-array>
+    <string-array name="prompt_interests_orientation_values">
+        <item>heterosexual</item>
+        <item>homosexual</item>
+        <item>bisexual</item>
+        <item>pansexual</item>
+        <item>asexual</item>
+        <item>decline_to_state</item>
+    </string-array>
+
+    <string-array name="prompt_interests_values_entries">
+        <item>实用主义</item>
+        <item>理想主义</item>
+        <item>集体主义</item>
+        <item>个人主义</item>
+        <item>环保主义</item>
+        <item>科技乐观主义</item>
+    </string-array>
+    <string-array name="prompt_interests_values_values">
+        <item>pragmatism</item>
+        <item>idealism</item>
+        <item>collectivism</item>
+        <item>individualism</item>
+        <item>environmentalism</item>
+        <item>tech_optimism</item>
+    </string-array>
+
+    <!-- == Health Sub-categories == -->
+    <string-array name="prompt_health_diet_entries">
+        <item>忌辛辣</item>
+        <item>忌生冷</item>
+        <item>忌油腻</item>
+        <item>低盐</item>
+        <item>低糖/无糖</item>
+        <item>素食</item>
+        <item>纯素</item>
+        <item>对海鲜过敏</item>
+        <item>对坚果过敏</item>
+    </string-array>
+    <string-array name="prompt_health_diet_values">
+        <item>no_spicy</item>
+        <item>no_cold_raw</item>
+        <item>no_greasy</item>
+        <item>low_salt</item>
+        <item>low_sugar</item>
+        <item>vegetarian</item>
+        <item>vegan</item>
+        <item>seafood_allergy</item>
+        <item>nut_allergy</item>
+    </string-array>
+
+    <string-array name="prompt_health_chronic_entries">
+        <item>高血压</item>
+        <item>糖尿病</item>
+        <item>心脏病</item>
+        <item>胃病</item>
+        <item>偏头痛</item>
+        <item>无</item>
+    </string-array>
+    <string-array name="prompt_health_chronic_values">
+        <item>hypertension</item>
+        <item>diabetes</item>
+        <item>heart_disease</item>
+        <item>gastric_disease</item>
+        <item>migraine</item>
+        <item>none</item>
+    </string-array>
+    
+    <string-array name="prompt_health_constitution_entries">
+        <item>平和质（健康）</item>
+        <item>气虚质（易疲劳）</item>
+        <item>阳虚质（怕冷）</item>
+        <item>阴虚质（易上火）</item>
+        <item>湿热质（油腻）</item>
+        <item>不了解</item>
+    </string-array>
+    <string-array name="prompt_health_constitution_values">
+        <item>balanced</item>
+        <item>qi_deficiency</item>
+        <item>yang_deficiency</item>
+        <item>yin_deficiency</item>
+        <item>damp_heat</item>
+        <item>unknown</item>
+    </string-array>
+
+    <string-array name="prompt_health_medical_pref_entries">
+        <item>偏好西医</item>
+        <item>偏好中医</item>
+        <item>接受中西医结合</item>
+    </string-array>
+    <string-array name="prompt_health_medical_pref_values">
+        <item>western</item>
+        <item>tcm</item>
+        <item>integrated</item>
+    </string-array>
+
+    <!-- ==== New Detailed Health Arrays ==== -->
+    <string-array name="health_diagnosed_entries">
+        <item>高血压</item>
+        <item>糖尿病</item>
+        <item>心脏病</item>
+        <item>肝肾疾病</item>
+        <item>肿瘤</item>
+        <item>无上述疾病</item>
+    </string-array>
+    <string-array name="health_diagnosed_values">
+        <item>hypertension</item>
+        <item>diabetes</item>
+        <item>heart_disease</item>
+        <item>liver_kidney_disease</item>
+        <item>tumor</item>
+        <item>none</item>
+    </string-array>
+
+    <string-array name="health_family_history_entries">
+        <item>50岁前心梗/中风</item>
+        <item>遗传性疾病(如地中海贫血)</item>
+        <item>无上述家族史</item>
+    </string-array>
+    <string-array name="health_family_history_values">
+        <item>early_heart_attack_stroke</item>
+        <item>hereditary_disease</item>
+        <item>none</item>
+    </string-array>
+
+    <string-array name="health_diet_preference_entries">
+        <item>外卖为主 (每周 > 5次)</item>
+        <item>家常菜 (少油盐)</item>
+        <item>无肉不欢</item>
+    </string-array>
+    <string-array name="health_diet_preference_values">
+        <item>takeout_heavy</item>
+        <item>home_cooked_light</item>
+        <item>meat_lover</item>
+    </string-array>
+
+    <string-array name="health_sleep_pattern_entries">
+        <item>经常熬夜</item>
+        <item>准时睡但易醒</item>
+        <item>需助眠产品</item>
+        <item>睡眠良好</item>
+    </string-array>
+    <string-array name="health_sleep_pattern_values">
+        <item>stays_up_late</item>
+        <item>light_sleeper</item>
+        <item>needs_sleep_aid</item>
+        <item>sleeps_well</item>
+    </string-array>
+
+    <string-array name="health_coping_style_entries">
+        <item>彻夜解决</item>
+        <item>抽烟/喝酒缓解</item>
+        <item>向亲友倾诉</item>
+        <item>失眠</item>
+    </string-array>
+    <string-array name="health_coping_style_values">
+        <item>work_through_night</item>
+        <item>smoke_drink</item>
+        <item>talk_to_friends</item>
+        <item>insomnia</item>
+    </string-array>
+
+    <!-- New Health Preference Arrays -->
+
+    <!-- Surgery Type -->
+    <string-array name="health_surgery_type_entries">
+        <item>无</item>
+        <item>骨科手术 (如：骨折修复、关节置换)</item>
+        <item>心胸外科手术 (如：心脏搭桥、瓣膜修复)</item>
+        <item>神经外科手术 (如：脑部肿瘤、椎间盘突出)</item>
+        <item>普通外科手术 (如：阑尾、疝气、胆囊)</item>
+        <item>泌尿外科手术 (如：结石、前列腺)</item>
+        <item>妇产科手术 (如：剖腹产、子宫肌瘤)</item>
+        <item>眼科手术 (如：白内障、近视激光)</item>
+        <item>耳鼻喉科手术 (如：扁桃体、鼻中隔)</item>
+        <item>口腔颌面外科手术 (如：智齿拔除、颌骨手术)</item>
+        <item>整形/美容手术</item>
+        <item>其他</item>
+    </string-array>
+    <string-array name="health_surgery_type_values">
+        <item>none</item>
+        <item>orthopedic</item>
+        <item>cardiothoracic</item>
+        <item>neurosurgery</item>
+        <item>general</item>
+        <item>urology</item>
+        <item>obgyn</item>
+        <item>ophthalmology</item>
+        <item>ent</item>
+        <item>maxillofacial</item>
+        <item>plastic_cosmetic</item>
+        <item>other</item>
+    </string-array>
+
+    <!-- Surgery Time -->
+    <string-array name="health_surgery_time_entries">
+        <item>最近一年内</item>
+        <item>1-3年前</item>
+        <item>3-5年前</item>
+        <item>5年前以上</item>
+        <item>不记得</item>
+    </string-array>
+    <string-array name="health_surgery_time_values">
+        <item>within_1_year</item>
+        <item>1_to_3_years</item>
+        <item>3_to_5_years</item>
+        <item>over_5_years</item>
+        <item>dont_remember</item>
+    </string-array>
+
+    <!-- Allergy Cause -->
+    <string-array name="health_allergy_cause_entries">
+        <item>无明确过敏原因</item>
+        <item>食物 (如：海鲜、坚果、牛奶、鸡蛋)</item>
+        <item>药物 (如：青霉素、阿司匹林)</item>
+        <item>吸入物 (如：花粉、尘螨、霉菌、动物皮屑)</item>
+        <item>接触物 (如：金属、化妆品、化学物质)</item>
+        <item>昆虫叮咬</item>
+        <item>物理因素 (如：日光、冷空气)</item>
+        <item>其他</item>
+        <item>原因不明</item>
+    </string-array>
+    <string-array name="health_allergy_cause_values">
+        <item>none</item>
+        <item>food</item>
+        <item>drug</item>
+        <item>inhalant</item>
+        <item>contact</item>
+        <item>insect</item>
+        <item>physical</item>
+        <item>other</item>
+        <item>unknown</item>
+    </string-array>
+
+    <!-- Allergy History (Symptoms/Diseases) -->
+    <string-array name="health_allergy_history_entries">
+        <item>无过敏性疾病史</item>
+        <item>过敏性鼻炎</item>
+        <item>支气管哮喘</item>
+        <item>荨麻疹 (风团)</item>
+        <item>血管性水肿</item>
+        <item>特应性皮炎 (湿疹)</item>
+        <item>接触性皮炎</item>
+        <item>过敏性结膜炎</item>
+        <item>食物过敏</item>
+        <item>药物过敏</item>
+        <item>严重过敏反应 (Anaphylaxis)</item>
+    </string-array>
+    <string-array name="health_allergy_history_values">
+        <item>none</item>
+        <item>rhinitis</item>
+        <item>asthma</item>
+        <item>urticaria</item>
+        <item>angioedema</item>
+        <item>atopic_dermatitis</item>
+        <item>contact_dermatitis</item>
+        <item>conjunctivitis</item>
+        <item>food_allergy</item>
+        <item>drug_allergy</item>
+        <item>anaphylaxis</item>
+    </string-array>
+
+    <!-- Dietary Restrictions -->
+    <string-array name="health_dietary_restrictions_entries">
+        <item>无特殊忌口</item>
+        <item>忌辛辣刺激</item>
+        <item>忌生冷食物</item>
+        <item>忌油腻食物</item>
+        <item>忌烟酒</item>
+        <item>忌海鲜</item>
+        <item>忌牛羊肉等"发物"</item>
+        <item>特定食物忌口 (如：香菜、葱、蒜)</item>
+        <item>麸质不耐受/过敏</item>
+        <item>乳糖不耐受</item>
+        <item>素食</item>
+    </string-array>
+    <string-array name="health_dietary_restrictions_values">
+        <item>none</item>
+        <item>spicy</item>
+        <item>raw_cold</item>
+        <item>greasy</item>
+        <item>alcohol_tobacco</item>
+        <item>seafood</item>
+        <item>red_meat</item>
+        <item>specific_foods</item>
+        <item>gluten_free</item>
+        <item>lactose_free</item>
+        <item>vegetarian</item>
+    </string-array>
+
 </resources>

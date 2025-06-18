@@ -14,6 +14,7 @@ import android.content.Intent
 import com.example.aifloatingball.model.MenuItem
 import androidx.appcompat.app.AppCompatDelegate
 import com.example.aifloatingball.model.SearchEngineGroup
+import com.example.aifloatingball.R
 
 class SettingsManager private constructor(context: Context) {
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -307,6 +308,97 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putBoolean("auto_hide", autoHide).apply()
     }
     
+    // Master Prompt Settings
+    fun getPromptGender(): String = prefs.getString("prompt_gender", "unspecified") ?: "unspecified"
+    fun setPromptGender(gender: String) = prefs.edit().putString("prompt_gender", gender).apply()
+
+    fun getPromptBirthDate(): String = prefs.getString("prompt_birth_date", "") ?: ""
+    fun setPromptBirthDate(date: String) = prefs.edit().putString("prompt_birth_date", date).apply()
+
+    fun getPromptOccupation(): String = prefs.getString("prompt_occupation", "") ?: ""
+    fun setPromptOccupation(occupation: String) = prefs.edit().putString("prompt_occupation", occupation).apply()
+
+    fun getPromptInterests(): Set<String> = prefs.getStringSet("prompt_interests", emptySet()) ?: emptySet()
+    fun setPromptInterests(interests: Set<String>) = prefs.edit().putStringSet("prompt_interests", interests).apply()
+
+    fun getPromptEducation(): String = prefs.getString("prompt_education", "") ?: ""
+    fun setPromptEducation(education: String) = prefs.edit().putString("prompt_education", education).apply()
+
+    fun getPromptHealth(): Set<String> = prefs.getStringSet("prompt_health", emptySet()) ?: emptySet()
+    fun setPromptHealth(health: Set<String>) = prefs.edit().putStringSet("prompt_health", health).apply()
+
+    fun getPromptReplyFormats(): Set<String> = prefs.getStringSet("prompt_reply_format", emptySet()) ?: emptySet()
+    fun setPromptReplyFormats(formats: Set<String>) = prefs.edit().putStringSet("prompt_reply_format", formats).apply()
+
+    fun getPromptRefusedTopics(): Set<String> = prefs.getStringSet("prompt_refused_topics", emptySet()) ?: emptySet()
+    fun setPromptRefusedTopics(topics: Set<String>) = prefs.edit().putStringSet("prompt_refused_topics", topics).apply()
+
+    fun getPromptToneStyle(): String = prefs.getString("prompt_tone_style", "professional") ?: "professional"
+    fun setPromptToneStyle(style: String) = prefs.edit().putString("prompt_tone_style", style).apply()
+    
+    // Detailed Prompt Sub-settings
+    fun getPromptOccupationCurrent(): Set<String> = prefs.getStringSet("prompt_occupation_current", emptySet()) ?: emptySet()
+    fun setPromptOccupationCurrent(values: Set<String>) = prefs.edit().putStringSet("prompt_occupation_current", values).apply()
+    fun getPromptOccupationInterest(): Set<String> = prefs.getStringSet("prompt_occupation_interest", emptySet()) ?: emptySet()
+    fun setPromptOccupationInterest(values: Set<String>) = prefs.edit().putStringSet("prompt_occupation_interest", values).apply()
+
+    fun getPromptInterestsEntertainment(): Set<String> = prefs.getStringSet("prompt_interests_entertainment", emptySet()) ?: emptySet()
+    fun setPromptInterestsEntertainment(values: Set<String>) = prefs.edit().putStringSet("prompt_interests_entertainment", values).apply()
+    fun getPromptInterestsShopping(): Set<String> = prefs.getStringSet("prompt_interests_shopping", emptySet()) ?: emptySet()
+    fun setPromptInterestsShopping(values: Set<String>) = prefs.edit().putStringSet("prompt_interests_shopping", values).apply()
+    fun getPromptInterestsNiche(): Set<String> = prefs.getStringSet("prompt_interests_niche", emptySet()) ?: emptySet()
+    fun setPromptInterestsNiche(values: Set<String>) = prefs.edit().putStringSet("prompt_interests_niche", values).apply()
+    fun getPromptInterestsOrientation(): String = prefs.getString("prompt_interests_orientation", "decline_to_state") ?: "decline_to_state"
+    fun setPromptInterestsOrientation(value: String) = prefs.edit().putString("prompt_interests_orientation", value).apply()
+    fun getPromptInterestsValues(): Set<String> = prefs.getStringSet("prompt_interests_values", emptySet()) ?: emptySet()
+    fun setPromptInterestsValues(values: Set<String>) = prefs.edit().putStringSet("prompt_interests_values", values).apply()
+
+    fun getPromptHealthDiet(): Set<String> = prefs.getStringSet("prompt_health_diet", emptySet()) ?: emptySet()
+    fun setPromptHealthDiet(values: Set<String>) = prefs.edit().putStringSet("prompt_health_diet", values).apply()
+    fun getPromptHealthChronic(): Set<String> = prefs.getStringSet("prompt_health_chronic", emptySet()) ?: emptySet()
+    fun setPromptHealthChronic(values: Set<String>) = prefs.edit().putStringSet("prompt_health_chronic", values).apply()
+    fun getPromptHealthPhysicalState(): String = prefs.getString("prompt_health_physical_state", "") ?: ""
+    fun setPromptHealthPhysicalState(value: String) = prefs.edit().putString("prompt_health_physical_state", value).apply()
+    fun getPromptHealthMedication(): String = prefs.getString("prompt_health_medication", "") ?: ""
+    fun setPromptHealthMedication(value: String) = prefs.edit().putString("prompt_health_medication", value).apply()
+    fun getPromptHealthConstitution(): Set<String> = prefs.getStringSet("prompt_health_constitution", emptySet()) ?: emptySet()
+    fun setPromptHealthConstitution(values: Set<String>) = prefs.edit().putStringSet("prompt_health_constitution", values).apply()
+    fun getPromptHealthMedicalPref(): String = prefs.getString("prompt_health_medical_pref", "integrated") ?: "integrated"
+    fun setPromptHealthMedicalPref(value: String) = prefs.edit().putString("prompt_health_medical_pref", value).apply()
+    fun getPromptHealthHabits(): String = prefs.getString("prompt_health_habits", "") ?: ""
+    fun setPromptHealthHabits(value: String) = prefs.edit().putString("prompt_health_habits", value).apply()
+
+    // New Detailed Health Settings
+    fun getPromptHealthDiagnosed(): Set<String> = prefs.getStringSet("prompt_health_diagnosed", emptySet()) ?: emptySet()
+    fun setPromptHealthDiagnosed(values: Set<String>) = prefs.edit().putStringSet("prompt_health_diagnosed", values).apply()
+
+    fun getPromptHealthHadSurgery(): Boolean = prefs.getBoolean("prompt_health_had_surgery", false)
+    fun setPromptHealthHadSurgery(value: Boolean) = prefs.edit().putBoolean("prompt_health_had_surgery", value).apply()
+
+    fun getPromptHealthSurgeryType(): Set<String> = prefs.getStringSet("prompt_health_surgery_type", emptySet()) ?: emptySet()
+    fun setPromptHealthSurgeryType(values: Set<String>) = prefs.edit().putStringSet("prompt_health_surgery_type", values).apply()
+
+    fun getPromptHealthSurgeryTime(): String = prefs.getString("prompt_health_surgery_time", "") ?: ""
+    fun setPromptHealthSurgeryTime(value: String) = prefs.edit().putString("prompt_health_surgery_time", value).apply()
+
+    fun getPromptHealthHasAllergies(): Boolean = prefs.getBoolean("prompt_health_has_allergies", false)
+    fun setPromptHealthHasAllergies(value: Boolean) = prefs.edit().putBoolean("prompt_health_has_allergies", value).apply()
+
+    fun getPromptHealthAllergyCause(): Set<String> = prefs.getStringSet("prompt_health_allergy_cause", emptySet()) ?: emptySet()
+    fun setPromptHealthAllergyCause(values: Set<String>) = prefs.edit().putStringSet("prompt_health_allergy_cause", values).apply()
+
+    fun getPromptHealthAllergyHistory(): Set<String> = prefs.getStringSet("prompt_health_allergy_history", emptySet()) ?: emptySet()
+    fun setPromptHealthAllergyHistory(values: Set<String>) = prefs.edit().putStringSet("prompt_health_allergy_history", values).apply()
+
+    fun getPromptHealthFamilyHistory(): Set<String> = prefs.getStringSet("prompt_health_family_history", emptySet()) ?: emptySet()
+    fun setPromptHealthFamilyHistory(values: Set<String>) = prefs.edit().putStringSet("prompt_health_family_history", values).apply()
+
+    fun getPromptHealthDietaryRestrictions(): Set<String> = prefs.getStringSet("prompt_health_dietary_restrictions", emptySet()) ?: emptySet()
+    fun setPromptHealthDietaryRestrictions(values: Set<String>) = prefs.edit().putStringSet("prompt_health_dietary_restrictions", values).apply()
+
+    fun getPromptHealthSleepPattern(): String = prefs.getString("prompt_health_sleep_pattern", "") ?: ""
+    fun setPromptHealthSleepPattern(value: String) = prefs.edit().putString("prompt_health_sleep_pattern", value).apply()
+
     fun <T> registerOnSettingChangeListener(key: String, listener: (String, T) -> Unit) {
         if (!listeners.containsKey(key)) {
             listeners[key] = mutableListOf()
@@ -589,5 +681,71 @@ class SettingsManager private constructor(context: Context) {
             .putInt("floating_ball_x", x)
             .putInt("floating_ball_y", y)
             .apply()
+    }
+
+    fun generateMasterPrompt(): String {
+        val prompt = StringBuilder()
+
+        prompt.append("### 用户画像(User Profile)\n\n")
+
+        // --- 基本信息 ---
+        prompt.append("#### 1. 基本信息:\n")
+        val gender = when (getPromptGender()) {
+            "male" -> "男"
+            "female" -> "女"
+            else -> "未指定"
+        }
+        prompt.append("- **性别**: $gender\n")
+        if (getPromptBirthDate().isNotBlank()) prompt.append("- **出生日期**: ${getPromptBirthDate()}\n")
+        if (getPromptEducation().isNotBlank()) prompt.append("- **教育程度**: ${getPromptEducation()}\n")
+
+        // --- 职业信息 ---
+        prompt.append("\n#### 2. 职业信息:\n")
+        if (getPromptOccupation().isNotBlank()) prompt.append("- **当前从事行业**: ${getPromptOccupation()}\n")
+        if (getPromptOccupationCurrent().isNotEmpty()) prompt.append("- **具体职业/岗位**: ${getPromptOccupationCurrent().joinToString(", ")}\n")
+        if (getPromptOccupationInterest().isNotEmpty()) prompt.append("- **感兴趣的职业领域**: ${getPromptOccupationInterest().joinToString(", ")}\n")
+
+        // --- 兴趣爱好 ---
+        prompt.append("\n#### 3. 兴趣爱好:\n")
+        if (getPromptInterestsEntertainment().isNotEmpty()) prompt.append("- **娱乐偏好**: ${getPromptInterestsEntertainment().joinToString(", ")}\n")
+        if (getPromptInterestsShopping().isNotEmpty()) prompt.append("- **消费偏好**: ${getPromptInterestsShopping().joinToString(", ")}\n")
+        if (getPromptInterestsNiche().isNotEmpty()) prompt.append("- **小众爱好**: ${getPromptInterestsNiche().joinToString(", ")}\n")
+        if (getPromptInterestsValues().isNotEmpty()) prompt.append("- **看重的价值观**: ${getPromptInterestsValues().joinToString(", ")}\n")
+        val orientation = when (getPromptInterestsOrientation()) {
+            "heterosexual" -> "异性恋"
+            "homosexual" -> "同性恋"
+            "bisexual" -> "双性恋"
+            "pansexual" -> "泛性恋"
+            "asexual" -> "无性恋"
+            else -> "不愿透露"
+        }
+        prompt.append("- **取向**: $orientation\n")
+
+        // --- 健康状况 ---
+        prompt.append("\n#### 4. 健康状况:\n")
+        if (getPromptHealthDiagnosed().isNotEmpty()) prompt.append("- **曾确诊的疾病**: ${getPromptHealthDiagnosed().joinToString(", ")}\n")
+        if (getPromptHealthHadSurgery()) {
+            prompt.append("- **手术史**: 有\n")
+            if (getPromptHealthSurgeryType().isNotEmpty()) prompt.append("  - **手术类型**: ${getPromptHealthSurgeryType().joinToString(", ")}\n")
+            if (getPromptHealthSurgeryTime().isNotBlank()) prompt.append("  - **最近手术时间**: ${getPromptHealthSurgeryTime()}\n")
+        }
+        if (getPromptHealthHasAllergies()) {
+            prompt.append("- **过敏史**: 有\n")
+            if (getPromptHealthAllergyCause().isNotEmpty()) prompt.append("  - **过敏原因**: ${getPromptHealthAllergyCause().joinToString(", ")}\n")
+            if (getPromptHealthAllergyHistory().isNotEmpty()) prompt.append("  - **相关疾病/症状**: ${getPromptHealthAllergyHistory().joinToString(", ")}\n")
+        }
+        if (getPromptHealthFamilyHistory().isNotEmpty()) prompt.append("- **家族病史**: ${getPromptHealthFamilyHistory().joinToString(", ")}\n")
+        if (getPromptHealthDietaryRestrictions().isNotEmpty()) prompt.append("- **饮食偏好/禁忌**: ${getPromptHealthDietaryRestrictions().joinToString(", ")}\n")
+        if (getPromptHealthSleepPattern().isNotBlank()) prompt.append("- **睡眠状况**: ${getPromptHealthSleepPattern()}\n")
+
+
+        // --- 回复偏好 ---
+        prompt.append("\n### 回复偏好(Reply Preferences)\n\n")
+        if (getPromptReplyFormats().isNotEmpty()) prompt.append("- **内容呈现形式**: ${getPromptReplyFormats().joinToString(", ")}\n")
+        if (getPromptToneStyle().isNotBlank()) prompt.append("- **回复口吻**: ${getPromptToneStyle()}\n")
+        if (getPromptRefusedTopics().isNotEmpty()) prompt.append("- **希望避免的话题**: ${getPromptRefusedTopics().joinToString(", ")}\n")
+
+
+        return prompt.toString()
     }
 }

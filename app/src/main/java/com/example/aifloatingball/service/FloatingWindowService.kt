@@ -461,7 +461,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         contentContainer?.layoutParams = layoutParams
 
         if (shouldAnimate) {
-            searchContainer?.visibility = View.VISIBLE
+        searchContainer?.visibility = View.VISIBLE
         } else {
             searchContainer?.visibility = View.VISIBLE // Should already be visible, but just in case
         }

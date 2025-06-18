@@ -67,6 +67,12 @@ import android.content.res.Configuration
 import android.util.TypedValue
 import androidx.annotation.AttrRes
 import android.content.pm.PackageManager
+import com.example.aifloatingball.MasterPromptSettingsActivity
+import com.google.android.material.button.MaterialButton
+import android.content.ClipData
+import android.content.ClipboardManager
+import androidx.appcompat.app.AlertDialog
+import android.widget.Toast
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -156,6 +162,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
+    private val messageReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val query = intent.getStringExtra("query")
+            val content = intent.getStringExtra("content")
+            updateExpandedViewContent(query, content, true)
+        }
+    }
+
     companion object {
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "DynamicIslandChannel"
@@ -183,6 +197,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // Register receiver for app search updates
         val filter = IntentFilter("com.example.aifloatingball.ACTION_UPDATE_APP_SEARCH")
         registerReceiver(appSearchUpdateReceiver, filter)
+        setupMessageReceiver()
     }
 
     private fun createNotificationChannel() {
@@ -567,6 +582,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val addPromptButton = configPanelView?.findViewById<View>(R.id.btn_add_master_prompt)
         addPromptButton?.setOnClickListener {
             enterEditingMode()
+        }
+
+        val generatePromptButton = configPanelView?.findViewById<MaterialButton>(R.id.btn_generate_prompt)
+        generatePromptButton?.setOnClickListener {
+            val masterPrompt = settingsManager.generateMasterPrompt()
+            showPromptDialog(masterPrompt)
         }
 
         val panelParams = FrameLayout.LayoutParams(
@@ -1084,7 +1105,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         editingScrimView = null
     }
 
-    private fun hideConfigPanel(isForEditing: Boolean = false) {
+    private fun hideConfigPanel() {
         if (configPanelView == null) return
         val panelToRemove = configPanelView
         configPanelView = null
@@ -1272,5 +1293,37 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 searchInput?.setSelection(currentSearchText?.length ?: 0)
             }
         }
+    }
+
+    private fun showPromptDialog(prompt: String) {
+        val dialogContext = ContextThemeWrapper(this, R.style.AppTheme_Dialog)
+
+        AlertDialog.Builder(dialogContext)
+            .setTitle("生成的 Prompt")
+            .setMessage(prompt)
+            .setPositiveButton("复制") { dialog, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Master Prompt", prompt)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "Prompt 已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+            .setNegativeButton("关闭") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .create()
+            .apply {
+                window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                show()
+            }
+    }
+
+    private fun setupMessageReceiver() {
+        val filter = IntentFilter("com.example.aifloatingball.UPDATE_CONTENT")
+        LocalBroadcastManager.getInstance(this).registerReceiver(messageReceiver, filter)
+    }
+
+    private fun updateExpandedViewContent(query: String?, content: String?, isNewSearch: Boolean) {
+        // Dummy implementation
     }
 }

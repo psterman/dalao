@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory app:title="@string/health_category_clinical">
+
+        <MultiSelectListPreference
+            app:key="prompt_health_diagnosed"
+            app:title="@string/health_diagnosed_title"
+            app:entries="@array/health_diagnosed_entries"
+            app:entryValues="@array/health_diagnosed_values" />
+
+        <SwitchPreferenceCompat
+            app:key="prompt_health_had_surgery"
+            app:title="@string/health_surgery_history_title"
+            app:defaultValue="false" />
+
+        <MultiSelectListPreference
+            app:key="prompt_health_surgery_type"
+            app:title="手术类型"
+            app:summary="选择您曾接受过的手术类型"
+            app:entries="@array/health_surgery_type_entries"
+            app:entryValues="@array/health_surgery_type_values"
+            app:dependency="prompt_health_had_surgery" />
+
+        <ListPreference
+            app:key="prompt_health_surgery_time"
+            app:title="最近一次手术时间"
+            app:summary="选择最近一次手术距离现在的时间"
+            app:entries="@array/health_surgery_time_entries"
+            app:entryValues="@array/health_surgery_time_values"
+            app:dependency="prompt_health_had_surgery"
+            app:useSimpleSummaryProvider="true"/>
+
+        <SwitchPreferenceCompat
+            app:key="prompt_health_has_allergies"
+            app:title="@string/health_allergy_history_title"
+            app:defaultValue="false" />
+
+        <MultiSelectListPreference
+            app:key="prompt_health_allergy_cause"
+            app:title="过敏原因"
+            app:summary="选择您的过敏诱因"
+            app:entries="@array/health_allergy_cause_entries"
+            app:entryValues="@array/health_allergy_cause_values"
+            app:dependency="prompt_health_has_allergies" />
+
+        <MultiSelectListPreference
+            app:key="prompt_health_allergy_history"
+            app:title="过敏史/相关疾病"
+            app:summary="选择您确诊的过敏相关疾病"
+            app:entries="@array/health_allergy_history_entries"
+            app:entryValues="@array/health_allergy_history_values"
+            app:dependency="prompt_health_has_allergies" />
+
+        <MultiSelectListPreference
+            app:key="prompt_health_family_history"
+            app:title="@string/health_family_history_title"
+            app:summary="@string/health_family_history_summary"
+            app:entries="@array/health_family_history_entries"
+            app:entryValues="@array/health_family_history_values" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/health_category_lifestyle">
+
+        <MultiSelectListPreference
+            app:key="prompt_health_dietary_restrictions"
+            app:title="饮食偏好与禁忌"
+            app:summary="选择您的饮食习惯或需要避开的食物"
+            app:entries="@array/health_dietary_restrictions_entries"
+            app:entryValues="@array/health_dietary_restrictions_values" />
+
+        <ListPreference
+            app:key="prompt_health_sleep_pattern"
+            app:title="@string/health_sleep_pattern_title"
+            app:entries="@array/health_sleep_pattern_entries"
+            app:entryValues="@array/health_sleep_pattern_values"
+            app:useSimpleSummaryProvider="true"/>
+
+    </PreferenceCategory>
+
+</PreferenceScreen> 

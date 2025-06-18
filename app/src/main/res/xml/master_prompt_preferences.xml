@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="基本信息">
+
+        <ListPreference
+            app:key="prompt_gender"
+            app:title="@string/prompt_gender_title"
+            app:summary="@string/prompt_gender_summary"
+            app:entries="@array/gender_entries"
+            app:entryValues="@array/gender_values"
+            app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:key="prompt_birth_date"
+            app:title="@string/prompt_birth_date_title"
+            app:summary="@string/prompt_birth_date_summary" />
+
+        <ListPreference
+            app:key="prompt_education"
+            app:title="@string/prompt_education_title"
+            app:entries="@array/education_entries"
+            app:entryValues="@array/education_values"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="详细画像">
+        <Preference
+            app:key="prompt_occupation_subpage"
+            app:title="职业信息"
+            app:summary="进一步描述您的职业背景与规划"/>
+        <Preference
+            app:key="prompt_interests_subpage"
+            app:title="兴趣与观念"
+            app:summary="详细描述您的兴趣、爱好、三观等"/>
+        <Preference
+            app:key="prompt_health_subpage"
+            app:title="健康状况"
+            app:summary="详细描述您的身体状况与习惯"/>
+    </PreferenceCategory>
+
+
+    <PreferenceCategory app:title="@string/prompt_category_reply_preferences">
+
+        <MultiSelectListPreference
+            app:key="prompt_reply_format"
+            app:title="@string/prompt_reply_format_title"
+            app:entries="@array/reply_format_entries"
+            app:entryValues="@array/reply_format_values" />
+
+        <MultiSelectListPreference
+            app:key="prompt_refused_topics"
+            app:title="@string/prompt_refused_topics_title"
+            app:entries="@array/refused_topics_entries"
+            app:entryValues="@array/refused_topics_values" />
+
+        <ListPreference
+            app:key="prompt_tone_style"
+            app:title="@string/prompt_tone_style_title"
+            app:entries="@array/tone_style_entries"
+            app:entryValues="@array/tone_style_values"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen> 

@@ -9,6 +9,7 @@ import androidx.preference.*
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.preference.SearchEnginePreference
 import com.example.aifloatingball.service.DynamicIslandService
+import com.example.aifloatingball.R
 
 class SettingsFragment : PreferenceFragmentCompat() {
     private lateinit var settingsManager: SettingsManager
@@ -102,6 +103,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
         // 菜单管理入口
         findPreference<Preference>("menu_manager")?.setOnPreferenceClickListener {
             startActivity(Intent(requireContext(), MenuManagerActivity::class.java))
+            true
+        }
+
+        // AI 指令中心入口
+        findPreference<Preference>("master_prompt_settings")?.setOnPreferenceClickListener {
+            startActivity(Intent(requireContext(), MasterPromptSettingsActivity::class.java))
             true
         }
 
