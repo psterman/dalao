@@ -52,7 +52,7 @@ class ChatManager(private val context: Context) {
 
     fun initWebView(webView: WebView, engineKey: String, initialMessage: String? = null) {
         this.webViewRef = webView
-        this.isDeepSeekEngine = engineKey.startsWith("deepseek")
+        this.isDeepSeekEngine = engineKey.contains("deepseek", ignoreCase = true)
         
         webView.settings.apply {
             javaScriptEnabled = true
@@ -63,9 +63,11 @@ class ChatManager(private val context: Context) {
         try { webView.removeJavascriptInterface("AndroidChatInterface") } catch (e: Exception) {}
         webView.addJavascriptInterface(AndroidChatInterface(), "AndroidChatInterface")
         
-        val chatHtml = when (engineKey) {
-            "deepseek", "deepseek_chat" -> "file:///android_asset/deepseek_chat.html"
-            else -> "file:///android_asset/chat_ui.html"
+        val chatHtml = if (engineKey.contains("deepseek", ignoreCase = true)) {
+            "file:///android_asset/deepseek_chat.html"
+        } else {
+            Log.w("ChatManager", "Engine '$engineKey' is not DeepSeek, but falling back to deepseek_chat.html as it's the only UI available.")
+            "file:///android_asset/deepseek_chat.html"
         }
         webView.loadUrl(chatHtml)
         

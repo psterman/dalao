@@ -227,12 +227,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         intentParser = IntentParser()
         chatManager = ChatManager(this)
         
-        // 初始化WebViewManager
-        val xmlWebViews = windowManager.getXmlDefinedWebViews()
-        webViewManager = WebViewManager(this, xmlWebViews, windowManager)
-        
-        // 设置窗口参数
-        updateWindowParameters(true)
+        // 移除此处过早的初始化，这是导致崩溃的根源
+        // 正确的初始化在onCreate的postDelayed中进行
     }
 
     private fun updateWindowParameters(enableInput: Boolean) {
@@ -290,15 +286,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun handleSearchInternal(query: String, engineKey: String, windowCount: Int) {
         Log.d(TAG, "处理搜索请求: query='$query', engineKey='$engineKey', windowCount=$windowCount")
         
-        // 启用输入 (此处不再每次搜索都调用，由onStartCommand或明确操作控制)
-        // updateWindowParameters(true)
-        
-        // 确定要使用的窗口数量
-        if (webViewManager.getWebViews().isEmpty()) {
-            Log.e(TAG, "无法确定要使用的窗口数量，因为没有可用的 WebView。")
-            // 可以在这里尝试重新初始化或延迟，但现在只返回以防止崩溃
-            return 
-        }
         val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
         currentWindowCount = windowCountToUse
 
@@ -310,39 +297,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 val currentWindowEngineKey = if (i == 0) {
                     engineKey // 点击的引擎或左侧默认引擎优先用于第一个窗口
                 } else {
-                    SettingsManager.getInstance(this@DualFloatingWebViewService).getSearchEngineForPosition(i)
+                    settingsManager.getSearchEngineForPosition(i)
                 }
-                
-                // 确保WebView启用了文本选择功能
-                if(::textSelectionManager.isInitialized) {
-                    it.setTextSelectionManager(textSelectionManager)
-                } else {
-                    Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${it.id} 设置")
-                }
-
-                // 核心修复：将特殊聊天引擎的判断提前
-                if (CHAT_UI_ENGINES.any { it.equals(currentWindowEngineKey, ignoreCase = true) }) {
-                    Log.d(TAG, "检测到聊天引擎，使用ChatManager初始化: $currentWindowEngineKey")
-                    chatManager.initWebView(it, currentWindowEngineKey, query)
-                } else {
-                    // 对于其他所有引擎，走标准URL加载流程
-                val currentWindowSearchUrl = if (query.isBlank()) {
-                    if (isAIEngine(currentWindowEngineKey)) {
-                        EngineUtil.getAISearchEngineHomeUrl(currentWindowEngineKey)
-                    } else {
-                        EngineUtil.getSearchEngineHomeUrl(currentWindowEngineKey)
-                    }
-                } else {
-                    searchEngineHandler.getSearchUrl(query, currentWindowEngineKey)
-                }
-
-                if (currentWindowSearchUrl.isBlank() || !currentWindowSearchUrl.startsWith("http")) {
-                    Log.e(TAG, "无法获取窗口 $i 的搜索URL: engineKey='$currentWindowEngineKey'")
-                    return@let // 继续处理下一个WebView
-                }
-
-                    it.loadUrl(currentWindowSearchUrl)
-                }
+                // 使用统一的加载方法
+                loadContentInWebView(it, currentWindowEngineKey, query)
             } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
         }
         
@@ -369,31 +327,43 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * @param engineKey 搜索引擎键
      */
     fun performSearchInWebView(webViewIndex: Int, query: String, engineKey: String) {
+        if (!::webViewManager.isInitialized) {
+            Log.w(TAG, "performSearchInWebView called before WebViewManager was initialized. Ignoring.")
+            return
+        }
         Log.d(TAG, "performSearchInWebView: index=$webViewIndex, query='$query', engineKey='$engineKey'")
-        if (!::webViewManager.isInitialized || !::searchEngineHandler.isInitialized) {
-            Log.e(TAG, "WebViewManager或SearchEngineHandler未初始化，无法执行WebView搜索！")
-            return
-        }
-
         val webView = webViewManager.getWebViews().getOrNull(webViewIndex)
-        if (webView == null) {
+        if (webView != null) {
+            // 使用统一的加载方法
+            loadContentInWebView(webView, engineKey, query)
+        } else {
             Log.e(TAG, "在 performSearchInWebView 中找不到索引为 $webViewIndex 的WebView")
-            return
         }
+    }
 
+    /**
+     * 新增：统一的WebView内容加载器，这是所有加载逻辑的核心。
+     */
+    private fun loadContentInWebView(webView: CustomWebView, engineKey: String, query: String) {
         // 确保WebView启用了文本选择功能
-        if(::textSelectionManager.isInitialized) {
+        if (::textSelectionManager.isInitialized) {
             webView.setTextSelectionManager(textSelectionManager)
+        } else {
+            Log.w(TAG, "TextSelectionManager未初始化，无法为WebView ${webView.id} 设置")
         }
 
-        // 首先，检查是否是特殊的聊天引擎
-        if (CHAT_UI_ENGINES.any { it.equals(engineKey, ignoreCase = true) }) {
-            Log.d(TAG, "聊天引擎检测到，使用ChatManager初始化: $engineKey")
+        // 1. 修复：使用更灵活的检查来识别聊天引擎，兼容显示名称和内部键
+        val isChatEngine = CHAT_UI_ENGINES.any { engineKey.equals(it, ignoreCase = true) } ||
+                engineKey.contains("deepseek", ignoreCase = true) ||
+                engineKey.contains("chatgpt", ignoreCase = true)
+
+        if (isChatEngine) {
+            Log.d(TAG, "检测到聊天引擎 '$engineKey'，使用ChatManager初始化")
             chatManager.initWebView(webView, engineKey, query)
-            return
+            return // 由ChatManager处理，直接返回
         }
 
-        // 如果不是聊天引擎，则继续正常的URL加载
+        // 2. 如果不是聊天引擎，则继续正常的URL加载
         val urlToLoad = if (query.isBlank()) {
             // 如果查询为空，加载引擎的主页
             if (isAIEngine(engineKey)) {
@@ -406,12 +376,13 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             searchEngineHandler.getSearchUrl(query, engineKey)
         }
 
-        if (urlToLoad.isBlank() || !urlToLoad.startsWith("http")) {
-            Log.e(TAG, "生成的URL无效: '$urlToLoad' for engine: $engineKey")
-            return
+        // 3. 验证并加载URL，如果URL无效，则假定它是一个应由ChatManager处理的引擎
+        if (urlToLoad.isNotBlank() && urlToLoad.startsWith("http")) {
+            webView.loadUrl(urlToLoad)
+        } else {
+            Log.w(TAG, "生成的URL无效 ('$urlToLoad') 或引擎未找到 ('$engineKey')，尝试作为聊天引擎加载。")
+            chatManager.initWebView(webView, engineKey, query)
         }
-
-        webViewManager.loadUrlInWebView(webViewIndex, urlToLoad)
     }
     
     /**
@@ -428,6 +399,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * @return 返回新的窗口数量。
      */
     fun toggleAndReloadWindowCount(): Int {
+        if (!::webViewManager.isInitialized) {
+            Log.w(TAG, "toggleAndReloadWindowCount called before WebViewManager was initialized. Ignoring.")
+            return currentWindowCount
+        }
         currentWindowCount++
         if (currentWindowCount > MAX_WINDOW_COUNT || currentWindowCount > webViewManager.getWebViews().size) { // 也不能超过实际XML定义的数量
             currentWindowCount = 1

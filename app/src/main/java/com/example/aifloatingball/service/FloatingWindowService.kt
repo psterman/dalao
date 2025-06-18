@@ -625,16 +625,17 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             val query = searchInput?.text.toString()
             val isAiEngine = engine is AISearchEngine
 
-            // AI engines can be opened without a query to see their homepage.
-            // Regular engines require a query.
-            if (query.isNotBlank() || isAiEngine) {
+            // 修复逻辑：对于AI引擎，无论是否有查询，都应启动服务。
+            // 对于普通引擎，则需要查询。
+            if (isAiEngine || query.isNotBlank()) {
                 val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                    putExtra("search_query", query) // Query can be blank for AI engines
+                    putExtra("search_query", query) // 查询可以为空
                     putExtra("engine_key", engineName)
                 }
                 startService(serviceIntent)
                 hideSearchInterface()
             } else {
+                // 此分支现在仅在普通引擎且无查询时触发
                 Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
             }
         }

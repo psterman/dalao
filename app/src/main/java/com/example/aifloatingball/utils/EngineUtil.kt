@@ -37,14 +37,14 @@ object EngineUtil {
      * 获取搜索引擎首页URL
      */
     fun getSearchEngineHomeUrl(engineKey: String): String {
-        return SearchEngine.DEFAULT_ENGINES.find { it.name == engineKey }?.url ?: "https://www.baidu.com"
+        return SearchEngine.DEFAULT_ENGINES.find { it.name == engineKey }?.url ?: ""
     }
     
     /**
      * 获取AI搜索引擎首页URL
      */
     fun getAISearchEngineHomeUrl(engineKey: String): String {
-        return AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineKey }?.url ?: "https://chat.openai.com"
+        return AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineKey }?.url ?: ""
     }
     
     /**
@@ -52,7 +52,7 @@ object EngineUtil {
      */
     fun getSearchEngineSearchUrl(engineKey: String, query: String): String {
         val engine = SearchEngine.DEFAULT_ENGINES.find { it.name == engineKey }
-        return engine?.getSearchUrl(query) ?: "https://www.baidu.com/s?wd=$query"
+        return engine?.getSearchUrl(query) ?: ""
     }
     
     /**
