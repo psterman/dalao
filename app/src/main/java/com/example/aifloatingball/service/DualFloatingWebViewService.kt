@@ -249,7 +249,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "处理服务命令")
-        
+
         // 确保WebViewManager已经初始化
         if (!::webViewManager.isInitialized) {
             Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
@@ -262,10 +262,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             // 如果已经初始化，则立即处理
             intent?.let { handleSearchIntent(it) }
         }
-        
-        // 启用输入
-        updateWindowParameters(true)
-        
+
+        // 启用输入的逻辑已移至 handleSearchIntent, 以避免焦点问题
+        // updateWindowParameters(true)
+
         return START_STICKY
     }
 
@@ -282,6 +282,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 performSearch("", null)
             }
         }
+        // 在处理完所有搜索逻辑、WebView开始加载后再启用输入，避免焦点冲突
+        updateWindowParameters(true)
     }
 
     private fun handleSearchInternal(query: String, engineKey: String, windowCount: Int) {
@@ -435,22 +437,22 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         Log.d(TAG, "窗口数量切换为: $currentWindowCount")
         saveWindowCount(currentWindowCount) // Save new window count
 
-        val queryToUse = lastQuery ?: "" 
+        val queryToUse = lastQuery ?: ""
         val engineToUse = lastEngineKey ?: SearchEngineHandler.DEFAULT_ENGINE_KEY
-        
+
         handleSearchInternal(queryToUse, engineToUse, currentWindowCount)
-        
-        // 延迟请求焦点，确保UI更新完成，避免输入法闪烁
-        handler.postDelayed({
-            try {
-                val searchInput = windowManager.floatingView?.findViewById<EditText>(R.id.dual_search_input)
-                searchInput?.requestFocus()
-                Log.d(TAG, "窗口数量切换后，尝试重新聚焦搜索输入框")
-            } catch (e: Exception) {
-                Log.e(TAG, "切换窗口数量后聚焦输入框失败: ${e.message}")
-            }
-        }, 300) // 延迟300毫秒
-        
+
+        // 移除延迟请求焦点的逻辑，因为这可能导致输入法闪烁问题
+        // handler.postDelayed({
+        //     try {
+        //         val searchInput = windowManager.floatingView?.findViewById<EditText>(R.id.dual_search_input)
+        //         searchInput?.requestFocus()
+        //         Log.d(TAG, "窗口数量切换后，尝试重新聚焦搜索输入框")
+        //     } catch (e: Exception) {
+        //         Log.e(TAG, "切换窗口数量后聚焦输入框失败: ${e.message}")
+        //     }
+        // }, 300) // 延迟300毫秒
+
         return currentWindowCount
     }
     
