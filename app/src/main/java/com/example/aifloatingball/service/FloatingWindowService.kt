@@ -234,7 +234,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 // 仅当文本选择菜单未显示时，才通过外部触摸隐藏搜索界面
                 // 这可以防止在点击文本菜单按钮时意外关闭搜索界面
                 if (!textSelectionManager.isShowing()) {
-                    hideSearchInterface()
+                hideSearchInterface()
                 }
                 true // Consume the event
             } else {

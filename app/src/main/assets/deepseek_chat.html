@@ -23,84 +23,86 @@
 
         .header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
+            flex-direction: column;
+            padding: 8px;
             border-bottom: 1px solid #E0E0E0;
             background-color: #FFFFFF;
+            gap: 8px;
         }
 
-        .logo-container {
-            display: none;
-        }
-
-        .logo {
-            height: 32px;
-            margin-right: 8px;
-        }
-
-        .logo-text {
-            font-size: 18px;
-            font-weight: 600;
-            color: #2C3E50;
-        }
-
-        .header-buttons {
+        .header-top-row {
             display: flex;
             gap: 8px;
         }
 
-        .new-chat-btn {
-            background: #EBF5FE;
-            color: #3498DB;
-            border: 1px solid #D4E6F9;
-            border-radius: 4px;
-            padding: 6px 12px;
-            font-size: 14px;
-            cursor: pointer;
+        .input-area-container {
             display: flex;
-            align-items: center;
-            gap: 4px;
+            gap: 8px;
+            align-items: flex-end;
         }
 
-        .new-chat-btn:hover {
-            background: #D4E6F9;
-        }
-
-        .history-btn {
+        .header-button {
             background: #F8F9FA;
             color: #5D6D7E;
             border: 1px solid #E5E7EB;
-            border-radius: 4px;
-            padding: 6px 12px;
+            border-radius: 8px;
+            padding: 8px 12px;
             font-size: 14px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 4px;
+            white-space: nowrap;
         }
 
-        .history-btn:hover {
-            background: #E5E7EB;
+        #messageInput {
+            flex-grow: 1;
+            padding: 8px 12px;
+            border: 1px solid #D1D5DB;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+            transition: border 0.2s;
+            max-height: 120px;
+            overflow-y: auto;
+            line-height: 1.5;
+        }
+
+        #messageInput:focus {
+            border-color: #3498DB;
+        }
+
+        #send-button {
+            background: #3498DB;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        #send-button[disabled] {
+            background-color: #a0c4e2;
+            cursor: not-allowed;
         }
 
         .main-container {
             display: flex;
             flex: 1;
             overflow: hidden;
+            position: relative;
         }
 
         .chat-history {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 100;
             width: 0;
             background: #F8F9FA;
             border-right: 1px solid #E0E0E0;
             overflow-y: auto;
             transition: width .3s ease;
-            position: fixed;
-            left: 0;
-            top: 65px;
-            bottom: 0;
-            z-index: 100;
         }
 
         .chat-history.open {
@@ -158,7 +160,6 @@
             flex: 1;
             overflow-y: auto;
             padding: 16px;
-            padding-bottom: 80px;
         }
 
         .message-container {
@@ -303,59 +304,18 @@
                 opacity: 1;
             }
         }
-
-        #input-area {
-            display: flex;
-            padding: 12px;
-            border-top: 1px solid #E5E7EB;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #FFFFFF;
-            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        #message-input {
-            flex-grow: 1;
-            padding: 12px 16px;
-            border: 1px solid #D1D5DB;
-            border-radius: 24px;
-            font-size: 16px;
-            outline: none;
-            transition: border 0.2s;
-        }
-
-        #message-input:focus {
-            border-color: #3498DB;
-        }
-
-        #send-button {
-            background: #3498DB;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 44px;
-            height: 44px;
-            margin-left: 10px;
-            cursor: pointer;
-            font-size: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
     </style>
 </head>
 
 <body>
     <div class="header">
-        <div class="logo-container">
-            <img src="https://www.deepseek.com/deepseek.png" alt="DeepSeek Logo" class="logo">
-            <span class="logo-text">DeepSeek</span>
+        <div class="header-top-row">
+            <button class="header-button" id="new-chat-btn">新对话</button>
+            <button class="header-button" id="history-btn">历史</button>
         </div>
-        <div class="header-buttons">
-            <button class="new-chat-btn" id="new-chat-btn">新对话</button>
-            <button class="history-btn" id="history-btn">历史</button>
+        <div class="input-area-container">
+            <div id="messageInput" contenteditable="true" placeholder="输入你的消息..."></div>
+            <button id="send-button" disabled>发送</button>
         </div>
     </div>
 
@@ -364,14 +324,6 @@
         <div class="chat-container">
             <div id="messages"></div>
             <div id="status-message"></div>
-            <div id="input-area">
-                <div id="message-input" contenteditable="true" placeholder="输入你的消息..."></div>
-                <button id="send-button" disabled>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="white" />
-                    </svg>
-                </button>
-            </div>
         </div>
     </div>
 
@@ -381,13 +333,18 @@
         let currentRawText = '';
         let currentChatId = null;
 
-        const messageInput = document.getElementById('message-input');
+        const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('send-button');
         const messagesContainer = document.getElementById('messages');
         const statusMessageDiv = document.getElementById('status-message');
         const historyBtn = document.getElementById('history-btn');
         const newChatBtn = document.getElementById('new-chat-btn');
         const chatHistoryPanel = document.getElementById('chat-history-panel');
+
+        function updateSendButton() {
+            const text = messageInput.textContent.trim();
+            sendButton.disabled = text === '' || isGenerating;
+        }
 
         function showErrorMessage(message) {
             if (statusMessageDiv) {
@@ -425,9 +382,6 @@
             if (role === 'assistant' && !isComplete) {
                 currentResponseElement = messageDiv;
                 currentRawText = content;
-                messageDiv.innerHTML = markdownToHtml(currentRawText);
-            } else if (isComplete) {
-                messageDiv.innerHTML = markdownToHtml(content);
             }
 
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -493,6 +447,7 @@
             }
         }
 
+        messageInput.addEventListener('input', updateSendButton);
         sendButton.addEventListener('click', () => sendMessage());
         messageInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -500,14 +455,6 @@
                 sendMessage();
             }
         });
-
-        function updateSendButton() {
-            const text = messageInput.textContent.trim();
-            sendButton.disabled = text === '' || isGenerating;
-            sendButton.style.opacity = sendButton.disabled ? '0.5' : '1';
-        }
-
-        messageInput.addEventListener('input', updateSendButton);
 
         function renderHistoryList(history) {
             chatHistoryPanel.innerHTML = '';
@@ -517,17 +464,11 @@
                 const historyItem = document.createElement('div');
                 historyItem.className = 'history-item';
                 historyItem.setAttribute('data-chat-id', session.id);
-                historyItem.innerHTML = `
-                    <div class="history-title">${escapeHtml(session.title)}</div>
-                    <div class="history-date">${new Date(session.timestamp).toLocaleString()}</div>
-                `;
+                historyItem.innerHTML = `<div class="history-title">${escapeHtml(session.title)}</div><div class="history-date">${new Date(session.timestamp).toLocaleString()}</div>`;
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'delete-btn';
                 deleteBtn.innerHTML = '&times;';
-                deleteBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    deleteSession(session.id);
-                };
+                deleteBtn.onclick = (e) => { e.stopPropagation(); deleteSession(session.id); };
                 historyItem.appendChild(deleteBtn);
                 historyItem.onclick = () => loadChat(session.id);
                 historyList.appendChild(historyItem);
@@ -539,77 +480,32 @@
             if (currentChatId = chatId, chatHistoryPanel.classList.remove('open'), messagesContainer.innerHTML = '', typeof AndroidChatInterface !== 'undefined') {
                 const messages = AndroidChatInterface.getMessages(chatId);
                 const parsedMessages = JSON.parse(messages);
-                if (parsedMessages.length > 0) {
-                    parsedMessages.forEach(msg => {
-                        addMessageToUI(msg.role, msg.content, true);
-                    });
-                }
+                if (parsedMessages.length > 0) { parsedMessages.forEach(msg => { addMessageToUI(msg.role, msg.content, true); }); }
             }
             messagesContainer.scrollTop = 0;
         }
 
-        function deleteSession(chatId) {
-            if (typeof AndroidChatInterface !== 'undefined') {
-                AndroidChatInterface.deleteSession(chatId);
-                refreshHistory();
-            }
-        }
-
-        function refreshHistory() {
-            if (typeof AndroidChatInterface !== 'undefined') {
-                const sessions = AndroidChatInterface.getSessions();
-                const parsedSessions = JSON.parse(sessions);
-                renderHistoryList(parsedSessions);
-            }
-        }
-
-        function updateSessionTitle(chatId, title) {
-            const historyItem = chatHistoryPanel.querySelector(`.history-item[data-chat-id="${chatId}"] .history-title`);
-            if (historyItem) {
-                historyItem.textContent = title;
-            }
-        }
-
-        function markdownToHtml(markdown) {
-            if (!markdown) return '';
-            return marked.parse(markdown);
-        }
-
-        function escapeHtml(unsafe) {
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
-
-        newChatBtn.addEventListener('click', () => {
-            if (confirm("您确定要开始新的对话吗？当前对话内容将会被清除。")) {
-                currentChatId = null;
-                messagesContainer.innerHTML = '';
-                // showWelcomeMessage();
-                hideHistory();
-                updateSendButtonState();
-            }
-        });
-
-        historyBtn.addEventListener('click', () => {
-            chatHistoryPanel.classList.toggle('open');
-            chatHistoryPanel.classList.contains('open') && refreshHistory();
-        });
+        function deleteSession(chatId) { if (typeof AndroidChatInterface !== 'undefined') { AndroidChatInterface.deleteSession(chatId); refreshHistory(); } }
+        function refreshHistory() { if (typeof AndroidChatInterface !== 'undefined') { const sessions = AndroidChatInterface.getSessions(); const parsedSessions = JSON.parse(sessions); renderHistoryList(parsedSessions); } }
+        function updateSessionTitle(chatId, title) { const historyItem = chatHistoryPanel.querySelector(`.history-item[data-chat-id="${chatId}"] .history-title`); if (historyItem) { historyItem.textContent = title; } }
+        function markdownToHtml(markdown) { if (!markdown) return ''; return marked.parse(markdown); }
+        function escapeHtml(unsafe) { return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
+        newChatBtn.addEventListener('click', () => { currentChatId = null; messagesContainer.innerHTML = ''; if (typeof AndroidChatInterface !== 'undefined') { AndroidChatInterface.startNewChat(); } });
+        historyBtn.addEventListener('click', () => { chatHistoryPanel.classList.toggle('open'); if (chatHistoryPanel.classList.contains('open')) { refreshHistory(); } });
 
         window.onload = function () {
             if (typeof AndroidChatInterface !== 'undefined') {
-                const initialSession = AndroidChatInterface.getInitialSession();
-                const parsedSession = JSON.parse(initialSession);
-                currentChatId = parsedSession.id;
-                if (parsedSession.messages.length === 0) {
-                    showWelcomeMessage();
+                const initialSessionJson = AndroidChatInterface.getInitialSession();
+                if (initialSessionJson) {
+                    const parsedSession = JSON.parse(initialSessionJson);
+                    currentChatId = parsedSession.id;
+                    if (parsedSession.messages && parsedSession.messages.length > 0) {
+                        parsedSession.messages.forEach(msg => { addMessageToUI(msg.role, msg.content, true); });
+                    } else {
+                        showWelcomeMessage();
+                    }
                 } else {
-                    parsedSession.messages.forEach(msg => {
-                        addMessageToUI(msg.role, msg.content, true);
-                    });
+                    showWelcomeMessage();
                 }
             } else {
                 showWelcomeMessage();
@@ -619,9 +515,8 @@
 
         function showWelcomeMessage() {
             messagesContainer.innerHTML = `
-                <div class="welcome-container">
-                    <img src="https://...logo.png" alt="Logo" class="welcome-logo">
-                    <h1>欢迎使用</h1>
+                <div style="text-align: center; padding-top: 40px; color: #aaa;">
+                    <h1>DeepSeek</h1>
                     <p>您可以开始提问了</p>
                 </div>
             `;

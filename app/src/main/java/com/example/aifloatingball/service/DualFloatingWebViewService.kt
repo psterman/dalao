@@ -107,6 +107,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private var originalY = 0
     private var isKeyboardVisible = false
     private var keyboardHeight = 0
+    private var isInitialSearchHandledByOnStart = false
 
     // --- Search History Fields ---
     private var searchStartTime: Long = 0
@@ -156,6 +157,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
         // 延迟初始化，确保UI已经准备就绪
         handler.postDelayed({
+            if (isInitialSearchHandledByOnStart) {
+                Log.d(TAG, "onCreate: 初始搜索已由 onStartCommand 处理，跳过。")
+                return@postDelayed
+            }
             val xmlWebViews = windowManager.getXmlDefinedWebViews()
             Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
             if (xmlWebViews.any { it != null }) {
@@ -283,6 +288,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun handleSearchIntent(intent: Intent) {
         val searchParams = intentParser.parseSearchIntent(intent)
         if (searchParams != null) {
+            isInitialSearchHandledByOnStart = true
             // --- Search History ---
             // 来源信息在第一次启动服务时被设置
             if (searchSource == null) {
