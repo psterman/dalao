@@ -315,7 +315,7 @@ class VoiceRecognitionActivity : Activity() {
             //     putExtra("voice_result", recognizedTextView.text.toString())
             // }
             // sendBroadcast(intent)
-
+        
             // 新逻辑：直接启动 DualFloatingWebViewService
             val settingsManager = SettingsManager.getInstance(this)
             val defaultEngineKey = settingsManager.getSearchEngineForPosition(0)

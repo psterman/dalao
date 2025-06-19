@@ -231,7 +231,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         // Add a touch listener to the root view to detect outside touches
         floatingView?.setOnTouchListener { _, event ->
             if (event.action == MotionEvent.ACTION_OUTSIDE && isMenuVisible) {
-                hideSearchInterface()
+                // 仅当文本选择菜单未显示时，才通过外部触摸隐藏搜索界面
+                // 这可以防止在点击文本菜单按钮时意外关闭搜索界面
+                if (!textSelectionManager.isShowing()) {
+                    hideSearchInterface()
+                }
                 true // Consume the event
             } else {
                 false // Don't consume, let other views handle it
@@ -842,10 +846,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     // This block handles the checkable items
                     item.isChecked = !item.isChecked
 
-                    // Prevent the menu from closing on check/uncheck
-                    item.setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW)
-                    item.actionView = View(this) // This is a trick to prevent menu from closing
-
                     // Update settings based on the new checked state
                     val modesToSave = mutableSetOf<String>()
                     if (popup.menu.findItem(R.id.menu_show_combo).isChecked) modesToSave.add("combo")
@@ -855,8 +855,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
                     settingsManager.setFloatingWindowDisplayModes(modesToSave)
                     
-                    // Return false to keep the menu open for checkable items
-                    false
+                    // Return true to indicate the event was handled. This will close the menu
+                    // but ensures the action is reliably performed.
+                    true
                 }
             }
         }

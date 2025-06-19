@@ -25,6 +25,8 @@ import android.widget.Toast
 import com.example.aifloatingball.R
 import java.util.concurrent.atomic.AtomicBoolean
 import androidx.appcompat.view.ContextThemeWrapper
+import android.graphics.Rect
+import android.widget.FrameLayout
 
 /**
  * 文本选择管理器
@@ -39,10 +41,9 @@ class TextSelectionManager(private val context: Context, private val windowManag
         private const val OVERLAY_WINDOW_TYPE = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
         // 菜单显示时的Window Flags
-        private const val MENU_WINDOW_FLAGS = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or // 允许点击菜单外部传递到下面的窗口
-                                              WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or // 监听外部点击以便隐藏
-                                              WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS // 允许内容超出屏幕
-                                              // FLAG_NOT_FOCUSABLE 是不需要的，因为菜单内的按钮需要焦点
+        private const val MENU_WINDOW_FLAGS = WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                                              WindowManager.LayoutParams.FLAG_DIM_BEHIND // 给下层UI一个变暗的遮罩，提示用户它们不可点击
+                                              // 移除所有旧的flag，采用默认的模态和可聚焦行为
     }
 
     private var currentWebView: WebView? = null
@@ -53,6 +54,12 @@ class TextSelectionManager(private val context: Context, private val windowManag
     private var autoHideRunnable: Runnable? = null
     private var lastMenuPositionX = 0f
     private var lastMenuPositionY = 0f
+    
+    // 为EditText保存选择状态
+    private var savedSelectionStart: Int = -1
+    private var savedSelectionEnd: Int = -1
+    
+    fun isShowing(): Boolean = isMenuShowing.get()
     
     // 文本选择柄管理器
     private val handleManager = TextSelectionHandleManager(context)
@@ -169,9 +176,15 @@ class TextSelectionManager(private val context: Context, private val windowManag
         val webViewLocation = IntArray(2)
         webView.getLocationOnScreen(webViewLocation) // Get WebView's screen location
 
-        // 计算菜单的绝对屏幕位置
-        val absoluteMenuX = webViewLocation[0] + menuAnchorX
-        val absoluteMenuY = webViewLocation[1] + menuAnchorY + 20 // 菜单通常在选区下方
+        // 测量菜单视图以便正确定位
+        floatingMenuView?.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val menuWidth = floatingMenuView?.measuredWidth ?: 0
+
+        // 将菜单定位在选区下方居中
+        val absoluteMenuX = webViewLocation[0] + menuAnchorX - (menuWidth / 2)
+        val absoluteSelBottom = webViewLocation[1] + selBottom
+        val margin = (8 * context.resources.displayMetrics.density).toInt() // 8dp margin
+        val absoluteMenuY = absoluteSelBottom + margin
         
         Log.d(TAG, "[MENU_LIFECYCLE] WebView on-screen: (${webViewLocation[0]}, ${webViewLocation[1]}). Calculated Absolute Menu Pos for Floating View: ($absoluteMenuX, $absoluteMenuY)")
 
@@ -326,33 +339,51 @@ class TextSelectionManager(private val context: Context, private val windowManag
     private fun setupMenuItems(menuView: View, webView: WebView) {
         // 全选
         menuView.findViewById<View>(R.id.action_select_all)?.setOnClickListener {
+            // 全选后，菜单会重新定位并显示，所以这里不需要手动隐藏
             executeSelectAll(webView)
-            animateMenuItemAndHide(menuView)
         }
         
         // 剪切
         menuView.findViewById<View>(R.id.action_cut)?.setOnClickListener {
-            executeCut(webView)
-            animateMenuItemAndHide(menuView)
+            executeCut(webView) { success ->
+                if (success) {
+                    animateMenuItemAndHide(menuView)
+                } else {
+                    Toast.makeText(context, "请选择要剪切的文本", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
         
         // 复制
         menuView.findViewById<View>(R.id.action_copy)?.setOnClickListener {
-            executeCopy(webView)
-            animateMenuItemAndHide(menuView)
+            executeCopy(webView) { success ->
+                if (success) {
+                    animateMenuItemAndHide(menuView)
+                } else {
+                    Toast.makeText(context, "请选择要复制的文本", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
         
         // 粘贴
         menuView.findViewById<View>(R.id.action_paste)?.setOnClickListener {
-            executePaste(webView)
-            animateMenuItemAndHide(menuView)
+            executePaste(webView) { success ->
+                if (success) {
+                    animateMenuItemAndHide(menuView)
+                } else {
+                    Toast.makeText(context, "粘贴失败或剪贴板为空", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
         
         // 尝试查找并设置分享按钮
         val shareButton = menuView.findViewById<View>(R.id.action_share)
         shareButton?.setOnClickListener {
-            executeShare(webView)
-            animateMenuItemAndHide(menuView)
+            executeShare(webView) { success ->
+                if (success) {
+                    animateMenuItemAndHide(menuView)
+                }
+            }
         }
     }
 
@@ -424,15 +455,8 @@ class TextSelectionManager(private val context: Context, private val windowManag
     /**
      * 执行复制操作
      */
-    private fun executeCopy(webView: WebView) {
-        webView.evaluateJavascript("""
-            (function() {
-                var selection = window.getSelection();
-                var text = selection.toString();
-                selection.removeAllRanges(); // 清除选择以避免视觉干扰
-                return text;
-            })();
-        """.trimIndent()) { result ->
+    private fun executeCopy(webView: WebView, callback: (Boolean) -> Unit) {
+        webView.evaluateJavascript("(function() { return window.getSelection().toString(); })();") { result ->
             val text = result?.trim('"') ?: ""
             if (text.isNotEmpty()) {
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -442,6 +466,9 @@ class TextSelectionManager(private val context: Context, private val windowManag
                     Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
                 }
                 Log.d(TAG, "已复制文本: ${text.take(50)}...")
+                callback(true)
+            } else {
+                callback(false)
             }
         }
     }
@@ -449,7 +476,7 @@ class TextSelectionManager(private val context: Context, private val windowManag
     /**
      * 执行剪切操作
      */
-    private fun executeCut(webView: WebView) {
+    private fun executeCut(webView: WebView, callback: (Boolean) -> Unit) {
         webView.evaluateJavascript("""
             (function() {
                 var selection = window.getSelection();
@@ -466,16 +493,11 @@ class TextSelectionManager(private val context: Context, private val windowManag
                             // 使用execCommand在可编辑区域
                             document.execCommand('cut');
                         } else {
-                            // 在非可编辑区域仅复制并清除选择
-                            var range = selection.getRangeAt(0);
-                            range.deleteContents();
-                            selection.removeAllRanges();
+                            // 在非可编辑区域，不执行任何破坏性操作
+                            return ""; // 返回空字符串表示无法剪切
                         }
                     } catch(e) {
-                        // 如果execCommand失败，手动删除选中内容
-                        var range = selection.getRangeAt(0);
-                        range.deleteContents();
-                        selection.removeAllRanges();
+                         return ""; // 出错也返回空
                     }
                 }
                 return text;
@@ -490,6 +512,9 @@ class TextSelectionManager(private val context: Context, private val windowManag
                     Toast.makeText(context, "已剪切", Toast.LENGTH_SHORT).show()
                 }
                 Log.d(TAG, "已剪切文本: ${text.take(50)}...")
+                callback(true)
+            } else {
+                callback(false)
             }
         }
     }
@@ -497,9 +522,9 @@ class TextSelectionManager(private val context: Context, private val windowManag
     /**
      * 执行粘贴操作
      */
-    private fun executePaste(webView: WebView) {
+    private fun executePaste(webView: WebView, callback: (Boolean) -> Unit) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        if (clipboard.hasPrimaryClip()) {
+        if (clipboard.hasPrimaryClip() && clipboard.primaryClip?.itemCount ?: 0 > 0) {
             val text = clipboard.primaryClip?.getItemAt(0)?.text?.toString() ?: ""
             if (text.isNotEmpty()) {
                 // 转义特殊字符
@@ -523,29 +548,8 @@ class TextSelectionManager(private val context: Context, private val windowManag
                                 // 在可编辑区域使用execCommand
                                 document.execCommand('insertText', false, "$escapedText");
                                 return true;
-                            } else if (window.getSelection().rangeCount > 0) {
-                                // 在普通网页内容中尝试插入
-                                var selection = window.getSelection();
-                                var range = selection.getRangeAt(0);
-                                
-                                // 创建文本节点
-                                var textNode = document.createTextNode("$escapedText");
-                                
-                                // 删除当前选中内容
-                                range.deleteContents();
-                                
-                                // 插入新文本
-                                range.insertNode(textNode);
-                                
-                                // 将光标移动到插入文本的末尾
-                                range.setStartAfter(textNode);
-                                range.setEndAfter(textNode);
-                                selection.removeAllRanges();
-                                selection.addRange(range);
-                                
-                                return true;
                             }
-                            return false;
+                            return false; // 非可编辑区域不允许粘贴
                         } catch (e) {
                             return "Error: " + e.toString();
                         }
@@ -556,25 +560,25 @@ class TextSelectionManager(private val context: Context, private val windowManag
                             Toast.makeText(context, "已粘贴", Toast.LENGTH_SHORT).show()
                         }
                         Log.d(TAG, "已粘贴文本: ${text.take(50)}...")
+                        callback(true)
                     } else {
                         Log.e(TAG, "粘贴失败: $result")
+                        callback(false)
                     }
                 }
+            } else {
+                callback(false)
             }
+        } else {
+            callback(false)
         }
     }
     
     /**
      * 执行分享操作
      */
-    private fun executeShare(webView: WebView) {
-        webView.evaluateJavascript("""
-            (function() {
-                var selection = window.getSelection();
-                var text = selection.toString();
-                return text;
-            })();
-        """.trimIndent()) { result ->
+    private fun executeShare(webView: WebView, callback: (Boolean) -> Unit) {
+        webView.evaluateJavascript("(function() { return window.getSelection().toString(); })();") { result ->
             val text = result?.trim('"') ?: ""
             if (text.isNotEmpty()) {
                 val shareIntent = android.content.Intent().apply {
@@ -592,6 +596,9 @@ class TextSelectionManager(private val context: Context, private val windowManag
                 
                 context.startActivity(chooserIntent)
                 Log.d(TAG, "分享文本: ${text.take(50)}...")
+                callback(true)
+            } else {
+                callback(false)
             }
         }
     }
@@ -790,44 +797,71 @@ class TextSelectionManager(private val context: Context, private val windowManag
     private fun doShowEditTextMenu(editText: EditText) {
         if (Looper.myLooper() != Looper.getMainLooper()) return
 
+        // 在显示菜单前保存EditText的选择状态
+        savedSelectionStart = editText.selectionStart
+        savedSelectionEnd = editText.selectionEnd
+
         val themedContext = ContextThemeWrapper(context, R.style.Theme_AIFloatingBall)
         floatingMenuView = LayoutInflater.from(themedContext)
-            .inflate(R.layout.text_selection_menu, null).apply {
-                alpha = 0f
-                scaleX = 0.8f
-                scaleY = 0.8f
-                setOnTouchListener { _, event ->
-                    if (event.action == MotionEvent.ACTION_OUTSIDE) {
-                        hideTextSelectionMenu()
-                        true
-                    } else {
-                        false
-                    }
-                }
+            .inflate(R.layout.text_selection_menu, null)
+
+        val menuContent = floatingMenuView!!.findViewById<View>(R.id.text_selection_menu_content)
+
+        // 全屏的根视图监听触摸事件，以实现"点击外部"隐藏的功能
+        floatingMenuView!!.setOnTouchListener { _, event ->
+            // 创建一个矩形来保存菜单内容部分的屏幕坐标
+            val contentRect = Rect()
+            menuContent.getGlobalVisibleRect(contentRect)
+
+            // 检查触摸点是否在菜单内容矩形之外
+            if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
+                // 如果在外部，隐藏菜单并消费事件
+                hideTextSelectionMenu()
+                true
+            } else {
+                // 如果在内部，不消费事件，让事件传递给按钮
+                false
             }
+        }
 
         setupEditTextMenuItems(floatingMenuView!!, editText)
 
-        val editTextLocation = IntArray(2)
-        editText.getLocationOnScreen(editTextLocation)
-        val absoluteMenuX = editTextLocation[0] + editText.width / 2
-        val absoluteMenuY = editTextLocation[1] + editText.height
+        // 测量菜单"内容"视图，而不是全屏的根视图
+        menuContent.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val menuWidth = menuContent.measuredWidth
 
+        // 使用整个可点击区域（父视图，即search_bar）来定位
+        val anchorView = (editText.parent as? View) ?: editText
+        val anchorLocation = IntArray(2)
+        anchorView.getLocationOnScreen(anchorLocation)
+        
+        // 我们不再直接设置窗口的x/y，而是设置窗口内"内容视图"的边距，来将它定位到正确的位置
+        val contentParams = menuContent.layoutParams as FrameLayout.LayoutParams
+        contentParams.gravity = Gravity.TOP or Gravity.START
+        contentParams.leftMargin = anchorLocation[0] + (anchorView.width / 2) - (menuWidth / 2)
+        val margin = (8 * context.resources.displayMetrics.density).toInt() // 8dp 边距
+        contentParams.topMargin = anchorLocation[1] + anchorView.height + margin
+        menuContent.layoutParams = contentParams
+
+
+        // 窗口参数现在是全屏的
         val layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             OVERLAY_WINDOW_TYPE,
             MENU_WINDOW_FLAGS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            this.x = absoluteMenuX
-            this.y = absoluteMenuY
+            x = 0
+            y = 0
+            dimAmount = 0.2f // 调暗背景，让用户聚焦菜单
         }
         
         try {
             windowManager.addView(floatingMenuView, layoutParams)
-            showMenuWithAnimation(floatingMenuView!!)
+            // 动画现在应用于内容视图，而不是根视图
+            showMenuWithAnimation(menuContent)
         } catch (e: Exception) {
             Log.e(TAG, "Error adding edit text menu to WindowManager", e)
         }
@@ -836,42 +870,56 @@ class TextSelectionManager(private val context: Context, private val windowManag
     private fun setupEditTextMenuItems(menuView: View, editText: EditText) {
         menuView.findViewById<View>(R.id.action_select_all)?.setOnClickListener {
             editText.selectAll()
-            animateMenuItemAndHide(menuView)
+            // 全选后，更新保存的选择，以便后续的复制/剪切操作能正确工作
+            savedSelectionStart = 0
+            savedSelectionEnd = editText.text.length
+            // 不隐藏菜单
         }
         menuView.findViewById<View>(R.id.action_cut)?.setOnClickListener {
-            val start = editText.selectionStart.coerceAtLeast(0)
-            val end = editText.selectionEnd.coerceAtLeast(0)
-            if (start != end) {
+            // 使用打开菜单时保存的选择状态
+            val start = savedSelectionStart
+            val end = savedSelectionEnd
+            if (start != -1 && end != -1 && start < end) {
                 val textToCut = editText.text.substring(start, end)
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = ClipData.newPlainText("cut text", textToCut)
                 clipboard.setPrimaryClip(clip)
                 editText.text.delete(start, end)
                 Toast.makeText(context, "已剪切", Toast.LENGTH_SHORT).show()
+                hideTextSelectionMenu()
+            } else {
+                Toast.makeText(context, "请选择要剪切的文本", Toast.LENGTH_SHORT).show()
             }
-            hideTextSelectionMenu()
         }
         menuView.findViewById<View>(R.id.action_copy)?.setOnClickListener {
-            val start = editText.selectionStart.coerceAtLeast(0)
-            val end = editText.selectionEnd.coerceAtLeast(0)
-            if (start != end) {
+            // 使用打开菜单时保存的选择状态
+            val start = savedSelectionStart
+            val end = savedSelectionEnd
+            if (start != -1 && end != -1 && start < end) {
                 val textToCopy = editText.text.substring(start, end)
                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = ClipData.newPlainText("copied text", textToCopy)
                 clipboard.setPrimaryClip(clip)
                 Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+                hideTextSelectionMenu()
+            } else {
+                Toast.makeText(context, "请选择要复制的文本", Toast.LENGTH_SHORT).show()
             }
-            hideTextSelectionMenu()
         }
         menuView.findViewById<View>(R.id.action_paste)?.setOnClickListener {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.primaryClip?.getItemAt(0)?.text?.let { pasteData ->
-                val start = editText.selectionStart.coerceAtLeast(0)
-                val end = editText.selectionEnd.coerceAtLeast(0)
-                editText.text.replace(start, end, pasteData)
-                Toast.makeText(context, "已粘贴", Toast.LENGTH_SHORT).show()
+            if (clipboard.hasPrimaryClip() && clipboard.primaryClip?.itemCount ?: 0 > 0) {
+                clipboard.primaryClip?.getItemAt(0)?.text?.let { pasteData ->
+                    // 使用保存的选择来决定粘贴/替换的位置
+                    val start = savedSelectionStart.coerceAtLeast(0)
+                    val end = savedSelectionEnd.coerceAtLeast(0)
+                    editText.text.replace(start, end, pasteData)
+                    Toast.makeText(context, "已粘贴", Toast.LENGTH_SHORT).show()
+                    hideTextSelectionMenu()
+                } ?: Toast.makeText(context, "剪贴板内容为空", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "剪贴板为空", Toast.LENGTH_SHORT).show()
             }
-            hideTextSelectionMenu()
         }
     }
 } 

@@ -275,10 +275,10 @@ class FloatingWindowManager(
 
         setupKeyboardManagement()
         setupWebViewFocusManagementOnScroll()
-
+        
         try {
             if (_floatingView?.isAttachedToWindow == false) {
-                windowManager?.addView(_floatingView, params)
+        windowManager?.addView(_floatingView, params)
             }
         } catch (e: Exception) {
             android.util.Log.e("FloatingWindowManager", "Error adding view: ${e.message}")

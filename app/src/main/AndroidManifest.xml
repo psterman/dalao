@@ -117,7 +117,7 @@
             android:exported="false"
             android:label="搜索历史"
             android:parentActivityName=".SettingsActivity" />
-
+            
         <activity
             android:name=".AIApiSettingsActivity"
             android:label="AI API设置"

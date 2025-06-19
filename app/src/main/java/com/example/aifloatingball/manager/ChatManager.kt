@@ -157,7 +157,7 @@ class ChatManager(private val context: Context) {
             createNewSession()
         }
         val capturedSessionId = currentSessionId!!
-
+        
         // Emulate the JS sendMessage function to update the UI from native code
         webView.post {
             webView.evaluateJavascript("addMessageToUI('user', '${escapeJs(message)}', true);", null)
@@ -199,78 +199,78 @@ class ChatManager(private val context: Context) {
                 return@withLock
             }
 
-            val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
-            if (apiKey.isBlank()) {
-                val error = "API Key for ${if (isDeepSeek) "DeepSeek" else "ChatGPT"} is not set."
-                Log.e("ChatManager", error)
-                withContext(Dispatchers.Main) {
-                    webView.evaluateJavascript("showErrorMessage('${escapeJs(error)}');", null)
+        val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
+        if (apiKey.isBlank()) {
+            val error = "API Key for ${if (isDeepSeek) "DeepSeek" else "ChatGPT"} is not set."
+            Log.e("ChatManager", error)
+            withContext(Dispatchers.Main) {
+                webView.evaluateJavascript("showErrorMessage('${escapeJs(error)}');", null)
                     webView.evaluateJavascript("completeResponse();", null) // 确保结束动画
-                }
+            }
                 return@withLock // 从锁定的代码块中返回
-            }
+        }
 
-            val apiUrl = if (isDeepSeek) settingsManager.getDeepSeekApiUrl() else settingsManager.getChatGPTApiUrl()
-            val model = if (isDeepSeek) "deepseek-chat" else "gpt-3.5-turbo"
+        val apiUrl = if (isDeepSeek) settingsManager.getDeepSeekApiUrl() else settingsManager.getChatGPTApiUrl()
+        val model = if (isDeepSeek) "deepseek-chat" else "gpt-3.5-turbo"
 
-            session.messages.add(ChatMessage("user", message))
-            if (session.title == "新对话" && session.messages.size == 1) {
-                session.title = message
-            }
+        session.messages.add(ChatMessage("user", message))
+        if (session.title == "新对话" && session.messages.size == 1) {
+            session.title = message
+        }
 
-            val contextMessages = session.messages.toMutableList()
+        val contextMessages = session.messages.toMutableList()
             val fullResponse = StringBuilder()
+        
+        try {
+            val url = URL(apiUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Authorization", "Bearer $apiKey")
+                doOutput = true
+                connectTimeout = 30000
+                readTimeout = 60000
+            }
+
+            val requestBody = gson.toJson(mapOf("model" to model, "messages" to contextMessages, "stream" to true))
             
-            try {
-                val url = URL(apiUrl)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.apply {
-                    requestMethod = "POST"
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Authorization", "Bearer $apiKey")
-                    doOutput = true
-                    connectTimeout = 30000
-                    readTimeout = 60000
-                }
+            connection.outputStream.use { it.write(requestBody.toByteArray(StandardCharsets.UTF_8)) }
 
-                val requestBody = gson.toJson(mapOf("model" to model, "messages" to contextMessages, "stream" to true))
-                
-                connection.outputStream.use { it.write(requestBody.toByteArray(StandardCharsets.UTF_8)) }
-
-                val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
-                
-                while (true) {
-                    val line = reader.readLine() ?: break
-                    if (line.startsWith("data:")) {
-                        val jsonData = line.substring(5).trim()
-                        if (jsonData != "[DONE]") {
-                            try {
-                                val choice = org.json.JSONObject(jsonData).getJSONArray("choices").getJSONObject(0)
-                                val delta = choice.getJSONObject("delta")
-                                if (delta.has("content")) {
-                                    val contentChunk = delta.getString("content")
-                                    fullResponse.append(contentChunk)
-                                    withContext(Dispatchers.Main) {
-                                        webView.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
-                                    }
+            val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+            
+            while (true) {
+                val line = reader.readLine() ?: break
+                if (line.startsWith("data:")) {
+                    val jsonData = line.substring(5).trim()
+                    if (jsonData != "[DONE]") {
+                        try {
+                            val choice = org.json.JSONObject(jsonData).getJSONArray("choices").getJSONObject(0)
+                            val delta = choice.getJSONObject("delta")
+                            if (delta.has("content")) {
+                                val contentChunk = delta.getString("content")
+                                fullResponse.append(contentChunk)
+                                            withContext(Dispatchers.Main) {
+                                    webView.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
                                 }
-                            } catch (e: Exception) {
-                                Log.e("ChatManager", "JSON parse error in stream: $e")
                             }
+                        } catch (e: Exception) {
+                            Log.e("ChatManager", "JSON parse error in stream: $e")
                         }
                     }
                 }
-                reader.close()
-                connection.disconnect()
+            }
+            reader.close()
+            connection.disconnect()
 
                 // 请求成功后，保存完整的助手消息
-                val assistantMessage = ChatMessage("assistant", fullResponse.toString())
-                session.messages.add(assistantMessage)
-                if (session.messages.size > MAX_HISTORY_SIZE * 2) {
-                    session.messages.removeAt(0)
-                    session.messages.removeAt(0)
-                }
-                saveSessions()
+            val assistantMessage = ChatMessage("assistant", fullResponse.toString())
+            session.messages.add(assistantMessage)
+            if (session.messages.size > MAX_HISTORY_SIZE * 2) {
+                session.messages.removeAt(0)
+                session.messages.removeAt(0)
+            }
+            saveSessions()
 
             } catch (e: Exception) {
                 val errorMessage = "API request failed: ${e.message}"
@@ -280,9 +280,9 @@ class ChatManager(private val context: Context) {
                 }
             } finally {
                 // 无论成功或失败，最后都必须调用此函数来结束UI的加载状态
-                withContext(Dispatchers.Main) {
-                    webView.evaluateJavascript("completeResponse();", null)
-                }
+            withContext(Dispatchers.Main) {
+                webView.evaluateJavascript("completeResponse();", null)
+            }
             }
         }
     }

@@ -1,48 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:background="@drawable/custom_text_menu_background"
-    android:padding="8dp">
+<!--
+  根布局变为 FrameLayout，它将匹配整个屏幕大小并作为触摸拦截层。
+  它的背景是透明的，因此用户看不到它。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
 
-    <TextView
-        android:id="@+id/menu_cut"
+    <!--
+      原有的 LinearLayout 现在被包裹，并给予一个ID，以便在代码中定位和测量。
+      它的大小是自适应的，包含了所有的菜单按钮。
+    -->
+    <LinearLayout
+        android:id="@+id/text_selection_menu_content"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="剪切"
-        android:textColor="@android:color/white"
-        android:padding="8dp"
-        android:background="?android:attr/selectableItemBackground"
-        android:layout_marginEnd="8dp"/>
+        android:orientation="horizontal"
+        android:background="@drawable/custom_text_menu_background"
+        android:padding="8dp">
 
-    <TextView
-        android:id="@+id/menu_copy"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="复制"
-        android:textColor="@android:color/white"
-        android:padding="8dp"
-        android:background="?android:attr/selectableItemBackground"
-        android:layout_marginEnd="8dp"/>
+        <!-- 按钮ID从 menu_cut 等改为 action_cut，以匹配代码中已有的findViewById调用 -->
+        <TextView
+            android:id="@+id/action_cut"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="剪切"
+            android:textColor="@android:color/white"
+            android:padding="8dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:layout_marginEnd="8dp"/>
 
-    <TextView
-        android:id="@+id/menu_paste"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="粘贴"
-        android:textColor="@android:color/white"
-        android:padding="8dp"
-        android:background="?android:attr/selectableItemBackground"
-        android:layout_marginEnd="8dp"/>
+        <TextView
+            android:id="@+id/action_copy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="复制"
+            android:textColor="@android:color/white"
+            android:padding="8dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:layout_marginEnd="8dp"/>
 
-    <TextView
-        android:id="@+id/menu_select_all"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="全选"
-        android:textColor="@android:color/white"
-        android:padding="8dp"
-        android:background="?android:attr/selectableItemBackground"/>
+        <TextView
+            android:id="@+id/action_paste"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="粘贴"
+            android:textColor="@android:color/white"
+            android:padding="8dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:layout_marginEnd="8dp"/>
 
-</LinearLayout> 
+        <TextView
+            android:id="@+id/action_select_all"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="全选"
+            android:textColor="@android:color/white"
+            android:padding="8dp"
+            android:background="?android:attr/selectableItemBackground"/>
+
+    </LinearLayout>
+
+</FrameLayout> 
