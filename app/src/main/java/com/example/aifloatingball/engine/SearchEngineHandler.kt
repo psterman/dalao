@@ -36,7 +36,7 @@ class SearchEngineHandler(private val settingsManager: SettingsManager) {
 
         // 尝试从EngineUtil获取URL
         val searchUrl = EngineUtil.getSearchEngineSearchUrl(currentEngineKey, encodedQuery)
-
+        
         // 确保返回的URL是有效的，否则使用基于设置的后备方案
         val finalUrl = if (searchUrl.isNotBlank() && searchUrl.startsWith("http")) {
             searchUrl

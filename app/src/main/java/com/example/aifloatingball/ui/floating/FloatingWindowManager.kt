@@ -37,6 +37,8 @@ import android.view.inputmethod.InputMethodManager
 import android.os.Handler
 import android.os.Looper
 import com.example.aifloatingball.ui.floating.KeyEventInterceptorView
+import com.example.aifloatingball.ui.webview.WebViewManager
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -720,6 +722,14 @@ class FloatingWindowManager(
         Log.d(TAG, "No WebView can go back, stopping service.")
         (context as? DualFloatingWebViewService)?.stopSelf()
         return true // 事件已处理（通过关闭窗口）
+    }
+
+    /**
+     * 新增：公共方法，用于从外部设置搜索输入框的文本
+     */
+    fun setSearchInputText(text: String) {
+        val searchInput = floatingView?.findViewById<EditText>(R.id.dual_search_input)
+        searchInput?.setText(text)
     }
 
     companion object {

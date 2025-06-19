@@ -312,6 +312,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 公共方法，供外部 (如FloatingWindowManager) 调用以执行搜索
      */
     fun performSearch(query: String, engineKey: String? = null) {
+        // 新增：将搜索词设置到窗口管理器的输入框中，以更新UI
+        windowManager.setSearchInputText(query)
+
         lastQuery = query
         // 如果没有指定引擎（例如，通过点击搜索按钮），则使用为第一个窗口位置设置的默认引擎
         val primaryEngine = engineKey ?: settingsManager.getSearchEngineForPosition(0)
@@ -379,7 +382,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 3. 验证并加载URL，如果URL无效，则假定它是一个应由ChatManager处理的引擎
         if (urlToLoad.isNotBlank() && urlToLoad.startsWith("http")) {
             webView.loadUrl(urlToLoad)
-        } else {
+            } else {
             Log.w(TAG, "生成的URL无效 ('$urlToLoad') 或引擎未找到 ('$engineKey')，尝试作为聊天引擎加载。")
             chatManager.initWebView(webView, engineKey, query)
         }

@@ -42,6 +42,7 @@ import androidx.core.app.NotificationCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsActivity
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.VoiceRecognitionActivity
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.AppSearchConfig
 import com.example.aifloatingball.model.AppSearchSettings
@@ -69,6 +70,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private val idleHandler = Handler(android.os.Looper.getMainLooper())
     private var fadeOutRunnable: Runnable? = null
+
+    // 新增: 用于处理长按事件的 Handler 和 Runnable
+    private val longPressHandler = Handler(android.os.Looper.getMainLooper())
+    private var longPressRunnable: Runnable? = null
 
     private var floatingBallIcon: ImageView? = null
     private var searchContainer: LinearLayout? = null
@@ -134,15 +139,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         loadAndDisplayAppSearch()
         startForegroundService()
         resetIdleTimer() // Start idle timer on creation
-
-        val filter = IntentFilter("com.example.aifloatingball.SETTINGS_CHANGED")
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(settingsChangeReceiver, filter, RECEIVER_EXPORTED)
-        } else {
-            @Suppress("UnspecifiedRegisterReceiverFlag")
-            registerReceiver(settingsChangeReceiver, filter)
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -156,7 +152,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         super.onDestroy()
         if (floatingView != null) windowManager.removeView(floatingView)
         settingsManager.unregisterOnSharedPreferenceChangeListener(this)
-        unregisterReceiver(settingsChangeReceiver)
         idleHandler.removeCallbacksAndMessages(null) // Clean up handler
     }
 
@@ -360,6 +355,19 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     initialTouchY = event.rawY
                     isMoving = false
                     resetIdleTimer() // Reset timer on touch
+                    
+                    // 安排一个长按任务
+                    longPressRunnable = Runnable {
+                        // 长按被触发
+                        isMoving = true // 将其标记为"移动"，以防止后续的单击事件
+                        Log.d(TAG, "长按检测到，启动语音识别")
+                        val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(intent)
+                        // 可以在这里添加震动反馈
+                    }
+                    longPressHandler.postDelayed(longPressRunnable!!, ViewConfiguration.getLongPressTimeout().toLong())
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -367,6 +375,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     val dy = event.rawY - initialTouchY
                     if (!isMoving && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
                         isMoving = true
+                        // 如果用户开始移动，则取消长按任务
+                        longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
                     }
                     if (isMoving) {
                         params?.x = initialX + dx.toInt()
@@ -376,6 +386,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     true
                 }
                 MotionEvent.ACTION_UP -> {
+                    // 手指抬起，取消长按任务
+                    longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
+                    
                     if (isMoving) {
                         // Just save the new position, don't snap to edge.
                         params?.let {

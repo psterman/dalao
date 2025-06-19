@@ -17,7 +17,9 @@ import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.content.ContextCompat
+import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 
@@ -304,24 +306,32 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     private fun finishRecognition() {
-        try {
-        if (recognizedText.isNotEmpty()) {
-            // 发送广播通知悬浮球服务
-            val intent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT")
-            intent.putExtra("result", recognizedText)
-            sendBroadcast(intent)
-        
-                // 添加延迟以确保广播被处理
-                handler.postDelayed({
-                    finish()
-                }, 200)
-            } else {
-                finish()
+        val finalText = recognizedTextView.text.toString()
+        if (finalText.isNotEmpty()) {
+            Log.d(TAG, "识别完成，文本: $finalText")
+
+            // 原始逻辑：发送广播
+            // val intent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT").apply {
+            //     putExtra("voice_result", recognizedTextView.text.toString())
+            // }
+            // sendBroadcast(intent)
+
+            // 新逻辑：直接启动 DualFloatingWebViewService
+            val settingsManager = SettingsManager.getInstance(this)
+            val defaultEngineKey = settingsManager.getSearchEngineForPosition(0)
+
+            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", finalText)
+                putExtra("engine_key", defaultEngineKey)
+                putExtra("launched_by_voice", true) // 添加一个标志，用于后续判断
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "结束识别失败: ${e.message}")
-        finish()
+            startService(serviceIntent)
+            Log.d(TAG, "已直接启动 DualFloatingWebViewService，查询: '$finalText', 引擎: '$defaultEngineKey'")
+
+        } else {
+            Log.d(TAG, "识别完成，但无文本。")
         }
+        finish()
     }
     
     private fun showError(message: String) {
