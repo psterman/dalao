@@ -63,4 +63,9 @@
     <color name="dual_webview_text_dark">#FFFFFF</color>
     <color name="dual_webview_text_hint">#AAAAAA</color>
     <color name="dual_webview_icon_tint">#FFFFFF</color>
+
+    <color name="primary_dark">#BB86FC</color>
+    <color name="accent">#03DAC5</color>
+    <color name="dialog_background_color">#FF333333</color>
+    <color name="icon_tint_color_def">#FFFFFFFF</color>
 </resources> 

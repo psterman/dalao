@@ -28,6 +28,7 @@ import com.example.aifloatingball.manager.ChatManager
 import com.example.aifloatingball.ui.webview.CustomWebView
 import android.view.inputmethod.InputMethodManager
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.database.AppDatabase
 import com.example.aifloatingball.model.AISearchEngine
 import android.widget.ImageView
 import android.graphics.Color
@@ -35,6 +36,10 @@ import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
+import com.example.aifloatingball.model.SearchHistory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -103,6 +108,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private var isKeyboardVisible = false
     private var keyboardHeight = 0
 
+    // --- Search History Fields ---
+    private var searchStartTime: Long = 0
+    private var searchSource: String? = null
+    // --- End Search History Fields ---
+
     internal fun isWebViewManagerInitialized(): Boolean = ::webViewManager.isInitialized
     internal fun isSearchEngineHandlerInitialized(): Boolean = ::searchEngineHandler.isInitialized
 
@@ -112,6 +122,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        
+        // --- Search History ---
+        searchStartTime = System.currentTimeMillis()
+        // --- End Search History ---
         
         Log.d(TAG, "DualFloatingWebViewService: 服务创建 onCreate()")
         
@@ -269,6 +283,13 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun handleSearchIntent(intent: Intent) {
         val searchParams = intentParser.parseSearchIntent(intent)
         if (searchParams != null) {
+            // --- Search History ---
+            // 来源信息在第一次启动服务时被设置
+            if (searchSource == null) {
+                searchSource = intent.getStringExtra("search_source") ?: "浏览器内部"
+            }
+            // --- End Search History ---
+
             // 这是一个来自外部的、明确的新搜索请求，执行它。
             Log.d(TAG, "处理来自intent的新搜索: ${searchParams.query}")
             performSearch(searchParams.query, searchParams.engineKey)
@@ -463,6 +484,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             windowManager.removeFloatingWindow()
         }
 
+        // --- Search History ---
+        saveSearchHistory()
+        // --- End Search History ---
+
         // 停止前台服务
         stopForeground(true)
         
@@ -499,6 +524,45 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         with(sharedPreferences.edit()) {
             putInt(KEY_WINDOW_COUNT, count)
             apply()
+        }
+    }
+
+    private fun saveSearchHistory() {
+        if (lastQuery.isNullOrBlank()) {
+            Log.d(TAG, "查询为空，不保存历史记录。")
+            return
+        }
+
+        val duration = System.currentTimeMillis() - searchStartTime
+        
+        // 修正：准确记录实际使用的搜索引擎，而不是只记录默认设置。
+        // 此逻辑与 handleSearchInternal 中为WebView分配引擎的逻辑保持一致。
+        val enginesList = (0 until currentWindowCount).map { i ->
+            if (i == 0) {
+                // 第一个窗口使用触发搜索的引擎 (lastEngineKey)，如果为空则回退到其默认引擎。
+                lastEngineKey ?: settingsManager.getSearchEngineForPosition(0)
+            } else {
+                // 其他窗口使用它们各自的默认引擎。
+                settingsManager.getSearchEngineForPosition(i)
+            }
+        }
+        val engines = enginesList.distinct().joinToString(", ")
+
+        val historyEntry = SearchHistory(
+            query = lastQuery!!,
+            timestamp = searchStartTime,
+            source = searchSource ?: "未知",
+            durationInMillis = duration,
+            engines = engines
+        )
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                AppDatabase.getDatabase(applicationContext).searchHistoryDao().insert(historyEntry)
+                Log.d(TAG, "搜索历史已保存: $historyEntry")
+            } catch (e: Exception) {
+                Log.e(TAG, "保存搜索历史失败", e)
+            }
         }
     }
 

@@ -104,9 +104,20 @@
 
         <activity
             android:name=".SettingsActivity"
-            android:label="设置"
-            android:theme="@style/Theme.AIFloatingBall"/>
-            
+            android:exported="true"
+            android:label="@string/title_activity_settings" >
+            <intent-filter>
+                <action android:name="android.intent.action.APPLICATION_PREFERENCES" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".SearchHistoryActivity"
+            android:exported="false"
+            android:label="搜索历史"
+            android:parentActivityName=".SettingsActivity" />
+
         <activity
             android:name=".AIApiSettingsActivity"
             android:label="AI API设置"

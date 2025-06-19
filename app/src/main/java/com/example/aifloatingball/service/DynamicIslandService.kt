@@ -447,6 +447,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             putExtra("search_query", query)
             // 使用引擎键名，让 DualFloatingWebViewService 处理 URL
             putExtra("engine_key", engine.name.lowercase())
+            putExtra("search_source", "灵动岛") // 添加来源信息
             }
             startService(intent)
             

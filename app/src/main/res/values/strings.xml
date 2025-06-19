@@ -142,4 +142,6 @@
     <string name="health_alert_headache_summary">若头痛伴随：呕吐、视物模糊、意识模糊，请立即就医</string>
     <string name="health_alert_bleeding_title">⚠️ 出血警报</string>
     <string name="health_alert_bleeding_summary">若大量出血伴随：头晕、心跳过快、面色苍白，请立即就医</string>
+
+    <string name="title_activity_settings">设置</string>
 </resources> 

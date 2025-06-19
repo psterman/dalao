@@ -53,6 +53,15 @@
                     android:paddingTop="0dp"
                     android:paddingBottom="0dp"/>
 
+                <ImageButton
+                    android:id="@+id/clear_button"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_close"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="清空"
+                    android:layout_marginStart="8dp"/>
+
             </LinearLayout>
 
             <!-- 各类搜索结果的容器 -->

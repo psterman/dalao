@@ -196,6 +196,16 @@
             app:defaultValue="false"
             app:iconSpaceReserved="false" />
 
+        <Preference
+            app:key="search_history"
+            app:title="查看搜索历史"
+            app:summary="查看和管理您的搜索记录"
+            app:iconSpaceReserved="false">
+            <intent
+                android:targetPackage="com.example.aifloatingball"
+                android:targetClass="com.example.aifloatingball.SearchHistoryActivity" />
+        </Preference>
+
         <SwitchPreferenceCompat
             app:key="show_ai_engine_category"
             app:title="显示搜索引擎分类"

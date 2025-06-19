@@ -261,6 +261,22 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             showSearchModeMenu(view)
         }
 
+        val clearButton = floatingView?.findViewById<ImageButton>(R.id.clear_button)
+        clearButton?.setOnClickListener {
+            searchInput?.text?.clear()
+        }
+
+        // Programmatically set the tint for the clear button based on the theme
+        themedContext?.let {
+            val nightModeFlags = it.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+            val tintColor = if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
+                android.graphics.Color.WHITE
+            } else {
+                android.graphics.Color.DKGRAY
+            }
+            clearButton?.setColorFilter(tintColor, android.graphics.PorterDuff.Mode.SRC_IN)
+        }
+
         updateSearchModeVisibility()
         updateBallAlpha()
     }
@@ -321,6 +337,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", query)
                 putExtra("engine_key", engineName)
+                putExtra("search_source", "悬浮窗")
             }
             startService(serviceIntent)
             hideSearchInterface()
@@ -644,6 +661,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                     putExtra("search_query", query) // 查询可以为空
                     putExtra("engine_key", engineName)
+                    putExtra("search_source", "悬浮窗")
                 }
                 startService(serviceIntent)
                 hideSearchInterface()
@@ -710,6 +728,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                         putExtra("search_query", query)
                         putExtra("engine_key", engine.name) // Pass engine name as the key
+                        putExtra("search_source", "悬浮窗")
                     }
                     startService(serviceIntent)
                 }
