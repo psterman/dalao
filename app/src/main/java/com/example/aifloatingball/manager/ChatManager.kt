@@ -20,6 +20,8 @@ import java.net.URL
 import java.nio.charset.StandardCharsets
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class ChatMessage(val role: String, val content: String, val isLoading: Boolean = false)
 data class ChatSession(
@@ -35,6 +37,7 @@ class ChatManager(private val context: Context) {
     private var webViewRef: WebView? = null
     private var isDeepSeekEngine: Boolean = false
     private val gson = Gson()
+    private val messageLock = Mutex()
 
     private val sessions = mutableListOf<ChatSession>()
     private var currentSessionId: String? = null
@@ -122,27 +125,19 @@ class ChatManager(private val context: Context) {
 
         @android.webkit.JavascriptInterface
         fun startNewChat(): String {
-            val newSession = ChatSession(
-                id = System.currentTimeMillis().toString(),
-                title = "新对话",
-                timestamp = System.currentTimeMillis(),
-                messages = mutableListOf()
-            )
-            sessions.add(0, newSession)
-            currentSessionId = newSession.id
-            saveSessions()
-            saveCurrentSessionId()
+            val newSession = createNewSession()
             return gson.toJson(newSession)
         }
 
         @android.webkit.JavascriptInterface
         fun sendMessage(message: String) {
             if (currentSessionId == null) return
-            val session = sessions.find { it.id == currentSessionId } ?: return
             val webView = webViewRef ?: return
+            // 传递当前会话的ID，而不是会话对象本身
+            val capturedSessionId = currentSessionId!!
 
             scope.launch {
-                handleMessageSend(webView, message, isDeepSeekEngine, session)
+                handleMessageSend(webView, message, isDeepSeekEngine, capturedSessionId)
             }
         }
         
@@ -159,15 +154,10 @@ class ChatManager(private val context: Context) {
 
     fun sendMessageToWebView(message: String, webView: WebView, isDeepSeek: Boolean) {
         if (currentSessionId == null) {
-            Log.w("ChatManager", "Cannot send message, no current session.")
-            return
+            createNewSession()
         }
-        val session = sessions.find { it.id == currentSessionId }
-        if (session == null) {
-            Log.w("ChatManager", "Cannot send message, current session not found.")
-            return
-        }
-        
+        val capturedSessionId = currentSessionId!!
+
         // Emulate the JS sendMessage function to update the UI from native code
         webView.post {
             webView.evaluateJavascript("addMessageToUI('user', '${escapeJs(message)}', true);", null)
@@ -177,90 +167,122 @@ class ChatManager(private val context: Context) {
 
         // Then, perform the actual API call.
         scope.launch {
-            handleMessageSend(webView, message, isDeepSeek, session)
+            handleMessageSend(webView, message, isDeepSeek, capturedSessionId)
         }
     }
 
-    private suspend fun handleMessageSend(webView: WebView, message: String, isDeepSeek: Boolean, session: ChatSession) {
-        val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
-        if (apiKey.isBlank()) {
-            val error = "API Key for ${if (isDeepSeek) "DeepSeek" else "ChatGPT"} is not set."
-            Log.e("ChatManager", error)
-            withContext(Dispatchers.Main) {
-                webView.evaluateJavascript("showErrorMessage('${escapeJs(error)}');", null)
-            }
-            return
-        }
+    private fun createNewSession(): ChatSession {
+        val newSession = ChatSession(
+            id = System.currentTimeMillis().toString(),
+            title = "新对话",
+            timestamp = System.currentTimeMillis(),
+            messages = mutableListOf()
+        )
+        sessions.add(0, newSession)
+        currentSessionId = newSession.id
+        saveSessions()
+        saveCurrentSessionId()
+        return newSession
+    }
 
-        val apiUrl = if (isDeepSeek) settingsManager.getDeepSeekApiUrl() else settingsManager.getChatGPTApiUrl()
-        val model = if (isDeepSeek) "deepseek-chat" else "gpt-3.5-turbo"
-
-        session.messages.add(ChatMessage("user", message))
-        if (session.title == "新对话" && session.messages.size == 1) {
-            session.title = message
-        }
-
-        val contextMessages = session.messages.toMutableList()
-        
-        try {
-            val url = URL(apiUrl)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Authorization", "Bearer $apiKey")
-                doOutput = true
-                connectTimeout = 30000
-                readTimeout = 60000
+    private suspend fun handleMessageSend(webView: WebView, message: String, isDeepSeek: Boolean, sessionId: String) {
+        // 使用互斥锁确保同一时间只有一个消息处理任务在运行，防止并发导致的状态错乱
+        messageLock.withLock {
+            // 在锁内部，根据ID从列表中获取最新的会d话状态
+            val session = sessions.find { it.id == sessionId }
+            if (session == null) {
+                Log.e("ChatManager", "Session with ID $sessionId not found inside lock.")
+                withContext(Dispatchers.Main) {
+                    webView.evaluateJavascript("showErrorMessage('内部错误: 会话丢失');", null)
+                    webView.evaluateJavascript("completeResponse();", null)
+                }
+                return@withLock
             }
 
-            val requestBody = gson.toJson(mapOf("model" to model, "messages" to contextMessages, "stream" to true))
-            
-            connection.outputStream.use { it.write(requestBody.toByteArray(StandardCharsets.UTF_8)) }
+            val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
+            if (apiKey.isBlank()) {
+                val error = "API Key for ${if (isDeepSeek) "DeepSeek" else "ChatGPT"} is not set."
+                Log.e("ChatManager", error)
+                withContext(Dispatchers.Main) {
+                    webView.evaluateJavascript("showErrorMessage('${escapeJs(error)}');", null)
+                    webView.evaluateJavascript("completeResponse();", null) // 确保结束动画
+                }
+                return@withLock // 从锁定的代码块中返回
+            }
 
-            val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+            val apiUrl = if (isDeepSeek) settingsManager.getDeepSeekApiUrl() else settingsManager.getChatGPTApiUrl()
+            val model = if (isDeepSeek) "deepseek-chat" else "gpt-3.5-turbo"
+
+            session.messages.add(ChatMessage("user", message))
+            if (session.title == "新对话" && session.messages.size == 1) {
+                session.title = message
+            }
+
+            val contextMessages = session.messages.toMutableList()
             val fullResponse = StringBuilder()
             
-            while (true) {
-                val line = reader.readLine() ?: break
-                if (line.startsWith("data:")) {
-                    val jsonData = line.substring(5).trim()
-                    if (jsonData != "[DONE]") {
-                        try {
-                            val choice = org.json.JSONObject(jsonData).getJSONArray("choices").getJSONObject(0)
-                            val delta = choice.getJSONObject("delta")
-                            if (delta.has("content")) {
-                                val contentChunk = delta.getString("content")
-                                fullResponse.append(contentChunk)
-                                            withContext(Dispatchers.Main) {
-                                    webView.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
+            try {
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.apply {
+                    requestMethod = "POST"
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Authorization", "Bearer $apiKey")
+                    doOutput = true
+                    connectTimeout = 30000
+                    readTimeout = 60000
+                }
+
+                val requestBody = gson.toJson(mapOf("model" to model, "messages" to contextMessages, "stream" to true))
+                
+                connection.outputStream.use { it.write(requestBody.toByteArray(StandardCharsets.UTF_8)) }
+
+                val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+                
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    if (line.startsWith("data:")) {
+                        val jsonData = line.substring(5).trim()
+                        if (jsonData != "[DONE]") {
+                            try {
+                                val choice = org.json.JSONObject(jsonData).getJSONArray("choices").getJSONObject(0)
+                                val delta = choice.getJSONObject("delta")
+                                if (delta.has("content")) {
+                                    val contentChunk = delta.getString("content")
+                                    fullResponse.append(contentChunk)
+                                    withContext(Dispatchers.Main) {
+                                        webView.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
+                                    }
                                 }
+                            } catch (e: Exception) {
+                                Log.e("ChatManager", "JSON parse error in stream: $e")
                             }
-                        } catch (e: Exception) {
-                            Log.e("ChatManager", "JSON parse error in stream: $e")
                         }
                     }
                 }
-            }
-            reader.close()
-            connection.disconnect()
+                reader.close()
+                connection.disconnect()
 
-            val assistantMessage = ChatMessage("assistant", fullResponse.toString())
-            session.messages.add(assistantMessage)
-            if (session.messages.size > MAX_HISTORY_SIZE * 2) {
-                session.messages.removeAt(0)
-                session.messages.removeAt(0)
-            }
-            saveSessions()
+                // 请求成功后，保存完整的助手消息
+                val assistantMessage = ChatMessage("assistant", fullResponse.toString())
+                session.messages.add(assistantMessage)
+                if (session.messages.size > MAX_HISTORY_SIZE * 2) {
+                    session.messages.removeAt(0)
+                    session.messages.removeAt(0)
+                }
+                saveSessions()
 
-            withContext(Dispatchers.Main) {
-                webView.evaluateJavascript("completeResponse();", null)
-                webView.evaluateJavascript("updateSessionTitle('${session.id}', '${escapeJs(session.title)}');", null)
-            }
-        } catch (e: Exception) {
-            Log.e("ChatManager", "API call failed: ${e.message}", e)
-            withContext(Dispatchers.Main) {
-                webView.evaluateJavascript("showErrorMessage('Error: ${escapeJs(e.message ?: "Unknown API error")}');", null)
+            } catch (e: Exception) {
+                val errorMessage = "API request failed: ${e.message}"
+                Log.e("ChatManager", errorMessage, e)
+                withContext(Dispatchers.Main) {
+                    webView.evaluateJavascript("showErrorMessage('${escapeJs(errorMessage)}');", null)
+                }
+            } finally {
+                // 无论成功或失败，最后都必须调用此函数来结束UI的加载状态
+                withContext(Dispatchers.Main) {
+                    webView.evaluateJavascript("completeResponse();", null)
+                }
             }
         }
     }
@@ -307,3 +329,4 @@ class ChatManager(private val context: Context) {
         prefs.edit().putString(KEY_CURRENT_SESSION_ID, currentSessionId).apply()
     }
 }
+
