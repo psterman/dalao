@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -30,8 +31,7 @@
         }
 
         .logo-container {
-            display: flex;
-            align-items: center;
+            display: none;
         }
 
         .logo {
@@ -350,9 +350,7 @@
 <body>
     <div class="header">
         <div class="logo-container">
-            <svg class="logo" width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 6L6 34H34L20 6Z" fill="#3498DB" />
-            </svg>
+            <img src="https://www.deepseek.com/deepseek.png" alt="DeepSeek Logo" class="logo">
             <span class="logo-text">DeepSeek</span>
         </div>
         <div class="header-buttons">
@@ -380,6 +378,7 @@
     <script>
         let isGenerating = false;
         let currentResponseElement = null;
+        let currentRawText = '';
         let currentChatId = null;
 
         const messageInput = document.getElementById('message-input');
@@ -398,7 +397,7 @@
             }
         }
 
-        function addMessageToUI(role, content, isComplete = true) {
+        function addMessageToUI(role, content, isComplete) {
             const messageContainer = document.createElement('div');
             messageContainer.className = 'message-container ' + role + '-container';
 
@@ -425,6 +424,10 @@
 
             if (role === 'assistant' && !isComplete) {
                 currentResponseElement = messageDiv;
+                currentRawText = content;
+                messageDiv.innerHTML = markdownToHtml(currentRawText);
+            } else if (isComplete) {
+                messageDiv.innerHTML = markdownToHtml(content);
             }
 
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -451,9 +454,8 @@
 
         function appendToResponse(contentChunk) {
             if (currentResponseElement) {
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = markdownToHtml(contentChunk);
-                currentResponseElement.innerHTML += tempDiv.innerHTML;
+                currentRawText += contentChunk;
+                currentResponseElement.innerHTML = markdownToHtml(currentRawText);
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
         }
@@ -463,6 +465,7 @@
             isGenerating = false;
             updateSendButton();
             currentResponseElement = null;
+            currentRawText = '';
         }
 
         function sendMessage() {
@@ -569,8 +572,7 @@
 
         function markdownToHtml(markdown) {
             if (!markdown) return '';
-            let html = escapeHtml(markdown);
-            return html.replace(/\n/g, '<br>');
+            return marked.parse(markdown);
         }
 
         function escapeHtml(unsafe) {
@@ -583,11 +585,12 @@
         }
 
         newChatBtn.addEventListener('click', () => {
-            if (typeof AndroidChatInterface !== 'undefined') {
-                const newSession = AndroidChatInterface.startNewChat();
-                const parsedSession = JSON.parse(newSession);
-                loadChat(parsedSession.id);
-                refreshHistory();
+            if (confirm("您确定要开始新的对话吗？当前对话内容将会被清除。")) {
+                currentChatId = null;
+                messagesContainer.innerHTML = '';
+                // showWelcomeMessage();
+                hideHistory();
+                updateSendButtonState();
             }
         });
 
@@ -601,12 +604,28 @@
                 const initialSession = AndroidChatInterface.getInitialSession();
                 const parsedSession = JSON.parse(initialSession);
                 currentChatId = parsedSession.id;
-                parsedSession.messages.forEach(msg => {
-                    addMessageToUI(msg.role, msg.content, true);
-                });
+                if (parsedSession.messages.length === 0) {
+                    showWelcomeMessage();
+                } else {
+                    parsedSession.messages.forEach(msg => {
+                        addMessageToUI(msg.role, msg.content, true);
+                    });
+                }
+            } else {
+                showWelcomeMessage();
             }
             updateSendButton();
         };
+
+        function showWelcomeMessage() {
+            messagesContainer.innerHTML = `
+                <div class="welcome-container">
+                    <img src="https://...logo.png" alt="Logo" class="welcome-logo">
+                    <h1>欢迎使用</h1>
+                    <p>您可以开始提问了</p>
+                </div>
+            `;
+        }
     </script>
 </body>
 

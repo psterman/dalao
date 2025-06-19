@@ -22,6 +22,13 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.ui.webview.CustomWebView
+import android.webkit.JavascriptInterface
+import android.webkit.JsResult
+import android.webkit.WebChromeClient
+import android.app.AlertDialog
+import android.view.WindowManager
 
 data class ChatMessage(val role: String, val content: String, val isLoading: Boolean = false)
 data class ChatSession(
@@ -82,6 +89,8 @@ class ChatManager(private val context: Context) {
                 }
             }
         }
+
+        webView.webChromeClient = CustomWebChromeClient()
     }
 
     fun startChat(webView: WebView, engineKey: String, query: String) {
@@ -90,6 +99,30 @@ class ChatManager(private val context: Context) {
 
         // initWebView中的onPageFinished会在页面加载后发送初始消息
         // 所以这里不需要再调用sendMessageToWebView
+    }
+
+    private inner class CustomWebChromeClient : WebChromeClient() {
+        override fun onJsConfirm(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
+            AlertDialog.Builder(context)
+                .setTitle("确认")
+                .setMessage(message)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    result?.confirm()
+                }
+                .setNegativeButton(android.R.string.cancel) { _, _ ->
+                    result?.cancel()
+                }
+                .setOnCancelListener {
+                    result?.cancel()
+                }
+                .create()
+                .apply {
+                    // 对于服务中弹出的对话框，需要设置窗口类型
+                    window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                    show()
+                }
+            return true
+        }
     }
 
     private inner class AndroidChatInterface {
