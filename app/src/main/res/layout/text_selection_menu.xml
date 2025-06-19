@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   根布局变为 FrameLayout，它将匹配整个屏幕大小并作为触摸拦截层。
-  它的背景是透明的，因此用户看不到它。
+  它的背景是半透明的黑色，可以稳定地实现"遮罩"效果，避免黑屏。
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/transparent">
+    android:background="#33000000">
 
     <!--
       原有的 LinearLayout 现在被包裹，并给予一个ID，以便在代码中定位和测量。

@@ -41,9 +41,8 @@ class TextSelectionManager(private val context: Context, private val windowManag
         private const val OVERLAY_WINDOW_TYPE = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
         // 菜单显示时的Window Flags
-        private const val MENU_WINDOW_FLAGS = WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                                              WindowManager.LayoutParams.FLAG_DIM_BEHIND // 给下层UI一个变暗的遮罩，提示用户它们不可点击
-                                              // 移除所有旧的flag，采用默认的模态和可聚焦行为
+        private const val MENU_WINDOW_FLAGS = WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                                              // 移除 FLAG_DIM_BEHIND, 改用在XML中设置半透明背景，效果更稳定
     }
 
     private var currentWebView: WebView? = null
@@ -121,93 +120,72 @@ class TextSelectionManager(private val context: Context, private val windowManag
     }
 
     private fun proceedWithShowingMenu(webView: WebView, menuAnchorX: Int, menuAnchorY: Int, selLeft: Int, selTop: Int, selRight: Int, selBottom: Int ) {
-        Log.d(TAG, "[MENU_LIFECYCLE] proceedWithShowingMenu: AnchorXY=($menuAnchorX, $menuAnchorY), SelLTRB=($selLeft, $selTop, $selRight, $selBottom)")
         if (Looper.myLooper() != Looper.getMainLooper()) {
-            Log.e(TAG, "[MENU_LIFECYCLE] Cannot show menu from non-UI thread! Aborting.")
+            Log.e(TAG, "Cannot show menu from non-UI thread! Aborting.")
             return
         }
+
         currentWebView = webView
+        val themedContext = ContextThemeWrapper(this.context, R.style.Theme_AIFloatingBall)
+        floatingMenuView = LayoutInflater.from(themedContext)
+            .inflate(R.layout.text_selection_menu, null)
 
-        // Check for SYSTEM_ALERT_WINDOW permission on API 23+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(context)) {
-                Log.e(TAG, "[MENU_PERMISSION_CHECK] SYSTEM_ALERT_WINDOW permission not granted. Cannot show overlay view. Please grant it manually.")
-                cleanupStateAndHandles()
-                return
+        val menuContent = floatingMenuView!!.findViewById<View>(R.id.text_selection_menu_content)
+
+        // 全屏的根视图监听触摸事件，以实现"点击外部"隐藏的功能
+        floatingMenuView!!.setOnTouchListener { _, event ->
+            val contentRect = Rect()
+            menuContent.getGlobalVisibleRect(contentRect)
+            if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
+                hideTextSelectionMenu()
+                true
             } else {
-                Log.i(TAG, "[MENU_PERMISSION_CHECK] SYSTEM_ALERT_WINDOW permission granted.")
+                false
             }
         }
-
-        isMenuAnimating.set(true)
-
-        if (floatingMenuView != null && floatingMenuView?.parent != null) {
-            try {
-                windowManager.removeView(floatingMenuView)
-                Log.d(TAG, "[MENU_LIFECYCLE] Removed existing floatingMenuView before creating new one.")
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "[MENU_LIFECYCLE] floatingMenuView was already removed, or not attached: ${e.message}")
-            }
-        }
-
-        // 使用 ContextThemeWrapper 来确保 Material Components 属性可以被解析
-        // 请将 R.style.Theme_AIFloatingBall 替换为您应用中实际的 Material Components 主题名称
-        val themedContext = ContextThemeWrapper(this.context, R.style.Theme_AIFloatingBall) 
-        Log.i(TAG, "[MENU_CONTEXT_DEBUG] Using ContextThemeWrapper with app theme (R.style.Theme_AIFloatingBall) for inflating menu.")
-        
-        floatingMenuView = LayoutInflater.from(themedContext) // 使用带主题的Context
-            .inflate(R.layout.text_selection_menu, null).apply {
-                alpha = 0f
-                scaleX = 0.8f
-                scaleY = 0.8f
-                setOnTouchListener { _, event ->
-                    if (event.action == MotionEvent.ACTION_OUTSIDE) {
-                        Log.d(TAG, "[MENU_LIFECYCLE] ACTION_OUTSIDE detected, hiding menu.")
-                        hideTextSelectionMenu()
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
 
         setupMenuItems(floatingMenuView!!, webView)
 
         val webViewLocation = IntArray(2)
-        webView.getLocationOnScreen(webViewLocation) // Get WebView's screen location
+        webView.getLocationOnScreen(webViewLocation)
 
-        // 测量菜单视图以便正确定位
-        floatingMenuView?.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-        val menuWidth = floatingMenuView?.measuredWidth ?: 0
+        // 测量菜单"内容"视图
+        menuContent.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val menuWidth = menuContent.measuredWidth
 
         // 将菜单定位在选区下方居中
         val absoluteMenuX = webViewLocation[0] + menuAnchorX - (menuWidth / 2)
         val absoluteSelBottom = webViewLocation[1] + selBottom
         val margin = (8 * context.resources.displayMetrics.density).toInt() // 8dp margin
         val absoluteMenuY = absoluteSelBottom + margin
-        
-        Log.d(TAG, "[MENU_LIFECYCLE] WebView on-screen: (${webViewLocation[0]}, ${webViewLocation[1]}). Calculated Absolute Menu Pos for Floating View: ($absoluteMenuX, $absoluteMenuY)")
 
+        // 定位内容视图
+        val contentParams = menuContent.layoutParams as FrameLayout.LayoutParams
+        contentParams.gravity = Gravity.TOP or Gravity.START
+        contentParams.leftMargin = absoluteMenuX
+        contentParams.topMargin = absoluteMenuY
+        menuContent.layoutParams = contentParams
+
+        // 显示选择柄
+        handleManager.showSelectionHandles(webView, selLeft, selTop, selRight, selBottom)
+
+        // 窗口参数现在是全屏的
         val layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            OVERLAY_WINDOW_TYPE, // 使用我们定义的系统覆盖类型
-            MENU_WINDOW_FLAGS, // 使用我们定义的flags
-            PixelFormat.TRANSLUCENT // 允许透明背景
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            OVERLAY_WINDOW_TYPE,
+            MENU_WINDOW_FLAGS,
+            PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START // 菜单位置基于x, y，所以需要LEFT | TOP
-            x = absoluteMenuX
-            y = absoluteMenuY
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
         }
 
-        // 显示选择柄，使用JS直接返回的选区边界
-        handleManager.showSelectionHandles(webView, selLeft, selTop, selRight, selBottom)
-        
-        // 尝试添加视图到WindowManager
         try {
             windowManager.addView(floatingMenuView, layoutParams)
-            Log.i(TAG, "[MENU_LIFECYCLE] floatingMenuView added to WindowManager. View hash: ${floatingMenuView?.hashCode()}, LayoutParams type: ${layoutParams.type}, flags: ${layoutParams.flags}")
-            showMenuWithAnimation(floatingMenuView!!) // 启动动画
+            Log.i(TAG, "[MENU_LIFECYCLE] floatingMenuView added to WindowManager (WebView).")
+            showMenuWithAnimation(menuContent) // 动画应用于内容视图
         } catch (e: Exception) {
             Log.e(TAG, "[MENU_LIFECYCLE] Error adding floatingMenuView to WindowManager: ${e.message}", e)
             cleanupStateAndHandles()
