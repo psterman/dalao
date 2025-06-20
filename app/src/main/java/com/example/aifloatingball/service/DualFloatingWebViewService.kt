@@ -107,7 +107,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private var originalY = 0
     private var isKeyboardVisible = false
     private var keyboardHeight = 0
-    private var isInitialSearchHandledByOnStart = false
 
     // --- Search History Fields ---
     private var searchStartTime: Long = 0
@@ -157,19 +156,16 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
         // 延迟初始化，确保UI已经准备就绪
         handler.postDelayed({
-            if (isInitialSearchHandledByOnStart) {
-                Log.d(TAG, "onCreate: 初始搜索已由 onStartCommand 处理，跳过。")
-                return@postDelayed
-            }
             val xmlWebViews = windowManager.getXmlDefinedWebViews()
             Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
             if (xmlWebViews.any { it != null }) {
                 webViewManager = WebViewManager(this, xmlWebViews, windowManager)
                 textSelectionManager = webViewManager.textSelectionManager
 
-                // 创建时，使用为第一个窗口配置的默认引擎加载一次
-                val initialEngine = lastEngineKey ?: settingsManager.getSearchEngineForPosition(0)
-                handleSearchInternal(lastQuery ?: "", initialEngine, currentWindowCount)
+                // 创建时不再主动加载任何内容。
+                // 所有加载逻辑都将由 onStartCommand 及其处理的 Intent 触发。
+                // 这可以从根本上解决 onCreate 和 onStartCommand 之间的竞态条件。
+                Log.d(TAG, "WebViewManager 已初始化，等待 onStartCommand 指令。")
             } else {
                 Log.e(TAG, "错误: XML中的WebView未找到，无法初始化WebViewManager。")
                 stopSelf() // 如果关键视图找不到，停止服务
@@ -288,7 +284,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun handleSearchIntent(intent: Intent) {
         val searchParams = intentParser.parseSearchIntent(intent)
         if (searchParams != null) {
-            isInitialSearchHandledByOnStart = true
             // --- Search History ---
             // 来源信息在第一次启动服务时被设置
             if (searchSource == null) {
@@ -300,10 +295,14 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             Log.d(TAG, "处理来自intent的新搜索: ${searchParams.query}")
             performSearch(searchParams.query, searchParams.engineKey)
         } else {
-            // 这不是一个新的搜索请求。首次加载完全由onCreate处理。
-            // 此处不做任何操作，以避免与onCreate产生竞争和重复加载。
+            // 如果 intent 中没有搜索参数，这可能是服务的首次启动（例如，从快捷方式），
+            // 并且还没有执行过任何搜索。
             if (lastQuery == null) {
-                Log.d(TAG, "Intent中无搜索参数，忽略以防止重复加载。首次加载由onCreate处理。")
+                Log.d(TAG, "Intent中无搜索参数，执行首次默认加载。")
+                // 执行一个空的搜索，这将加载默认搜索引擎的主页
+                performSearch("", settingsManager.getSearchEngineForPosition(0))
+            } else {
+                Log.d(TAG, "Intent中无搜索参数，但已有内容，忽略。")
             }
         }
         // 在处理完所有搜索逻辑、WebView开始加载后再启用输入，避免焦点冲突

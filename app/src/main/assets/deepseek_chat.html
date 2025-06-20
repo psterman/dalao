@@ -498,7 +498,7 @@
                 const initialSessionJson = AndroidChatInterface.getInitialSession();
                 if (initialSessionJson) {
                     const parsedSession = JSON.parse(initialSessionJson);
-                    currentChatId = parsedSession.id;
+                currentChatId = parsedSession.id;
                     if (parsedSession.messages && parsedSession.messages.length > 0) {
                         parsedSession.messages.forEach(msg => { addMessageToUI(msg.role, msg.content, true); });
                     } else {
