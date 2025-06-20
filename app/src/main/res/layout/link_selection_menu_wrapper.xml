@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  根布局是一个全屏的 FrameLayout，作为触摸拦截层。
+  它本身是透明的，不会影响视觉，但能捕获所有屏幕触摸事件。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <!--
+      这是实际显示的菜单内容。
+      它被包裹在拦截层之内，通过设置 layout_gravity 来定位。
+    -->
+    <LinearLayout
+        android:id="@+id/link_selection_menu_content"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/light_menu_background"
+        android:paddingVertical="8dp">
+
+        <TextView
+            android:id="@+id/action_open_in_new_window"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="新窗口打开" />
+
+        <TextView
+            android:id="@+id/action_open_in_background"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="后台打开" />
+
+        <TextView
+            android:id="@+id/action_copy_link"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="复制链接" />
+
+    </LinearLayout>
+
+</FrameLayout> 

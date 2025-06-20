@@ -143,6 +143,10 @@
         <item name="android:gravity">center</item>
     </style>
 
+    <style name="LightTextSelectionMenuItem" parent="TextSelectionMenuItem">
+        <item name="android:textColor">@android:color/black</item>
+    </style>
+
     <style name="CategoryTitle">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>

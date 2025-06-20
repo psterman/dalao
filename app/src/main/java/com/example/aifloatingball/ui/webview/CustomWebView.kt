@@ -45,6 +45,7 @@ class CustomWebView @JvmOverloads constructor(
     private var longPressHandler = Handler(Looper.getMainLooper())
     private var longPressRunnable: Runnable? = null
     private var isLongPress = false
+    private var isLinkLongPressed = false // 新增：专门用于标记链接长按的标志
     private var lastTouchX = 0f
     private var lastTouchY = 0f
     private var hasSelection = false
@@ -54,25 +55,9 @@ class CustomWebView @JvmOverloads constructor(
     private var inputMethodManager: InputMethodManager? = null
     
     init {
-        // 启用内建的文本选择功能
+        // 不再使用 setOnLongClickListener，以避免与 onTouchEvent 中的自定义长按逻辑冲突。
+        // 所有长按相关的处理都将统一在 onTouchEvent 中完成。
         isLongClickable = true
-        setOnLongClickListener { v ->
-            val result = (v as WebView).hitTestResult
-            val x = lastTouchX.toInt()
-            val y = lastTouchY.toInt()
-
-            // 检查是否长按了链接
-            if (result.type == HitTestResult.SRC_ANCHOR_TYPE || result.type == HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
-                result.extra?.let { url ->
-                    Log.d(TAG, "Link long pressed: $url at ($x, $y)")
-                    linkMenuListener?.onLinkLongPressed(url, x, y)
-                    return@setOnLongClickListener true // 消费事件
-                }
-            }
-            
-            // 如果不是链接，则允许我们自己的文本选择逻辑接管
-            false
-        }
         
         // 初始化输入法管理器
         inputMethodManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
@@ -143,6 +128,7 @@ class CustomWebView @JvmOverloads constructor(
                 lastTouchX = event.x
                 lastTouchY = event.y
                 isLongPress = false // 重置长按状态
+                isLinkLongPressed = false // 新增：重置链接长按状态
                 hasSelection = false // 重置选择状态
                 initialSelectionMade = false // 重置初始选择状态
 
@@ -150,7 +136,18 @@ class CustomWebView @JvmOverloads constructor(
                 longPressRunnable = Runnable {
                     isLongPress = true
                     // 长按发生时，直接尝试处理长按逻辑，包括选择和显示菜单/选择柄
+                    // 修复：在这里统一处理长按事件，首先检查是否为链接。
+                    val result = hitTestResult
+                    if (result.type == HitTestResult.SRC_ANCHOR_TYPE || result.type == HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+                        result.extra?.let { url ->
+                            Log.d(TAG, "Link long pressed via onTouchEvent: $url at ($lastTouchX, $lastTouchY)")
+                            isLinkLongPressed = true // 新增：设置链接长按标志
+                            linkMenuListener?.onLinkLongPressed(url, lastTouchX.toInt(), lastTouchY.toInt())
+                        }
+                    } else {
+                        // 如果不是链接，则执行文本选择逻辑
                     handleLongPress(lastTouchX, lastTouchY)
+                    }
                 }.also {
                     longPressHandler.postDelayed(it, LONG_PRESS_TIMEOUT)
                 }
@@ -170,17 +167,12 @@ class CustomWebView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
-                // 当手指抬起或事件取消时，如果已经标记为长按并且有选择，则检查并显示菜单
-                // 即使没有拖动，如果长按产生了选择，也应该显示菜单
-                if (isLongPress && hasSelection) {
-                    // 使用最后一次触摸的精确点（或选择区域的中心点）来定位菜单
-                    // checkSelectionAndShowMenu 会获取当前选择并显示菜单及选择柄
-                     Handler(Looper.getMainLooper()).postDelayed({
-                        checkSelectionAndShowMenu(lastTouchX.toInt(), lastTouchY.toInt(), true)
-                    }, 50) // 稍作延迟以确保JS执行完毕
-                    return true // 消费事件
-                }
-                isLongPress = false // 重置长按状态
+
+                // 修复：为避免与 startActionMode 的竞态条件，
+                // 所有与菜单显示/隐藏相关的逻辑都已移至 handleLongPress 的回调或 startActionMode 本身。
+                // ACTION_UP 事件现在只负责重置状态。
+                isLongPress = false
+                isLinkLongPressed = false
             }
         }
         return super.onTouchEvent(event)
@@ -340,26 +332,35 @@ class CustomWebView @JvmOverloads constructor(
                 hasSelection = jsonHasSelection && selectedText.isNotEmpty()
                 initialSelectionMade = hasSelection
 
+                // 核心修复：根据JS返回的 isInput 标志来决定是否隐藏键盘
+                // 只有当长按的目标不是输入框时，才强制隐藏键盘
+                if (!jsonIsInput) {
+                    hideSoftKeyboard()
+                }
+
                 if (hasSelection) {
-                    Log.i(TAG, "handleLongPress: 有效选择. Text: '${selectedText.take(30)}', Bounds LTRB: ($jsonLeft, $jsonTop, $jsonRight, $jsonBottom). 调用 showTextSelectionMenu.")
-                    val menuAnchorX = (jsonLeft + jsonRight) / 2
-                    val menuAnchorY = jsonBottom + 20
-                    Log.d(TAG, "[MENU_TRIGGER_DEBUG] Attempting to call showTextSelectionMenu from handleLongPress (selection). Anchor: ($menuAnchorX, $menuAnchorY)")
-                    textSelectionManager?.showTextSelectionMenu(this, menuAnchorX, menuAnchorY)
+                    Log.i(TAG, "handleLongPress: 有效选择. Text: '${selectedText.take(30)}'. Deferring to startActionMode.")
+                    // 当成功选择文本时，我们什么都不做。
+                    // 系统会自动调用 startActionMode，由它来负责显示菜单。
                 } else {
                     Log.i(TAG, "handleLongPress: JS报告无选择. isInput: $jsonIsInput")
+                    // 在没有选中文本的情况下长按
                     if (jsonIsInput) {
-                        Log.i(TAG, "handleLongPress: 无选择但在输入框内. 调用 showTextSelectionMenu 基于点击坐标 ($x, $y).")
-                        Log.d(TAG, "[MENU_TRIGGER_DEBUG] Attempting to call showTextSelectionMenu from handleLongPress (input field click). Anchor: ($x, $y)")
+                        // 如果是在输入框内，我们显示菜单（例如，为了"粘贴"）。
+                        Log.i(TAG, "handleLongPress: 无选择但在输入框内. 调用 showTextSelectionMenu.")
                         textSelectionManager?.showTextSelectionMenu(this, x.toInt(), y.toInt())
+                    } else {
+                        // 如果是在页面的空白区域长按，我们隐藏任何可能存在的旧菜单。
+                        Log.i(TAG, "handleLongPress: 无选择且不在输入框内. 调用 hideTextSelectionMenu.")
+                        textSelectionManager?.hideTextSelectionMenu()
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "解析长按JS结果失败", e)
                 hasSelection = false
                 initialSelectionMade = false
-                Log.d(TAG, "[MENU_TRIGGER_DEBUG] Attempting to call showTextSelectionMenu from handleLongPress (exception case). Anchor: ($x, $y)")
-                textSelectionManager?.showTextSelectionMenu(this, x.toInt(), y.toInt())
+                // 在异常情况下，也尝试隐藏菜单以防万一
+                textSelectionManager?.hideTextSelectionMenu()
             }
         }
     }
@@ -528,7 +529,14 @@ class CustomWebView @JvmOverloads constructor(
      * 重写创建ActionMode的方法，替换为自定义实现
      */
     override fun startActionMode(callback: ActionMode.Callback, type: Int): ActionMode? {
-        Log.d(TAG, "startActionMode called, type: $type. Attempting to show custom menu.")
+        Log.d(TAG, "startActionMode called, type: $type. isLinkLongPressed: $isLinkLongPressed")
+
+        // 终极修复：如果一个链接长按事件正在处理中，则立即停止，
+        // 防止系统的文本选择流程与我们的链接菜单流程发生冲突。
+        if (isLinkLongPressed) {
+            // 仍然返回一个虚拟的ActionMode来阻止系统默认菜单的弹出。
+            return MyActionMode(context, callback)
+        }
 
         // 关键：在这里调用 textSelectionManager 来显示或更新菜单
         // 我们需要获取当前选择的精确位置

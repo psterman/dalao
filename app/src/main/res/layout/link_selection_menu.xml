@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/link_selection_menu_content"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:background="@drawable/text_selection_menu_background"
-    android:elevation="8dp"
-    android:divider="@drawable/menu_divider"
-    android:showDividers="middle">
+    android:orientation="vertical"
+    android:background="@drawable/custom_text_menu_background"
+    android:paddingVertical="8dp">
 
     <TextView
         android:id="@+id/action_open_in_new_window"

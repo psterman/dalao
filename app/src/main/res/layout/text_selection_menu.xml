@@ -16,7 +16,7 @@
         android:id="@+id/text_selection_menu_content"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:orientation="vertical"
         android:background="@drawable/custom_text_menu_background"
         android:padding="8dp">
 
@@ -28,8 +28,7 @@
             android:text="剪切"
             android:textColor="@android:color/white"
             android:padding="8dp"
-            android:background="?android:attr/selectableItemBackground"
-            android:layout_marginEnd="8dp"/>
+            android:background="?android:attr/selectableItemBackground"/>
 
         <TextView
             android:id="@+id/action_copy"
@@ -38,8 +37,7 @@
             android:text="复制"
             android:textColor="@android:color/white"
             android:padding="8dp"
-            android:background="?android:attr/selectableItemBackground"
-            android:layout_marginEnd="8dp"/>
+            android:background="?android:attr/selectableItemBackground"/>
 
         <TextView
             android:id="@+id/action_paste"
@@ -48,8 +46,7 @@
             android:text="粘贴"
             android:textColor="@android:color/white"
             android:padding="8dp"
-            android:background="?android:attr/selectableItemBackground"
-            android:layout_marginEnd="8dp"/>
+            android:background="?android:attr/selectableItemBackground"/>
 
         <TextView
             android:id="@+id/action_select_all"

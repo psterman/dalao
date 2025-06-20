@@ -41,8 +41,8 @@ class TextSelectionManager(private val context: Context, private val windowManag
         private const val OVERLAY_WINDOW_TYPE = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
 
         // 菜单显示时的Window Flags
-        private const val MENU_WINDOW_FLAGS = WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                                              // 移除 FLAG_DIM_BEHIND, 改用在XML中设置半透明背景，效果更稳定
+        private const val MENU_WINDOW_FLAGS = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                                              WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
     }
 
     private var currentWebView: WebView? = null
@@ -134,14 +134,16 @@ class TextSelectionManager(private val context: Context, private val windowManag
 
         // 全屏的根视图监听触摸事件，以实现"点击外部"隐藏的功能
         floatingMenuView!!.setOnTouchListener { _, event ->
+            // 只在ACTION_DOWN时检查，避免重复触发
+            if (event.action == MotionEvent.ACTION_DOWN) {
             val contentRect = Rect()
             menuContent.getGlobalVisibleRect(contentRect)
             if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
                         hideTextSelectionMenu()
-                        true
-                    } else {
-                        false
                 }
+            }
+            // 修复：始终返回false，以允许触摸事件穿透到下面的WebView
+            false
             }
 
         setupMenuItems(floatingMenuView!!, webView)
@@ -243,25 +245,14 @@ class TextSelectionManager(private val context: Context, private val windowManag
         }
 
         if (isMenuShowing.get() && !isMenuAnimating.get()) {
-            Log.d(TAG, "[MENU_LIFECYCLE] Menu is showing (View hash: ${floatingMenuView?.hashCode()}), starting hide animation.")
-            isMenuAnimating.set(true)
-            floatingMenuView?.animate() // 对floatingMenuView执行动画
-                ?.alpha(0f)
-                ?.scaleX(0.8f)
-                ?.scaleY(0.8f)
-                ?.setDuration(150)
-                ?.setInterpolator(AccelerateInterpolator())
-                ?.withEndAction {
-                    Log.d(TAG, "[MENU_LIFECYCLE] Menu hide animation ended (View hash: ${floatingMenuView?.hashCode()}).")
-                    removeFloatingMenuViewSafely() // 安全移除视图
-                    if (cleanupHandlesAndState) {
-                        cleanupStateAndHandles()
-                    } else {
-                        isMenuAnimating.set(false)
-                        isMenuShowing.set(false)
-                    }
-                }
-                ?.start()
+            Log.d(TAG, "[MENU_LIFECYCLE] Menu is showing (View hash: ${floatingMenuView?.hashCode()}), hiding without animation as requested.")
+            isMenuAnimating.set(false) // Ensure this is false
+            isMenuShowing.set(false)
+
+            removeFloatingMenuViewSafely()
+            if (cleanupHandlesAndState) {
+                cleanupStateAndHandles()
+            }
         } else if (isMenuAnimating.get()) {
             Log.d(TAG, "[MENU_LIFECYCLE] Menu is already animating (View hash: ${floatingMenuView?.hashCode()}). Posting delayed cleanup if necessary for full cleanup request.")
             if(cleanupHandlesAndState){
@@ -325,7 +316,7 @@ class TextSelectionManager(private val context: Context, private val windowManag
         menuView.findViewById<View>(R.id.action_cut)?.setOnClickListener {
             executeCut(webView) { success ->
                 if (success) {
-            animateMenuItemAndHide(menuView)
+                    hideTextSelectionMenu()
                 } else {
                     Toast.makeText(context, "请选择要剪切的文本", Toast.LENGTH_SHORT).show()
                 }
@@ -336,7 +327,7 @@ class TextSelectionManager(private val context: Context, private val windowManag
         menuView.findViewById<View>(R.id.action_copy)?.setOnClickListener {
             executeCopy(webView) { success ->
                 if (success) {
-            animateMenuItemAndHide(menuView)
+                    hideTextSelectionMenu()
                 } else {
                     Toast.makeText(context, "请选择要复制的文本", Toast.LENGTH_SHORT).show()
                 }
@@ -347,7 +338,7 @@ class TextSelectionManager(private val context: Context, private val windowManag
         menuView.findViewById<View>(R.id.action_paste)?.setOnClickListener {
             executePaste(webView) { success ->
                 if (success) {
-            animateMenuItemAndHide(menuView)
+                    hideTextSelectionMenu()
                 } else {
                     Toast.makeText(context, "粘贴失败或剪贴板为空", Toast.LENGTH_SHORT).show()
                 }
@@ -359,26 +350,10 @@ class TextSelectionManager(private val context: Context, private val windowManag
         shareButton?.setOnClickListener {
             executeShare(webView) { success ->
                 if (success) {
-            animateMenuItemAndHide(menuView)
+                    hideTextSelectionMenu()
                 }
             }
         }
-    }
-
-    /**
-     * 动画菜单项并隐藏菜单
-     */
-    private fun animateMenuItemAndHide(view: View) {
-        view.animate()
-            .alpha(0.8f)
-            .scaleX(0.9f)
-            .scaleY(0.9f)
-            .setDuration(100)
-            .setInterpolator(AccelerateInterpolator())
-            .withEndAction {
-                hideTextSelectionMenu()
-            }
-            .start()
     }
 
     /**
@@ -697,46 +672,74 @@ class TextSelectionManager(private val context: Context, private val windowManag
         if (Looper.myLooper() != Looper.getMainLooper()) return
 
         val themedContext = ContextThemeWrapper(context, R.style.Theme_AIFloatingBall)
+        // 1. 加载包装器布局，它将作为全屏的触摸拦截层
         floatingMenuView = LayoutInflater.from(themedContext)
-            .inflate(R.layout.link_selection_menu, null).apply {
-                alpha = 0f
-                scaleX = 0.8f
-                scaleY = 0.8f
-                setOnTouchListener { _, event ->
-                    if (event.action == MotionEvent.ACTION_OUTSIDE) {
+            .inflate(R.layout.link_selection_menu_wrapper, null)
+
+        // 2. 从包装器中找到实际的菜单内容视图
+        val menuContent = floatingMenuView!!.findViewById<View>(R.id.link_selection_menu_content)!!
+
+        // 为动画设置初始状态
+        menuContent.alpha = 0f
+        menuContent.scaleX = 0.8f
+        menuContent.scaleY = 0.8f
+
+        // 3. 在全屏的根视图上设置触摸监听器
+        floatingMenuView!!.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                val contentRect = Rect()
+                menuContent.getGlobalVisibleRect(contentRect)
+                // 如果触摸点在菜单内容视图的矩形区域之外，则隐藏菜单
+                if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
                         hideTextSelectionMenu()
-                        true
-                    } else {
-                        false
                     }
                 }
+            // 修复：始终返回false，允许事件穿透，同时让子视图（按钮）可以被点击
+            false
             }
 
-        // Setup menu items for the link menu
-        setupLinkMenuItems(floatingMenuView!!, webView, url)
+        // 在内容视图上设置菜单项
+        setupLinkMenuItems(menuContent, webView, url)
 
         val webViewLocation = IntArray(2)
         webView.getLocationOnScreen(webViewLocation)
-        val absoluteMenuX = webViewLocation[0] + x
-        val absoluteMenuY = webViewLocation[1] + y
 
+        // 4. 测量并定位内容视图
+        menuContent.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val menuWidth = menuContent.measuredWidth
+        val margin = (20 * context.resources.displayMetrics.density).toInt() // 20dp margin
+
+        // 将菜单定位在点击坐标下方居中
+        val absoluteMenuX = webViewLocation[0] + x - (menuWidth / 2)
+        val absoluteMenuY = webViewLocation[1] + y + margin
+
+        // 使用FrameLayout.LayoutParams在包装器内定位内容视图
+        val contentParams = menuContent.layoutParams as FrameLayout.LayoutParams
+        contentParams.gravity = Gravity.TOP or Gravity.START
+        contentParams.leftMargin = absoluteMenuX.coerceAtLeast(0) // 确保不超出屏幕左侧
+        contentParams.topMargin = absoluteMenuY.coerceAtLeast(0) // 确保不超出屏幕顶部
+        menuContent.layoutParams = contentParams
+
+        // 5. 为根视图（包装器）使用全屏的窗口参数
         val layoutParams = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT, // 全屏大小以捕捉所有外部点击
             OVERLAY_WINDOW_TYPE,
             MENU_WINDOW_FLAGS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            this.x = absoluteMenuX
-            this.y = absoluteMenuY
+            this.x = 0
+            this.y = 0
         }
         
         try {
             windowManager.addView(floatingMenuView, layoutParams)
-            showMenuWithAnimation(floatingMenuView!!)
+            // 6. 对内容视图执行显示动画
+            showMenuWithAnimation(menuContent)
         } catch (e: Exception) {
             Log.e(TAG, "Error adding link menu to WindowManager", e)
+            cleanupStateAndHandles() // 出错时清理
         }
     }
 
@@ -787,19 +790,19 @@ class TextSelectionManager(private val context: Context, private val windowManag
 
         // 全屏的根视图监听触摸事件，以实现"点击外部"隐藏的功能
         floatingMenuView!!.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
             // 创建一个矩形来保存菜单内容部分的屏幕坐标
             val contentRect = Rect()
             menuContent.getGlobalVisibleRect(contentRect)
 
             // 检查触摸点是否在菜单内容矩形之外
             if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
-                // 如果在外部，隐藏菜单并消费事件
+                    // 如果在外部，隐藏菜单
                         hideTextSelectionMenu()
-                        true
-                    } else {
-                // 如果在内部，不消费事件，让事件传递给按钮
-                        false
                 }
+            }
+            // 修复：始终返回false，以允许触摸事件穿透到下面的视图
+            false
             }
 
         setupEditTextMenuItems(floatingMenuView!!, editText)
