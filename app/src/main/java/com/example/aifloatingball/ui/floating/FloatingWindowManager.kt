@@ -315,7 +315,7 @@ class FloatingWindowManager(
 
         for (engine in enabledAIEngines) {
             val iconView = createIconView(engine.name) {
-                // 修改：在当前活动的WebView中执行AI搜索
+                // 在当前活动的WebView中执行AI搜索
                 val query = searchInput?.text.toString()
                 val activeIndex = determineActiveWebViewIndex()
                 (context as? DualFloatingWebViewService)?.performSearchInWebView(activeIndex, query, engine.name)

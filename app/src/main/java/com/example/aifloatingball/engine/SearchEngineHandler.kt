@@ -1,6 +1,7 @@
 package com.example.aifloatingball.engine
 
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.utils.EngineUtil
 import android.util.Log
@@ -35,7 +36,16 @@ class SearchEngineHandler(private val settingsManager: SettingsManager) {
         }
 
         // 尝试从EngineUtil获取URL
-        val searchUrl = EngineUtil.getSearchEngineSearchUrl(currentEngineKey, encodedQuery)
+        // 1. 判断是否是AI引擎
+        val isAIEngine = AISearchEngine.DEFAULT_AI_ENGINES.any { it.name.equals(currentEngineKey, ignoreCase = true) }
+
+        val searchUrl = if (isAIEngine) {
+            // 2. 如果是AI引擎，调用AI引擎的URL获取方法
+            EngineUtil.getAISearchEngineUrl(currentEngineKey, encodedQuery)
+        } else {
+            // 3. 否则，使用原有的标准引擎方法
+            EngineUtil.getSearchEngineSearchUrl(currentEngineKey, encodedQuery)
+        }
         
         // 确保返回的URL是有效的，否则使用基于设置的后备方案
         val finalUrl = if (searchUrl.isNotBlank() && searchUrl.startsWith("http")) {
