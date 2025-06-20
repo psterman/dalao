@@ -13,13 +13,23 @@
         android:text="新窗口打开" />
 
     <TextView
-        android:id="@+id/action_open_in_background"
-        style="@style/TextSelectionMenuItem"
-        android:text="后台打开" />
-
-    <TextView
         android:id="@+id/action_copy_link"
         style="@style/TextSelectionMenuItem"
         android:text="复制链接" />
+
+    <TextView
+        android:id="@+id/action_copy_link_text"
+        style="@style/TextSelectionMenuItem"
+        android:text="拷贝链接文字" />
+
+    <TextView
+        android:id="@+id/action_share_link"
+        style="@style/TextSelectionMenuItem"
+        android:text="分享链接" />
+
+    <TextView
+        android:id="@+id/action_page_info"
+        style="@style/TextSelectionMenuItem"
+        android:text="页面信息" />
 
 </LinearLayout> 

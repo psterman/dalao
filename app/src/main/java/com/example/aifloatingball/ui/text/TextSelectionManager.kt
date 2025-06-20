@@ -154,12 +154,36 @@ class TextSelectionManager(private val context: Context, private val windowManag
         // 测量菜单"内容"视图
         menuContent.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val menuWidth = menuContent.measuredWidth
-
-        // 将菜单定位在选区下方居中
-        val absoluteMenuX = webViewLocation[0] + menuAnchorX - (menuWidth / 2)
-        val absoluteSelBottom = webViewLocation[1] + selBottom
+        val menuHeight = menuContent.measuredHeight
         val margin = (8 * context.resources.displayMetrics.density).toInt() // 8dp margin
-        val absoluteMenuY = absoluteSelBottom + margin
+
+        // 获取屏幕尺寸
+        val screenWidth = context.resources.displayMetrics.widthPixels
+        val screenHeight = context.resources.displayMetrics.heightPixels
+
+        // 初始定位：选区下方居中
+        var absoluteMenuX = webViewLocation[0] + menuAnchorX - (menuWidth / 2)
+        var absoluteMenuY = webViewLocation[1] + selBottom + margin
+
+        // 边界检查与调整
+        // 检查是否超出下边界
+        if (absoluteMenuY + menuHeight > screenHeight) {
+            // 移到选区上方
+            absoluteMenuY = webViewLocation[1] + selTop - menuHeight - margin
+        }
+        // 检查是否超出右边界
+        if (absoluteMenuX + menuWidth > screenWidth) {
+            absoluteMenuX = screenWidth - menuWidth - margin
+        }
+        // 检查是否超出左边界
+        if (absoluteMenuX < 0) {
+            absoluteMenuX = margin
+        }
+        // 确保不会超出上边界
+        if (absoluteMenuY < 0) {
+            absoluteMenuY = margin
+        }
+
 
         // 定位内容视图
         val contentParams = menuContent.layoutParams as FrameLayout.LayoutParams
@@ -250,9 +274,9 @@ class TextSelectionManager(private val context: Context, private val windowManag
             isMenuShowing.set(false)
 
             removeFloatingMenuViewSafely()
-            if (cleanupHandlesAndState) {
-                cleanupStateAndHandles()
-            }
+                    if (cleanupHandlesAndState) {
+                        cleanupStateAndHandles()
+                    }
         } else if (isMenuAnimating.get()) {
             Log.d(TAG, "[MENU_LIFECYCLE] Menu is already animating (View hash: ${floatingMenuView?.hashCode()}). Posting delayed cleanup if necessary for full cleanup request.")
             if(cleanupHandlesAndState){
@@ -707,17 +731,37 @@ class TextSelectionManager(private val context: Context, private val windowManag
         // 4. 测量并定位内容视图
         menuContent.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
         val menuWidth = menuContent.measuredWidth
+        val menuHeight = menuContent.measuredHeight
         val margin = (20 * context.resources.displayMetrics.density).toInt() // 20dp margin
 
-        // 将菜单定位在点击坐标下方居中
-        val absoluteMenuX = webViewLocation[0] + x - (menuWidth / 2)
-        val absoluteMenuY = webViewLocation[1] + y + margin
+        // 获取屏幕尺寸
+        val screenWidth = context.resources.displayMetrics.widthPixels
+        val screenHeight = context.resources.displayMetrics.heightPixels
+
+        // 初始定位：点击坐标下方居中
+        var absoluteMenuX = webViewLocation[0] + x - (menuWidth / 2)
+        var absoluteMenuY = webViewLocation[1] + y + margin
+
+        // 边界检查与调整
+        if (absoluteMenuY + menuHeight > screenHeight) {
+            absoluteMenuY = webViewLocation[1] + y - menuHeight - margin
+        }
+        if (absoluteMenuX + menuWidth > screenWidth) {
+            absoluteMenuX = screenWidth - menuWidth - margin
+        }
+        if (absoluteMenuX < 0) {
+            absoluteMenuX = margin
+        }
+        if (absoluteMenuY < 0) {
+            absoluteMenuY = margin
+        }
+
 
         // 使用FrameLayout.LayoutParams在包装器内定位内容视图
         val contentParams = menuContent.layoutParams as FrameLayout.LayoutParams
         contentParams.gravity = Gravity.TOP or Gravity.START
-        contentParams.leftMargin = absoluteMenuX.coerceAtLeast(0) // 确保不超出屏幕左侧
-        contentParams.topMargin = absoluteMenuY.coerceAtLeast(0) // 确保不超出屏幕顶部
+        contentParams.leftMargin = absoluteMenuX
+        contentParams.topMargin = absoluteMenuY
         menuContent.layoutParams = contentParams
 
         // 5. 为根视图（包装器）使用全屏的窗口参数
@@ -744,19 +788,41 @@ class TextSelectionManager(private val context: Context, private val windowManag
     }
 
     private fun setupLinkMenuItems(menuView: View, webView: WebView, url: String) {
-        // TODO: Implement actions for link menu
         // Example:
         menuView.findViewById<View>(R.id.action_open_in_new_window)?.setOnClickListener {
-            Toast.makeText(context, "新窗口打开: $url", Toast.LENGTH_SHORT).show()
+            // 通过 context 获取 DualFloatingWebViewService 实例
+            val service = context as? com.example.aifloatingball.service.DualFloatingWebViewService
+            if (service == null) {
+                Toast.makeText(context, "无法获取服务实例", Toast.LENGTH_SHORT).show()
+            hideTextSelectionMenu()
+                return@setOnClickListener
+            }
+
+            // 从服务获取 WebViewManager
+            val webViewManager = service.webViewManager
+            val webViews = webViewManager.getWebViews()
+            val currentWebViewIndex = webViews.indexOf(webView)
+
+            if (currentWebViewIndex != -1) {
+                val nextWebViewIndex = currentWebViewIndex + 1
+                if (nextWebViewIndex < webViews.size) {
+                    // 在右侧的WebView中打开
+                    val nextWebView = webViews[nextWebViewIndex]
+                    nextWebView.loadUrl(url)
+                    Toast.makeText(context, "在右侧窗口打开链接", Toast.LENGTH_SHORT).show()
+                } else {
+                    // 如果是最后一个WebView，则提示无法打开
+                    Toast.makeText(context, "已是最后一个窗口，无法在右侧打开", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(context, "无法确定当前窗口", Toast.LENGTH_SHORT).show()
+            }
             hideTextSelectionMenu()
         }
-        menuView.findViewById<View>(R.id.action_open_in_background)?.setOnClickListener {
-            Toast.makeText(context, "后台打开: $url", Toast.LENGTH_SHORT).show()
-            hideTextSelectionMenu()
-        }
+
         menuView.findViewById<View>(R.id.action_copy_link)?.setOnClickListener {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = ClipData.newPlainText("link URL", url)
+            val clip = ClipData.newPlainText("Link URL", url)
             clipboard.setPrimaryClip(clip)
             Toast.makeText(context, "链接已复制", Toast.LENGTH_SHORT).show()
             hideTextSelectionMenu()

@@ -12,6 +12,7 @@ import com.example.aifloatingball.utils.WebViewInputHelper
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.ui.floating.FloatingWindowManager
 import com.example.aifloatingball.ui.webview.CustomWebView
+import android.widget.Toast
 
 /**
  * WebView管理器，负责WebView的创建、加载和销毁
