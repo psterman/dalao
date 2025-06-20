@@ -164,19 +164,30 @@
 
         .message-container {
             display: flex;
-            margin: 20px 0;
+            margin: 8px 0;
             position: relative;
+        }
+
+        .user-container {
+            flex-direction: row-reverse;
         }
 
         .avatar {
             width: 36px;
             height: 36px;
             border-radius: 50%;
-            margin-right: 12px;
             flex-shrink: 0;
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .assistant-container .avatar {
+            margin-right: 12px;
+        }
+
+        .user-container .avatar {
+            margin-left: 12px;
         }
 
         .avatar.user {
@@ -190,10 +201,13 @@
         }
 
         .message-content {
-            flex: 1;
             display: flex;
             flex-direction: column;
             max-width: calc(100% - 60px);
+        }
+
+        .user-container .message-content {
+            align-items: flex-end;
         }
 
         .message {
@@ -355,6 +369,10 @@
         }
 
         function addMessageToUI(role, content, isComplete) {
+            if (role === 'assistant') {
+                content = content.replace(/\n{2,}/g, '\n');
+            }
+
             const messageContainer = document.createElement('div');
             messageContainer.className = 'message-container ' + role + '-container';
 
@@ -498,7 +516,7 @@
                 const initialSessionJson = AndroidChatInterface.getInitialSession();
                 if (initialSessionJson) {
                     const parsedSession = JSON.parse(initialSessionJson);
-                currentChatId = parsedSession.id;
+                    currentChatId = parsedSession.id;
                     if (parsedSession.messages && parsedSession.messages.length > 0) {
                         parsedSession.messages.forEach(msg => { addMessageToUI(msg.role, msg.content, true); });
                     } else {
