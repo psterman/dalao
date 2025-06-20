@@ -130,8 +130,8 @@
         android:layout_height="0dp"
         android:layout_weight="1">
         
-        <!-- 添加HorizontalScrollView -->
-        <HorizontalScrollView
+        <!-- 使用自定义的HorizontalScrollView来解决垂直和水平滚动的冲突 -->
+        <com.example.aifloatingball.ui.widget.LockableHorizontalScrollView
             android:id="@+id/webviews_scroll_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -200,7 +200,7 @@
                         android:layout_marginEnd="4dp"/>
                 </LinearLayout>
             </LinearLayout>
-        </HorizontalScrollView>
+        </com.example.aifloatingball.ui.widget.LockableHorizontalScrollView>
 
     </FrameLayout>
 
