@@ -172,6 +172,14 @@
             flex-direction: row-reverse;
         }
 
+        .assistant-container .avatar {
+            margin-right: 12px;
+        }
+
+        .user-container .avatar {
+            display: none;
+        }
+
         .avatar {
             width: 36px;
             height: 36px;
@@ -180,14 +188,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-
-        .assistant-container .avatar {
-            margin-right: 12px;
-        }
-
-        .user-container .avatar {
-            margin-left: 12px;
         }
 
         .avatar.user {
@@ -211,10 +211,10 @@
         }
 
         .message {
-            padding: 12px 16px;
+            padding: 10px 16px;
             border-radius: 12px;
-            word-wrap: break-word;
-            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            white-space: normal;
             position: relative;
             max-width: 100%;
         }
@@ -252,7 +252,15 @@
         }
 
         p {
-            margin: 8px 0;
+            margin: 4px 0;
+        }
+
+        .message p:first-child {
+            margin-top: 0;
+        }
+
+        .message p:last-child {
+            margin-bottom: 0;
         }
 
         ul,
@@ -370,7 +378,7 @@
 
         function addMessageToUI(role, content, isComplete) {
             if (role === 'assistant') {
-                content = content.replace(/\n{2,}/g, '\n');
+                content = content.trim().replace(/(\n[ \t]*){3,}/g, '\n\n');
             }
 
             const messageContainer = document.createElement('div');
@@ -383,11 +391,6 @@
 
             const messageContentDiv = document.createElement('div');
             messageContentDiv.className = 'message-content';
-
-            const roleLabel = document.createElement('div');
-            roleLabel.className = 'role-label';
-            roleLabel.textContent = role === 'user' ? '你' : 'AI';
-            messageContentDiv.appendChild(roleLabel);
 
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message';
