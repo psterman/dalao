@@ -42,24 +42,6 @@ class WebViewManager(
             // 设置输入支持
             webViewInputHelper.prepareWebViewForInput(webView)
             
-            // 设置焦点变化监听器
-            webView.setOnFocusChangeListener { v, hasFocus ->
-                if (hasFocus && v is CustomWebView) {
-                    // 更新活动WebView
-                    if (activeWebView != v) {
-                        activeWebView?.clearFocus()
-                        activeWebView = v
-                        Log.d(TAG, "WebView ${v.id} 获得焦点，设置为活动WebView")
-                    }
-                    
-                    // 通知服务更新窗口焦点状态
-                    (context as? DualFloatingWebViewService)?.onWebViewFocusChanged(true)
-
-                    // 确保输入法可用
-                    webViewInputHelper.ensureInputMethodAvailable(v)
-                }
-            }
-            
             // 设置触摸监听器
             webView.setOnTouchListener { v, event ->
                 when (event.action) {

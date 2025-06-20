@@ -60,8 +60,8 @@ class TextSelectionManager(private val context: Context, private val windowManag
     
     fun isShowing(): Boolean = isMenuShowing.get()
     
-    // 文本选择柄管理器
-    private val handleManager = TextSelectionHandleManager(context)
+    // 文本选择柄管理器 (功能已禁用)
+    // private val handleManager = TextSelectionHandleManager(context)
 
     /**
      * 显示文本选择菜单
@@ -168,8 +168,8 @@ class TextSelectionManager(private val context: Context, private val windowManag
         contentParams.topMargin = absoluteMenuY
         menuContent.layoutParams = contentParams
 
-        // 显示选择柄
-        handleManager.showSelectionHandles(webView, selLeft, selTop, selRight, selBottom)
+        // 显示选择柄 (功能已禁用)
+        // handleManager.showSelectionHandles(webView, selLeft, selTop, selRight, selBottom)
 
         // 窗口参数现在是全屏的
         val layoutParams = WindowManager.LayoutParams(
@@ -239,7 +239,7 @@ class TextSelectionManager(private val context: Context, private val windowManag
         if (!isMenuShowing.get() && !isMenuAnimating.get()) {
             if(cleanupHandlesAndState) {
                 Log.d(TAG, "[MENU_LIFECYCLE] Menu not showing/animating, but cleaning handles if requested.")
-                handleManager.hideSelectionHandles()
+                // handleManager.hideSelectionHandles() // 功能已禁用
             }
             return
         }
@@ -299,7 +299,7 @@ class TextSelectionManager(private val context: Context, private val windowManag
     private fun cleanupStateAndHandles() {
         Log.d(TAG, "[MENU_LIFECYCLE] cleanupStateAndHandles: Cleaning up state and handles. Current floatingMenuView hash: ${floatingMenuView?.hashCode()}")
         cleanupState()
-        handleManager.hideSelectionHandles()
+        // handleManager.hideSelectionHandles() // 功能已禁用
     }
 
     /**

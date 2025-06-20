@@ -154,7 +154,7 @@ class FloatingWindowManager(
             } else {
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
             },
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -174,16 +174,6 @@ class FloatingWindowManager(
         val inflater = LayoutInflater.from(context)
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
         
-        _floatingView?.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_OUTSIDE) {
-                Log.d(TAG, "Outside touch detected, stopping service.")
-                (context as? DualFloatingWebViewService)?.stopSelf()
-                true
-            } else {
-                false
-            }
-        }
-        
         webViewContainer = _floatingView?.findViewById(R.id.dual_webview_container)
         webviewsScrollContainer = _floatingView?.findViewById(R.id.webviews_scroll_container)
         firstWebView = _floatingView?.findViewById(R.id.first_floating_webview)
@@ -192,9 +182,25 @@ class FloatingWindowManager(
         
         searchInput = _floatingView?.findViewById<EditText>(R.id.dual_search_input)
         
-        // 移除所有之前添加的复杂焦点管理监听器
+        // 核心修复：实施新的、精确的焦点管理逻辑
+        // 1. 移除旧的、可能冲突的监听器
         searchInput?.onFocusChangeListener = null
-        searchInput?.setOnTouchListener(null)
+        
+        // 2. 当用户触摸输入框时，才使窗口可聚焦以弹出键盘
+        searchInput?.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                setFloatingWindowFocusable(true)
+            }
+            // 返回false，以允许系统处理默认的触摸事件（如光标定位）
+            false
+        }
+        
+        // 3. 当输入框失去焦点时，将整个窗口恢复为不可聚焦状态
+        searchInput?.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                setFloatingWindowFocusable(false)
+            }
+        }
         
         val saveEnginesButton = _floatingView?.findViewById<ImageButton>(R.id.btn_save_engines)
         val windowCountButton = _floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
@@ -225,15 +231,6 @@ class FloatingWindowManager(
                 true 
             } else {
                 false
-            }
-        }
-        
-        // 当焦点因任何原因从搜索框移走时，隐藏键盘
-        searchInput?.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) {
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(view.windowToken, 0)
-                Log.d(TAG, "Search input lost focus, explicitly hiding keyboard.")
             }
         }
 

@@ -275,9 +275,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             intent?.let { handleSearchIntent(it) }
         }
         
-        // 启用输入的逻辑已移至 handleSearchIntent, 以避免焦点问题
-        // updateWindowParameters(true)
-        
         return START_STICKY
     }
 
@@ -305,8 +302,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 Log.d(TAG, "Intent中无搜索参数，但已有内容，忽略。")
             }
         }
-        // 在处理完所有搜索逻辑、WebView开始加载后再启用输入，避免焦点冲突
-        updateWindowParameters(true)
+        // 修复：移除此处的焦点请求。
+        // 新的逻辑将焦点管理完全委托给FloatingWindowManager，
+        // 只有当用户明确点击输入框时才获取焦点。
+        // updateWindowParameters(true)
     }
 
     private fun handleSearchInternal(query: String, engineKey: String, windowCount: Int) {
@@ -505,12 +504,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     // WindowStateCallback implementation
     override fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int) {
         saveWindowState(x, y, width, height)
-    }
-
-    // 处理WebView焦点变化
-    fun onWebViewFocusChanged(focusable: Boolean) {
-        Log.d(TAG, "WebView焦点变化: focusable=$focusable")
-        windowManager.setFloatingWindowFocusable(focusable)
     }
 
     private fun saveWindowState(x: Int, y: Int, width: Int, height: Int) {
