@@ -154,7 +154,7 @@ class FloatingWindowManager(
             } else {
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
             },
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -553,10 +553,8 @@ class FloatingWindowManager(
                 // 允许输入法调整窗口大小
                 p.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             } else {
-                // 添加阻止获取焦点的标志，并确保不可触摸
-                p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                // 隐藏输入法
+                // 当输入框失去焦点时，我们只希望隐藏键盘，而不是让整个窗口变得不可交互。
+                // 移除会阻止返回键和WebView触摸事件的标志。
                 p.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
             }
             

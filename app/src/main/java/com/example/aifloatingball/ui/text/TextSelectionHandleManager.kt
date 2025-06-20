@@ -15,7 +15,7 @@ class TextSelectionHandleManager(private val context: Context) {
     companion object {
         private const val TAG = "TextSelectionHandleManager"
     }
-
+    
     // private var leftHandle: TextSelectionHandleView? = null // 已删除
     // private var rightHandle: TextSelectionHandleView? = null // 已删除
     private var currentWebView: WebView? = null
