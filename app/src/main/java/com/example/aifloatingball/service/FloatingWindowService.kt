@@ -54,6 +54,11 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.net.URLEncoder
 import com.example.aifloatingball.ui.text.TextSelectionManager
+import android.text.Editable
+import android.text.TextWatcher
+import android.content.ClipDescription
+import android.content.ClipboardManager
+import android.os.Looper
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -70,6 +75,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private val idleHandler = Handler(android.os.Looper.getMainLooper())
     private var fadeOutRunnable: Runnable? = null
+
+    // 新增：用于处理粘贴按钮的 Handler 和 Runnable
+    private var pasteButtonView: View? = null
+    private val pasteButtonHandler = Handler(Looper.getMainLooper())
+    private var hidePasteButtonRunnable: Runnable? = null
 
     // 新增: 用于处理长按事件的 Handler 和 Runnable
     private val longPressHandler = Handler(android.os.Looper.getMainLooper())
@@ -153,6 +163,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         if (floatingView != null) windowManager.removeView(floatingView)
         settingsManager.unregisterOnSharedPreferenceChangeListener(this)
         idleHandler.removeCallbacksAndMessages(null) // Clean up handler
+        hidePasteButton()
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -331,6 +342,22 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             textSelectionManager.showEditTextSelectionMenu(it as EditText)
             true // Consume the long click event
         }
+        searchInput?.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                // Delay showing the button slightly to allow keyboard animation to start
+                pasteButtonHandler.postDelayed({ showPasteButton() }, 100)
+            } else {
+                hidePasteButton()
+            }
+        }
+        searchInput?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                // Hide the button as soon as the user starts typing
+                hidePasteButton()
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
     }
 
     private fun performSearch(query: String) {
@@ -898,5 +925,92 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         } else {
             screenWidth - menuWidth
         }
+    }
+
+    private fun showPasteButton() {
+        val input = searchInput ?: return
+        if (!input.isShown) return // Don't show if the input field itself is not visible
+
+        // Check clipboard for text
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        if (!clipboard.hasPrimaryClip() || clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) != true) {
+            return // No text on clipboard, do nothing
+        }
+
+        if (pasteButtonView == null) {
+            // Use themedContext to inflate the view, which is crucial
+            val context = themedContext ?: this
+            val inflater = LayoutInflater.from(context)
+            pasteButtonView = inflater.inflate(R.layout.paste_button, null)
+
+            pasteButtonView?.setOnClickListener {
+                val pasteData = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+                if (!pasteData.isNullOrEmpty()) {
+                    val selectionStart = input.selectionStart
+                    val selectionEnd = input.selectionEnd
+                    input.text.replace(selectionStart.coerceAtMost(selectionEnd), selectionStart.coerceAtLeast(selectionEnd), pasteData, 0, pasteData.length)
+                }
+                hidePasteButton()
+            }
+        }
+
+        // Ensure the view is not already added
+        if (pasteButtonView?.parent != null) {
+            return
+        }
+
+        // Post the positioning logic to run after the input view has been laid out,
+        // ensuring the coordinates are for its final position.
+        input.post {
+            // Re-check if the button has been added or hidden in the meantime
+            if (pasteButtonView?.parent != null || !input.isShown) {
+                return@post
+            }
+
+            // Measure the paste button to get its width for centering
+            pasteButtonView?.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val pasteButtonWidth = pasteButtonView?.measuredWidth ?: 0
+
+            val locationOnScreen = IntArray(2)
+            input.getLocationOnScreen(locationOnScreen)
+            val inputX = locationOnScreen[0]
+            val inputY = locationOnScreen[1]
+            val inputWidth = input.width
+
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = inputX + (inputWidth - pasteButtonWidth) / 2 // Center the button horizontally
+                y = inputY + input.height // Position directly below the input field
+            }
+
+            try {
+                windowManager.addView(pasteButtonView, params)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to add paste button", e)
+            }
+
+            // Schedule to hide
+            hidePasteButtonRunnable = Runnable { hidePasteButton() }
+            pasteButtonHandler.postDelayed(hidePasteButtonRunnable!!, 5000)
+        }
+    }
+
+    private fun hidePasteButton() {
+        hidePasteButtonRunnable?.let { pasteButtonHandler.removeCallbacks(it) }
+        hidePasteButtonRunnable = null
+        if (pasteButtonView?.parent != null) {
+            try {
+                windowManager.removeView(pasteButtonView)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to remove paste button", e)
+            }
+        }
+        // Don't null out pasteButtonView here, so it can be reused
     }
 }

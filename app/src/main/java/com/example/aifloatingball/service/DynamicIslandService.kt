@@ -73,6 +73,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.appcompat.app.AlertDialog
 import android.widget.Toast
+import android.content.ClipDescription
+import android.util.Log
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -127,6 +129,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var pagePreview3: View? = null
     
     private var textActionMenu: PopupWindow? = null
+
+    // 新增：用于处理粘贴按钮的 Handler 和 Runnable
+    private var pasteButtonView: View? = null
+    private val pasteButtonHandler = Handler(Looper.getMainLooper())
+    private var hidePasteButtonRunnable: Runnable? = null
 
     private val uiHandler = Handler(Looper.getMainLooper())
     private val notificationReceiver = object : BroadcastReceiver() {
@@ -514,6 +521,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         unregisterReceiver(appSearchUpdateReceiver)
         cleanupViews()
         hideEditingScrim()
+        hidePasteButton()
     }
 
     private fun cleanupViews() {
@@ -540,11 +548,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         searchButton?.alpha = 0.5f // Start as semi-transparent
         searchInput?.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                hidePasteButton() // Hide as soon as user interacts
+            }
             override fun afterTextChanged(s: Editable?) {
                 searchButton?.alpha = if (s.isNullOrEmpty()) 0.5f else 1.0f
             }
         })
+
+        searchInput?.setOnFocusChangeListener { _, hasFocus ->
+            // If the input field loses focus, we should hide the paste button.
+            // Showing the button is now handled when the panel appears.
+            if (!hasFocus) {
+                hidePasteButton()
+            }
+        }
 
         // We abandon ActionMode as it's unreliable in overlays.
         // Instead, we manually show our popup menu on long click.
@@ -601,6 +619,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             translationY = 1000f
             animate().translationY(0f).setDuration(300).start()
         }
+
+        // Automatically show the paste button when the config panel appears.
+        showPasteButton()
     }
 
     private fun showCustomTextMenu() {
@@ -1326,5 +1347,79 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun updateExpandedViewContent(query: String?, content: String?, isNewSearch: Boolean) {
         // Dummy implementation
+    }
+
+    private fun showPasteButton() {
+        val input = searchInput ?: return
+        val configPanel = configPanelView as? ViewGroup ?: return
+
+        if (!input.isShown) {
+            return
+        }
+
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        if (!clipboard.hasPrimaryClip() || !clipboard.primaryClipDescription!!.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)) {
+            return
+        }
+
+        if (pasteButtonView == null) {
+            val context = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
+            val inflater = LayoutInflater.from(context)
+            pasteButtonView = inflater.inflate(R.layout.paste_button, configPanel, false)
+
+            pasteButtonView?.setOnClickListener {
+                val pasteData = clipboard.primaryClip?.getItemAt(0)?.coerceToText(this)?.toString()
+                if (!pasteData.isNullOrEmpty()) {
+                    val selectionStart = input.selectionStart
+                    val selectionEnd = input.selectionEnd
+                    input.text.replace(selectionStart.coerceAtMost(selectionEnd), selectionStart.coerceAtLeast(selectionEnd), pasteData, 0, pasteData.length)
+                }
+                hidePasteButton()
+            }
+        }
+
+        if (pasteButtonView?.parent == null) {
+            configPanel.addView(pasteButtonView)
+        }
+        pasteButtonView?.visibility = View.VISIBLE
+        pasteButtonView?.alpha = 1f
+
+
+        input.post {
+            if (pasteButtonView == null) return@post
+
+            pasteButtonView?.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val pasteButtonHeight = pasteButtonView?.measuredHeight ?: 0
+
+            var currentView: View = input
+            var inputTop = 0f
+            while (currentView != configPanel) {
+                inputTop += currentView.y
+                currentView = currentView.parent as View
+            }
+
+            pasteButtonView?.x = input.x
+            pasteButtonView?.y = inputTop + input.height + 4.dpToPx()
+
+            hidePasteButtonRunnable = Runnable { hidePasteButton() }
+            pasteButtonHandler.postDelayed(hidePasteButtonRunnable!!, 5000)
+        }
+    }
+
+    private fun hidePasteButton() {
+        hidePasteButtonRunnable?.let { pasteButtonHandler.removeCallbacks(it) }
+        hidePasteButtonRunnable = null
+        pasteButtonView?.let {
+            if (it.visibility == View.VISIBLE) {
+                it.animate()
+                    .alpha(0f)
+                    .setDuration(200)
+                    .withEndAction {
+                        it.visibility = View.GONE
+                        (configPanelView as? ViewGroup)?.removeView(it)
+                         pasteButtonView = null
+                    }.start()
+            }
+        }
     }
 }

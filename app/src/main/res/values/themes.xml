@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.AIFloatingBall" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.AIFloatingBall" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="materialCardViewStyle">@style/Widget.MaterialComponents.CardView</item>
+    </style>
+
+    <style name="Theme.AIFloatingBall" parent="Base.Theme.AIFloatingBall">
         <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimary">@color/themed_primary_light</item>
         <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>
         <!-- Secondary brand color. -->
@@ -17,7 +24,8 @@
 
     <!-- 悬浮窗服务使用的主题 -->
     <style name="Theme.FloatingWindow" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/purple_500</item>
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/themed_primary_light</item>
         <item name="colorPrimaryVariant">@color/purple_700</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="colorSecondary">@color/teal_200</item>
@@ -26,6 +34,8 @@
         <item name="materialCardViewStyle">@style/Widget.MaterialComponents.CardView</item>
         <!-- 确保Material组件可以正常工作 -->
         <item name="materialButtonStyle">@style/Widget.MaterialComponents.Button</item>
+        <item name="pasteButtonBackgroundColor">@color/paste_button_bg_light</item>
+        <item name="pasteButtonTextColor">@color/paste_button_text_light</item>
     </style>
 
     <style name="YourTitleTextStyle" parent="Widget.MaterialComponents.TextView">
@@ -36,13 +46,7 @@
     </style>
 
     <!-- 页面信息对话框主题 -->
-    <style name="Theme.AIFloatingBall.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
-        <!-- 在这里可以自定义对话框的颜色、字体等 -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorSecondary">@color/teal_200</item>
-        <!-- 使用已存在的颜色避免编译错误 -->
-        <item name="android:background">@color/white</item>
-        <item name="android:textColorPrimary">@color/black</item>
+    <style name="Theme_AIFloatingBall_Dialog" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
         <item name="android:windowBackground">@drawable/dialog_background</item>
     </style>
 </resources> 

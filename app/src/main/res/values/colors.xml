@@ -182,4 +182,13 @@
     <color name="dialog_background_color">#FFFFFF</color>
     <color name="icon_tint_color_def">#DE000000</color>
 
+    <!-- Theme-aware colors -->
+    <color name="themed_primary_light">#2196F3</color> <!-- A nice blue for light theme -->
+    <color name="themed_primary_dark">#FF6200EE</color> <!-- A nice purple for dark theme -->
+
+    <color name="paste_button_bg_light">#E0E0E0</color>
+    <color name="paste_button_text_light">#333333</color>
+    <color name="paste_button_bg_dark">#424242</color>
+    <color name="paste_button_text_dark">#FFFFFF</color>
+
 </resources> 
