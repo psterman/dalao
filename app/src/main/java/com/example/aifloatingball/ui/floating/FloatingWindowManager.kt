@@ -69,7 +69,7 @@ class FloatingWindowManager(
     private var firstWebView: CustomWebView? = null
     private var secondWebView: CustomWebView? = null
     private var thirdWebView: CustomWebView? = null
-    private var searchInput: EditText? = null
+    internal var searchInput: EditText? = null
 
     private var initialX: Int = 0
     private var initialY: Int = 0

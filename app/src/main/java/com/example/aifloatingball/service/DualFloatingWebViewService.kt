@@ -40,6 +40,8 @@ import com.example.aifloatingball.model.SearchHistory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.content.ClipboardManager
+import android.content.ClipDescription
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -292,12 +294,16 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             Log.d(TAG, "处理来自intent的新搜索: ${searchParams.query}")
             performSearch(searchParams.query, searchParams.engineKey)
         } else {
-            // 如果 intent 中没有搜索参数，这可能是服务的首次启动（例如，从快捷方式），
-            // 并且还没有执行过任何搜索。
+            // 如果 intent 中没有搜索参数，这可能是服务的首次启动
             if (lastQuery == null) {
                 Log.d(TAG, "Intent中无搜索参数，执行首次默认加载。")
-                // 执行一个空的搜索，这将加载默认搜索引擎的主页
-                performSearch("", settingsManager.getSearchEngineForPosition(0))
+
+                if (settingsManager.isAutoPasteEnabled()) {
+                    val pastedText = autoPaste(windowManager.searchInput)
+                    performSearch(pastedText ?: "", settingsManager.getSearchEngineForPosition(0))
+                } else {
+                    performSearch("", settingsManager.getSearchEngineForPosition(0))
+                }
             } else {
                 Log.d(TAG, "Intent中无搜索参数，但已有内容，忽略。")
             }
@@ -590,5 +596,25 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         } else {
             Log.e(TAG, "Invalid position $position, cannot perform search.")
         }
+    }
+
+    private fun autoPaste(editText: EditText?): String? {
+        editText ?: return null
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboard.hasPrimaryClip() && clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true) {
+                val pasteData = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+                if (!pasteData.isNullOrEmpty()) {
+                    handler.post {
+                        editText.setText(pasteData)
+                        editText.setSelection(pasteData.length)
+                    }
+                    return pasteData
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to auto paste", e)
+        }
+        return null
     }
 } 

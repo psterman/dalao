@@ -535,7 +535,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         windowManager.updateViewLayout(floatingView, params)
 
         searchInput?.requestFocus()
+        if (settingsManager.isAutoPasteEnabled()) {
+            autoPaste(searchInput)
+        }
         showKeyboard()
+        showPasteButton()
     }
 
     private fun hideSearchInterface() {
@@ -1012,5 +1016,21 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             }
         }
         // Don't null out pasteButtonView here, so it can be reused
+    }
+
+    private fun autoPaste(editText: EditText?) {
+        editText ?: return
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboard.hasPrimaryClip() && clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true) {
+                val pasteData = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+                if (!pasteData.isNullOrEmpty()) {
+                    editText.setText(pasteData)
+                    editText.setSelection(pasteData.length)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to auto paste", e)
+        }
     }
 }

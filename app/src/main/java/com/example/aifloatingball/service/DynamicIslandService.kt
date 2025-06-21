@@ -178,6 +178,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     companion object {
+        private const val TAG = "DynamicIslandService"
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "DynamicIslandChannel"
     }
@@ -349,6 +350,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     appSearchIconScrollView?.visibility = View.VISIBLE
 
                     searchInput?.requestFocus()
+                    if (settingsManager.isAutoPasteEnabled()) {
+                        autoPaste(searchInput)
+                    }
                     uiHandler.postDelayed({
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                         imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
@@ -1420,6 +1424,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                          pasteButtonView = null
                     }.start()
             }
+        }
+    }
+
+    private fun autoPaste(editText: EditText?) {
+        editText ?: return
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboard.hasPrimaryClip() && clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true) {
+                val pasteData = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+                if (!pasteData.isNullOrEmpty()) {
+                    editText.setText(pasteData)
+                    editText.setSelection(pasteData.length)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to auto paste", e)
         }
     }
 }
