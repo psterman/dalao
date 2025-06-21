@@ -29,6 +29,8 @@ import android.webkit.JsResult
 import android.webkit.WebChromeClient
 import android.app.AlertDialog
 import android.view.WindowManager
+import android.content.ClipDescription
+import android.content.ClipboardManager
 
 data class ChatMessage(val role: String, val content: String, val isLoading: Boolean = false)
 data class ChatSession(
@@ -83,8 +85,13 @@ class ChatManager(private val context: Context) {
         
         webView.webViewClient = object : android.webkit.WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
-                view?.evaluateJavascript("loadChatHistoryFromAndroid('${chatHistoryToJson()}');", null)
-                if (view != null && !initialMessage.isNullOrBlank()) {
+                if (view == null) return
+
+                val theme = settingsManager.getThemeModeForWeb()
+                view.evaluateJavascript("setTheme('$theme')", null)
+
+                view.evaluateJavascript("loadChatHistoryFromAndroid('${chatHistoryToJson()}');", null)
+                if (!initialMessage.isNullOrBlank()) {
                     sendMessageToWebView(initialMessage, view, isDeepSeekEngine)
                 }
             }
@@ -182,6 +189,30 @@ class ChatManager(private val context: Context) {
                 saveCurrentSessionId()
             }
             saveSessions()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun getTheme(): String {
+            return settingsManager.getThemeModeForWeb()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun hasClipboardText(): Boolean {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            return clipboard.hasPrimaryClip() &&
+                    clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) == true &&
+                    !clipboard.primaryClip?.getItemAt(0)?.text.isNullOrBlank()
+        }
+
+        @android.webkit.JavascriptInterface
+        fun paste() {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val pasteData = clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)
+            if (!pasteData.isNullOrBlank()) {
+                webViewRef?.post {
+                    webViewRef?.evaluateJavascript("pasteText('${escapeJs(pasteData.toString())}')", null)
+                }
+            }
         }
     }
 

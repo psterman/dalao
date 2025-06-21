@@ -15,6 +15,7 @@ import com.example.aifloatingball.model.MenuItem
 import androidx.appcompat.app.AppCompatDelegate
 import com.example.aifloatingball.model.SearchEngineGroup
 import com.example.aifloatingball.R
+import android.content.res.Configuration
 
 class SettingsManager private constructor(context: Context) {
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -80,8 +81,14 @@ class SettingsManager private constructor(context: Context) {
 
     // 统一主题设置
     fun getThemeMode(): Int {
-        val themeValue = prefs.getString("theme_mode", THEME_MODE_DEFAULT.toString())
-        return themeValue?.toIntOrNull() ?: THEME_MODE_DEFAULT
+        val allPrefs = prefs.all
+        val themeValue = allPrefs["theme_mode"]
+
+        return when (themeValue) {
+            is String -> themeValue.toIntOrNull() ?: THEME_MODE_DEFAULT
+            is Int -> themeValue
+            else -> THEME_MODE_DEFAULT
+        }
     }
     
     fun setThemeMode(mode: Int) {
@@ -94,6 +101,22 @@ class SettingsManager private constructor(context: Context) {
             else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
         }
         notifyListeners("theme_mode", mode)
+    }
+
+    fun getThemeModeForWeb(): String {
+        val themeMode = getThemeMode()
+        return when (themeMode) {
+            THEME_MODE_LIGHT -> "light"
+            THEME_MODE_DARK -> "dark"
+            else -> { // System default
+                val nightModeFlags = appContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+                if (nightModeFlags == Configuration.UI_MODE_NIGHT_YES) {
+                    "dark"
+                } else {
+                    "light"
+                }
+            }
+        }
     }
 
     // 隐私模式设置
