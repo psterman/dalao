@@ -302,7 +302,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     val pastedText = autoPaste(windowManager.searchInput)
                     performSearch(pastedText ?: "", settingsManager.getSearchEngineForPosition(0))
                 } else {
-                    performSearch("", settingsManager.getSearchEngineForPosition(0))
+                performSearch("", settingsManager.getSearchEngineForPosition(0))
                 }
             } else {
                 Log.d(TAG, "Intent中无搜索参数，但已有内容，忽略。")

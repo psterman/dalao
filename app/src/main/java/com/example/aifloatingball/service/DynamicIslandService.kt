@@ -117,6 +117,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var appSearchIconContainer: LinearLayout? = null
     private var appSearchIconScrollView: HorizontalScrollView? = null
 
+    private var proxyIndicatorView: View? = null
+    private var proxyIndicatorAnimator: ValueAnimator? = null
+
     private var currentKeyboardHeight = 0
     private var editingScrimView: View? = null // New scrim view for background blur/dim
 
@@ -259,26 +262,40 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // 2. The Animating View
         animatingIslandView = FrameLayout(this).apply {
-            background = getDrawable(R.drawable.dynamic_island_background)
+            background = ColorDrawable(Color.TRANSPARENT) // Make it transparent
             layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
         }
         
         // 3. The Content
         islandContentView = inflater.inflate(R.layout.dynamic_island_layout, animatingIslandView, false)
         notificationIconContainer = islandContentView!!.findViewById(R.id.notification_icon_container)
+        notificationIconContainer.visibility = View.GONE // Permanently hide notification icons
         appSearchIconScrollView = islandContentView!!.findViewById(R.id.app_search_icon_scroll_view)
         appSearchIconContainer = islandContentView!!.findViewById(R.id.app_search_icon_container)
         animatingIslandView!!.addView(islandContentView)
 
-        // 4. The Proxy
+        // 4. The Proxy (Touch Area)
         touchProxyView = View(this).apply {
+            // This is now purely a touch area, so it's completely transparent
+            setBackgroundColor(Color.TRANSPARENT)
             layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
                 topMargin = statusBarHeight
             }
         }
+
+        // 5. The Proxy Indicator (Visual Bar)
+        proxyIndicatorView = View(this).apply {
+            background = getDrawable(R.drawable.touch_proxy_bar)
+            layoutParams = FrameLayout.LayoutParams(36.dpToPx(), 4.dpToPx(), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+                // Position it in the middle of the status bar height area
+                topMargin = statusBarHeight + (statusBarHeight - 4.dpToPx()) / 2
+            }
+        }
+        setupProxyIndicator()
         
         windowContainerView!!.addView(animatingIslandView)
         windowContainerView!!.addView(touchProxyView)
+        windowContainerView!!.addView(proxyIndicatorView)
         
         touchProxyView?.setOnClickListener { if (!isSearchModeActive) transitionToSearchState() }
 
@@ -296,6 +313,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         isSearchModeActive = true
 
         touchProxyView?.visibility = View.GONE
+        proxyIndicatorView?.visibility = View.GONE
+        proxyIndicatorAnimator?.cancel()
 
         val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
         windowParams?.let {
@@ -418,8 +437,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     clearAppSearchIcons()
                 }
                 override fun onAnimationEnd(animation: Animator) {
-                    notificationIconContainer.visibility = View.VISIBLE
+                    // notificationIconContainer.visibility = View.VISIBLE // Do not show icons again
                     touchProxyView?.visibility = View.VISIBLE
+                    proxyIndicatorView?.visibility = View.VISIBLE
+                    setupProxyIndicator()
                 }
             })
         }.start()
@@ -526,6 +547,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         cleanupViews()
         hideEditingScrim()
         hidePasteButton()
+        proxyIndicatorAnimator?.cancel()
     }
 
     private fun cleanupViews() {
@@ -536,6 +558,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             e.printStackTrace()
         }
         windowContainerView = null
+        proxyIndicatorView = null
     }
 
     private fun showConfigPanel() {
@@ -994,6 +1017,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             "theme_mode" -> {
                 recreateAllViews()
             }
+            "ball_alpha" -> {
+                setupProxyIndicator()
+            }
         }
     }
 
@@ -1440,6 +1466,24 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to auto paste", e)
+        }
+    }
+
+    private fun setupProxyIndicator() {
+        proxyIndicatorAnimator?.cancel()
+        proxyIndicatorView?.let { view ->
+            val opacity = settingsManager.getBallAlpha()
+            val baseAlpha = opacity / 100f
+
+            proxyIndicatorAnimator = ValueAnimator.ofFloat(baseAlpha, baseAlpha * 0.5f, baseAlpha).apply {
+                duration = 2000
+                repeatCount = ValueAnimator.INFINITE
+                interpolator = AccelerateDecelerateInterpolator()
+                addUpdateListener { animation ->
+                    view.alpha = animation.animatedValue as Float
+                }
+            }
+            proxyIndicatorAnimator?.start()
         }
     }
 }
