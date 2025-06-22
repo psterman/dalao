@@ -31,8 +31,23 @@ import android.app.AlertDialog
 import android.view.WindowManager
 import android.content.ClipDescription
 import android.content.ClipboardManager
+import android.content.ClipData
+import android.content.Intent
 
-data class ChatMessage(val role: String, val content: String, val isLoading: Boolean = false)
+data class ChatMessage(
+    val role: String,
+    val content: String,
+    val isLoading: Boolean = false,
+    var isFavorite: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis() // 为收藏排序提供方便
+)
+
+data class FavoriteMessageInfo(
+    val chatId: String,
+    val messageIndex: Int,
+    val message: ChatMessage
+)
+
 data class ChatSession(
     val id: String,
     var title: String,
@@ -49,17 +64,20 @@ class ChatManager(private val context: Context) {
     private val messageLock = Mutex()
 
     private val sessions = mutableListOf<ChatSession>()
+    private val favorites = mutableListOf<FavoriteMessageInfo>()
     private var currentSessionId: String? = null
 
     companion object {
         private const val MAX_HISTORY_SIZE = 50 // Per session
         private const val PREFS_NAME = "ChatManagerPrefs"
         private const val KEY_SESSIONS = "chat_sessions_v2"
+        private const val KEY_FAVORITES = "chat_favorites_v1"
         private const val KEY_CURRENT_SESSION_ID = "current_session_id_v2"
     }
 
     init {
         loadSessions()
+        loadFavorites()
     }
 
     fun initWebView(webView: WebView, engineKey: String, initialMessage: String? = null) {
@@ -141,6 +159,31 @@ class ChatManager(private val context: Context) {
         }
 
         @android.webkit.JavascriptInterface
+        fun searchHistory(query: String): String {
+            if (query.isBlank()) {
+                val sortedSessions = sessions.sortedByDescending { it.timestamp }
+                val metadata = sortedSessions.map { mapOf("id" to it.id, "title" to it.title, "timestamp" to it.timestamp) }
+                return gson.toJson(metadata)
+            }
+
+            val lowerCaseQuery = query.toLowerCase(Locale.ROOT)
+            val filteredSessions = sessions.filter { session ->
+                session.title.toLowerCase(Locale.ROOT).contains(lowerCaseQuery) ||
+                session.messages.any { message -> message.content.toLowerCase(Locale.ROOT).contains(lowerCaseQuery) }
+            }.sortedByDescending { it.timestamp }
+
+            val metadata = filteredSessions.map { mapOf("id" to it.id, "title" to it.title, "timestamp" to it.timestamp) }
+            return gson.toJson(metadata)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun getFavoriteMessages(): String {
+            // Sort by most recent first
+            favorites.sortByDescending { it.message.timestamp }
+            return gson.toJson(favorites)
+        }
+
+        @android.webkit.JavascriptInterface
         fun getInitialSession(): String {
             val session = if (currentSessionId != null) sessions.find { it.id == currentSessionId } else sessions.firstOrNull()
             return if (session != null) {
@@ -214,6 +257,63 @@ class ChatManager(private val context: Context) {
                 }
             }
         }
+
+        @android.webkit.JavascriptInterface
+        fun copyToClipboard(text: String) {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("AI-Response", text)
+            clipboard.setPrimaryClip(clip)
+            // Optional: Show a toast or some feedback
+        }
+
+        @android.webkit.JavascriptInterface
+        fun shareMessage(text: String) {
+            val sendIntent: Intent = Intent().apply {
+                action = Intent.ACTION_SEND
+                putExtra(Intent.EXTRA_TEXT, text)
+                type = "text/plain"
+            }
+            val shareIntent = Intent.createChooser(sendIntent, null)
+            shareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(shareIntent)
+        }
+
+        @android.webkit.JavascriptInterface
+        fun favoriteMessage(chatId: String, messageIndex: Int) {
+            scope.launch {
+                messageLock.withLock {
+                    val session = sessions.find { it.id == chatId }
+                    session?.let {
+                        if (messageIndex >= 0 && messageIndex < it.messages.size) {
+                            val message = it.messages[messageIndex]
+                            message.isFavorite = !message.isFavorite // Toggle favorite state
+
+                            if (message.isFavorite) {
+                                val favInfo = FavoriteMessageInfo(chatId, messageIndex, message)
+                                // Avoid duplicates
+                                if (favorites.none { f -> f.chatId == chatId && f.messageIndex == messageIndex }) {
+                                    favorites.add(favInfo)
+                                }
+                            } else {
+                                favorites.removeAll { f -> f.chatId == chatId && f.messageIndex == messageIndex }
+                            }
+
+                            saveSessions()
+                            saveFavorites()
+                            Log.d("ChatManager", "Toggled favorite for message at index $messageIndex in chat $chatId to ${message.isFavorite}")
+                        } else {
+                            Log.e("ChatManager", "Favorite failed: index out of bounds. Index: $messageIndex, Size: ${it.messages.size}")
+                        }
+                    } ?: run {
+                        // This case can happen if the original session was deleted but the favorite remains.
+                        // We just need to remove it from the favorites list.
+                        favorites.removeAll { f -> f.chatId == chatId && f.messageIndex == messageIndex }
+                        saveFavorites()
+                        Log.d("ChatManager", "Unfavorited message from a deleted session: $chatId, index $messageIndex")
+                    }
+                }
+            }
+        }
     }
 
     fun sendMessageToWebView(message: String, webView: WebView, isDeepSeek: Boolean) {
@@ -250,18 +350,11 @@ class ChatManager(private val context: Context) {
     }
 
     private suspend fun handleMessageSend(webView: WebView, message: String, isDeepSeek: Boolean, sessionId: String) {
-        // 使用互斥锁确保同一时间只有一个消息处理任务在运行，防止并发导致的状态错乱
-        messageLock.withLock {
-            // 在锁内部，根据ID从列表中获取最新的会d话状态
-            val session = sessions.find { it.id == sessionId }
-            if (session == null) {
-                Log.e("ChatManager", "Session with ID $sessionId not found inside lock.")
-                withContext(Dispatchers.Main) {
-                    webView.evaluateJavascript("showErrorMessage('内部错误: 会话丢失');", null)
-                    webView.evaluateJavascript("completeResponse();", null)
-                }
-                return@withLock
-            }
+        val session = sessions.find { it.id == sessionId }
+        if (session == null) {
+            Log.e("ChatManager", "Session not found for id: $sessionId")
+            return
+        }
 
         val apiKey = if (isDeepSeek) settingsManager.getDeepSeekApiKey() else settingsManager.getChatGPTApiKey()
         if (apiKey.isBlank()) {
@@ -269,103 +362,114 @@ class ChatManager(private val context: Context) {
             Log.e("ChatManager", error)
             withContext(Dispatchers.Main) {
                 webView.evaluateJavascript("showErrorMessage('${escapeJs(error)}');", null)
-                    webView.evaluateJavascript("completeResponse();", null) // 确保结束动画
+                webView.evaluateJavascript("completeResponse();", null) // 确保结束动画
             }
-                return@withLock // 从锁定的代码块中返回
+            return
         }
 
         val apiUrl = if (isDeepSeek) settingsManager.getDeepSeekApiUrl() else settingsManager.getChatGPTApiUrl()
         val model = if (isDeepSeek) "deepseek-chat" else "gpt-3.5-turbo"
 
-        session.messages.add(ChatMessage("user", message))
-        if (session.title == "新对话" && session.messages.size == 1) {
-            session.title = message
-        }
-
-        val contextMessages = session.messages.toMutableList()
-            val fullResponse = StringBuilder()
-        
-        try {
-            val url = URL(apiUrl)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("Authorization", "Bearer $apiKey")
-                doOutput = true
-                connectTimeout = 30000
-                readTimeout = 60000
-            }
-
-            val requestBody = gson.toJson(mapOf("model" to model, "messages" to contextMessages, "stream" to true))
-            
-            connection.outputStream.use { it.write(requestBody.toByteArray(StandardCharsets.UTF_8)) }
-
-            val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
-            
-            while (true) {
-                val line = reader.readLine() ?: break
-                if (line.startsWith("data:")) {
-                    val jsonData = line.substring(5).trim()
-                    if (jsonData != "[DONE]") {
-                        try {
-                            val choice = org.json.JSONObject(jsonData).getJSONArray("choices").getJSONObject(0)
-                            val delta = choice.getJSONObject("delta")
-                            if (delta.has("content")) {
-                                val contentChunk = delta.getString("content")
-                                fullResponse.append(contentChunk)
-                                            withContext(Dispatchers.Main) {
-                                    webView.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
-                                }
-                            }
-                        } catch (e: Exception) {
-                            Log.e("ChatManager", "JSON parse error in stream: $e")
-                        }
-                    }
+        messageLock.withLock {
+            session.messages.add(ChatMessage("user", message))
+            if (session.messages.size == 1 && session.title == "新对话") {
+                val newTitle = if (message.length > 20) message.substring(0, 20) + "..." else message
+                session.title = newTitle
+                Handler(Looper.getMainLooper()).post {
+                    webView.evaluateJavascript("updateSessionTitle('$sessionId', '${escapeJs(newTitle)}');", null)
                 }
-            }
-            reader.close()
-            connection.disconnect()
-
-                // 请求成功后，保存完整的助手消息
-            val assistantMessage = ChatMessage("assistant", fullResponse.toString())
-            session.messages.add(assistantMessage)
-            if (session.messages.size > MAX_HISTORY_SIZE * 2) {
-                session.messages.removeAt(0)
-                session.messages.removeAt(0)
             }
             saveSessions()
-
-            } catch (e: Exception) {
-                val errorMessage = "API request failed: ${e.message}"
-                Log.e("ChatManager", errorMessage, e)
-                withContext(Dispatchers.Main) {
-                    webView.evaluateJavascript("showErrorMessage('${escapeJs(errorMessage)}');", null)
-                }
-            } finally {
-                // 无论成功或失败，最后都必须调用此函数来结束UI的加载状态
-            withContext(Dispatchers.Main) {
-                webView.evaluateJavascript("completeResponse();", null)
-            }
-            }
         }
+
+        val contextMessages = session.messages.map { mapOf("role" to it.role, "content" to it.content) }
+        streamResponse(webView, apiUrl, apiKey, model, contextMessages, sessionId)
     }
 
-    private fun chatHistoryToJson(): String {
-        return gson.toJson(sessions.flatMap { it.messages })
+    private suspend fun streamResponse(webView: WebView, apiUrl: String, apiKey: String, model: String, context: List<Map<String, String>>, sessionId: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("Authorization", "Bearer $apiKey")
+                connection.doOutput = true
+                connection.doInput = true
+
+                val body = JSONObject()
+                body.put("model", model)
+                body.put("messages", JSONArray(context))
+                body.put("stream", true)
+
+                connection.outputStream.use { os ->
+                    val input = body.toString().toByteArray(StandardCharsets.UTF_8)
+                    os.write(input, 0, input.size)
+                }
+
+                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+                    var fullResponse = ""
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        if (line!!.startsWith("data: ")) {
+                            val jsonString = line!!.substring(6)
+                            if (jsonString.trim() == "[DONE]") {
+                                break
+                            }
+                            try {
+                                val jsonObject = JSONObject(jsonString)
+                                val delta = jsonObject.getJSONArray("choices").getJSONObject(0).getJSONObject("delta")
+                                if (delta.has("content")) {
+                                    val contentChunk = delta.getString("content")
+                                    fullResponse += contentChunk
+                                    Handler(Looper.getMainLooper()).post {
+                                        webView.evaluateJavascript("appendToResponse('${escapeJs(contentChunk)}');", null)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // Ignore json parsing errors for now
+                            }
+                        }
+                    }
+                    reader.close()
+                    
+                    messageLock.withLock {
+                        sessions.find { it.id == sessionId }?.messages?.add(ChatMessage("assistant", fullResponse))
+                        saveSessions()
+                    }
+                    
+                    Handler(Looper.getMainLooper()).post {
+                        webView.evaluateJavascript("completeResponse();", null)
+                    }
+                } else {
+                    val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                    Log.e("ChatManager", "API Error: ${connection.responseCode} - $errorBody")
+                    Handler(Looper.getMainLooper()).post {
+                         webView.evaluateJavascript("completeResponse(); showErrorMessage('API Error: ${connection.responseCode}');", null)
+                    }
+                }
+            } catch (e: Exception) {
+                 Log.e("ChatManager", "Exception during API call", e)
+                 Handler(Looper.getMainLooper()).post {
+                    webView.evaluateJavascript("completeResponse(); showErrorMessage('Error: ${e.message}');", null)
+                }
+            }
+        }
     }
 
     private fun escapeJs(s: String): String {
         return s.replace("\\", "\\\\")
-                .replace("'", "\\'")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "")
+            .replace("'", "\\'")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "")
     }
 
     private fun saveSessions() {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_SESSIONS, gson.toJson(sessions)).apply()
+        val json = gson.toJson(sessions)
+        prefs.edit().putString(KEY_SESSIONS, json).apply()
     }
 
     private fun loadSessions() {
@@ -374,23 +478,44 @@ class ChatManager(private val context: Context) {
         if (json != null) {
             val type = object : TypeToken<MutableList<ChatSession>>() {}.type
             try {
-                val loadedSessions: MutableList<ChatSession> = gson.fromJson(json, type)
                 sessions.clear()
-                sessions.addAll(loadedSessions)
+                sessions.addAll(gson.fromJson(json, type))
             } catch (e: Exception) {
-                Log.e("ChatManager", "Failed to load sessions", e)
-                sessions.clear()
+                Log.e("ChatManager", "Error loading sessions", e)
             }
-        }
-        currentSessionId = prefs.getString(KEY_CURRENT_SESSION_ID, null)
-        if (sessions.find { it.id == currentSessionId } == null) {
-            currentSessionId = sessions.sortedByDescending { it.timestamp }.firstOrNull()?.id
         }
     }
 
     private fun saveCurrentSessionId() {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_CURRENT_SESSION_ID, currentSessionId).apply()
+    }
+    
+    private fun chatHistoryToJson(): String {
+        return gson.toJson(sessions.map { 
+            mapOf("id" to it.id, "title" to it.title, "timestamp" to it.timestamp) 
+        })
+    }
+
+    private fun saveFavorites() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = gson.toJson(favorites)
+        prefs.edit().putString(KEY_FAVORITES, json).apply()
+    }
+
+    private fun loadFavorites() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_FAVORITES, null)
+        if (json != null) {
+            val type = object : TypeToken<MutableList<FavoriteMessageInfo>>() {}.type
+            try {
+                val loadedFavorites: MutableList<FavoriteMessageInfo> = gson.fromJson(json, type)
+                favorites.clear()
+                favorites.addAll(loadedFavorites)
+            } catch (e: Exception) {
+                Log.e("ChatManager", "Error loading favorites", e)
+            }
+        }
     }
 }
 

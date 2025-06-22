@@ -99,6 +99,7 @@
         .header-top-row {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
 
         .input-area-container {
@@ -158,6 +159,27 @@
             flex: 1;
             overflow: hidden;
             position: relative;
+        }
+
+        .side-panel-header {
+            padding: 8px;
+            border-bottom: 1px solid var(--border-primary);
+        }
+
+        #side-panel-search {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-input);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            box-sizing: border-box;
+            /* Ensures padding doesn't affect width */
+        }
+
+        #side-panel-search:focus {
+            outline: none;
+            border-color: var(--border-input-focus);
         }
 
         .chat-history {
@@ -398,24 +420,6 @@
             padding-left: 24px;
         }
 
-        .copy-button {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: var(--bg-copy-button);
-            border: 1px solid var(--border-secondary);
-            border-radius: 4px;
-            padding: 4px 8px;
-            font-size: 12px;
-            cursor: pointer;
-            display: none;
-            color: var(--text-secondary);
-        }
-
-        .message-container:hover .copy-button {
-            display: block;
-        }
-
         .typing-indicator {
             display: inline-flex;
             align-items: center;
@@ -485,6 +489,74 @@
             transform: translateY(0);
             pointer-events: auto;
         }
+
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .action-button {
+            background-color: var(--bg-secondary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-secondary);
+            border-radius: 15px;
+            padding: 4px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .action-button:hover {
+            background-color: var(--bg-hover);
+        }
+
+        .header-switch {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-left: auto;
+            padding: 8px 12px;
+            border: 1px solid var(--border-secondary);
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        #auto-read-switch {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 38px;
+            height: 22px;
+            border-radius: 11px;
+            background-color: var(--border-input);
+            position: relative;
+            cursor: pointer;
+            outline: none;
+            transition: background-color .3s;
+        }
+
+        #auto-read-switch::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background-color: white;
+            top: 2px;
+            left: 2px;
+            transition: transform .3s;
+        }
+
+        #auto-read-switch:checked {
+            background-color: var(--accent-primary);
+        }
+
+        #auto-read-switch:checked::before {
+            transform: translateX(16px);
+        }
     </style>
 </head>
 
@@ -493,6 +565,7 @@
         <div class="header-top-row">
             <button class="header-button" id="new-chat-btn">新对话</button>
             <button class="header-button" id="history-btn">历史</button>
+            <button class="header-button" id="favorites-btn">收藏</button>
         </div>
         <div class="input-area-container">
             <div id="messageInput" contenteditable="true" placeholder="输入你的消息..."></div>
@@ -515,6 +588,9 @@
         let currentResponseElement = null;
         let currentRawText = '';
         let currentChatId = null;
+        let panelMode = 'history'; // Can be 'history' or 'favorites'
+        let allHistorySessions = [];
+        let allFavoriteMessages = [];
 
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('send-button');
@@ -524,6 +600,7 @@
         const newChatBtn = document.getElementById('new-chat-btn');
         const chatHistoryPanel = document.getElementById('chat-history-panel');
         const pasteButton = document.getElementById('paste-button');
+        const favoritesBtn = document.getElementById('favorites-btn');
         let pasteTimeout;
 
         function setTheme(theme) {
@@ -547,11 +624,7 @@
             }
         }
 
-        function addMessageToUI(role, content, isComplete, index) {
-            if (role === 'assistant') {
-                content = content.trim().replace(/(\n[ \t]*){3,}/g, '\n\n');
-            }
-
+        function addMessageToUI(role, content, isComplete, index, chatIdOverride) {
             const messageContainer = document.createElement('div');
             messageContainer.className = 'message-container ' + role + '-container';
             if (index !== undefined) {
@@ -579,15 +652,69 @@
             messageDiv.innerHTML = markdownToHtml(content);
             messageContentDiv.appendChild(messageDiv);
 
+            if (role === 'assistant') {
+                if (isComplete) {
+                    const chatIdForActions = chatIdOverride || currentChatId;
+                    const actionsDiv = createAssistantActions(content, chatIdForActions, index);
+                    messageContentDiv.appendChild(actionsDiv);
+                } else {
+                    currentResponseElement = messageDiv;
+                    currentRawText = content;
+                }
+            }
+
             messageContainer.appendChild(messageContentDiv);
             messagesContainer.appendChild(messageContainer);
 
-            if (role === 'assistant' && !isComplete) {
-                currentResponseElement = messageDiv;
-                currentRawText = content;
-            }
-
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function createAssistantActions(content, chatId, index) {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'message-actions';
+
+            const favBtn = document.createElement('button');
+            favBtn.className = 'action-button';
+            favBtn.textContent = '收藏';
+            favBtn.onclick = () => {
+                if (typeof AndroidChatInterface !== 'undefined') {
+                    AndroidChatInterface.favoriteMessage(chatId, index);
+                    favBtn.textContent = '已收藏';
+                    favBtn.style.backgroundColor = 'var(--accent-primary)';
+                    favBtn.style.color = 'var(--text-on-accent)';
+                    setTimeout(() => {
+                        favBtn.textContent = '收藏';
+                        favBtn.style.backgroundColor = '';
+                        favBtn.style.color = '';
+                    }, 2000);
+                }
+            };
+
+            const shareBtn = document.createElement('button');
+            shareBtn.className = 'action-button';
+            shareBtn.textContent = '分享';
+            shareBtn.onclick = () => {
+                if (typeof AndroidChatInterface !== 'undefined') {
+                    AndroidChatInterface.shareMessage(content);
+                }
+            };
+
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'action-button';
+            copyBtn.textContent = '复制';
+            copyBtn.onclick = (event) => {
+                if (typeof AndroidChatInterface !== 'undefined') {
+                    AndroidChatInterface.copyToClipboard(content);
+                    const button = event.target;
+                    button.textContent = '已复制';
+                    setTimeout(() => button.textContent = '复制', 2000);
+                }
+            };
+
+            actionsDiv.appendChild(favBtn);
+            actionsDiv.appendChild(shareBtn);
+            actionsDiv.appendChild(copyBtn);
+            return actionsDiv;
         }
 
         function showTypingIndicator() {
@@ -621,6 +748,15 @@
             removeTypingIndicator();
             isGenerating = false;
             updateSendButton();
+
+            if (currentResponseElement) {
+                const messageContentDiv = currentResponseElement.parentElement;
+                const messages = messagesContainer.querySelectorAll('.message-container');
+                const messageIndex = messages.length - 1;
+                const actionsDiv = createAssistantActions(currentRawText, currentChatId, messageIndex);
+                messageContentDiv.appendChild(actionsDiv);
+            }
+
             currentResponseElement = null;
             currentRawText = '';
         }
@@ -666,56 +802,65 @@
             hidePasteButton();
         });
 
-        function renderHistoryList(history) {
-            chatHistoryPanel.innerHTML = '';
-            const historyList = document.createElement('div');
-            historyList.className = 'history-list';
+        function renderHistoryList(sessions, shouldSetupPanel = true) {
+            const render = (data) => {
+                const historyList = document.createElement('div');
+                historyList.className = 'history-list';
 
-            history.forEach(session => {
-                const details = document.createElement('details');
-                details.className = 'history-session';
+                data.forEach(session => {
+                    const details = document.createElement('details');
+                    details.className = 'history-session';
 
-                const summary = document.createElement('summary');
-                summary.className = 'history-item';
-                summary.setAttribute('data-chat-id', session.id);
+                    const summary = document.createElement('summary');
+                    summary.className = 'history-item';
+                    summary.setAttribute('data-chat-id', session.id);
 
-                const contentWrapper = document.createElement('div');
-                contentWrapper.className = 'history-item-content';
-                contentWrapper.innerHTML = `<div class="history-title">${escapeHtml(session.title)}</div><div class="history-date">${new Date(session.timestamp).toLocaleString()}</div>`;
+                    const contentWrapper = document.createElement('div');
+                    contentWrapper.className = 'history-item-content';
+                    contentWrapper.innerHTML = `<div class="history-title">${escapeHtml(session.title)}</div><div class="history-date">${new Date(session.timestamp).toLocaleString()}</div>`;
 
-                contentWrapper.onclick = (e) => {
-                    e.stopPropagation();
-                    loadChat(session.id);
-                };
+                    contentWrapper.onclick = (e) => {
+                        e.stopPropagation();
+                        loadChat(session.id);
+                    };
 
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'delete-btn';
-                deleteBtn.innerHTML = '&times;';
-                deleteBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (confirm('您确定要删除这个对话吗？')) {
-                        deleteSession(session.id);
-                    }
-                };
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-btn';
+                    deleteBtn.innerHTML = '&times;';
+                    deleteBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if (confirm('您确定要删除这个对话吗？')) {
+                            deleteSession(session.id);
+                        }
+                    };
 
-                summary.appendChild(contentWrapper);
-                summary.appendChild(deleteBtn);
+                    summary.appendChild(contentWrapper);
+                    summary.appendChild(deleteBtn);
+                    details.appendChild(summary);
 
-                details.appendChild(summary);
+                    const queriesContainer = document.createElement('div');
+                    queriesContainer.className = 'history-queries';
+                    details.appendChild(queriesContainer);
 
-                const queriesContainer = document.createElement('div');
-                queriesContainer.className = 'history-queries';
-                details.appendChild(queriesContainer);
+                    details.addEventListener('toggle', () => {
+                        if (details.open && queriesContainer.children.length === 0) {
+                            populateQueries(queriesContainer, session.id);
+                        }
+                    });
 
-                details.addEventListener('toggle', () => {
-                    if (details.open && queriesContainer.children.length === 0) {
-                        populateQueries(queriesContainer, session.id);
-                    }
+                    historyList.appendChild(details);
                 });
+                chatHistoryPanel.appendChild(historyList);
+            };
 
-                historyList.appendChild(details);
-            });
-            chatHistoryPanel.appendChild(historyList);
+            if (shouldSetupPanel) {
+                setupSidePanel(render, sessions);
+            } else {
+                // Clear only the list, not the search header
+                const existingList = chatHistoryPanel.querySelector('.history-list');
+                if (existingList) existingList.remove();
+                render(sessions);
+            }
         }
 
         function populateQueries(container, sessionId) {
@@ -766,7 +911,7 @@
                 const parsedMessages = JSON.parse(messages);
                 if (parsedMessages.length > 0) {
                     parsedMessages.forEach((msg, index) => {
-                        addMessageToUI(msg.role, msg.content, true, index);
+                        addMessageToUI(msg.role, msg.content, true, index, chatId);
                     });
                 }
 
@@ -792,8 +937,128 @@
         function updateSessionTitle(chatId, title) { const historyItem = chatHistoryPanel.querySelector(`.history-item[data-chat-id="${chatId}"] .history-title`); if (historyItem) { historyItem.textContent = title; } }
         function markdownToHtml(markdown) { if (!markdown) return ''; return marked.parse(markdown); }
         function escapeHtml(unsafe) { return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
-        newChatBtn.addEventListener('click', () => { currentChatId = null; messagesContainer.innerHTML = ''; if (typeof AndroidChatInterface !== 'undefined') { AndroidChatInterface.startNewChat(); } });
-        historyBtn.addEventListener('click', () => { chatHistoryPanel.classList.toggle('open'); if (chatHistoryPanel.classList.contains('open')) { refreshHistory(); } });
+        newChatBtn.addEventListener('click', () => {
+            currentChatId = null;
+            messagesContainer.innerHTML = '';
+            if (typeof AndroidChatInterface !== 'undefined') {
+                AndroidChatInterface.startNewChat();
+            }
+            showWelcomeMessage();
+        });
+        historyBtn.addEventListener('click', () => {
+            panelMode = 'history';
+            chatHistoryPanel.classList.toggle('open');
+            if (chatHistoryPanel.classList.contains('open')) {
+                refreshHistory();
+            }
+        });
+
+        favoritesBtn.addEventListener('click', () => {
+            panelMode = 'favorites';
+            chatHistoryPanel.classList.toggle('open');
+            if (chatHistoryPanel.classList.contains('open')) {
+                refreshFavoritesList();
+            }
+        });
+
+        function refreshFavoritesList() {
+            if (typeof AndroidChatInterface !== 'undefined') {
+                const favoritesJson = AndroidChatInterface.getFavoriteMessages();
+                allFavoriteMessages = JSON.parse(favoritesJson);
+                renderFavoritesListInPanel(allFavoriteMessages);
+            }
+        }
+
+        function renderFavoritesListInPanel(favorites, shouldSetupPanel = true) {
+            const render = (data) => {
+                const favoritesList = document.createElement('div');
+                favoritesList.className = 'history-list'; // Reuse styles
+
+                if (data.length === 0) {
+                    favoritesList.innerHTML = `<div class="history-query-item-none" style="padding: 12px 16px;">无收藏内容</div>`;
+                } else {
+                    data.forEach(favInfo => {
+                        const details = document.createElement('details');
+                        details.className = 'history-session';
+
+                        const summary = document.createElement('summary');
+                        summary.className = 'history-item';
+                        summary.style.display = 'block';
+
+                        const contentDiv = document.createElement('div');
+                        contentDiv.className = 'history-title';
+                        contentDiv.textContent = favInfo.message.content.substring(0, 50) + (favInfo.message.content.length > 50 ? '...' : ''); // Truncate for summary
+                        contentDiv.style.whiteSpace = 'normal';
+                        contentDiv.style.paddingBottom = '8px';
+
+                        const dateDiv = document.createElement('div');
+                        dateDiv.className = 'history-date';
+                        dateDiv.textContent = new Date(favInfo.message.timestamp).toLocaleString();
+
+                        summary.addEventListener('click', (e) => {
+                            // Prevent click from propagating to the details element, which would toggle it.
+                            // And only trigger navigation if the click is on the summary's content, not the expand/collapse marker.
+                            if (e.target.closest('.history-item-content-wrapper')) {
+                                e.preventDefault();
+                                loadChat(favInfo.chatId, `message-${favInfo.messageIndex}`);
+                            }
+                        });
+
+                        const fullContent = document.createElement('div');
+                        fullContent.style.padding = "8px 16px 8px 32px";
+                        fullContent.innerHTML = markdownToHtml(favInfo.message.content);
+
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'history-item-content-wrapper';
+                        wrapper.appendChild(contentDiv);
+                        wrapper.appendChild(dateDiv);
+
+                        summary.appendChild(wrapper);
+                        details.appendChild(summary);
+                        details.appendChild(fullContent);
+
+                        favoritesList.appendChild(details);
+                    });
+                }
+                chatHistoryPanel.appendChild(favoritesList);
+            };
+
+            if (shouldSetupPanel) {
+                setupSidePanel(render, favorites);
+            } else {
+                const existingList = chatHistoryPanel.querySelector('.history-list');
+                if (existingList) existingList.remove();
+                render(favorites);
+            }
+        }
+
+        function setupSidePanel(renderFunction, data) {
+            chatHistoryPanel.innerHTML = '';
+
+            const header = document.createElement('div');
+            header.className = 'side-panel-header';
+
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.id = 'side-panel-search';
+            searchInput.placeholder = '搜索...';
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value;
+                if (panelMode === 'history') {
+                    if (typeof AndroidChatInterface !== 'undefined') {
+                        const filteredSessionsJson = AndroidChatInterface.searchHistory(searchTerm);
+                        const filtered = JSON.parse(filteredSessionsJson);
+                        renderHistoryList(filtered, false);
+                    }
+                } else {
+                    const filtered = allFavoriteMessages.filter(fav => fav.message.content.toLowerCase().includes(searchTerm.toLowerCase()));
+                    renderFavoritesListInPanel(filtered, false);
+                }
+            });
+            header.appendChild(searchInput);
+            chatHistoryPanel.appendChild(header);
+            renderFunction(data);
+        }
 
         messageInput.addEventListener('focus', () => {
             showPasteButtonWithDelay();
@@ -851,7 +1116,7 @@
                     const parsedSession = JSON.parse(initialSessionJson);
                     currentChatId = parsedSession.id;
                     if (parsedSession.messages && parsedSession.messages.length > 0) {
-                        parsedSession.messages.forEach((msg, index) => { addMessageToUI(msg.role, msg.content, true, index); });
+                        parsedSession.messages.forEach((msg, index) => { addMessageToUI(msg.role, msg.content, true, index, currentChatId); });
                     } else {
                         showWelcomeMessage();
                     }
