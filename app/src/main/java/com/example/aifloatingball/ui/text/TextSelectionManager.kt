@@ -132,9 +132,15 @@ class TextSelectionManager(private val context: Context, private val windowManag
 
         val menuContent = floatingMenuView!!.findViewById<View>(R.id.text_selection_menu_content)
 
+        // 关键修复：在使用前检查 menuContent 是否为 null
+        if (menuContent == null) {
+            Log.e(TAG, "Could not find menuContent view in text_selection_menu layout. Aborting.")
+            hideTextSelectionMenu()
+            return
+        }
+
         // 全屏的根视图监听触摸事件，以实现"点击外部"隐藏的功能
         floatingMenuView!!.setOnTouchListener { _, event ->
-            // 只在ACTION_DOWN时检查，避免重复触发
             if (event.action == MotionEvent.ACTION_DOWN) {
             val contentRect = Rect()
             menuContent.getGlobalVisibleRect(contentRect)
@@ -853,6 +859,13 @@ class TextSelectionManager(private val context: Context, private val windowManag
             .inflate(R.layout.text_selection_menu, null)
 
         val menuContent = floatingMenuView!!.findViewById<View>(R.id.text_selection_menu_content)
+
+        // 关键修复：在使用前检查 menuContent 是否为 null
+        if (menuContent == null) {
+            Log.e(TAG, "Could not find menuContent view in text_selection_menu layout. Aborting.")
+            hideTextSelectionMenu()
+            return
+        }
 
         // 全屏的根视图监听触摸事件，以实现"点击外部"隐藏的功能
         floatingMenuView!!.setOnTouchListener { _, event ->

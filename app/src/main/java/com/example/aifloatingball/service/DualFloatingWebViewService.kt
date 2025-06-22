@@ -147,16 +147,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 创建浮动窗口并立即获取WebViews
         val xmlWebViews = windowManager.createFloatingWindow()
 
-        windowManager.floatingView?.setOnTouchListener { _, event ->
-            if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
-                Log.d(TAG, "Outside touch detected, stopping service.")
-                this.stopSelf()
-                true
-            } else {
-                false
-            }
-        }
-
         // 使用同步获取的WebViews初始化WebViewManager
         Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
         if (xmlWebViews.any { it != null }) {

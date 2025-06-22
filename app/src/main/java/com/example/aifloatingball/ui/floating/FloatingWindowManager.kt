@@ -27,6 +27,7 @@ import kotlin.math.abs
 import com.bumptech.glide.Glide
 import com.example.aifloatingball.manager.ChatManager
 import android.util.Log
+import android.view.ViewConfiguration
 import android.view.ViewTreeObserver
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
@@ -78,8 +79,6 @@ class FloatingWindowManager(
     private var initialWidth: Int = 0
     private var initialHeight: Int = 0
 
-    private val gestureDetector: GestureDetector
-
     private var isDragging = false
     private var lastDragX: Float = 0f
     private var lastDragY: Float = 0f
@@ -118,7 +117,6 @@ class FloatingWindowManager(
     
     init {
         initializeWindowManager()
-        gestureDetector = GestureDetector(context, GestureListener())
     }
 
     private fun dpToPx(dp: Int): Int {
@@ -179,6 +177,7 @@ class FloatingWindowManager(
 
     @SuppressLint("ClickableViewAccessibility")
     fun createFloatingWindow(): List<CustomWebView?> {
+        val TAG = "FloatingWindowManager"
         Log.d(TAG, "FloatingWindowManager: 创建浮动窗口 createFloatingWindow()")
         val inflater = LayoutInflater.from(context)
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
@@ -190,29 +189,6 @@ class FloatingWindowManager(
         thirdWebView = _floatingView?.findViewById(R.id.third_floating_webview)
         
         searchInput = _floatingView?.findViewById<EditText>(R.id.dual_search_input)
-        
-        // 核心修复：实施新的、精确的焦点管理逻辑
-        // 1. 移除旧的、可能冲突的监听器
-        searchInput?.onFocusChangeListener = null
-        
-        // 2. 当用户触摸输入框时，才使窗口可聚焦以弹出键盘
-        searchInput?.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) {
-                setFloatingWindowFocusable(true)
-            }
-            // 返回false，以允许系统处理默认的触摸事件（如光标定位）
-            false
-        }
-        
-        // 3. 当输入框失去焦点时，将整个窗口恢复为不可聚焦状态
-        searchInput?.onFocusChangeListener = View.OnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
-                showPasteButton()
-            } else {
-                setFloatingWindowFocusable(false)
-                hidePasteButton()
-            }
-        }
         
         val saveEnginesButton = _floatingView?.findViewById<ImageButton>(R.id.btn_save_engines)
         val windowCountButton = _floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
@@ -268,30 +244,46 @@ class FloatingWindowManager(
             true
         }
         
-        // 移除 topControlBar 的触摸监听器，以允许子视图（按钮、输入框）接收点击事件。
-        // topControlBar?.setOnTouchListener { _, event ->
-        //     gestureDetector.onTouchEvent(event)
-        //     handleDrag(event) 
-        //     true
-        // }
-
-        // 新增：将拖动逻辑应用到 webviewsScrollContainer
-        webviewsScrollContainer?.setOnTouchListener { _, event ->
-            // 首先，让手势检测器处理事件
-            val handledByGesture = gestureDetector.onTouchEvent(event)
-
-            // 如果是手指抬起事件，并且之前正在拖动，就保存状态
-            if (event.action == MotionEvent.ACTION_UP) {
-                if (isDragging) {
-                    params?.let { p ->
-                        windowStateCallback.onWindowStateChanged(p.x, p.y, p.width, p.height)
+        // 方案核心：手动实现顶部栏的拖动，以避免事件冲突
+        val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+        topControlBar?.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    initialX = params?.x ?: 0
+                    initialY = params?.y ?: 0
+                    isDragging = false
+                    // 关键：始终返回false，让子视图（按钮）有机会处理DOWN事件
+                    return@setOnTouchListener false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isDragging) {
+                        params?.x = initialX + (event.rawX - initialTouchX).toInt()
+                        params?.y = initialY + (event.rawY - initialTouchY).toInt()
+                        windowManager?.updateViewLayout(_floatingView, params)
+                        return@setOnTouchListener true
                     }
-                    isDragging = false // 拖动结束
+                    
+                    val dx = event.rawX - initialTouchX
+                    val dy = event.rawY - initialTouchY
+                    if (abs(dx) > touchSlop || abs(dy) > touchSlop) {
+                        isDragging = true
+                        // 返回true以捕获后续的MOVE和UP事件
+                        return@setOnTouchListener true
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (isDragging) {
+                        // 如果是在拖动，消费UP事件并重置
+                        isDragging = false
+                        windowStateCallback.onWindowStateChanged(params?.x ?: 0, params?.y ?: 0, params?.width ?: 0, params?.height ?: 0)
+                        return@setOnTouchListener true
+                    }
                 }
             }
-
-            // 如果是拖动事件，就消费掉。否则，让子视图（WebView）处理。
-            handledByGesture
+            // 对于所有其他情况（特别是未开始拖动的MOVE和UP），不消费事件
+            return@setOnTouchListener false
         }
 
         // 新增：设置返回键监听器
@@ -330,7 +322,7 @@ class FloatingWindowManager(
         // (visibleCenter / webViewWidthPx) 会直接给出粗略的索引
         val activeIndex = (visibleCenter / webViewWidthPx).coerceIn(0, 2)
 
-        Log.d(TAG, "Determined active WebView index: $activeIndex (ScrollX: $scrollX, Center: $visibleCenter)")
+        Log.d("FloatingWindowManager", "Determined active WebView index: $activeIndex (ScrollX: $scrollX, Center: $visibleCenter)")
         lastActiveWebViewIndex = activeIndex
         return activeIndex
     }
@@ -484,6 +476,7 @@ class FloatingWindowManager(
     }
     
     fun removeFloatingWindow() {
+        val TAG = "FloatingWindowManager"
         Log.d(TAG, "FloatingWindowManager: 移除浮动窗口 removeFloatingWindow()")
         _floatingView?.let {
             try {
@@ -501,6 +494,7 @@ class FloatingWindowManager(
      * 这是修改窗口焦点和输入法行为的唯一入口。
      */
     fun setFloatingWindowFocusable(focusable: Boolean) {
+        val TAG = "FloatingWindowManager"
         params?.let { p ->
             if (focusable) {
                 // 移除阻止获取焦点的标志、备用输入法焦点标志和不可触摸标志
@@ -529,6 +523,7 @@ class FloatingWindowManager(
     }
 
     fun updateViewLayout(view: View?, layoutParams: WindowManager.LayoutParams?) {
+        val TAG = "FloatingWindowManager"
         if (view != null && layoutParams != null) {
             try {
                 params = layoutParams  // 更新内部params
@@ -571,6 +566,7 @@ class FloatingWindowManager(
      */
     @SuppressLint("ClickableViewAccessibility")
     private fun setupKeyboardManagement() {
+        val TAG = "FloatingWindowManager"
         val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
         val scrollContainer = _floatingView?.findViewById<HorizontalScrollView>(R.id.webviews_scroll_container)
 
@@ -609,6 +605,7 @@ class FloatingWindowManager(
      * 新增：设置滚动时对WebView焦点的管理，以防止内部输入框自动激活
      */
     private fun setupWebViewFocusManagementOnScroll() {
+        val TAG = "FloatingWindowManager"
         val scrollContainer = _floatingView?.findViewById<HorizontalScrollView>(R.id.webviews_scroll_container)
         val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
         val handler = Handler(Looper.getMainLooper())
@@ -649,6 +646,7 @@ class FloatingWindowManager(
      * 实现 BackPressListener 接口来处理返回键事件
      */
     override fun onBackButtonPressed(): Boolean {
+        val TAG = "FloatingWindowManager"
         val webViews = getXmlDefinedWebViews()
         val activeWebView = webViews.getOrNull(lastActiveWebViewIndex)
 
@@ -749,68 +747,25 @@ class FloatingWindowManager(
                     .setDuration(200)
                     .withEndAction {
                         it.visibility = View.GONE
-                        (_floatingView as? ViewGroup)?.removeView(it)
-                        pasteButton = null
-                    }.start()
+                    }
             }
         }
     }
 
     private fun pasteFromClipboard() {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val pasteData = clipboard.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
-        if (!pasteData.isNullOrBlank()) {
-            val editText = searchInput ?: return
-            val start = editText.selectionStart.coerceAtLeast(0)
-            val end = editText.selectionEnd.coerceAtLeast(0)
-            editText.text.replace(start, end, pasteData)
-            Toast.makeText(context, "已粘贴", Toast.LENGTH_SHORT).show()
-        }
-    }
+        val clip = clipboard.primaryClip
+        if (clip != null && clip.itemCount > 0) {
+            val textToPaste = clip.getItemAt(0).text
+            if (!textToPaste.isNullOrEmpty()) {
+                val currentText = searchInput?.text?.toString() ?: ""
+                val selectionStart = searchInput?.selectionStart ?: 0
+                val selectionEnd = searchInput?.selectionEnd ?: 0
 
-    fun getWebViewContainer(): LinearLayout? = webViewContainer
-    
-    private inner class GestureListener : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent): Boolean {
-            isDragging = false
-            params?.let {
-                initialX = it.x
-                initialY = it.y
+                val newText = StringBuilder(currentText).replace(selectionStart, selectionEnd, textToPaste.toString()).toString()
+                searchInput?.setText(newText)
+                searchInput?.setSelection(selectionStart + textToPaste.length)
             }
-            return true // 必须返回true才能继续接收后续事件
-        }
-
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
-            // 因为拖动和点击区域已经分离，所以不需要在这里处理点击逻辑
-            return super.onSingleTapUp(e)
-        }
-
-        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (e1 == null) return false
-
-            // 核心逻辑：判断是垂直拖动还是水平滑动
-            // 首次进入onScroll时，isDragging是false
-            if (!isDragging) {
-                // 只有当垂直滚动的绝对距离大于水平滚动的绝对距离时，我们才认定为拖动窗口
-                if (abs(e2.rawY - e1.rawY) > abs(e2.rawX - e1.rawX)) {
-                    isDragging = true
-                } else {
-                    // 否则，我们认为是水平滑动，不进行处理，让HorizontalScrollView接管
-                    return false
-                }
-            }
-            
-            // 一旦确定是拖动状态，就更新窗口位置
-            if (isDragging) {
-                params?.let { p ->
-                    p.x = initialX + (e2.rawX - e1.rawX).toInt()
-                    p.y = initialY + (e2.rawY - e1.rawY).toInt()
-                    windowManager?.updateViewLayout(_floatingView, p)
-                }
-                return true // 消费了拖动事件
-            }
-
-            return false
         }
     }
 
@@ -821,6 +776,5 @@ class FloatingWindowManager(
     companion object {
         private const val MIN_WIDTH = 200
         private const val MIN_HEIGHT = 200
-        private const val TAG = "FloatingWindowManager"
     }
 } 
