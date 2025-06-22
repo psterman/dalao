@@ -48,7 +48,7 @@
     <color name="dynamic_island_input_hint">#AAAAAA</color>
     <color name="dynamic_island_preview_background">#1AFFFFFF</color>
     <color name="dynamic_island_scrollbar_track">#1AFFFFFF</color>
-    <color name="dynamic_island_scrollbar_thumb">#80FFFFFF</color>
+    <color name="dynamic_island_scrollbar_thumb">#4DFFFFFF</color>
     <color name="dynamic_island_mini_preview_background">#2C2C2E</color>
     <color name="dynamic_island_mini_preview_stroke">#5A5A5A</color>
     <color name="dynamic_island_mini_preview_placeholder">#5A5A5A</color>
@@ -68,4 +68,7 @@
     <color name="accent">#03DAC5</color>
     <color name="dialog_background_color">#FF333333</color>
     <color name="icon_tint_color_def">#FFFFFFFF</color>
+
+    <!-- Adaptive Colors -->
+    <color name="icon_tint_adaptive">#FFFFFFFF</color>
 </resources> 

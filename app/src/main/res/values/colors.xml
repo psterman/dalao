@@ -168,7 +168,7 @@
     <color name="dynamic_island_input_hint">#888888</color>
     <color name="dynamic_island_preview_background">#0F000000</color>
     <color name="dynamic_island_scrollbar_track">#1A000000</color>
-    <color name="dynamic_island_scrollbar_thumb">#4D000000</color>
+    <color name="dynamic_island_scrollbar_thumb">#66FFFFFF</color>
     <color name="dynamic_island_mini_preview_background">@android:color/white</color>
     <color name="dynamic_island_mini_preview_stroke">#E0E0E0</color>
     <color name="dynamic_island_mini_preview_placeholder">#EAEAEA</color>
@@ -190,5 +190,8 @@
     <color name="paste_button_text_light">#333333</color>
     <color name="paste_button_bg_dark">#424242</color>
     <color name="paste_button_text_dark">#FFFFFF</color>
+
+    <!-- Adaptive Colors -->
+    <color name="icon_tint_adaptive">#FF333333</color>
 
 </resources> 

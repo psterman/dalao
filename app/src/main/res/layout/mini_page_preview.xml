@@ -28,7 +28,7 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_add_circle_outline"
-                app:tint="@color/dynamic_island_mini_preview_add_icon" />
+                app:tint="@color/icon_tint_adaptive" />
 
         </LinearLayout>
 
