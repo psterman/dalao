@@ -25,10 +25,10 @@
             android:visibility="visible">
 
             <ImageView
+                android:id="@+id/iv_add_icon"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:src="@drawable/ic_add_circle_outline"
-                app:tint="@color/icon_tint_adaptive" />
+                android:src="@drawable/ic_add_circle_outline" />
 
         </LinearLayout>
 

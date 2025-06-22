@@ -910,6 +910,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             filledContent.visibility = View.GONE
             clearButton.visibility = View.GONE
             aiPromptInfo.visibility = View.GONE
+
+            // Programmatically set the "+" icon tint to ensure it respects the theme
+            val addIcon = hintState.findViewById<ImageView>(R.id.iv_add_icon)
+            val themedColor = getColorFromAttr(pageView.context, com.google.android.material.R.attr.colorOnSurface)
+            addIcon.setColorFilter(themedColor)
         }
         updateGlobalHintVisibility()
     }
