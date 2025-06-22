@@ -178,7 +178,7 @@ class FloatingWindowManager(
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    fun createFloatingWindow() {
+    fun createFloatingWindow(): List<CustomWebView?> {
         Log.d(TAG, "FloatingWindowManager: 创建浮动窗口 createFloatingWindow()")
         val inflater = LayoutInflater.from(context)
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
@@ -268,10 +268,30 @@ class FloatingWindowManager(
             true
         }
         
-        topControlBar?.setOnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
-            handleDrag(event) 
-            true
+        // 移除 topControlBar 的触摸监听器，以允许子视图（按钮、输入框）接收点击事件。
+        // topControlBar?.setOnTouchListener { _, event ->
+        //     gestureDetector.onTouchEvent(event)
+        //     handleDrag(event) 
+        //     true
+        // }
+
+        // 新增：将拖动逻辑应用到 webviewsScrollContainer
+        webviewsScrollContainer?.setOnTouchListener { _, event ->
+            // 首先，让手势检测器处理事件
+            val handledByGesture = gestureDetector.onTouchEvent(event)
+
+            // 如果是手指抬起事件，并且之前正在拖动，就保存状态
+            if (event.action == MotionEvent.ACTION_UP) {
+                if (isDragging) {
+                    params?.let { p ->
+                        windowStateCallback.onWindowStateChanged(p.x, p.y, p.width, p.height)
+                    }
+                    isDragging = false // 拖动结束
+                }
+            }
+
+            // 如果是拖动事件，就消费掉。否则，让子视图（WebView）处理。
+            handledByGesture
         }
 
         // 新增：设置返回键监听器
@@ -286,12 +306,12 @@ class FloatingWindowManager(
         setupWebViewFocusManagementOnScroll()
         
         try {
-            if (_floatingView?.isAttachedToWindow == false) {
-        windowManager?.addView(_floatingView, params)
-            }
+            windowManager?.addView(_floatingView, params)
         } catch (e: Exception) {
-            android.util.Log.e("FloatingWindowManager", "Error adding view: ${e.message}")
+            Log.e(TAG, "Failed to add floating window view", e)
         }
+
+        return listOf(firstWebView, secondWebView, thirdWebView)
     }
 
     private fun determineActiveWebViewIndex(): Int {
@@ -447,79 +467,6 @@ class FloatingWindowManager(
                 }
             }
         }
-    }
-    
-    private fun handleDrag(event: MotionEvent) {
-        params?.let { p ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    isDragging = true // Mark dragging started
-                    lastDragX = event.rawX
-                    lastDragY = event.rawY
-                    // initialX and initialY are set by GestureListener.onDown
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (isDragging) { // Only move if dragging
-                        // Calculate delta from the point where dragging ACTUALLY started (lastDragX/Y)
-                        // not from e1 (original onDown) which might be outdated if onScroll didn't happen immediately.
-                        // However, for smooth drag from onScroll, e1 (initial onDown) is better.
-                        // The current onScroll uses initialX/Y + (e2.rawX - e1.rawX).
-                        // This separate handleDrag might be redundant if GestureListener handles it well.
-                        // For now, let's keep it simple, GestureListener.onScroll handles the update.
-                    }
-                }
-                MotionEvent.ACTION_UP -> {
-                    if (isDragging) { // Only save state if a drag actually occurred
-                         windowStateCallback.onWindowStateChanged(p.x, p.y, p.width, p.height)
-                    }
-                    isDragging = false // Reset dragging state
-                }
-            }
-        }
-    }
-
-    private inner class GestureListener : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent): Boolean {
-            isDragging = false 
-            lastDragX = e.rawX
-            lastDragY = e.rawY
-            params?.let {
-                initialX = it.x
-                initialY = it.y
-            }
-            return true
-        }
-        
-        override fun onSingleTapUp(e: MotionEvent): Boolean {
-            _floatingView?.findViewById<EditText>(R.id.dual_search_input)?.requestFocus()
-            return true
-        }
-
-        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (e1 == null) return false 
-
-            isDragging = true 
-            params?.let { p ->
-                p.x = initialX + (e2.rawX - e1.rawX).toInt()
-                p.y = initialY + (e2.rawY - e1.rawY).toInt()
-                windowManager?.updateViewLayout(_floatingView, p)
-            }
-            return true
-        }
-
-        // It's good practice to also save state on ACTION_UP after a scroll.
-        // This can be handled in the top-level onTouchEvent or here if onScroll returns true and then ACTION_UP occurs.
-        // The current handleDrag's ACTION_UP handles this.
-    }
-
-    fun getWebViewContainer(): LinearLayout? = webViewContainer
-    
-    fun getXmlDefinedWebViews(): List<CustomWebView?> {
-        return listOf(firstWebView, secondWebView, thirdWebView)
-    }
-    
-    fun resetScrollPosition() {
-        // mainScrollView?.scrollTo(0, 0) // Removed as mainScrollView is removed
     }
     
     /**
@@ -821,9 +768,59 @@ class FloatingWindowManager(
         }
     }
 
+    fun getWebViewContainer(): LinearLayout? = webViewContainer
+    
+    private inner class GestureListener : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean {
+            isDragging = false
+            params?.let {
+                initialX = it.x
+                initialY = it.y
+            }
+            return true // 必须返回true才能继续接收后续事件
+        }
+
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            // 因为拖动和点击区域已经分离，所以不需要在这里处理点击逻辑
+            return super.onSingleTapUp(e)
+        }
+
+        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+            if (e1 == null) return false
+
+            // 核心逻辑：判断是垂直拖动还是水平滑动
+            // 首次进入onScroll时，isDragging是false
+            if (!isDragging) {
+                // 只有当垂直滚动的绝对距离大于水平滚动的绝对距离时，我们才认定为拖动窗口
+                if (abs(e2.rawY - e1.rawY) > abs(e2.rawX - e1.rawX)) {
+                    isDragging = true
+                } else {
+                    // 否则，我们认为是水平滑动，不进行处理，让HorizontalScrollView接管
+                    return false
+                }
+            }
+            
+            // 一旦确定是拖动状态，就更新窗口位置
+            if (isDragging) {
+                params?.let { p ->
+                    p.x = initialX + (e2.rawX - e1.rawX).toInt()
+                    p.y = initialY + (e2.rawY - e1.rawY).toInt()
+                    windowManager?.updateViewLayout(_floatingView, p)
+                }
+                return true // 消费了拖动事件
+            }
+
+            return false
+        }
+    }
+
+    fun getXmlDefinedWebViews(): List<CustomWebView?> {
+        return listOf(firstWebView, secondWebView, thirdWebView)
+    }
+
     companion object {
-        private const val MIN_WIDTH = 200 
-        private const val MIN_HEIGHT = 150
+        private const val MIN_WIDTH = 200
+        private const val MIN_HEIGHT = 200
         private const val TAG = "FloatingWindowManager"
     }
 } 

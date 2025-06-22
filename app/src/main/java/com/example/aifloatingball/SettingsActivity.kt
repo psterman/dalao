@@ -273,29 +273,15 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             // 搜索引擎管理入口
-            findPreference<Preference>("search_engine_manager")?.apply {
-                setOnPreferenceClickListener {
-                    try {
-                startActivity(Intent(requireContext(), SearchEngineSettingsActivity::class.java))
+            findPreference<Preference>("search_engine_manager")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), SearchEngineManagerActivity::class.java))
                 true
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        false
-                    }
-                }
             }
             
             // AI搜索引擎管理入口（移除重复的ai_engine_settings）
-            findPreference<Preference>("ai_search_engine_manager")?.apply {
-                setOnPreferenceClickListener {
-                    try {
-                startActivity(Intent(requireContext(), AISearchEngineSettingsActivity::class.java))
+            findPreference<Preference>("ai_search_engine_manager")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), SearchEngineManagerActivity::class.java))
                 true
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        false
-                    }
-                }
             }
             
             // 应用搜索设置入口
@@ -338,16 +324,9 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             // AI API设置入口
-            findPreference<Preference>("ai_api_settings")?.apply {
-                setOnPreferenceClickListener {
-                    try {
+            findPreference<Preference>("ai_api_settings")?.setOnPreferenceClickListener {
                 startActivity(Intent(requireContext(), AIApiSettingsActivity::class.java))
                 true
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        false
-                    }
-                }
             }
             
             // 恢复窗口原始状态
@@ -359,6 +338,12 @@ class SettingsActivity : AppCompatActivity() {
                 editor.remove(DualFloatingWebViewService.KEY_WINDOW_HEIGHT)
                 editor.apply()
                 
+                true
+            }
+
+            findPreference<Preference>("select_apps_for_notification")?.setOnPreferenceClickListener {
+                val intent = Intent(requireContext(), com.example.aifloatingball.settings.AppSelectionActivity::class.java)
+                startActivity(intent)
                 true
             }
         }

@@ -59,6 +59,9 @@ import android.text.TextWatcher
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.os.Looper
+import com.example.aifloatingball.utils.BitmapUtils
+import android.graphics.BitmapFactory
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -75,6 +78,12 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private val idleHandler = Handler(android.os.Looper.getMainLooper())
     private var fadeOutRunnable: Runnable? = null
+
+    // For notification bar
+    private var notificationBarView: View? = null
+    private var notificationBarParams: WindowManager.LayoutParams? = null
+    private val notificationHideHandler = Handler(Looper.getMainLooper())
+    private var notificationHideRunnable: Runnable? = null
 
     // 新增：用于处理粘贴按钮的 Handler 和 Runnable
     private var pasteButtonView: View? = null
@@ -123,6 +132,27 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
     }
 
+    private val notificationReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.getStringExtra(NotificationListener.EXTRA_COMMAND)) {
+                NotificationListener.COMMAND_POSTED -> {
+                    val title = intent.getStringExtra(NotificationListener.EXTRA_TITLE) ?: ""
+                    val text = intent.getStringExtra(NotificationListener.EXTRA_TEXT) ?: ""
+                    val iconBytes = intent.getByteArrayExtra(NotificationListener.EXTRA_ICON)
+                    val icon = iconBytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+
+                    // Prefer text content for search, but use title as a fallback.
+                    val contentToSearch = if (text.isNotBlank()) text else title
+                    val displayText = "From: $title - $text".trim()
+
+                    if (contentToSearch.isNotBlank()) {
+                        showNotificationBar(displayText, contentToSearch, icon)
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "FloatingWindowServiceChannel"
@@ -143,12 +173,16 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         textSelectionManager = TextSelectionManager(this, windowManager)
         initializeViews()
+        initializeNotificationBar()
         setupFloatingBall()
         loadSearchEngines()
         loadSavedCombos()
         loadAndDisplayAppSearch()
         startForegroundService()
         resetIdleTimer() // Start idle timer on creation
+
+        val filter = IntentFilter(NotificationListener.ACTION_NOTIFICATION)
+        LocalBroadcastManager.getInstance(this).registerReceiver(notificationReceiver, filter)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -161,9 +195,12 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     override fun onDestroy() {
         super.onDestroy()
         if (floatingView != null) windowManager.removeView(floatingView)
+        if (notificationBarView != null) windowManager.removeView(notificationBarView)
         settingsManager.unregisterOnSharedPreferenceChangeListener(this)
         idleHandler.removeCallbacksAndMessages(null) // Clean up handler
+        notificationHideHandler.removeCallbacksAndMessages(null)
         hidePasteButton()
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -294,6 +331,70 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
         updateSearchModeVisibility()
         updateBallAlpha()
+    }
+
+    private fun initializeNotificationBar() {
+        val inflater = LayoutInflater.from(themedContext)
+        notificationBarView = inflater.inflate(R.layout.notification_bar_layout, null).apply {
+            visibility = View.GONE // Initially hidden
+            setOnClickListener {
+                val searchText = it.tag as? String
+                if (!searchText.isNullOrBlank()) {
+                    val intent = Intent(this@FloatingWindowService, DualFloatingWebViewService::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        putExtra("SEARCH_QUERY", searchText)
+                    }
+                    startService(intent)
+                }
+                // Hide bar after click, and cancel the auto-hide
+                notificationHideRunnable?.let { runnable -> notificationHideHandler.removeCallbacks(runnable) }
+                visibility = View.GONE
+            }
+        }
+
+        notificationBarParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            y = 50 // Margin from top
+        }
+
+        windowManager.addView(notificationBarView, notificationBarParams)
+    }
+
+    private fun showNotificationBar(displayText: String, searchText: String, icon: android.graphics.Bitmap?) {
+        notificationBarView?.let { bar ->
+            val textView = bar.findViewById<TextView>(R.id.notification_text)
+            val iconView = bar.findViewById<ImageView>(R.id.notification_app_icon)
+
+            textView.text = displayText
+            bar.tag = searchText // Store search text in the tag
+
+            if (icon != null) {
+                iconView.setImageBitmap(icon)
+                iconView.visibility = View.VISIBLE
+            } else {
+                iconView.visibility = View.GONE
+            }
+
+            if (bar.visibility == View.GONE) {
+                bar.visibility = View.VISIBLE
+            }
+
+            // Always reset the hide timer
+            notificationHideRunnable?.let { notificationHideHandler.removeCallbacks(it) }
+            notificationHideRunnable = Runnable {
+                bar.visibility = View.GONE
+            }
+            notificationHideHandler.postDelayed(notificationHideRunnable!!, 5000)
+        }
     }
 
     private fun setupFloatingBall() {

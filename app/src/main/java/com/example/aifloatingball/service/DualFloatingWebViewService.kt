@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import android.content.ClipboardManager
 import android.content.ClipDescription
+import android.view.ContextThemeWrapper
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -143,8 +144,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         notificationManager.createNotificationChannel()
         startForeground(NOTIFICATION_ID, notificationManager.createNotification())
         
-        // 创建浮动窗口
-        windowManager.createFloatingWindow()
+        // 创建浮动窗口并立即获取WebViews
+        val xmlWebViews = windowManager.createFloatingWindow()
 
         windowManager.floatingView?.setOnTouchListener { _, event ->
             if (event.action == android.view.MotionEvent.ACTION_OUTSIDE) {
@@ -156,23 +157,20 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             }
         }
 
-        // 延迟初始化，确保UI已经准备就绪
-        handler.postDelayed({
-            val xmlWebViews = windowManager.getXmlDefinedWebViews()
-            Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
-            if (xmlWebViews.any { it != null }) {
-                webViewManager = WebViewManager(this, xmlWebViews, windowManager)
-                textSelectionManager = webViewManager.textSelectionManager
+        // 使用同步获取的WebViews初始化WebViewManager
+        Log.d(TAG, "获取到的XML定义的WebView数量: ${xmlWebViews.count { it != null }}")
+        if (xmlWebViews.any { it != null }) {
+            webViewManager = WebViewManager(this, xmlWebViews, windowManager)
+            textSelectionManager = webViewManager.textSelectionManager
 
-                // 创建时不再主动加载任何内容。
-                // 所有加载逻辑都将由 onStartCommand 及其处理的 Intent 触发。
-                // 这可以从根本上解决 onCreate 和 onStartCommand 之间的竞态条件。
-                Log.d(TAG, "WebViewManager 已初始化，等待 onStartCommand 指令。")
-            } else {
-                Log.e(TAG, "错误: XML中的WebView未找到，无法初始化WebViewManager。")
-                stopSelf() // 如果关键视图找不到，停止服务
-            }
-        }, 100) // 延迟100毫秒
+            // 创建时不再主动加载任何内容。
+            // 所有加载逻辑都将由 onStartCommand 及其处理的 Intent 触发。
+            // 这可以从根本上解决 onCreate 和 onStartCommand 之间的竞态条件。
+            Log.d(TAG, "WebViewManager 已初始化，等待 onStartCommand 指令。")
+        } else {
+            Log.e(TAG, "错误: createFloatingWindow 未返回有效的WebView，无法初始化WebViewManager。")
+            stopSelf() // 如果关键视图找不到，停止服务
+        }
         
         // 注册设置变更监听器
         settingsManager.registerOnSettingChangeListener<String>("left_window_search_engine") { _, value ->
@@ -238,7 +236,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         val tempWebViewFactory = com.example.aifloatingball.ui.webview.WebViewFactory(this)
         textSelectionManager = tempWebViewFactory.textSelectionManager
         
-        windowManager = FloatingWindowManager(this, this, textSelectionManager)
+        val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
+        windowManager = FloatingWindowManager(themedContext, this, textSelectionManager)
         settingsManager = SettingsManager.getInstance(this)
         searchEngineHandler = SearchEngineHandler(settingsManager)
         intentParser = IntentParser()
@@ -267,16 +266,22 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         // 确保WebViewManager已经初始化
         if (!::webViewManager.isInitialized) {
             Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
-            // 在这种情况下，我们依赖onCreate中的postDelayed来初始化。
             // 延迟处理意图，确保UI和管理器已准备就绪。
             handler.postDelayed({
                 intent?.let { handleSearchIntent(it) }
-            }, 200) // 稍微长一点的延迟，以确保onCreate的延迟已经执行
+            }, 200)
         } else {
             // 如果已经初始化，则立即处理
             intent?.let { handleSearchIntent(it) }
         }
         
+        // 恢复窗口状态的逻辑已不再需要，因为状态现在由WebView自身和窗口管理器在创建时处理。
+        // handler.postDelayed({
+        //     if (isWebViewManagerInitialized()) {
+        //         // webViewManager.restoreWebViewStates() // 此方法已删除
+        //     }
+        // }, 300)
+
         return START_STICKY
     }
 
@@ -335,8 +340,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
         }
         
-        // 重置滚动条
-        windowManager.resetScrollPosition()
+        // 重置滚动条的功能已不再需要
+        // windowManager.resetScrollPosition()
     }
 
     /**

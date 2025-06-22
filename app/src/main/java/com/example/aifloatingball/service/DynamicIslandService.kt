@@ -190,13 +190,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     override fun onCreate() {
         super.onCreate()
+
+        // Create notification channel and start foreground immediately
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, createNotification())
+
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         appSearchSettings = AppSearchSettings.getInstance(this)
         settingsManager = SettingsManager.getInstance(this) // Initialize SettingsManager
-        
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, createNotification())
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         showDynamicIsland()

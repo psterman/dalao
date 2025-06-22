@@ -164,6 +164,12 @@
             app:iconSpaceReserved="false" />
 
         <Preference
+            app:key="notification_forwarding_settings"
+            app:title="通知转发设置"
+            app:summary="选择特定应用的通知显示在小横条上"
+            app:iconSpaceReserved="false" />
+
+        <Preference
             app:key="app_search_settings"
             app:title="应用搜索设置"
             app:summary="管理搜索按钮的显示和排序" />
@@ -187,6 +193,12 @@
             app:title="剪贴板监听"
             app:summary="监听剪贴板变化并提供快捷搜索"
             app:defaultValue="true"
+            app:iconSpaceReserved="false" />
+
+        <Preference
+            app:key="notification_forwarding_settings"
+            app:title="通知转发设置"
+            app:summary="选择特定应用的通知显示在小横条上"
             app:iconSpaceReserved="false" />
 
         <SwitchPreferenceCompat
@@ -225,6 +237,24 @@
             app:key="ai_default_search_mode"
             app:title="默认使用AI搜索模式"
             app:summary="启用后默认使用AI搜索引擎"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="notification_category"
+        app:title="通知转发">
+
+        <SwitchPreferenceCompat
+            app:key="forward_notifications"
+            app:title="启用通知转发"
+            app:summary="将指定App的通知显示在小横条上"
+            app:defaultValue="false" />
+
+        <Preference
+            app:key="select_apps_for_notification"
+            app:title="选择应用"
+            app:summary="选择需要转发通知的应用"
+            app:dependency="forward_notifications" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>
