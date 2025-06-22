@@ -54,6 +54,7 @@ interface WindowStateCallback {
  */
 class FloatingWindowManager(
     private val context: Context,
+    private val service: DualFloatingWebViewService,
     private val windowStateCallback: WindowStateCallback,
     private val textSelectionManager: TextSelectionManager
 ) : KeyEventInterceptorView.BackPressListener {
@@ -202,21 +203,19 @@ class FloatingWindowManager(
         // 新增：获取全局标准引擎容器
         val globalStdContainer = _floatingView?.findViewById<LinearLayout>(R.id.global_standard_engine_container)
 
-        (context as? DualFloatingWebViewService)?.let {
-            val initialCount = it.getCurrentWindowCount()
-            windowCountToggleText?.text = initialCount.toString()
-            android.util.Log.d("FloatingWindowManager", "初始化窗口数量显示为: $initialCount")
-        }
+        val initialCount = service.getCurrentWindowCount()
+        windowCountToggleText?.text = initialCount.toString()
+        android.util.Log.d("FloatingWindowManager", "初始化窗口数量显示为: $initialCount")
 
         closeButton?.setOnClickListener {
-            (context as? DualFloatingWebViewService)?.stopSelf()
+            service.stopSelf()
         }
 
         searchInput?.setOnEditorActionListener { v, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
                 val query = v.text.toString()
-                (context as? DualFloatingWebViewService)?.performSearch(query)
-                true 
+                service.performSearch(query)
+                true
             } else {
                 false
             }
@@ -229,14 +228,12 @@ class FloatingWindowManager(
 
         saveEnginesButton?.setOnClickListener {
             val query = searchInput?.text.toString()
-             (context as? DualFloatingWebViewService)?.performSearch(query)
+            service.performSearch(query)
         }
 
         windowCountButton?.setOnClickListener {
-            (context as? DualFloatingWebViewService)?.let {
-                val newCount = it.toggleAndReloadWindowCount()
-                windowCountToggleText?.text = newCount.toString()
-            }
+            val newCount = service.toggleAndReloadWindowCount()
+            windowCountToggleText?.text = newCount.toString()
         }
 
         resizeHandle?.setOnTouchListener { _, event ->
@@ -247,43 +244,36 @@ class FloatingWindowManager(
         // 方案核心：手动实现顶部栏的拖动，以避免事件冲突
         val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
         topControlBar?.setOnTouchListener { _, event ->
+            val x = event.rawX
+            val y = event.rawY
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
+                    initialTouchX = x
+                    initialTouchY = y
                     initialX = params?.x ?: 0
                     initialY = params?.y ?: 0
                     isDragging = false
-                    // 关键：始终返回false，让子视图（按钮）有机会处理DOWN事件
-                    return@setOnTouchListener false
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (isDragging) {
-                        params?.x = initialX + (event.rawX - initialTouchX).toInt()
-                        params?.y = initialY + (event.rawY - initialTouchY).toInt()
-                        windowManager?.updateViewLayout(_floatingView, params)
-                        return@setOnTouchListener true
-                    }
-                    
-                    val dx = event.rawX - initialTouchX
-                    val dy = event.rawY - initialTouchY
-                    if (abs(dx) > touchSlop || abs(dy) > touchSlop) {
+                    val dx = abs(x - initialTouchX)
+                    val dy = abs(y - initialTouchY)
+                    // 只有在已经开始拖动，或者移动距离超过阈值时才更新
+                    if (isDragging || dx > touchSlop || dy > touchSlop) {
                         isDragging = true
-                        // 返回true以捕获后续的MOVE和UP事件
-                        return@setOnTouchListener true
+                        params?.x = initialX + (x - initialTouchX).toInt()
+                        params?.y = initialY + (y - initialTouchY).toInt()
+                        windowManager?.updateViewLayout(_floatingView, params)
                     }
                 }
                 MotionEvent.ACTION_UP -> {
                     if (isDragging) {
-                        // 如果是在拖动，消费UP事件并重置
-                        isDragging = false
                         windowStateCallback.onWindowStateChanged(params?.x ?: 0, params?.y ?: 0, params?.width ?: 0, params?.height ?: 0)
-                        return@setOnTouchListener true
                     }
+                    isDragging = false
                 }
             }
-            // 对于所有其他情况（特别是未开始拖动的MOVE和UP），不消费事件
-            return@setOnTouchListener false
+            // 返回 isDragging，当且仅当正在拖动时才消费事件，否则让事件传递给子视图（按钮）
+            return@setOnTouchListener isDragging
         }
 
         // 新增：设置返回键监听器
@@ -342,7 +332,7 @@ class FloatingWindowManager(
                 // 在当前活动的WebView中执行AI搜索
                 val query = searchInput?.text.toString()
                 val activeIndex = determineActiveWebViewIndex()
-                (context as? DualFloatingWebViewService)?.performSearchInWebView(activeIndex, query, engine.name)
+                service.performSearchInWebView(activeIndex, query, engine.name)
             }
             FaviconLoader.loadIcon(iconView, engine.url, engine.iconResId)
             container.addView(iconView)
@@ -364,7 +354,7 @@ class FloatingWindowManager(
                 // 在当前活动的WebView中执行标准搜索
                 val query = searchInput?.text?.toString() ?: ""
                 val activeIndex = determineActiveWebViewIndex()
-                (context as? DualFloatingWebViewService)?.performSearchInWebView(activeIndex, query, engine.name)
+                service.performSearchInWebView(activeIndex, query, engine.name)
             }
             FaviconLoader.loadIcon(iconView, engine.url, engine.iconResId)
             container.addView(iconView)
@@ -384,7 +374,7 @@ class FloatingWindowManager(
         for (engine in enabledEngines) {
             val iconView = createIconView(engine.name) {
                 val query = searchInput?.text?.toString() ?: ""
-                (context as? DualFloatingWebViewService)?.performSearchInWebView(webViewIndex, query, engine.name)
+                service.performSearchInWebView(webViewIndex, query, engine.name)
             }
             FaviconLoader.loadIcon(iconView, engine.url, engine.iconResId)
             container.addView(iconView)
@@ -672,7 +662,7 @@ class FloatingWindowManager(
 
         // 如果所有WebView都不能后退，则关闭服务
         Log.d(TAG, "No WebView can go back, stopping service.")
-        (context as? DualFloatingWebViewService)?.stopSelf()
+        service.stopSelf()
         return true // 事件已处理（通过关闭窗口）
     }
 

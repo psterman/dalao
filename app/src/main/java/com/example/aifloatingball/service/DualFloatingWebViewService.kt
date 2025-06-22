@@ -227,7 +227,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         textSelectionManager = tempWebViewFactory.textSelectionManager
         
         val themedContext = ContextThemeWrapper(this, R.style.Theme_FloatingWindow)
-        windowManager = FloatingWindowManager(themedContext, this, textSelectionManager)
+        windowManager = FloatingWindowManager(themedContext, this, this, textSelectionManager)
         settingsManager = SettingsManager.getInstance(this)
         searchEngineHandler = SearchEngineHandler(settingsManager)
         intentParser = IntentParser()
