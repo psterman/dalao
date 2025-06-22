@@ -99,7 +99,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var windowContainerView: FrameLayout? = null // The stage
     private var animatingIslandView: FrameLayout? = null // The moving/transforming view
     private var islandContentView: View? = null // The content (icons, searchbox)
-    private var touchProxyView: View? = null
     private var configPanelView: View? = null
     private var searchEngineSelectorView: View? = null
     private var selectorScrimView: View? = null
@@ -264,43 +263,43 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // 2. The Animating View
         animatingIslandView = FrameLayout(this).apply {
-            background = ColorDrawable(Color.TRANSPARENT) // Make it transparent
+            // The background is set during transitions
+            background = ColorDrawable(Color.TRANSPARENT)
             layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            visibility = View.GONE // Initially hidden
         }
         
         // 3. The Content
         islandContentView = inflater.inflate(R.layout.dynamic_island_layout, animatingIslandView, false)
+        islandContentView?.background = ColorDrawable(Color.TRANSPARENT)
         notificationIconContainer = islandContentView!!.findViewById(R.id.notification_icon_container)
         notificationIconContainer.visibility = View.GONE // Permanently hide notification icons
         appSearchIconScrollView = islandContentView!!.findViewById(R.id.app_search_icon_scroll_view)
         appSearchIconContainer = islandContentView!!.findViewById(R.id.app_search_icon_container)
         animatingIslandView!!.addView(islandContentView)
 
-        // 4. The Proxy (Touch Area)
-        touchProxyView = View(this).apply {
-            // This is now purely a touch area, so it's completely transparent
-            setBackgroundColor(Color.TRANSPARENT)
-            layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-                topMargin = statusBarHeight
+        // 4. Create a larger, invisible touch target for the indicator
+        val touchTargetView = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight * 2, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            setOnClickListener {
+                if (!isSearchModeActive) transitionToSearchState()
             }
         }
 
-        // 5. The Proxy Indicator (Visual Bar)
+        // 5. The Proxy Indicator (Visual Bar), now inside the touch target
         proxyIndicatorView = View(this).apply {
             background = getDrawable(R.drawable.touch_proxy_bar)
-            layoutParams = FrameLayout.LayoutParams(36.dpToPx(), 4.dpToPx(), Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-                // Position it in the middle of the status bar height area
+            layoutParams = FrameLayout.LayoutParams(36.dpToPx(), 4.dpToPx(), Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply {
+                // Position it vertically centered within the status bar area.
                 topMargin = statusBarHeight + (statusBarHeight - 4.dpToPx()) / 2
             }
         }
+        touchTargetView.addView(proxyIndicatorView)
         setupProxyIndicator()
         
         windowContainerView!!.addView(animatingIslandView)
-        windowContainerView!!.addView(touchProxyView)
-        windowContainerView!!.addView(proxyIndicatorView)
+        windowContainerView!!.addView(touchTargetView)
         
-        touchProxyView?.setOnClickListener { if (!isSearchModeActive) transitionToSearchState() }
-
         updateIslandVisibility()
 
         try {
@@ -314,7 +313,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (isSearchModeActive) return
         isSearchModeActive = true
 
-        touchProxyView?.visibility = View.GONE
         proxyIndicatorView?.visibility = View.GONE
         proxyIndicatorAnimator?.cancel()
 
@@ -323,64 +321,58 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             it.width = WindowManager.LayoutParams.MATCH_PARENT
             it.height = WindowManager.LayoutParams.MATCH_PARENT
             it.flags = it.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                it.blurBehindRadius = 60 // Apply blur
-                windowContainerView?.setBackgroundColor(Color.argb(90, 0, 0, 0)) // Add a slight dim
-            } else {
-                windowContainerView?.setBackgroundColor(Color.argb(128, 0, 0, 0)) // Fallback to dimming
-            }
-
             windowManager.updateViewLayout(windowContainerView, it)
+        }
+
+        // Animate the background scrim
+        ValueAnimator.ofArgb(Color.TRANSPARENT, Color.argb(90, 0, 0, 0)).apply {
+            duration = 350
+            addUpdateListener { animator ->
+                windowContainerView?.setBackgroundColor(animator.animatedValue as Int)
+            }
+            start()
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            windowParams?.blurBehindRadius = 60
         }
         
         setupOutsideTouchListener()
         setupInsetsListener()
 
+        // --- Simplified Animation ---
+        animatingIslandView?.visibility = View.VISIBLE
         val islandParams = animatingIslandView?.layoutParams as FrameLayout.LayoutParams
-        val targetHeight = 56.dpToPx() // New height for icons (48dp icon + 8dp padding)
+        islandParams.width = expandedWidth
+        islandParams.height = 56.dpToPx() // Final height
+        islandParams.topMargin = statusBarHeight
+        animatingIslandView?.layoutParams = islandParams
+        animatingIslandView?.background = ColorDrawable(Color.TRANSPARENT) // Make the container transparent
 
-        val originalBackground = animatingIslandView?.background?.mutate() // Mutate to avoid changing original drawable
+        animatingIslandView?.alpha = 0f
 
-        ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 350
-            interpolator = AccelerateDecelerateInterpolator()
-            val startWidth = islandParams.width
-            val startHeight = islandParams.height
-
-            addUpdateListener {
-                val fraction = it.animatedValue as Float
-                
-                // Animate position and size
-                islandParams.topMargin = (statusBarHeight * fraction).toInt() // Moves down
-                islandParams.width = (startWidth + (expandedWidth - startWidth) * fraction).toInt()
-                islandParams.height = (startHeight + (targetHeight - startHeight) * fraction).toInt()
-                animatingIslandView?.layoutParams = islandParams
-                
-                // Fade out background
-                originalBackground?.alpha = ((1 - fraction) * 255).toInt()
-            }
-            addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationStart(animation: Animator) {
-                    notificationIconContainer.visibility = View.GONE
-                }
+        animatingIslandView?.animate()
+            ?.withLayer()
+            ?.alpha(1f)
+            ?.setInterpolator(AccelerateDecelerateInterpolator())
+            ?.setDuration(350)
+            ?.setListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
-                    animatingIslandView?.background = null // Remove background at the end
-                    showConfigPanel()
-                    populateAppSearchIcons()
-                    appSearchIconScrollView?.visibility = View.VISIBLE
+                     showConfigPanel()
+                     populateAppSearchIcons()
+                     appSearchIconScrollView?.visibility = View.VISIBLE
 
-                    searchInput?.requestFocus()
-                    if (settingsManager.isAutoPasteEnabled()) {
-                        autoPaste(searchInput)
-                    }
-                    uiHandler.postDelayed({
-                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
-                    }, 100)
+                     searchInput?.requestFocus()
+                     if (settingsManager.isAutoPasteEnabled()) {
+                         autoPaste(searchInput)
+                     }
+                     uiHandler.postDelayed({
+                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                         imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
+                     }, 100)
                 }
             })
-        }.start()
+            ?.start()
     }
 
     private fun transitionToCompactState() {
@@ -394,58 +386,53 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         searchInput?.clearFocus()
         searchInput?.setText("")
 
-        val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
-        windowParams?.let {
-            it.width = expandedWidth
-            it.height = statusBarHeight * 2
-            it.flags = it.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        // --- Simplified Animation ---
+        animatingIslandView?.animate()
+            ?.withLayer() // Treat as a single unit for animation
+            ?.alpha(0f)
+            ?.setInterpolator(AccelerateDecelerateInterpolator())
+            ?.setDuration(350)
+            ?.withEndAction {
+                // All animations are done, now resize the window and clean up.
+                animatingIslandView?.visibility = View.GONE
+                appSearchIconScrollView?.visibility = View.GONE
+                clearAppSearchIcons()
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                it.blurBehindRadius = 0 // Remove blur
+                // Now that animations are over, fully remove the config panel.
+                if (configPanelView != null) {
+                    try {
+                        windowContainerView?.removeView(configPanelView)
+                    } catch (e: Exception) { /* ignore */ }
+                    configPanelView = null
+                }
+
+                val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
+                windowParams?.let {
+                    it.width = expandedWidth
+                    it.height = statusBarHeight * 2
+                    it.flags = it.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        it.blurBehindRadius = 0
+                    }
+                    windowManager.updateViewLayout(windowContainerView, it)
+                }
+
+                // Ensure background is fully transparent after resize
+                windowContainerView?.setBackgroundColor(Color.TRANSPARENT)
+
+                proxyIndicatorView?.visibility = View.VISIBLE
+                setupProxyIndicator()
             }
+            ?.start()
 
-            windowManager.updateViewLayout(windowContainerView, it)
-        }
-
-        windowContainerView?.setBackgroundColor(Color.TRANSPARENT)
-        windowContainerView?.setOnTouchListener(null)
-        windowContainerView?.setOnApplyWindowInsetsListener(null)
-
-        val islandParams = animatingIslandView?.layoutParams as FrameLayout.LayoutParams
-        ValueAnimator.ofFloat(1f, 0f).apply { // Animate from 1 down to 0
+        // Also fade out the background scrim simultaneously
+        ValueAnimator.ofArgb((windowContainerView?.background as? ColorDrawable)?.color ?: Color.argb(90, 0, 0, 0), Color.TRANSPARENT).apply {
             duration = 350
-            interpolator = AccelerateDecelerateInterpolator()
-
-            val startWidth = islandParams.width
-            val startHeight = islandParams.height
-            val background = getDrawable(R.drawable.dynamic_island_background)
-            animatingIslandView?.background = background // Set it immediately
-
-            addUpdateListener {
-                val fraction = it.animatedValue as Float // fraction goes from 1 to 0
-                
-                // Animate position and size
-                islandParams.topMargin = (statusBarHeight * fraction).toInt()
-                islandParams.width = (compactWidth + (startWidth - compactWidth) * fraction).toInt()
-                islandParams.height = (statusBarHeight + (startHeight - statusBarHeight) * fraction).toInt()
-                animatingIslandView?.layoutParams = islandParams
-                
-                // Fade in background
-                background?.alpha = ((1 - fraction) * 255).toInt()
+            addUpdateListener { animator ->
+                windowContainerView?.setBackgroundColor(animator.animatedValue as Int)
             }
-            addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationStart(animation: Animator) {
-                    appSearchIconScrollView?.visibility = View.GONE
-                    clearAppSearchIcons()
-                }
-                override fun onAnimationEnd(animation: Animator) {
-                    // notificationIconContainer.visibility = View.VISIBLE // Do not show icons again
-                    touchProxyView?.visibility = View.VISIBLE
-                    proxyIndicatorView?.visibility = View.VISIBLE
-                    setupProxyIndicator()
-                }
-            })
-        }.start()
+            start()
+        }
     }
     
     private fun setupSearchListeners() {
@@ -723,21 +710,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun cleanupExpandedViews() {
-        val panelToRemove = configPanelView
-        if (panelToRemove != null) {
-            panelToRemove.animate()
-                .alpha(0f)
-                .translationY(100f)
-                .setDuration(250)
-                .setInterpolator(AccelerateDecelerateInterpolator())
-                .withEndAction {
-                    try {
-                        windowContainerView?.removeView(panelToRemove)
-                    } catch (e: Exception) { /* ignore */ }
-                }
-                .start()
-            configPanelView = null
-            // Nullify new views as well
+        if (configPanelView != null) {
+            configPanelView?.visibility = View.GONE
+            // Don't remove the view or null the reference yet. Postpone to after animation.
             pagePreview1 = null
             pagePreview2 = null
             pagePreview3 = null
@@ -753,7 +728,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             animatingIslandView?.setRenderEffect(blurEffect)
             configPanelView?.setRenderEffect(blurEffect)
         }
-        configPanelView?.visibility = View.GONE
+        configPanelView?.visibility = View.VISIBLE
 
         val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
         val inflater = LayoutInflater.from(themedContext)
@@ -866,6 +841,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val finalTranslationY = -currentKeyboardHeight.toFloat()
                 translationY = finalTranslationY + 100f
                 animate()
+                    .withLayer()
                     .alpha(1f)
                     .translationY(finalTranslationY)
                     .setDuration(350)
@@ -996,6 +972,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (viewToRemove == null) return
 
         viewToRemove.animate()
+            .withLayer()
             .alpha(0f)
             .translationY(100f)
             .setDuration(250)
@@ -1196,8 +1173,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
 
                 scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundResource(R.drawable.app_icon_background)
-                clipToOutline = true
+                setBackgroundColor(Color.TRANSPARENT) // Explicitly remove any background
                 contentDescription = appConfig.appName
                 setOnClickListener {
                     val query = searchInput?.text?.toString()?.trim() ?: ""
@@ -1473,19 +1449,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun setupProxyIndicator() {
         proxyIndicatorAnimator?.cancel()
+        proxyIndicatorAnimator = null
         proxyIndicatorView?.let { view ->
             val opacity = settingsManager.getBallAlpha()
-            val baseAlpha = opacity / 100f
-
-            proxyIndicatorAnimator = ValueAnimator.ofFloat(baseAlpha, baseAlpha * 0.5f, baseAlpha).apply {
-                duration = 2000
-                repeatCount = ValueAnimator.INFINITE
-                interpolator = AccelerateDecelerateInterpolator()
-                addUpdateListener { animation ->
-                    view.alpha = animation.animatedValue as Float
-                }
-            }
-            proxyIndicatorAnimator?.start()
+            view.alpha = opacity / 100f
         }
     }
 }

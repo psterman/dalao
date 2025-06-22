@@ -20,6 +20,7 @@ import java.net.URL
 import java.nio.charset.StandardCharsets
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.util.Locale
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.example.aifloatingball.model.AISearchEngine
