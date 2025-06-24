@@ -49,7 +49,7 @@ class SearchEngineAdapter(
             val fullText = "$displayName$suffix"
             val spannable = SpannableString(fullText)
 
-            val secondaryColor = getColorFromAttr(context, com.google.android.material.R.attr.colorOnSurfaceVariant)
+            val secondaryColor = getColorFromAttr(context, android.R.attr.textColorSecondary)
 
             spannable.setSpan(
                 ForegroundColorSpan(secondaryColor),
@@ -68,7 +68,6 @@ class SearchEngineAdapter(
             holder.itemView.isClickable = true
         } else {
             holder.engineName.text = engine.displayName
-            holder.engineName.setTextColor(getColorFromAttr(context, android.R.attr.textColorPrimary))
             holder.engineUrl.isVisible = false
             holder.dragHandle.isVisible = false
             holder.itemView.isClickable = false

@@ -16,6 +16,10 @@
         <!-- Customize your theme here. -->
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
         <item name="icon_tint_color">@color/icon_tint_light_theme</item>
+
+        <!-- Explicitly define container colors for selection states -->
+        <item name="colorPrimaryContainer">@color/purple_200</item>
+        <item name="colorOnPrimaryContainer">@color/black</item>
     </style>
 
     <style name="Theme.AIFloatingBall.NoActionBar" parent="Theme.AIFloatingBall">

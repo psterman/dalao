@@ -60,6 +60,17 @@ class SettingsManager private constructor(context: Context) {
         }
     }
     
+    /**
+     * 获取所有搜索引擎，包括默认和自定义的。
+     * 自定义搜索引擎会覆盖同名的默认搜索引擎。
+     */
+    fun getAllSearchEngines(): MutableList<SearchEngine> {
+        val allEngines = SearchEngine.DEFAULT_ENGINES.associateBy { it.name }.toMutableMap()
+        val customEngines = getCustomSearchEngines()
+        customEngines.forEach { allEngines[it.name] = it }
+        return allEngines.values.toMutableList()
+    }
+    
     // 悬浮球透明度设置
     fun getBallAlpha(): Int {
         return prefs.getInt("ball_alpha", DEFAULT_BALL_ALPHA)
@@ -718,24 +729,25 @@ class SettingsManager private constructor(context: Context) {
         return prompt.toString()
     }
 
-    fun saveCustomSearchEngines(engines: List<SearchEngine>) {
-        val json = gson.toJson(engines)
-        prefs.edit().putString(KEY_CUSTOM_SEARCH_ENGINES, json).apply()
-        // We might want to notify listeners if anything depends on the full list
-    }
-
     fun getCustomSearchEngines(): MutableList<SearchEngine> {
         val json = prefs.getString(KEY_CUSTOM_SEARCH_ENGINES, null)
-        if (json != null) {
+        return if (json != null) {
             val type = object : TypeToken<MutableList<SearchEngine>>() {}.type
-            val engines: MutableList<SearchEngine> = gson.fromJson(json, type)
-            if (engines.isNotEmpty()) {
-                return engines
+            try {
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                Log.e("SettingsManager", "Failed to parse custom search engines", e)
+                mutableListOf()
             }
+        } else {
+            mutableListOf()
         }
-        // If json is null, or the parsed list is empty, return and save the default list.
-        val defaultEngines = SearchEngine.DEFAULT_ENGINES.toMutableList()
-        saveCustomSearchEngines(defaultEngines)
-        return defaultEngines
+    }
+
+    fun saveCustomSearchEngines(engines: List<SearchEngine>) {
+        // 只保存 isCustom 为 true 的引擎
+        val customEngines = engines.filter { it.isCustom }
+        val json = gson.toJson(customEngines)
+        prefs.edit().putString(KEY_CUSTOM_SEARCH_ENGINES, json).apply()
     }
 }

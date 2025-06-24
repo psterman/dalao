@@ -112,7 +112,7 @@ class SearchEngineListFragment : Fragment(R.layout.fragment_search_engine_list) 
     }
 
     private fun loadSearchEngines() {
-        allEngines = settingsManager.getCustomSearchEngines()
+        allEngines = settingsManager.getAllSearchEngines()
         enginesForCategory.clear()
         // Filter engines for the current category, show both default and custom
         enginesForCategory.addAll(allEngines.filter { it.category == category })

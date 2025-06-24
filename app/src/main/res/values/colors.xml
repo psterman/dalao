@@ -201,29 +201,25 @@
     <color name="dialog_background_dark">#2C2C2E</color>
     <color name="ripple_dark">#40FFFFFF</color>
     
+    <!-- Dark Theme Colors (Consolidated) -->
+    <color name="dark_primary">#FFBB86FC</color>
+    <color name="dark_primary_variant">#FF3700B3</color>
+    <color name="dark_on_primary">#FF000000</color>
+    <color name="dark_secondary">#FF03DAC5</color>
+    <color name="dark_secondary_variant">#FF018786</color>
+    <color name="dark_on_secondary">#FF000000</color>
+    <color name="icon_tint_dark_theme">#FFFFFFFF</color>
+    <color name="themed_primary_dark">#FFBB86FC</color>
+    <color name="paste_button_bg_dark">#FF3700B3</color>
+    <color name="paste_button_text_dark">#FFFFFFFF</color>
+
+    <!-- Toolbar Colors for new design -->
+    <color name="toolbar_background_light">#FFFFFF</color>
+    <color name="toolbar_background_dark">#FF121212</color>
+
     <!-- Tab Layout Colors -->
     <color name="tab_selected_background">#E0E0E0</color>
     <color name="tab_selected_text">#000000</color>
     <color name="tab_unselected_text">#757575</color>
-
-    <!-- Toolbar Colors for new design -->
-    <color name="toolbar_background_light">#FFFFFF</color>
-    <color name="toolbar_background_dark">#121212</color>
-
-    <!-- Added for Material 3 Dark Theme -->
-    <color name="dark_background">#121212</color>
-    <color name="dark_surface">#1E1E1E</color>
-    <color name="gray_400">#BDBDBD</color>
-
-    <color name="switch_thumb_disabled_dark">#616161</color>
-    <color name="switch_track_normal_dark">#9E9E9E</color>
-    <color name="dark_primary_variant">#3700B3</color>
-    <color name="dark_secondary">#03DAC6</color>
-    <color name="dark_secondary_variant">#018786</color>
-    <color name="dark_on_secondary">#000000</color>
-    <color name="icon_tint_dark_theme">#FFFFFF</color>
-    <color name="themed_primary_dark">#BB86FC</color>
-    <color name="paste_button_bg_dark">#373737</color>
-    <color name="paste_button_text_dark">#E0E0E0</color>
 
 </resources> 

@@ -39,7 +39,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         // 显示模式
         findPreference<ListPreference>("display_mode")?.setOnPreferenceChangeListener { _, newValue ->
             val mode = newValue as String
-                settingsManager.setDisplayMode(mode)
+            settingsManager.setDisplayMode(mode)
             updateCategoryVisibility(mode)
             Toast.makeText(requireContext(), "显示模式已切换，可能需要重启应用或返回主页后生效", Toast.LENGTH_LONG).show()
             true
@@ -49,8 +49,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         findPreference<ListPreference>("theme_mode")?.setOnPreferenceChangeListener { _, newValue ->
             settingsManager.setThemeMode((newValue as String).toInt())
             activity?.recreate()
-                true
-            }
+            true
+        }
 
         // 剪贴板监听
         findPreference<SwitchPreferenceCompat>("clipboard_listener")?.setOnPreferenceChangeListener { _, newValue ->
@@ -61,8 +61,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
         // 自动粘贴
         findPreference<SwitchPreferenceCompat>("auto_paste")?.setOnPreferenceChangeListener { _, newValue ->
             settingsManager.setAutoPasteEnabled(newValue as Boolean)
-                true
-            }
+            true
+        }
 
         findPreference<Preference>("view_search_history")?.setOnPreferenceClickListener {
             startActivity(Intent(requireContext(), SearchHistoryActivity::class.java))
@@ -89,13 +89,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private fun setupFloatingBallPreferences() {
         // 透明度
         findPreference<SeekBarPreference>("ball_alpha")?.setOnPreferenceChangeListener { _, newValue ->
-                val alpha = newValue as Int
-                settingsManager.setBallAlpha(alpha)
-                val intent = Intent("com.example.aifloatingball.ACTION_UPDATE_ALPHA")
-                intent.putExtra("alpha", alpha)
-                requireContext().sendBroadcast(intent)
-                true
-            }
+            val alpha = newValue as Int
+            settingsManager.setBallAlpha(alpha)
+            val intent = Intent("com.example.aifloatingball.ACTION_UPDATE_ALPHA")
+            intent.putExtra("alpha", alpha)
+            requireContext().sendBroadcast(intent)
+            true
+        }
 
         // 自动贴边隐藏
         findPreference<SwitchPreferenceCompat>("auto_hide")?.setOnPreferenceChangeListener { _, newValue ->
@@ -105,9 +105,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         // 左手模式
         findPreference<SwitchPreferenceCompat>("left_handed_mode")?.setOnPreferenceChangeListener { _, newValue ->
-                settingsManager.setLeftHandModeEnabled(newValue as Boolean)
-                true
-            }
+            settingsManager.setLeftHandModeEnabled(newValue as Boolean)
+            true
+        }
 
         // 主菜单管理
         findPreference<Preference>("menu_manager")?.setOnPreferenceClickListener {
@@ -119,9 +119,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
         findPreference<Preference>("floating_window_mode_manager")?.setOnPreferenceClickListener {
             // TODO: 创建或链接到对应的 Activity
             Toast.makeText(requireContext(), "此功能尚未实现", Toast.LENGTH_SHORT).show()
-                true
-            }
+            true
         }
+    }
 
     private fun setupDynamicIslandPreferences() {
         // 启用通知监听
@@ -141,16 +141,16 @@ class SettingsFragment : PreferenceFragmentCompat() {
         // 通知应用管理
         findPreference<Preference>("select_apps_for_notification")?.setOnPreferenceClickListener {
             startActivity(Intent(requireContext(), AppSelectionActivity::class.java))
-                true
-            }
+            true
         }
+    }
 
     private fun setupBrowserAndSearchPreferences() {
         // 默认搜索模式
         findPreference<SwitchPreferenceCompat>("search_default_ai_mode")?.setOnPreferenceChangeListener { _, newValue ->
             settingsManager.setDefaultAIMode(newValue as Boolean)
-                true
-            }
+            true
+        }
 
         // 默认打开页面
         findPreference<ListPreference>("default_page")?.setOnPreferenceChangeListener { _, newValue ->
