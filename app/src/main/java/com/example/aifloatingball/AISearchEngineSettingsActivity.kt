@@ -9,6 +9,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.adapter.AIEngineCategoryAdapter
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.service.DualFloatingWebViewService
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 
@@ -26,10 +27,9 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
         settingsManager = SettingsManager.getInstance(this)
 
         // 设置标题栏
-        supportActionBar?.apply {
-            title = "AI搜索引擎管理"
-            setDisplayHomeAsUpEnabled(true)
-        }
+        val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         // 初始化UI组件
         tabLayout = findViewById(R.id.tabLayout)

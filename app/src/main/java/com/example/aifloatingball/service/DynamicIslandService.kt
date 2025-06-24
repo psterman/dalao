@@ -75,6 +75,7 @@ import androidx.appcompat.app.AlertDialog
 import android.widget.Toast
 import android.content.ClipDescription
 import android.util.Log
+import com.example.aifloatingball.model.AppSearchConfig
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -445,7 +446,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         searchInput?.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                searchAction()
+                val query = searchInput?.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    hideKeyboard(searchInput)
+                    val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                        putExtra("search_query", query)
+                        putExtra("source", "灵动岛")
+                        putExtra("startTime", System.currentTimeMillis())
+                    }
+                    startService(intent)
+                    collapseIsland()
+                }
                 true
             } else {
                 false
@@ -469,10 +480,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // 使用引擎键名，让 DualFloatingWebViewService 处理 URL
             putExtra("engine_key", engine.name.lowercase())
             putExtra("search_source", "灵动岛") // 添加来源信息
-            }
-            startService(intent)
-            
-            transitionToCompactState()
+            putExtra("startTime", System.currentTimeMillis())
+        }
+        startService(intent)
+        
+        transitionToCompactState()
     }
 
     private fun addNotificationIcon(key: String, icon: android.graphics.Bitmap) {
@@ -1157,53 +1169,34 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun populateAppSearchIcons() {
         clearAppSearchIcons()
-        val enabledApps = appSearchSettings.getAppConfigs().filter { it.isEnabled }.sortedBy { it.order }
-
-        enabledApps.forEach { appConfig ->
-            val imageView = ImageView(ContextThemeWrapper(this, R.style.Theme_FloatingWindow)).apply {
-                val iconSize = 48.dpToPx()
-                val iconMargin = 8.dpToPx()
-                layoutParams = LinearLayout.LayoutParams(
-                    iconSize,
-                    iconSize
-                ).also { params ->
-                    params.setMargins(iconMargin, 0, iconMargin, 0)
+        val enabledApps = appSearchSettings.getEnabledAppConfigs()
+        enabledApps.forEach { config ->
+            val iconView = ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx()).also { params ->
+                    params.marginEnd = 12.dpToPx()
                 }
-                
                 try {
-                    val iconDrawable = packageManager.getApplicationIcon(appConfig.packageName)
-                    setImageDrawable(iconDrawable)
+                    setImageDrawable(packageManager.getApplicationIcon(config.packageName))
                 } catch (e: PackageManager.NameNotFoundException) {
-                    setImageResource(appConfig.iconResId) // Fallback icon
+                    setImageResource(config.iconResId) // Fallback
                 }
-
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundColor(Color.TRANSPARENT) // Explicitly remove any background
-                contentDescription = appConfig.appName
                 setOnClickListener {
-                    val query = searchInput?.text?.toString()?.trim() ?: ""
+                    val query = searchInput?.text.toString().trim()
                     if (query.isNotEmpty()) {
-                        try {
-                            val searchUri = Uri.parse(appConfig.searchUrl + URLEncoder.encode(query, "UTF-8"))
-                            val intent = Intent(Intent.ACTION_VIEW, searchUri).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                appConfig.packageName.takeIf { it.isNotEmpty() }?.let { setPackage(it) }
-                            }
-                            startActivity(intent)
-                            transitionToCompactState()
-                        } catch (e: ActivityNotFoundException) {
-                            // Handle cases where the app is not installed or the URL scheme is incorrect
-                            android.widget.Toast.makeText(this@DynamicIslandService, "${appConfig.appName} 未安装或无法响应搜索", android.widget.Toast.LENGTH_SHORT).show()
-                        } catch (e: Exception) {
-                            // Handle other potential errors
-                             android.widget.Toast.makeText(this@DynamicIslandService, "无法打开 ${appConfig.appName}", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        android.widget.Toast.makeText(this@DynamicIslandService, "请输入搜索内容", android.widget.Toast.LENGTH_SHORT).show()
+                        openAppWithSearch(config, query)
+                        // --- Search History ---
+                        val historyItem = mapOf(
+                            "keyword" to "${config.appName}: $query",
+                            "source" to "灵动岛-应用搜索",
+                            "timestamp" to System.currentTimeMillis(),
+                            "duration" to 0 // Duration is not applicable
+                        )
+                        settingsManager.addSearchHistoryItem(historyItem)
+                        // --- End Search History ---
                     }
                 }
             }
-            appSearchIconContainer?.addView(imageView)
+            appSearchIconContainer?.addView(iconView)
         }
     }
 
@@ -1458,6 +1451,104 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         proxyIndicatorView?.let { view ->
             val opacity = settingsManager.getBallAlpha()
             view.alpha = opacity / 100f
+        }
+    }
+
+    private fun expandIsland() {
+        if (isSearchModeActive) return
+        isSearchModeActive = true
+        animateIsland(compactWidth, expandedWidth)
+    }
+
+    private fun collapseIsland() {
+        if (!isSearchModeActive) return
+        isSearchModeActive = false
+        hideKeyboard(searchInput)
+        animateIsland(expandedWidth, compactWidth)
+    }
+
+    private fun animateIsland(fromWidth: Int, toWidth: Int) {
+        val animator = ValueAnimator.ofInt(fromWidth, toWidth)
+        animator.duration = 350
+        animator.interpolator = AccelerateDecelerateInterpolator()
+        animator.addUpdateListener {
+            animatingIslandView?.layoutParams?.width = it.animatedValue as Int
+            animatingIslandView?.requestLayout()
+        }
+        animator.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationStart(animation: Animator) {
+                if (toWidth > fromWidth) { // Expanding
+                    // Remove old content, add new content (search box, etc.)
+                    islandContentView = LayoutInflater.from(this@DynamicIslandService)
+                        .inflate(R.layout.dynamic_island_search_content, animatingIslandView, false)
+                    animatingIslandView?.addView(islandContentView)
+                    setupSearchInput(islandContentView!!)
+                    populateAppSearchIcons()
+                }
+            }
+            override fun onAnimationEnd(animation: Animator) {
+                if (toWidth < fromWidth) { // Collapsing
+                    animatingIslandView?.removeAllViews()
+                } else { // Expanding
+                    searchInput?.requestFocus()
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
+                }
+            }
+        })
+        animator.start()
+    }
+
+    private fun hideKeyboard(view: View?) {
+        view?.let {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(it.windowToken, 0)
+        }
+    }
+
+    private fun openAppWithSearch(config: com.example.aifloatingball.model.AppSearchConfig, query: String) {
+        try {
+            val url = config.searchUrl.replace("{q}", Uri.encode(query))
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // Important for making sure it opens in the correct app
+                setPackage(config.packageName)
+            }
+            startActivity(intent)
+            collapseIsland()
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "${config.appName} 未安装或无法处理搜索请求", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "启动 ${config.appName} 失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setupSearchInput(view: View) {
+        searchInput = view.findViewById(R.id.dynamic_island_input)
+        searchButton = view.findViewById(R.id.dynamic_island_send_button)
+
+        searchInput?.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                val query = searchInput?.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    hideKeyboard(searchInput)
+                    val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                        putExtra("search_query", query)
+                        putExtra("source", "灵动岛")
+                        putExtra("startTime", System.currentTimeMillis())
+                    }
+                    startService(intent)
+                    collapseIsland()
+                }
+                true
+            } else {
+                false
+            }
+        }
+
+        searchButton?.setOnClickListener {
+            // Trigger the same search action
+            searchInput?.onEditorAction(EditorInfo.IME_ACTION_SEARCH)
         }
     }
 }

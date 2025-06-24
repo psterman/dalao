@@ -7,16 +7,19 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import com.google.android.material.appbar.MaterialToolbar
 
 class AIApiSettingsActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.settings_activity)
+        setContentView(R.layout.activity_master_prompt_settings)
         
         // 设置标题栏
+        val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+        setSupportActionBar(toolbar)
         supportActionBar?.apply {
-            title = "AI API设置"
+            title = "AI API 设置"
             setDisplayHomeAsUpEnabled(true)
         }
 
@@ -24,7 +27,7 @@ class AIApiSettingsActivity : AppCompatActivity() {
         if (savedInstanceState == null) {
             supportFragmentManager
                 .beginTransaction()
-                .replace(R.id.settings, AIApiSettingsFragment())
+                .replace(R.id.settings_container, AIApiSettingsFragment())
                 .commit()
         }
     }

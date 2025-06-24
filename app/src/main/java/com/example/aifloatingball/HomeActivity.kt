@@ -166,7 +166,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         settingsManager = SettingsManager.getInstance(this)
         settingsManager.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
         
-        rootLayout = findViewById(R.id.webview_container)
+        rootLayout = findViewById(R.id.home_activity_root)
 
         // 计算边缘区域大小
         val density = resources.displayMetrics.density

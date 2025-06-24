@@ -1,16 +1,25 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme for dark mode. -->
-    <style name="Base.Theme.AIFloatingBall" parent="Theme.Material3.Dark.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+    <style name="Theme.AIFloatingBall" parent="Theme.Material3.Dark.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/purple_200</item>
+        <item name="colorPrimaryContainer">@color/purple_700</item>
+        <item name="colorOnPrimaryContainer">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <!-- Background and surface colors -->
+        <item name="android:colorBackground">@color/dark_background</item>
+        <item name="colorSurface">@color/dark_surface</item>
+        <item name="colorOnSurface">@color/white</item>
+        <item name="colorOnSurfaceVariant">@color/gray_400</item>
+        <!-- Status bar color. -->
+        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorSurface</item>
+        <!-- Other customizations -->
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
 
-    <style name="Theme.AIFloatingBall" parent="Base.Theme.AIFloatingBall">
-        <!-- Other theme attributes -->
-        <item name="colorPrimary">@color/themed_primary_dark</item>
-    </style>
-
-    <style name="Theme.FloatingWindow" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.FloatingWindow" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/themed_primary_dark</item>
         <item name="pasteButtonBackgroundColor">@color/paste_button_bg_dark</item>
         <item name="pasteButtonTextColor">@color/paste_button_text_dark</item>

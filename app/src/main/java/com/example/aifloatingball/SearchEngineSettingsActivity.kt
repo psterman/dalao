@@ -66,7 +66,7 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
                 } else {
                     enabledEngines.remove(engineName)
                 }
-                settingsManager.saveEnabledEngines(enabledEngines)
+                settingsManager.saveEnabledSearchEngines(enabledEngines)
                 sendBroadcast(Intent("com.example.aifloatingball.ACTION_UPDATE_MENU"))
             }
         )

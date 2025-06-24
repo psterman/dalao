@@ -463,13 +463,12 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun performSearch(query: String) {
         if (query.isNotBlank()) {
-            // 修复：不再使用此服务中的第一个引擎作为默认值，
-            // 而是从设置中获取为DualFloatingWebViewService的第一个窗口配置的默认引擎。
             val engineName = settingsManager.getSearchEngineForPosition(0)
             val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", query)
                 putExtra("engine_key", engineName)
-                putExtra("search_source", "悬浮窗")
+                putExtra("source", "悬浮窗")
+                putExtra("startTime", System.currentTimeMillis())
             }
             startService(serviceIntent)
             hideSearchInterface()
@@ -791,13 +790,12 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             val query = searchInput?.text.toString()
             val isAiEngine = engine is AISearchEngine
 
-            // 修复逻辑：对于AI引擎，无论是否有查询，都应启动服务。
-            // 对于普通引擎，则需要查询。
             if (isAiEngine || query.isNotBlank()) {
                 val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                    putExtra("search_query", query) // 查询可以为空
+                    putExtra("search_query", query)
                     putExtra("engine_key", engineName)
-                    putExtra("search_source", "悬浮窗")
+                    putExtra("source", "悬浮窗")
+                    putExtra("startTime", System.currentTimeMillis())
                 }
                 startService(serviceIntent)
                 hideSearchInterface()
@@ -864,7 +862,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                         putExtra("search_query", query)
                         putExtra("engine_key", engine.name) // Pass engine name as the key
-                        putExtra("search_source", "悬浮窗")
+                        putExtra("source", "悬浮窗")
+                        putExtra("startTime", System.currentTimeMillis())
                     }
                     startService(serviceIntent)
                 }
@@ -936,6 +935,15 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (intent.resolveActivity(packageManager) != null) {
                 startActivity(intent)
+                // --- Search History ---
+                val historyItem = mapOf(
+                    "keyword" to "${appConfig.appName}: $query",
+                    "source" to "悬浮窗-应用搜索",
+                    "timestamp" to System.currentTimeMillis(),
+                    "duration" to 0 // Duration is not applicable here
+                )
+                settingsManager.addSearchHistoryItem(historyItem)
+                // --- End Search History ---
             } else {
                 Toast.makeText(this, "无法在 ${appConfig.appName} 中搜索", Toast.LENGTH_SHORT).show()
             }

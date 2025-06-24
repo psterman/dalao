@@ -17,7 +17,8 @@ data class SearchEngine(
     override val searchUrl: String = url,
     val isAI: Boolean = false,
     val iconUrl: String? = null,
-    val category: SearchEngineCategory = SearchEngineCategory.GENERAL
+    val category: SearchEngineCategory = SearchEngineCategory.GENERAL,
+    val isCustom: Boolean = false
 ) : BaseSearchEngine, Parcelable {
     override fun getSearchUrl(query: String): String {
         return searchUrl.replace("{query}", query)
@@ -29,7 +30,7 @@ data class SearchEngine(
             // A1. 通用搜索引擎
             SearchEngine(name = "baidu", displayName = "百度", url = "https://www.baidu.com", iconResId = R.drawable.ic_baidu, description = "全球最大的中文搜索引擎", searchUrl = "https://www.baidu.com/s?wd={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "sogou", displayName = "搜狗", url = "https://www.sogou.com", iconResId = R.drawable.ic_sogou, description = "腾讯旗下，深度整合微信公众号和知乎内容", searchUrl = "https://www.sogou.com/web?query={query}", category = SearchEngineCategory.GENERAL),
-            SearchEngine(name = "360", displayName = "360搜索", url = "https://www.so.com", iconResId = R.drawable.ic_360, description = "奇虎360旗下，以\"安全\"为特色", searchUrl = "https://www.so.com/s?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "360", displayName = "360搜索", url = "https://www.so.com", iconResId = R.drawable.ic_360search, description = "奇虎360旗下，以\"安全\"为特色", searchUrl = "https://www.so.com/s?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "bing_cn", displayName = "必应", url = "https://cn.bing.com", iconResId = R.drawable.ic_bing, description = "微软旗下，提供高质量国际视野和学术搜索", searchUrl = "https://cn.bing.com/search?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "shenma", displayName = "神马", url = "https://m.sm.cn", iconResId = R.drawable.ic_search, description = "阿里巴巴旗下，专注于移动端体验", searchUrl = "https://m.sm.cn/s?q={query}", category = SearchEngineCategory.GENERAL),
 
@@ -49,7 +50,7 @@ data class SearchEngine(
             SearchEngine(name = "ifeng", displayName = "凤凰网", url = "https://search.ifeng.com", iconResId = R.drawable.ic_search, description = "提供全球视野的综合新闻资讯", searchUrl = "https://search.ifeng.com/listpage?q={query}", category = SearchEngineCategory.NEWS),
 
             // B1. 购物
-            SearchEngine(name = "taobao", displayName = "淘宝", url = "https://www.taobao.com", iconResId = R.drawable.ic_taobao, description = "中国最大的综合性电商平台", searchUrl = "https://s.taobao.com/search?q={query}", category = SearchEngineCategory.SHOPPING),
+            SearchEngine(name = "taobao", displayName = "淘宝", url = "https://www.taobao.com", iconResId = R.drawable.ic_web_default, description = "中国最大的综合性电商平台", searchUrl = "https://s.taobao.com/search?q={query}", category = SearchEngineCategory.SHOPPING),
             SearchEngine(name = "jd", displayName = "京东", url = "https://www.jd.com", iconResId = R.drawable.ic_jd, description = "以自营式家电和数码产品著称的电商平台", searchUrl = "https://search.jd.com/Search?keyword={query}", category = SearchEngineCategory.SHOPPING),
             SearchEngine(name = "pinduoduo", displayName = "拼多多", url = "https://www.pinduoduo.com", iconResId = R.drawable.ic_search, description = "以社交拼团为特色的电商平台", searchUrl = "https://mobile.yangkeduo.com/search_result.html?search_key={query}", category = SearchEngineCategory.SHOPPING),
             SearchEngine(name = "suning", displayName = "苏宁易购", url = "https://www.suning.com", iconResId = R.drawable.ic_search, description = "家电、3C、母婴产品等综合零售商", searchUrl = "https://search.suning.com/{query}/", category = SearchEngineCategory.SHOPPING),
@@ -57,9 +58,9 @@ data class SearchEngine(
             SearchEngine(name = "youzan", displayName = "有赞", url = "https://www.youzan.com", iconResId = R.drawable.ic_search, description = "商家服务公司，提供电商SaaS解决方案", searchUrl = "https://www.youzan.com/search?q={query}", category = SearchEngineCategory.SHOPPING),
 
             // B2. 社交与内容分享
-            SearchEngine(name = "weibo", displayName = "微博", url = "https://www.weibo.com", iconResId = R.drawable.ic_weibo, description = "中文社交媒体平台", searchUrl = "https://s.weibo.com/weibo?q={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine(name = "weibo", displayName = "微博", url = "https://www.weibo.com", iconResId = R.drawable.ic_web_default, description = "中文社交媒体平台", searchUrl = "https://s.weibo.com/weibo?q={query}", category = SearchEngineCategory.SOCIAL),
             SearchEngine(name = "zhihu", displayName = "知乎", url = "https://www.zhihu.com", iconResId = R.drawable.ic_zhihu, description = "高质量的问答社区", searchUrl = "https://www.zhihu.com/search?q={query}", category = SearchEngineCategory.SOCIAL),
-            SearchEngine(name = "douban", displayName = "豆瓣", url = "https://www.douban.com", iconResId = R.drawable.ic_douban, description = "关于书籍、电影、音乐等作品的社区", searchUrl = "https://www.douban.com/search?q={query}", category = SearchEngineCategory.SOCIAL),
+            SearchEngine(name = "douban", displayName = "豆瓣", url = "https://www.douban.com", iconResId = R.drawable.ic_web_default, description = "关于书籍、电影、音乐等作品的社区", searchUrl = "https://www.douban.com/search?q={query}", category = SearchEngineCategory.SOCIAL),
             SearchEngine(name = "xiaohongshu", displayName = "小红书", url = "https://www.xiaohongshu.com", iconResId = R.drawable.ic_xiaohongshu, description = "生活方式分享社区", searchUrl = "https://www.xiaohongshu.com/search_result?keyword={query}", category = SearchEngineCategory.SOCIAL),
 
             // C1. 视频
@@ -109,6 +110,7 @@ data class SearchEngine(
                     @Suppress("DEPRECATION")
                     parcel.readSerializable() as SearchEngineCategory?
                 }
+                val isCustom = parcel.readByte() != 0.toByte()
                 return SearchEngine(
                     name = name,
                     displayName = displayName,
@@ -118,7 +120,8 @@ data class SearchEngine(
                     searchUrl = searchUrl,
                     isAI = isAI,
                     iconUrl = iconUrl,
-                    category = category ?: SearchEngineCategory.GENERAL
+                    category = category ?: SearchEngineCategory.GENERAL,
+                    isCustom = isCustom
                 )
             }
 
@@ -142,6 +145,7 @@ data class SearchEngine(
         parcel.writeByte(if (isAI) 1.toByte() else 0.toByte())
         parcel.writeString(iconUrl)
         parcel.writeSerializable(category)
+        parcel.writeByte(if (isCustom) 1.toByte() else 0.toByte())
     }
 
     override fun describeContents(): Int = 0

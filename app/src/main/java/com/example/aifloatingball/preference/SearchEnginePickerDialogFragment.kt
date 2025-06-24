@@ -14,6 +14,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
+import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.SearchEngine
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -24,6 +25,7 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
     private lateinit var tabLayout: TabLayout
     private lateinit var recyclerView: RecyclerView
     private lateinit var listAdapter: SearchEngineAdapter
+    private lateinit var settingsManager: SettingsManager
     
     private var currentEngineId: String? = null
     private var selectedEngineIdInDialog: String = ""
@@ -47,6 +49,7 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
         currentEngineId = arguments?.getString(ARG_CURRENT_ENGINE_ID) ?: "baidu"
         selectedEngineIdInDialog = currentEngineId!!
         isAIMode = selectedEngineIdInDialog.startsWith("ai_")
+        settingsManager = SettingsManager.getInstance(requireContext())
 
         val view = layoutInflater.inflate(R.layout.dialog_search_engine_picker, null)
         
@@ -103,13 +106,19 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
 
     private fun getEngineList(isAI: Boolean): List<EngineItem> {
         return if (isAI) {
-            AISearchEngine.DEFAULT_AI_ENGINES.map { 
-                EngineItem("ai_${it.name}", it.displayName, it.iconResId, true)
-            }
+            val enabledAIEngines = settingsManager.getEnabledAIEngines()
+            AISearchEngine.DEFAULT_AI_ENGINES
+                .filter { enabledAIEngines.contains(it.name) }
+                .map { 
+                    EngineItem("ai_${it.name}", it.displayName, it.iconResId, true)
+                }
         } else {
-            SearchEngine.DEFAULT_ENGINES.map { 
-                EngineItem(it.name, it.displayName, it.iconResId, false)
-            }
+            val enabledSearchEngines = settingsManager.getEnabledSearchEngines()
+            SearchEngine.DEFAULT_ENGINES
+                .filter { enabledSearchEngines.contains(it.name) }
+                .map { 
+                    EngineItem(it.name, it.displayName, it.iconResId, false)
+                }
         }
     }
 

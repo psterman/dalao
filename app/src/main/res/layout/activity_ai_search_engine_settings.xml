@@ -9,10 +9,20 @@
     android:background="?android:attr/colorBackground"
     tools:context=".AISearchEngineSettingsActivity">
 
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        app:title="AI搜索引擎管理"
+        app:titleTextColor="?attr/colorOnPrimary" />
+
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        app:tabBackground="@color/tab_background_selector"
+        app:tabTextColor="@color/tab_text_selector"
         app:tabMode="fixed"
         app:tabGravity="fill"/>
 

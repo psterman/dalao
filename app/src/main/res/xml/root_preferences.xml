@@ -2,259 +2,275 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <Preference
-        app:key="master_prompt_settings"
-        app:title="@string/title_master_prompt_settings"
-        app:summary="@string/summary_master_prompt_settings"
-        app:icon="@drawable/ic_magic_wand">
-        <intent android:targetPackage="com.example.aifloatingball"
-                android:targetClass="com.example.aifloatingball.MasterPromptSettingsActivity"/>
-    </Preference>
-
+    <!-- ===================================================================== -->
+    <!-- =                           通用 (General)                           = -->
+    <!-- ===================================================================== -->
     <PreferenceCategory
-        app:title="外观设置"
+        app:title="通用"
         app:iconSpaceReserved="false">
 
         <ListPreference
             app:key="display_mode"
             app:title="显示模式"
-            app:summary="选择悬浮球或灵动岛模式"
+            app:summary="设置应用的主要交互方式"
             app:entries="@array/display_mode_entries"
             app:entryValues="@array/display_mode_values"
             app:defaultValue="floating_ball"
-            app:iconSpaceReserved="false" />
-
-        <MultiSelectListPreference
-            app:key="floating_window_display_mode"
-            app:title="悬浮窗显示模式"
-            app:summary="选择悬浮窗搜索界面要显示的模块（可多选）"
-            app:entries="@array/floating_window_display_mode_entries"
-            app:entryValues="@array/floating_window_display_mode_values"
-            app:defaultValue="@array/floating_window_display_mode_default_values"
-            app:iconSpaceReserved="false" />
+            app:icon="@drawable/ic_floating_mode"
+            app:useSimpleSummaryProvider="true"/>
 
         <ListPreference
             app:key="theme_mode"
-            app:title="主题模式"
-            app:summary="选择应用的主题模式"
+            app:title="主题"
+            app:summary="选择应用的显示主题"
             app:entries="@array/theme_mode_entries"
             app:entryValues="@array/theme_mode_values"
             app:defaultValue="-1"
-            app:iconSpaceReserved="false" />
-
-        <SeekBarPreference
-            app:key="ball_alpha"
-            app:title="悬浮球透明度"
-            app:summary="调整悬浮球的透明度"
-            android:max="100"
-            app:min="20"
-            app:defaultValue="85"
-            app:showSeekBarValue="true"
-            app:seekBarIncrement="1"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            app:key="left_handed_mode"
-            app:title="左手模式"
-            app:summary="将悬浮球默认显示在屏幕左侧"
-            app:defaultValue="false"
-            app:iconSpaceReserved="false" />
-
-        <Preference
-            app:key="ai_api_settings"
-            app:title="AI API设置"
-            app:summary="配置DeepSeek和ChatGPT的API密钥"/>
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        app:title="搜索设置"
-        app:icon="@drawable/ic_search_settings"
-        app:iconSpaceReserved="true">
-
-        <com.example.aifloatingball.preference.SearchEnginePreference
-            app:key="default_search_engine"
-            app:title="默认搜索引擎"
-            app:summary="选择默认使用的搜索引擎"
-            app:defaultValue="baidu"
-            app:iconSpaceReserved="true" />
-
-        <Preference
-            app:key="search_engine_manager"
-            app:title="普通搜索引擎管理"
-            app:summary="管理普通搜索引擎列表和选项"
-            app:icon="@drawable/ic_search"
-            app:iconSpaceReserved="true" />
-
-        <Preference
-            app:key="ai_search_engine_manager"
-            app:title="AI搜索引擎管理"
-            app:summary="管理AI搜索引擎列表和选项"
-            app:icon="@drawable/ic_ai_search"
-            app:iconSpaceReserved="true" />
-
-        <Preference
-            app:key="search_engine_group_manager"
-            app:title="搜索引擎组合管理"
-            app:summary="管理浮动窗口中显示的搜索引擎组合快捷方式"
-            app:icon="@drawable/ic_layers"
-            app:iconSpaceReserved="true" />
-
-        <SwitchPreferenceCompat
-            app:key="search_default_ai_mode"
-            app:title="默认AI模式"
-            app:summary="启动时默认使用AI搜索模式"
-            app:defaultValue="false"
-            app:icon="@drawable/ic_ai_search"
-            app:iconSpaceReserved="true" />
-
-        <PreferenceCategory
-            app:title="多窗口设置"
-            app:icon="@drawable/ic_layers"
-            app:iconSpaceReserved="true">
-
-            <Preference
-                app:title="多窗口说明"
-                app:summary="您可以在下方设置启动时自动打开的窗口数量和每个窗口的默认搜索引擎"
-                app:iconSpaceReserved="false"
-                app:selectable="false" />
-
-            <ListPreference
-                app:key="default_window_count"
-                app:title="默认窗口数量"
-                app:summary="设置启动时自动打开的WebView窗口数量"
-                app:entries="@array/window_count_entries"
-                app:entryValues="@array/window_count_values"
-                app:defaultValue="2"
-                app:iconSpaceReserved="false" />
-
-            <com.example.aifloatingball.preference.SearchEnginePreference
-                app:key="left_window_search_engine"
-                app:title="左侧窗口搜索引擎"
-                app:summary="选择左侧窗口默认使用的搜索引擎"
-                app:defaultValue="baidu"
-                app:iconSpaceReserved="true" />
-
-            <com.example.aifloatingball.preference.SearchEnginePreference
-                app:key="center_window_search_engine"
-                app:title="中间窗口搜索引擎"
-                app:summary="选择中间窗口默认使用的搜索引擎"
-                app:defaultValue="bing"
-                app:iconSpaceReserved="true" />
-
-            <com.example.aifloatingball.preference.SearchEnginePreference
-                app:key="right_window_search_engine"
-                app:title="右侧窗口搜索引擎"
-                app:summary="选择右侧窗口默认使用的搜索引擎"
-                app:defaultValue="google"
-                app:iconSpaceReserved="true" />
-
-            <Preference
-                app:key="reset_window_state"
-                app:title="恢复窗口原始状态"
-                app:summary="将浮动窗口的位置和大小恢复到默认设置"
-                app:iconSpaceReserved="false" />
-
-        </PreferenceCategory>
-
-        <SwitchPreferenceCompat
-            app:key="auto_paste"
-            app:title="自动粘贴"
-            app:summary="打开搜索框时自动粘贴剪贴板内容"
-            app:defaultValue="true"
-            app:iconSpaceReserved="false" />
-
-        <Preference
-            app:key="notification_forwarding_settings"
-            app:title="通知转发设置"
-            app:summary="选择特定应用的通知显示在小横条上"
-            app:iconSpaceReserved="false" />
-
-        <Preference
-            app:key="app_search_settings"
-            app:title="应用搜索设置"
-            app:summary="管理搜索按钮的显示和排序" />
-    </PreferenceCategory>
-
-    <PreferenceCategory
-        app:title="功能设置"
-        app:iconSpaceReserved="false">
-
-        <ListPreference
-            app:key="default_page"
-            app:title="默认页面"
-            app:summary="选择应用启动时显示的页面"
-            app:entries="@array/default_page_entries"
-            app:entryValues="@array/default_page_values"
-            app:defaultValue="home"
-            app:iconSpaceReserved="false" />
+            app:icon="@drawable/ic_settings"
+            app:useSimpleSummaryProvider="true"/>
 
         <SwitchPreferenceCompat
             app:key="clipboard_listener"
             app:title="剪贴板监听"
-            app:summary="监听剪贴板变化并提供快捷搜索"
+            app:summary="自动检测剪贴板内容并弹出搜索提示"
             app:defaultValue="true"
-            app:iconSpaceReserved="false" />
-
-        <Preference
-            app:key="notification_forwarding_settings"
-            app:title="通知转发设置"
-            app:summary="选择特定应用的通知显示在小横条上"
-            app:iconSpaceReserved="false" />
+            app:icon="@drawable/ic_content_paste"/>
 
         <SwitchPreferenceCompat
-            app:key="privacy_mode"
-            app:title="隐私模式"
-            app:summary="不保存搜索历史记录"
-            app:defaultValue="false"
-            app:iconSpaceReserved="false" />
+            app:key="auto_paste"
+            app:title="自动粘贴"
+            app:summary="打开搜索界面时，自动粘贴剪贴板内容"
+            app:defaultValue="true"
+            app:icon="@drawable/ic_content_paste"/>
 
         <Preference
-            app:key="search_history"
+            app:key="view_search_history"
             app:title="查看搜索历史"
-            app:summary="查看和管理您的搜索记录"
-            app:iconSpaceReserved="false">
-            <intent
-                android:targetPackage="com.example.aifloatingball"
-                android:targetClass="com.example.aifloatingball.SearchHistoryActivity" />
-        </Preference>
+            app:summary="管理您的搜索记录"
+            app:icon="@drawable/ic_history"/>
+
+    </PreferenceCategory>
+
+    <!-- ===================================================================== -->
+    <!-- =                       悬浮球 (Floating Ball)                       = -->
+    <!-- ===================================================================== -->
+    <PreferenceCategory
+        app:key="category_floating_ball"
+        app:title="悬浮球"
+        app:iconSpaceReserved="false">
+
+        <SeekBarPreference
+            app:key="ball_alpha"
+            app:title="透明度"
+            app:summary="调整悬浮球的透明度"
+            app:defaultValue="85"
+            android:max="100"
+            app:min="0"
+            app:showSeekBarValue="false"
+            app:icon="@drawable/ic_settings"/>
 
         <SwitchPreferenceCompat
-            app:key="show_ai_engine_category"
-            app:title="显示搜索引擎分类"
-            app:summary="在抽屉列表中显示AI搜索和普通搜索分类标题"
-            app:defaultValue="true"
-            app:iconSpaceReserved="false" />
+            app:key="auto_hide"
+            app:title="自动贴边隐藏"
+            app:summary="一段时间无操作后，悬浮球自动贴边半透明隐藏"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_exit"/>
+
+        <SwitchPreferenceCompat
+            app:key="left_handed_mode"
+            app:title="左手模式"
+            app:summary="将悬浮球菜单和布局调整为适合左手操作"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_screen_rotation"/>
 
         <Preference
             app:key="menu_manager"
-            app:title="菜单管理"
-            app:summary="自定义快捷菜单项目"
-            app:iconSpaceReserved="false" />
+            app:title="主菜单管理"
+            app:summary="自定义悬浮球展开后的菜单项和布局"
+            app:icon="@drawable/ic_menu"/>
+
+        <Preference
+            app:key="floating_window_mode_manager"
+            app:title="悬浮窗模式管理"
+            app:summary="管理点击悬浮球后不同模式的显示"
+            app:icon="@drawable/ic_floating_mode"/>
+
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="AI设置">
-        <SwitchPreferenceCompat
-            app:key="ai_default_search_mode"
-            app:title="默认使用AI搜索模式"
-            app:summary="启用后默认使用AI搜索引擎"/>
-    </PreferenceCategory>
-
+    <!-- ===================================================================== -->
+    <!-- =                      灵动岛 (Dynamic Island)                       = -->
+    <!-- ===================================================================== -->
     <PreferenceCategory
-        app:key="notification_category"
-        app:title="通知转发">
+        app:key="category_dynamic_island"
+        app:title="灵动岛"
+        app:iconSpaceReserved="false">
 
         <SwitchPreferenceCompat
-            app:key="forward_notifications"
-            app:title="启用通知转发"
-            app:summary="将指定App的通知显示在小横条上"
-            app:defaultValue="false" />
+            app:key="enable_notification_listener"
+            app:title="启用通知监听"
+            app:summary="允许应用读取通知以在灵动岛中显示"
+            app:icon="@drawable/ic_settings"/>
 
         <Preference
             app:key="select_apps_for_notification"
-            app:title="选择应用"
-            app:summary="选择需要转发通知的应用"
-            app:dependency="forward_notifications" />
+            app:title="通知应用管理"
+            app:summary="选择哪些应用的通知可以在灵动岛中显示"
+            app:icon="@drawable/ic_settings"
+            app:dependency="enable_notification_listener"/>
 
     </PreferenceCategory>
+
+    <!-- ===================================================================== -->
+    <!-- =                   浏览器与搜索 (Browser & Search)                  = -->
+    <!-- ===================================================================== -->
+    <PreferenceCategory
+        app:key="category_browser_search"
+        app:title="浏览器与搜索"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            app:key="search_default_ai_mode"
+            app:title="默认搜索模式"
+            app:summary="默认使用AI进行搜索"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_ai_mode"/>
+
+        <ListPreference
+            app:key="default_page"
+            app:title="默认打开页面"
+            app:summary="设置启动时默认显示的页面"
+            app:entries="@array/default_page_entries"
+            app:entryValues="@array/default_page_values"
+            app:defaultValue="home"
+            app:icon="@drawable/ic_home"/>
+
+        <ListPreference
+            app:key="default_browser"
+            app:title="打开外部链接方式"
+            app:summary="选择在哪个浏览器中打开链接"
+            app:entries="@array/default_browser_entries"
+            app:entryValues="@array/default_browser_values"
+            app:defaultValue="system"
+            app:icon="@drawable/ic_open_new"/>
+            
+        <PreferenceCategory
+            app:key="category_multi_window"
+            app:title="多窗口浏览器"
+            app:iconSpaceReserved="false">
+
+            <ListPreference
+                app:key="default_window_count"
+                app:title="默认窗口数"
+                app:summary="设置多窗口搜索时默认显示的窗口数量"
+                app:entries="@array/window_count_entries"
+                app:entryValues="@array/window_count_values"
+                app:defaultValue="2"
+                app:icon="@drawable/ic_resize"
+                app:useSimpleSummaryProvider="true"/>
+
+            <com.example.aifloatingball.preference.SearchEnginePreference
+                app:key="left_window_search_engine"
+                app:title="窗口1引擎"
+                app:summary="设置第一个窗口默认使用的搜索引擎"
+                app:icon="@drawable/ic_web_default"/>
+
+            <com.example.aifloatingball.preference.SearchEnginePreference
+                app:key="center_window_search_engine"
+                app:title="窗口2引擎"
+                app:summary="设置第二个窗口默认使用的搜索引擎"
+                app:icon="@drawable/ic_web_default"/>
+
+            <com.example.aifloatingball.preference.SearchEnginePreference
+                app:key="right_window_search_engine"
+                app:title="窗口3引擎"
+                app:summary="设置第三个窗口默认使用的搜索引擎"
+                app:icon="@drawable/ic_web_default"/>
+
+            <Preference
+                app:key="reset_window_state"
+                app:title="恢复窗口位置"
+                app:summary="重置多窗口模式下的窗口大小和位置"
+                app:icon="@drawable/ic_resize"/>
+        </PreferenceCategory>
+    </PreferenceCategory>
+
+    <!-- ===================================================================== -->
+    <!-- =                        搜索引擎 (Search Engine)                      = -->
+    <!-- ===================================================================== -->
+    <PreferenceCategory
+        app:key="category_search_engines"
+        app:title="搜索引擎"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="web_search_engine_manager"
+            app:title="网页搜索引擎管理"
+            app:summary="分类、排序、增删改、导入导出"
+            app:icon="@drawable/ic_settings"/>
+
+        <Preference
+            app:key="ai_search_engine_manager"
+            app:title="AI 搜索引擎配置"
+            app:summary="启用或禁用可用的 AI 对话引擎"
+            app:icon="@drawable/ic_magic_wand"/>
+            
+        <Preference
+            app:key="app_search_manager"
+            app:title="应用内搜索管理"
+            app:summary="管理和排序在悬浮窗中显示的快捷应用"
+            app:icon="@drawable/ic_settings">
+            <intent android:targetPackage="com.example.aifloatingball"
+                android:targetClass="com.example.aifloatingball.settings.AppSearchSettingsActivity"/>
+        </Preference>
+    </PreferenceCategory>
+
+    <!-- ===================================================================== -->
+    <!-- =                       AI 助手 (AI Assistant)                       = -->
+    <!-- ===================================================================== -->
+    <PreferenceCategory
+        app:title="AI 助手"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="master_prompt_settings"
+            app:title="AI 指令中心"
+            app:summary="定制你的个人AI助理，让它更懂你"
+            app:icon="@drawable/ic_magic_wand"/>
+
+        <Preference
+            app:key="ai_api_settings"
+            app:title="API 设置"
+            app:summary="管理第三方AI服务的API密钥等"
+            app:icon="@drawable/ic_settings"/>
+
+    </PreferenceCategory>
+
+    <!-- ===================================================================== -->
+    <!-- =                         实验室 (Lab)                              = -->
+    <!-- ===================================================================== -->
+    <PreferenceCategory
+        app:title="实验室"
+        app:iconSpaceReserved="false">
+        
+        <Preference
+            app:key="restore_defaults"
+            app:title="恢复默认设置"
+            app:summary="将所有设置项重置为初始状态"
+            app:icon="@drawable/ic_settings"/>
+            
+    </PreferenceCategory>
+
+    <!-- ===================================================================== -->
+    <!-- =                            占位符 (Spacers)                          = -->
+    <!-- ===================================================================== -->
+    <!-- 用于控制依赖显示的占位符 -->
+    <SwitchPreferenceCompat
+        app:key="display_mode_floating_ball"
+        app:isPreferenceVisible="false"
+        app:defaultValue="true"/>
+    <SwitchPreferenceCompat
+        app:key="display_mode_dynamic_island"
+        app:isPreferenceVisible="false"
+        app:defaultValue="false"/>
 
 </PreferenceScreen>

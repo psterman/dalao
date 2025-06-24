@@ -15,11 +15,15 @@
 
     <!-- 菜单布局选项 -->
     <string-array name="menu_layout_entries">
+        <item>图标和文字</item>
+        <item>仅图标</item>
         <item>混合排列</item>
         <item>字母索引排列</item>
     </string-array>
     
     <string-array name="menu_layout_values">
+        <item>icon_and_text</item>
+        <item>icon_only</item>
         <item>mixed</item>
         <item>alphabetical</item>
     </string-array>
@@ -76,26 +80,102 @@
     </string-array>
 
     <!-- 搜索引擎选项 -->
-    <string-array name="search_engines">
+    <string-array name="search_engine_entries">
         <item>百度</item>
-        <item>必应</item>
-        <item>谷歌</item>
         <item>搜狗</item>
         <item>360搜索</item>
-        <item>头条搜索</item>
-        <item>夸克搜索</item>
-        <item>神马搜索</item>
+        <item>必应</item>
+        <item>神马</item>
+        <item>今日头条</item>
+        <item>腾讯新闻</item>
+        <item>新浪新闻</item>
+        <item>网易新闻</item>
+        <item>搜狐新闻</item>
+        <item>澎湃新闻</item>
+        <item>观察者网</item>
+        <item>界面新闻</item>
+        <item>财新网</item>
+        <item>人民网</item>
+        <item>新华网</item>
+        <item>央视网</item>
+        <item>凤凰网</item>
+        <item>淘宝</item>
+        <item>京东</item>
+        <item>拼多多</item>
+        <item>苏宁易购</item>
+        <item>当当网</item>
+        <item>有赞</item>
+        <item>微博</item>
+        <item>知乎</item>
+        <item>豆瓣</item>
+        <item>小红书</item>
+        <item>哔哩哔哩</item>
+        <item>抖音</item>
+        <item>优酷</item>
+        <item>腾讯视频</item>
+        <item>西瓜视频</item>
+        <item>Google学术</item>
+        <item>知网</item>
+        <item>万方数据</item>
+        <item>维普</item>
+        <item>PubMed</item>
+        <item>大众点评</item>
+        <item>美团</item>
+        <item>58同城</item>
+        <item>赶集网</item>
+        <item>GitHub</item>
+        <item>Stack Overflow</item>
+        <item>CSDN</item>
+        <item>稀土掘金</item>
     </string-array>
 
     <string-array name="search_engine_values">
         <item>baidu</item>
-        <item>bing</item>
-        <item>google</item>
         <item>sogou</item>
         <item>360</item>
+        <item>bing_cn</item>
+        <item>shenma</item>
         <item>toutiao</item>
-        <item>quark</item>
-        <item>sm</item>
+        <item>tencent_news</item>
+        <item>sina_news</item>
+        <item>netease_news</item>
+        <item>sohu_news</item>
+        <item>the_paper</item>
+        <item>guancha</item>
+        <item>jiemian</item>
+        <item>caixin</item>
+        <item>people_cn</item>
+        <item>xinhuanet</item>
+        <item>cctv</item>
+        <item>ifeng</item>
+        <item>taobao</item>
+        <item>jd</item>
+        <item>pinduoduo</item>
+        <item>suning</item>
+        <item>dangdang</item>
+        <item>youzan</item>
+        <item>weibo</item>
+        <item>zhihu</item>
+        <item>douban</item>
+        <item>xiaohongshu</item>
+        <item>bilibili</item>
+        <item>douyin</item>
+        <item>youku</item>
+        <item>tencent_video</item>
+        <item>ixigua</item>
+        <item>google_scholar</item>
+        <item>cnki</item>
+        <item>wanfang</item>
+        <item>cqvip</item>
+        <item>pubmed</item>
+        <item>dianping</item>
+        <item>meituan</item>
+        <item>58tongcheng</item>
+        <item>ganji</item>
+        <item>github</item>
+        <item>stackoverflow</item>
+        <item>csdn</item>
+        <item>juejin</item>
     </string-array>
 
     <string-array name="search_engine_urls">
@@ -162,11 +242,11 @@
         <item>多组合搜索</item>
     </string-array>
 
-    <string-array name="floating_window_display_mode_values">
-        <item>normal</item>
-        <item>ai</item>
-        <item>app</item>
+    <string-array name="floating_window_display_mode_values" translatable="false">
         <item>combo</item>
+        <item>ai</item>
+        <item>normal</item>
+        <item>app</item>
     </string-array>
 
     <string-array name="floating_window_display_mode_default_values">
@@ -195,6 +275,17 @@
     <string-array name="browser_values">
         <item>in_app</item>
         <item>external</item>
+    </string-array>
+
+    <!-- For Default Browser Preference -->
+    <string-array name="default_browser_entries">
+        <item>应用内浏览器</item>
+        <item>系统浏览器</item>
+    </string-array>
+
+    <string-array name="default_browser_values" translatable="false">
+        <item>in_app</item>
+        <item>system</item>
     </string-array>
 
     <!-- Master Prompt Settings Arrays -->

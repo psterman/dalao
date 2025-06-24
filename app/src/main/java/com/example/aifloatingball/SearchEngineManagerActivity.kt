@@ -44,7 +44,7 @@ class SearchEngineManagerActivity : AppCompatActivity() {
         
         // 初始化已启用的搜索引擎集合
         enabledSearchEngines.addAll(settingsManager.getEnabledSearchEngines())
-        enabledAIEngines.addAll(settingsManager.getEnabledEngines())
+        enabledAIEngines.addAll(settingsManager.getEnabledAIEngines())
         
         // 初始化视图
         setupViews()
@@ -122,7 +122,7 @@ class SearchEngineManagerActivity : AppCompatActivity() {
     
     private fun saveSearchEngines() {
         // 保存普通搜索引擎设置
-        settingsManager.saveEnabledEngines(enabledSearchEngines)
+        settingsManager.saveEnabledSearchEngines(enabledSearchEngines)
         
         // 保存AI搜索引擎设置
         settingsManager.saveEnabledAIEngines(enabledAIEngines)

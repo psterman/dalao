@@ -32,6 +32,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_DISPLAY_MODE = "display_mode"
         private const val DEFAULT_DISPLAY_MODE = "floating_ball"
         private const val KEY_SEARCH_ENGINE_GROUPS = "search_engine_groups"
+        private const val KEY_CUSTOM_SEARCH_ENGINES = "custom_search_engines"
         
         // API相关常量
         private const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
@@ -119,16 +120,6 @@ class SettingsManager private constructor(context: Context) {
         }
     }
 
-    // 隐私模式设置
-    fun isPrivacyModeEnabled(): Boolean {
-        return prefs.getBoolean("privacy_mode", false)
-    }
-    
-    fun setPrivacyModeEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean("privacy_mode", enabled).apply()
-        notifyListeners("privacy_mode", enabled)
-    }
-    
     // 搜索引擎设置
     fun getDefaultSearchEngine(): String {
         return prefs.getString("default_search_engine", "baidu") ?: "baidu"
@@ -200,19 +191,15 @@ class SettingsManager private constructor(context: Context) {
         }
     }
     
-    // 获取和保存启用的搜索引擎
-    fun getEnabledEngines(): Set<String> {
-        return prefs.getStringSet("enabled_engines", emptySet()) ?: emptySet()
-    }
-    
-    fun saveEnabledEngines(enabledEngines: Set<String>) {
-        prefs.edit().putStringSet("enabled_engines", enabledEngines).apply()
-        notifyListeners("enabled_engines", enabledEngines)
-    }
-    
     // 获取已启用的普通搜索引擎
     fun getEnabledSearchEngines(): Set<String> {
-        return getEnabledEngines()
+        return prefs.getStringSet("enabled_search_engines", SearchEngine.DEFAULT_ENGINES.map { it.name }.toSet()) ?: emptySet()
+    }
+    
+    // 保存已启用的普通搜索引擎
+    fun saveEnabledSearchEngines(enabledEngines: Set<String>) {
+        prefs.edit().putStringSet("enabled_search_engines", enabledEngines).apply()
+        notifyListeners("enabled_search_engines", enabledEngines)
     }
     
     // 获取已启用的AI搜索引擎
@@ -246,9 +233,9 @@ class SettingsManager private constructor(context: Context) {
     @Deprecated("Use getCurrentSearchEngines() instead", ReplaceWith("getCurrentSearchEngines()"))
     fun getEngineOrder(): List<SearchEngine> = getCurrentSearchEngines().filterIsInstance<SearchEngine>()
     
-    @Deprecated("Use saveEnabledEngines() instead", ReplaceWith("saveEnabledEngines(engines.map { it.name }.toSet())"))
+    @Deprecated("Use saveEnabledEngines() instead", ReplaceWith("saveEnabledSearchEngines(engines.map { it.name }.toSet())"))
     fun saveEngineOrder(engines: List<SearchEngine>) {
-        saveEnabledEngines(engines.map { it.name }.toSet())
+        saveEnabledSearchEngines(engines.map { it.name }.toSet())
     }
     
     // 是否显示AI搜索引擎分类
@@ -584,54 +571,6 @@ class SettingsManager private constructor(context: Context) {
         notifyListeners("default_browser", browser)
     }
 
-    // 获取启用的应用搜索列表
-    fun getEnabledAppSearches(): Set<String> {
-        return prefs.getStringSet("enabled_app_searches", getDefaultAppSearches()) ?: getDefaultAppSearches()
-    }
-
-    // 设置启用的应用搜索列表
-    fun setEnabledAppSearches(apps: Set<String>) {
-        prefs.edit().putStringSet("enabled_app_searches", apps).apply()
-        notifyListeners("enabled_app_searches", apps)
-    }
-
-    // 获取应用搜索排序
-    fun getAppSearchOrder(): List<String> {
-        val json = prefs.getString("app_search_order", "") ?: ""
-        if (json.isEmpty()) {
-            return getDefaultAppSearchOrder()
-        }
-        return try {
-            gson.fromJson<List<String>>(json, object : TypeToken<List<String>>() {}.type)
-        } catch (e: Exception) {
-            getDefaultAppSearchOrder()
-        }
-    }
-
-    // 设置应用搜索排序
-    fun setAppSearchOrder(order: List<String>) {
-        prefs.edit().putString("app_search_order", gson.toJson(order)).apply()
-        notifyListeners("app_search_order", order)
-    }
-
-    // 获取默认的应用搜索列表
-    private fun getDefaultAppSearches(): Set<String> {
-        return setOf(
-            "taobao", "pdd", "douyin", "xiaohongshu",
-            "meituan", "douban", "weibo", "weibo_lite", "tiktok", "twitter", "zhihu", "bilibili",
-            "youtube", "spotify", "tmall", "jd", "xianyu", "dianping", "chrome", "eudic"
-        )
-    }
-
-    // 获取默认的应用搜索排序
-    private fun getDefaultAppSearchOrder(): List<String> {
-        return listOf(
-            "taobao", "pdd", "douyin", "xiaohongshu",
-            "meituan", "douban", "weibo", "weibo_lite", "tiktok", "twitter", "zhihu", "bilibili",
-            "youtube", "spotify", "tmall", "jd", "xianyu", "dianping", "chrome", "eudic"
-        )
-    }
-
     fun getSearchHistory(): List<Map<String, Any>> {
         val json = prefs.getString(KEY_SEARCH_HISTORY, "[]")
         return gson.fromJson(json, object : TypeToken<List<Map<String, Any>>>() {}.type) ?: emptyList()
@@ -639,6 +578,13 @@ class SettingsManager private constructor(context: Context) {
 
     fun saveSearchHistory(history: List<Map<String, Any>>) {
         prefs.edit().putString(KEY_SEARCH_HISTORY, gson.toJson(history)).apply()
+    }
+
+    @Synchronized
+    fun addSearchHistoryItem(item: Map<String, Any>) {
+        val history = getSearchHistory().toMutableList()
+        history.add(item)
+        saveSearchHistory(history)
     }
 
     // API密钥相关方法
@@ -770,5 +716,26 @@ class SettingsManager private constructor(context: Context) {
 
 
         return prompt.toString()
+    }
+
+    fun saveCustomSearchEngines(engines: List<SearchEngine>) {
+        val json = gson.toJson(engines)
+        prefs.edit().putString(KEY_CUSTOM_SEARCH_ENGINES, json).apply()
+        // We might want to notify listeners if anything depends on the full list
+    }
+
+    fun getCustomSearchEngines(): MutableList<SearchEngine> {
+        val json = prefs.getString(KEY_CUSTOM_SEARCH_ENGINES, null)
+        if (json != null) {
+            val type = object : TypeToken<MutableList<SearchEngine>>() {}.type
+            val engines: MutableList<SearchEngine> = gson.fromJson(json, type)
+            if (engines.isNotEmpty()) {
+                return engines
+            }
+        }
+        // If json is null, or the parsed list is empty, return and save the default list.
+        val defaultEngines = SearchEngine.DEFAULT_ENGINES.toMutableList()
+        saveCustomSearchEngines(defaultEngines)
+        return defaultEngines
     }
 }

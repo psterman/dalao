@@ -251,8 +251,23 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 处理服务命令
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "处理服务命令")
-        
+        Log.d(TAG, "onStartCommand: 收到 Intent")
+
+        if (intent == null) {
+            Log.w(TAG, "onStartCommand: Intent 为空，可能服务被系统重启。")
+            // 如果服务被系统重启，我们可能没有搜索查询，可以考虑停止服务或恢复最后状态
+            return START_NOT_STICKY
+        }
+
+        // --- Search History ---
+        searchSource = intent.getStringExtra("source") ?: "多窗口浏览器"
+        searchStartTime = intent.getLongExtra("startTime", System.currentTimeMillis())
+        // --- End Search History ---
+
+        val params = intentParser.parseSearchIntent(intent)
+        lastQuery = params?.query
+        lastEngineKey = params?.engineKey
+
         // 确保WebViewManager已经初始化
         if (!::webViewManager.isInitialized) {
             Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
@@ -490,7 +505,20 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         }
 
         // --- Search History ---
-        saveSearchHistory()
+        val endTime = System.currentTimeMillis()
+        val duration = (endTime - searchStartTime) / 1000 // Convert to seconds
+        val queryToSave = lastQuery
+
+        if (!queryToSave.isNullOrBlank()) {
+            val historyItem = mapOf(
+                "keyword" to queryToSave,
+                "source" to (searchSource ?: "未知来源"),
+                "timestamp" to searchStartTime,
+                "duration" to duration
+            )
+            SettingsManager.getInstance(this).addSearchHistoryItem(historyItem)
+            Log.d(TAG, "搜索历史已保存: $historyItem")
+        }
         // --- End Search History ---
 
         // 停止前台服务
@@ -523,45 +551,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         with(sharedPreferences.edit()) {
             putInt(KEY_WINDOW_COUNT, count)
             apply()
-        }
-    }
-
-    private fun saveSearchHistory() {
-        if (lastQuery.isNullOrBlank()) {
-            Log.d(TAG, "查询为空，不保存历史记录。")
-            return
-        }
-
-        val duration = System.currentTimeMillis() - searchStartTime
-        
-        // 修正：准确记录实际使用的搜索引擎，而不是只记录默认设置。
-        // 此逻辑与 handleSearchInternal 中为WebView分配引擎的逻辑保持一致。
-        val enginesList = (0 until currentWindowCount).map { i ->
-            if (i == 0) {
-                // 第一个窗口使用触发搜索的引擎 (lastEngineKey)，如果为空则回退到其默认引擎。
-                lastEngineKey ?: settingsManager.getSearchEngineForPosition(0)
-            } else {
-                // 其他窗口使用它们各自的默认引擎。
-                settingsManager.getSearchEngineForPosition(i)
-            }
-        }
-        val engines = enginesList.distinct().joinToString(", ")
-
-        val historyEntry = SearchHistory(
-            query = lastQuery!!,
-            timestamp = searchStartTime,
-            source = searchSource ?: "未知",
-            durationInMillis = duration,
-            engines = engines
-        )
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                AppDatabase.getDatabase(applicationContext).searchHistoryDao().insert(historyEntry)
-                Log.d(TAG, "搜索历史已保存: $historyEntry")
-            } catch (e: Exception) {
-                Log.e(TAG, "保存搜索历史失败", e)
-            }
         }
     }
 

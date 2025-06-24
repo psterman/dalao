@@ -33,11 +33,17 @@ class AIEngineListFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
-        val view = inflater.inflate(R.layout.fragment_ai_engine_list, container, false)
-        recyclerView = view.findViewById(R.id.recyclerViewSearchEngines)
+    ): View {
+        // Dynamically create the RecyclerView to bypass any XML inflation or caching issues.
+        recyclerView = RecyclerView(requireContext()).apply {
+            id = R.id.recyclerViewSearchEngines // Keep the ID for consistency, though not strictly needed here
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
         setupRecyclerView()
-        return view
+        return recyclerView
     }
 
     private fun setupRecyclerView() {

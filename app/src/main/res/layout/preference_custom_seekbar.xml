@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:minHeight="?android:attr/listPreferredItemHeight"
+    android:gravity="center_vertical"
+    android:paddingStart="?android:attr/listPreferredItemPaddingStart"
+    android:paddingEnd="?android:attr/listPreferredItemPaddingEnd"
+    android:clipToPadding="false"
+    android:orientation="horizontal">
+
+    <LinearLayout
+        android:id="@+id/icon_frame"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="16dp"
+        android:minWidth="56dp"
+        android:gravity="start|center_vertical"
+        android:orientation="horizontal">
+        <androidx.preference.internal.PreferenceImageView
+            android:id="@android:id/icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxWidth="48dp"
+            android:maxHeight="48dp"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            
+            <TextView
+                android:id="@android:id/title"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:textAppearance="?android:attr/textAppearanceListItem" />
+
+            <TextView
+                android:id="@+id/custom_seekbar_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:textAppearance="?android:attr/textAppearanceListItemSecondary" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@android:id/summary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textAppearance="?android:attr/textAppearanceListItemSecondary"
+            android:textColor="?android:attr/textColorSecondary" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <SeekBar
+                android:id="@+id/custom_seekbar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout> 

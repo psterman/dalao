@@ -144,4 +144,6 @@
     <string name="health_alert_bleeding_summary">若大量出血伴随：头晕、心跳过快、面色苍白，请立即就医</string>
 
     <string name="title_activity_settings">设置</string>
+    <string name="title_activity_sub_settings">子设置</string>
+    <string name="search_widget_description">在主屏幕上快速搜索</string>
 </resources> 

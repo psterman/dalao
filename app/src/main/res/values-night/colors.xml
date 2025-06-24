@@ -71,4 +71,9 @@
 
     <!-- Adaptive Colors -->
     <color name="icon_tint_adaptive">#FFFFFFFF</color>
+
+    <!-- Tab Layout Colors -->
+    <color name="tab_selected_background">#BDBDBD</color>
+    <color name="tab_selected_text">#000000</color>
+    <color name="tab_unselected_text">#E0E0E0</color>
 </resources> 

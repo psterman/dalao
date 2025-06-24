@@ -2,4 +2,8 @@
 <resources>
     <attr name="pasteButtonBackgroundColor" format="color" />
     <attr name="pasteButtonTextColor" format="color" />
+    <attr name="nonFunctionalIconColor" format="color" />
+    <attr name="functionalIconColor" format="color" />
+    <attr name="floatingWindowBackground" format="color" />
+    <attr name="icon_tint_color" format="color" />
 </resources> 

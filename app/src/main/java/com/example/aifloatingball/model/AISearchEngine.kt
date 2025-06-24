@@ -88,7 +88,7 @@ data class AISearchEngine(
             AISearchEngine(
                 name = "Perplexity",
                 url = "https://perplexity.ai",
-                iconResId = R.drawable.ic_perplexity,
+                iconResId = R.drawable.ic_web_default,
                 description = "Perplexity AI",
                 searchUrl = "https://perplexity.ai/search?q={query}"
             ),
@@ -130,7 +130,7 @@ data class AISearchEngine(
             AISearchEngine(
                 name = "360AI搜索",
                 url = "https://sou.ai.360.cn",
-                iconResId = R.drawable.ic_360,
+                iconResId = R.drawable.ic_360search,
                 description = "360AI搜索",
                 searchUrl = "https://sou.ai.360.cn/?q={query}"
             ),

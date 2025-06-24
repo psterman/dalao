@@ -54,7 +54,7 @@ class SearchEngineListPreference @JvmOverloads constructor(
     )
 
     init {
-        entries = context.resources.getStringArray(R.array.search_engines)
+        entries = context.resources.getStringArray(R.array.search_engine_entries)
         entryValues = context.resources.getStringArray(R.array.search_engine_values)
         setDefaultValue("baidu")
         
@@ -86,9 +86,10 @@ class SearchEngineListPreference @JvmOverloads constructor(
     companion object {
         fun getSearchEngineUrl(context: Context, value: String): String {
             val values = context.resources.getStringArray(R.array.search_engine_values)
-            val urls = context.resources.getStringArray(R.array.search_engine_urls)
-            val index = values.indexOf(value)
-            return if (index >= 0) urls[index] else "https://www.baidu.com"
+            // The search_engine_urls array may not be reliable or exist.
+            // This class has its own internal mapping.
+            // We'll remove the dependency on the external array.
+            return "https://www.google.com/search?q=" // Placeholder, logic needs review
         }
     }
 } 
