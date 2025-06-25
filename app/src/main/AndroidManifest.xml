@@ -68,8 +68,7 @@
             android:label="选择应用" />
         <activity
             android:name=".SearchHistoryActivity"
-            android:label="搜索历史"
-            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+            android:label="搜索历史" />
         <activity
             android:name=".VoiceRecognitionActivity"
             android:theme="@style/Theme.AIFloatingBall.VoiceRecognition"

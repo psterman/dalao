@@ -113,7 +113,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
     // --- Search History Fields ---
     private var searchStartTime: Long = 0
-    private var searchSource: String? = null
+    private var searchSource: String = "未知" // 默认来源
     // --- End Search History Fields ---
 
     internal fun isWebViewManagerInitialized(): Boolean = ::webViewManager.isInitialized
@@ -125,10 +125,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
-        
-        // --- Search History ---
-        searchStartTime = System.currentTimeMillis()
-        // --- End Search History ---
         
         Log.d(TAG, "DualFloatingWebViewService: 服务创建 onCreate()")
         
@@ -155,7 +151,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
             // 创建时不再主动加载任何内容。
             // 所有加载逻辑都将由 onStartCommand 及其处理的 Intent 触发。
-            // 这可以从根本上解决 onCreate 和 onStartCommand 之间的竞态条件。
             Log.d(TAG, "WebViewManager 已初始化，等待 onStartCommand 指令。")
         } else {
             Log.e(TAG, "错误: createFloatingWindow 未返回有效的WebView，无法初始化WebViewManager。")
@@ -181,6 +176,28 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         
         // 注册广播接收器
         registerBroadcastReceiver()
+    }
+
+    private fun handleSearchInternal(query: String, engineKey: String, windowCount: Int) {
+        Log.d(TAG, "处理搜索请求: query='$query', engineKey='$engineKey', windowCount=$windowCount")
+        
+        val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
+        currentWindowCount = windowCountToUse
+
+        // 加载URL到WebView
+        for (i in 0 until windowCountToUse) {
+            val webView = webViewManager.getWebViews().getOrNull(i)
+            webView?.let {
+                // 获取该窗口位置对应的搜索引擎
+                val currentWindowEngineKey = if (i == 0) {
+                    engineKey // 点击的引擎或左侧默认引擎优先用于第一个窗口
+                } else {
+                    settingsManager.getSearchEngineForPosition(i)
+                }
+                // 使用统一的加载方法
+                loadContentInWebView(it, currentWindowEngineKey, query)
+            } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
+        }
     }
 
     /**
@@ -251,117 +268,23 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 处理服务命令
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand: 收到 Intent")
-
-        if (intent == null) {
-            Log.w(TAG, "onStartCommand: Intent 为空，可能服务被系统重启。")
-            // 如果服务被系统重启，我们可能没有搜索查询，可以考虑停止服务或恢复最后状态
-            return START_NOT_STICKY
-        }
-
-        // --- Search History ---
-        searchSource = intent.getStringExtra("source") ?: "多窗口浏览器"
-        searchStartTime = intent.getLongExtra("startTime", System.currentTimeMillis())
-        // --- End Search History ---
-
-        val params = intentParser.parseSearchIntent(intent)
-        lastQuery = params?.query
-        lastEngineKey = params?.engineKey
-
-        // 确保WebViewManager已经初始化
-        if (!::webViewManager.isInitialized) {
-            Log.e(TAG, "WebViewManager在onStartCommand时仍未初始化! 这不应该发生。")
-            // 延迟处理意图，确保UI和管理器已准备就绪。
-            handler.postDelayed({
-                intent?.let { handleSearchIntent(it) }
-            }, 200)
-        } else {
-            // 如果已经初始化，则立即处理
-            intent?.let { handleSearchIntent(it) }
-        }
+        Log.d(TAG, "DualFloatingWebViewService: onStartCommand, 启动命令")
         
-        // 恢复窗口状态的逻辑已不再需要，因为状态现在由WebView自身和窗口管理器在创建时处理。
-        // handler.postDelayed({
-        //     if (isWebViewManagerInitialized()) {
-        //         // webViewManager.restoreWebViewStates() // 此方法已删除
-        //     }
-        // }, 300)
+        intent?.let {
+            // 从Intent中获取来源和开始时间
+            searchSource = it.getStringExtra("search_source") ?: "悬浮窗"
+            searchStartTime = it.getLongExtra("startTime", System.currentTimeMillis())
 
-        return START_STICKY
-    }
-
-    private fun handleSearchIntent(intent: Intent) {
-        val searchParams = intentParser.parseSearchIntent(intent)
-        if (searchParams != null) {
-            // --- Search History ---
-            // 来源信息在第一次启动服务时被设置
-            if (searchSource == null) {
-                searchSource = intent.getStringExtra("search_source") ?: "浏览器内部"
-            }
-            // --- End Search History ---
-
-            // 这是一个来自外部的、明确的新搜索请求，执行它。
-            Log.d(TAG, "处理来自intent的新搜索: ${searchParams.query}")
-            performSearch(searchParams.query, searchParams.engineKey)
-        } else {
-            // 如果 intent 中没有搜索参数，这可能是服务的首次启动
-            if (lastQuery == null) {
-                Log.d(TAG, "Intent中无搜索参数，执行首次默认加载。")
-
-                if (settingsManager.isAutoPasteEnabled()) {
-                    val pastedText = autoPaste(windowManager.searchInput)
-                    performSearch(pastedText ?: "", settingsManager.getSearchEngineForPosition(0))
-                } else {
-                performSearch("", settingsManager.getSearchEngineForPosition(0))
-                }
+            val searchParams = intentParser.parseSearchIntent(it)
+            if (searchParams != null && searchParams.query.isNotEmpty()) {
+                // 统一调用私有的搜索执行器
+                executeSearch(searchParams)
             } else {
-                Log.d(TAG, "Intent中无搜索参数，但已有内容，忽略。")
+                 Log.d(TAG, "Intent中无有效搜索参数，忽略。")
             }
         }
-        // 修复：移除此处的焦点请求。
-        // 新的逻辑将焦点管理完全委托给FloatingWindowManager，
-        // 只有当用户明确点击输入框时才获取焦点。
-        // updateWindowParameters(true)
-    }
 
-    private fun handleSearchInternal(query: String, engineKey: String, windowCount: Int) {
-        Log.d(TAG, "处理搜索请求: query='$query', engineKey='$engineKey', windowCount=$windowCount")
-        
-        val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
-        currentWindowCount = windowCountToUse
-
-        // 加载URL到WebView
-        for (i in 0 until windowCountToUse) {
-            val webView = webViewManager.getWebViews().getOrNull(i)
-            webView?.let {
-                // 获取该窗口位置对应的搜索引擎
-                val currentWindowEngineKey = if (i == 0) {
-                    engineKey // 点击的引擎或左侧默认引擎优先用于第一个窗口
-                } else {
-                    settingsManager.getSearchEngineForPosition(i)
-                }
-                // 使用统一的加载方法
-                loadContentInWebView(it, currentWindowEngineKey, query)
-            } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
-        }
-        
-        // 重置滚动条的功能已不再需要
-        // windowManager.resetScrollPosition()
-    }
-
-    /**
-     * 公共方法，供外部 (如FloatingWindowManager) 调用以执行搜索
-     */
-    fun performSearch(query: String, engineKey: String? = null) {
-        // 新增：将搜索词设置到窗口管理器的输入框中，以更新UI
-        windowManager.setSearchInputText(query)
-
-        lastQuery = query
-        // 如果没有指定引擎（例如，通过点击搜索按钮），则使用为第一个窗口位置设置的默认引擎
-        val primaryEngine = engineKey ?: settingsManager.getSearchEngineForPosition(0)
-        lastEngineKey = primaryEngine
-        Log.d(TAG, "performSearch called: query='$query', primaryEngine='$primaryEngine', currentWindowCount=$currentWindowCount")
-        handleSearchInternal(query, primaryEngine, currentWindowCount)
+        return START_NOT_STICKY
     }
 
     /**
@@ -455,20 +378,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         saveWindowCount(currentWindowCount) // Save new window count
 
         val queryToUse = lastQuery ?: "" 
+        // 修正：确保 engineToUse 是非空类型
         val engineToUse = lastEngineKey ?: settingsManager.getSearchEngineForPosition(0)
         
         handleSearchInternal(queryToUse, engineToUse, currentWindowCount)
-        
-        // 移除延迟请求焦点的逻辑，因为这可能导致输入法闪烁问题
-        // handler.postDelayed({
-        //     try {
-        //         val searchInput = windowManager.floatingView?.findViewById<EditText>(R.id.dual_search_input)
-        //         searchInput?.requestFocus()
-        //         Log.d(TAG, "窗口数量切换后，尝试重新聚焦搜索输入框")
-        //     } catch (e: Exception) {
-        //         Log.e(TAG, "切换窗口数量后聚焦输入框失败: ${e.message}")
-        //     }
-        // }, 300) // 延迟300毫秒
         
         return currentWindowCount
     }
@@ -503,23 +416,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         if (::windowManager.isInitialized) {
             windowManager.removeFloatingWindow()
         }
-
-        // --- Search History ---
-        val endTime = System.currentTimeMillis()
-        val duration = (endTime - searchStartTime) / 1000 // Convert to seconds
-        val queryToSave = lastQuery
-
-        if (!queryToSave.isNullOrBlank()) {
-            val historyItem = mapOf(
-                "keyword" to queryToSave,
-                "source" to (searchSource ?: "未知来源"),
-                "timestamp" to searchStartTime,
-                "duration" to duration
-            )
-            SettingsManager.getInstance(this).addSearchHistoryItem(historyItem)
-            Log.d(TAG, "搜索历史已保存: $historyItem")
-        }
-        // --- End Search History ---
 
         // 停止前台服务
         stopForeground(true)
@@ -600,5 +496,51 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             Log.e(TAG, "Failed to auto paste", e)
         }
         return null
+    }
+
+    private fun saveSearchHistory(query: String, source: String) {
+        if (query.isBlank()) return
+
+        val searchHistory = SearchHistory(
+            query = query,
+            timestamp = System.currentTimeMillis(),
+            source = source,
+            durationInMillis = System.currentTimeMillis() - searchStartTime,
+            engines = lastEngineKey ?: ""
+        )
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                AppDatabase.getDatabase(applicationContext).searchHistoryDao().insert(searchHistory)
+                Log.d(TAG, "搜索记录已保存: '${searchHistory.query}' 来源: ${searchHistory.source}")
+            } catch (e: Exception) {
+                Log.e(TAG, "保存搜索记录失败", e)
+            }
+        }
+    }
+
+    /**
+     * 唯一的私有搜索执行器
+     */
+    private fun executeSearch(params: SearchParams) {
+        // 1. 更新内部状态
+        lastQuery = params.query
+        lastEngineKey = params.engineKey
+
+        // 2. 更新UI
+        windowManager.setSearchInputText(params.query)
+
+        // 3. 保存历史记录 (将使用刚更新的状态)
+        saveSearchHistory(params.query, searchSource)
+
+        // 4. 在WebViews中执行
+        Log.d(TAG, "executeSearch called: query='${params.query}', primaryEngine='${params.engineKey}'")
+        if (::webViewManager.isInitialized) {
+            handleSearchInternal(params.query, params.engineKey ?: "", currentWindowCount)
+        } else {
+            handler.postDelayed({
+                handleSearchInternal(params.query, params.engineKey ?: "", currentWindowCount)
+            }, 200)
+        }
     }
 } 

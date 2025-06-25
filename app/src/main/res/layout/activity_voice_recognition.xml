@@ -1,110 +1,141 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:background="?attr/colorSurface"
+    android:padding="16dp">
 
-    <!-- 麦克风和动画容器 -->
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/micContainer"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        app:cardCornerRadius="40dp"
-        app:cardElevation="4dp"
-        app:cardBackgroundColor="#4CAF50"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/listeningText"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVertical_chainStyle="packed">
-
-        <ImageView
-            android:id="@+id/micIcon"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:src="@drawable/ic_mic"
-            android:layout_gravity="center"
-            app:tint="#FFFFFF" />
-    </com.google.android.material.card.MaterialCardView>
-
-    <!-- 正在倾听文本 -->
-    <TextView
-        android:id="@+id/listeningText"
+    <!-- 顶部的状态区域 -->
+    <LinearLayout
+        android:id="@+id/topStatusContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="正在倾听"
-        android:textSize="18sp"
-        android:textColor="?android:attr/textColorPrimary"
-        android:layout_marginTop="16dp"
-        app:layout_constraintTop_toBottomOf="@id/micContainer"
-        app:layout_constraintBottom_toTopOf="@+id/waveformContainer"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
-    <!-- 音量波形动画 -->
-    <LinearLayout
-        android:id="@+id/waveformContainer"
-        android:layout_width="0dp"
-        android:layout_height="40dp"
+        android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:gravity="center"
-        android:layout_marginTop="16dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/listeningText"
-        app:layout_constraintBottom_toTopOf="@+id/recognizedText"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+        app:layout_constraintTop_toTopOf="parent">
 
-        <!-- 动态波形视图，会在代码中动态创建 -->
-        <com.example.aifloatingball.ui.WaveformView
-            android:id="@+id/waveformView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/micContainer"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            app:cardBackgroundColor="#4CAF50"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="2dp">
+
+            <ImageView
+                android:id="@+id/micIcon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_mic"
+                app:tint="@android:color/white" />
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:id="@+id/listeningText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:text="请开始说话"
+            android:textColor="?android:attr/textColorPrimary"
+            android:textSize="16sp" />
+
     </LinearLayout>
 
-    <!-- 已识别的文本 (可编辑) -->
-    <EditText
-        android:id="@+id/recognizedText"
+    <!-- 文本编辑卡片 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/textEditorCard"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:layout_marginStart="24dp"
-        android:layout_marginEnd="24dp"
-        android:background="@android:color/transparent"
-        android:gravity="top|start"
-        android:hint="您说的内容会显示在这里..."
-        android:minLines="3"
-        android:padding="8dp"
-        android:textColor="?android:attr/textColorPrimary"
-        android:textSize="22sp"
-        android:visibility="visible"
+        android:layout_height="0dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="4dp"
         app:layout_constraintBottom_toTopOf="@+id/doneButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/listeningText" />
+        app:layout_constraintTop_toBottomOf="@id/topStatusContainer">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <EditText
+                android:id="@+id/recognizedText"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:background="@android:color/transparent"
+                android:gravity="top|start"
+                android:hint="您说的内容会显示在这里..."
+                android:padding="12dp"
+                android:scrollbars="vertical"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="18sp"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="这是示例文本，用于预览布局效果。当文本很长时，这里应该会出现一个滚动条。" />
+
+            <!-- 文字大小控制 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:background="@drawable/zoom_controls_background"
+                android:elevation="8dp"
+                android:orientation="horizontal"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent">
+
+                <ImageButton
+                    android:id="@+id/zoomOutButton"
+                    style="@style/Widget.AppCompat.Button.Borderless"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="缩小文字"
+                    android:src="@drawable/ic_zoom_out"
+                    app:tint="?attr/colorOnSurface" />
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="?android:attr/listDivider" />
+
+                <ImageButton
+                    android:id="@+id/zoomInButton"
+                    style="@style/Widget.AppCompat.Button.Borderless"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="放大文字"
+                    android:src="@drawable/ic_zoom_in"
+                    app:tint="?attr/colorOnSurface" />
+
+            </LinearLayout>
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </com.google.android.material.card.MaterialCardView>
 
     <!-- 说完了按钮 -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/doneButton"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="说完了"
-        android:textColor="#FFFFFF"
-        android:layout_marginTop="24dp"
-        android:layout_marginStart="48dp"
-        android:layout_marginEnd="48dp"
         android:paddingTop="12dp"
         android:paddingBottom="12dp"
-        app:cornerRadius="24dp"
+        android:text="说完了"
+        android:textColor="#FFFFFF"
         app:backgroundTint="#4CAF50"
-        app:rippleColor="#FFFFFF"
+        app:cornerRadius="24dp"
         app:elevation="2dp"
-        app:layout_constraintTop_toBottomOf="@id/recognizedText"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout> 

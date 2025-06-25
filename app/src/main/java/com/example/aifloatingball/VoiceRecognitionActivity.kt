@@ -18,9 +18,11 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.view.animation.LinearInterpolator
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -45,9 +47,10 @@ class VoiceRecognitionActivity : Activity() {
     private lateinit var micContainer: MaterialCardView
     private lateinit var micIcon: ImageView
     private lateinit var listeningText: TextView
-    private lateinit var waveformView: View
     private lateinit var recognizedTextView: EditText
     private lateinit var doneButton: MaterialButton
+    private lateinit var zoomInButton: ImageButton
+    private lateinit var zoomOutButton: ImageButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,9 +81,10 @@ class VoiceRecognitionActivity : Activity() {
         micContainer = findViewById(R.id.micContainer)
         micIcon = findViewById(R.id.micIcon)
         listeningText = findViewById(R.id.listeningText)
-        waveformView = findViewById(R.id.waveformView)
         recognizedTextView = findViewById(R.id.recognizedText)
         doneButton = findViewById(R.id.doneButton)
+        zoomInButton = findViewById(R.id.zoomInButton)
+        zoomOutButton = findViewById(R.id.zoomOutButton)
     }
     
     private fun setupClickListeners() {
@@ -92,6 +96,14 @@ class VoiceRecognitionActivity : Activity() {
         // 设置麦克风点击事件
         micContainer.setOnClickListener {
             toggleListening()
+        }
+
+        zoomInButton.setOnClickListener {
+            adjustTextSize(2f) // Increase by 2sp
+        }
+
+        zoomOutButton.setOnClickListener {
+            adjustTextSize(-2f) // Decrease by 2sp
         }
     }
     
@@ -233,15 +245,23 @@ class VoiceRecognitionActivity : Activity() {
             .start()
     }
     
+    private fun adjustTextSize(adjustment: Float) {
+        val currentSizeSp = recognizedTextView.textSize / resources.displayMetrics.scaledDensity
+        val newSizeSp = currentSizeSp + adjustment
+        // Clamp the new size between 12sp and 40sp
+        val clampedSizeSp = newSizeSp.coerceIn(12f, 40f)
+        recognizedTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, clampedSizeSp)
+    }
+    
     private fun processRecognitionResults(results: Bundle?) {
         try {
         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         if (!matches.isNullOrEmpty()) {
                 val newFinalText = matches[0]
-                
+            
                 // 将新的最终结果追加到累积文本中
                 recognizedText = if (recognizedText.isEmpty()) newFinalText else "$recognizedText $newFinalText"
-                
+            
                 // 使用累积的文本更新显示
                 recognizedTextView.setText(recognizedText)
                 recognizedTextView.setSelection(recognizedText.length)
@@ -382,6 +402,7 @@ class VoiceRecognitionActivity : Activity() {
                 putExtra("search_query", finalText)
                 putExtra("engine_key", defaultEngineKey)
                 putExtra("launched_by_voice", true) // 添加一个标志，用于后续判断
+                putExtra("search_source", "语音输入") // 新增来源字段
             }
             startService(serviceIntent)
             Log.d(TAG, "已直接启动 DualFloatingWebViewService，查询: '$finalText', 引擎: '$defaultEngineKey'")

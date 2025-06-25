@@ -473,7 +473,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", query)
                 putExtra("engine_key", engineName)
-                putExtra("source", "悬浮窗")
+                putExtra("search_source", "悬浮窗")
                 putExtra("startTime", System.currentTimeMillis())
             }
             startService(serviceIntent)
@@ -784,7 +784,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                     putExtra("search_query", query)
                     putExtra("engine_key", engineName)
-                    putExtra("source", "悬浮窗")
+                    putExtra("search_source", "悬浮窗")
                     putExtra("startTime", System.currentTimeMillis())
                 }
                 startService(serviceIntent)
@@ -852,7 +852,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                         putExtra("search_query", query)
                         putExtra("engine_key", engine.name) // Pass engine name as the key
-                        putExtra("source", "悬浮窗")
+                        putExtra("search_source", "悬浮窗")
                         putExtra("startTime", System.currentTimeMillis())
                     }
                     startService(serviceIntent)

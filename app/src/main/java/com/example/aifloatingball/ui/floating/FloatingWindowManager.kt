@@ -2,6 +2,7 @@ package com.example.aifloatingball.ui.floating
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.os.Build
@@ -214,7 +215,13 @@ class FloatingWindowManager(
         searchInput?.setOnEditorActionListener { v, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
                 val query = v.text.toString()
-                service.performSearch(query)
+                // 修正：通过发送 Intent 的方式来触发搜索
+                val intent = Intent(context, DualFloatingWebViewService::class.java).apply {
+                    putExtra("search_query", query)
+                    putExtra("engine_key", service.settingsManager.getSearchEngineForPosition(0))
+                    putExtra("search_source", "悬浮窗")
+                }
+                context.startService(intent)
                 true
             } else {
                 false
@@ -228,7 +235,13 @@ class FloatingWindowManager(
 
         saveEnginesButton?.setOnClickListener {
             val query = searchInput?.text.toString()
-            service.performSearch(query)
+             // 修正：通过发送 Intent 的方式来触发搜索
+            val intent = Intent(context, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", query)
+                putExtra("engine_key", service.settingsManager.getSearchEngineForPosition(0))
+                putExtra("search_source", "悬浮窗")
+            }
+            context.startService(intent)
         }
 
         windowCountButton?.setOnClickListener {
@@ -248,11 +261,13 @@ class FloatingWindowManager(
             val y = event.rawY
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    initialTouchX = x
-                    initialTouchY = y
+                    isDragging = false
                     initialX = params?.x ?: 0
                     initialY = params?.y ?: 0
-                    isDragging = false
+                    initialTouchX = x
+                    initialTouchY = y
+                    lastDragX = x
+                    lastDragY = y
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = abs(x - initialTouchX)

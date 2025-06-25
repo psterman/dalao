@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.example.aifloatingball.model.SearchHistory
+import androidx.room.Delete
 
 @Dao
 interface SearchHistoryDao {
@@ -20,4 +21,7 @@ interface SearchHistoryDao {
 
     @Query("SELECT * FROM search_history ORDER BY timestamp DESC")
     suspend fun getAllHistoryList(): List<SearchHistory>
+    
+    @Delete
+    suspend fun delete(searchHistory: SearchHistory)
 } 
