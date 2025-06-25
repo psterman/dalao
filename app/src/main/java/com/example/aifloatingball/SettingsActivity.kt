@@ -1,91 +1,58 @@
 package com.example.aifloatingball
 
 import android.content.Intent
-import android.content.SharedPreferences
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
-import android.util.Log
-import android.widget.Toast
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
+import androidx.fragment.app.Fragment
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
-import com.example.aifloatingball.service.DynamicIslandService
-import com.example.aifloatingball.service.FloatingWindowService
-import com.example.aifloatingball.settings.SearchEngineSelectionFragment
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.aifloatingball.adapter.SettingsSearchResultAdapter
+import com.example.aifloatingball.model.SearchableSetting
 
-class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback {
+class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener {
 
-    private lateinit var settingsManager: SettingsManager
-    private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "display_mode") {
-            Log.d("SettingsActivity", "Display mode changed, updating services.")
-            updateDisplayMode()
-        }
-    }
+    private lateinit var searchManager: SettingsSearchManager
+    private lateinit var resultsAdapter: SettingsSearchResultAdapter
+    private lateinit var resultsRecyclerView: RecyclerView
+    private lateinit var settingsContainer: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        settingsManager = SettingsManager.getInstance(this)
-        settingsManager.registerOnSharedPreferenceChangeListener(preferenceChangeListener)
+        setContentView(R.layout.activity_settings)
 
-        setContentView(R.layout.settings_activity)
-
-        // 设置标题栏
-        supportActionBar?.apply {
-            title = "设置"
-            setDisplayHomeAsUpEnabled(true)
-        }
-
-        // 加载设置Fragment
         if (savedInstanceState == null) {
             supportFragmentManager
                 .beginTransaction()
-                .replace(R.id.settings, SettingsFragment())
+                .replace(R.id.settings_container, SettingsFragment())
                 .commit()
-            // Check and start the correct service on initial launch
-            updateDisplayMode()
         }
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
+        // Initialize search components
+        searchManager = SettingsSearchManager(this)
+        settingsContainer = findViewById(R.id.settings_container)
+        resultsRecyclerView = findViewById(R.id.search_results_recycler_view)
+        setupRecyclerView()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        settingsManager.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
-    }
+    private fun setupRecyclerView() {
+        resultsAdapter = SettingsSearchResultAdapter(emptyList()) { setting ->
+            // Hide search view
+            val menu = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)?.menu
+            menu?.findItem(R.id.action_search)?.collapseActionView()
 
-    override fun onSupportNavigateUp(): Boolean {
-        onBackPressed()
-        return true
-    }
-
-    private fun updateDisplayMode() {
-        val displayMode = settingsManager.getDisplayMode()
-        Log.d("SettingsActivity", "Updating display mode to: $displayMode")
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "需要'显示在其他应用上层'的权限才能切换模式", Toast.LENGTH_LONG).show()
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-            return
+            // Find the preference in the root fragment and perform a click
+            val settingsFragment = supportFragmentManager.findFragmentById(R.id.settings_container) as? SettingsFragment
+            settingsFragment?.findPreference<Preference>(setting.key)?.performClick()
         }
-
-        // 停止所有相关服务
-        stopService(Intent(this, FloatingWindowService::class.java))
-        stopService(Intent(this, DynamicIslandService::class.java))
-
-        // 根据新模式启动正确的服务
-        when (displayMode) {
-            "floating_ball" -> {
-                startService(Intent(this, FloatingWindowService::class.java))
-            }
-            "dynamic_island" -> {
-                startService(Intent(this, DynamicIslandService::class.java))
-            }
-        }
+        resultsRecyclerView.layoutManager = LinearLayoutManager(this)
+        resultsRecyclerView.adapter = resultsAdapter
     }
 
     override fun onPreferenceStartFragment(caller: PreferenceFragmentCompat, pref: Preference): Boolean {
@@ -94,14 +61,84 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         val fragment = supportFragmentManager.fragmentFactory.instantiate(
             classLoader,
             pref.fragment!!
-        )
-        fragment.arguments = args
-        fragment.setTargetFragment(caller, 0)
+        ).apply {
+            arguments = args
+            setTargetFragment(caller, 0)
+        }
         // Replace the existing Fragment with the new Fragment
         supportFragmentManager.beginTransaction()
-            .replace(R.id.settings, fragment)
+            .replace(R.id.settings_container, fragment)
             .addToBackStack(null)
             .commit()
+        supportActionBar?.title = pref.title
         return true
     }
-} 
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.search_history_menu, menu) // Re-using the same menu
+        val searchItem = menu.findItem(R.id.action_search)
+        val searchView = searchItem.actionView as SearchView
+        searchView.setOnQueryTextListener(this)
+        searchView.queryHint = "搜索设置项..."
+
+        searchItem.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                // Show search results, hide settings
+                resultsRecyclerView.visibility = View.VISIBLE
+                settingsContainer.visibility = View.GONE
+                return true
+            }
+
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                // Hide search results, show settings
+                resultsRecyclerView.visibility = View.GONE
+                settingsContainer.visibility = View.VISIBLE
+                return true
+            }
+        })
+        return true
+    }
+
+    override fun onQueryTextSubmit(query: String?): Boolean {
+        return false // Let the list filter handle it
+    }
+
+    override fun onQueryTextChange(newText: String?): Boolean {
+        val results = searchManager.search(newText.orEmpty())
+        resultsAdapter.updateData(results)
+        return true
+    }
+
+    override fun onSupportNavigateUp(): Boolean {
+        if (supportFragmentManager.popBackStackImmediate()) {
+            supportActionBar?.title = "设置" // Restore title on back press
+            return true
+        }
+        onBackPressed()
+        return true
+    }
+
+
+    class SettingsFragment : PreferenceFragmentCompat() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.root_preferences, rootKey)
+        }
+    }
+
+    // Define other fragments if they are inner classes
+    class GeneralSettingsFragment : PreferenceFragmentCompat() {
+         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.general_preferences, rootKey)
+        }
+    }
+     class BallSettingsFragment : PreferenceFragmentCompat() {
+         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.ball_preferences, rootKey)
+        }
+    }
+     class FloatingWindowSettingsFragment : PreferenceFragmentCompat() {
+         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.floating_window_preferences, rootKey)
+        }
+    }
+}
