@@ -76,6 +76,8 @@ import android.widget.Toast
 import android.content.ClipDescription
 import android.util.Log
 import com.example.aifloatingball.model.AppSearchConfig
+import com.example.aifloatingball.VoiceRecognitionActivity
+import com.example.aifloatingball.SettingsActivity
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -290,7 +292,19 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val touchTargetView = FrameLayout(this).apply {
             layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight * 2, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
             setOnClickListener {
-                if (!isSearchModeActive) transitionToSearchState()
+                if (!isSearchModeActive) {
+                    val action = settingsManager.getActionIslandClick()
+                    executeAction(action)
+                }
+            }
+            setOnLongClickListener {
+                if (!isSearchModeActive) {
+                    val action = settingsManager.getActionIslandLongPress()
+                    executeAction(action)
+                    true // Consume the long click
+                } else {
+                    false
+                }
             }
         }
 
@@ -315,6 +329,40 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun executeAction(action: String) {
+        when (action) {
+            "voice_recognize" -> startVoiceRecognition()
+            "floating_menu" -> { /* No-op in DynamicIslandService */ }
+            "dual_search" -> startDualSearch()
+            "island_panel" -> transitionToSearchState()
+            "settings" -> openSettings()
+            "none" -> { /* No-op */ }
+        }
+    }
+
+    private fun startVoiceRecognition() {
+        val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+
+    private fun startDualSearch() {
+        // This action might open the multi-window search directly
+        // It might be useful to pre-fill a query from clipboard if available
+        val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        startService(intent)
+    }
+
+    private fun openSettings() {
+        val intent = Intent(this, SettingsActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
     }
 
     private fun transitionToSearchState(force: Boolean = false) {

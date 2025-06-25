@@ -519,7 +519,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                         isLongPress = true
                         isClick = false // A long press is not a click
                         vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-                        showVoiceRecognitionAnimation()
+                        val action = settingsManager.getActionBallLongPress()
+                        executeAction(action)
                     }
                     longPressHandler.postDelayed(longPressRunnable!!, ViewConfiguration.getLongPressTimeout().toLong())
                     
@@ -554,7 +555,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                         // It's a long press, do nothing here as it's handled by the long press runnable
                     } else if (isClick) {
                         // It's a click
-                        toggleSearchInterface()
+                        val action = settingsManager.getActionBallClick()
+                        executeAction(action)
                     }
                     // Reset flags
                     isLongPress = false
@@ -571,6 +573,48 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 else -> false
             }
         }
+    }
+
+    private fun executeAction(action: String) {
+        when (action) {
+            "voice_recognize" -> showVoiceRecognition()
+            "floating_menu" -> toggleSearchInterface()
+            "dual_search" -> startDualSearch()
+            "island_panel" -> { /* No-op in FloatingWindowService */ }
+            "settings" -> openSettings()
+            "none" -> { /* No-op */ }
+        }
+    }
+
+    private fun showVoiceRecognition() {
+        floatingBallIcon?.apply {
+            setImageResource(R.drawable.avd_voice_ripple)
+            val drawable = this.drawable
+            if (drawable is android.graphics.drawable.AnimatedVectorDrawable) {
+                drawable.start()
+            }
+        }
+
+        val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+
+    private fun startDualSearch() {
+        val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+            // Potentially pass a default query or open it empty
+        }
+        startService(serviceIntent)
+        hideSearchInterface()
+    }
+
+    private fun openSettings() {
+        val intent = Intent(this, SettingsActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+        hideSearchInterface()
     }
 
     private fun toggleSearchInterface() {

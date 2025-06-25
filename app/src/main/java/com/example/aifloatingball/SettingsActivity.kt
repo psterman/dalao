@@ -1,6 +1,7 @@
 package com.example.aifloatingball
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -15,16 +16,20 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.SettingsSearchResultAdapter
 import com.example.aifloatingball.model.SearchableSetting
 
-class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener {
+class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
     private lateinit var searchManager: SettingsSearchManager
     private lateinit var resultsAdapter: SettingsSearchResultAdapter
     private lateinit var resultsRecyclerView: RecyclerView
     private lateinit var settingsContainer: View
+    private lateinit var settingsManager: SettingsManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+
+        settingsManager = SettingsManager.getInstance(this)
+        settingsManager.registerOnSharedPreferenceChangeListener(this)
 
         if (savedInstanceState == null) {
             supportFragmentManager
@@ -38,7 +43,17 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         searchManager = SettingsSearchManager(this)
         settingsContainer = findViewById(R.id.settings_container)
         resultsRecyclerView = findViewById(R.id.search_results_recycler_view)
+        if (settingsManager.isLeftHandModeEnabled()) {
+            resultsRecyclerView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        } else {
+            resultsRecyclerView.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        }
         setupRecyclerView()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        settingsManager.unregisterOnSharedPreferenceChangeListener(this)
     }
 
     private fun setupRecyclerView() {
@@ -118,25 +133,42 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         return true
     }
 
+    override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
+        if (key == "left_handed_mode") {
+            recreate()
+        }
+    }
 
-    class SettingsFragment : PreferenceFragmentCompat() {
+    abstract class BaseSettingsFragment : PreferenceFragmentCompat() {
+        override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+            super.onViewCreated(view, savedInstanceState)
+            val settingsManager = SettingsManager.getInstance(requireContext())
+            if (settingsManager.isLeftHandModeEnabled()) {
+                listView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+            } else {
+                listView.layoutDirection = View.LAYOUT_DIRECTION_LTR
+            }
+        }
+    }
+
+    class SettingsFragment : BaseSettingsFragment() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
         }
     }
 
     // Define other fragments if they are inner classes
-    class GeneralSettingsFragment : PreferenceFragmentCompat() {
+    class GeneralSettingsFragment : BaseSettingsFragment() {
          override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.general_preferences, rootKey)
         }
     }
-     class BallSettingsFragment : PreferenceFragmentCompat() {
+     class BallSettingsFragment : BaseSettingsFragment() {
          override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.ball_preferences, rootKey)
         }
     }
-     class FloatingWindowSettingsFragment : PreferenceFragmentCompat() {
+     class FloatingWindowSettingsFragment : BaseSettingsFragment() {
          override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.floating_window_preferences, rootKey)
         }

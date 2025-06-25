@@ -59,6 +59,32 @@
         app:title="悬浮球"
         app:iconSpaceReserved="false">
 
+        <ListPreference
+            app:key="action_ball_click"
+            app:title="单击操作"
+            app:summary="设置单击悬浮球时触发的操作"
+            app:entries="@array/interaction_action_entries"
+            app:entryValues="@array/interaction_action_values"
+            app:defaultValue="floating_menu"
+            app:useSimpleSummaryProvider="true"/>
+
+        <ListPreference
+            app:key="action_ball_long_press"
+            app:title="长按操作"
+            app:summary="设置长按悬浮球时触发的操作"
+            app:entries="@array/interaction_action_entries"
+            app:entryValues="@array/interaction_action_values"
+            app:defaultValue="voice_recognize"
+            app:useSimpleSummaryProvider="true"/>
+
+        <MultiSelectListPreference
+            app:key="floating_window_display_mode"
+            app:title="主菜单显示内容"
+            app:summary="选择在悬浮菜单中显示哪些搜索模块"
+            app:entries="@array/floating_window_display_mode_entries"
+            app:entryValues="@array/floating_window_display_mode_values"
+            app:defaultValue="@array/floating_window_display_mode_values" />
+
         <SeekBarPreference
             app:key="ball_alpha"
             app:title="透明度"
@@ -83,18 +109,6 @@
             app:defaultValue="false"
             app:icon="@drawable/ic_screen_rotation"/>
 
-        <Preference
-            app:key="menu_manager"
-            app:title="主菜单管理"
-            app:summary="自定义悬浮球展开后的菜单项和布局"
-            app:icon="@drawable/ic_menu"/>
-
-        <Preference
-            app:key="floating_window_mode_manager"
-            app:title="悬浮窗模式管理"
-            app:summary="管理点击悬浮球后不同模式的显示"
-            app:icon="@drawable/ic_floating_mode"/>
-
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
@@ -104,6 +118,24 @@
         app:key="category_dynamic_island"
         app:title="灵动岛"
         app:iconSpaceReserved="false">
+
+        <ListPreference
+            app:key="action_island_click"
+            app:title="单击操作"
+            app:summary="设置单击灵动岛时触发的操作"
+            app:entries="@array/interaction_action_entries"
+            app:entryValues="@array/interaction_action_values"
+            app:defaultValue="island_panel"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            app:key="action_island_long_press"
+            app:title="长按操作"
+            app:summary="设置长按灵动岛时触发的操作"
+            app:entries="@array/interaction_action_entries"
+            app:entryValues="@array/interaction_action_values"
+            app:defaultValue="dual_search"
+            app:useSimpleSummaryProvider="true" />
 
         <SwitchPreferenceCompat
             app:key="enable_notification_listener"
@@ -117,6 +149,13 @@
             app:summary="选择哪些应用的通知可以在灵动岛中显示"
             app:icon="@drawable/ic_settings"
             app:dependency="enable_notification_listener"/>
+
+        <SwitchPreferenceCompat
+            app:key="left_handed_mode"
+            app:title="左手模式"
+            app:summary="将悬浮球菜单和布局调整为适合左手操作"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_screen_rotation"/>
 
     </PreferenceCategory>
 

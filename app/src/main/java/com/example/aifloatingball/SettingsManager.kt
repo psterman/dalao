@@ -750,4 +750,20 @@ class SettingsManager private constructor(context: Context) {
         val json = gson.toJson(customEngines)
         prefs.edit().putString(KEY_CUSTOM_SEARCH_ENGINES, json).apply()
     }
+
+    fun getActionBallClick(): String {
+        return prefs.getString("action_ball_click", "floating_menu") ?: "floating_menu"
+    }
+
+    fun getActionBallLongPress(): String {
+        return prefs.getString("action_ball_long_press", "voice_recognize") ?: "voice_recognize"
+    }
+
+    fun getActionIslandClick(): String {
+        return prefs.getString("action_island_click", "island_panel") ?: "island_panel"
+    }
+
+    fun getActionIslandLongPress(): String {
+        return prefs.getString("action_island_long_press", "dual_search") ?: "dual_search"
+    }
 }

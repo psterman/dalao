@@ -853,4 +853,23 @@
         <item>vegetarian</item>
     </string-array>
 
+    <!-- Interaction Actions -->
+    <string-array name="interaction_action_entries">
+        <item>启动语音输入</item>
+        <item>启动悬浮菜单</item>
+        <item>启动多屏搜索</item>
+        <item>打开灵动岛面板</item>
+        <item>打开设置</item>
+        <item>无操作</item>
+    </string-array>
+
+    <string-array name="interaction_action_values">
+        <item>voice_recognize</item>
+        <item>floating_menu</item>
+        <item>dual_search</item>
+        <item>island_panel</item>
+        <item>settings</item>
+        <item>none</item>
+    </string-array>
+
 </resources>

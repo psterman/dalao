@@ -274,7 +274,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             // 从Intent中获取来源和开始时间
             searchSource = it.getStringExtra("search_source") ?: "悬浮窗"
             searchStartTime = it.getLongExtra("startTime", System.currentTimeMillis())
-
+            
             val searchParams = intentParser.parseSearchIntent(it)
             if (searchParams != null && searchParams.query.isNotEmpty()) {
                 // 统一调用私有的搜索执行器
