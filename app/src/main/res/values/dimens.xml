@@ -79,4 +79,8 @@
     <dimen name="menu_elevation">8dp</dimen>
 
     <dimen name="floating_menu_width">300dp</dimen>
+
+    <!-- Dynamic Island Dimensions -->
+    <dimen name="dynamic_island_compact_height">40dp</dimen>
+    <dimen name="dynamic_island_expanded_height">150dp</dimen>
 </resources> 

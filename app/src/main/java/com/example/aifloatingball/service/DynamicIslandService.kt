@@ -112,6 +112,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var isEditingModeActive = false // New state for editing
     private var compactWidth: Int = 0
     private var expandedWidth: Int = 0
+    private var compactHeight: Int = 0
+    private var expandedHeight: Int = 0
     private var statusBarHeight: Int = 0
 
     private var appSearchIconContainer: LinearLayout? = null
@@ -246,8 +248,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         statusBarHeight = getStatusBarHeight()
-        compactWidth = (resources.displayMetrics.widthPixels * 0.4).toInt()
-        expandedWidth = (resources.displayMetrics.widthPixels * 0.9).toInt()
+
+        // Recalculate dimensions based on current configuration
+        val displayMetrics = resources.displayMetrics
+        compactWidth = (displayMetrics.widthPixels * 0.4).toInt()
+        expandedWidth = (displayMetrics.widthPixels * 0.9).toInt()
+        compactHeight = resources.getDimensionPixelSize(R.dimen.dynamic_island_compact_height)
+        expandedHeight = resources.getDimensionPixelSize(R.dimen.dynamic_island_expanded_height)
 
         // 1. The Stage
         windowContainerView = FrameLayout(this)
@@ -310,8 +317,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
-    private fun transitionToSearchState() {
-        if (isSearchModeActive) return
+    private fun transitionToSearchState(force: Boolean = false) {
+        if (isSearchModeActive && !force) return
         isSearchModeActive = true
 
         proxyIndicatorView?.visibility = View.GONE
@@ -545,6 +552,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
         unregisterReceiver(appSearchUpdateReceiver)
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(messageReceiver)
         cleanupViews()
         hideEditingScrim()
         hidePasteButton()
@@ -553,13 +561,24 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun cleanupViews() {
         try {
-            windowContainerView?.let { windowManager.removeView(it) }
-            cleanupExpandedViews()
+            if (windowContainerView?.isAttachedToWindow == true) {
+                windowManager.removeView(windowContainerView)
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error removing windowContainerView", e)
         }
+        
+        // Nullify all view references to allow them to be garbage collected
+        // and to ensure showDynamicIsland creates new ones.
         windowContainerView = null
-        proxyIndicatorView = null
+        animatingIslandView = null
+        islandContentView = null
+        configPanelView = null
+        searchEngineSelectorView = null
+        selectorScrimView = null
+        editingScrimView = null
+        searchInput = null
+        searchButton = null
     }
 
     private fun showConfigPanel() {
@@ -1161,7 +1180,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val animation = panelToRemove?.animate()?.translationY(panelToRemove.height.toFloat())?.setDuration(300)
         animation?.setListener(object : AnimatorListenerAdapter() {
             override fun onAnimationEnd(animation: Animator) {
-                windowContainerView?.removeView(panelToRemove)
+                if (panelToRemove.parent is ViewGroup) {
+                    (panelToRemove.parent as ViewGroup).removeView(panelToRemove)
+                }
             }
         })
         animation?.start()
@@ -1314,11 +1335,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         showDynamicIsland()
 
         if (wasSearchModeActive) {
-            transitionToSearchState()
+            transitionToSearchState(force = true)
             // We need a slight delay to ensure the config panel is laid out before setting text
             uiHandler.post {
                 searchInput?.setText(currentSearchText)
-                searchInput?.setSelection(currentSearchText?.length ?: 0)
+                if (currentSearchText != null) {
+                    searchInput?.setSelection(currentSearchText.length)
+                }
             }
         }
     }
@@ -1550,5 +1573,60 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // Trigger the same search action
             searchInput?.onEditorAction(EditorInfo.IME_ACTION_SEARCH)
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d(TAG, "Configuration changed. Recreating all views.")
+        
+        // Save state before cleanup
+        val wasSearchModeActive = isSearchModeActive
+        val currentSearchText = searchInput?.text?.toString()
+
+        // Cleanly remove all views
+        cleanupViews()
+
+        // Re-create all views with new configuration
+        showDynamicIsland()
+
+        // Restore state
+        if (wasSearchModeActive) {
+            transitionToSearchState(force = true)
+            // We need a slight delay to ensure the config panel is laid out before setting text
+            uiHandler.post {
+                searchInput?.setText(currentSearchText)
+                if (currentSearchText != null) {
+                    searchInput?.setSelection(currentSearchText.length)
+                }
+            }
+        }
+    }
+
+    private fun getIslandLayoutParams(isCompact: Boolean): WindowManager.LayoutParams {
+        // This function is no longer needed with the new architecture
+        // but we keep it to avoid breaking other parts of the code for now.
+        // A proper refactor would remove it.
+        val width = if (isCompact) compactWidth else expandedWidth
+        val height = if (isCompact) compactHeight else expandedHeight
+
+        val params = WindowManager.LayoutParams(
+            width,
+            height,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+
+        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        params.y = statusBarHeight + 20
+        return params
+    }
+
+    private fun enterSearchMode(force: Boolean) {
+        if (isSearchModeActive && !force) return
+        isSearchModeActive = true
+        transitionToSearchState(force = true)
     }
 }

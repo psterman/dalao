@@ -83,7 +83,8 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse"
-            android:stopWithTask="false" />
+            android:stopWithTask="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
             
         <service
             android:name=".FloatingWebViewService"
