@@ -62,6 +62,8 @@ import android.os.Looper
 import com.example.aifloatingball.utils.BitmapUtils
 import android.graphics.BitmapFactory
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import android.os.Vibrator
+import android.os.VibrationEffect
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -74,6 +76,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private var initialTouchX: Float = 0.toFloat()
     private var initialTouchY: Float = 0.toFloat()
     private var isMoving: Boolean = false
+    private var isLongPressTriggered: Boolean = false
     private val touchSlop: Int by lazy { ViewConfiguration.get(this).scaledTouchSlop }
 
     private val idleHandler = Handler(android.os.Looper.getMainLooper())
@@ -248,7 +251,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         // Restore the visibility of the search menu if it was open
         if (isMenuVisible) {
             // We need to re-show the interface, but without animation to avoid weird jumps
-            showSearchInterface(shouldAnimate = false)
+            showSearchInterface(false)
         }
     }
 
@@ -495,6 +498,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun setupTouchListener() {
         floatingBallIcon?.setOnTouchListener { _, event ->
+            // Reset idle timer on any touch to prevent fade-out during interaction
+            resetIdleTimer()
+
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialX = params?.x ?: 0
@@ -502,92 +508,89 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isMoving = false
-                    resetIdleTimer() // Reset timer on touch
-                    
-                    // 安排一个长按任务
+                    isLongPressTriggered = false // Reset long press flag
+
+                    // Schedule a task to run after the long-press timeout
                     longPressRunnable = Runnable {
-                        // 长按被触发
-                        isMoving = true // 将其标记为"移动"，以防止后续的单击事件
-                        Log.d(TAG, "长按检测到，启动语音识别")
-                        val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        isLongPressTriggered = true // Mark that long press has occurred
+                        
+                        // Vibrate for haptic feedback
+                        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+                        } else {
+                            @Suppress("DEPRECATION")
+                            vibrator.vibrate(50)
                         }
-                        startActivity(intent)
-                        // 可以在这里添加震动反馈
+                        
+                        // Start the voice recognition UI and animation
+                        showVoiceRecognitionAnimation()
                     }
                     longPressHandler.postDelayed(longPressRunnable!!, ViewConfiguration.getLongPressTimeout().toLong())
-                    true
+                    
+                    true // Consume the event
                 }
                 MotionEvent.ACTION_MOVE -> {
+                    // Calculate the distance moved
                     val dx = event.rawX - initialTouchX
                     val dy = event.rawY - initialTouchY
+
+                    // If not already moving and movement exceeds touch slop, it's a drag
                     if (!isMoving && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
                         isMoving = true
-                        // 如果用户开始移动，则取消长按任务
+                        // A drag action cancels the pending long press
                         longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
                     }
+
+                    // If in moving state, update the ball's position
                     if (isMoving) {
                         params?.x = initialX + dx.toInt()
                         params?.y = initialY + dy.toInt()
                         windowManager.updateViewLayout(floatingView, params)
                     }
-                    true
+                    true // Consume the event
                 }
                 MotionEvent.ACTION_UP -> {
-                    // 手指抬起，取消长按任务
+                    // Always cancel any pending long press when the touch is released
                     longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
-                    
-                    if (isMoving) {
-                        // Just save the new position, don't snap to edge.
-                        params?.let {
-                            settingsManager.setFloatingBallPosition(it.x, it.y)
-                        }
-                        resetIdleTimer()
-                    } else {
-                        // Toggle menu visibility on click
-                        if (isMenuVisible) {
-                            hideSearchInterface()
+
+                    if (isLongPressTriggered) {
+                        // If a long press was triggered, do nothing on ACTION_UP.
+                        // The action was already handled. Just reset the flag.
+                        isLongPressTriggered = false
+                    } else if (!isMoving) {
+                        // If not a long press and not a move, it's a simple click.
+                        // FOR TESTING: Trigger voice recognition on click instead of long press.
+                        
+                        // Vibrate for haptic feedback
+                        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
                         } else {
-                            showSearchInterface()
+                            @Suppress("DEPRECATION")
+                            vibrator.vibrate(50)
+                        }
+                        
+                        // Start the voice recognition UI and animation
+                        showVoiceRecognitionAnimation()
+                    } else {
+                        // If it was a move, snap to the edge if enabled.
+                        if (settingsManager.getAutoHide()) {
+                            snapToEdge()
                         }
                     }
-                    isMoving = false
-                    true
+                    true // Consume the event
                 }
                 else -> false
             }
         }
     }
 
-    private fun snapToEdge() {
-        val screenWidth = getScreenWidth()
-        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
-
-        params?.x = if (isLeftHanded) {
-            0
+    private fun toggleSearchInterface() {
+        if (isMenuVisible) {
+            hideSearchInterface()
         } else {
-            screenWidth - (floatingView?.width ?: 0)
-        }
-
-        windowManager.updateViewLayout(floatingView, params)
-        // 保存最后的位置
-        params?.let {
-            settingsManager.setFloatingBallPosition(it.x, it.y)
-        }
-    }
-
-    private fun getScreenWidth(): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val windowMetrics = windowManager.currentWindowMetrics
-            val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars())
-            windowMetrics.bounds.width() - insets.left - insets.right
-        } else {
-            @Suppress("DEPRECATION")
-            val display = windowManager.defaultDisplay
-            val size = Point()
-            @Suppress("DEPRECATION")
-            display.getSize(size)
-            size.x
+            showSearchInterface()
         }
     }
 
@@ -1140,6 +1143,59 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to auto paste", e)
+        }
+    }
+
+    private fun showVoiceRecognitionAnimation() {
+        floatingBallIcon?.apply {
+            setImageResource(R.drawable.avd_voice_ripple)
+            val drawable = this.drawable
+            if (drawable is android.graphics.drawable.AnimatedVectorDrawable) {
+                drawable.start()
+            }
+        }
+
+        val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+
+    private fun stopVoiceRecognitionAnimation() {
+        floatingBallIcon?.apply {
+            // This method is empty as the original implementation was removed
+        }
+    }
+
+    private fun snapToEdge() {
+        val screenWidth = getScreenWidth()
+        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
+
+        params?.x = if (isLeftHanded) {
+            0
+        } else {
+            screenWidth - (floatingView?.width ?: 0)
+        }
+
+        windowManager.updateViewLayout(floatingView, params)
+        // 保存最后的位置
+        params?.let {
+            settingsManager.setFloatingBallPosition(it.x, it.y)
+        }
+    }
+
+    private fun getScreenWidth(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val windowMetrics = windowManager.currentWindowMetrics
+            val insets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars())
+            windowMetrics.bounds.width() - insets.left - insets.right
+        } else {
+            @Suppress("DEPRECATION")
+            val display = windowManager.defaultDisplay
+            val size = Point()
+            @Suppress("DEPRECATION")
+            display.getSize(size)
+            size.x
         }
     }
 }

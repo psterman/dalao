@@ -1,0 +1,55 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector xmlns:android="http://schemas.android.com/apk/res/android"
+            android:width="24dp"
+            android:height="24dp"
+            android:viewportWidth="24.0"
+            android:viewportHeight="24.0">
+            <group
+                android:name="ripple_group"
+                android:pivotX="12"
+                android:pivotY="12">
+                <path
+                    android:name="ripple_path"
+                    android:fillColor="#FFFFFF"
+                    android:pathData="M12,12m-10,0a10,10 0,1 1,20 0a10,10 0,1 1,-20 0"/>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="ripple_group">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:propertyName="scaleX"
+                    android:duration="1000"
+                    android:valueFrom="0.5"
+                    android:valueTo="2.0"
+                    android:repeatCount="infinite"
+                    android:repeatMode="restart"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator"/>
+                <objectAnimator
+                    android:propertyName="scaleY"
+                    android:duration="1000"
+                    android:valueFrom="0.5"
+                    android:valueTo="2.0"
+                    android:repeatCount="infinite"
+                    android:repeatMode="restart"
+                    android:interpolator="@android:anim/accelerate_decelerate_interpolator"/>
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="ripple_path">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:propertyName="fillAlpha"
+                android:duration="1000"
+                android:valueFrom="1.0"
+                android:valueTo="0"
+                android:repeatCount="infinite"
+                android:repeatMode="restart"
+                android:interpolator="@android:anim/accelerate_interpolator"/>
+        </aapt:attr>
+    </target>
+</animated-vector> 

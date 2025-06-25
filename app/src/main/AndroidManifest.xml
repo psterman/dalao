@@ -70,6 +70,10 @@
             android:name=".SearchHistoryActivity"
             android:label="搜索历史"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
+            android:name=".VoiceRecognitionActivity"
+            android:theme="@style/Theme.AIFloatingBall.VoiceRecognition"
+            android:exported="false" />
 
         <service
             android:name=".service.FloatingWindowService"
