@@ -67,7 +67,12 @@ import android.os.VibrationEffect
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
-    private lateinit var windowManager: WindowManager
+    private val windowManager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
+    private val settingsManager by lazy { SettingsManager.getInstance(this) }
+    private val vibrator: Vibrator by lazy {
+        getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    }
+
     private var floatingView: View? = null
     private var params: WindowManager.LayoutParams? = null
 
@@ -76,7 +81,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private var initialTouchX: Float = 0.toFloat()
     private var initialTouchY: Float = 0.toFloat()
     private var isMoving: Boolean = false
-    private var isLongPressTriggered: Boolean = false
+    private var isLongPress: Boolean = false
+    private var isClick: Boolean = false
     private val touchSlop: Int by lazy { ViewConfiguration.get(this).scaledTouchSlop }
 
     private val idleHandler = Handler(android.os.Looper.getMainLooper())
@@ -115,7 +121,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private var searchInput: EditText? = null
 
-    private lateinit var settingsManager: SettingsManager
     private lateinit var appSearchSettings: AppSearchSettings
     private lateinit var textSelectionManager: TextSelectionManager
     private var isMenuVisible: Boolean = false
@@ -169,11 +174,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     override fun onCreate() {
         super.onCreate()
-        settingsManager = SettingsManager.getInstance(this)
         appSearchSettings = AppSearchSettings.getInstance(this)
         settingsManager.registerOnSharedPreferenceChangeListener(this)
 
-        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         textSelectionManager = TextSelectionManager(this, windowManager)
         initializeViews()
         initializeNotificationBar()
@@ -508,22 +511,14 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isMoving = false
-                    isLongPressTriggered = false // Reset long press flag
-
+                    isLongPress = false
+                    isClick = true // Assume it's a click until proven otherwise
+                    
                     // Schedule a task to run after the long-press timeout
                     longPressRunnable = Runnable {
-                        isLongPressTriggered = true // Mark that long press has occurred
-                        
-                        // Vibrate for haptic feedback
-                        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-                        } else {
-                            @Suppress("DEPRECATION")
-                            vibrator.vibrate(50)
-                        }
-                        
-                        // Start the voice recognition UI and animation
+                        isLongPress = true
+                        isClick = false // A long press is not a click
+                        vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
                         showVoiceRecognitionAnimation()
                     }
                     longPressHandler.postDelayed(longPressRunnable!!, ViewConfiguration.getLongPressTimeout().toLong())
@@ -538,6 +533,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     // If not already moving and movement exceeds touch slop, it's a drag
                     if (!isMoving && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
                         isMoving = true
+                        isClick = false // It's a drag, not a click
                         // A drag action cancels the pending long press
                         longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
                     }
@@ -554,26 +550,17 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     // Always cancel any pending long press when the touch is released
                     longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
 
-                    if (isLongPressTriggered) {
-                        // If a long press was triggered, do nothing on ACTION_UP.
-                        // The action was already handled. Just reset the flag.
-                        isLongPressTriggered = false
-                    } else if (!isMoving) {
-                        // If not a long press and not a move, it's a simple click.
-                        // FOR TESTING: Trigger voice recognition on click instead of long press.
-                        
-                        // Vibrate for haptic feedback
-                        val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-                        } else {
-                            @Suppress("DEPRECATION")
-                            vibrator.vibrate(50)
-                        }
-                        
-                        // Start the voice recognition UI and animation
-                        showVoiceRecognitionAnimation()
-                    } else {
+                    if (isLongPress) {
+                        // It's a long press, do nothing here as it's handled by the long press runnable
+                    } else if (isClick) {
+                        // It's a click
+                        toggleSearchInterface()
+                    }
+                    // Reset flags
+                    isLongPress = false
+                    isClick = false
+                    
+                    if (isMoving) {
                         // If it was a move, snap to the edge if enabled.
                         if (settingsManager.getAutoHide()) {
                             snapToEdge()
@@ -1197,5 +1184,17 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             display.getSize(size)
             size.x
         }
+    }
+
+    private fun isMainMenuVisible(): Boolean {
+        return isMenuVisible
+    }
+
+    private fun showMainMenu() {
+        showSearchInterface()
+    }
+
+    private fun hideMainMenu() {
+        hideSearchInterface()
     }
 }

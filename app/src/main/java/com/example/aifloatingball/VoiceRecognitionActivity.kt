@@ -1,11 +1,16 @@
 package com.example.aifloatingball
 
+import android.Manifest
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.drawable.AnimatedVectorDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -15,9 +20,11 @@ import android.speech.SpeechRecognizer
 import android.util.Log
 import android.view.View
 import android.view.animation.LinearInterpolator
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.google.android.material.button.MaterialButton
@@ -29,7 +36,6 @@ class VoiceRecognitionActivity : Activity() {
         private const val TAG = "VoiceRecognitionActivity"
     }
 
-    private var animatorSet: AnimatorSet? = null
     private val handler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
@@ -40,7 +46,7 @@ class VoiceRecognitionActivity : Activity() {
     private lateinit var micIcon: ImageView
     private lateinit var listeningText: TextView
     private lateinit var waveformView: View
-    private lateinit var recognizedTextView: TextView
+    private lateinit var recognizedTextView: EditText
     private lateinit var doneButton: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,11 +62,16 @@ class VoiceRecognitionActivity : Activity() {
         // 设置窗口属性
         setupWindowAttributes()
         
-        // 启动动画
-        startWaveAnimation()
+        // 启动前清空状态
+        recognizedText = ""
+        recognizedTextView.setText("")
         
-        // 启动语音识别
+        // 检查权限并启动语音识别
+        if (hasAudioPermission()) {
         startVoiceRecognition()
+        } else {
+            requestAudioPermission()
+        }
     }
 
     private fun initializeViews() {
@@ -94,42 +105,13 @@ class VoiceRecognitionActivity : Activity() {
         overridePendingTransition(R.anim.slide_up, 0)
     }
 
-    private fun startWaveAnimation() {
-        try {
-            // 创建波形动画
-            val waveformAnimator = ObjectAnimator.ofFloat(waveformView, "amplitude", 0f, 1f).apply {
-                duration = 1000
-                repeatCount = ValueAnimator.INFINITE
-                repeatMode = ValueAnimator.REVERSE
-                interpolator = LinearInterpolator()
-            }
-            
-            // 创建麦克风脉动动画
-            val scaleXAnimator = ObjectAnimator.ofFloat(micContainer, "scaleX", 1f, 1.1f).apply {
-                duration = 1000
-                repeatCount = ValueAnimator.INFINITE
-                repeatMode = ValueAnimator.REVERSE
-                interpolator = LinearInterpolator()
-            }
-            
-            val scaleYAnimator = ObjectAnimator.ofFloat(micContainer, "scaleY", 1f, 1.1f).apply {
-                duration = 1000
-                repeatCount = ValueAnimator.INFINITE
-                repeatMode = ValueAnimator.REVERSE
-                interpolator = LinearInterpolator()
-            }
-            
-            // 创建组合动画
-            animatorSet = AnimatorSet().apply {
-                playTogether(waveformAnimator, scaleXAnimator, scaleYAnimator)
-                start()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
     private fun startVoiceRecognition() {
+        // 首先检查设备是否支持语音识别
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            showVoiceRecognitionNotAvailableDialog()
+            return
+        }
+
         // 确保前一个识别器被释放
         releaseSpeechRecognizer()
         
@@ -179,11 +161,9 @@ class VoiceRecognitionActivity : Activity() {
         if (listening) {
             listeningText.text = "正在倾听"
             micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
-            animatorSet?.resume()
         } else {
             listeningText.text = "识别已暂停"
             micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
-            animatorSet?.pause()
         }
     }
     
@@ -204,7 +184,7 @@ class VoiceRecognitionActivity : Activity() {
             override fun onRmsChanged(rmsdB: Float) {
                 // 根据音量大小更新波形动画
                 handler.post {
-                    updateWaveformAmplitude(rmsdB)
+                    updateMicAnimation(rmsdB)
                 }
             }
 
@@ -238,34 +218,42 @@ class VoiceRecognitionActivity : Activity() {
         }
     }
     
-    private fun updateWaveformAmplitude(rmsdB: Float) {
-        // 将音量转换为振幅值 (0.0-1.0)
-        val amplitude = (rmsdB + 100) / 100f  // 音量范围通常在-100到0之间
-        
-        // 更新波形视图（需要在WaveformView中实现setAmplitude方法）
-        if (waveformView is com.example.aifloatingball.ui.WaveformView) {
-            (waveformView as com.example.aifloatingball.ui.WaveformView).setAmplitude(amplitude.coerceIn(0f, 1f))
-        }
+    private fun updateMicAnimation(rmsdB: Float) {
+        val minScale = 1.0f
+        val maxScale = 1.2f
+        // Clamp and normalize the rmsdB value. Range from 0 to 10 is a reasonable expectation for speech.
+        val normalizedRms = (rmsdB).coerceIn(0f, 10f) / 10f 
+        val targetScale = minScale + (maxScale - minScale) * normalizedRms
+
+        // Animate the mic container scale
+        micContainer.animate()
+            .scaleX(targetScale)
+            .scaleY(targetScale)
+            .setDuration(150) // Smooth transition
+            .start()
     }
     
     private fun processRecognitionResults(results: Bundle?) {
         try {
         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         if (!matches.isNullOrEmpty()) {
-            val text = matches[0]
-            recognizedText = text
-            
-            // 显示识别结果
-            recognizedTextView.text = text
-            recognizedTextView.visibility = View.VISIBLE
-            
-            // 更新UI状态
-                listeningText.text = "识别完成，点击确认或继续说话"
+                val newFinalText = matches[0]
                 
-                // 自动发送结果并结束活动
+                // 将新的最终结果追加到累积文本中
+                recognizedText = if (recognizedText.isEmpty()) newFinalText else "$recognizedText $newFinalText"
+                
+                // 使用累积的文本更新显示
+                recognizedTextView.setText(recognizedText)
+                recognizedTextView.setSelection(recognizedText.length)
+                
+                // 提示用户并立即重启识别，以实现连续听写
+                listeningText.text = "请继续或点击完成"
+                // Introduce a delay to allow the recognizer to reset properly
                 handler.postDelayed({
-                    finishRecognition()
-                }, 1000) // 延迟1秒后自动发送结果
+                    if (isListening) { // Prevent restart if user manually stopped
+                        startVoiceRecognition()
+                    }
+                }, 250)
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理识别结果失败: ${e.message}")
@@ -276,33 +264,103 @@ class VoiceRecognitionActivity : Activity() {
     private fun processPartialResults(partialResults: Bundle?) {
         val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
         if (!matches.isNullOrEmpty()) {
-            val text = matches[0]
+            val partialText = matches[0]
             
-            // 显示部分识别结果
-            if (text.isNotEmpty()) {
-                recognizedTextView.text = text
-                recognizedTextView.visibility = View.VISIBLE
+            // 显示部分识别结果，追加到已确定的文本后面
+            if (partialText.isNotEmpty()) {
+                val displayText = if (recognizedText.isEmpty()) partialText else "$recognizedText $partialText"
+                recognizedTextView.setText(displayText)
+                recognizedTextView.setSelection(displayText.length)
             }
         }
     }
     
     private fun handleRecognitionError(error: Int) {
-        when (error) {
-            SpeechRecognizer.ERROR_NO_MATCH -> {
-                listeningText.text = "未能识别，请重试"
-                recognizedTextView.text = "请清晰地说出您要搜索的内容"
-                recognizedTextView.visibility = View.VISIBLE
+        // 对于非致命错误，自动重启监听
+        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
+            error == SpeechRecognizer.ERROR_CLIENT ||
+            error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
+            
+            Log.d(TAG, "Non-critical error ($error), restarting listener.")
+            
+            // 给出清晰的反馈，但绝不覆盖用户的输入
+            listeningText.text = "请再说一遍"
+            micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+
+            // 在安全延迟后重启识别过程
+            handler.postDelayed({
+                if (isListening) {
+                    startVoiceRecognition()
+                }
+            }, 500) 
+
+            return
+        }
+
+        // 对于其他致命错误，向用户显示消息并关闭活动
+        val errorMessage = when (error) {
+            SpeechRecognizer.ERROR_AUDIO -> "音频错误"
+            SpeechRecognizer.ERROR_NETWORK -> "网络错误"
+            SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "没有录音权限"
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别服务忙"
+            SpeechRecognizer.ERROR_SERVER -> "服务器错误"
+            else -> "识别错误 (代码: $error)"
+        }
+        
+        Log.e(TAG, "Fatal Speech Recognition Error: $errorMessage")
+        showError(errorMessage)
+    }
+
+    private fun showVoiceRecognitionNotAvailableDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("语音服务不可用")
+            .setMessage("您的设备似乎没有安装或启用语音识别服务。请安装或启用Google应用以使用此功能。")
+            .setPositiveButton("前往商店") { dialog, _ ->
+                try {
+                    // Try to open the Play Store app
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.googlequicksearchbox"))
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                } catch (e: ActivityNotFoundException) {
+                    // If Play Store is not available, open the web version
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.googlequicksearchbox"))
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                }
+                finish() // Close the activity after redirecting
             }
-            SpeechRecognizer.ERROR_NETWORK -> {
-                listeningText.text = "网络错误"
-                showError("网络连接失败，请检查网络")
+            .setNegativeButton("取消") { dialog, _ ->
+                dialog.dismiss()
+                finish() // Close the activity
             }
-            else -> {
-                listeningText.text = "识别错误，请重试"
-                showError("语音识别失败 (错误码: $error)")
+            .setOnCancelListener {
+                finish() // Also close if the user cancels by tapping outside
+            }
+            .show()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == VOICE_RECOGNITION_REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, start recognition
+                startVoiceRecognition()
+            } else {
+                // Permission denied
+                Toast.makeText(this, "需要录音权限才能使用语音输入", Toast.LENGTH_LONG).show()
+                finish()
             }
         }
-        stopListening()
+    }
+
+    private fun hasAudioPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun requestAudioPermission() {
+        ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), VOICE_RECOGNITION_REQUEST_CODE)
     }
     
     private fun finishRecognition() {
@@ -350,12 +408,6 @@ class VoiceRecognitionActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        
-        // 释放动画资源
-        animatorSet?.apply {
-            cancel()
-            removeAllListeners()
-        }
         
         // 释放语音识别器
         releaseSpeechRecognizer()
