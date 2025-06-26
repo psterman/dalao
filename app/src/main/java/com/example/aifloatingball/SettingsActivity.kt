@@ -19,6 +19,9 @@ import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.service.FloatingWindowService
 import androidx.preference.SwitchPreferenceCompat
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import android.content.DialogInterface
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -184,12 +187,44 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     }
 
     class SettingsFragment : BaseSettingsFragment() {
+        private lateinit var settingsManager: SettingsManager
+
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            settingsManager = SettingsManager.getInstance(requireContext())
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
 
             findPreference<Preference>("view_search_history")?.setOnPreferenceClickListener {
                 val intent = Intent(activity, SearchHistoryActivity::class.java)
                 startActivity(intent)
+                true
+            }
+
+            // 恢复默认设置
+            findPreference<Preference>("restore_defaults")?.setOnPreferenceClickListener {
+                val builder = AlertDialog.Builder(requireContext())
+                    .setTitle("确认恢复")
+                    .setMessage("您确定要将所有设置恢复为默认值吗？此操作无法撤销。")
+
+                val positiveAction = DialogInterface.OnClickListener { _, _ ->
+                    settingsManager.clearAllSettings()
+                    Toast.makeText(requireContext(), "已恢复默认设置，请重启应用", Toast.LENGTH_LONG).show()
+                    activity?.recreate()
+                }
+                val negativeAction = DialogInterface.OnClickListener { _, _ ->
+                    // User cancelled the dialog
+                }
+
+                if (settingsManager.isLeftHandedModeEnabled()) {
+                    // 左手模式: "恢复"在左，"取消"在右
+                    builder.setPositiveButton("取消", negativeAction)
+                    builder.setNegativeButton("恢复", positiveAction)
+                } else {
+                    // 右手模式（默认）: "恢复"在右，"取消"在左
+                    builder.setPositiveButton("恢复", positiveAction)
+                    builder.setNegativeButton("取消", negativeAction)
+                }
+                
+                builder.show()
                 true
             }
         }

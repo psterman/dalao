@@ -1,6 +1,7 @@
 package com.example.aifloatingball
 
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
@@ -71,17 +72,30 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         // 恢复默认设置
         findPreference<Preference>("restore_defaults")?.setOnPreferenceClickListener {
-            AlertDialog.Builder(requireContext())
+            val builder = AlertDialog.Builder(requireContext())
                 .setTitle("确认恢复")
                 .setMessage("您确定要将所有设置恢复为默认值吗？此操作无法撤销。")
-                .setPositiveButton("恢复") { _, _ ->
-                    settingsManager.clearAllSettings()
-                    Toast.makeText(requireContext(), "已恢复默认设置，请重启应用", Toast.LENGTH_LONG).show()
-                    // Recreate the activity to apply default settings
-                    activity?.recreate()
-                }
-                .setNegativeButton("取消", null)
-                .show()
+
+            val positiveAction = DialogInterface.OnClickListener { _, _ ->
+                settingsManager.clearAllSettings()
+                Toast.makeText(requireContext(), "已恢复默认设置，请重启应用", Toast.LENGTH_LONG).show()
+                activity?.recreate()
+            }
+            val negativeAction = DialogInterface.OnClickListener { _, _ ->
+                // User cancelled the dialog
+            }
+
+            if (settingsManager.isLeftHandedModeEnabled()) {
+                // 左手模式: "恢复"在左，"取消"在右
+                builder.setPositiveButton("取消", negativeAction)
+                builder.setNegativeButton("恢复", positiveAction)
+            } else {
+                // 右手模式（默认）: "恢复"在右，"取消"在左
+                builder.setPositiveButton("恢复", positiveAction)
+                builder.setNegativeButton("取消", negativeAction)
+            }
+            
+            builder.show()
             true
         }
     }
