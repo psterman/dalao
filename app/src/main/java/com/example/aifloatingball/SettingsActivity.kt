@@ -15,6 +15,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.SettingsSearchResultAdapter
 import com.example.aifloatingball.model.SearchableSetting
+import com.example.aifloatingball.service.DynamicIslandService
+import com.example.aifloatingball.service.FloatingWindowService
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -25,11 +27,12 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     private lateinit var settingsManager: SettingsManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        settingsManager = SettingsManager.getInstance(this)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
-        settingsManager = SettingsManager.getInstance(this)
         settingsManager.registerOnSharedPreferenceChangeListener(this)
+        applyLayoutDirection()
 
         if (savedInstanceState == null) {
             supportFragmentManager
@@ -43,12 +46,34 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         searchManager = SettingsSearchManager(this)
         settingsContainer = findViewById(R.id.settings_container)
         resultsRecyclerView = findViewById(R.id.search_results_recycler_view)
-        if (settingsManager.isLeftHandModeEnabled()) {
-            resultsRecyclerView.layoutDirection = View.LAYOUT_DIRECTION_RTL
-        } else {
-            resultsRecyclerView.layoutDirection = View.LAYOUT_DIRECTION_LTR
-        }
         setupRecyclerView()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateDisplayMode()
+    }
+
+    private fun updateDisplayMode() {
+        // This function is crucial for starting/stopping services based on settings.
+        val intentBall = Intent(this, FloatingWindowService::class.java)
+        val intentIsland = Intent(this, DynamicIslandService::class.java)
+        stopService(intentBall)
+        stopService(intentIsland)
+
+        val displayMode = settingsManager.getDisplayMode()
+        if (displayMode == "floating_ball" && settingsManager.isFloatingBallEnabled()) {
+            startService(intentBall)
+        } else if (displayMode == "dynamic_island" && settingsManager.isDynamicIslandEnabled()) {
+            startService(intentIsland)
+        } else if (displayMode == "both") {
+            if (settingsManager.isFloatingBallEnabled()) {
+                startService(intentBall)
+            }
+            if (settingsManager.isDynamicIslandEnabled()) {
+                startService(intentIsland)
+            }
+        }
     }
 
     override fun onDestroy() {
@@ -65,7 +90,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             // Find the preference in the root fragment and perform a click
             val settingsFragment = supportFragmentManager.findFragmentById(R.id.settings_container) as? SettingsFragment
             settingsFragment?.findPreference<Preference>(setting.key)?.performClick()
-        }
+            }
         resultsRecyclerView.layoutManager = LinearLayoutManager(this)
         resultsRecyclerView.adapter = resultsAdapter
     }
@@ -133,27 +158,38 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         return true
     }
 
+    private fun applyLayoutDirection() {
+        if (settingsManager.isLeftHandedModeEnabled()) {
+            window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        } else {
+            window.decorView.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        }
+    }
+
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences, key: String?) {
-        if (key == "left_handed_mode") {
-            recreate()
+        when (key) {
+            "left_handed_mode" -> {
+                applyLayoutDirection()
+            }
+            "display_mode", "floating_ball_enabled", "dynamic_island_enabled" -> {
+                updateDisplayMode()
+            }
         }
     }
 
     abstract class BaseSettingsFragment : PreferenceFragmentCompat() {
-        override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-            super.onViewCreated(view, savedInstanceState)
-            val settingsManager = SettingsManager.getInstance(requireContext())
-            if (settingsManager.isLeftHandModeEnabled()) {
-                listView.layoutDirection = View.LAYOUT_DIRECTION_RTL
-            } else {
-                listView.layoutDirection = View.LAYOUT_DIRECTION_LTR
-            }
-        }
+        // No longer needed, as the Activity handles the layout direction globally.
     }
 
     class SettingsFragment : BaseSettingsFragment() {
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
+
+            findPreference<Preference>("view_search_history")?.setOnPreferenceClickListener {
+                val intent = Intent(activity, SearchHistoryActivity::class.java)
+                startActivity(intent)
+                true
+            }
         }
     }
 
@@ -173,4 +209,22 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             setPreferencesFromResource(R.xml.floating_window_preferences, rootKey)
         }
     }
-}
+
+    class ApiSettingsFragment : BaseSettingsFragment() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.ai_api_preferences, rootKey)
+        }
+    }
+
+    class MasterPromptSettingsFragment : BaseSettingsFragment() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.master_prompt_preferences, rootKey)
+        }
+    }
+
+    class WebSearchEngineManagerFragment : BaseSettingsFragment() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.search_engine_preferences, rootKey)
+        }
+    }
+} 

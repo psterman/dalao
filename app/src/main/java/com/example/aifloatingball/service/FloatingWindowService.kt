@@ -413,7 +413,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
         val savedPosition = settingsManager.getFloatingBallPosition()
         val screenWidth = getScreenWidth()
-        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
+        val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
 
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -634,7 +634,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         val menuWidth = resources.getDimensionPixelSize(R.dimen.floating_menu_width)
 
         // Adjust position before showing menu to keep ball stationary
-        if (!settingsManager.isLeftHandModeEnabled()) { // Right-handed, menu appears on the left
+        if (!settingsManager.isLeftHandedModeEnabled()) { // Right-handed, menu appears on the left
             params?.x = params?.x?.minus(menuWidth)
         }
 
@@ -645,7 +645,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         val ballIcon = floatingView?.findViewById<View>(R.id.floating_ball_icon)
         contentContainer?.removeView(searchContainer)
         contentContainer?.removeView(ballIcon)
-        if (settingsManager.isLeftHandModeEnabled()) {
+        if (settingsManager.isLeftHandedModeEnabled()) {
             layoutParams?.gravity = Gravity.START
             contentContainer?.addView(ballIcon)
             contentContainer?.addView(searchContainer)
@@ -688,7 +688,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             searchContainer?.alpha = 1f
 
             // Adjust position and flags AFTER menu is gone
-            if (!settingsManager.isLeftHandModeEnabled()) { // Right-handed, menu was on the left
+            if (!settingsManager.isLeftHandedModeEnabled()) { // Right-handed, menu was on the left
                 params?.x = params?.x?.plus(menuWidth)
             }
             params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
@@ -1065,7 +1065,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private fun calculateTargetX(): Int {
         val menuWidth = resources.getDimensionPixelSize(R.dimen.floating_menu_width)
         val screenWidth = getScreenWidth()
-        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
+        val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
 
         return if (isLeftHanded) {
             params?.x ?: 0
@@ -1200,7 +1200,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun snapToEdge() {
         val screenWidth = getScreenWidth()
-        val isLeftHanded = settingsManager.isLeftHandModeEnabled()
+        val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
 
         params?.x = if (isLeftHanded) {
             0

@@ -103,12 +103,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
 
-        // 左手模式
-        findPreference<SwitchPreferenceCompat>("left_handed_mode")?.setOnPreferenceChangeListener { _, newValue ->
-            settingsManager.setLeftHandModeEnabled(newValue as Boolean)
-            true
-        }
-
         // 主菜单管理
         findPreference<Preference>("menu_manager")?.setOnPreferenceClickListener {
             startActivity(Intent(requireContext(), MenuManagerActivity::class.java))

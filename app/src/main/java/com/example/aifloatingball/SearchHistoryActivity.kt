@@ -20,19 +20,29 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.aifloatingball.databinding.ActivitySearchHistoryBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 class SearchHistoryActivity : AppCompatActivity(), SearchView.OnQueryTextListener {
 
+    private lateinit var binding: ActivitySearchHistoryBinding
     private lateinit var recyclerView: RecyclerView
     private lateinit var emptyView: TextView
-    private lateinit var clearButton: FloatingActionButton
-    private lateinit var searchHistoryAdapter: SearchHistoryAdapter
+    private lateinit var adapter: SearchHistoryAdapter
+    private lateinit var clearButton: com.google.android.material.floatingactionbutton.FloatingActionButton
     private lateinit var searchHistoryDao: SearchHistoryDao
     private var fullHistoryList: List<SearchHistory> = listOf()
+    private lateinit var settingsManager: SettingsManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_search_history)
+        binding = ActivitySearchHistoryBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        settingsManager = SettingsManager.getInstance(this)
+        if (settingsManager.isLeftHandedModeEnabled()) {
+            window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        }
 
         searchHistoryDao = AppDatabase.getDatabase(this).searchHistoryDao()
 
@@ -43,24 +53,21 @@ class SearchHistoryActivity : AppCompatActivity(), SearchView.OnQueryTextListene
         }
 
         // Setup RecyclerView
-        recyclerView = findViewById(R.id.search_history_recycler_view)
-        emptyView = findViewById(R.id.empty_view)
-        clearButton = findViewById(R.id.fab_clear_history)
+        recyclerView = binding.searchHistoryRecyclerView
+        emptyView = binding.emptyView
+        clearButton = binding.fabClearHistory
         recyclerView.layoutManager = LinearLayoutManager(this)
 
-        setupAdapter()
+        adapter = SearchHistoryAdapter { itemToDelete ->
+            showDeleteConfirmationDialog(itemToDelete)
+        }
+        recyclerView.adapter = adapter
+
         loadSearchHistory()
 
         clearButton.setOnClickListener {
             showClearAllConfirmationDialog()
         }
-    }
-
-    private fun setupAdapter() {
-        searchHistoryAdapter = SearchHistoryAdapter { itemToDelete ->
-            showDeleteConfirmationDialog(itemToDelete)
-        }
-        recyclerView.adapter = searchHistoryAdapter
     }
 
     private fun loadSearchHistory() {
@@ -83,7 +90,7 @@ class SearchHistoryActivity : AppCompatActivity(), SearchView.OnQueryTextListene
             }
         }
         val groupedHistory = filteredList.groupBy { it.source }
-        searchHistoryAdapter.updateData(groupedHistory)
+        adapter.updateData(groupedHistory)
         updateEmptyView(filteredList.isEmpty())
     }
 
@@ -109,7 +116,7 @@ class SearchHistoryActivity : AppCompatActivity(), SearchView.OnQueryTextListene
                     searchHistoryDao.delete(item)
                     withContext(Dispatchers.Main) {
                         Toast.makeText(this@SearchHistoryActivity, "记录已删除", Toast.LENGTH_SHORT).show()
-                        loadSearchHistory()
+                loadSearchHistory()
                     }
                 }
             }
@@ -126,7 +133,7 @@ class SearchHistoryActivity : AppCompatActivity(), SearchView.OnQueryTextListene
                     searchHistoryDao.clearAll()
                     withContext(Dispatchers.Main) {
                         Toast.makeText(this@SearchHistoryActivity, "搜索历史已清除", Toast.LENGTH_SHORT).show()
-                        loadSearchHistory()
+                loadSearchHistory()
                     }
                 }
             }

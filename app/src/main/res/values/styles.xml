@@ -30,6 +30,10 @@
         <item name="android:textSelectHandleRight">@null</item>
     </style>
 
+    <style name="AppTheme.Rtl" parent="AppTheme">
+        <item name="android:layoutDirection">rtl</item>
+    </style>
+
     <style name="AppTheme.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>

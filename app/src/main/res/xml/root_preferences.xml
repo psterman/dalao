@@ -49,6 +49,13 @@
             app:summary="管理您的搜索记录"
             app:icon="@drawable/ic_history"/>
 
+        <SwitchPreferenceCompat
+            app:key="left_handed_mode"
+            app:title="左手模式"
+            app:summary="将部分界面布局调整为适合左手操作"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_screen_rotation"/>
+
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
@@ -102,13 +109,6 @@
             app:defaultValue="false"
             app:icon="@drawable/ic_exit"/>
 
-        <SwitchPreferenceCompat
-            app:key="left_handed_mode"
-            app:title="左手模式"
-            app:summary="将悬浮球菜单和布局调整为适合左手操作"
-            app:defaultValue="false"
-            app:icon="@drawable/ic_screen_rotation"/>
-
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
@@ -149,13 +149,6 @@
             app:summary="选择哪些应用的通知可以在灵动岛中显示"
             app:icon="@drawable/ic_settings"
             app:dependency="enable_notification_listener"/>
-
-        <SwitchPreferenceCompat
-            app:key="left_handed_mode"
-            app:title="左手模式"
-            app:summary="将悬浮球菜单和布局调整为适合左手操作"
-            app:defaultValue="false"
-            app:icon="@drawable/ic_screen_rotation"/>
 
     </PreferenceCategory>
 
@@ -245,13 +238,15 @@
             app:key="web_search_engine_manager"
             app:title="网页搜索引擎管理"
             app:summary="分类、排序、增删改、导入导出"
-            app:icon="@drawable/ic_settings"/>
+            app:icon="@drawable/ic_settings"
+            app:fragment="com.example.aifloatingball.SettingsActivity$WebSearchEngineManagerFragment"/>
 
         <Preference
-            app:key="ai_search_engine_manager"
-            app:title="AI 搜索引擎配置"
-            app:summary="启用或禁用可用的 AI 对话引擎"
-            app:icon="@drawable/ic_magic_wand"/>
+            app:key="ai_search_engine_config"
+            app:title="AI搜索引擎配置"
+            app:summary="设置各个AI搜索引擎的API密钥和模型"
+            app:icon="@drawable/ic_settings"
+            app:fragment="com.example.aifloatingball.SettingsActivity$ApiSettingsFragment"/>
             
         <Preference
             app:key="app_search_manager"
@@ -267,20 +262,23 @@
     <!-- =                       AI 助手 (AI Assistant)                       = -->
     <!-- ===================================================================== -->
     <PreferenceCategory
-        app:title="AI 助手"
+        app:key="category_ai_assistant"
+        app:title="AI助手"
         app:iconSpaceReserved="false">
 
         <Preference
-            app:key="master_prompt_settings"
-            app:title="AI 指令中心"
-            app:summary="定制你的个人AI助理，让它更懂你"
-            app:icon="@drawable/ic_magic_wand"/>
+            app:key="ai_command_center"
+            app:title="AI指令中心"
+            app:summary="管理、编辑、分享、导入和导出您的AI指令"
+            app:icon="@drawable/ic_settings"
+            app:fragment="com.example.aifloatingball.SettingsActivity$MasterPromptSettingsFragment"/>
 
         <Preference
             app:key="ai_api_settings"
-            app:title="API 设置"
-            app:summary="管理第三方AI服务的API密钥等"
-            app:icon="@drawable/ic_settings"/>
+            app:title="API设置"
+            app:summary="配置AI服务的API密钥、模型、代理等"
+            app:icon="@drawable/ic_settings"
+            app:fragment="com.example.aifloatingball.SettingsActivity$ApiSettingsFragment"/>
 
     </PreferenceCategory>
 

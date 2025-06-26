@@ -31,6 +31,7 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
     private var selectedEngineIdInDialog: String = ""
     private var isAIMode: Boolean = false
     private var listener: ((String) -> Unit)? = null
+    private var isLeftHandedMode: Boolean = false
 
     companion object {
         private const val ARG_CURRENT_ENGINE_ID = "current_engine_id"
@@ -50,6 +51,7 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
         selectedEngineIdInDialog = currentEngineId!!
         isAIMode = selectedEngineIdInDialog.startsWith("ai_")
         settingsManager = SettingsManager.getInstance(requireContext())
+        isLeftHandedMode = settingsManager.isLeftHandedModeEnabled()
 
         val view = layoutInflater.inflate(R.layout.dialog_search_engine_picker, null)
         
@@ -96,7 +98,8 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
         listAdapter = SearchEngineAdapter(
             context,
             getEngineList(isAIMode),
-            selectedEngineIdInDialog
+            selectedEngineIdInDialog,
+            isLeftHandedMode
         ) { engineId ->
             selectedEngineIdInDialog = engineId
         }
@@ -133,8 +136,19 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
         private val context: Context,
         private var engines: List<EngineItem>,
         private var currentSelectedEngineId: String,
+        private val isLeftHanded: Boolean,
         private val onItemSelected: (String) -> Unit
     ) : RecyclerView.Adapter<SearchEngineAdapter.ViewHolder>() {
+
+        init {
+            if (engines.none { it.id == currentSelectedEngineId }) {
+                val newSelectedId = engines.firstOrNull()?.id ?: ""
+                if (newSelectedId.isNotEmpty()) {
+                    onItemSelected(newSelectedId)
+                    currentSelectedEngineId = newSelectedId
+                }
+            }
+        }
 
         fun updateEngines(newEngines: List<EngineItem>) {
             engines = newEngines
@@ -152,8 +166,13 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val layoutId = if (isLeftHanded) {
+                R.layout.item_search_engine_picker_left
+            } else {
+                R.layout.item_search_engine_picker
+            }
             val view = LayoutInflater.from(context)
-                .inflate(R.layout.item_search_engine_picker, parent, false)
+                .inflate(layoutId, parent, false)
             return ViewHolder(view)
         }
 

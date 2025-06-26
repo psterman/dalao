@@ -86,9 +86,22 @@ class SettingsManager private constructor(context: Context) {
         return prefs.getString(KEY_DISPLAY_MODE, DEFAULT_DISPLAY_MODE) ?: DEFAULT_DISPLAY_MODE
     }
 
+    fun isFloatingBallEnabled(): Boolean {
+        return prefs.getBoolean("floating_ball_enabled", true)
+    }
+
+    fun isDynamicIslandEnabled(): Boolean {
+        return prefs.getBoolean("dynamic_island_enabled", true)
+    }
+
     fun setDisplayMode(mode: String) {
         prefs.edit().putString(KEY_DISPLAY_MODE, mode).apply()
         notifyListeners(KEY_DISPLAY_MODE, mode)
+    }
+
+    // 左手模式
+    fun isLeftHandedModeEnabled(): Boolean {
+        return prefs.getBoolean("left_handed_mode", false)
     }
 
     // 统一主题设置
@@ -281,16 +294,6 @@ class SettingsManager private constructor(context: Context) {
     fun setClipboardListenerEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("clipboard_listener", enabled).apply()
         notifyListeners("clipboard_listener", enabled)
-    }
-    
-    // 左手模式设置
-    fun isLeftHandModeEnabled(): Boolean {
-        return prefs.getBoolean("left_handed_mode", false)
-    }
-    
-    fun setLeftHandModeEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean("left_handed_mode", enabled).apply()
-        notifyListeners("left_handed_mode", enabled)
     }
     
     // AI模式设置
