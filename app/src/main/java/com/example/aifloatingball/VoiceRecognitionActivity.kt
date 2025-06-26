@@ -42,6 +42,7 @@ class VoiceRecognitionActivity : Activity() {
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var recognizedText = ""
+    private lateinit var settingsManager: SettingsManager
     
     // 界面元素
     private lateinit var micContainer: MaterialCardView
@@ -55,6 +56,7 @@ class VoiceRecognitionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_voice_recognition)
+        settingsManager = SettingsManager.getInstance(this)
         
         // 初始化视图
         initializeViews()
@@ -85,6 +87,10 @@ class VoiceRecognitionActivity : Activity() {
         doneButton = findViewById(R.id.doneButton)
         zoomInButton = findViewById(R.id.zoomInButton)
         zoomOutButton = findViewById(R.id.zoomOutButton)
+
+        // Load the saved font size, or use the default
+        val savedSize = settingsManager.getVoiceInputTextSize()
+        recognizedTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, savedSize)
     }
     
     private fun setupClickListeners() {
@@ -248,9 +254,12 @@ class VoiceRecognitionActivity : Activity() {
     private fun adjustTextSize(adjustment: Float) {
         val currentSizeSp = recognizedTextView.textSize / resources.displayMetrics.scaledDensity
         val newSizeSp = currentSizeSp + adjustment
-        // Clamp the new size between 12sp and 40sp
-        val clampedSizeSp = newSizeSp.coerceIn(12f, 40f)
-        recognizedTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, clampedSizeSp)
+        // Optional: Add min/max size constraints if needed
+        // val newSizeClamped = newSizeSp.coerceIn(12f, 64f)
+        recognizedTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, newSizeSp)
+
+        // Save the new font size
+        settingsManager.setVoiceInputTextSize(newSizeSp)
     }
     
     private fun processRecognitionResults(results: Bundle?) {
@@ -395,7 +404,6 @@ class VoiceRecognitionActivity : Activity() {
             // sendBroadcast(intent)
         
             // 新逻辑：直接启动 DualFloatingWebViewService
-            val settingsManager = SettingsManager.getInstance(this)
             val defaultEngineKey = settingsManager.getSearchEngineForPosition(0)
 
             val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {

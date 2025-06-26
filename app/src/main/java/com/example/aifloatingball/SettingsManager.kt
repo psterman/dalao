@@ -769,4 +769,13 @@ class SettingsManager private constructor(context: Context) {
     fun getActionIslandLongPress(): String {
         return prefs.getString("action_island_long_press", "dual_search") ?: "dual_search"
     }
+
+    // Voice Input Text Size
+    fun getVoiceInputTextSize(): Float {
+        return prefs.getFloat("voice_input_text_size", 32f) // Default to 32sp
+    }
+
+    fun setVoiceInputTextSize(size: Float) {
+        prefs.edit().putFloat("voice_input_text_size", size).apply()
+    }
 }
