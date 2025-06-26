@@ -108,18 +108,13 @@ class SearchEnginePickerDialogFragment : DialogFragment() {
     }
 
     private fun getEngineList(isAI: Boolean): List<EngineItem> {
+        val allEngines = settingsManager.getAllSearchEngines()
         return if (isAI) {
-            val enabledAIEngines = settingsManager.getEnabledAIEngines()
-            AISearchEngine.DEFAULT_AI_ENGINES
-                .filter { enabledAIEngines.contains(it.name) }
-                .map { 
+            allEngines.filterIsInstance<AISearchEngine>().map {
                     EngineItem("ai_${it.name}", it.displayName, it.iconResId, true)
                 }
         } else {
-            val enabledSearchEngines = settingsManager.getEnabledSearchEngines()
-            SearchEngine.DEFAULT_ENGINES
-                .filter { enabledSearchEngines.contains(it.name) }
-                .map { 
+            allEngines.filterIsInstance<SearchEngine>().map {
                     EngineItem(it.name, it.displayName, it.iconResId, false)
                 }
         }

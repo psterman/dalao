@@ -15,8 +15,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.SettingsSearchResultAdapter
 import com.example.aifloatingball.model.SearchableSetting
+import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.service.FloatingWindowService
+import androidx.preference.SwitchPreferenceCompat
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -223,8 +225,96 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     }
 
     class WebSearchEngineManagerFragment : BaseSettingsFragment() {
+        private lateinit var settingsManager: SettingsManager
+
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.search_engine_preferences, rootKey)
+            settingsManager = SettingsManager.getInstance(requireContext())
+            preferenceScreen = preferenceManager.createPreferenceScreen(requireContext())
+            buildPreferences()
+        }
+
+        private fun buildPreferences() {
+            preferenceScreen.removeAll()
+            val context = requireContext()
+
+            val enabledEngines = settingsManager.getEnabledSearchEngines().toMutableSet()
+
+            val allEngines = settingsManager.getAllSearchEngines()
+            val customEngines = settingsManager.getCustomSearchEngines().map { it.name }.toSet()
+
+            // Default Engines Category
+            val defaultCategory = androidx.preference.PreferenceCategory(context).apply { title = "默认搜索引擎" }
+            preferenceScreen.addPreference(defaultCategory)
+            allEngines.filter { !customEngines.contains(it.name) }.forEach { engine ->
+                val switchPref = SwitchPreferenceCompat(context).apply {
+                    key = "engine_enabled_${engine.name}"
+                    title = engine.displayName
+                    summary = engine.url
+                    isChecked = enabledEngines.contains(engine.name)
+                    setOnPreferenceChangeListener { _, newValue ->
+                        if (newValue as Boolean) {
+                            enabledEngines.add(engine.name)
+                        } else {
+                            enabledEngines.remove(engine.name)
+                        }
+                        settingsManager.saveEnabledSearchEngines(enabledEngines)
+                        true
+                    }
+                }
+                defaultCategory.addPreference(switchPref)
+            }
+
+            // Custom Engines Category
+            val customCategory = androidx.preference.PreferenceCategory(context).apply { title = "自定义搜索引擎" }
+            preferenceScreen.addPreference(customCategory)
+            allEngines.filter { customEngines.contains(it.name) }.forEach { engine ->
+                 val switchPref = SwitchPreferenceCompat(context).apply {
+                    key = "engine_enabled_${engine.name}"
+                    title = engine.displayName
+                    summary = engine.url
+                    isChecked = enabledEngines.contains(engine.name)
+                     setOnPreferenceChangeListener { _, newValue ->
+                        if (newValue as Boolean) {
+                            enabledEngines.add(engine.name)
+                        } else {
+                            enabledEngines.remove(engine.name)
+                        }
+                        settingsManager.saveEnabledSearchEngines(enabledEngines)
+                        true
+                    }
+                }
+                customCategory.addPreference(switchPref)
+            }
+
+            // Add action to add new engine
+            val addEnginePref = androidx.preference.Preference(context).apply {
+                title = "添加新的搜索引擎"
+                summary = "自定义您的搜索引擎"
+                setIcon(android.R.drawable.ic_menu_add)
+                setOnPreferenceClickListener {
+                    android.widget.Toast.makeText(context, "此功能待实现", android.widget.Toast.LENGTH_SHORT).show()
+                    true
+                }
+            }
+            preferenceScreen.addPreference(addEnginePref)
+        }
+    }
+
+    class PromptOccupationFragment : BaseSettingsFragment() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.preferences_prompt_occupation, rootKey)
+        }
+    }
+
+    class PromptInterestsFragment : BaseSettingsFragment() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.preferences_prompt_interests, rootKey)
+        }
+    }
+
+    class PromptHealthFragment : BaseSettingsFragment() {
+        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+            setPreferencesFromResource(R.xml.preferences_prompt_health, rootKey)
         }
     }
 } 

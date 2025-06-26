@@ -29,15 +29,18 @@
         <Preference
             app:key="prompt_occupation_subpage"
             app:title="职业信息"
-            app:summary="进一步描述您的职业背景与规划"/>
+            app:summary="进一步描述您的职业背景与规划"
+            app:fragment="com.example.aifloatingball.SettingsActivity$PromptOccupationFragment"/>
         <Preference
             app:key="prompt_interests_subpage"
             app:title="兴趣与观念"
-            app:summary="详细描述您的兴趣、爱好、三观等"/>
+            app:summary="详细描述您的兴趣、爱好、三观等"
+            app:fragment="com.example.aifloatingball.SettingsActivity$PromptInterestsFragment"/>
         <Preference
             app:key="prompt_health_subpage"
             app:title="健康状况"
-            app:summary="详细描述您的身体状况与习惯"/>
+            app:summary="详细描述您的身体状况与习惯"
+            app:fragment="com.example.aifloatingball.SettingsActivity$PromptHealthFragment"/>
     </PreferenceCategory>
 
 

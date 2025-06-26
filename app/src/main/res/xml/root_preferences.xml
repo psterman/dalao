@@ -235,27 +235,12 @@
         app:iconSpaceReserved="false">
 
         <Preference
-            app:key="web_search_engine_manager"
+            app:key="search_engine_settings"
             app:title="网页搜索引擎管理"
             app:summary="分类、排序、增删改、导入导出"
             app:icon="@drawable/ic_settings"
-            app:fragment="com.example.aifloatingball.SettingsActivity$WebSearchEngineManagerFragment"/>
+            app:fragment="com.example.aifloatingball.settings.SearchEngineSelectionFragment"/>
 
-        <Preference
-            app:key="ai_search_engine_config"
-            app:title="AI搜索引擎配置"
-            app:summary="设置各个AI搜索引擎的API密钥和模型"
-            app:icon="@drawable/ic_settings"
-            app:fragment="com.example.aifloatingball.SettingsActivity$ApiSettingsFragment"/>
-            
-        <Preference
-            app:key="app_search_manager"
-            app:title="应用内搜索管理"
-            app:summary="管理和排序在悬浮窗中显示的快捷应用"
-            app:icon="@drawable/ic_settings">
-            <intent android:targetPackage="com.example.aifloatingball"
-                android:targetClass="com.example.aifloatingball.settings.AppSearchSettingsActivity"/>
-        </Preference>
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
@@ -265,6 +250,15 @@
         app:key="category_ai_assistant"
         app:title="AI助手"
         app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="ai_engine_settings"
+            app:title="AI引擎管理"
+            app:summary="管理可用的AI模型与搜索引擎"
+            app:icon="@drawable/ic_ai_search">
+            <intent android:targetPackage="com.example.aifloatingball"
+                    android:targetClass="com.example.aifloatingball.AISearchEngineSettingsActivity"/>
+        </Preference>
 
         <Preference
             app:key="ai_command_center"
