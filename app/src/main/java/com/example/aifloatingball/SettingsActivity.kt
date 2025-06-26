@@ -175,6 +175,19 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         when (key) {
             "left_handed_mode" -> {
                 applyLayoutDirection()
+                
+                // Link floating ball position to left-handed mode
+                val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+                val currentPosition = settingsManager.getFloatingBallPosition()
+                val screenWidth = resources.displayMetrics.widthPixels
+                
+                val newX = if (isLeftHanded) 0 else screenWidth
+                
+                settingsManager.setFloatingBallPosition(newX, currentPosition.second)
+                
+                // Notify the service to update the ball's position
+                val intent = Intent(FloatingWindowService.ACTION_UPDATE_POSITION)
+                sendBroadcast(intent)
             }
             "display_mode", "floating_ball_enabled", "dynamic_island_enabled" -> {
                 updateDisplayMode()

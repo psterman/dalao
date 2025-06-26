@@ -161,11 +161,20 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
     }
 
+    private val positionUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_UPDATE_POSITION) {
+                updateFloatingBallPosition()
+            }
+        }
+    }
+
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "FloatingWindowServiceChannel"
         private const val TAG = "FloatingWindowService"
         const val ACTION_SHOW_SEARCH = "com.example.aifloatingball.service.SHOW_SEARCH"
+        const val ACTION_UPDATE_POSITION = "com.example.aifloatingball.service.UPDATE_POSITION"
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -189,6 +198,10 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
         val filter = IntentFilter(NotificationListener.ACTION_NOTIFICATION)
         LocalBroadcastManager.getInstance(this).registerReceiver(notificationReceiver, filter)
+
+        // Register position update receiver
+        val positionFilter = IntentFilter(ACTION_UPDATE_POSITION)
+        registerReceiver(positionUpdateReceiver, positionFilter)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -207,6 +220,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         notificationHideHandler.removeCallbacksAndMessages(null)
         hidePasteButton()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
+        // Unregister position update receiver
+        unregisterReceiver(positionUpdateReceiver)
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -1240,5 +1255,16 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun hideMainMenu() {
         hideSearchInterface()
+    }
+
+    private fun updateFloatingBallPosition() {
+        val newPosition = settingsManager.getFloatingBallPosition()
+        params?.let {
+            it.x = newPosition.first
+            it.y = newPosition.second
+            if (floatingView?.isAttachedToWindow == true) {
+                windowManager.updateViewLayout(floatingView, it)
+            }
+        }
     }
 }
