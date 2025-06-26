@@ -22,6 +22,7 @@ import androidx.preference.SwitchPreferenceCompat
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import android.content.DialogInterface
+import androidx.preference.ListPreference
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -209,6 +210,13 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             findPreference<Preference>("view_search_history")?.setOnPreferenceClickListener {
                 val intent = Intent(activity, SearchHistoryActivity::class.java)
                 startActivity(intent)
+                true
+            }
+
+            // 主题切换
+            findPreference<ListPreference>("theme_mode")?.setOnPreferenceChangeListener { _, newValue ->
+                settingsManager.setThemeMode((newValue as String).toInt())
+                activity?.recreate()
                 true
             }
 
