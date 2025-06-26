@@ -11,14 +11,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
-import com.example.aifloatingball.adapter.SearchEngineAdapter
+import com.example.aifloatingball.adapter.GenericSearchEngineAdapter
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.service.DualFloatingWebViewService
 
 class AIEngineListFragment : Fragment() {
 
     private lateinit var recyclerView: RecyclerView
-    private lateinit var adapter: SearchEngineAdapter<AISearchEngine>
+    private lateinit var adapter: GenericSearchEngineAdapter<AISearchEngine>
     private lateinit var settingsManager: SettingsManager
     private var engines: List<AISearchEngine> = emptyList()
 
@@ -52,7 +52,7 @@ class AIEngineListFragment : Fragment() {
         
         val enabledEngines = settingsManager.getEnabledAIEngines().toMutableSet()
 
-        adapter = SearchEngineAdapter(
+        adapter = GenericSearchEngineAdapter(
             context = requireContext(),
             engines = engines,
             enabledEngines = enabledEngines,

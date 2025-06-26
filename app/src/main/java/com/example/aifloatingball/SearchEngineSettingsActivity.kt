@@ -8,14 +8,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.CategoryAdapter
-import com.example.aifloatingball.adapter.SearchEngineAdapter
+import com.example.aifloatingball.adapter.GenericSearchEngineAdapter
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.SearchEngineCategory
 
 class SearchEngineSettingsActivity : AppCompatActivity() {
     private lateinit var recyclerViewCategories: RecyclerView
     private lateinit var recyclerViewSearchEngines: RecyclerView
-    private lateinit var searchEngineAdapter: SearchEngineAdapter<SearchEngine>
+    private lateinit var searchEngineAdapter: GenericSearchEngineAdapter<SearchEngine>
     private lateinit var categoryAdapter: CategoryAdapter
     private lateinit var settingsManager: SettingsManager
     private val enabledEngines = mutableSetOf<String>()
@@ -56,11 +56,11 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
     private fun setupSearchEngines() {
         recyclerViewSearchEngines = findViewById(R.id.recyclerViewSearchEngines)
         recyclerViewSearchEngines.layoutManager = LinearLayoutManager(this)
-        searchEngineAdapter = SearchEngineAdapter(
+        searchEngineAdapter = GenericSearchEngineAdapter(
             context = this,
             engines = emptyList(), // Initially empty
             enabledEngines = enabledEngines,
-            onEngineToggled = { engineName, isEnabled -> 
+            onEngineToggled = { engineName, isEnabled ->
                 if (isEnabled) {
                     enabledEngines.add(engineName)
                 } else {

@@ -1,59 +1,54 @@
 package com.example.aifloatingball.settings
 
 import android.os.Bundle
-import androidx.preference.Preference
-import androidx.preference.PreferenceCategory
-import androidx.preference.PreferenceFragmentCompat
-import androidx.preference.SwitchPreferenceCompat
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
-import com.example.aifloatingball.SettingsManager
-import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.adapter.CategoryAdapter
 import com.example.aifloatingball.model.SearchEngineCategory
 
-class SearchEngineSelectionFragment : PreferenceFragmentCompat() {
+class SearchEngineSelectionFragment : Fragment() {
 
-    private lateinit var settingsManager: SettingsManager
+    private lateinit var categoryRecyclerView: RecyclerView
+    private lateinit var categoryAdapter: CategoryAdapter
 
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-        setPreferencesFromResource(R.xml.search_engine_preferences, rootKey)
-        settingsManager = SettingsManager.getInstance(requireContext())
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View? {
+        return inflater.inflate(R.layout.fragment_search_engine_selection_vertical, container, false)
+    }
 
-        val allEngines = SearchEngine.DEFAULT_ENGINES
-        val enabledEngines = settingsManager.getEnabledSearchEngines()
-        
-        // Group engines by category
-        val enginesByCategory = allEngines.groupBy { it.category }
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
 
-        // Create preferences for each category
-        for (category in SearchEngineCategory.values()) {
-            val engines = enginesByCategory[category] ?: continue
+        categoryRecyclerView = view.findViewById(R.id.category_recycler_view)
+        setupCategoryRecyclerView()
 
-            val preferenceCategory = PreferenceCategory(requireContext()).apply {
-                title = category.displayName
-                isIconSpaceReserved = false
-            }
-            preferenceScreen.addPreference(preferenceCategory)
-
-            engines.forEach { engine ->
-                val switchPreference = SwitchPreferenceCompat(requireContext()).apply {
-                    key = "engine_${engine.name}"
-                    title = engine.displayName
-                    summary = engine.description
-                    isChecked = enabledEngines.contains(engine.name)
-                    
-                    setOnPreferenceChangeListener { _, newValue ->
-                        val currentEnabled = settingsManager.getEnabledSearchEngines().toMutableSet()
-                        if (newValue as Boolean) {
-                            currentEnabled.add(engine.name)
-                        } else {
-                            currentEnabled.remove(engine.name)
-                        }
-                        settingsManager.saveEnabledSearchEngines(currentEnabled)
-                        true
-                    }
-                }
-                preferenceCategory.addPreference(switchPreference)
-            }
+        // Load the first category by default
+        if (savedInstanceState == null) {
+            val initialCategory = SearchEngineCategory.values().first()
+            selectCategory(initialCategory)
         }
+    }
+
+    private fun setupCategoryRecyclerView() {
+        categoryRecyclerView.layoutManager = LinearLayoutManager(requireContext())
+        val categories = SearchEngineCategory.values().toList()
+        categoryAdapter = CategoryAdapter(categories) { category ->
+            selectCategory(category)
+        }
+        categoryRecyclerView.adapter = categoryAdapter
+    }
+
+    private fun selectCategory(category: SearchEngineCategory) {
+        val fragment = SearchEngineListFragment.newInstance(category)
+        childFragmentManager.beginTransaction()
+            .replace(R.id.search_engine_list_container, fragment)
+            .commit()
     }
 } 

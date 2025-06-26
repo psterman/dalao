@@ -1,36 +1,91 @@
 package com.example.aifloatingball.adapter
 
-import android.annotation.SuppressLint
-import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.appcompat.widget.SwitchCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
+import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.model.SearchEngine
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.example.aifloatingball.model.BaseSearchEngine
-import com.example.aifloatingball.utils.IconLoader
-import android.util.Log
+import android.annotation.SuppressLint
+import android.content.Context
+import androidx.appcompat.widget.SwitchCompat
+
+class SearchEngineAdapter(
+    private var engines: MutableList<SearchEngine>,
+    private val settingsManager: SettingsManager,
+    private val onEngineClick: (SearchEngine) -> Unit
+) : RecyclerView.Adapter<SearchEngineAdapter.ViewHolder>() {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.list_item_search_engine, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val engine = engines[position]
+        holder.bind(engine)
+    }
+
+    override fun getItemCount(): Int = engines.size
+
+    fun updateData(newEngines: List<SearchEngine>) {
+        this.engines.clear()
+        this.engines.addAll(newEngines)
+        notifyDataSetChanged()
+    }
+
+    inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val nameTextView: TextView = itemView.findViewById(R.id.engine_name)
+        private val urlTextView: TextView = itemView.findViewById(R.id.engine_url)
+        private val engineSwitch: SwitchMaterial = itemView.findViewById(R.id.engine_switch)
+        private val dragHandle: ImageView = itemView.findViewById(R.id.drag_handle)
+
+        fun bind(engine: SearchEngine) {
+            nameTextView.text = engine.displayName
+            urlTextView.text = engine.searchUrl
+            urlTextView.visibility = if (engine.isCustom) View.VISIBLE else View.GONE
+            dragHandle.visibility = if (engine.isCustom) View.VISIBLE else View.INVISIBLE
+
+            // Set switch state without triggering listener
+            engineSwitch.setOnCheckedChangeListener(null)
+            val enabledEngines = settingsManager.getEnabledSearchEngines()
+            engineSwitch.isChecked = enabledEngines.contains(engine.name)
+            
+            engineSwitch.setOnCheckedChangeListener { _, isChecked ->
+                val currentEnabled = settingsManager.getEnabledSearchEngines().toMutableSet()
+                if (isChecked) {
+                    currentEnabled.add(engine.name)
+                } else {
+                    currentEnabled.remove(engine.name)
+                }
+                settingsManager.saveEnabledSearchEngines(currentEnabled)
+            }
+
+            itemView.setOnClickListener {
+                if(engine.isCustom) {
+                    onEngineClick(engine)
+                }
+            }
+        }
+    }
+}
 
 /**
- * 搜索引擎列表适配器
- * 
- * @param context 上下文
- * @param engines 搜索引擎列表
- * @param enabledEngines 已启用的搜索引擎集合
- * @param onEngineToggled 搜索引擎切换回调
+ * Generic Search Engine List Adapter for older implementations.
  */
-class SearchEngineAdapter<T : BaseSearchEngine>(
+class GenericSearchEngineAdapter<T : BaseSearchEngine>(
     private val context: Context,
     private var engines: List<T>,
     private val enabledEngines: MutableSet<String>,
     private val onEngineToggled: (String, Boolean) -> Unit
-) : RecyclerView.Adapter<SearchEngineAdapter<T>.ViewHolder>() {
-    
-    private val iconLoader = IconLoader(context)
-    
+) : RecyclerView.Adapter<GenericSearchEngineAdapter<T>.ViewHolder>() {
+
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val nameTextView: TextView = view.findViewById(R.id.engine_name)
         val iconImageView: ImageView = view.findViewById(R.id.engine_icon)
@@ -43,52 +98,30 @@ class SearchEngineAdapter<T : BaseSearchEngine>(
     }
 
     override fun getItemCount(): Int = engines.size
-    
+
     @SuppressLint("NotifyDataSetChanged")
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val engine = engines[position]
-        
-        try {
-            // 设置搜索引擎名称
-            holder.nameTextView.text = engine.displayName
-            
-            // 设置图标
-            holder.iconImageView.setImageResource(engine.iconResId)
-            
-            // 确保开关按钮可见
-            holder.toggleSwitch.visibility = View.VISIBLE
-            
-            // 设置切换状态
-            holder.toggleSwitch.isChecked = enabledEngines.contains(engine.name)
-            
-            // 设置点击事件
-            holder.toggleSwitch.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked) {
-                    enabledEngines.add(engine.name)
-                } else {
-                    enabledEngines.remove(engine.name)
-                }
-                onEngineToggled(engine.name, isChecked)
+        holder.nameTextView.text = engine.displayName
+        holder.iconImageView.setImageResource(engine.iconResId)
+        holder.toggleSwitch.visibility = View.VISIBLE
+        holder.toggleSwitch.isChecked = enabledEngines.contains(engine.name)
+        holder.toggleSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                enabledEngines.add(engine.name)
+            } else {
+                enabledEngines.remove(engine.name)
             }
-            
-            // 允许点击项目来切换开关
-            holder.itemView.setOnClickListener {
-                holder.toggleSwitch.isChecked = !holder.toggleSwitch.isChecked
-            }
-        } catch (e: Exception) {
-            Log.e("SearchEngineAdapter", "Error binding item $position: ${e.message}", e)
+            onEngineToggled(engine.name, isChecked)
+        }
+        holder.itemView.setOnClickListener {
+            holder.toggleSwitch.isChecked = !holder.toggleSwitch.isChecked
         }
     }
 
     @SuppressLint("NotifyDataSetChanged")
     fun updateEngines(newEngines: List<T>) {
         this.engines = newEngines
-        notifyDataSetChanged()
-    }
-
-    fun updateEnabledEngines(newEnabledEngines: Set<String>) {
-        enabledEngines.clear()
-        enabledEngines.addAll(newEnabledEngines)
         notifyDataSetChanged()
     }
 
