@@ -78,6 +78,11 @@ import android.util.Log
 import com.example.aifloatingball.model.AppSearchConfig
 import com.example.aifloatingball.VoiceRecognitionActivity
 import com.example.aifloatingball.SettingsActivity
+import android.os.VibrationEffect
+import com.example.aifloatingball.adapter.AppSearchAdapter
+import com.example.aifloatingball.manager.AppInfoManager
+import com.example.aifloatingball.model.AppInfo
+import com.google.android.material.card.MaterialCardView
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -190,6 +195,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         private const val CHANNEL_ID = "DynamicIslandChannel"
     }
 
+    private var isHiding = false
+    private val hideHandler = Handler(Looper.getMainLooper())
+    private var hideRunnable: Runnable? = null
+    
+    // App Search Components
+    private lateinit var appInfoManager: AppInfoManager
+    private var appSearchRecyclerView: RecyclerView? = null
+    private var appSearchAdapter: AppSearchAdapter? = null
+    private var appSearchResultsContainer: View? = null
+    private var closeAppSearchButton: View? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -215,6 +231,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val filter = IntentFilter("com.example.aifloatingball.ACTION_UPDATE_APP_SEARCH")
         registerReceiver(appSearchUpdateReceiver, filter)
         setupMessageReceiver()
+
+        settingsManager.registerOnSharedPreferenceChangeListener(this)
+        appInfoManager = AppInfoManager.getInstance()
+        // App list might be already loaded by FloatingWindowService, but this is safe
+        appInfoManager.loadApps(this)
     }
 
     private fun createNotificationChannel() {
@@ -637,6 +658,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         searchInput = configPanelView?.findViewById(R.id.search_input)
         searchButton = configPanelView?.findViewById(R.id.search_button)
         setupSearchListeners()
+        initSearchInputListener()
+
+        // Setup App Search Results Views
+        appSearchResultsContainer = configPanelView?.findViewById(R.id.app_search_results_container)
+        appSearchRecyclerView = configPanelView?.findViewById(R.id.app_search_results_recycler_view)
+        closeAppSearchButton = configPanelView?.findViewById(R.id.close_app_search_button)
+        closeAppSearchButton?.setOnClickListener {
+            hideAppSearchResults()
+        }
 
         // Set initial state and add listener for the send button's alpha
         searchButton?.alpha = 0.5f // Start as semi-transparent
@@ -646,7 +676,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 hidePasteButton() // Hide as soon as user interacts
             }
             override fun afterTextChanged(s: Editable?) {
-                searchButton?.alpha = if (s.isNullOrEmpty()) 0.5f else 1.0f
+                val query = s.toString()
+                if (query.isNotEmpty()) {
+                    val appResults = appInfoManager.search(query)
+                    if (appResults.isNotEmpty()) {
+                        showAppSearchResults(appResults)
+                    } else {
+                        hideAppSearchResults()
+                    }
+                } else {
+                    hideAppSearchResults()
+                }
             }
         })
 
@@ -1675,5 +1715,65 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (isSearchModeActive && !force) return
         isSearchModeActive = true
         transitionToSearchState(force = true)
+    }
+
+    private fun initSearchInputListener() {
+        searchInput?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val query = s.toString()
+                if (query.isNotEmpty()) {
+                    val appResults = appInfoManager.search(query)
+                    if (appResults.isNotEmpty()) {
+                        showAppSearchResults(appResults)
+                    } else {
+                        hideAppSearchResults()
+                    }
+                } else {
+                    hideAppSearchResults()
+                }
+            }
+        })
+    }
+
+    private fun showAppSearchResults(results: List<AppInfo>) {
+        if (appSearchAdapter == null) {
+            appSearchAdapter = AppSearchAdapter(results, isHorizontal = true) { appInfo ->
+                val intent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    hideContent() // This will collapse the island
+                } else {
+                    Toast.makeText(this, "无法启动该应用", Toast.LENGTH_SHORT).show()
+                }
+            }
+            appSearchRecyclerView?.apply {
+                layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+                adapter = appSearchAdapter
+                overScrollMode = View.OVER_SCROLL_NEVER
+            }
+        } else {
+            appSearchAdapter?.updateData(results)
+        }
+
+        appSearchResultsContainer?.visibility = View.VISIBLE
+    }
+
+    private fun hideAppSearchResults() {
+        if (appSearchResultsContainer?.visibility == View.VISIBLE) {
+            appSearchResultsContainer?.visibility = View.GONE
+            // Cleanup adapter to avoid holding references
+            appSearchRecyclerView?.adapter = null
+            appSearchAdapter = null
+        }
+    }
+    
+    private fun hideContent() {
+        // This function is called when an app is launched from the search results.
+        // It should collapse the island and hide the keyboard and search results.
+        transitionToCompactState()
+        hideAppSearchResults()
     }
 }

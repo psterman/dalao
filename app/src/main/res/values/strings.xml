@@ -146,4 +146,8 @@
     <string name="title_activity_settings">设置</string>
     <string name="title_activity_sub_settings">子设置</string>
     <string name="search_widget_description">在主屏幕上快速搜索</string>
+    <string name="nav_header_subtitle">android.studio@android.com</string>
+    <string name="nav_header_desc">Navigation header</string>
+    <string name="action_settings">设置</string>
+    <string name="app_icon_description">应用图标</string>
 </resources> 

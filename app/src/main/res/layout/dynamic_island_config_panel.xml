@@ -10,24 +10,52 @@
     app:cardElevation="8dp"
     app:strokeWidth="0dp">
 
-    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:padding="16dp">
+
+        <!-- App Search Results Preview (Moved to top) -->
+        <FrameLayout
+            android:id="@+id/app_search_results_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@android:color/transparent"
+            android:visibility="gone">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/app_search_results_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:overScrollMode="never" />
+
+            <ImageButton
+                android:id="@+id/close_app_search_button"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="top|end"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="关闭应用建议"
+                android:src="@drawable/ic_close"
+                app:tint="?android:attr/textColorSecondary" />
+        </FrameLayout>
 
         <!-- Input Area -->
         <LinearLayout
             android:id="@+id/input_area"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
             android:background="@drawable/dynamic_island_input_background"
+            android:elevation="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
             android:paddingStart="16dp"
-            android:paddingEnd="8dp"
             android:paddingTop="8dp"
-            android:paddingBottom="8dp"
-            android:elevation="4dp">
+            android:paddingEnd="8dp"
+            android:paddingBottom="8dp">
 
             <EditText
                 android:id="@+id/search_input"
@@ -43,25 +71,24 @@
                 android:inputType="textMultiLine"
                 android:maxLines="5" />
 
-        <ImageView
+            <ImageView
                 android:id="@+id/search_button"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:src="@drawable/ic_send_plane"
-                app:tint="@color/dynamic_island_send_icon_tint"
+                android:layout_marginStart="8dp"
+                android:alpha="0.5"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:padding="6dp"
-                android:layout_marginStart="8dp"
-                android:alpha="0.5"/>
-    </LinearLayout>
+                android:src="@drawable/ic_send_plane"
+                app:tint="@color/dynamic_island_send_icon_tint" />
+        </LinearLayout>
 
         <!-- Slot Container -->
         <LinearLayout
             android:id="@+id/slots_container"
             android:layout_width="match_parent"
             android:layout_height="120dp"
-            android:layout_below="@id/input_area"
-                android:layout_marginTop="16dp"
+            android:layout_marginTop="16dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -76,8 +103,7 @@
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/slots_container"
-            android:layout_alignParentEnd="true"
+            android:layout_gravity="end"
             android:layout_marginTop="8dp"
             android:orientation="horizontal">
 
@@ -104,5 +130,5 @@
 
         </LinearLayout>
 
-    </RelativeLayout>
+    </LinearLayout>
 </com.google.android.material.card.MaterialCardView> 

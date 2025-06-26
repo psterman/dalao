@@ -64,6 +64,11 @@ import android.graphics.BitmapFactory
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import android.os.Vibrator
 import android.os.VibrationEffect
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.aifloatingball.adapter.AppSearchAdapter
+import com.example.aifloatingball.manager.AppInfoManager
+import com.example.aifloatingball.model.AppInfo
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -126,6 +131,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private var isMenuVisible: Boolean = false
     private var themedContext: Context? = null // Make themedContext a member variable
 
+    // App Search Components
+    private lateinit var appInfoManager: AppInfoManager
+    private var appSearchRecyclerView: RecyclerView? = null
+    private var appSearchAdapter: AppSearchAdapter? = null
+    private var appSearchResultsContainer: View? = null
+    private var closeAppSearchButton: View? = null
+
     private var aiSearchEngines: List<AISearchEngine> = emptyList()
     private var regularSearchEngines: List<SearchEngine> = emptyList()
     private var searchEngineShortcuts: List<SearchEngineShortcut> = emptyList()
@@ -185,6 +197,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         super.onCreate()
         appSearchSettings = AppSearchSettings.getInstance(this)
         settingsManager.registerOnSharedPreferenceChangeListener(this)
+        appInfoManager = AppInfoManager.getInstance()
+        appInfoManager.loadApps(this)
 
         textSelectionManager = TextSelectionManager(this, windowManager)
         initializeViews()
@@ -327,6 +341,15 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         regularDivider = floatingView?.findViewById(R.id.regular_divider)
 
         searchInput = floatingView?.findViewById(R.id.search_input)
+
+        // Initialize App Search Results Views
+        appSearchResultsContainer = floatingView?.findViewById(R.id.app_search_results_container)
+        appSearchRecyclerView = floatingView?.findViewById(R.id.app_search_results_recycler_view)
+        closeAppSearchButton = floatingView?.findViewById(R.id.close_app_search_button)
+        closeAppSearchButton?.setOnClickListener {
+            hideAppSearchResults()
+        }
+
         setupSearchInput()
 
         val searchModeButton = floatingView?.findViewById<ImageButton>(R.id.search_mode_button)
@@ -477,6 +500,17 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 // Hide the button as soon as the user starts typing
                 hidePasteButton()
+                val query = s.toString()
+                if (query.isNotEmpty()) {
+                    val appResults = appInfoManager.search(query)
+                    if (appResults.isNotEmpty()) {
+                        showAppSearchResults(appResults)
+                    } else {
+                        hideAppSearchResults()
+                    }
+                } else {
+                    hideAppSearchResults()
+                }
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -689,6 +723,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
         showKeyboard()
         showPasteButton()
+        setupSearchInputListener() // Add listener when menu is shown
     }
 
     private fun hideSearchInterface() {
@@ -713,6 +748,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
 
         hideKeyboard()
+        hideAppSearchResults() // Also hide app results
     }
 
     private fun showKeyboard() {
@@ -1266,5 +1302,55 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 windowManager.updateViewLayout(floatingView, it)
             }
         }
+    }
+
+    private fun setupSearchInputListener() {
+        searchInput?.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+
+            override fun afterTextChanged(s: Editable?) {
+                val query = s.toString()
+                if (query.isNotEmpty()) {
+                    val appResults = appInfoManager.search(query)
+                    if (appResults.isNotEmpty()) {
+                        showAppSearchResults(appResults)
+                    } else {
+                        hideAppSearchResults()
+                    }
+                } else {
+                    hideAppSearchResults()
+                }
+            }
+        })
+    }
+
+    private fun showAppSearchResults(results: List<AppInfo>) {
+        if (appSearchAdapter == null) {
+            appSearchAdapter = AppSearchAdapter(results, isHorizontal = true) { appInfo ->
+                // Launch the app
+                val intent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    hideSearchInterface() // Hide menu after launch
+                    hideAppSearchResults()
+                } else {
+                    Toast.makeText(this, "无法启动该应用", Toast.LENGTH_SHORT).show()
+                }
+            }
+            appSearchRecyclerView?.apply {
+                layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+                adapter = appSearchAdapter
+            }
+        } else {
+            appSearchAdapter?.updateData(results)
+        }
+
+        appSearchResultsContainer?.visibility = View.VISIBLE
+    }
+
+    private fun hideAppSearchResults() {
+        appSearchResultsContainer?.visibility = View.GONE
     }
 }

@@ -60,7 +60,7 @@ class SearchEngineSettingsActivity : AppCompatActivity() {
             context = this,
             engines = emptyList(), // Initially empty
             enabledEngines = enabledEngines,
-            onEngineToggled = { engineName, isEnabled ->
+            onEngineToggled = { engineName, isEnabled -> 
                 if (isEnabled) {
                     enabledEngines.add(engineName)
                 } else {

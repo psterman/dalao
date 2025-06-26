@@ -77,10 +77,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 .setMessage("您确定要将所有设置恢复为默认值吗？此操作无法撤销。")
 
             val positiveAction = DialogInterface.OnClickListener { _, _ ->
-                settingsManager.clearAllSettings()
-                Toast.makeText(requireContext(), "已恢复默认设置，请重启应用", Toast.LENGTH_LONG).show()
-                activity?.recreate()
-            }
+                    settingsManager.clearAllSettings()
+                    Toast.makeText(requireContext(), "已恢复默认设置，请重启应用", Toast.LENGTH_LONG).show()
+                    activity?.recreate()
+                }
             val negativeAction = DialogInterface.OnClickListener { _, _ ->
                 // User cancelled the dialog
             }

@@ -64,6 +64,34 @@
 
             </LinearLayout>
 
+            <!-- App Search Results Preview (New) -->
+            <FrameLayout
+                android:id="@+id/app_search_results_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:visibility="gone">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/app_search_results_recycler_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:overScrollMode="never" />
+
+                <ImageButton
+                    android:id="@+id/close_app_search_button"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_close"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="关闭应用建议"
+                    app:tint="?android:attr/textColorSecondary"
+                    android:layout_gravity="top|end"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginEnd="4dp"/>
+            </FrameLayout>
+
             <!-- 各类搜索结果的容器 -->
             <LinearLayout
                 android:layout_width="match_parent"
