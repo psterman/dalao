@@ -858,18 +858,21 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
         val url: String
         val engineName: String
+        val fallbackIconResId: Int
         when (engine) {
             is SearchEngine -> {
                 url = engine.url
                 engineName = engine.name
+                fallbackIconResId = R.drawable.ic_web_default
             }
             is AISearchEngine -> {
                 url = engine.url
                 engineName = engine.name
+                fallbackIconResId = R.drawable.ic_web_default
             }
             else -> return view // Should not happen
         }
-        FaviconLoader.loadIcon(icon, url, R.drawable.ic_search)
+        FaviconLoader.loadIcon(icon, url, fallbackIconResId)
         name.text = engineName
         view.setOnClickListener {
             val query = searchInput?.text.toString()

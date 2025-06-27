@@ -8,6 +8,14 @@
     android:padding="16dp">
 
     <ImageView
+        android:id="@+id/engine_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginEnd="16dp"
+        android:src="@drawable/ic_web_default"
+        tools:srcCompat="@drawable/ic_search" />
+
+    <ImageView
         android:id="@+id/drag_handle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

@@ -16,6 +16,19 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- Selected Assistant Prompt Display -->
+        <TextView
+            android:id="@+id/selected_assistant_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="8dp"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="当前助手: 论文助手"
+            tools:visibility="visible" />
+
         <!-- App Search Results Preview (Moved to top) -->
         <FrameLayout
             android:id="@+id/app_search_results_container"
@@ -101,11 +114,21 @@
 
         <!-- Action Buttons -->
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="end"
             android:layout_marginTop="8dp"
+            android:gravity="end"
             android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_select_assistant"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="选择助手"
+                android:textColor="?attr/colorPrimary"
+                app:icon="@drawable/ic_assistant"
+                app:iconTint="?attr/colorPrimary" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_generate_prompt"

@@ -83,6 +83,11 @@ import com.example.aifloatingball.adapter.AppSearchAdapter
 import com.example.aifloatingball.manager.AppInfoManager
 import com.example.aifloatingball.model.AppInfo
 import com.google.android.material.card.MaterialCardView
+import com.example.aifloatingball.adapter.AssistantCategoryAdapter
+import com.example.aifloatingball.data.AssistantPrompts
+import com.example.aifloatingball.model.AssistantPrompt
+import com.example.aifloatingball.adapter.AssistantPromptAdapter
+import com.example.aifloatingball.model.AssistantCategory
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -109,11 +114,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var islandContentView: View? = null // The content (icons, searchbox)
     private var configPanelView: View? = null
     private var searchEngineSelectorView: View? = null
+    private var assistantSelectorView: View? = null
+    private var assistantPromptSelectorView: View? = null
     private var selectorScrimView: View? = null
 
     private lateinit var notificationIconContainer: LinearLayout
     private var searchInput: EditText? = null
     private var searchButton: ImageView? = null
+    private var selectedAssistantTextView: TextView? = null
 
     private var isSearchModeActive = false
     private var isEditingModeActive = false // New state for editing
@@ -146,6 +154,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var pasteButtonView: View? = null
     private val pasteButtonHandler = Handler(Looper.getMainLooper())
     private var hidePasteButtonRunnable: Runnable? = null
+    private var selectedAssistantPrompt: AssistantPrompt? = null
 
     private val uiHandler = Handler(Looper.getMainLooper())
     private val notificationReceiver = object : BroadcastReceiver() {
@@ -548,11 +557,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val query = searchInput?.text.toString().trim()
         if (query.isEmpty()) return
 
+        // Prepend assistant prompt if selected
+        val finalQuery = selectedAssistantPrompt?.let {
+            "${it.prompt}\n\n---\n\n${query}"
+        } ?: query
+
         // 使用第一个活动卡槽中的引擎，或使用默认引擎
         val engine = activeSlots[1] ?: loadSearchCategories().firstOrNull()?.engines?.firstOrNull() ?: return
 
         val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-            putExtra("search_query", query)
+            putExtra("search_query", finalQuery)
             putExtra("engine_key", engine.name.lowercase())
             putExtra("search_source", "灵动岛输入")
             putExtra("startTime", System.currentTimeMillis())
@@ -643,10 +657,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         islandContentView = null
         configPanelView = null
         searchEngineSelectorView = null
+        assistantSelectorView = null
+        assistantPromptSelectorView = null
         selectorScrimView = null
         editingScrimView = null
         searchInput = null
         searchButton = null
+        selectedAssistantTextView = null
     }
 
     private fun showConfigPanel() {
@@ -657,6 +674,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         searchInput = configPanelView?.findViewById(R.id.search_input)
         searchButton = configPanelView?.findViewById(R.id.search_button)
+        selectedAssistantTextView = configPanelView?.findViewById(R.id.selected_assistant_text)
         setupSearchListeners()
         initSearchInputListener()
 
@@ -732,15 +750,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         updateAllMiniPages()
         // --- End of New UI Setup ---
         
+        val selectAssistantButton = configPanelView?.findViewById<View>(R.id.btn_select_assistant)
+        selectAssistantButton?.setOnClickListener {
+            showAssistantSelectorPanel()
+        }
+
         val addPromptButton = configPanelView?.findViewById<View>(R.id.btn_add_master_prompt)
         addPromptButton?.setOnClickListener {
             enterEditingMode()
-        }
-
-        val generatePromptButton = configPanelView?.findViewById<MaterialButton>(R.id.btn_generate_prompt)
-        generatePromptButton?.setOnClickListener {
-            val masterPrompt = settingsManager.generateMasterPrompt()
-            showPromptDialog(masterPrompt)
         }
 
         val panelParams = FrameLayout.LayoutParams(
@@ -836,6 +853,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             pagePreview3 = null
         }
         dismissSearchEngineSelector()
+        dismissAssistantSelectorPanel()
     }
 
     private fun showSearchEngineSelector(anchorView: View, slotIndex: Int) {
@@ -1107,6 +1125,192 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 } catch (e: Exception) { /* ignore */ }
             }
             .start()
+    }
+
+    private fun showAssistantSelectorPanel() {
+        dismissAssistantSelectorPanel() // Dismiss any existing one first
+
+        // Explicitly hide the config panel when entering this flow
+        configPanelView?.visibility = View.GONE
+
+        // Inflate views using a themed context
+        val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
+        val inflater = LayoutInflater.from(themedContext)
+        assistantSelectorView = inflater.inflate(R.layout.assistant_selector_panel, null)
+
+        // Setup RecyclerView
+        val recyclerView = assistantSelectorView?.findViewById<RecyclerView>(R.id.assistant_recycler_view)
+        val layoutManager = androidx.recyclerview.widget.GridLayoutManager(themedContext, 4)
+        val adapter = AssistantCategoryAdapter(
+            categories = AssistantPrompts.categories,
+            onCategoryClick = { category ->
+                showAssistantPromptPanel(category)
+            },
+            onPromptClick = {
+                // This shouldn't be called from the main category adapter anymore,
+                // but we keep a dummy implementation for safety.
+            }
+        )
+
+        layoutManager.spanSizeLookup = object : androidx.recyclerview.widget.GridLayoutManager.SpanSizeLookup() {
+            override fun getSpanSize(position: Int): Int {
+                // This is now simplified as we only show categories.
+                return 1 // Always 1 for TYPE_CATEGORY
+            }
+        }
+
+        recyclerView?.layoutManager = layoutManager
+        recyclerView?.adapter = adapter
+
+        // Create and add scrim view
+        selectorScrimView = View(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            setOnClickListener { dismissAssistantSelectorPanel() } // Dismiss all panels
+        }
+        windowContainerView?.addView(selectorScrimView)
+
+        // Define layout params for the panel
+        val panelParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            // Position below the main island view with a small margin
+            topMargin = statusBarHeight + 56.dpToPx() + 16.dpToPx()
+        }
+
+        // Add panel to the window and animate it in
+        windowContainerView?.addView(assistantSelectorView, panelParams)
+        assistantSelectorView?.apply {
+            alpha = 0f
+            translationY = -100f // Start above and slide down
+            animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(350)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .start()
+        }
+    }
+
+    private fun showAssistantPromptPanel(category: AssistantCategory) {
+        // Hide the main selector
+        assistantSelectorView?.visibility = View.GONE
+
+        // Inflate the sub-panel view
+        val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
+        val inflater = LayoutInflater.from(themedContext)
+        assistantPromptSelectorView = inflater.inflate(R.layout.assistant_submenu_panel, null)
+
+        // Configure the sub-panel
+        val titleView = assistantPromptSelectorView?.findViewById<TextView>(R.id.submenu_title)
+        val backButton = assistantPromptSelectorView?.findViewById<ImageView>(R.id.back_button)
+        val recyclerView = assistantPromptSelectorView?.findViewById<RecyclerView>(R.id.assistant_prompt_recycler_view)
+
+        titleView?.text = category.name
+        backButton?.setOnClickListener {
+            dismissAssistantPromptPanel()
+        }
+
+        recyclerView?.layoutManager = LinearLayoutManager(themedContext)
+        recyclerView?.adapter = AssistantPromptAdapter(category.assistants) { selectedPrompt ->
+            this.selectedAssistantPrompt = selectedPrompt
+            updateSelectedAssistantUI()
+            dismissAssistantSelectorPanel() // Dismiss all panels
+        }
+
+        // Use the same params as the main panel
+        val panelParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            topMargin = statusBarHeight + 56.dpToPx() + 16.dpToPx()
+        }
+
+        windowContainerView?.addView(assistantPromptSelectorView, panelParams)
+        assistantPromptSelectorView?.apply {
+            alpha = 0f
+            translationY = -100f
+            animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(350)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .start()
+        }
+    }
+
+    private fun dismissAssistantPromptPanel() {
+        val panelToRemove = assistantPromptSelectorView
+        assistantPromptSelectorView = null
+
+        panelToRemove?.let { panel ->
+            panel.animate()
+                .alpha(0f)
+                .translationY(-100f)
+                .setDuration(250)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .withEndAction {
+                    try {
+                        windowContainerView?.removeView(panel)
+                    } catch (e: Exception) { /* ignore */ }
+                }
+                .start()
+        }
+
+        // Show the main selector again
+        assistantSelectorView?.visibility = View.VISIBLE
+        assistantSelectorView?.animate()?.alpha(1f)?.setDuration(150)?.start()
+    }
+
+    private fun dismissAssistantSelectorPanel() {
+        // This function now dismisses ALL assistant panels and the scrim.
+        val mainPanelToRemove = assistantSelectorView
+        val subPanelToRemove = assistantPromptSelectorView
+        val scrimToRemove = selectorScrimView
+
+        assistantSelectorView = null
+        assistantPromptSelectorView = null
+        selectorScrimView = null
+
+        val dismissAction = { view: View?, isSubPanel: Boolean ->
+            view?.animate()
+                ?.alpha(0f)
+                ?.translationY(if (isSubPanel) -50f else -100f)
+                ?.setDuration(250)
+                ?.setInterpolator(AccelerateDecelerateInterpolator())
+                ?.withEndAction {
+                    try {
+                        windowContainerView?.removeView(view)
+                    } catch (e: Exception) { /* ignore */ }
+                }
+                ?.start()
+        }
+
+        dismissAction(mainPanelToRemove, false)
+        dismissAction(subPanelToRemove, true)
+
+        scrimToRemove?.let { scrim ->
+            scrim.animate().alpha(0f).setDuration(250).withEndAction {
+                try {
+                    windowContainerView?.removeView(scrim)
+                } catch (e: Exception) { /* ignore */ }
+            }.start()
+        }
+
+        // After dismissing all panels, restore the config panel.
+        configPanelView?.visibility = View.VISIBLE
+    }
+
+    private fun updateSelectedAssistantUI() {
+        if (selectedAssistantPrompt != null) {
+            selectedAssistantTextView?.text = "当前助手: ${selectedAssistantPrompt!!.name}"
+            selectedAssistantTextView?.visibility = View.VISIBLE
+        } else {
+            selectedAssistantTextView?.visibility = View.GONE
+        }
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {

@@ -14,6 +14,7 @@ import com.example.aifloatingball.model.BaseSearchEngine
 import android.annotation.SuppressLint
 import android.content.Context
 import androidx.appcompat.widget.SwitchCompat
+import com.example.aifloatingball.utils.FaviconLoader
 
 class SearchEngineAdapter(
     private var engines: MutableList<SearchEngine>,
@@ -45,12 +46,16 @@ class SearchEngineAdapter(
         private val urlTextView: TextView = itemView.findViewById(R.id.engine_url)
         private val engineSwitch: SwitchMaterial = itemView.findViewById(R.id.engine_switch)
         private val dragHandle: ImageView = itemView.findViewById(R.id.drag_handle)
+        private val iconImageView: ImageView = itemView.findViewById(R.id.engine_icon)
 
         fun bind(engine: SearchEngine) {
             nameTextView.text = engine.displayName
             urlTextView.text = engine.searchUrl
             urlTextView.visibility = if (engine.isCustom) View.VISIBLE else View.GONE
             dragHandle.visibility = if (engine.isCustom) View.VISIBLE else View.INVISIBLE
+
+            // Use FaviconLoader to load the icon
+            com.example.aifloatingball.utils.FaviconLoader.loadIcon(iconImageView, engine.url, R.drawable.ic_web_default)
 
             // Set switch state without triggering listener
             engineSwitch.setOnCheckedChangeListener(null)
@@ -103,7 +108,7 @@ class GenericSearchEngineAdapter<T : BaseSearchEngine>(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val engine = engines[position]
             holder.nameTextView.text = engine.displayName
-            holder.iconImageView.setImageResource(engine.iconResId)
+            FaviconLoader.loadIcon(holder.iconImageView, engine.url, R.drawable.ic_web_default)
             holder.toggleSwitch.visibility = View.VISIBLE
             holder.toggleSwitch.isChecked = enabledEngines.contains(engine.name)
             holder.toggleSwitch.setOnCheckedChangeListener { _, isChecked ->
