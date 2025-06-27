@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import com.example.aifloatingball.model.SearchEngineGroup
 import com.example.aifloatingball.R
 import android.content.res.Configuration
+import com.example.aifloatingball.model.PromptProfile
 
 class SettingsManager private constructor(context: Context) {
     private val prefs: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context.applicationContext)
@@ -33,6 +34,8 @@ class SettingsManager private constructor(context: Context) {
         private const val DEFAULT_DISPLAY_MODE = "floating_ball"
         private const val KEY_SEARCH_ENGINE_GROUPS = "search_engine_groups"
         private const val KEY_CUSTOM_SEARCH_ENGINES = "custom_search_engines"
+        private const val KEY_PROMPT_PROFILES = "prompt_profiles"
+        private const val KEY_ACTIVE_PROMPT_PROFILE_ID = "active_prompt_profile_id"
         
         // API相关常量
         private const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
@@ -359,6 +362,113 @@ class SettingsManager private constructor(context: Context) {
 
     fun getPromptToneStyle(): String = prefs.getString("prompt_tone_style", "professional") ?: "professional"
     fun setPromptToneStyle(style: String) = prefs.edit().putString("prompt_tone_style", style).apply()
+    
+    // START: Prompt Profile Management
+    fun getPromptProfiles(): MutableList<PromptProfile> {
+        val json = prefs.getString(KEY_PROMPT_PROFILES, null)
+        return if (json != null) {
+            try {
+                gson.fromJson(json, object : TypeToken<MutableList<PromptProfile>>() {}.type)
+            } catch (e: Exception) {
+                // 如果解析失败，返回一个包含默认配置的列表
+                mutableListOf(PromptProfile(name = "默认档案"))
+            }
+        } else {
+            // 如果没有存储过，创建一个包含默认配置的列表
+            mutableListOf(PromptProfile(name = "默认档案"))
+        }
+    }
+
+    fun savePromptProfiles(profiles: List<PromptProfile>) {
+        val json = gson.toJson(profiles)
+        prefs.edit().putString(KEY_PROMPT_PROFILES, json).apply()
+    }
+
+    fun getActiveProfileId(): String? {
+        return prefs.getString(KEY_ACTIVE_PROMPT_PROFILE_ID, null)
+    }
+
+    fun setActiveProfileId(id: String?) {
+        prefs.edit().putString(KEY_ACTIVE_PROMPT_PROFILE_ID, id).apply()
+    }
+
+    fun loadProfileToPreferences(profile: PromptProfile) {
+        prefs.edit().apply {
+            putString("prompt_gender", profile.gender)
+            putString("prompt_birth_date", profile.birthDate)
+            putString("prompt_education", profile.education)
+            putString("prompt_occupation", profile.occupation)
+            putStringSet("prompt_occupation_current", profile.occupationCurrent)
+            putStringSet("prompt_occupation_interest", profile.occupationInterest)
+            putStringSet("prompt_interests", profile.interests)
+            putStringSet("prompt_interests_entertainment", profile.interestsEntertainment)
+            putStringSet("prompt_interests_shopping", profile.interestsShopping)
+            putStringSet("prompt_interests_niche", profile.interestsNiche)
+            putString("prompt_interests_orientation", profile.interestsOrientation)
+            putStringSet("prompt_interests_values", profile.interestsValues)
+            putStringSet("prompt_health", profile.health)
+            putStringSet("prompt_health_diet", profile.healthDiet)
+            putStringSet("prompt_health_chronic", profile.healthChronic)
+            putString("prompt_health_physical_state", profile.healthPhysicalState)
+            putString("prompt_health_medication", profile.healthMedication)
+            putStringSet("prompt_health_constitution", profile.healthConstitution)
+            putString("prompt_health_medical_pref", profile.healthMedicalPref)
+            putString("prompt_health_habits", profile.healthHabits)
+            putStringSet("prompt_health_diagnosed", profile.healthDiagnosed)
+            putBoolean("prompt_health_had_surgery", profile.healthHadSurgery)
+            putStringSet("prompt_health_surgery_type", profile.healthSurgeryType)
+            putString("prompt_health_surgery_time", profile.healthSurgeryTime)
+            putBoolean("prompt_health_has_allergies", profile.healthHasAllergies)
+            putStringSet("prompt_health_allergy_cause", profile.healthAllergyCause)
+            putStringSet("prompt_health_allergy_history", profile.healthAllergyHistory)
+            putStringSet("prompt_health_family_history", profile.healthFamilyHistory)
+            putStringSet("prompt_health_dietary_restrictions", profile.healthDietaryRestrictions)
+            putString("prompt_health_sleep_pattern", profile.healthSleepPattern)
+            putStringSet("prompt_reply_format", profile.replyFormats)
+            putStringSet("prompt_refused_topics", profile.refusedTopics)
+            putString("prompt_tone_style", profile.toneStyle)
+            apply()
+        }
+    }
+
+    fun savePreferencesToProfile(profile: PromptProfile): PromptProfile {
+        return profile.apply {
+            gender = getPromptGender()
+            birthDate = getPromptBirthDate()
+            education = getPromptEducation()
+            occupation = getPromptOccupation()
+            occupationCurrent = getPromptOccupationCurrent()
+            occupationInterest = getPromptOccupationInterest()
+            interests = getPromptInterests()
+            interestsEntertainment = getPromptInterestsEntertainment()
+            interestsShopping = getPromptInterestsShopping()
+            interestsNiche = getPromptInterestsNiche()
+            interestsOrientation = getPromptInterestsOrientation()
+            interestsValues = getPromptInterestsValues()
+            health = getPromptHealth()
+            healthDiet = getPromptHealthDiet()
+            healthChronic = getPromptHealthChronic()
+            healthPhysicalState = getPromptHealthPhysicalState()
+            healthMedication = getPromptHealthMedication()
+            healthConstitution = getPromptHealthConstitution()
+            healthMedicalPref = getPromptHealthMedicalPref()
+            healthHabits = getPromptHealthHabits()
+            healthDiagnosed = getPromptHealthDiagnosed()
+            healthHadSurgery = getPromptHealthHadSurgery()
+            healthSurgeryType = getPromptHealthSurgeryType()
+            healthSurgeryTime = getPromptHealthSurgeryTime()
+            healthHasAllergies = getPromptHealthHasAllergies()
+            healthAllergyCause = getPromptHealthAllergyCause()
+            healthAllergyHistory = getPromptHealthAllergyHistory()
+            healthFamilyHistory = getPromptHealthFamilyHistory()
+            healthDietaryRestrictions = getPromptHealthDietaryRestrictions()
+            healthSleepPattern = getPromptHealthSleepPattern()
+            replyFormats = getPromptReplyFormats()
+            refusedTopics = getPromptRefusedTopics()
+            toneStyle = getPromptToneStyle()
+        }
+    }
+    // END: Prompt Profile Management
     
     // Detailed Prompt Sub-settings
     fun getPromptOccupationCurrent(): Set<String> = prefs.getStringSet("prompt_occupation_current", emptySet()) ?: emptySet()

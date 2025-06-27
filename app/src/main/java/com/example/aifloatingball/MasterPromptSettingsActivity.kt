@@ -3,38 +3,132 @@ package com.example.aifloatingball
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.preference.PreferenceFragmentCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import androidx.viewpager2.widget.ViewPager2
+import com.example.aifloatingball.adapter.ProfileAdapter
+import com.example.aifloatingball.model.PromptProfile
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
-import com.example.aifloatingball.MasterPromptSubPageFragment
+import java.util.*
+
 class MasterPromptSettingsActivity : AppCompatActivity() {
+
+    private lateinit var settingsManager: SettingsManager
+    private lateinit var profilesRecyclerView: RecyclerView
+    private lateinit var profileAdapter: ProfileAdapter
+    private lateinit var viewPager: ViewPager2
+
+    private var profiles: MutableList<PromptProfile> = mutableListOf()
+    private var activeProfile: PromptProfile? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_master_prompt_settings)
+        settingsManager = SettingsManager.getInstance(this)
 
+        setupToolbar()
+        setupViews()
+        loadProfiles()
+        setupViewPager()
+    }
+
+    private fun setupToolbar() {
         val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.title = getString(R.string.title_master_prompt_settings)
+    }
 
-        val viewPager: ViewPager2 = findViewById(R.id.view_pager)
+    private fun setupViews() {
+        profilesRecyclerView = findViewById(R.id.profiles_recycler_view)
+        viewPager = findViewById(R.id.view_pager)
+        profilesRecyclerView.layoutManager = LinearLayoutManager(this)
+        profileAdapter = ProfileAdapter(profiles) { profile ->
+            switchProfile(profile)
+        }
+        profilesRecyclerView.adapter = profileAdapter
+    }
+    
+    private fun setupViewPager() {
         val tabLayout: TabLayout = findViewById(R.id.tab_layout)
-
         val adapter = ViewPagerAdapter(this)
         viewPager.adapter = adapter
-
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = adapter.getPageTitle(position)
         }.attach()
     }
 
+    private fun loadProfiles() {
+        profiles = settingsManager.getPromptProfiles()
+        val activeProfileId = settingsManager.getActiveProfileId()
+
+        if (profiles.isEmpty()) {
+            // Create a default profile if none exist
+            val defaultProfile = PromptProfile(name = "默认档案")
+            profiles.add(defaultProfile)
+            settingsManager.savePromptProfiles(profiles)
+        }
+        
+        activeProfile = profiles.find { it.id == activeProfileId } ?: profiles.first()
+        settingsManager.setActiveProfileId(activeProfile?.id)
+        
+        updateProfileSelection()
+        activeProfile?.let { settingsManager.loadProfileToPreferences(it) }
+
+        profileAdapter.updateData(profiles)
+    }
+
+    private fun switchProfile(selectedProfile: PromptProfile) {
+        if (selectedProfile.id == activeProfile?.id) return
+
+        // Save current changes to the old active profile
+        activeProfile?.let {
+            val updatedProfile = settingsManager.savePreferencesToProfile(it)
+            val index = profiles.indexOfFirst { p -> p.id == it.id }
+            if (index != -1) {
+                profiles[index] = updatedProfile
+            }
+        }
+
+        // Switch to the new profile
+        activeProfile = selectedProfile
+        settingsManager.setActiveProfileId(activeProfile?.id)
+        
+        // Load new profile's data and refresh UI
+        activeProfile?.let { settingsManager.loadProfileToPreferences(it) }
+        updateProfileSelection()
+        
+        // Force ViewPager to recreate fragments to reflect new preferences
+        viewPager.adapter = ViewPagerAdapter(this)
+    }
+    
+    private fun updateProfileSelection() {
+        profiles.forEach { it.isSelected = (it.id == activeProfile?.id) }
+        profileAdapter.updateData(profiles)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Save changes of the currently active profile before leaving
+        activeProfile?.let {
+            val updatedProfile = settingsManager.savePreferencesToProfile(it)
+            val index = profiles.indexOfFirst { p -> p.id == it.id }
+            if (index != -1) {
+                profiles[index] = updatedProfile
+            }
+            settingsManager.savePromptProfiles(profiles)
+        }
+    }
+    
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.master_prompt_menu, menu)
         return true
@@ -42,21 +136,43 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            android.R.id.home -> {
+                onBackPressed()
+                true
+            }
             R.id.action_save -> {
-                // Preferences are saved automatically by PreferenceFragmentCompat
                 Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
                 true
             }
-            android.R.id.home -> {
-                onBackPressed()
+            R.id.action_add_profile -> {
+                showAddProfileDialog()
                 true
             }
             else -> super.onOptionsItemSelected(item)
         }
     }
 
+    private fun showAddProfileDialog() {
+        val editText = EditText(this)
+        AlertDialog.Builder(this)
+            .setTitle("新增档案")
+            .setMessage("请输入新档案的名称")
+            .setView(editText)
+            .setPositiveButton("确定") { _, _ ->
+                val name = editText.text.toString()
+                if (name.isNotBlank()) {
+                    val newProfile = PromptProfile(name = name)
+                    profiles.add(newProfile)
+                    settingsManager.savePromptProfiles(profiles)
+                    switchProfile(newProfile)
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
     private inner class ViewPagerAdapter(activity: AppCompatActivity) : FragmentStateAdapter(activity) {
-        private val fragments = listOf(
+        private val fragmentsInfo = listOf(
             Pair("基本信息", MasterPromptSubPageFragment.newInstance(R.xml.prompt_basic_info_preferences)),
             Pair("职业信息", PromptOccupationFragment()),
             Pair("兴趣观念", PromptInterestsFragment()),
@@ -64,39 +180,18 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
             Pair("回复偏好", MasterPromptSubPageFragment.newInstance(R.xml.prompt_reply_preferences))
         )
 
-        override fun getItemCount(): Int = fragments.size
-
-        override fun createFragment(position: Int): Fragment = fragments[position].second
-
-        fun getPageTitle(position: Int): CharSequence = fragments[position].first
+        override fun getItemCount(): Int = fragmentsInfo.size
+        override fun createFragment(position: Int): Fragment = fragmentsInfo[position].second
+        fun getPageTitle(position: Int): CharSequence = fragmentsInfo[position].first
     }
-
+    
     override fun onSupportNavigateUp(): Boolean {
         onBackPressed()
         return true
     }
 
-    // Base fragment for settings pages
     abstract class BaseSettingsFragment : PreferenceFragmentCompat()
-
-    // Fragment for Occupation settings
-    class PromptOccupationFragment : BaseSettingsFragment() {
-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.preferences_prompt_occupation, rootKey)
-        }
-    }
-
-    // Fragment for Interests settings
-    class PromptInterestsFragment : BaseSettingsFragment() {
-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.preferences_prompt_interests, rootKey)
-        }
-    }
-
-    // Fragment for Health settings
-    class PromptHealthFragment : BaseSettingsFragment() {
-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.preferences_prompt_health, rootKey)
-        }
-    }
+    class PromptOccupationFragment : BaseSettingsFragment() { override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) { setPreferencesFromResource(R.xml.preferences_prompt_occupation, rootKey) } }
+    class PromptInterestsFragment : BaseSettingsFragment() { override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) { setPreferencesFromResource(R.xml.preferences_prompt_interests, rootKey) } }
+    class PromptHealthFragment : BaseSettingsFragment() { override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) { setPreferencesFromResource(R.xml.preferences_prompt_health, rootKey) } }
 } 
