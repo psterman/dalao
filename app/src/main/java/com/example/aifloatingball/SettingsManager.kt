@@ -776,35 +776,35 @@ class SettingsManager private constructor(context: Context) {
             .apply()
     }
 
-    fun generateMasterPrompt(): String {
+    fun generateMasterPrompt(profile: PromptProfile): String {
         val prompt = StringBuilder()
 
         prompt.append("### 用户画像(User Profile)\n\n")
 
         // --- 基本信息 ---
         prompt.append("#### 1. 基本信息:\n")
-        val gender = when (getPromptGender()) {
+        val gender = when (profile.gender) {
             "male" -> "男"
             "female" -> "女"
             else -> "未指定"
         }
         prompt.append("- **性别**: $gender\n")
-        if (getPromptBirthDate().isNotBlank()) prompt.append("- **出生日期**: ${getPromptBirthDate()}\n")
-        if (getPromptEducation().isNotBlank()) prompt.append("- **教育程度**: ${getPromptEducation()}\n")
+        if (profile.birthDate.isNotBlank()) prompt.append("- **出生日期**: ${profile.birthDate}\n")
+        if (profile.education.isNotBlank()) prompt.append("- **教育程度**: ${profile.education}\n")
 
         // --- 职业信息 ---
         prompt.append("\n#### 2. 职业信息:\n")
-        if (getPromptOccupation().isNotBlank()) prompt.append("- **当前从事行业**: ${getPromptOccupation()}\n")
-        if (getPromptOccupationCurrent().isNotEmpty()) prompt.append("- **具体职业/岗位**: ${getPromptOccupationCurrent().joinToString(", ")}\n")
-        if (getPromptOccupationInterest().isNotEmpty()) prompt.append("- **感兴趣的职业领域**: ${getPromptOccupationInterest().joinToString(", ")}\n")
+        if (profile.occupation.isNotBlank()) prompt.append("- **当前从事行业**: ${profile.occupation}\n")
+        if (profile.occupationCurrent.isNotEmpty()) prompt.append("- **具体职业/岗位**: ${profile.occupationCurrent.joinToString(", ")}\n")
+        if (profile.occupationInterest.isNotEmpty()) prompt.append("- **感兴趣的职业领域**: ${profile.occupationInterest.joinToString(", ")}\n")
 
         // --- 兴趣爱好 ---
         prompt.append("\n#### 3. 兴趣爱好:\n")
-        if (getPromptInterestsEntertainment().isNotEmpty()) prompt.append("- **娱乐偏好**: ${getPromptInterestsEntertainment().joinToString(", ")}\n")
-        if (getPromptInterestsShopping().isNotEmpty()) prompt.append("- **消费偏好**: ${getPromptInterestsShopping().joinToString(", ")}\n")
-        if (getPromptInterestsNiche().isNotEmpty()) prompt.append("- **小众爱好**: ${getPromptInterestsNiche().joinToString(", ")}\n")
-        if (getPromptInterestsValues().isNotEmpty()) prompt.append("- **看重的价值观**: ${getPromptInterestsValues().joinToString(", ")}\n")
-        val orientation = when (getPromptInterestsOrientation()) {
+        if (profile.interestsEntertainment.isNotEmpty()) prompt.append("- **娱乐偏好**: ${profile.interestsEntertainment.joinToString(", ")}\n")
+        if (profile.interestsShopping.isNotEmpty()) prompt.append("- **消费偏好**: ${profile.interestsShopping.joinToString(", ")}\n")
+        if (profile.interestsNiche.isNotEmpty()) prompt.append("- **小众爱好**: ${profile.interestsNiche.joinToString(", ")}\n")
+        if (profile.interestsValues.isNotEmpty()) prompt.append("- **看重的价值观**: ${profile.interestsValues.joinToString(", ")}\n")
+        val orientation = when (profile.interestsOrientation) {
             "heterosexual" -> "异性恋"
             "homosexual" -> "同性恋"
             "bisexual" -> "双性恋"
@@ -816,30 +816,37 @@ class SettingsManager private constructor(context: Context) {
 
         // --- 健康状况 ---
         prompt.append("\n#### 4. 健康状况:\n")
-        if (getPromptHealthDiagnosed().isNotEmpty()) prompt.append("- **曾确诊的疾病**: ${getPromptHealthDiagnosed().joinToString(", ")}\n")
-        if (getPromptHealthHadSurgery()) {
+        if (profile.healthDiagnosed.isNotEmpty()) prompt.append("- **曾确诊的疾病**: ${profile.healthDiagnosed.joinToString(", ")}\n")
+        if (profile.healthHadSurgery) {
             prompt.append("- **手术史**: 有\n")
-            if (getPromptHealthSurgeryType().isNotEmpty()) prompt.append("  - **手术类型**: ${getPromptHealthSurgeryType().joinToString(", ")}\n")
-            if (getPromptHealthSurgeryTime().isNotBlank()) prompt.append("  - **最近手术时间**: ${getPromptHealthSurgeryTime()}\n")
+            if (profile.healthSurgeryType.isNotEmpty()) prompt.append("  - **手术类型**: ${profile.healthSurgeryType.joinToString(", ")}\n")
+            if (profile.healthSurgeryTime.isNotBlank()) prompt.append("  - **最近手术时间**: ${profile.healthSurgeryTime}\n")
         }
-        if (getPromptHealthHasAllergies()) {
+        if (profile.healthHasAllergies) {
             prompt.append("- **过敏史**: 有\n")
-            if (getPromptHealthAllergyCause().isNotEmpty()) prompt.append("  - **过敏原因**: ${getPromptHealthAllergyCause().joinToString(", ")}\n")
-            if (getPromptHealthAllergyHistory().isNotEmpty()) prompt.append("  - **相关疾病/症状**: ${getPromptHealthAllergyHistory().joinToString(", ")}\n")
+            if (profile.healthAllergyCause.isNotEmpty()) prompt.append("  - **过敏原因**: ${profile.healthAllergyCause.joinToString(", ")}\n")
+            if (profile.healthAllergyHistory.isNotEmpty()) prompt.append("  - **相关疾病/症状**: ${profile.healthAllergyHistory.joinToString(", ")}\n")
         }
-        if (getPromptHealthFamilyHistory().isNotEmpty()) prompt.append("- **家族病史**: ${getPromptHealthFamilyHistory().joinToString(", ")}\n")
-        if (getPromptHealthDietaryRestrictions().isNotEmpty()) prompt.append("- **饮食偏好/禁忌**: ${getPromptHealthDietaryRestrictions().joinToString(", ")}\n")
-        if (getPromptHealthSleepPattern().isNotBlank()) prompt.append("- **睡眠状况**: ${getPromptHealthSleepPattern()}\n")
+        if (profile.healthFamilyHistory.isNotEmpty()) prompt.append("- **家族病史**: ${profile.healthFamilyHistory.joinToString(", ")}\n")
+        if (profile.healthDietaryRestrictions.isNotEmpty()) prompt.append("- **饮食偏好/禁忌**: ${profile.healthDietaryRestrictions.joinToString(", ")}\n")
+        if (profile.healthSleepPattern.isNotBlank()) prompt.append("- **睡眠状况**: ${profile.healthSleepPattern}\n")
 
 
         // --- 回复偏好 ---
         prompt.append("\n### 回复偏好(Reply Preferences)\n\n")
-        if (getPromptReplyFormats().isNotEmpty()) prompt.append("- **内容呈现形式**: ${getPromptReplyFormats().joinToString(", ")}\n")
-        if (getPromptToneStyle().isNotBlank()) prompt.append("- **回复口吻**: ${getPromptToneStyle()}\n")
-        if (getPromptRefusedTopics().isNotEmpty()) prompt.append("- **希望避免的话题**: ${getPromptRefusedTopics().joinToString(", ")}\n")
+        if (profile.replyFormats.isNotEmpty()) prompt.append("- **内容呈现形式**: ${profile.replyFormats.joinToString(", ")}\n")
+        if (profile.toneStyle.isNotBlank()) prompt.append("- **回复口吻**: ${profile.toneStyle}\n")
+        if (profile.refusedTopics.isNotEmpty()) prompt.append("- **希望避免的话题**: ${profile.refusedTopics.joinToString(", ")}\n")
 
 
         return prompt.toString()
+    }
+
+    fun generateMasterPrompt(): String {
+        val activeProfileId = getActiveProfileId()
+        val profiles = getPromptProfiles()
+        val activeProfile = profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull() ?: PromptProfile()
+        return generateMasterPrompt(activeProfile)
     }
 
     fun getCustomSearchEngines(): MutableList<SearchEngine> {

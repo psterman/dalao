@@ -184,7 +184,7 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
         override fun createFragment(position: Int): Fragment = fragmentsInfo[position].second
         fun getPageTitle(position: Int): CharSequence = fragmentsInfo[position].first
     }
-    
+
     override fun onSupportNavigateUp(): Boolean {
         onBackPressed()
         return true

@@ -752,12 +752,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         val selectAssistantButton = configPanelView?.findViewById<View>(R.id.btn_select_assistant)
         selectAssistantButton?.setOnClickListener {
-            showAssistantSelectorPanel()
+            showAssistantSelector()
+        }
+
+        val generatePromptButton = configPanelView?.findViewById<View>(R.id.btn_generate_prompt)
+        generatePromptButton?.setOnClickListener {
+            showPromptProfileSelector()
         }
 
         val addPromptButton = configPanelView?.findViewById<View>(R.id.btn_add_master_prompt)
         addPromptButton?.setOnClickListener {
-            enterEditingMode()
+            val activeProfile = getActiveProfile()
+            activeProfile?.let {
+                val currentText = searchInput?.text?.toString() ?: ""
+                val masterPrompt = settingsManager.generateMasterPrompt() // This uses the active profile
+                searchInput?.setText("$currentText $masterPrompt")
+                searchInput?.setSelection(searchInput?.text?.length ?: 0)
+                Toast.makeText(this, "已添加提示词", Toast.LENGTH_SHORT).show()
+            } ?: run {
+                Toast.makeText(this, "请先在AI指令中心设置档案", Toast.LENGTH_SHORT).show()
+            }
         }
 
         val panelParams = FrameLayout.LayoutParams(
@@ -765,10 +779,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             FrameLayout.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM
         )
+
+        // Add the panel to the window
         windowContainerView?.addView(configPanelView, panelParams)
         configPanelView?.apply {
+            alpha = 0f
             translationY = 1000f
-            animate().translationY(0f).setDuration(300).start()
+            animate().alpha(1f).translationY(0f).setDuration(300).start()
         }
 
         // Automatically show the paste button when the config panel appears.
@@ -1127,11 +1144,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             .start()
     }
 
-    private fun showAssistantSelectorPanel() {
-        dismissAssistantSelectorPanel() // Dismiss any existing one first
-
-        // Explicitly hide the config panel when entering this flow
-        configPanelView?.visibility = View.GONE
+    private fun showAssistantSelector() {
+        if (assistantSelectorView != null) return
 
         // Inflate views using a themed context
         val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
@@ -1979,5 +1993,51 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // It should collapse the island and hide the keyboard and search results.
         transitionToCompactState()
         hideAppSearchResults()
+    }
+
+    private fun getActiveProfile(): com.example.aifloatingball.model.PromptProfile? {
+        val activeProfileId = settingsManager.getActiveProfileId()
+        val profiles = settingsManager.getPromptProfiles()
+        return profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull()
+    }
+
+    private fun showPromptProfileSelector() {
+        val profiles = settingsManager.getPromptProfiles()
+        if (profiles.isEmpty()) {
+            Toast.makeText(this, "没有可用的档案", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val context = configPanelView?.context
+        if (context == null) {
+            Toast.makeText(this, "无法显示对话框: 视图上下文无效", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val profileNames = profiles.map { it.name }.toTypedArray()
+
+        val dialog = AlertDialog.Builder(context)
+            .setTitle("选择一个档案以生成PROMPT")
+            .setItems(profileNames) { dialog, which ->
+                val selectedProfile = profiles[which]
+                val generatedPrompt = settingsManager.generateMasterPrompt(selectedProfile)
+                
+                val currentText = searchInput?.text?.toString() ?: ""
+                val newText = if (currentText.isBlank()) generatedPrompt else "$currentText\n\n$generatedPrompt"
+                
+                searchInput?.setText(newText)
+                searchInput?.setSelection(searchInput?.text?.length ?: 0)
+                Toast.makeText(this, "已生成 ${selectedProfile.name} 的PROMPT", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .create()
+
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        dialog.show()
+    }
+
+    private fun updateBlurEffect(intensity: Float) {
+        // ... existing code ...
     }
 }
