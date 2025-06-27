@@ -264,8 +264,10 @@
             app:key="ai_command_center"
             app:title="AI指令中心"
             app:summary="管理、编辑、分享、导入和导出您的AI指令"
-            app:icon="@drawable/ic_settings"
-            app:fragment="com.example.aifloatingball.SettingsActivity$MasterPromptSettingsFragment"/>
+            app:icon="@drawable/ic_settings">
+            <intent android:targetPackage="com.example.aifloatingball"
+                    android:targetClass="com.example.aifloatingball.MasterPromptSettingsActivity"/>
+        </Preference>
 
         <Preference
             app:key="ai_api_settings"

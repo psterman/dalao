@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="@string/prompt_category_reply_preferences">
+
+        <MultiSelectListPreference
+            app:key="prompt_reply_format"
+            app:title="@string/prompt_reply_format_title"
+            app:entries="@array/reply_format_entries"
+            app:entryValues="@array/reply_format_values" />
+
+        <MultiSelectListPreference
+            app:key="prompt_refused_topics"
+            app:title="@string/prompt_refused_topics_title"
+            app:entries="@array/refused_topics_entries"
+            app:entryValues="@array/refused_topics_values" />
+
+        <ListPreference
+            app:key="prompt_tone_style"
+            app:title="@string/prompt_tone_style_title"
+            app:entries="@array/tone_style_entries"
+            app:entryValues="@array/tone_style_values"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen> 

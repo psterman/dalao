@@ -274,12 +274,6 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         }
     }
 
-    class MasterPromptSettingsFragment : BaseSettingsFragment() {
-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.master_prompt_preferences, rootKey)
-        }
-    }
-
     class WebSearchEngineManagerFragment : BaseSettingsFragment() {
         private lateinit var settingsManager: SettingsManager
 
@@ -353,24 +347,6 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                 }
             }
             preferenceScreen.addPreference(addEnginePref)
-        }
-    }
-
-    class PromptOccupationFragment : BaseSettingsFragment() {
-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.preferences_prompt_occupation, rootKey)
-        }
-    }
-
-    class PromptInterestsFragment : BaseSettingsFragment() {
-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.preferences_prompt_interests, rootKey)
-        }
-    }
-
-    class PromptHealthFragment : BaseSettingsFragment() {
-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.preferences_prompt_health, rootKey)
         }
     }
 } 

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory app:title="基本信息">
+
+        <ListPreference
+            app:key="prompt_gender"
+            app:title="@string/prompt_gender_title"
+            app:summary="@string/prompt_gender_summary"
+            app:entries="@array/gender_entries"
+            app:entryValues="@array/gender_values"
+            app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:key="prompt_birth_date"
+            app:title="@string/prompt_birth_date_title"
+            app:summary="@string/prompt_birth_date_summary" />
+
+        <ListPreference
+            app:key="prompt_education"
+            app:title="@string/prompt_education_title"
+            app:entries="@array/education_entries"
+            app:entryValues="@array/education_values"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen> 
