@@ -16,6 +16,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.adapter.ProfileAdapter
 import com.example.aifloatingball.model.PromptProfile
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import java.util.*
@@ -53,6 +54,9 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
         viewPager = findViewById(R.id.view_pager)
         profilesRecyclerView.layoutManager = LinearLayoutManager(this)
         profileAdapter = ProfileAdapter(profiles) { profile ->
+            // Save current profile before switching
+            activeProfile?.let { saveCurrentProfileData(it) }
+            // Switch to new profile
             switchProfile(profile)
         }
         profilesRecyclerView.adapter = profileAdapter
@@ -116,6 +120,53 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
         profileAdapter.updateData(profiles)
     }
 
+    private fun saveCurrentProfileData(profile: PromptProfile) {
+        settingsManager.savePreferencesToProfile(profile)
+        // Also update the master list in memory
+        val index = profiles.indexOfFirst { it.id == profile.id }
+        if (index != -1) {
+            profiles[index] = profile
+        }
+    }
+
+    private fun handleProfileDeletion(profileToDelete: PromptProfile) {
+        if (profiles.size <= 1) {
+            Toast.makeText(this, "无法删除最后一个档案", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("删除档案")
+            .setMessage("您确定要删除 “${profileToDelete.name}” 吗？此操作无法撤销。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("删除") { _, _ ->
+                val wasSelected = profileToDelete.isSelected
+                val deletedPosition = profiles.indexOf(profileToDelete)
+
+                // Remove from data source
+                profiles.remove(profileToDelete)
+                settingsManager.savePromptProfiles(profiles)
+
+                // Notify adapter
+                profileAdapter.updateData(profiles)
+
+                // If the deleted profile was selected, select a new one
+                if (wasSelected) {
+                    val newProfileToSelect = profiles.getOrNull(0) // Select the first one
+                    if (newProfileToSelect != null) {
+                        switchProfile(newProfileToSelect)
+                    } else {
+                        // This case should not happen due to the size check, but as a fallback:
+                        activeProfile = null
+                        settingsManager.setActiveProfileId(null)
+                        // Clear the form or show an empty state
+                        recreate() // Simple way to reset the view
+                    }
+                }
+            }
+            .show()
+    }
+
     override fun onPause() {
         super.onPause()
         // Save changes of the currently active profile before leaving
@@ -140,12 +191,21 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
                 onBackPressed()
                 true
             }
-            R.id.action_save -> {
-                Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
-                true
-            }
             R.id.action_add_profile -> {
                 showAddProfileDialog()
+                true
+            }
+            R.id.action_delete_profile -> {
+                activeProfile?.let { handleProfileDeletion(it) }
+                    ?: Toast.makeText(this, "没有选中的档案", Toast.LENGTH_SHORT).show()
+                true
+            }
+            R.id.action_save_prompt -> {
+                activeProfile?.let {
+                    saveCurrentProfileData(it)
+                    settingsManager.savePromptProfiles(profiles) // Save the whole list
+                    Toast.makeText(this, "${it.name} 已保存", Toast.LENGTH_SHORT).show()
+                }
                 true
             }
             else -> super.onOptionsItemSelected(item)

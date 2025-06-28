@@ -3,10 +3,11 @@
     android:id="@+id/profile_name"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="8dp"
-    android:ellipsize="end"
-    android:maxLines="1"
+    android:padding="12dp"
     android:gravity="center_vertical"
     android:textAppearance="?attr/textAppearanceBody1"
     android:background="?attr/selectableItemBackground"
-    android:textColor="?android:attr/textColorPrimary" /> 
+    android:ellipsize="end"
+    android:maxLines="1"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:text="默认档案" /> 

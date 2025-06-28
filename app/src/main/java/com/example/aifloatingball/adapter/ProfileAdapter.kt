@@ -37,7 +37,10 @@ class ProfileAdapter(
         private val nameTextView: TextView = itemView.findViewById(R.id.profile_name)
         private val defaultTextColor = nameTextView.currentTextColor
 
-        fun bind(profile: PromptProfile, onProfileClicked: (PromptProfile) -> Unit) {
+        fun bind(
+            profile: PromptProfile,
+            onProfileClicked: (PromptProfile) -> Unit
+        ) {
             nameTextView.text = profile.name
             itemView.setOnClickListener { onProfileClicked(profile) }
 

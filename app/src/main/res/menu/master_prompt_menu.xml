@@ -3,12 +3,17 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/action_add_profile"
-        android:title="新增档案"
         android:icon="@drawable/ic_add_circle"
+        android:title="添加档案"
         app:showAsAction="ifRoom" />
     <item
-        android:id="@+id/action_save"
-        android:title="保存"
+        android:id="@+id/action_delete_profile"
+        android:icon="@drawable/ic_delete"
+        android:title="删除档案"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/action_save_prompt"
         android:icon="@drawable/ic_save"
+        android:title="保存"
         app:showAsAction="ifRoom" />
 </menu> 
