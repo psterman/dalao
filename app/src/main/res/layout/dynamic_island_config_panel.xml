@@ -125,7 +125,7 @@
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="选择助手"
+                android:text="助手"
                 android:textColor="?attr/colorPrimary"
                 app:icon="@drawable/ic_assistant"
                 app:iconTint="?attr/colorPrimary" />
@@ -135,7 +135,7 @@
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="生成 Prompt"
+                android:text="身份"
                 android:textColor="?attr/colorPrimary"
                 app:icon="@drawable/ic_edit"
                 app:iconTint="?attr/colorPrimary" />
@@ -147,6 +147,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:text="+ 加提示词"
+                android:visibility="gone"
                 android:textColor="?attr/colorPrimary"
                 app:icon="@drawable/ic_magic_wand"
                 app:iconTint="?attr/colorPrimary" />

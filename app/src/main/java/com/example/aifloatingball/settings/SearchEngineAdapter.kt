@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.model.SearchEngine
+import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 class SearchEngineAdapter(
@@ -27,6 +28,7 @@ class SearchEngineAdapter(
     private val enabledEngines = settingsManager.getEnabledSearchEngines().toMutableSet()
 
     class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val engineIcon: ImageView = view.findViewById(R.id.engine_icon)
         val engineName: TextView = view.findViewById(R.id.engine_name)
         val engineUrl: TextView = view.findViewById(R.id.engine_url)
         val engineSwitch: SwitchMaterial = view.findViewById(R.id.engine_switch)
@@ -42,6 +44,8 @@ class SearchEngineAdapter(
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val engine = searchEngines[position]
         val context = holder.itemView.context
+
+        FaviconLoader.loadIcon(holder.engineIcon, engine.url, R.drawable.ic_web_default)
 
         if (engine.isCustom) {
             val displayName = engine.displayName
