@@ -228,11 +228,13 @@
     <string-array name="display_mode_entries">
         <item>悬浮球</item>
         <item>灵动岛</item>
+        <item>简易模式</item>
     </string-array>
 
     <string-array name="display_mode_values">
         <item>floating_ball</item>
         <item>dynamic_island</item>
+        <item>simple_mode</item>
     </string-array>
 
     <string-array name="floating_window_display_mode_entries">

@@ -88,6 +88,7 @@ import com.example.aifloatingball.data.AssistantPrompts
 import com.example.aifloatingball.model.AssistantPrompt
 import com.example.aifloatingball.adapter.AssistantPromptAdapter
 import com.example.aifloatingball.model.AssistantCategory
+import com.airbnb.lottie.LottieAnimationView
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -750,15 +751,34 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         updateAllMiniPages()
         // --- End of New UI Setup ---
         
+        val animationView = configPanelView?.findViewById<LottieAnimationView>(R.id.config_panel_animation)
+
         val selectAssistantButton = configPanelView?.findViewById<View>(R.id.btn_select_assistant)
         selectAssistantButton?.setOnClickListener {
+            animationView?.apply {
+                visibility = View.VISIBLE
+                playAnimation()
+            }
             showAssistantSelector()
         }
 
         val generatePromptButton = configPanelView?.findViewById<View>(R.id.btn_generate_prompt)
         generatePromptButton?.setOnClickListener {
+            animationView?.apply {
+                visibility = View.VISIBLE
+                playAnimation()
+            }
             showPromptProfileSelector()
         }
+
+        animationView?.addAnimatorListener(object : Animator.AnimatorListener {
+            override fun onAnimationStart(animation: Animator) {}
+            override fun onAnimationEnd(animation: Animator) {
+                animationView.visibility = View.GONE
+            }
+            override fun onAnimationCancel(animation: Animator) {}
+            override fun onAnimationRepeat(animation: Animator) {}
+        })
 
         val addPromptButton = configPanelView?.findViewById<View>(R.id.btn_add_master_prompt)
         addPromptButton?.setOnClickListener {

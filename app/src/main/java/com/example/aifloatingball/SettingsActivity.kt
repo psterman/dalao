@@ -18,6 +18,7 @@ import com.example.aifloatingball.model.SearchableSetting
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.service.FloatingWindowService
+import com.example.aifloatingball.service.SimpleModeService
 import androidx.preference.SwitchPreferenceCompat
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -74,27 +75,23 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         // This function is crucial for starting/stopping services based on settings.
         val intentBall = Intent(this, FloatingWindowService::class.java)
         val intentIsland = Intent(this, DynamicIslandService::class.java)
+        val intentSimple = Intent(this, SimpleModeService::class.java)
         stopService(intentBall)
         stopService(intentIsland)
+        stopService(intentSimple)
 
-        val displayMode = settingsManager.getDisplayMode()
-        if (displayMode == "floating_ball" && settingsManager.isFloatingBallEnabled()) {
-            startService(intentBall)
-        } else if (displayMode == "dynamic_island" && settingsManager.isDynamicIslandEnabled()) {
-            startService(intentIsland)
-        } else if (displayMode == "both") {
-            if (settingsManager.isFloatingBallEnabled()) {
-                startService(intentBall)
-            }
-            if (settingsManager.isDynamicIslandEnabled()) {
-                startService(intentIsland)
-            }
+        when (settingsManager.getDisplayMode()) {
+            "floating_ball" -> startService(intentBall)
+            "dynamic_island" -> startService(intentIsland)
+            "simple_mode" -> startService(intentSimple)
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        settingsManager.unregisterOnSharedPreferenceChangeListener(this)
+        if (::settingsManager.isInitialized) {
+            settingsManager.unregisterOnSharedPreferenceChangeListener(this)
+        }
     }
 
     private fun setupRecyclerView() {
@@ -200,7 +197,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                 val intent = Intent(FloatingWindowService.ACTION_UPDATE_POSITION)
                 sendBroadcast(intent)
             }
-            "display_mode", "floating_ball_enabled", "dynamic_island_enabled" -> {
+            "display_mode" -> {
                 updateDisplayMode()
             }
         }
@@ -216,6 +213,13 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             settingsManager = SettingsManager.getInstance(requireContext())
             setPreferencesFromResource(R.xml.root_preferences, rootKey)
+
+            updateCategoryVisibility(settingsManager.getDisplayMode())
+
+            findPreference<ListPreference>("display_mode")?.setOnPreferenceChangeListener { _, newValue ->
+                updateCategoryVisibility(newValue as String)
+                true
+            }
 
             findPreference<Preference>("view_search_history")?.setOnPreferenceClickListener {
                 val intent = Intent(activity, SearchHistoryActivity::class.java)
@@ -258,6 +262,12 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                 builder.show()
                 true
             }
+        }
+
+        private fun updateCategoryVisibility(displayMode: String) {
+            findPreference<Preference>("category_floating_ball")?.isVisible = displayMode == "floating_ball"
+            findPreference<Preference>("category_dynamic_island")?.isVisible = displayMode == "dynamic_island"
+            findPreference<Preference>("category_simple_mode")?.isVisible = displayMode == "simple_mode"
         }
     }
 

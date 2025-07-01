@@ -163,37 +163,22 @@
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
+    <!-- =                        简易模式 (Simple Mode)                        = -->
+    <!-- ===================================================================== -->
+    <PreferenceCategory
+        app:key="category_simple_mode"
+        app:title="简易模式"
+        app:iconSpaceReserved="false">
+
+    </PreferenceCategory>
+
+    <!-- ===================================================================== -->
     <!-- =                   浏览器与搜索 (Browser & Search)                  = -->
     <!-- ===================================================================== -->
     <PreferenceCategory
         app:key="category_browser_search"
         app:title="浏览器与搜索"
         app:iconSpaceReserved="false">
-
-        <SwitchPreferenceCompat
-            app:key="search_default_ai_mode"
-            app:title="默认搜索模式"
-            app:summary="默认使用AI进行搜索"
-            app:defaultValue="false"
-            app:icon="@drawable/ic_ai_mode"/>
-
-        <ListPreference
-            app:key="default_page"
-            app:title="默认打开页面"
-            app:summary="设置启动时默认显示的页面"
-            app:entries="@array/default_page_entries"
-            app:entryValues="@array/default_page_values"
-            app:defaultValue="home"
-            app:icon="@drawable/ic_home"/>
-
-        <ListPreference
-            app:key="default_browser"
-            app:title="打开外部链接方式"
-            app:summary="选择在哪个浏览器中打开链接"
-            app:entries="@array/default_browser_entries"
-            app:entryValues="@array/default_browser_values"
-            app:defaultValue="system"
-            app:icon="@drawable/ic_open_new"/>
             
         <PreferenceCategory
             app:key="category_multi_window"
