@@ -54,6 +54,9 @@
             android:name=".MasterPromptSettingsActivity"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
+            android:name=".ui.onboarding.OnboardingActivity"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
             android:name=".AIApiSettingsActivity"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
