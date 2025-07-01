@@ -246,6 +246,38 @@ class SettingsManager private constructor(context: Context) {
         return enabledAIEngines.firstOrNull() ?: "deepseek_chat" // 如果没有启用的AI引擎，则返回一个默认值
     }
     
+    // 为多窗口浏览器设置搜索引擎
+    fun getLeftWindowSearchEngine(): String {
+        return prefs.getString("left_window_search_engine", "baidu") ?: "baidu"
+    }
+    
+    fun setLeftWindowSearchEngine(engine: String) {
+        prefs.edit().putString("left_window_search_engine", engine).apply()
+        notifyListeners("left_window_search_engine", engine)
+    }
+
+    fun getCenterWindowSearchEngine(): String {
+        return prefs.getString("center_window_search_engine", "bing") ?: "bing"
+    }
+
+    fun setCenterWindowSearchEngine(engine: String) {
+        prefs.edit().putString("center_window_search_engine", engine).apply()
+        notifyListeners("center_window_search_engine", engine)
+    }
+
+    fun getRightWindowSearchEngine(): String {
+        return prefs.getString("right_window_search_engine", "google") ?: "google"
+    }
+
+    fun setRightWindowSearchEngine(engine: String) {
+        prefs.edit().putString("right_window_search_engine", engine).apply()
+        notifyListeners("right_window_search_engine", engine)
+    }
+    
+    fun getSearchEngineShortcuts(): String {
+        return prefs.getString("search_engine_shortcuts", "") ?: ""
+    }
+
     // 获取所有已启用的搜索引擎（包括普通搜索引擎和AI搜索引擎）
     fun getAllEnabledEngines(): Set<String> {
         val result = mutableSetOf<String>()
@@ -610,38 +642,6 @@ class SettingsManager private constructor(context: Context) {
         notifyListeners("default_window_count", count)
     }
     
-    // 窗口搜索引擎设置
-    fun getLeftWindowSearchEngine(): String {
-        return prefs.getString("left_window_search_engine", "baidu") ?: "baidu"
-    }
-    
-    fun setLeftWindowSearchEngine(engine: String) {
-        prefs.edit().putString("left_window_search_engine", engine).apply()
-        notifyListeners("left_window_search_engine", engine)
-    }
-    
-    fun getCenterWindowSearchEngine(): String {
-        return prefs.getString("center_window_search_engine", "bing") ?: "bing"
-    }
-    
-    fun setCenterWindowSearchEngine(engine: String) {
-        prefs.edit().putString("center_window_search_engine", engine).apply()
-        notifyListeners("center_window_search_engine", engine)
-    }
-    
-    fun getRightWindowSearchEngine(): String {
-        return prefs.getString("right_window_search_engine", "google") ?: "google"
-    }
-    
-    fun setRightWindowSearchEngine(engine: String) {
-        prefs.edit().putString("right_window_search_engine", engine).apply()
-        notifyListeners("right_window_search_engine", engine)
-    }
-
-    fun getSearchEngineShortcuts(): String {
-        return prefs.getString("search_engine_shortcuts", "") ?: ""
-    }
-
     // 获取选择的搜索引擎（旧的方法，使用不同的键）
     fun getSelectedSearchEngines(): Set<String> {
         return prefs.getStringSet("enabled_search_engines", setOf("baidu", "google")) ?: setOf("baidu", "google")

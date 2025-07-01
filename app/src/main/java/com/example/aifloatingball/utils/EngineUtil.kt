@@ -59,8 +59,59 @@ object EngineUtil {
      * 获取AI搜索引擎搜索URL
      */
     fun getAISearchEngineUrl(engineKey: String, query: String): String {
-        val engine = AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == engineKey }
+        // Create a key-to-engine mapping for better lookup
+        val engine = findAIEngineByKey(engineKey)
         return engine?.getSearchUrl(query) ?: "https://chat.openai.com"
+    }
+    
+    /**
+     * 根据引擎键值查找AI搜索引擎（支持多种格式）
+     */
+    private fun findAIEngineByKey(engineKey: String): AISearchEngine? {
+        // First try exact name match
+        val byName = AISearchEngine.DEFAULT_AI_ENGINES.find { it.name.equals(engineKey, ignoreCase = true) }
+        if (byName != null) return byName
+        
+        // Then try key-based mapping
+        val keyToNameMap = mapOf(
+            "chatgpt" to "ChatGPT",
+            "claude" to "Claude", 
+            "gemini" to "Gemini",
+            "wenxin" to "文心一言",
+            "chatglm" to "智谱清言",
+            "qianwen" to "通义千问",
+            "xinghuo" to "讯飞星火",
+            "perplexity" to "Perplexity",
+            "phind" to "Phind",
+            "poe" to "Poe",
+            "tiangong" to "天工AI",
+            "metaso" to "秘塔AI搜索",
+            "quark" to "夸克AI",
+            "360ai" to "360AI搜索",
+            "baiduai" to "百度AI",
+            "you" to "You.com",
+            "brave" to "Brave Search",
+            "wolfram" to "WolframAlpha",
+            "chatgpt_chat" to "ChatGPT (API)",
+            "deepseek_chat" to "DeepSeek (API)",
+            "kimi" to "Kimi",
+            "deepseek" to "DeepSeek (Web)",
+            "wanzhi" to "万知",
+            "baixiaoying" to "百小应",
+            "yuewen" to "跃问",
+            "doubao" to "豆包",
+            "cici" to "Cici",
+            "hailuo" to "海螺",
+            "groq" to "Groq",
+            "yuanbao" to "腾讯元宝"
+        )
+        
+        val mappedName = keyToNameMap[engineKey.lowercase()]
+        return if (mappedName != null) {
+            AISearchEngine.DEFAULT_AI_ENGINES.find { it.name == mappedName }
+        } else {
+            null
+        }
     }
     
     /**

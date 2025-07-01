@@ -36,8 +36,8 @@ class SearchEngineHandler(private val settingsManager: SettingsManager) {
         }
 
         // 尝试从EngineUtil获取URL
-        // 1. 判断是否是AI引擎
-        val isAIEngine = AISearchEngine.DEFAULT_AI_ENGINES.any { it.name.equals(currentEngineKey, ignoreCase = true) }
+        // 1. 判断是否是AI引擎 - 支持多种格式的匹配
+        val isAIEngine = isAIEngine(currentEngineKey)
 
         val searchUrl = if (isAIEngine) {
             // 2. 如果是AI引擎，调用AI引擎的URL获取方法
@@ -71,5 +71,28 @@ class SearchEngineHandler(private val settingsManager: SettingsManager) {
             ?: "https://www.google.com/search?q=$query" // 兜底URL
         Log.d(TAG, "Using default search URL: $defaultUrl for query: '$query'")
         return defaultUrl
+    }
+    
+    /**
+     * 判断是否是AI搜索引擎，支持多种格式匹配
+     */
+    private fun isAIEngine(engineKey: String): Boolean {
+        // 支持的AI引擎标识符（包括name和key格式）
+        val aiEngineIdentifiers = setOf(
+            // Name format (from AISearchEngine.DEFAULT_AI_ENGINES)
+            "chatgpt", "claude", "gemini", "文心一言", "智谱清言", "通义千问", "讯飞星火",
+            "perplexity", "phind", "poe", "天工ai", "秘塔ai搜索", "夸克ai", "360ai搜索",
+            "百度ai", "you.com", "brave search", "wolframalpha", "chatgpt (api)", 
+            "deepseek (api)", "kimi", "deepseek (web)", "万知", "百小应", "跃问", 
+            "豆包", "cici", "海螺", "groq", "腾讯元宝",
+            // Key format (converted keys from SimpleModeService)
+            "wenxin", "chatglm", "qianwen", "xinghuo", "tiangong", "metaso", "quark", 
+            "360ai", "baiduai", "you", "brave", "wolfram", "chatgpt_chat", "deepseek_chat",
+            "deepseek", "wanzhi", "baixiaoying", "yuewen", "doubao", "hailuo", "yuanbao"
+        )
+        
+        val result = aiEngineIdentifiers.any { it.equals(engineKey, ignoreCase = true) }
+        Log.d(TAG, "isAIEngine check for '$engineKey': $result")
+        return result
     }
 } 

@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
 import android.content.ClipboardManager
 import android.content.ClipDescription
 import android.view.ContextThemeWrapper
+import android.os.Build
 
 /**
  * 双窗口浮动WebView服务，提供多窗口并行搜索功能
@@ -180,6 +181,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
     private fun handleSearchInternal(query: String, engineKey: String, windowCount: Int) {
         Log.d(TAG, "处理搜索请求: query='$query', engineKey='$engineKey', windowCount=$windowCount")
+        Log.d(TAG, "当前设置 - 左窗口: ${settingsManager.getLeftWindowSearchEngine()}, 中窗口: ${settingsManager.getCenterWindowSearchEngine()}, 右窗口: ${settingsManager.getRightWindowSearchEngine()}")
         
         val windowCountToUse = windowCount.coerceIn(1, webViewManager.getWebViews().size)
         currentWindowCount = windowCountToUse
@@ -194,6 +196,16 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 } else {
                     settingsManager.getSearchEngineForPosition(i)
                 }
+                Log.d(TAG, "窗口 $i: 使用搜索引擎 '$currentWindowEngineKey' 搜索 '$query'")
+                
+                // Generate URL and log it
+                val searchUrl = if (currentWindowEngineKey.isNotBlank()) {
+                    searchEngineHandler.getSearchUrl(query, currentWindowEngineKey)
+                } else {
+                    "about:blank"
+                }
+                Log.d(TAG, "窗口 $i: 生成的搜索URL = '$searchUrl'")
+                
                 // 使用统一的加载方法
                 loadContentInWebView(it, currentWindowEngineKey, query)
             } ?: Log.e(TAG, "尝试加载URL到索引 $i 的WebView失败，该WebView为null")
@@ -208,7 +220,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             addAction(ACTION_UPDATE_AI_ENGINES)
             addAction(ACTION_UPDATE_MENU)
         }
-        registerReceiver(broadcastReceiver, intentFilter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(broadcastReceiver, intentFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(broadcastReceiver, intentFilter)
+        }
     }
     
     /**
@@ -356,8 +372,13 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 判断是否是AI搜索引擎
      */
     private fun isAIEngine(engineKey: String): Boolean {
-        val aiEngineKeys = listOf("chatgpt", "chatgpt_chat", "claude", "gemini", "wenxin", "chatglm",
-                                   "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek", "deepseek_chat")
+        val aiEngineKeys = listOf(
+            "chatgpt", "chatgpt_chat", "claude", "gemini", "wenxin", "chatglm",
+            "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek", "deepseek_chat",
+            "kimi", "tiangong", "metaso", "quark", "360ai", "baiduai", "you", "brave",
+            "wolfram", "wanzhi", "baixiaoying", "yuewen", "doubao", "cici", "hailuo",
+            "groq", "yuanbao"
+        )
         return aiEngineKeys.any { it.equals(engineKey, ignoreCase = true) }
     }
 

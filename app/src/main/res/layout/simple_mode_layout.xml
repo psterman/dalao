@@ -11,17 +11,22 @@
         android:id="@+id/simple_mode_input"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="请说话或打字..."
+        android:layout_marginBottom="16dp"
+        android:background="@android:drawable/edit_text"
+        android:hint="输入搜索内容..."
         android:inputType="text"
+        android:imeOptions="actionSearch"
+        android:singleLine="true"
+        android:minHeight="48dp"
+        android:padding="12dp"
         android:textSize="18sp"
-        android:drawableEnd="@drawable/ic_mic"
+        android:drawableEnd="@drawable/ic_search"
         android:drawablePadding="8dp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="16dp"
         android:gravity="center">
 
         <Button

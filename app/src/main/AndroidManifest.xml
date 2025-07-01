@@ -77,11 +77,6 @@
             android:theme="@style/Theme.AIFloatingBall.VoiceRecognition"
             android:exported="false" />
 
-        <activity
-            android:name=".service.VoiceRecognitionProxyActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
-            android:exported="false" />
-
         <service
             android:name=".service.FloatingWindowService"
             android:enabled="true"

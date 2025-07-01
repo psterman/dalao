@@ -215,7 +215,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
         // Register position update receiver
         val positionFilter = IntentFilter(ACTION_UPDATE_POSITION)
-        registerReceiver(positionUpdateReceiver, positionFilter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(positionUpdateReceiver, positionFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(positionUpdateReceiver, positionFilter)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

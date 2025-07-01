@@ -239,7 +239,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         )
         // Register receiver for app search updates
         val filter = IntentFilter("com.example.aifloatingball.ACTION_UPDATE_APP_SEARCH")
-        registerReceiver(appSearchUpdateReceiver, filter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(appSearchUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(appSearchUpdateReceiver, filter)
+        }
         setupMessageReceiver()
 
         settingsManager.registerOnSharedPreferenceChangeListener(this)
