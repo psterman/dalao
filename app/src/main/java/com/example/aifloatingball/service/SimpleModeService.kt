@@ -1,348 +1,384 @@
 package com.example.aifloatingball.service
 
+import android.app.AlertDialog
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
-import android.view.ContextThemeWrapper
+import android.util.Log
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.LayoutInflater
-import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.widget.Button
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import com.example.aifloatingball.R
-import android.app.Activity
-import android.content.ActivityNotFoundException
-import android.os.Bundle
-import android.speech.RecognizerIntent
-import android.view.ViewGroup
-import android.widget.EditText
-import androidx.core.app.ActivityCompat
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.SettingsActivity
 import com.example.aifloatingball.model.AISearchEngine
-import androidx.appcompat.app.AlertDialog
-import android.view.inputmethod.EditorInfo
-import android.widget.TextView
 
 class SimpleModeService : Service() {
-
+    
     private lateinit var windowManager: WindowManager
-    private var simpleModeView: View? = null
-    private lateinit var inputEditText: EditText
+    private lateinit var simpleModeView: View
     private lateinit var settingsManager: SettingsManager
-
-    private var engineSlot1: String? = null
-    private var engineSlot2: String? = null
-    private var engineSlot3: String? = null
-
-    private lateinit var button1: Button
-    private lateinit var button2: Button
-    private lateinit var button3: Button
-    private var layoutParams: WindowManager.LayoutParams? = null
-
-    // Voice recognition request code
-    private val VOICE_RECOGNITION_REQUEST_CODE = 1234
-
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
+    
+    // 三个AI引擎插槽
+    private var selectedEngines = mutableListOf<String>("N/A", "N/A", "N/A")
+    
+    private val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                Log.d("SimpleModeService", "Screen turned off, stopping service")
+                stopSelf()
+            }
+        }
     }
-
+    
     override fun onCreate() {
         super.onCreate()
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        Log.d("SimpleModeService", "Service created")
+        
         settingsManager = SettingsManager.getInstance(this)
-        showSimpleModeView()
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        
+        // 注册屏幕关闭监听器
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenOffReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(screenOffReceiver, filter)
+        }
+        
+        createSimpleModeWindow()
+        initializeEngineSlots()
     }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        simpleModeView?.let {
-            windowManager.removeView(it)
+    
+    private fun createSimpleModeWindow() {
+        val inflater = LayoutInflater.from(this)
+        simpleModeView = inflater.inflate(R.layout.simple_mode_layout, null)
+        
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            PixelFormat.TRANSLUCENT
+        )
+        
+        params.gravity = Gravity.CENTER
+        
+        windowManager.addView(simpleModeView, params)
+        
+        setupViews()
+    }
+    
+    private fun setupViews() {
+        val searchEditText = simpleModeView.findViewById<EditText>(R.id.searchEditText)
+        val searchButton = simpleModeView.findViewById<ImageButton>(R.id.searchButton)
+        val closeButton = simpleModeView.findViewById<ImageButton>(R.id.closeButton)
+        
+        // AI引擎按钮
+        val aiEngine1Button = simpleModeView.findViewById<TextView>(R.id.aiEngine1Button)
+        val aiEngine2Button = simpleModeView.findViewById<TextView>(R.id.aiEngine2Button)
+        val aiEngine3Button = simpleModeView.findViewById<TextView>(R.id.aiEngine3Button)
+        
+        // 网格项目
+        val gridItem1 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_1)  // 智能搜索
+        val gridItem2 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_2)  // AI写作
+        val gridItem3 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_3)  // AI绘画
+        val gridItem4 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_4)  // 创意助手
+        val gridItem5 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_5)  // 网页翻译
+        val gridItem6 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_6)  // 数据分析
+        val gridItem7 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_7)  // 音乐生成
+        val gridItem8 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_8)  // 视频制作
+        val gridItem9 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_9)  // 学习助手
+        val gridItem10 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_10) // 工具箱
+        val gridItem11 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_11) // 历史记录
+        val gridItem12 = simpleModeView.findViewById<LinearLayout>(R.id.grid_item_12) // 设置
+        
+        // Tab按钮
+        val tabHome = simpleModeView.findViewById<LinearLayout>(R.id.tab_home)
+        val tabSearch = simpleModeView.findViewById<LinearLayout>(R.id.tab_search)
+        val tabTools = simpleModeView.findViewById<LinearLayout>(R.id.tab_tools)
+        val tabProfile = simpleModeView.findViewById<LinearLayout>(R.id.tab_profile)
+        
+        // 设置搜索功能
+        searchButton.setOnClickListener {
+            val query = searchEditText.text.toString().trim()
+            if (query.isNotEmpty()) {
+                performTripleSearch(query)
+            } else {
+                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        // 设置回车键搜索
+        searchEditText.setOnEditorActionListener { _, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || 
+                (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER)) {
+                val query = searchEditText.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    performTripleSearch(query)
+                    hideKeyboard(searchEditText)
+                    return@setOnEditorActionListener true
+                }
+            }
+            false
+        }
+        
+        // 设置输入框焦点管理
+        searchEditText.setOnFocusChangeListener { _, hasFocus ->
+            updateWindowFocusability(hasFocus)
+        }
+        
+        // AI引擎按钮点击事件
+        aiEngine1Button.setOnClickListener { showAiEngineSelectionDialog(0) }
+        aiEngine2Button.setOnClickListener { showAiEngineSelectionDialog(1) }
+        aiEngine3Button.setOnClickListener { showAiEngineSelectionDialog(2) }
+        
+        // 网格项目点击事件
+        gridItem1.setOnClickListener {
+            val query = searchEditText.text.toString().trim()
+            if (query.isNotEmpty()) {
+                performTripleSearch(query)
+            } else {
+                Toast.makeText(this, "请先输入搜索内容", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        gridItem2.setOnClickListener {
+            Toast.makeText(this, "AI写作功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem3.setOnClickListener {
+            Toast.makeText(this, "AI绘画功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem4.setOnClickListener {
+            Toast.makeText(this, "创意助手功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem5.setOnClickListener {
+            Toast.makeText(this, "网页翻译功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem6.setOnClickListener {
+            Toast.makeText(this, "数据分析功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem7.setOnClickListener {
+            Toast.makeText(this, "音乐生成功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem8.setOnClickListener {
+            Toast.makeText(this, "视频制作功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem9.setOnClickListener {
+            Toast.makeText(this, "学习助手功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem10.setOnClickListener {
+            Toast.makeText(this, "工具箱功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem11.setOnClickListener {
+            Toast.makeText(this, "历史记录功能开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        gridItem12.setOnClickListener {
+            val intent = Intent(this, SettingsActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
+        }
+        
+        // Tab点击事件
+        tabHome.setOnClickListener {
+            Toast.makeText(this, "已在首页", Toast.LENGTH_SHORT).show()
+        }
+        
+        tabSearch.setOnClickListener {
+            searchEditText.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(searchEditText, InputMethodManager.SHOW_IMPLICIT)
+        }
+        
+        tabTools.setOnClickListener {
+            Toast.makeText(this, "工具页面开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        tabProfile.setOnClickListener {
+            Toast.makeText(this, "个人中心开发中", Toast.LENGTH_SHORT).show()
+        }
+        
+        // 关闭按钮（隐藏，通过返回键关闭）
+        closeButton.setOnClickListener {
+            stopSelf()
+        }
+        
+        // 支持返回键关闭
+        simpleModeView.isFocusableInTouchMode = true
+        simpleModeView.setOnKeyListener { _, keyCode, _ ->
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                stopSelf()
+                return@setOnKeyListener true
+            }
+            false
         }
     }
-
-    private fun showSimpleModeView() {
-        if (simpleModeView == null) {
-            val layoutInflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
-            simpleModeView = layoutInflater.inflate(R.layout.simple_mode_layout, null)
-
-            val params = WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                } else {
-                    WindowManager.LayoutParams.TYPE_PHONE
-                },
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT
-            )
-            params.gravity = Gravity.CENTER
-            layoutParams = params
-
-            inputEditText = simpleModeView!!.findViewById(R.id.simple_mode_input)
-            button1 = simpleModeView!!.findViewById(R.id.simple_mode_ai_button_1)
-            button2 = simpleModeView!!.findViewById(R.id.simple_mode_ai_button_2)
-            button3 = simpleModeView!!.findViewById(R.id.simple_mode_ai_button_3)
-
-            initializeEngineSlots()
-
-            button1.setOnClickListener {
-                showAiEngineSelectionDialog { engineName ->
-                    engineSlot1 = engineName
-                    button1.text = engineName
-                }
+    
+    private fun updateWindowFocusability(needsFocus: Boolean) {
+        try {
+            val params = simpleModeView.layoutParams as WindowManager.LayoutParams
+            
+            if (needsFocus) {
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            } else {
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
             }
-            button2.setOnClickListener {
-                showAiEngineSelectionDialog { engineName ->
-                    engineSlot2 = engineName
-                    button2.text = engineName
-                }
-            }
-            button3.setOnClickListener {
-                showAiEngineSelectionDialog { engineName ->
-                    engineSlot3 = engineName
-                    button3.text = engineName
-                }
-            }
-
-            // Set up input field interactions
-            inputEditText.setOnClickListener {
-                // Make the window focusable when user wants to type
-                layoutParams?.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                windowManager.updateViewLayout(simpleModeView, layoutParams)
-                
-                // Request focus and show keyboard
-                inputEditText.requestFocus()
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(inputEditText, InputMethodManager.SHOW_IMPLICIT)
-            }
-
-            inputEditText.setOnFocusChangeListener { _, hasFocus ->
-                if (!hasFocus) {
-                    // Make the window not focusable again when EditText loses focus
-                    layoutParams?.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    windowManager.updateViewLayout(simpleModeView, layoutParams)
-                }
-            }
-
-            // Handle keyboard search/enter key press
-            inputEditText.setOnEditorActionListener { _, actionId, _ ->
-                if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
-                    performTripleSearch()
-                    true
-                } else {
-                    false
-                }
-            }
-
-            inputEditText.setOnTouchListener { _, event ->
-                if (event.action == MotionEvent.ACTION_UP) {
-                    val drawableEnd = inputEditText.compoundDrawables[2]
-                    if (drawableEnd != null && event.rawX >= (inputEditText.right - drawableEnd.bounds.width())) {
-                        performTripleSearch()
-                        return@setOnTouchListener true
-                    }
-                }
-                false
-            }
-            windowManager.addView(simpleModeView, params)
+            
+            windowManager.updateViewLayout(simpleModeView, params)
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "Error updating window focusability", e)
         }
-        simpleModeView?.visibility = View.VISIBLE
+    }
+    
+    private fun hideKeyboard(view: View) {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(view.windowToken, 0)
     }
     
     private fun initializeEngineSlots() {
-        val enabledEngines = AISearchEngine.DEFAULT_AI_ENGINES.filter { it.name in settingsManager.getEnabledAIEngines() }
+        Log.d("SimpleModeService", "Initializing engine slots")
         
-        // If no AI engines are enabled, provide default ones for Simple Mode
-        val availableEngines = if (enabledEngines.isEmpty()) {
-            android.util.Log.d("SimpleModeService", "No AI engines enabled, using default engines for Simple Mode")
-            // Use the first few AI engines as defaults
-            AISearchEngine.DEFAULT_AI_ENGINES.take(3)
+        val enabledEngines = settingsManager.getEnabledAIEngines()
+        Log.d("SimpleModeService", "Enabled engines: $enabledEngines")
+        
+        if (enabledEngines.isEmpty()) {
+            // 如果没有启用的引擎，使用默认的前3个
+            val allEngines = AISearchEngine.DEFAULT_AI_ENGINES
+            selectedEngines[0] = if (allEngines.isNotEmpty()) allEngines[0].name else "perplexity"
+            selectedEngines[1] = if (allEngines.size > 1) allEngines[1].name else "deepseek_api"
+            selectedEngines[2] = if (allEngines.size > 2) allEngines[2].name else "gemini"
+            Log.d("SimpleModeService", "Using default engines: $selectedEngines")
         } else {
-            enabledEngines
+            val enginesList = enabledEngines.toList()
+            selectedEngines[0] = enginesList.getOrElse(0) { "perplexity" }
+            selectedEngines[1] = enginesList.getOrElse(1) { "deepseek_api" }
+            selectedEngines[2] = enginesList.getOrElse(2) { "gemini" }
+            Log.d("SimpleModeService", "Using enabled engines: $selectedEngines")
         }
         
-        engineSlot1 = availableEngines.getOrNull(0)?.name ?: "ChatGPT"
-        engineSlot2 = availableEngines.getOrNull(1)?.name ?: "Claude"
-        engineSlot3 = availableEngines.getOrNull(2)?.name ?: "Gemini"
-
-        android.util.Log.d("SimpleModeService", "Initialized engine slots:")
-        android.util.Log.d("SimpleModeService", "Engine 1: $engineSlot1")
-        android.util.Log.d("SimpleModeService", "Engine 2: $engineSlot2") 
-        android.util.Log.d("SimpleModeService", "Engine 3: $engineSlot3")
-
-        button1.text = engineSlot1
-        button2.text = engineSlot2
-        button3.text = engineSlot3
+        updateEngineButtons()
     }
-
-    private fun showAiEngineSelectionDialog(onEngineSelected: (String) -> Unit) {
-        val enabledEngineNames = settingsManager.getEnabledAIEngines()
-        val aiEngines = AISearchEngine.DEFAULT_AI_ENGINES.filter { it.name in enabledEngineNames }
-
-        // If no AI engines are enabled, provide default ones for Simple Mode
-        val availableEngines = if (aiEngines.isEmpty()) {
-            android.util.Log.d("SimpleModeService", "No AI engines enabled in dialog, using all default engines")
-            AISearchEngine.DEFAULT_AI_ENGINES
-        } else {
-            aiEngines
-        }
-
-        if (availableEngines.isEmpty()) {
-            Toast.makeText(this, "没有可用的AI搜索引擎", Toast.LENGTH_SHORT).show()
+    
+    private fun updateEngineButtons() {
+        val allEngines = AISearchEngine.DEFAULT_AI_ENGINES
+        
+        val aiEngine1Button = simpleModeView.findViewById<TextView>(R.id.aiEngine1Button)
+        val aiEngine2Button = simpleModeView.findViewById<TextView>(R.id.aiEngine2Button)
+        val aiEngine3Button = simpleModeView.findViewById<TextView>(R.id.aiEngine3Button)
+        
+        aiEngine1Button.text = allEngines.find { it.name == selectedEngines[0] }?.displayName ?: selectedEngines[0]
+        aiEngine2Button.text = allEngines.find { it.name == selectedEngines[1] }?.displayName ?: selectedEngines[1]
+        aiEngine3Button.text = allEngines.find { it.name == selectedEngines[2] }?.displayName ?: selectedEngines[2]
+        
+        Log.d("SimpleModeService", "Updated button texts: ${aiEngine1Button.text}, ${aiEngine2Button.text}, ${aiEngine3Button.text}")
+    }
+    
+    private fun showAiEngineSelectionDialog(slotIndex: Int) {
+        val allEngines = AISearchEngine.DEFAULT_AI_ENGINES
+        val engineNames = allEngines.map { it.displayName }.toTypedArray()
+        val engineKeys = allEngines.map { it.name }
+        
+        if (engineNames.isEmpty()) {
+            Toast.makeText(this, "没有可用的AI引擎", Toast.LENGTH_SHORT).show()
             return
         }
-
-        val engineNames = availableEngines.map { it.name }.toTypedArray()
-        val themedContext = ContextThemeWrapper(this, androidx.appcompat.R.style.Theme_AppCompat_Dialog_Alert)
-
-        AlertDialog.Builder(themedContext)
-            .setTitle("选择AI搜索引擎")
-            .setItems(engineNames) { _, which ->
-                onEngineSelected(availableEngines[which].name)
-            }
+        
+        val currentEngineKey = selectedEngines[slotIndex]
+        val currentIndex = engineKeys.indexOf(currentEngineKey).takeIf { it >= 0 } ?: 0
+        
+        val listener = DialogInterface.OnClickListener { dialog, which ->
+            selectedEngines[slotIndex] = engineKeys[which]
+            updateEngineButtons()
+            dialog.dismiss()
+            Toast.makeText(this, "已选择: ${engineNames[which]}", Toast.LENGTH_SHORT).show()
+        }
+        
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("选择AI引擎")
+            .setSingleChoiceItems(engineNames, currentIndex, listener)
             .setNegativeButton("取消", null)
-            .create().apply {
-                window?.let {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        it.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
-                    } else {
-                        it.setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT)
-                    }
-                }
-            }.show()
+            .show()
     }
-
-    private fun performTripleSearch() {
-        val query = inputEditText.text.toString()
-        if (query.isBlank()) {
-            Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-            return
-        }
+    
+    private fun performTripleSearch(query: String) {
+        Log.d("SimpleModeService", "Performing triple search with query: $query")
+        Log.d("SimpleModeService", "Selected engines: $selectedEngines")
         
-        // Validate that all engine slots have valid engines
-        if (engineSlot1.isNullOrBlank() || engineSlot2.isNullOrBlank() || engineSlot3.isNullOrBlank()) {
-             Toast.makeText(this, "引擎配置错误，请重新选择", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // Hide the keyboard before starting search
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(inputEditText.windowToken, 0)
-
-        // Convert AI engine display names to engine keys that the system understands
-        val engine1Key = convertDisplayNameToEngineKey(engineSlot1!!)
-        val engine2Key = convertDisplayNameToEngineKey(engineSlot2!!)
-        val engine3Key = convertDisplayNameToEngineKey(engineSlot3!!)
-
-        // Set the engines for each window position
-        settingsManager.setLeftWindowSearchEngine(engine1Key)
-        settingsManager.setCenterWindowSearchEngine(engine2Key)
-        settingsManager.setRightWindowSearchEngine(engine3Key)
-
-        // Verify settings were saved correctly
-        android.util.Log.d("SimpleModeService", "验证设置已保存:")
-        android.util.Log.d("SimpleModeService", "左窗口: ${settingsManager.getLeftWindowSearchEngine()}")
-        android.util.Log.d("SimpleModeService", "中窗口: ${settingsManager.getCenterWindowSearchEngine()}")  
-        android.util.Log.d("SimpleModeService", "右窗口: ${settingsManager.getRightWindowSearchEngine()}")
-
-        // Log for debugging
-        android.util.Log.d("SimpleModeService", "Starting search with:")
-        android.util.Log.d("SimpleModeService", "Query: $query")
-        android.util.Log.d("SimpleModeService", "Engine 1: $engine1Key")
-        android.util.Log.d("SimpleModeService", "Engine 2: $engine2Key")
-        android.util.Log.d("SimpleModeService", "Engine 3: $engine3Key")
-
-        simpleModeView?.visibility = View.GONE
-
-        val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-            putExtra("search_query", query)
-            putExtra("engine_key", engine1Key)
-            putExtra("window_count", 3)
-            putExtra("source", "简易模式")
-            putExtra("search_source", "简易模式")
-            putExtra("startTime", System.currentTimeMillis())
-        }
-        
-        // Make sure to stop any existing instance first
-        stopService(Intent(this, DualFloatingWebViewService::class.java))
-        
-        // Start the service
-        startService(intent)
-        
-        Toast.makeText(this, "启动三窗口搜索...", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun convertDisplayNameToEngineKey(displayName: String): String {
-        // Convert AI engine display names to the keys that DualFloatingWebViewService expects
-        return when (displayName.lowercase()) {
-            "chatgpt" -> "chatgpt"
-            "claude" -> "claude"
-            "gemini" -> "gemini"
-            "文心一言" -> "wenxin"
-            "智谱清言" -> "chatglm"
-            "通义千问" -> "qianwen"
-            "讯飞星火" -> "xinghuo"
-            "perplexity" -> "perplexity"
-            "phind" -> "phind"
-            "poe" -> "poe"
-            "天工ai" -> "tiangong"
-            "秘塔ai搜索" -> "metaso"
-            "夸克ai" -> "quark"
-            "360ai搜索" -> "360ai"
-            "百度ai" -> "baiduai"
-            "you.com" -> "you"
-            "brave search" -> "brave"
-            "wolframalpha" -> "wolfram"
-            "chatgpt (api)" -> "chatgpt_chat"
-            "deepseek (api)" -> "deepseek_chat"
-            "kimi" -> "kimi"
-            "deepseek (web)" -> "deepseek"
-            "万知" -> "wanzhi"
-            "百小应" -> "baixiaoying"
-            "跃问" -> "yuewen"
-            "豆包" -> "doubao"
-            "cici" -> "cici"
-            "海螺" -> "hailuo"
-            "groq" -> "groq"
-            "腾讯元宝" -> "yuanbao"
-            else -> displayName.lowercase() // fallback to lowercase version
-        }
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == "ACTION_SHOW_VIEW") {
-            showSimpleModeView()
-        }
-        return START_STICKY
-    }
-}
-
-// A helper activity to capture voice recognition results and send them back to the service.
-class VoiceRecognitionProxyActivity : Activity() {
-    private val VOICE_RECOGNITION_REQUEST_CODE = 1234
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        val voiceIntent = intent.getParcelableExtra<Intent>("voice_intent")
-        startActivityForResult(voiceIntent, VOICE_RECOGNITION_REQUEST_CODE)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == VOICE_RECOGNITION_REQUEST_CODE && resultCode == RESULT_OK) {
-            val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            val serviceIntent = Intent(this, SimpleModeService::class.java).apply {
-                putExtra("voice_result", results)
+        try {
+            // 设置引擎到设置管理器
+            settingsManager.setLeftWindowSearchEngine(selectedEngines[0])
+            settingsManager.setDefaultSearchEngine(selectedEngines[1])  // 中间窗口
+            settingsManager.setRightWindowSearchEngine(selectedEngines[2])
+            
+            // 启动DualFloatingWebViewService进行三窗口搜索
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", query)
+                putExtra("search_mode", "triple")
+                putExtra("left_engine", selectedEngines[0])
+                putExtra("center_engine", selectedEngines[1])
+                putExtra("right_engine", selectedEngines[2])
             }
-            startService(serviceIntent)
+            
+            startService(intent)
+            Toast.makeText(this, "正在启动三窗口搜索...", Toast.LENGTH_SHORT).show()
+            
+            // 关闭简易模式窗口
+            stopSelf()
+            
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "Error performing triple search", e)
+            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-        finish() // Close the proxy activity
     }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d("SimpleModeService", "Service destroyed")
+        
+        try {
+            unregisterReceiver(screenOffReceiver)
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "Error unregistering receiver", e)
+        }
+        
+        try {
+            if (::simpleModeView.isInitialized) {
+                windowManager.removeView(simpleModeView)
+            }
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "Error removing view", e)
+        }
+    }
+    
+    override fun onBind(intent: Intent?): IBinder? = null
 } 
