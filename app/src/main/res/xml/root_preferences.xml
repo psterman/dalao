@@ -66,6 +66,16 @@
                 android:targetClass="com.example.aifloatingball.ui.onboarding.OnboardingActivity" />
         </Preference>
 
+        <Preference
+            app:key="permission_management"
+            app:title="权限管理"
+            app:summary="检查和管理应用所需的权限"
+            app:icon="@drawable/ic_permission">
+            <intent
+                android:targetPackage="com.example.aifloatingball"
+                android:targetClass="com.example.aifloatingball.PermissionActivity" />
+        </Preference>
+
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
