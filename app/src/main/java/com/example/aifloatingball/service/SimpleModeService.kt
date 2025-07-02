@@ -15,6 +15,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
@@ -34,9 +35,20 @@ class SimpleModeService : Service() {
     
     private lateinit var windowManager: WindowManager
     private lateinit var simpleModeView: View
+    private lateinit var minimizedView: View
     private lateinit var settingsManager: SettingsManager
     private lateinit var windowParams: WindowManager.LayoutParams
+    private lateinit var minimizedParams: WindowManager.LayoutParams
     private var isWindowVisible = false
+    private var isMinimized = false
+    
+    // 拖动相关变量
+    private var isDragging = false
+    private var initialX = 0
+    private var initialY = 0
+    private var initialTouchX = 0f
+    private var initialTouchY = 0f
+    private var dragThreshold = 10f
     
     // 三个AI引擎插槽
     private var selectedEngines = mutableListOf<String>("N/A", "N/A", "N/A")
@@ -110,6 +122,7 @@ class SimpleModeService : Service() {
         }
         
         createSimpleModeWindow()
+        createMinimizedWindow()
         initializeEngineSlots()
     }
     
@@ -133,14 +146,195 @@ class SimpleModeService : Service() {
         windowParams.gravity = Gravity.CENTER
         
         showWindow()
-        
         setupViews()
+    }
+    
+    private fun createMinimizedWindow() {
+        val inflater = LayoutInflater.from(this)
+        minimizedView = inflater.inflate(R.layout.simple_mode_minimized, null)
+        
+        // 获取屏幕尺寸
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        minimizedParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        )
+        
+        // 初始位置设置在右边缘中央
+        minimizedParams.gravity = Gravity.TOP or Gravity.START
+        minimizedParams.x = screenWidth - 100 // 右边缘，露出一小部分
+        minimizedParams.y = screenHeight / 2 - 50 // 垂直居中
+        
+        setupMinimizedView()
+    }
+    
+    private fun setupMinimizedView() {
+        val minimizedLayout = minimizedView.findViewById<LinearLayout>(R.id.minimized_layout)
+        
+        minimizedLayout.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isDragging = false
+                    initialX = minimizedParams.x
+                    initialY = minimizedParams.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = event.rawX - initialTouchX
+                    val deltaY = event.rawY - initialTouchY
+                    
+                    // 检查是否开始拖动
+                    if (!isDragging && (kotlin.math.abs(deltaX) > dragThreshold || kotlin.math.abs(deltaY) > dragThreshold)) {
+                        isDragging = true
+                    }
+                    
+                    if (isDragging) {
+                        minimizedParams.x = (initialX + deltaX).toInt()
+                        minimizedParams.y = (initialY + deltaY).toInt()
+                        
+                        // 限制在屏幕边界内
+                        val displayMetrics = resources.displayMetrics
+                        val screenWidth = displayMetrics.widthPixels
+                        val screenHeight = displayMetrics.heightPixels
+                        
+                        minimizedParams.x = minimizedParams.x.coerceIn(-50, screenWidth - 50)
+                        minimizedParams.y = minimizedParams.y.coerceIn(0, screenHeight - view.height)
+                        
+                        try {
+                            windowManager.updateViewLayout(minimizedView, minimizedParams)
+                        } catch (e: Exception) {
+                            Log.e("SimpleModeService", "更新最小化视图位置失败", e)
+                        }
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!isDragging) {
+                        // 点击事件：恢复到完整视图
+                        restoreFromMinimized()
+                    } else {
+                        // 拖动结束：自动贴边
+                        snapToEdge()
+                    }
+                    isDragging = false
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+    
+    private fun snapToEdge() {
+        val displayMetrics = resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels
+        val centerX = screenWidth / 2
+        
+        // 判断应该贴到哪一边
+        val targetX = if (minimizedParams.x < centerX) {
+            -50 // 贴到左边，露出一部分
+        } else {
+            screenWidth - 50 // 贴到右边，露出一部分
+        }
+        
+        minimizedParams.x = targetX
+        
+        try {
+            windowManager.updateViewLayout(minimizedView, minimizedParams)
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "贴边动画失败", e)
+        }
+    }
+    
+    private fun minimizeToEdge() {
+        if (isMinimized) return
+        
+        try {
+            // 隐藏完整视图
+            if (isWindowVisible) {
+                windowManager.removeView(simpleModeView)
+                isWindowVisible = false
+            }
+            
+            // 显示最小化视图
+            if (!minimizedView.isAttachedToWindow) {
+                windowManager.addView(minimizedView, minimizedParams)
+            }
+            isMinimized = true
+            
+            Log.d("SimpleModeService", "简易模式已最小化到边缘")
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "最小化失败", e)
+        }
+    }
+    
+    private fun restoreFromMinimized() {
+        if (!isMinimized) return
+        
+        try {
+            // 隐藏最小化视图
+            if (minimizedView.isAttachedToWindow) {
+                windowManager.removeView(minimizedView)
+            }
+            isMinimized = false
+            
+            // 显示完整视图
+            showWindow()
+            
+            Log.d("SimpleModeService", "简易模式已从最小化状态恢复")
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "恢复最小化失败", e)
+        }
+    }
+    
+    private fun showMinimizeHintIfNeeded() {
+        val prefs = getSharedPreferences("simple_mode_prefs", Context.MODE_PRIVATE)
+        val hasShownHint = prefs.getBoolean("minimize_hint_shown", false)
+        
+        if (!hasShownHint) {
+            // 延迟3秒显示提示
+            simpleModeView.postDelayed({
+                Toast.makeText(this, "💡 提示：点击右上角 ➖ 可以最小化到边缘", Toast.LENGTH_LONG).show()
+                // 标记已显示过提示
+                prefs.edit().putBoolean("minimize_hint_shown", true).apply()
+                
+                // 10秒后自动隐藏红点
+                simpleModeView.postDelayed({
+                    hideMinimizeHint()
+                }, 10000)
+            }, 3000)
+        } else {
+            // 如果已经显示过提示，立即隐藏红点
+            hideMinimizeHint()
+        }
+    }
+    
+    private fun hideMinimizeHint() {
+        try {
+            val hintDot = simpleModeView.findViewById<View>(R.id.minimize_hint_dot)
+            hintDot?.visibility = View.GONE
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "隐藏提示红点失败", e)
+        }
     }
     
     private fun setupViews() {
         val searchEditText = simpleModeView.findViewById<EditText>(R.id.searchEditText)
         val searchButton = simpleModeView.findViewById<ImageButton>(R.id.searchButton)
         val closeButton = simpleModeView.findViewById<ImageButton>(R.id.simple_mode_close_button)
+        val minimizeButton = simpleModeView.findViewById<ImageButton>(R.id.simple_mode_minimize_button)
         
         // AI引擎按钮
         val aiEngine1Button = simpleModeView.findViewById<TextView>(R.id.aiEngine1Button)
@@ -175,6 +369,17 @@ class SimpleModeService : Service() {
             // 2. 停止自己
             stopSelf()
         }
+        
+        // 最小化按钮
+        minimizeButton.setOnClickListener {
+            Log.d("SimpleModeService", "最小化按钮点击")
+            minimizeToEdge()
+            // 隐藏提示红点
+            hideMinimizeHint()
+        }
+        
+        // 显示最小化功能提示
+        showMinimizeHintIfNeeded()
         
         // 设置搜索功能
         searchButton.setOnClickListener {
@@ -470,6 +675,15 @@ class SimpleModeService : Service() {
         }
         // 确保窗口被移除
         hideWindow()
+        
+        // 移除最小化视图
+        try {
+            if (::minimizedView.isInitialized && minimizedView.isAttachedToWindow) {
+                windowManager.removeView(minimizedView)
+            }
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "移除最小化视图失败", e)
+        }
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

@@ -6,17 +6,84 @@
     android:background="#F5F5F5">
 
     <!-- 顶部搜索栏区域 -->
-    <FrameLayout
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:background="#4A90E2">
 
+        <!-- 标题栏和按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="8dp"
+            android:gravity="center_vertical">
+
+            <!-- 标题区域（占位） -->
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- 右上角按钮容器 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <!-- 最小化按钮 -->
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp">
+                    
+                    <ImageButton
+                        android:id="@+id/simple_mode_minimize_button"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:src="@drawable/ic_minimize"
+                        android:background="@drawable/minimize_button_background"
+                        android:contentDescription="最小化简易模式"
+                        android:padding="6dp"
+                        android:scaleType="centerInside"/>
+                    
+                    <!-- 提示小红点 -->
+                    <View
+                        android:id="@+id/minimize_hint_dot"
+                        android:layout_width="8dp"
+                        android:layout_height="8dp"
+                        android:layout_gravity="top|end"
+                        android:layout_marginTop="1dp"
+                        android:layout_marginEnd="1dp"
+                        android:background="@drawable/notification_dot"
+                        android:visibility="visible"/>
+                        
+                </FrameLayout>
+
+                <!-- 关闭按钮 -->
+                <ImageButton
+                    android:id="@+id/simple_mode_close_button"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_close_white"
+                    android:background="@drawable/minimize_button_background"
+                    android:contentDescription="关闭简易模式"
+                    android:padding="6dp"
+                    android:scaleType="centerInside"/>
+
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 搜索栏内容 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingHorizontal="16dp"
-            android:paddingVertical="12dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="12dp">
 
             <!-- 搜索框 -->
             <LinearLayout
@@ -107,17 +174,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <ImageButton
-            android:id="@+id/simple_mode_close_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_gravity="top|end"
-            android:src="@drawable/ic_close_white"
-            android:background="@android:color/transparent"
-            android:contentDescription="关闭简易模式"
-            android:padding="12dp"/>
-
-    </FrameLayout>
+    </LinearLayout>
 
     <!-- 中间功能宫格区域 -->
     <LinearLayout
