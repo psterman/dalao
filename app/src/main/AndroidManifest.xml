@@ -31,6 +31,13 @@
             android:exported="true"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
 
+        <!-- 引导页面Activity -->
+        <activity
+            android:name=".ui.onboarding.OnboardingActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
@@ -78,6 +85,29 @@
             android:name=".VoiceRecognitionActivity"
             android:theme="@style/Theme.AIFloatingBall.VoiceRecognition"
             android:exported="false" />
+        <activity
+            android:name=".BookmarkActivity"
+            android:exported="false"
+            android:label="书签管理"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
+            android:name=".MenuSettingsActivity"
+            android:exported="false"
+            android:label="菜单设置"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
+            android:name=".FullscreenWebViewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
+            android:name=".PermissionActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
+            android:name=".SearchEngineSettingsActivity"
+            android:exported="false"
+            android:label="搜索引擎设置"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
 
         <service
             android:name=".service.FloatingWindowService"
