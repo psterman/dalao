@@ -424,8 +424,18 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     override fun onDestroy() {
         super.onDestroy()
-        isRunning = false
-        
+        Log.d("DualFloatingView", "onDestroy: 服务正在销毁，移除所有窗口。")
+        if (::windowManager.isInitialized) {
+            windowManager.removeFloatingWindow()
+        }
+
+        // 将显示模式恢复为简易模式
+        settingsManager.setDisplayMode("simple_mode")
+        Log.d("DualFloatingView", "显示模式已恢复为 simple_mode")
+
+        // 停止前台服务
+        stopForeground(true)
+
         // 取消注册广播接收器
         try {
             unregisterReceiver(broadcastReceiver)
@@ -433,14 +443,6 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
             Log.w(TAG, "广播接收器未注册或已被取消注册。")
         }
 
-        // 移除所有窗口
-        if (::windowManager.isInitialized) {
-            windowManager.removeFloatingWindow()
-        }
-
-        // 停止前台服务
-        stopForeground(true)
-        
         // 移除所有 Handler 回调
         handler.removeCallbacksAndMessages(null)
         

@@ -6,102 +6,118 @@
     android:background="#F5F5F5">
 
     <!-- 顶部搜索栏区域 -->
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="#4A90E2"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="12dp">
+        android:background="#4A90E2">
 
-        <!-- 搜索框 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="36dp"
-            android:orientation="horizontal"
-            android:background="#FFFFFF"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="12dp"
-            android:layout_marginBottom="12dp"
-            android:elevation="2dp">
-
-            <EditText
-                android:id="@+id/searchEditText"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:hint="搜索"
-                android:textColorHint="#999999"
-                android:textColor="#333333"
-                android:textSize="14sp"
-                android:background="@android:color/transparent"
-                android:imeOptions="actionSearch"
-                android:singleLine="true"
-                android:paddingVertical="8dp" />
-
-            <ImageButton
-                android:id="@+id/searchButton"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:background="@android:color/transparent"
-                android:src="@drawable/ic_search"
-                android:scaleType="fitCenter" />
-        </LinearLayout>
-
-        <!-- 三个搜索引擎选择 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center">
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="12dp">
 
-            <TextView
-                android:id="@+id/aiEngine1Button"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:layout_marginEnd="8dp"
+            <!-- 搜索框 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:orientation="horizontal"
                 android:background="#FFFFFF"
-                android:text="GPT-4"
-                android:textColor="#4A90E2"
-                android:textSize="12sp"
-                android:gravity="center"
-                android:clickable="true"
-                android:focusable="true"
-                android:elevation="1dp" />
+                android:gravity="center_vertical"
+                android:paddingHorizontal="12dp"
+                android:layout_marginBottom="12dp"
+                android:elevation="2dp">
 
-            <TextView
-                android:id="@+id/aiEngine2Button"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:layout_marginHorizontal="4dp"
-                android:background="#FFFFFF"
-                android:text="Claude"
-                android:textColor="#4A90E2"
-                android:textSize="12sp"
-                android:gravity="center"
-                android:clickable="true"
-                android:focusable="true"
-                android:elevation="1dp" />
+                <EditText
+                    android:id="@+id/searchEditText"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:hint="搜索"
+                    android:textColorHint="#999999"
+                    android:textColor="#333333"
+                    android:textSize="14sp"
+                    android:background="@android:color/transparent"
+                    android:imeOptions="actionSearch"
+                    android:singleLine="true"
+                    android:paddingVertical="8dp" />
 
-            <TextView
-                android:id="@+id/aiEngine3Button"
-                android:layout_width="0dp"
-                android:layout_height="32dp"
-                android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:background="#FFFFFF"
-                android:text="Gemini"
-                android:textColor="#4A90E2"
-                android:textSize="12sp"
-                android:gravity="center"
-                android:clickable="true"
-                android:focusable="true"
-                android:elevation="1dp" />
+                <ImageButton
+                    android:id="@+id/searchButton"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_search"
+                    android:scaleType="fitCenter" />
+            </LinearLayout>
 
+            <!-- 三个搜索引擎选择 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <TextView
+                    android:id="@+id/aiEngine1Button"
+                    android:layout_width="0dp"
+                    android:layout_height="32dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:background="#FFFFFF"
+                    android:text="GPT-4"
+                    android:textColor="#4A90E2"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:elevation="1dp" />
+
+                <TextView
+                    android:id="@+id/aiEngine2Button"
+                    android:layout_width="0dp"
+                    android:layout_height="32dp"
+                    android:layout_weight="1"
+                    android:layout_marginHorizontal="4dp"
+                    android:background="#FFFFFF"
+                    android:text="Claude"
+                    android:textColor="#4A90E2"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:elevation="1dp" />
+
+                <TextView
+                    android:id="@+id/aiEngine3Button"
+                    android:layout_width="0dp"
+                    android:layout_height="32dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:background="#FFFFFF"
+                    android:text="Gemini"
+                    android:textColor="#4A90E2"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:elevation="1dp" />
+
+            </LinearLayout>
         </LinearLayout>
-    </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/simple_mode_close_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="top|end"
+            android:src="@drawable/ic_close_white"
+            android:background="@android:color/transparent"
+            android:contentDescription="关闭简易模式"
+            android:padding="12dp"/>
+
+    </FrameLayout>
 
     <!-- 中间功能宫格区域 -->
     <LinearLayout
@@ -542,7 +558,7 @@
         </LinearLayout>
 
         <LinearLayout
-            android:id="@+id/tab_tools"
+            android:id="@+id/tab_voice"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -555,14 +571,14 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🔧"
+                android:text="🎤"
                 android:textSize="18sp"
                 android:layout_marginBottom="2dp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="工具"
+                android:text="语音"
                 android:textSize="10sp"
                 android:textColor="#666666" />
         </LinearLayout>

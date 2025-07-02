@@ -7,6 +7,7 @@ import android.animation.ValueAnimator
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.AnimatedVectorDrawable
@@ -21,6 +22,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.view.animation.LinearInterpolator
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
@@ -29,12 +31,14 @@ import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.aifloatingball.service.DualFloatingWebViewService
+import com.example.aifloatingball.service.SimpleModeService
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 
 class VoiceRecognitionActivity : Activity() {
     companion object {
         private const val VOICE_RECOGNITION_REQUEST_CODE = 1001
+        private const val SYSTEM_VOICE_REQUEST_CODE = 1002
         private const val TAG = "VoiceRecognitionActivity"
     }
 
@@ -96,6 +100,7 @@ class VoiceRecognitionActivity : Activity() {
     private fun setupClickListeners() {
         // 设置说完了按钮点击事件
         doneButton.setOnClickListener {
+            Log.d(TAG, "用户点击了'说完了'按钮")
             finishRecognition()
         }
         
@@ -126,7 +131,8 @@ class VoiceRecognitionActivity : Activity() {
     private fun startVoiceRecognition() {
         // 首先检查设备是否支持语音识别
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            showVoiceRecognitionNotAvailableDialog()
+            // 如果不支持，尝试使用系统语音输入Intent
+            trySystemVoiceInput()
             return
         }
 
@@ -151,8 +157,9 @@ class VoiceRecognitionActivity : Activity() {
             updateListeningState(true)
             speechRecognizer?.startListening(recognizerIntent)
         } catch (e: Exception) {
-            e.printStackTrace()
-            showError("无法启动语音识别")
+            Log.e(TAG, "SpeechRecognizer 启动失败: ${e.message}")
+            // 如果SpeechRecognizer失败，尝试系统语音输入
+            trySystemVoiceInput()
         }
     }
     
@@ -162,7 +169,12 @@ class VoiceRecognitionActivity : Activity() {
             stopListening()
         } else {
             // 如果没有监听，开始监听
-            startVoiceRecognition()
+            if (SpeechRecognizer.isRecognitionAvailable(this)) {
+                startVoiceRecognition()
+            } else {
+                // 如果SpeechRecognizer不可用，尝试系统语音输入
+                trySystemVoiceInput()
+            }
         }
     }
     
@@ -276,7 +288,11 @@ class VoiceRecognitionActivity : Activity() {
                 recognizedTextView.setSelection(recognizedText.length)
                 
                 // 提示用户并立即重启识别，以实现连续听写
-                listeningText.text = "请继续或点击完成"
+                listeningText.text = "请继续说话或点击'说完了'开始搜索"
+                
+                // 确保"说完了"按钮可用
+                doneButton.isEnabled = true
+                Log.d(TAG, "SpeechRecognizer识别成功，当前累积文本: '$recognizedText'")
                 // Introduce a delay to allow the recognizer to reset properly
                 handler.postDelayed({
                     if (isListening) { // Prevent restart if user manually stopped
@@ -342,32 +358,113 @@ class VoiceRecognitionActivity : Activity() {
         showError(errorMessage)
     }
 
+    private fun trySystemVoiceInput() {
+        Log.d(TAG, "尝试使用系统语音输入Intent")
+        
+        // 创建系统语音识别Intent
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "请说话...")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        
+        try {
+            // 检查是否有应用能处理语音识别Intent
+            val activities = packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            
+            if (activities.isNotEmpty()) {
+                // 有可用的语音识别应用，启动系统语音输入
+                listeningText.text = "启动系统语音输入..."
+                startActivityForResult(intent, SYSTEM_VOICE_REQUEST_CODE)
+            } else {
+                // 没有可用的语音识别应用
+                showVoiceRecognitionNotAvailableDialog()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动系统语音输入失败: ${e.message}")
+            showVoiceRecognitionNotAvailableDialog()
+        }
+    }
+
     private fun showVoiceRecognitionNotAvailableDialog() {
         AlertDialog.Builder(this)
             .setTitle("语音服务不可用")
-            .setMessage("您的设备似乎没有安装或启用语音识别服务。请安装或启用Google应用以使用此功能。")
-            .setPositiveButton("前往商店") { dialog, _ ->
+            .setMessage("您的设备没有可用的语音识别服务。您可以：\n\n1. 安装或启用语音输入应用（如搜狗输入法、百度输入法等）\n2. 安装Google应用\n3. 检查系统设置中的语音输入选项")
+            .setPositiveButton("手动输入") { dialog, _ ->
+                // 允许用户手动输入文本
+                listeningText.text = "请在下方输入文本，然后点击'说完了'"
+                micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+                recognizedTextView.requestFocus()
+                
+                // 显示键盘
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(recognizedTextView, InputMethodManager.SHOW_IMPLICIT)
+                
+                // 确保"说完了"按钮可用
+                doneButton.isEnabled = true
+                Log.d(TAG, "切换到手动输入模式")
+            }
+            .setNegativeButton("前往商店") { dialog, _ ->
                 try {
-                    // Try to open the Play Store app
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.google.android.googlequicksearchbox"))
+                    // 优先尝试打开应用商店搜索语音输入应用
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=语音输入"))
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(intent)
                 } catch (e: ActivityNotFoundException) {
-                    // If Play Store is not available, open the web version
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.googlequicksearchbox"))
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(intent)
+                    try {
+                        // 如果没有应用商店，尝试Google Play商店
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=语音输入"))
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                    } catch (e2: Exception) {
+                        Toast.makeText(this, "无法打开应用商店", Toast.LENGTH_SHORT).show()
+                    }
                 }
-                finish() // Close the activity after redirecting
-            }
-            .setNegativeButton("取消") { dialog, _ ->
-                dialog.dismiss()
-                finish() // Close the activity
+                finish()
             }
             .setOnCancelListener {
-                finish() // Also close if the user cancels by tapping outside
+                finish()
             }
             .show()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (requestCode == SYSTEM_VOICE_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                val results = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                if (!results.isNullOrEmpty()) {
+                    val recognizedSystemText = results[0]
+                    Log.d(TAG, "系统语音输入结果: $recognizedSystemText")
+                    
+                    // 将系统语音识别结果添加到现有文本
+                    recognizedText = if (recognizedText.isEmpty()) {
+                        recognizedSystemText
+                    } else {
+                        "$recognizedText $recognizedSystemText"
+                    }
+                    
+                    recognizedTextView.setText(recognizedText)
+                    recognizedTextView.setSelection(recognizedText.length)
+                    listeningText.text = "语音输入完成，点击'说完了'开始搜索"
+                    
+                    // 显示绿色状态表示成功
+                    micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
+                    
+                    // 更新"说完了"按钮的可见性和状态
+                    doneButton.isEnabled = true
+                    Log.d(TAG, "系统语音输入成功，当前文本: '$recognizedText'")
+                } else {
+                    listeningText.text = "未识别到语音，请重试"
+                    micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_orange_light))
+                }
+            } else {
+                listeningText.text = "语音输入已取消"
+                micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+            }
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -393,32 +490,46 @@ class VoiceRecognitionActivity : Activity() {
     }
     
     private fun finishRecognition() {
-        val finalText = recognizedTextView.text.toString()
+        val finalText = recognizedTextView.text.toString().trim()
+        Log.d(TAG, "finishRecognition 被调用，文本长度: ${finalText.length}，内容: '$finalText'")
+        
         if (finalText.isNotEmpty()) {
             Log.d(TAG, "识别完成，文本: $finalText")
-
-            // 原始逻辑：发送广播
-            // val intent = Intent("com.example.aifloatingball.ACTION_VOICE_RESULT").apply {
-            //     putExtra("voice_result", recognizedTextView.text.toString())
-            // }
-            // sendBroadcast(intent)
-        
-            // 新逻辑：直接启动 DualFloatingWebViewService
-            val defaultEngineKey = settingsManager.getSearchEngineForPosition(0)
-
-            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("search_query", finalText)
-                putExtra("engine_key", defaultEngineKey)
-                putExtra("launched_by_voice", true) // 添加一个标志，用于后续判断
-                putExtra("search_source", "语音输入") // 新增来源字段
-            }
-            startService(serviceIntent)
-            Log.d(TAG, "已直接启动 DualFloatingWebViewService，查询: '$finalText', 引擎: '$defaultEngineKey'")
-
+            // 发送广播，命令SimpleModeService启动搜索并自我销毁
+            triggerSearchAndDestroySimpleMode(finalText)
         } else {
             Log.d(TAG, "识别完成，但无文本。")
+            Toast.makeText(this, "没有识别到文本", Toast.LENGTH_SHORT).show()
         }
         finish()
+    }
+
+    private fun triggerSearchAndDestroySimpleMode(query: String) {
+        try {
+            Log.d(TAG, "准备发送'ACTION_SEARCH_AND_DESTROY'广播, 查询: '$query'")
+
+            val broadcastIntent = Intent("com.example.aifloatingball.ACTION_SEARCH_AND_DESTROY").apply {
+                `package` = this@VoiceRecognitionActivity.packageName
+                putExtra("search_query", query)
+                // 不再需要传递引擎，SimpleModeService会自己处理
+            }
+            sendBroadcast(broadcastIntent)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送'ACTION_SEARCH_AND_DESTROY'广播失败: ${e.message}", e)
+            Toast.makeText(this, "启动搜索失败", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    private fun stopSimpleModeService() {
+        try {
+            // 发送广播通知SimpleModeService关闭
+            val closeIntent = Intent("com.example.aifloatingball.ACTION_CLOSE_SIMPLE_MODE")
+            sendBroadcast(closeIntent)
+            Log.d(TAG, "已发送关闭简易模式广播")
+        } catch (e: Exception) {
+            Log.e(TAG, "发送关闭广播失败: ${e.message}")
+        }
     }
     
     private fun showError(message: String) {

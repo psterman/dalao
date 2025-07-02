@@ -170,6 +170,10 @@ class FloatingWindowManager(
             x = savedX
             y = savedY
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            // 确保DualFloatingWebViewService显示在最上层
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            }
         }
 
         originalWindowHeight = savedHeight
