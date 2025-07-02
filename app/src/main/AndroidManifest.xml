@@ -33,7 +33,9 @@
 
         <activity
             android:name=".SettingsActivity"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/title_activity_settings"
+            android:theme="@style/Theme.AIFloatingBall.Settings">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -52,12 +54,12 @@
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
             android:name=".MasterPromptSettingsActivity"
-            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
-        <activity
-            android:name=".ui.onboarding.OnboardingActivity"
-            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+            android:label="@string/title_master_prompt_settings"
+            android:theme="@style/Theme.AIFloatingBall.Settings"/>
+
         <activity
             android:name=".AIApiSettingsActivity"
+            android:label="@string/ai_api_settings"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
             android:name=".AISearchEngineSettingsActivity"

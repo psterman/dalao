@@ -170,7 +170,7 @@ class VoiceRecognitionActivity : Activity() {
         } else {
             // 如果没有监听，开始监听
             if (SpeechRecognizer.isRecognitionAvailable(this)) {
-                startVoiceRecognition()
+            startVoiceRecognition()
             } else {
                 // 如果SpeechRecognizer不可用，尝试系统语音输入
                 trySystemVoiceInput()
@@ -415,8 +415,8 @@ class VoiceRecognitionActivity : Activity() {
                     try {
                         // 如果没有应用商店，尝试Google Play商店
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=语音输入"))
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        startActivity(intent)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
                     } catch (e2: Exception) {
                         Toast.makeText(this, "无法打开应用商店", Toast.LENGTH_SHORT).show()
                     }

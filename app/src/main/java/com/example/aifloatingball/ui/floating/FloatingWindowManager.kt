@@ -82,6 +82,7 @@ class FloatingWindowManager(
     private var initialHeight: Int = 0
 
     private var isDragging = false
+    private var isResizing = false
     private var lastDragX: Float = 0f
     private var lastDragY: Float = 0f
     private var lastActiveWebViewIndex = 0 // 追踪当前活动的WebView
@@ -200,7 +201,8 @@ class FloatingWindowManager(
         val windowCountButton = _floatingView?.findViewById<ImageButton>(R.id.btn_window_count)
         val windowCountToggleText = _floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)
         val closeButton = _floatingView?.findViewById<ImageButton>(R.id.btn_dual_close)
-        val resizeHandle = _floatingView?.findViewById<View>(R.id.dual_resize_handle)
+        val bottomResizeHandle = _floatingView?.findViewById<View>(R.id.dual_resize_handle)
+        val topResizeHandle = _floatingView?.findViewById<View>(R.id.top_drag_handle)
         val topControlBar = _floatingView?.findViewById<LinearLayout>(R.id.top_control_bar)
 
         // 新增：获取全局AI引擎容器
@@ -253,11 +255,9 @@ class FloatingWindowManager(
             windowCountToggleText?.text = newCount.toString()
         }
 
-        resizeHandle?.setOnTouchListener { _, event ->
-            handleResize(event)
-            true
-        }
-        
+        setupTopResizeHandle(topResizeHandle)
+        setupBottomResizeHandle(bottomResizeHandle)
+
         // 方案核心：手动实现顶部栏的拖动，以避免事件冲突
         val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
         topControlBar?.setOnTouchListener { _, event ->
@@ -445,31 +445,85 @@ class FloatingWindowManager(
         }
     }
 
-    private fun handleResize(event: MotionEvent) {
-        params?.let { p ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialWidth = p.width
-                    initialHeight = p.height
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val newWidth = initialWidth + (event.rawX - initialTouchX).toInt()
-                    val newHeight = initialHeight + (event.rawY - initialTouchY).toInt()
-                    if (newWidth > MIN_WIDTH && newHeight > MIN_HEIGHT) { // Assuming MIN_WIDTH/HEIGHT are defined
-                        p.width = newWidth
-                        p.height = newHeight
-                        windowManager?.updateViewLayout(_floatingView, p)
+    private fun handleTopResize(event: MotionEvent) {
+        val params = this.params ?: return
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                initialY = params.y
+                initialWidth = params.width
+                initialHeight = params.height
+                isResizing = true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (isResizing) {
+                    val deltaX = event.rawX - initialTouchX
+                    val deltaY = event.rawY - initialTouchY
+                    val newWidth = initialWidth + deltaX.toInt()
+                    val newHeight = initialHeight - deltaY.toInt()
+                    val newY = initialY + deltaY.toInt()
+
+                    var update = false
+                    if (newWidth > 200) {
+                        params.width = newWidth
+                        update = true
                     }
+                    if (newHeight > 200) {
+                        params.height = newHeight
+                        params.y = newY
+                        update = true
+                    }
+                    if (update) windowManager?.updateViewLayout(_floatingView, params)
                 }
-                MotionEvent.ACTION_UP -> {
-                    windowStateCallback.onWindowStateChanged(p.x, p.y, p.width, p.height)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (isResizing) {
+                    isResizing = false
+                    windowStateCallback.onWindowStateChanged(params.x, params.y, params.width, params.height)
                 }
             }
         }
     }
-    
+
+    private fun handleBottomResize(event: MotionEvent) {
+        val params = this.params ?: return
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                initialTouchX = event.rawX
+                initialTouchY = event.rawY
+                initialWidth = params.width
+                initialHeight = params.height
+                isResizing = true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (isResizing) {
+                    val deltaX = event.rawX - initialTouchX
+                    val deltaY = event.rawY - initialTouchY
+                    val newWidth = initialWidth + deltaX.toInt()
+                    val newHeight = initialHeight + deltaY.toInt()
+
+                    var update = false
+                    if (newWidth > 200) {
+                        params.width = newWidth
+                        update = true
+                    }
+                    if (newHeight > 200) {
+                        params.height = newHeight
+                        update = true
+                    }
+                    if (update) windowManager?.updateViewLayout(_floatingView, params)
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (isResizing) {
+                    isResizing = false
+                    windowStateCallback.onWindowStateChanged(params.x, params.y, params.width, params.height)
+                }
+            }
+        }
+    }
+
     /**
      * 刷新所有WebView的搜索引擎图标
      */
@@ -780,6 +834,20 @@ class FloatingWindowManager(
 
     fun getXmlDefinedWebViews(): List<CustomWebView?> {
         return listOf(firstWebView, secondWebView, thirdWebView)
+    }
+
+    private fun setupTopResizeHandle(handle: View?) {
+        handle?.setOnTouchListener { _, event ->
+            handleTopResize(event)
+            true
+        }
+    }
+
+    private fun setupBottomResizeHandle(handle: View?) {
+        handle?.setOnTouchListener { _, event ->
+            handleBottomResize(event)
+            true
+        }
     }
 
     companion object {

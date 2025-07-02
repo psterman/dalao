@@ -27,6 +27,10 @@
         <item name="windowNoTitle">true</item>
     </style>
 
+    <style name="Theme.AIFloatingBall.Settings" parent="Theme.AIFloatingBall">
+        <!-- Add any specific styles for settings activities here -->
+    </style>
+
     <style name="Theme.AIFloatingBall.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
 
     <style name="Theme.AIFloatingBall.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />

@@ -18,6 +18,19 @@
     android:fitsSystemWindows="true"
     android:background="@color/floating_window_background">
 
+        <FrameLayout
+            android:id="@+id/top_drag_handle"
+            android:layout_width="match_parent"
+            android:layout_height="24dp">
+
+            <View
+                android:layout_width="40dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center"
+                android:background="@drawable/drag_handle_background" />
+
+        </FrameLayout>
+
     <!-- 顶部工具栏 -->
     <LinearLayout
         android:id="@+id/top_control_bar"
