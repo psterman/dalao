@@ -246,69 +246,50 @@
             app:icon="@drawable/ic_settings"
             app:fragment="com.example.aifloatingball.settings.SearchEngineSelectionFragment"/>
 
+        <Preference
+            app:key="app_search_settings"
+            app:title="应用内搜索管理"
+            app:summary="启用和排序可在简易模式中搜索的应用"
+            app:icon="@drawable/ic_apps">
+            <intent
+                android:targetPackage="com.example.aifloatingball"
+                android:targetClass="com.example.aifloatingball.settings.AppSearchSettingsActivity" />
+        </Preference>
+
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
-    <!-- =                       AI 助手 (AI Assistant)                       = -->
+    <!-- =                          关于 (About)                              = -->
     <!-- ===================================================================== -->
     <PreferenceCategory
-        app:key="category_ai_assistant"
-        app:title="AI助手"
+        app:key="category_about"
+        app:title="关于"
         app:iconSpaceReserved="false">
 
         <Preference
-            app:key="ai_engine_settings"
-            app:title="AI引擎管理"
-            app:summary="管理可用的AI模型与搜索引擎"
-            app:icon="@drawable/ic_ai_search">
-            <intent android:targetPackage="com.example.aifloatingball"
-                    android:targetClass="com.example.aifloatingball.AISearchEngineSettingsActivity"/>
-        </Preference>
+            app:key="check_for_updates"
+            app:title="检查更新"
+            app:summary="当前版本: 1.0.0"
+            app:icon="@drawable/ic_system_update"/>
 
         <Preference
-            app:key="ai_command_center"
-            app:title="AI指令中心"
-            app:summary="管理、编辑、分享、导入和导出您的AI指令"
-            app:icon="@drawable/ic_settings">
-            <intent android:targetPackage="com.example.aifloatingball"
-                    android:targetClass="com.example.aifloatingball.MasterPromptSettingsActivity"/>
-        </Preference>
+            app:key="rate_review"
+            app:title="评分与评价"
+            app:summary="在应用商店中为我们评分"
+            app:icon="@drawable/ic_star_rate"/>
 
         <Preference
-            app:key="ai_api_settings"
-            app:title="API设置"
-            app:summary="配置AI服务的API密钥、模型、代理等"
-            app:icon="@drawable/ic_settings"
-            app:fragment="com.example.aifloatingball.SettingsActivity$ApiSettingsFragment"/>
+            app:key="feedback"
+            app:title="反馈与建议"
+            app:summary="帮助我们改进应用"
+            app:icon="@drawable/ic_feedback"/>
+
+        <Preference
+            app:key="privacy_policy"
+            app:title="隐私政策"
+            app:summary="了解我们如何处理您的数据"
+            app:icon="@drawable/ic_privacy"/>
 
     </PreferenceCategory>
-
-    <!-- ===================================================================== -->
-    <!-- =                         实验室 (Lab)                              = -->
-    <!-- ===================================================================== -->
-    <PreferenceCategory
-        app:title="实验室"
-        app:iconSpaceReserved="false">
-        
-        <Preference
-            app:key="restore_defaults"
-            app:title="恢复默认设置"
-            app:summary="将所有设置项重置为初始状态"
-            app:icon="@drawable/ic_settings"/>
-            
-    </PreferenceCategory>
-
-    <!-- ===================================================================== -->
-    <!-- =                            占位符 (Spacers)                          = -->
-    <!-- ===================================================================== -->
-    <!-- 用于控制依赖显示的占位符 -->
-    <SwitchPreferenceCompat
-        app:key="display_mode_floating_ball"
-        app:isPreferenceVisible="false"
-        app:defaultValue="true"/>
-    <SwitchPreferenceCompat
-        app:key="display_mode_dynamic_island"
-        app:isPreferenceVisible="false"
-        app:defaultValue="false"/>
 
 </PreferenceScreen>
