@@ -435,14 +435,14 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
         // 停止前台服务
         stopForeground(true)
-
+        
         // 取消注册广播接收器
         try {
             unregisterReceiver(broadcastReceiver)
         } catch (e: IllegalArgumentException) {
             Log.w(TAG, "广播接收器未注册或已被取消注册。")
         }
-
+        
         // 移除所有 Handler 回调
         handler.removeCallbacksAndMessages(null)
         

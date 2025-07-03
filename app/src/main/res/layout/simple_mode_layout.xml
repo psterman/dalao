@@ -63,15 +63,19 @@
                 </FrameLayout>
 
                 <!-- 关闭按钮 -->
-                <ImageButton
-                    android:id="@+id/simple_mode_close_button"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:src="@drawable/ic_close_white"
-                    android:background="@drawable/minimize_button_background"
-                    android:contentDescription="关闭简易模式"
-                    android:padding="6dp"
-                    android:scaleType="centerInside"/>
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content">
+                    <ImageButton
+                        android:id="@+id/simple_mode_close_button"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:src="@android:drawable/ic_menu_close_clear_cancel"
+                        android:background="@drawable/minimize_button_background"
+                        android:contentDescription="关闭简易模式"
+                        android:padding="6dp"
+                        android:scaleType="centerInside"/>
+                </FrameLayout>
 
             </LinearLayout>
         </LinearLayout>
@@ -119,59 +123,23 @@
                     android:scaleType="fitCenter" />
             </LinearLayout>
 
-            <!-- 三个搜索引擎选择 -->
-            <LinearLayout
+            <!-- 应用内搜索图标容器 -->
+            <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center">
+                android:scrollbars="none">
 
-                <TextView
-                    android:id="@+id/aiEngine1Button"
-                    android:layout_width="0dp"
-                    android:layout_height="32dp"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="8dp"
-                    android:background="#FFFFFF"
-                    android:text="GPT-4"
-                    android:textColor="#4A90E2"
-                    android:textSize="12sp"
-                    android:gravity="center"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:elevation="1dp" />
+                <LinearLayout
+                    android:id="@+id/app_search_icons_container"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"/>
 
-                <TextView
-                    android:id="@+id/aiEngine2Button"
-                    android:layout_width="0dp"
-                    android:layout_height="32dp"
-                    android:layout_weight="1"
-                    android:layout_marginHorizontal="4dp"
-                    android:background="#FFFFFF"
-                    android:text="Claude"
-                    android:textColor="#4A90E2"
-                    android:textSize="12sp"
-                    android:gravity="center"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:elevation="1dp" />
+            </HorizontalScrollView>
 
-                <TextView
-                    android:id="@+id/aiEngine3Button"
-                    android:layout_width="0dp"
-                    android:layout_height="32dp"
-                    android:layout_weight="1"
-                    android:layout_marginStart="8dp"
-                    android:background="#FFFFFF"
-                    android:text="Gemini"
-                    android:textColor="#4A90E2"
-                    android:textSize="12sp"
-                    android:gravity="center"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:elevation="1dp" />
-
-            </LinearLayout>
         </LinearLayout>
 
     </LinearLayout>

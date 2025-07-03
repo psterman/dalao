@@ -6,32 +6,32 @@
     android:orientation="vertical"
     android:gravity="center"
     android:background="@drawable/minimized_background"
-    android:padding="8dp">
+    android:paddingHorizontal="3dp"
+    android:paddingVertical="8dp">
 
-    <!-- 应用图标 -->
+    <!-- 应用图标（缩小） -->
     <ImageView
-        android:layout_width="32dp"
-        android:layout_height="32dp"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
         android:src="@mipmap/ic_launcher"
-        android:layout_marginBottom="4dp" />
+        android:layout_marginBottom="6dp" />
 
-    <!-- 简易模式标识 -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="简易"
-        android:textColor="#FFFFFF"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        android:background="@drawable/simple_mode_tag_background"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="2dp" />
-
-    <!-- 拖动提示线 -->
+    <!-- 拖动提示点 -->
     <View
-        android:layout_width="16dp"
-        android:layout_height="2dp"
-        android:background="#80FFFFFF"
-        android:layout_marginTop="4dp" />
+        android:layout_width="3dp"
+        android:layout_height="3dp"
+        android:background="@drawable/minimized_dot"
+        android:layout_marginBottom="2dp" />
+        
+    <View
+        android:layout_width="3dp"
+        android:layout_height="3dp"
+        android:background="@drawable/minimized_dot_semi"
+        android:layout_marginBottom="2dp" />
+        
+    <View
+        android:layout_width="3dp"
+        android:layout_height="3dp"
+        android:background="@drawable/minimized_dot_light" />
 
 </LinearLayout> 
