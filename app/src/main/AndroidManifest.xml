@@ -144,6 +144,11 @@
             android:theme="@style/Theme.MaterialComponents.Light" />
             
         <service
+            android:name=".service.WebViewToolbarService"
+            android:enabled="true"
+            android:exported="false" />
+            
+        <service
             android:name=".service.MyAccessibilityService"
             android:exported="false"
             android:label="@string/app_name"

@@ -224,7 +224,7 @@ class FloatingWindowManager(
                 // 修正：通过发送 Intent 的方式来触发搜索
                 val intent = Intent(context, DualFloatingWebViewService::class.java).apply {
                     putExtra("search_query", query)
-                    putExtra("engine_key", service.settingsManager.getSearchEngineForPosition(0))
+                    putExtra("engine_key", "google") // 使用默认搜索引擎
                     putExtra("search_source", "悬浮窗")
                 }
                 context.startService(intent)
@@ -244,7 +244,7 @@ class FloatingWindowManager(
              // 修正：通过发送 Intent 的方式来触发搜索
             val intent = Intent(context, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", query)
-                putExtra("engine_key", service.settingsManager.getSearchEngineForPosition(0))
+                putExtra("engine_key", "google") // 使用默认搜索引擎
                 putExtra("search_source", "悬浮窗")
             }
             context.startService(intent)

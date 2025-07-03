@@ -283,13 +283,13 @@
             app:title="反馈与建议"
             app:summary="帮助我们改进应用"
             app:icon="@drawable/ic_feedback"/>
-
+        
         <Preference
             app:key="privacy_policy"
             app:title="隐私政策"
             app:summary="了解我们如何处理您的数据"
             app:icon="@drawable/ic_privacy"/>
-
+            
     </PreferenceCategory>
 
 </PreferenceScreen>

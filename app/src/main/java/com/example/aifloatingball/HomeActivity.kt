@@ -320,8 +320,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                     webView.clearHistory()
                     
                     // 关闭所有活动的服务
-                    if (DualFloatingWebViewService.isRunning) {
+                    try {
                         stopService(Intent(this, DualFloatingWebViewService::class.java))
+                    } catch (e: Exception) {
+                        Log.e(TAG, "停止DualFloatingWebViewService失败", e)
                     }
                     
                     // 结束应用

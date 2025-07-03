@@ -804,9 +804,8 @@ class TextSelectionManager(private val context: Context, private val windowManag
                 return@setOnClickListener
             }
 
-            // 从服务获取 WebViewManager
-            val webViewManager = service.webViewManager
-            val webViews = webViewManager.getWebViews()
+            // 简化逻辑，不再使用webViewManager
+            val webViews = listOf(webView)
             val currentWebViewIndex = webViews.indexOf(webView)
 
             if (currentWebViewIndex != -1) {

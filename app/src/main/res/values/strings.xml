@@ -120,6 +120,10 @@
     <string name="copy">复制</string>
     <string name="paste">粘贴</string>
 
+    <!-- 工具栏相关字符串 -->
+    <string name="paste_content">粘贴内容</string>
+    <string name="identity_template">身份模板</string>
+
     <!-- Detailed Health Prompt Settings -->
     <string name="health_category_clinical">临床信息</string>
     <string name="health_diagnosed_title">确诊疾病</string>
