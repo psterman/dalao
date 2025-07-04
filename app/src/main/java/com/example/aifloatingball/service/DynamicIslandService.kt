@@ -199,10 +199,24 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
+    private val positionUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "com.example.aifloatingball.ACTION_UPDATE_ISLAND_POSITION") {
+                val position = intent.getIntExtra("position", 50)
+                Log.d(TAG, "收到位置更新广播: position=$position")
+                updateIslandPosition(position)
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "DynamicIslandService"
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "DynamicIslandChannel"
+        
+        @Volatile
+        var isRunning = false
+            private set
     }
 
     private var isHiding = false
@@ -220,6 +234,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
+        Log.d(TAG, "DynamicIslandService 启动")
 
         // Create notification channel and start foreground immediately
         createNotificationChannel()
@@ -244,6 +260,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         } else {
             registerReceiver(appSearchUpdateReceiver, filter)
         }
+        
+        // Register receiver for island position updates
+        val positionFilter = IntentFilter("com.example.aifloatingball.ACTION_UPDATE_ISLAND_POSITION")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(positionUpdateReceiver, positionFilter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(positionUpdateReceiver, positionFilter)
+        }
+        
         setupMessageReceiver()
 
         settingsManager.registerOnSharedPreferenceChangeListener(this)
@@ -296,7 +321,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 1. The Stage
         windowContainerView = FrameLayout(this)
         val stageParams = WindowManager.LayoutParams(
-            expandedWidth, // Use max width for the stage
+            WindowManager.LayoutParams.MATCH_PARENT, // Use full width for the stage
             statusBarHeight * 2,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
@@ -325,7 +350,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // 4. Create a larger, invisible touch target for the indicator
         val touchTargetView = FrameLayout(this).apply {
-            layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight * 2, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            layoutParams = FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, statusBarHeight * 2, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
             setOnClickListener {
                 if (!isSearchModeActive) {
                     val action = settingsManager.getActionIslandClick()
@@ -346,9 +371,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 5. The Proxy Indicator (Visual Bar), now inside the touch target
         proxyIndicatorView = View(this).apply {
             background = getDrawable(R.drawable.touch_proxy_bar)
-            layoutParams = FrameLayout.LayoutParams(36.dpToPx(), 4.dpToPx(), Gravity.CENTER_HORIZONTAL or Gravity.TOP).apply {
+            layoutParams = FrameLayout.LayoutParams(36.dpToPx(), 4.dpToPx(), Gravity.START or Gravity.TOP).apply {
                 // Position it vertically centered within the status bar area.
                 topMargin = statusBarHeight + (statusBarHeight - 4.dpToPx()) / 2
+                
+                // Apply horizontal position based on settings
+                val position = settingsManager.getIslandPosition()
+                val screenWidth = resources.displayMetrics.widthPixels
+                val indicatorWidth = 36.dpToPx()
+                val edgeMargin = 4.dpToPx() // 减少边距，让小横条能更接近边缘
+                
+                // Calculate absolute position from left edge
+                val minX = edgeMargin
+                val maxX = screenWidth - edgeMargin - indicatorWidth
+                
+                val targetX = when {
+                    position <= 0 -> minX
+                    position >= 100 -> maxX
+                    else -> {
+                        val range = maxX - minX
+                        minX + (position / 100.0f * range).toInt()
+                    }
+                }
+                
+                leftMargin = targetX
+                Log.d(TAG, "初始化小横条位置: position=$position, targetX=$targetX, screenWidth=$screenWidth")
             }
         }
         touchTargetView.addView(proxyIndicatorView)
@@ -636,9 +683,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     override fun onDestroy() {
         super.onDestroy()
+        isRunning = false
+        Log.d(TAG, "DynamicIslandService 停止")
         sharedPreferences.unregisterOnSharedPreferenceChangeListener(this)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
         unregisterReceiver(appSearchUpdateReceiver)
+        unregisterReceiver(positionUpdateReceiver)
         LocalBroadcastManager.getInstance(this).unregisterReceiver(messageReceiver)
         cleanupViews()
         hideEditingScrim()
@@ -1364,6 +1414,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             "ball_alpha" -> {
                 setupProxyIndicator()
             }
+            "island_position" -> {
+                // 监听位置设置变化，作为广播的备用方案
+                Log.d(TAG, "检测到SharedPreferences位置变化")
+                updateProxyIndicatorPosition()
+            }
         }
     }
 
@@ -1804,6 +1859,75 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             val opacity = settingsManager.getBallAlpha()
             view.alpha = opacity / 100f
         }
+        // Apply the current position setting
+        updateProxyIndicatorPosition()
+    }
+
+    private fun updateProxyIndicatorPosition() {
+        Log.d(TAG, "更新小横条位置: proxyIndicatorView=${proxyIndicatorView != null}")
+        proxyIndicatorView?.let { view ->
+            val position = settingsManager.getIslandPosition() // 0-100
+            Log.d(TAG, "当前设置位置: $position")
+            val layoutParams = view.layoutParams as? FrameLayout.LayoutParams
+            layoutParams?.let {
+                // Calculate horizontal position based on setting
+                // 0 = left edge, 50 = center, 100 = right edge
+                val screenWidth = resources.displayMetrics.widthPixels
+                val indicatorWidth = 36.dpToPx()
+                val edgeMargin = 4.dpToPx() // 减少边距，让小横条能更接近边缘
+                
+                // Calculate absolute position from left edge
+                val minX = edgeMargin
+                val maxX = screenWidth - edgeMargin - indicatorWidth
+                
+                // Convert position percentage to actual X coordinate
+                val targetX = when {
+                    position <= 0 -> minX
+                    position >= 100 -> maxX
+                    else -> {
+                        val range = maxX - minX
+                        minX + (position / 100.0f * range).toInt()
+                    }
+                }
+                
+                val currentX = it.leftMargin
+                
+                Log.d(TAG, "位置计算: position=$position, targetX=$targetX, currentX=$currentX, screenWidth=$screenWidth")
+                
+                // Animate the position change for smooth movement
+                if (currentX != targetX) {
+                    ValueAnimator.ofInt(currentX, targetX).apply {
+                        duration = 200
+                        interpolator = AccelerateDecelerateInterpolator()
+                        addUpdateListener { animator ->
+                            val animatedX = animator.animatedValue as Int
+                            it.gravity = Gravity.START or Gravity.TOP
+                            it.leftMargin = animatedX
+                            it.rightMargin = 0
+                            view.layoutParams = it
+                            Log.d(TAG, "动画更新位置: animatedX=$animatedX")
+                        }
+                        start()
+                    }
+                } else {
+                    // No animation needed, set directly
+                    it.gravity = Gravity.START or Gravity.TOP
+                    it.leftMargin = targetX
+                    it.rightMargin = 0
+                    view.layoutParams = it
+                    Log.d(TAG, "直接设置位置: targetX=$targetX")
+                }
+            }
+        }
+    }
+
+    private fun updateIslandPosition(position: Int) {
+        Log.d(TAG, "开始更新灵动岛位置: position=$position")
+        // Update the proxy indicator position immediately (设置已由preference保存)
+        updateProxyIndicatorPosition()
+        
+        // If the island is in expanded state, we might also want to adjust the main island position
+        // For now, we only move the proxy indicator
     }
 
     private fun expandIsland() {
@@ -1928,6 +2052,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     searchInput?.setSelection(currentSearchText.length)
                 }
             }
+        }
+        
+        // Re-apply island position after configuration change
+        uiHandler.post {
+            updateProxyIndicatorPosition()
         }
     }
 

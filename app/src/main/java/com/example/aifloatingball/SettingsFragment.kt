@@ -43,7 +43,32 @@ class SettingsFragment : PreferenceFragmentCompat() {
             val mode = newValue as String
             settingsManager.setDisplayMode(mode)
             updateCategoryVisibility(mode)
-            Toast.makeText(requireContext(), "显示模式已切换，可能需要重启应用或返回主页后生效", Toast.LENGTH_LONG).show()
+            
+            // 立即启动对应的服务
+            try {
+                when (mode) {
+                    "dynamic_island" -> {
+                        // 停止其他服务，启动灵动岛服务
+                        requireContext().stopService(Intent(requireContext(), FloatingWindowService::class.java))
+                        val serviceIntent = Intent(requireContext(), DynamicIslandService::class.java)
+                        requireContext().startForegroundService(serviceIntent)
+                        Toast.makeText(requireContext(), "已切换到灵动岛模式", Toast.LENGTH_SHORT).show()
+                    }
+                    "floating_ball" -> {
+                        // 停止其他服务，启动悬浮球服务
+                        requireContext().stopService(Intent(requireContext(), DynamicIslandService::class.java))
+                        val serviceIntent = Intent(requireContext(), FloatingWindowService::class.java)
+                        requireContext().startForegroundService(serviceIntent)
+                        Toast.makeText(requireContext(), "已切换到悬浮球模式", Toast.LENGTH_SHORT).show()
+                    }
+                    else -> {
+                        Toast.makeText(requireContext(), "显示模式已切换", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "服务启动失败: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+            
             true
         }
 
@@ -133,6 +158,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setupDynamicIslandPreferences() {
+        // 灵动岛位置设置由 IslandPositionPreference 自行处理
+
         // 启用通知监听
         val notificationPref = findPreference<SwitchPreferenceCompat>("enable_notification_listener")
         notificationPref?.setOnPreferenceChangeListener { _, newValue ->

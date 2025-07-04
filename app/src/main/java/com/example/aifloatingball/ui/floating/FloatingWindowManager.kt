@@ -263,7 +263,7 @@ class FloatingWindowManager(
         val (defaultWidth, defaultHeight) = calculateOptimalWindowSize(displayMetrics, statusBarHeight)
         
         // 位置：左边缘与屏幕左边缘相切，上边缘尽可能接近状态栏
-        val defaultX = 0
+        val defaultX = 0 
         val defaultY = statusBarHeight 
 
         // 强制使用新的最大化设置，忽略保存的旧数据
@@ -909,11 +909,11 @@ class FloatingWindowManager(
                     searchInput?.clearFocus()
                     updateWindowFocusability(false)
                 }
-                
-                // 记录哪个WebView被触摸了
-                val touchedIndex = webViews.indexOf(view)
-                if (touchedIndex != -1) {
-                    lastActiveWebViewIndex = touchedIndex
+
+                    // 记录哪个WebView被触摸了
+                    val touchedIndex = webViews.indexOf(view)
+                    if (touchedIndex != -1) {
+                        lastActiveWebViewIndex = touchedIndex
                     Log.d(TAG, "Active WebView set to index: $lastActiveWebViewIndex")
                 }
                 

@@ -157,6 +157,16 @@
             app:defaultValue="dual_search"
             app:useSimpleSummaryProvider="true" />
 
+        <com.example.aifloatingball.preference.IslandPositionPreference
+            app:key="island_position"
+            app:title="灵动岛位置"
+            app:summary="调整灵动岛小横条的水平位置"
+            app:defaultValue="50"
+            android:max="100"
+            app:min="0"
+            app:showSeekBarValue="false"
+            app:icon="@drawable/ic_resize"/>
+
         <SwitchPreferenceCompat
             app:key="enable_notification_listener"
             app:title="启用通知监听"

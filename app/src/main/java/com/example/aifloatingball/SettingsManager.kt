@@ -367,6 +367,17 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putBoolean("auto_hide", autoHide).apply()
     }
     
+    // 灵动岛位置设置 (0-100, 50为居中)
+    fun getIslandPosition(): Int {
+        return prefs.getInt("island_position", 50)
+    }
+    
+    fun setIslandPosition(position: Int) {
+        val clampedPosition = position.coerceIn(0, 100)
+        prefs.edit().putInt("island_position", clampedPosition).apply()
+        notifyListeners("island_position", clampedPosition)
+    }
+    
     // Master Prompt Settings
     fun getPromptGender(): String = prefs.getString("prompt_gender", "unspecified") ?: "unspecified"
     fun setPromptGender(gender: String) = prefs.edit().putString("prompt_gender", gender).apply()
