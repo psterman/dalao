@@ -45,6 +45,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
 import android.view.ContextThemeWrapper
+import android.content.res.Configuration
 
 interface WindowStateCallback {
     fun onWindowStateChanged(x: Int, y: Int, width: Int, height: Int)
@@ -91,6 +92,26 @@ class FloatingWindowManager(
     private var originalWindowY: Int = 0
     private var isKeyboardShowing: Boolean = false
 
+    // 新增：屏幕方向相关变量
+    private var currentOrientation: Int = Configuration.ORIENTATION_UNDEFINED
+    private var lastScreenWidth: Int = 0
+    private var lastScreenHeight: Int = 0
+
+    // 新增：窗口边界限制常量
+    companion object {
+        // 控制条的高度 (根据布局文件定义)
+        private const val TOP_DRAG_HANDLE_HEIGHT_DP = 24
+        private const val BOTTOM_RESIZE_HANDLE_HEIGHT_DP = 16
+        private const val TOP_CONTROL_BAR_HEIGHT_DP = 56 // 估算的控制栏高度
+        
+        // 安全边距，完全移除边距以最大化利用屏幕空间
+        private const val SAFE_MARGIN_DP = 0
+        
+        // 最小窗口尺寸 (dp)
+        private const val MIN_WINDOW_WIDTH_DP = 300
+        private const val MIN_WINDOW_HEIGHT_DP = 200
+    }
+
     private val sharedPreferences: SharedPreferences by lazy {
         context.getSharedPreferences(DualFloatingWebViewService.PREFS_NAME, Context.MODE_PRIVATE)
     }
@@ -126,6 +147,55 @@ class FloatingWindowManager(
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp.toFloat(), context.resources.displayMetrics).toInt()
     }
     
+    /**
+     * 计算安全的窗口边界，确保上下控制条始终可见和可操作
+     */
+    private fun calculateSafeWindowBounds(displayMetrics: android.util.DisplayMetrics, statusBarHeight: Int): WindowBounds {
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        // 转换dp到px
+        val topHandleHeight = dpToPx(TOP_DRAG_HANDLE_HEIGHT_DP)
+        val bottomHandleHeight = dpToPx(BOTTOM_RESIZE_HANDLE_HEIGHT_DP)
+        val topControlBarHeight = dpToPx(TOP_CONTROL_BAR_HEIGHT_DP)
+        val safeMargin = dpToPx(SAFE_MARGIN_DP)
+        
+        // 计算安全区域
+        val minY = statusBarHeight + safeMargin // 顶部：状态栏 + 安全边距
+        val maxY = screenHeight - bottomHandleHeight - safeMargin // 底部：确保底部控制条可见
+        
+        // 最小和最大窗口尺寸
+        val minWidth = dpToPx(MIN_WINDOW_WIDTH_DP)
+        val minHeight = dpToPx(MIN_WINDOW_HEIGHT_DP)
+        val maxWidth = screenWidth - safeMargin * 2
+        val maxHeight = maxY - minY
+        
+        return WindowBounds(
+            minX = 0, // 允许窗口左边缘与屏幕左边缘相切
+            maxX = screenWidth, // 允许窗口右边缘与屏幕右边缘相切
+            minY = minY,
+            maxY = maxY,
+            minWidth = minWidth,
+            maxWidth = screenWidth, // 允许窗口占满整个屏幕宽度
+            minHeight = minHeight,
+            maxHeight = maxHeight
+        )
+    }
+    
+    /**
+     * 窗口边界数据类
+     */
+    private data class WindowBounds(
+        val minX: Int,
+        val maxX: Int,
+        val minY: Int,
+        val maxY: Int,
+        val minWidth: Int,
+        val maxWidth: Int,
+        val minHeight: Int,
+        val maxHeight: Int
+    )
+    
     // 获取状态栏高度
     private fun getStatusBarHeight(): Int {
         var result = 0
@@ -135,26 +205,74 @@ class FloatingWindowManager(
         }
         return result
     }
+    
+    /**
+     * 根据屏幕方向计算最优窗口尺寸
+     * 横屏和竖屏使用不同的比例策略，并确保上下控制条可见
+     */
+    private fun calculateOptimalWindowSize(displayMetrics: android.util.DisplayMetrics, statusBarHeight: Int): Pair<Int, Int> {
+        val safeBounds = calculateSafeWindowBounds(displayMetrics, statusBarHeight)
+        val orientation = context.resources.configuration.orientation
+        
+        val (widthRatio, heightRatio) = when (orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> {
+                // 横屏模式：最大化利用屏幕空间
+                Pair(0.95f, 0.8f)
+            }
+            Configuration.ORIENTATION_PORTRAIT -> {
+                // 竖屏模式：最大化利用屏幕空间
+                Pair(1.0f, 0.75f)
+            }
+            else -> {
+                // 未知方向，使用较大尺寸
+                Pair(0.9f, 0.7f)
+            }
+        }
+        
+        // 根据比例计算理想尺寸
+        val idealWidth = (safeBounds.maxWidth * widthRatio).toInt()
+        val idealHeight = (safeBounds.maxHeight * heightRatio).toInt()
+        
+        // 应用安全边界限制
+        val safeWidth = idealWidth.coerceIn(safeBounds.minWidth, safeBounds.maxWidth)
+        val safeHeight = idealHeight.coerceIn(safeBounds.minHeight, safeBounds.maxHeight)
+        
+        val orientationText = when (orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> "横屏"
+            Configuration.ORIENTATION_PORTRAIT -> "竖屏"
+            else -> "未知"
+        }
+        
+        Log.d("FloatingWindowManager", "${orientationText}模式安全窗口尺寸: ${safeWidth}x${safeHeight} (${(widthRatio*100).toInt()}%x${(heightRatio*100).toInt()}%), 边界: Y=${safeBounds.minY}-${safeBounds.maxY}")
+        
+        return Pair(safeWidth, safeHeight)
+    }
 
     private fun initializeWindowManager() {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val displayMetrics = context.resources.displayMetrics
         val statusBarHeight = getStatusBarHeight() // 获取状态栏高度
 
-        val defaultWidth = displayMetrics.widthPixels 
-        // 计算可用屏幕高度 (减去状态栏)
-        val usableScreenHeight = displayMetrics.heightPixels - statusBarHeight
+        // 记录当前屏幕信息和方向
+        currentOrientation = context.resources.configuration.orientation
+        lastScreenWidth = displayMetrics.widthPixels
+        lastScreenHeight = displayMetrics.heightPixels
+        Log.d("FloatingWindowManager", "初始化屏幕信息: 宽度=$lastScreenWidth, 高度=$lastScreenHeight, 方向=$currentOrientation")
 
-        // 设定一个默认的窗口高度，例如可用高度的80%，以便可以居中
-        val defaultHeight = (usableScreenHeight * 0.8f).toInt() 
-        val defaultX = 0 
-        // 计算默认Y坐标，使其垂直居中于可用屏幕区域
-        val defaultY = statusBarHeight + (usableScreenHeight - defaultHeight) / 2 
+        // 使用适配屏幕方向的窗口尺寸比例
+        val (defaultWidth, defaultHeight) = calculateOptimalWindowSize(displayMetrics, statusBarHeight)
+        
+        // 位置：左边缘与屏幕左边缘相切，上边缘尽可能接近状态栏
+        val defaultX = 0
+        val defaultY = statusBarHeight 
 
-        val savedX = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_X, defaultX)
-        val savedY = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_Y, defaultY)
-        val savedWidth = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_WIDTH, defaultWidth)
-        val savedHeight = sharedPreferences.getInt(DualFloatingWebViewService.KEY_WINDOW_HEIGHT, defaultHeight)
+        // 强制使用新的最大化设置，忽略保存的旧数据
+        val savedX = defaultX // 始终使用左边缘贴屏幕
+        val savedY = defaultY // 始终使用上边缘贴状态栏
+        val savedWidth = defaultWidth // 始终使用最大化宽度
+        val savedHeight = defaultHeight // 始终使用最大化高度
+        
+        Log.d("FloatingWindowManager", "强制使用最大化设置: ${savedWidth}x${savedHeight} at ($savedX, $savedY)")
 
         params = WindowManager.LayoutParams(
             savedWidth,
@@ -238,9 +356,67 @@ class FloatingWindowManager(
             }
         }
 
+        // 添加焦点变化监听器，确保输入框焦点管理正确
+        searchInput?.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                // 获得焦点时，确保窗口可获取焦点
+                updateWindowFocusability(true)
+                
+                // 临时禁用WebView的焦点能力，防止抢夺焦点
+                val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+                webViews.forEach { webView ->
+                    webView.isFocusable = false
+                    webView.isFocusableInTouchMode = false
+                }
+                
+                // 延迟恢复WebView焦点能力
+                Handler(Looper.getMainLooper()).postDelayed({
+                    webViews.forEach { webView ->
+                        webView.isFocusable = true
+                        webView.isFocusableInTouchMode = true
+                    }
+                }, 500) // 延长到500ms，给输入法更多时间稳定
+                
+                Log.d(TAG, "SearchInput gained focus, window made focusable, WebView focus temporarily disabled")
+            } else {
+                // 失去焦点时，隐藏键盘并恢复窗口焦点设置
+                hideKeyboard()
+                updateWindowFocusability(false)
+                Log.d(TAG, "SearchInput lost focus, keyboard hidden, window made non-focusable")
+            }
+        }
+
         searchInput?.setOnLongClickListener {
             textSelectionManager.showEditTextSelectionMenu(it as EditText)
             true
+        }
+
+        // 添加点击监听器，作为焦点获取的额外保障
+        searchInput?.setOnClickListener { view ->
+            Log.d(TAG, "SearchInput clicked, trying immediate focus")
+            
+            // 立即获取焦点
+            view.isFocusable = true
+            view.isFocusableInTouchMode = true
+            view.requestFocus()
+            view.requestFocusFromTouch()
+            
+            // 确保窗口可获取焦点
+            updateWindowFocusability(true)
+            
+            // 立即显示键盘
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
+            
+            // 检查焦点是否成功获取，如果失败则使用超强力模式
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (!view.isFocused) {
+                    Log.w(TAG, "Normal focus failed, switching to super aggressive mode")
+                    forceInputFocusActivation()
+                } else {
+                    Log.d(TAG, "Normal focus succeeded")
+                }
+            }, 200)
         }
 
         saveEnginesButton?.setOnClickListener {
@@ -283,9 +459,19 @@ class FloatingWindowManager(
                     // 只有在已经开始拖动，或者移动距离超过阈值时才更新
                     if (isDragging || dx > touchSlop || dy > touchSlop) {
                         isDragging = true
-                        params?.x = initialX + (x - initialTouchX).toInt()
-                        params?.y = initialY + (y - initialTouchY).toInt()
-                        windowManager?.updateViewLayout(_floatingView, params)
+                        val newX = initialX + (x - initialTouchX).toInt()
+                        val newY = initialY + (y - initialTouchY).toInt()
+                        
+                        // 应用安全边界限制
+                        val displayMetrics = context.resources.displayMetrics
+                        val statusBarHeight = getStatusBarHeight()
+                        val safeBounds = calculateSafeWindowBounds(displayMetrics, statusBarHeight)
+                        
+                        params?.let { p ->
+                            p.x = newX.coerceIn(safeBounds.minX, safeBounds.maxX - p.width)
+                            p.y = newY.coerceIn(safeBounds.minY, safeBounds.maxY - p.height)
+                            windowManager?.updateViewLayout(_floatingView, p)
+                        }
                     }
                 }
                 MotionEvent.ACTION_UP -> {
@@ -468,16 +654,29 @@ class FloatingWindowManager(
                     val newHeight = initialHeight - deltaY.toInt()
                     val newY = initialY + deltaY.toInt()
 
+                    // 应用安全边界限制
+                    val displayMetrics = context.resources.displayMetrics
+                    val statusBarHeight = getStatusBarHeight()
+                    val safeBounds = calculateSafeWindowBounds(displayMetrics, statusBarHeight)
+
                     var update = false
-                    if (newWidth > 200) {
-                        params.width = newWidth
+                    
+                    // 检查宽度
+                    val safeWidth = newWidth.coerceIn(safeBounds.minWidth, safeBounds.maxWidth)
+                    if (safeWidth != params.width) {
+                        params.width = safeWidth
                         update = true
                     }
-                    if (newHeight > 200) {
-                        params.height = newHeight
-                        params.y = newY
+                    
+                    // 检查高度和位置
+                    val safeHeight = newHeight.coerceIn(safeBounds.minHeight, safeBounds.maxHeight)
+                    val safeY = newY.coerceIn(safeBounds.minY, safeBounds.maxY - safeHeight)
+                    if (safeHeight != params.height || safeY != params.y) {
+                        params.height = safeHeight
+                        params.y = safeY
                         update = true
                     }
+                    
                     if (update) windowManager?.updateViewLayout(_floatingView, params)
                 }
             }
@@ -507,15 +706,28 @@ class FloatingWindowManager(
                     val newWidth = initialWidth + deltaX.toInt()
                     val newHeight = initialHeight + deltaY.toInt()
 
+                    // 应用安全边界限制
+                    val displayMetrics = context.resources.displayMetrics
+                    val statusBarHeight = getStatusBarHeight()
+                    val safeBounds = calculateSafeWindowBounds(displayMetrics, statusBarHeight)
+
                     var update = false
-                    if (newWidth > 200) {
-                        params.width = newWidth
+                    
+                    // 检查宽度
+                    val safeWidth = newWidth.coerceIn(safeBounds.minWidth, safeBounds.maxWidth)
+                    if (safeWidth != params.width) {
+                        params.width = safeWidth
                         update = true
                     }
-                    if (newHeight > 200) {
-                        params.height = newHeight
+                    
+                    // 检查高度，确保不超出底部边界
+                    val maxAllowedHeight = safeBounds.maxY - params.y + safeBounds.minHeight
+                    val safeHeight = newHeight.coerceIn(safeBounds.minHeight, maxAllowedHeight)
+                    if (safeHeight != params.height) {
+                        params.height = safeHeight
                         update = true
                     }
+                    
                     if (update) windowManager?.updateViewLayout(_floatingView, params)
                 }
             }
@@ -637,35 +849,121 @@ class FloatingWindowManager(
         val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
         val scrollContainer = _floatingView?.findViewById<HorizontalScrollView>(R.id.webviews_scroll_container)
 
-        // 创建一个统一的监听器来处理所有"应隐藏键盘"的交互
-        val hideKeyboardListener = View.OnTouchListener { view, event ->
+        // 记录用户最后点击的区域
+        var lastClickedArea: String = "none"
+        var lastClickTime: Long = 0
+        
+        // 添加输入框触摸监听器，记录用户点击意图
+        searchInput?.setOnTouchListener { view, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
-                if (searchInput?.isFocused == true) {
-                    // 当用户触摸网页区域时，清除搜索框的焦点
-                    // 这将触发上面的 OnFocusChangeListener 来隐藏键盘
-                    searchInput?.clearFocus()
-                    Log.d(TAG, "Web content area touched, clearing search input focus.")
-
-                    // 记录哪个WebView被触摸了
-                    val touchedIndex = webViews.indexOf(view)
-                    if (touchedIndex != -1) {
-                        lastActiveWebViewIndex = touchedIndex
-                        Log.d(TAG, "Last active WebView index set to: $lastActiveWebViewIndex")
+                lastClickedArea = "search_input"
+                lastClickTime = System.currentTimeMillis()
+                Log.d(TAG, "User clicked on search input - priority focus area")
+                
+                // 通知WebView暂时不允许页面焦点
+                sendFocusControlToWebViews(false, "search_input_clicked")
+                
+                // 用户明确点击了搜索输入框，立即获取焦点
+                view.isFocusable = true
+                view.isFocusableInTouchMode = true
+                view.requestFocus()
+                view.requestFocusFromTouch()
+                
+                // 确保窗口可获取焦点
+                updateWindowFocusability(true)
+                
+                // 立即显示键盘
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
+                
+                // 延迟检查并加强焦点保护
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (lastClickedArea == "search_input" && 
+                        System.currentTimeMillis() - lastClickTime < 1000) {
+                        // 用户最近点击的是搜索框，强制保持焦点
+                        if (!view.isFocused) {
+                            Log.d(TAG, "Enforcing search input focus based on user intent")
+                            view.requestFocus()
+                            imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
+                        }
                     }
+                }, 100)
+            }
+            false // 不消费事件，让正常的输入处理继续
+        }
 
-                    // 消费此事件以防止立即开始滚动
-                    return@OnTouchListener true
+        // WebView触摸监听器 - 基于用户点击意图
+        val webViewTouchListener = View.OnTouchListener { view, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                lastClickedArea = "webview"
+                lastClickTime = System.currentTimeMillis()
+                Log.d(TAG, "User clicked on WebView - allowing page focus")
+                
+                // 通知WebView现在允许页面焦点
+                sendFocusControlToWebViews(true, "webview_clicked")
+                
+                // 用户点击了WebView区域，说明想与页面交互
+                // 只有当用户之前焦点在搜索框时才清除搜索框焦点
+                if (searchInput?.isFocused == true) {
+                    Log.d(TAG, "User switched from search input to WebView interaction")
+                    searchInput?.clearFocus()
+                    updateWindowFocusability(false)
+                }
+                
+                // 记录哪个WebView被触摸了
+                val touchedIndex = webViews.indexOf(view)
+                if (touchedIndex != -1) {
+                    lastActiveWebViewIndex = touchedIndex
+                    Log.d(TAG, "Active WebView set to index: $lastActiveWebViewIndex")
+                }
+                
+                // 确保WebView可以获取焦点进行正常交互
+                webViews.forEach { webView ->
+                    webView.isFocusable = true
+                    webView.isFocusableInTouchMode = true
                 }
             }
-            // 允许其他事件（如滚动）正常进行
+            false // 不消费事件，允许WebView正常处理
+        }
+
+        // 将监听器应用于所有WebView
+        webViews.forEach { webView ->
+            webView.setOnTouchListener(webViewTouchListener)
+        }
+        
+        // 滚动容器触摸监听器
+        scrollContainer?.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                lastClickedArea = "scroll_container"
+                lastClickTime = System.currentTimeMillis()
+                Log.d(TAG, "User touched scroll container")
+                
+                // 用户在滚动，允许正常的页面交互
+                sendFocusControlToWebViews(true, "container_scroll")
+                
+                // 用户在滚动，如果搜索框有焦点则清除
+                if (searchInput?.isFocused == true) {
+                    searchInput?.clearFocus()
+                    updateWindowFocusability(false)
+                }
+            }
             false
         }
 
-        // 将此监听器应用于所有WebView和其滚动容器
-        webViews.forEach { webView ->
-            webView.setOnTouchListener(hideKeyboardListener)
-        }
-        scrollContainer?.setOnTouchListener(hideKeyboardListener)
+        // 添加输入框文本变化监听器，确保输入期间焦点稳定
+        searchInput?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                // 用户正在输入，确保搜索框保持焦点
+                if (lastClickedArea == "search_input" && 
+                    System.currentTimeMillis() - lastClickTime < 5000) { // 5秒内的输入被认为是有意的
+                    updateWindowFocusability(true)
+                    // 继续告知WebView保持焦点限制
+                    sendFocusControlToWebViews(false, "search_input_typing")
+                }
+            }
+        })
     }
 
     /**
@@ -917,8 +1215,501 @@ class FloatingWindowManager(
         }
     }
 
-    companion object {
-        private const val MIN_WIDTH = 200
-        private const val MIN_HEIGHT = 200
+    /**
+     * 更新窗口焦点能力
+     */
+    private fun updateWindowFocusability(needsFocus: Boolean) {
+        try {
+            params?.let { layoutParams ->
+                if (needsFocus) {
+                    // 需要焦点时，移除FLAG_NOT_FOCUSABLE标志
+                    layoutParams.flags = layoutParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                } else {
+                    // 不需要焦点时，添加FLAG_NOT_FOCUSABLE标志
+                    layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                }
+                _floatingView?.let { view ->
+                    windowManager?.updateViewLayout(view, layoutParams)
+                }
+                Log.d("FloatingWindowManager", "Window focusability updated: needsFocus=$needsFocus")
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "Error updating window focusability", e)
+        }
+    }
+
+    /**
+     * 隐藏软键盘
+     */
+    private fun hideKeyboard() {
+        try {
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            searchInput?.let { input ->
+                imm.hideSoftInputFromWindow(input.windowToken, 0)
+                Log.d("FloatingWindowManager", "Keyboard hidden")
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "Error hiding keyboard", e)
+        }
+    }
+
+    /**
+     * 强制确保输入框焦点稳定
+     */
+    fun ensureInputFocus() {
+        try {
+            searchInput?.let { input ->
+                Log.d("FloatingWindowManager", "强制确保输入框焦点")
+                
+                // 1. 先禁用所有WebView的焦点能力
+                val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+                webViews.forEach { webView ->
+                    webView.clearFocus()
+                    webView.isFocusable = false
+                    webView.isFocusableInTouchMode = false
+                    
+                    // 强制移除WebView内部可能的焦点
+                    webView.evaluateJavascript("document.activeElement && document.activeElement.blur();", null)
+                }
+                
+                // 2. 确保输入框可获取焦点
+                input.isFocusable = true
+                input.isFocusableInTouchMode = true
+                
+                // 3. 确保窗口可获取焦点
+                updateWindowFocusability(true)
+                
+                // 4. 强制请求焦点
+                input.requestFocus()
+                input.requestFocusFromTouch()
+                
+                // 5. 延迟显示键盘，确保焦点已经设置
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    
+                    // 如果焦点仍未获取，再次尝试
+                    if (!input.isFocused) {
+                        input.requestFocus()
+                        input.requestFocusFromTouch()
+                        Log.w("FloatingWindowManager", "Input focus retry needed")
+                    }
+                    
+                    // 强制显示键盘
+                    imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
+                    
+                    // 延迟恢复WebView焦点能力
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        webViews.forEach { webView ->
+                            webView.isFocusable = true
+                            webView.isFocusableInTouchMode = true
+                        }
+                        Log.d("FloatingWindowManager", "WebView focus ability restored")
+                    }, 800) // 延长到800ms
+                    
+                }, 150)
+                
+                Log.d("FloatingWindowManager", "Input focus ensured with WebView protection")
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "Error ensuring input focus", e)
+        }
+    }
+
+    /**
+     * 清除输入框焦点
+     */
+    fun clearInputFocus() {
+        try {
+            searchInput?.let { input ->
+                if (input.isFocused) {
+                    input.clearFocus()
+                    Log.d("FloatingWindowManager", "Input focus cleared")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "Error clearing input focus", e)
+        }
+    }
+
+    /**
+     * 智能输入框焦点激活 - 基于用户意图的焦点管理
+     */
+    fun forceInputFocusActivation() {
+        try {
+            searchInput?.let { input ->
+                Log.d("FloatingWindowManager", "启动智能输入框焦点激活")
+                
+                // 1. 通知WebView进入焦点保护模式
+                sendFocusControlToWebViews(false, "force_input_focus_start")
+                
+                // 2. 确保窗口可获取焦点
+                updateWindowFocusability(true)
+                
+                // 3. 强制获取输入框焦点
+                input.isFocusable = true
+                input.isFocusableInTouchMode = true
+                input.requestFocus()
+                input.requestFocusFromTouch()
+                
+                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
+                
+                // 4. 延迟检查焦点获取是否成功
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (!input.isFocused) {
+                        // 再次尝试
+                        input.requestFocus()
+                        imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
+                        Log.d("FloatingWindowManager", "二次焦点获取尝试")
+                        
+                        // 如果仍然失败，通知WebView执行更强的焦点清理
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            if (!input.isFocused) {
+                                sendFocusControlToWebViews(false, "emergency_focus_clear")
+                                input.requestFocus()
+                                imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
+                                Log.d("FloatingWindowManager", "紧急焦点清理和第三次尝试")
+                            }
+                        }, 200)
+                    } else {
+                        Log.d("FloatingWindowManager", "输入框焦点获取成功")
+                    }
+                }, 200)
+                
+                // 5. 延迟恢复正常焦点模式，但保持智能保护
+                Handler(Looper.getMainLooper()).postDelayed({
+                    sendFocusControlToWebViews(true, "smart_protection_active")
+                    Log.d("FloatingWindowManager", "恢复智能焦点保护模式")
+                }, 2000)
+                
+                Log.d("FloatingWindowManager", "智能输入框焦点激活完成")
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "智能焦点激活错误", e)
+        }
+    }
+
+    /**
+     * 向WebView发送焦点控制信号
+     */
+    private fun sendFocusControlToWebViews(allow: Boolean, action: String) {
+        val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+        val message = """{
+            "type": "focus_control",
+            "allow": $allow,
+            "action": "$action"
+        }"""
+        
+        webViews.forEach { webView ->
+            webView.evaluateJavascript(
+                "window.postMessage($message, '*');", null
+            )
+        }
+        Log.d("FloatingWindowManager", "Sent focus control: allow=$allow, action=$action")
+    }
+
+    /**
+     * 重置窗口位置到默认值 - 恢复到用户刚安装软件时的初始状态
+     * 使用简化逻辑，确保功能可靠
+     */
+    fun resetWindowPositionToDefault() {
+        val TAG = "FloatingWindowManager"
+        Log.d(TAG, "=== 开始重置窗口到安装初始状态 ===")
+        
+        try {
+            val displayMetrics = context.resources.displayMetrics
+            val statusBarHeight = getStatusBarHeight()
+            val orientation = context.resources.configuration.orientation
+            
+            Log.d(TAG, "屏幕: ${displayMetrics.widthPixels}x${displayMetrics.heightPixels}, 方向: $orientation")
+            
+            // 简化的默认状态计算
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+            
+            // 使用最大化的比例，根据屏幕方向调整
+            val (widthRatio, heightRatio) = when (orientation) {
+                Configuration.ORIENTATION_LANDSCAPE -> Pair(0.95f, 0.8f)  // 横屏：最大化利用屏幕
+                Configuration.ORIENTATION_PORTRAIT -> Pair(1.0f, 0.75f)   // 竖屏：最大化利用屏幕  
+                else -> Pair(0.9f, 0.7f) // 未知：较大尺寸
+            }
+            
+            val defaultWidth = (screenWidth * widthRatio).toInt()
+            val defaultHeight = ((screenHeight - statusBarHeight) * heightRatio).toInt()
+            
+            // 窗口左边缘与屏幕左边缘相切，上边缘紧贴状态栏
+            val defaultX = 0
+            val defaultY = statusBarHeight // 直接紧贴状态栏
+            
+            val orientationText = if (orientation == Configuration.ORIENTATION_LANDSCAPE) "横屏" else "竖屏"
+            Log.d(TAG, "${orientationText}默认状态: ${defaultWidth}x${defaultHeight} at ($defaultX, $defaultY)")
+            
+            // 更新窗口
+            params?.let { p ->
+                p.width = defaultWidth
+                p.height = defaultHeight
+                p.x = defaultX
+                p.y = defaultY
+                
+                // 重置窗口属性到初始状态
+                p.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or 
+                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                p.format = android.graphics.PixelFormat.TRANSLUCENT
+                p.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                
+                _floatingView?.let { view ->
+                    // 使用简单的更新方式
+                    windowManager?.updateViewLayout(view, p)
+                    Log.d(TAG, "✓ 窗口布局已更新")
+                    
+                    // 重置所有内部状态
+                    resetAllInternalStates()
+                    
+                    // 清除保存的旧状态
+                    clearAllWindowStateFromPreferences()
+                    
+                    // 强制立即保存新的最大化状态
+                    sharedPreferences.edit().apply {
+                        putInt(DualFloatingWebViewService.KEY_WINDOW_X, defaultX)
+                        putInt(DualFloatingWebViewService.KEY_WINDOW_Y, defaultY)
+                        putInt(DualFloatingWebViewService.KEY_WINDOW_WIDTH, defaultWidth)
+                        putInt(DualFloatingWebViewService.KEY_WINDOW_HEIGHT, defaultHeight)
+                        apply()
+                    }
+                    
+                    // 保存新的默认状态
+                    windowStateCallback.onWindowStateChanged(defaultX, defaultY, defaultWidth, defaultHeight)
+                    
+                    // 重置窗口数量到默认值
+                    val settingsManager = SettingsManager.getInstance(context)
+                    val defaultWindowCount = settingsManager.getDefaultWindowCount()
+                    updateWindowCount(defaultWindowCount)
+                    
+                    // 更新UI显示
+                    _floatingView?.findViewById<android.widget.TextView>(R.id.window_count_toggle)?.text = defaultWindowCount.toString()
+                    
+                    Log.d(TAG, "=== 重置完成 === ${orientationText}: ${defaultWidth}x${defaultHeight}, 窗口数: $defaultWindowCount")
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "重置窗口失败", e)
+        }
+    }
+    
+    /**
+     * 计算安装时的默认窗口状态
+     * 简单可靠的逻辑，不依赖复杂的边界计算
+     */
+    private fun calculateDefaultWindowState(
+        displayMetrics: android.util.DisplayMetrics, 
+        statusBarHeight: Int, 
+        orientation: Int
+    ): Array<Int> {
+        val screenWidth = displayMetrics.widthPixels
+        val screenHeight = displayMetrics.heightPixels
+        
+        // 最大化利用屏幕的默认尺寸策略
+        val (widthRatio, heightRatio) = when (orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> Pair(0.95f, 0.8f) // 横屏：最大化利用
+            Configuration.ORIENTATION_PORTRAIT -> Pair(1.0f, 0.75f)  // 竖屏：最大化利用
+            else -> Pair(0.9f, 0.7f) // 未知：较大尺寸
+        }
+        
+        val defaultWidth = (screenWidth * widthRatio).toInt()
+        val defaultHeight = ((screenHeight - statusBarHeight) * heightRatio).toInt()
+        
+        // 窗口左边缘与屏幕左边缘相切，最大化利用空间
+        val marginTop = dpToPx(0) // 无上边距，直接紧贴状态栏
+        val marginBottom = dpToPx(16) // 仅保留16dp下边距，确保底部控制条可见
+        
+        val defaultX = 0
+        val defaultY = statusBarHeight + marginTop
+        
+        // 确保窗口不会超出底部边界
+        val maxY = screenHeight - defaultHeight - marginBottom
+        val safeY = minOf(defaultY, maxY)
+        
+        return arrayOf(defaultWidth, defaultHeight, defaultX, safeY)
+    }
+    
+    /**
+     * 重置所有内部状态到初始值
+     */
+    private fun resetAllInternalStates() {
+        try {
+            // 重置拖拽和缩放状态
+            isDragging = false
+            isResizing = false
+            initialX = 0
+            initialY = 0
+            initialTouchX = 0f
+            initialTouchY = 0f
+            initialWidth = 0
+            initialHeight = 0
+            lastDragX = 0f
+            lastDragY = 0f
+            
+            // 重置窗口状态
+            originalWindowHeight = 0
+            originalWindowY = 0
+            isKeyboardShowing = false
+            lastActiveWebViewIndex = 0
+            
+            // 重置屏幕信息
+            val displayMetrics = context.resources.displayMetrics
+            currentOrientation = context.resources.configuration.orientation
+            lastScreenWidth = displayMetrics.widthPixels
+            lastScreenHeight = displayMetrics.heightPixels
+            
+            // 重置视图变形状态
+            _floatingView?.let { view ->
+                view.scaleX = 1.0f
+                view.scaleY = 1.0f
+                view.rotation = 0.0f
+                view.translationX = 0.0f
+                view.translationY = 0.0f
+                view.alpha = 1.0f
+                
+                // 递归重置子视图
+                if (view is ViewGroup) {
+                    resetChildViewStates(view)
+                }
+                
+                // 强制重新布局
+                view.requestLayout()
+                view.invalidate()
+            }
+            
+            Log.d("FloatingWindowManager", "✓ 所有内部状态已重置到初始值")
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "重置内部状态失败", e)
+        }
+    }
+    
+    /**
+     * 递归重置所有子视图的变形状态
+     */
+    private fun resetChildViewStates(viewGroup: ViewGroup) {
+        for (i in 0 until viewGroup.childCount) {
+            val child = viewGroup.getChildAt(i)
+            child?.let { childView ->
+                childView.scaleX = 1.0f
+                childView.scaleY = 1.0f
+                childView.rotation = 0.0f
+                childView.translationX = 0.0f
+                childView.translationY = 0.0f
+                childView.alpha = 1.0f
+                
+                // 如果子视图还是ViewGroup，递归处理
+                if (childView is ViewGroup) {
+                    resetChildViewStates(childView)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 完全清除SharedPreferences中保存的所有窗口状态数据
+     * 这样可以确保用户的拖拽、缩放等历史操作状态被彻底删除
+     */
+    private fun clearAllWindowStateFromPreferences() {
+        try {
+            val editor = sharedPreferences.edit()
+            
+            // 清除窗口位置和尺寸
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_X)
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_Y)
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_WIDTH) 
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_HEIGHT)
+            
+            // 清除窗口数量（让它回到默认值）
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_COUNT)
+            
+            // 提交更改
+            editor.apply()
+            
+            Log.d("FloatingWindowManager", "✓ SharedPreferences中的所有窗口状态数据已清除")
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "清除SharedPreferences窗口状态失败", e)
+        }
+    }
+    
+    /**
+     * 检测并处理屏幕方向变化
+     * 如果检测到屏幕方向或尺寸变化，自动调整窗口到合适的尺寸和位置
+     */
+    fun handleOrientationChangeIfNeeded() {
+        val TAG = "FloatingWindowManager"
+        try {
+            val displayMetrics = context.resources.displayMetrics
+            val newOrientation = context.resources.configuration.orientation
+            
+            // 检测屏幕方向是否发生变化
+            val orientationChanged = (newOrientation != currentOrientation) ||
+                                   (displayMetrics.widthPixels != lastScreenWidth) ||
+                                   (displayMetrics.heightPixels != lastScreenHeight)
+            
+            if (orientationChanged) {
+                Log.d(TAG, "=== 检测到屏幕方向变化 ===")
+                Log.d(TAG, "旧: ${lastScreenWidth}x${lastScreenHeight}, 方向=$currentOrientation")
+                Log.d(TAG, "新: ${displayMetrics.widthPixels}x${displayMetrics.heightPixels}, 方向=$newOrientation")
+                
+                // 更新记录的屏幕信息
+                currentOrientation = newOrientation
+                lastScreenWidth = displayMetrics.widthPixels
+                lastScreenHeight = displayMetrics.heightPixels
+                
+                // 自动调整窗口到适合新方向的尺寸
+                adjustWindowForOrientation()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理屏幕方向变化失败", e)
+        }
+    }
+    
+    /**
+     * 根据当前屏幕方向调整窗口尺寸和位置
+     * 确保上下控制条始终可见和可操作
+     */
+    private fun adjustWindowForOrientation() {
+        val TAG = "FloatingWindowManager"
+        try {
+            val displayMetrics = context.resources.displayMetrics
+            val statusBarHeight = getStatusBarHeight()
+            val safeBounds = calculateSafeWindowBounds(displayMetrics, statusBarHeight)
+            
+            // 根据当前屏幕方向计算合适的窗口尺寸
+            val (newWidth, newHeight) = calculateOptimalWindowSize(displayMetrics, statusBarHeight)
+            
+            params?.let { p ->
+                // 调整尺寸，应用安全边界限制
+                p.width = newWidth.coerceIn(safeBounds.minWidth, safeBounds.maxWidth)
+                p.height = newHeight.coerceIn(safeBounds.minHeight, safeBounds.maxHeight)
+                
+                // 调整位置，确保窗口完全在安全区域内
+                p.x = p.x.coerceIn(safeBounds.minX, safeBounds.maxX - p.width)
+                p.y = p.y.coerceIn(safeBounds.minY, safeBounds.maxY - p.height)
+                
+                // 如果窗口位置仍然无效，重新居中到安全区域
+                if (p.x < safeBounds.minX || p.x > safeBounds.maxX - p.width ||
+                    p.y < safeBounds.minY || p.y > safeBounds.maxY - p.height) {
+                    p.x = safeBounds.minX + (safeBounds.maxX - safeBounds.minX - p.width) / 2
+                    p.y = safeBounds.minY + (safeBounds.maxY - safeBounds.minY - p.height) / 3
+                    Log.d(TAG, "窗口位置超出安全边界，重新居中到安全区域")
+                }
+                
+                // 更新窗口布局
+                _floatingView?.let { view ->
+                    windowManager?.updateViewLayout(view, p)
+                    Log.d(TAG, "✓ 窗口已适配屏幕方向变化: ${p.width}x${p.height} at (${p.x}, ${p.y}), 安全边界: Y=${safeBounds.minY}-${safeBounds.maxY}")
+                    
+                    // 保存新的窗口状态
+                    windowStateCallback.onWindowStateChanged(p.x, p.y, p.width, p.height)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "调整窗口方向失败", e)
+        }
     }
 } 

@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -40,6 +41,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         const val KEY_WINDOW_COUNT = "window_count"
         const val ACTION_UPDATE_AI_ENGINES = "com.example.aifloatingball.ACTION_UPDATE_AI_ENGINES"
         const val ACTION_UPDATE_MENU = "com.example.aifloatingball.ACTION_UPDATE_MENU"
+        const val ACTION_RESET_WINDOW_STATE = "com.example.aifloatingball.ACTION_RESET_WINDOW_STATE"
         
         // 通知相关常量
         const val NOTIFICATION_ID = 2
@@ -68,6 +70,16 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                     Log.d(TAG, "收到刷新搜索引擎的广播")
                     // 刷新搜索引擎
                     refreshSearchEngines()
+                }
+                ACTION_RESET_WINDOW_STATE -> {
+                    Log.d(TAG, "=== 收到重置窗口位置的广播 ===")
+                    try {
+                        // 重置窗口位置
+                        resetWindowPosition()
+                        Log.d(TAG, "✓ 重置窗口位置调用完成")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "重置窗口位置失败", e)
+                    }
                 }
                 "com.example.aifloatingball.WEBVIEW_EXECUTE_SCRIPT" -> {
                     val script = intent.getStringExtra("script")
@@ -174,6 +186,7 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
         val intentFilter = IntentFilter().apply {
             addAction(ACTION_UPDATE_AI_ENGINES)
             addAction(ACTION_UPDATE_MENU)
+            addAction(ACTION_RESET_WINDOW_STATE)
             addAction("com.example.aifloatingball.WEBVIEW_EXECUTE_SCRIPT")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -188,6 +201,13 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     private fun refreshSearchEngines() {
         floatingWindowManager?.refreshSearchEngines()
+    }
+    
+    /**
+     * 重置窗口位置到默认值
+     */
+    private fun resetWindowPosition() {
+        floatingWindowManager?.resetWindowPositionToDefault()
     }
     
     /**
@@ -215,6 +235,11 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 
                 // 设置搜索文本到输入框
                 floatingWindowManager?.setSearchInputText(searchQuery)
+                
+                // 确保输入框能获得焦点，防止被WebView内容抢夺
+                handler.postDelayed({
+                    ensureInputFocus()
+                }, 200)
                 
                 // 执行搜索
                 performSearch(searchQuery, engineKey ?: "google")
@@ -262,6 +287,27 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     private fun performSearch(query: String, engineKey: String) {
         webViewManager?.performSearch(query, engineKey)
+    }
+
+    /**
+     * 确保输入框焦点稳定
+     */
+    fun ensureInputFocus() {
+        floatingWindowManager?.ensureInputFocus()
+    }
+
+    /**
+     * 清除输入框焦点
+     */
+    fun clearInputFocus() {
+        floatingWindowManager?.clearInputFocus()
+    }
+
+    /**
+     * 超强力输入框焦点激活 - 用于对付顽固的页面焦点抢夺
+     */
+    fun forceInputFocusActivation() {
+        floatingWindowManager?.forceInputFocusActivation()
     }
     
     /**
@@ -352,6 +398,24 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 服务绑定
      */
     override fun onBind(intent: Intent?): IBinder? = null
+
+    /**
+     * 处理配置变化，特别是屏幕方向变化
+     */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        Log.d(TAG, "配置变化: 屏幕方向=${newConfig.orientation}")
+        
+        // 延迟处理屏幕方向变化，等待系统稳定
+        handler.postDelayed({
+            try {
+                floatingWindowManager?.handleOrientationChangeIfNeeded()
+                Log.d(TAG, "✓ 屏幕方向变化处理完成")
+            } catch (e: Exception) {
+                Log.e(TAG, "处理屏幕方向变化失败", e)
+            }
+        }, 200) // 200ms延迟确保屏幕旋转动画完成
+    }
 
     /**
      * 服务销毁时清理资源

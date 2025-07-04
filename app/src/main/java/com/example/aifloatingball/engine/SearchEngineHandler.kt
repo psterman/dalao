@@ -77,22 +77,75 @@ class SearchEngineHandler(private val settingsManager: SettingsManager) {
      * 判断是否是AI搜索引擎，支持多种格式匹配
      */
     private fun isAIEngine(engineKey: String): Boolean {
-        // 支持的AI引擎标识符（包括name和key格式）
-        val aiEngineIdentifiers = setOf(
-            // Name format (from AISearchEngine.DEFAULT_AI_ENGINES)
-            "chatgpt", "claude", "gemini", "文心一言", "智谱清言", "通义千问", "讯飞星火",
-            "perplexity", "phind", "poe", "天工ai", "秘塔ai搜索", "夸克ai", "360ai搜索",
-            "百度ai", "you.com", "brave search", "wolframalpha", "chatgpt (api)", 
-            "deepseek (api)", "kimi", "deepseek (web)", "万知", "百小应", "跃问", 
-            "豆包", "cici", "海螺", "groq", "腾讯元宝",
-            // Key format (converted keys from SimpleModeService)
-            "wenxin", "chatglm", "qianwen", "xinghuo", "tiangong", "metaso", "quark", 
-            "360ai", "baiduai", "you", "brave", "wolfram", "chatgpt_chat", "deepseek_chat",
-            "deepseek", "wanzhi", "baixiaoying", "yuewen", "doubao", "hailuo", "yuanbao"
+        // 获取所有AI引擎的名称
+        val allAIEngineNames = AISearchEngine.DEFAULT_AI_ENGINES.map { it.name.lowercase() }.toSet()
+        
+        // 额外的别名映射，用于兼容不同的命名方式
+        val aliasMap = mapOf(
+            "wenxin" to "文心一言",
+            "chatglm" to "智谱清言", 
+            "qianwen" to "通义千问",
+            "xinghuo" to "讯飞星火",
+            "tiangong" to "天工ai",
+            "metaso" to "秘塔ai搜索",
+            "360ai" to "360ai搜索",
+            "baiduai" to "百度ai",
+            "you" to "you.com",
+            "brave" to "brave search",
+            "wolfram" to "wolframalpha",
+            "chatgpt_chat" to "chatgpt (api)",
+            "deepseek_chat" to "deepseek (api)",
+            "deepseek" to "deepseek (web)",
+            "wanzhi" to "万知",
+            "baixiaoying" to "百小应",
+            "yuewen" to "跃问",
+            "doubao" to "豆包",
+            "hailuo" to "海螺",
+            "yuanbao" to "腾讯元宝",
+            "shangliang" to "商量",
+            "devv" to "devv",
+            "huggingchat" to "huggingchat",
+            "nanoai" to "纳米ai搜索",
+            "thinkany" to "thinkany",
+            "hika" to "hika",
+            "genspark" to "genspark",
+            "grok" to "grok",
+            "flowith" to "flowith",
+            "notebooklm" to "notebooklm",
+            "coze" to "coze",
+            "dify" to "dify",
+            "wps" to "wps灵感",
+            "lechat" to "lechat",
+            "monica" to "monica",
+            "zhihu" to "知乎"
         )
         
-        val result = aiEngineIdentifiers.any { it.equals(engineKey, ignoreCase = true) }
-        Log.d(TAG, "isAIEngine check for '$engineKey': $result")
-        return result
+        val lowerEngineKey = engineKey.lowercase()
+        
+        // 1. 直接匹配AI引擎名称
+        if (allAIEngineNames.contains(lowerEngineKey)) {
+            Log.d(TAG, "AI engine found by direct name match: '$engineKey'")
+            return true
+        }
+        
+        // 2. 通过别名映射匹配
+        val mappedName = aliasMap[lowerEngineKey]
+        if (mappedName != null && allAIEngineNames.contains(mappedName.lowercase())) {
+            Log.d(TAG, "AI engine found by alias mapping: '$engineKey' -> '$mappedName'")
+            return true
+        }
+        
+        // 3. 部分匹配（包含关系）
+        val partialMatch = allAIEngineNames.any { aiName ->
+            aiName.contains(lowerEngineKey) || lowerEngineKey.contains(aiName)
+        }
+        
+        if (partialMatch) {
+            Log.d(TAG, "AI engine found by partial match: '$engineKey'")
+            return true
+        }
+        
+        Log.d(TAG, "Not an AI engine: '$engineKey'")
+        return false
     }
 } 

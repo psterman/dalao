@@ -5,9 +5,9 @@
     android:id="@+id/dual_webview_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="true"
-    app:cardCornerRadius="16dp"
-    app:cardElevation="8dp"
+    android:fitsSystemWindows="false"
+    app:cardCornerRadius="0dp"
+    app:cardElevation="0dp"
     android:background="@color/floating_window_background"
     android:focusable="true">
 
@@ -15,7 +15,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:fitsSystemWindows="true"
+    android:fitsSystemWindows="false"
     android:background="@color/floating_window_background">
 
         <FrameLayout
@@ -37,7 +37,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="8dp"
+        android:padding="4dp"
         android:background="@color/floating_control_bar_background">
 
         <EditText
@@ -154,7 +154,7 @@
             android:scrollbarSize="6dp"
             android:fadeScrollbars="false"
             android:smoothScrollbar="true"
-            android:paddingBottom="6dp">
+            android:paddingBottom="0dp">
 
             <!-- 三WebView容器 -->
             <LinearLayout
@@ -173,10 +173,10 @@
                         android:id="@+id/first_floating_webview"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:layout_marginTop="4dp"
-                        android:layout_marginBottom="4dp"
-                        android:layout_marginStart="4dp"
-                        android:layout_marginEnd="2dp"/>
+                        android:layout_marginTop="0dp"
+                        android:layout_marginBottom="0dp"
+                        android:layout_marginStart="0dp"
+                        android:layout_marginEnd="1dp"/>
                 </LinearLayout>
 
                 <!-- 第二个WebView容器 -->
@@ -184,16 +184,16 @@
                     android:layout_width="320dp"
                     android:layout_height="match_parent"
                     android:orientation="vertical"
-                    android:layout_marginStart="4dp">
+                    android:layout_marginStart="1dp">
 
                     <com.example.aifloatingball.ui.webview.CustomWebView
                         android:id="@+id/second_floating_webview"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:layout_marginTop="4dp"
-                        android:layout_marginBottom="4dp"
-                        android:layout_marginStart="2dp"
-                        android:layout_marginEnd="2dp"/>
+                        android:layout_marginTop="0dp"
+                        android:layout_marginBottom="0dp"
+                        android:layout_marginStart="1dp"
+                        android:layout_marginEnd="1dp"/>
                 </LinearLayout>
 
                 <!-- 第三个WebView容器 -->
@@ -201,16 +201,16 @@
                     android:layout_width="320dp"
                     android:layout_height="match_parent"
                     android:orientation="vertical"
-                    android:layout_marginStart="4dp">
+                    android:layout_marginStart="1dp">
 
                     <com.example.aifloatingball.ui.webview.CustomWebView
                         android:id="@+id/third_floating_webview"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:layout_marginTop="4dp"
-                        android:layout_marginBottom="4dp"
-                        android:layout_marginStart="2dp"
-                        android:layout_marginEnd="4dp"/>
+                        android:layout_marginTop="0dp"
+                        android:layout_marginBottom="0dp"
+                        android:layout_marginStart="1dp"
+                        android:layout_marginEnd="0dp"/>
                 </LinearLayout>
             </LinearLayout>
         </com.example.aifloatingball.ui.widget.LockableHorizontalScrollView>

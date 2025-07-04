@@ -662,9 +662,41 @@ class SimpleModeService : Service() {
         val titleTextView = gridItem.getChildAt(1) as? android.widget.TextView
         titleTextView?.text = aiEngine.displayName
         
-        // 更新图标
-        val iconTextView = gridItem.getChildAt(0) as? android.widget.TextView
-        iconTextView?.text = getAIEngineIcon(aiEngine.name)
+        // 处理图标显示
+        val iconContainer = gridItem.getChildAt(0)
+        
+        if (iconContainer is android.widget.TextView) {
+            // 如果是TextView，先隐藏文本，然后动态添加ImageView
+            iconContainer.text = ""
+            iconContainer.visibility = View.GONE
+            
+            // 检查是否已经添加了ImageView
+            var iconImageView = gridItem.findViewWithTag<ImageView>("ai_icon_$index")
+            if (iconImageView == null) {
+                // 创建新的ImageView
+                iconImageView = ImageView(this).apply {
+                    tag = "ai_icon_$index"
+                    layoutParams = LinearLayout.LayoutParams(
+                        (48 * resources.displayMetrics.density).toInt(),
+                        (48 * resources.displayMetrics.density).toInt()
+                    ).apply {
+                        bottomMargin = (4 * resources.displayMetrics.density).toInt()
+                    }
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    contentDescription = aiEngine.displayName
+                }
+                
+                // 将ImageView插入到第一个位置（替换TextView的位置）
+                gridItem.addView(iconImageView, 0)
+            }
+            
+            // 使用FaviconLoader加载AI引擎图标
+            com.example.aifloatingball.utils.FaviconLoader.loadAIEngineIcon(
+                iconImageView, 
+                aiEngine.name, 
+                R.drawable.ic_web_default
+            )
+        }
         
         // 设置点击事件
         gridItem.setOnClickListener {
@@ -733,7 +765,7 @@ class SimpleModeService : Service() {
             // 2. 直接启动DualFloatingWebViewService
             val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", searchText)
-                putExtra("search_engine", aiEngine.name)
+                putExtra("engine_key", aiEngine.name)
                 putExtra("search_source", "简易模式-API聊天")
                 putExtra("startTime", System.currentTimeMillis())
             }
@@ -764,7 +796,7 @@ class SimpleModeService : Service() {
             // 2. 直接启动DualFloatingWebViewService
             val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", searchText)
-                putExtra("search_engine", aiEngine.name)
+                putExtra("engine_key", aiEngine.name)
                 putExtra("search_source", "简易模式-Web搜索")
                 putExtra("startTime", System.currentTimeMillis())
             }
@@ -795,7 +827,7 @@ class SimpleModeService : Service() {
             // 2. 直接启动DualFloatingWebViewService
             val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", searchText)
-                putExtra("search_engine", aiEngine.name)
+                putExtra("engine_key", aiEngine.name)
                 putExtra("search_source", "简易模式-工具栏模式")
                 putExtra("startTime", System.currentTimeMillis())
                 putExtra("show_toolbar", true) // 标记需要显示工具栏

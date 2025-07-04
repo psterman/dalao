@@ -145,6 +145,7 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout"
             android:theme="@style/Theme.MaterialComponents.Light" />
             
         <service

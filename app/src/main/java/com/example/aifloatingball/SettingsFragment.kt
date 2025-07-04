@@ -5,6 +5,7 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.NotificationManagerCompat
@@ -176,14 +177,69 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         // 恢复窗口位置
         findPreference<Preference>("reset_window_state")?.setOnPreferenceClickListener {
+            Log.d("SettingsFragment", "=== 开始恢复窗口位置操作 ===")
+            
             val prefs = requireContext().getSharedPreferences(DualFloatingWebViewService.PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit()
-                .remove(DualFloatingWebViewService.KEY_WINDOW_X)
-                .remove(DualFloatingWebViewService.KEY_WINDOW_Y)
-                .remove(DualFloatingWebViewService.KEY_WINDOW_WIDTH)
-                .remove(DualFloatingWebViewService.KEY_WINDOW_HEIGHT)
-                .apply()
-            Toast.makeText(requireContext(), "窗口位置已重置", Toast.LENGTH_SHORT).show()
+            
+            // 记录重置前的值
+            val beforeX = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_X, -1)
+            val beforeY = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_Y, -1)
+            val beforeWidth = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_WIDTH, -1)
+            val beforeHeight = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_HEIGHT, -1)
+            val beforeCount = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_COUNT, -1)
+            
+            Log.d("SettingsFragment", "重置前窗口状态: x=$beforeX, y=$beforeY, width=$beforeWidth, height=$beforeHeight, count=$beforeCount")
+            
+            // 检查DualFloatingWebViewService是否正在运行
+            val isServiceRunning = DualFloatingWebViewService.isRunning
+            Log.d("SettingsFragment", "DualFloatingWebViewService运行状态: $isServiceRunning")
+            
+            if (!isServiceRunning) {
+                Log.w("SettingsFragment", "服务未运行，仅清除SharedPreferences")
+                Toast.makeText(requireContext(), "服务未运行，请先启动多窗口搜索", Toast.LENGTH_LONG).show()
+                return@setOnPreferenceClickListener true
+            }
+            
+            // 清除SharedPreferences
+            val editor = prefs.edit()
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_X)
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_Y)
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_WIDTH)
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_HEIGHT)
+            editor.remove(DualFloatingWebViewService.KEY_WINDOW_COUNT) // 也重置窗口数量
+            val success = editor.commit() // 使用commit而不是apply以确保立即保存
+            
+            Log.d("SettingsFragment", "SharedPreferences清除${if (success) "成功" else "失败"}")
+            
+            // 验证清除结果
+            val afterX = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_X, -1)
+            val afterY = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_Y, -1)
+            val afterWidth = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_WIDTH, -1)
+            val afterHeight = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_HEIGHT, -1)
+            val afterCount = prefs.getInt(DualFloatingWebViewService.KEY_WINDOW_COUNT, -1)
+            
+            Log.d("SettingsFragment", "重置后窗口状态: x=$afterX, y=$afterY, width=$afterWidth, height=$afterHeight, count=$afterCount")
+            
+            // 发送广播通知DualFloatingWebViewService重置窗口位置和状态
+            val intent = Intent("com.example.aifloatingball.ACTION_RESET_WINDOW_STATE")
+            Log.d("SettingsFragment", "准备发送广播: ${intent.action}")
+            
+            try {
+                requireContext().sendBroadcast(intent)
+                Log.d("SettingsFragment", "✓ 重置窗口状态广播发送成功")
+                
+                // 给一点时间让服务处理广播
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    Log.d("SettingsFragment", "延迟检查重置结果...")
+                    Toast.makeText(requireContext(), "窗口已恢复到初始状态 (90%x60%，居中显示)", Toast.LENGTH_LONG).show()
+                }, 500)
+                
+            } catch (e: Exception) {
+                Log.e("SettingsFragment", "发送重置广播失败", e)
+                Toast.makeText(requireContext(), "重置失败: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+            
+            Log.d("SettingsFragment", "=== 恢复窗口位置操作完成 ===")
             true
         }
     }
