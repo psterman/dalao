@@ -186,6 +186,10 @@ class FloatingWindowManager(
     fun createFloatingWindow(): List<CustomWebView?> {
         val TAG = "FloatingWindowManager"
         Log.d(TAG, "FloatingWindowManager: 创建浮动窗口 createFloatingWindow()")
+        
+        // 初始化窗口管理器
+        initializeWindowManager()
+        
         val inflater = LayoutInflater.from(context)
         _floatingView = inflater.inflate(R.layout.layout_dual_floating_webview, null)
         
@@ -745,6 +749,69 @@ class FloatingWindowManager(
     fun setSearchInputText(text: String) {
         val searchInput = floatingView?.findViewById<EditText>(R.id.dual_search_input)
         searchInput?.setText(text)
+    }
+
+    /**
+     * 销毁浮动窗口
+     */
+    fun destroyFloatingWindow() {
+        try {
+            Log.d("FloatingWindowManager", "开始销毁浮动窗口")
+            
+            // 移除浮动窗口视图
+            _floatingView?.let { view ->
+                try {
+                    windowManager?.removeView(view)
+                    Log.d("FloatingWindowManager", "浮动窗口视图已移除")
+                } catch (e: Exception) {
+                    Log.e("FloatingWindowManager", "移除浮动窗口视图失败", e)
+                }
+            }
+            
+            // 清理引用
+            _floatingView = null
+            params = null
+            windowManager = null
+            
+            // 清理WebView引用
+            firstWebView = null
+            secondWebView = null
+            thirdWebView = null
+            searchInput = null
+            webViewContainer = null
+            webviewsScrollContainer = null
+            
+            Log.d("FloatingWindowManager", "浮动窗口销毁完成")
+            
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "销毁浮动窗口时出错", e)
+        }
+    }
+
+    /**
+     * 更新窗口数量
+     */
+    fun updateWindowCount(count: Int) {
+        Log.d("FloatingWindowManager", "更新窗口数量: $count")
+        
+        // 根据窗口数量显示或隐藏WebView
+        val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+        webViews.forEachIndexed { index, webView ->
+            val shouldBeVisible = index < count
+            (webView.parent as? View)?.visibility = if (shouldBeVisible) View.VISIBLE else View.GONE
+            Log.d("FloatingWindowManager", "WebView $index 可见性设置为: $shouldBeVisible")
+        }
+        
+        // 保存新的窗口数量到SharedPreferences
+        sharedPreferences.edit().putInt(DualFloatingWebViewService.KEY_WINDOW_COUNT, count).apply()
+    }
+
+    /**
+     * 刷新搜索引擎
+     */
+    fun refreshSearchEngines() {
+        Log.d("FloatingWindowManager", "刷新搜索引擎")
+        refreshEngineIcons()
     }
 
     private fun showPasteButton() {

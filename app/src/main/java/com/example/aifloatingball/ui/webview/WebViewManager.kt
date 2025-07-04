@@ -7,12 +7,14 @@ import android.view.View
 import android.view.WindowManager
 import android.webkit.WebView
 import android.widget.LinearLayout
+import android.widget.Toast
 import com.example.aifloatingball.ui.text.TextSelectionManager
 import com.example.aifloatingball.utils.WebViewInputHelper
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.ui.floating.FloatingWindowManager
 import com.example.aifloatingball.ui.webview.CustomWebView
-import android.widget.Toast
+import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.engine.SearchEngineHandler
 
 /**
  * WebView管理器，负责WebView的创建、加载和销毁
@@ -31,6 +33,8 @@ class WebViewManager(
     private var activeWebView: CustomWebView? = null
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private val webViewInputHelper = WebViewInputHelper(context, windowManager, floatingWindowManager.floatingView)
+    private val settingsManager = SettingsManager.getInstance(context)
+    private val searchEngineHandler = SearchEngineHandler(settingsManager)
     
     private val webViews: List<CustomWebView> = xmlDefinedWebViews.filterNotNull()
     
@@ -64,6 +68,116 @@ class WebViewManager(
                     else -> false
                 }
             }
+        }
+    }
+    
+    /**
+     * 执行搜索
+     */
+    fun performSearch(query: String, engineKey: String) {
+        Log.d(TAG, "performSearch: query='$query', engineKey='$engineKey'")
+        
+        try {
+            // 使用SearchEngineHandler构建搜索URL
+            val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
+            Log.d(TAG, "Generated search URL: $searchUrl")
+            
+            // 在活动WebView中加载搜索URL
+            activeWebView?.let { webView ->
+                webView.loadUrl(searchUrl)
+                Log.d(TAG, "Search URL loaded in active WebView: ${webView.id}")
+            } ?: run {
+                // 如果没有活动WebView，使用第一个可用的WebView
+                if (webViews.isNotEmpty()) {
+                    val firstWebView = webViews[0]
+                    firstWebView.loadUrl(searchUrl)
+                    activeWebView = firstWebView
+                    Log.d(TAG, "Search URL loaded in first WebView: ${firstWebView.id}")
+                } else {
+                    Log.e(TAG, "No WebView available for search")
+                    Toast.makeText(context, "无可用的WebView进行搜索", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error performing search", e)
+            Toast.makeText(context, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 在指定WebView中执行搜索
+     */
+    fun performSearchInWebView(webViewIndex: Int, query: String, engineKey: String) {
+        Log.d(TAG, "performSearchInWebView: index=$webViewIndex, query='$query', engineKey='$engineKey'")
+        
+        if (webViewIndex < 0 || webViewIndex >= webViews.size) {
+            Log.e(TAG, "Invalid WebView index: $webViewIndex, total WebViews: ${webViews.size}")
+            return
+        }
+        
+        try {
+            // 使用SearchEngineHandler构建搜索URL
+            val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
+            Log.d(TAG, "Generated search URL for WebView $webViewIndex: $searchUrl")
+            
+            // 在指定WebView中加载搜索URL
+            val webView = webViews[webViewIndex]
+            webView.loadUrl(searchUrl)
+            
+            // 设置为活动WebView
+            activeWebView = webView
+            
+            Log.d(TAG, "Search URL loaded in WebView $webViewIndex: ${webView.id}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error performing search in WebView $webViewIndex", e)
+            Toast.makeText(context, "在WebView中搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 在活动WebView中加载URL
+     */
+    fun loadUrlInActiveWebView(url: String) {
+        Log.d(TAG, "loadUrlInActiveWebView: url='$url'")
+        
+        try {
+            activeWebView?.let { webView ->
+                webView.loadUrl(url)
+                Log.d(TAG, "URL loaded in active WebView: ${webView.id}")
+            } ?: run {
+                // 如果没有活动WebView，使用第一个可用的WebView
+                if (webViews.isNotEmpty()) {
+                    val firstWebView = webViews[0]
+                    firstWebView.loadUrl(url)
+                    activeWebView = firstWebView
+                    Log.d(TAG, "URL loaded in first WebView: ${firstWebView.id}")
+                } else {
+                    Log.e(TAG, "No WebView available for loading URL")
+                    Toast.makeText(context, "无可用的WebView加载URL", Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading URL in active WebView", e)
+            Toast.makeText(context, "加载URL失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 在活动WebView中执行JavaScript脚本
+     */
+    fun executeScriptInActiveWebView(script: String) {
+        Log.d(TAG, "executeScriptInActiveWebView: script='$script'")
+        
+        try {
+            activeWebView?.let { webView ->
+                webView.evaluateJavascript(script) { result ->
+                    Log.d(TAG, "JavaScript executed in active WebView, result: $result")
+                }
+            } ?: run {
+                Log.w(TAG, "No active WebView available for script execution")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error executing script in active WebView", e)
         }
     }
     
