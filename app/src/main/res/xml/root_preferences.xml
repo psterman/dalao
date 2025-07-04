@@ -232,6 +232,43 @@
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
+    <!-- =                        AI 助手 (AI Assistant)                      = -->
+    <!-- ===================================================================== -->
+    <PreferenceCategory
+        app:key="category_ai_assistant"
+        app:title="AI 助手"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            app:key="search_default_ai_mode"
+            app:title="默认AI搜索模式"
+            app:summary="启用后，默认使用AI搜索引擎进行搜索"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_ai_mode"/>
+
+        <Preference
+            app:key="master_prompt_settings"
+            app:title="@string/title_master_prompt_settings"
+            app:summary="@string/summary_master_prompt_settings"
+            app:icon="@drawable/ic_assistant">
+            <intent
+                android:targetPackage="com.example.aifloatingball"
+                android:targetClass="com.example.aifloatingball.MasterPromptSettingsActivity" />
+        </Preference>
+
+        <Preference
+            app:key="ai_api_settings"
+            app:title="@string/ai_api_settings"
+            app:summary="配置各种AI服务的API密钥和设置"
+            app:icon="@drawable/ic_settings">
+            <intent
+                android:targetPackage="com.example.aifloatingball"
+                android:targetClass="com.example.aifloatingball.AIApiSettingsActivity" />
+        </Preference>
+
+    </PreferenceCategory>
+
+    <!-- ===================================================================== -->
     <!-- =                        搜索引擎 (Search Engine)                      = -->
     <!-- ===================================================================== -->
     <PreferenceCategory
@@ -245,6 +282,16 @@
             app:summary="分类、排序、增删改、导入导出"
             app:icon="@drawable/ic_settings"
             app:fragment="com.example.aifloatingball.settings.SearchEngineSelectionFragment"/>
+
+        <Preference
+            app:key="ai_search_engine_settings"
+            app:title="AI搜索引擎管理"
+            app:summary="管理AI对话平台和AI搜索引擎"
+            app:icon="@drawable/ic_brain">
+            <intent
+                android:targetPackage="com.example.aifloatingball"
+                android:targetClass="com.example.aifloatingball.AISearchEngineSettingsActivity" />
+        </Preference>
 
         <Preference
             app:key="app_search_settings"

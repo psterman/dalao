@@ -154,12 +154,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setupBrowserAndSearchPreferences() {
-        // 默认搜索模式
-        findPreference<SwitchPreferenceCompat>("search_default_ai_mode")?.setOnPreferenceChangeListener { _, newValue ->
-            settingsManager.setDefaultAIMode(newValue as Boolean)
-            true
-        }
-
         // 默认打开页面
         findPreference<ListPreference>("default_page")?.setOnPreferenceChangeListener { _, newValue ->
             settingsManager.saveDefaultPage(newValue as String)
@@ -195,9 +189,15 @@ class SettingsFragment : PreferenceFragmentCompat() {
     }
 
     private fun setupAiAssistantPreferences() {
+        // 默认AI搜索模式
+        findPreference<SwitchPreferenceCompat>("search_default_ai_mode")?.setOnPreferenceChangeListener { _, newValue ->
+            settingsManager.setDefaultAIMode(newValue as Boolean)
+            true
+        }
+
         // AI 指令中心
         findPreference<Preference>("master_prompt_settings")?.setOnPreferenceClickListener {
-            startActivity(Intent(requireContext(), MasterPromptSettingsActivity::class.java))
+            startActivity(Intent(requireContext(), MasterPromptSimpleActivity::class.java))
             true
         }
 
@@ -226,6 +226,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private fun updateCategoryVisibility(mode: String) {
         findPreference<PreferenceCategory>("category_floating_ball")?.isVisible = (mode == "floating_ball")
         findPreference<PreferenceCategory>("category_dynamic_island")?.isVisible = (mode == "dynamic_island")
+        findPreference<PreferenceCategory>("category_simple_mode")?.isVisible = (mode == "simple_mode")
+        // AI助手分类在所有模式下都可见
+        findPreference<PreferenceCategory>("category_ai_assistant")?.isVisible = true
     }
 
     override fun onResume() {

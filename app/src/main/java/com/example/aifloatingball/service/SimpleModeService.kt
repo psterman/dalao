@@ -33,6 +33,7 @@ import com.example.aifloatingball.SettingsActivity
 import com.example.aifloatingball.VoiceRecognitionActivity
 import com.example.aifloatingball.model.AppSearchSettings
 import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.service.DualFloatingWebViewService
 import java.net.URLEncoder
 
 class SimpleModeService : Service() {
@@ -646,7 +647,7 @@ class SimpleModeService : Service() {
             if (i <= aiEngines.size) {
                 val aiEngine = aiEngines[i - 1]
                 setupAIGridItem(gridItem, aiEngine, searchEditText, i)
-            } else {
+        } else {
                 // 如果AI引擎不够，设置为占位符
                 setupPlaceholderGridItem(gridItem, i)
             }
@@ -697,18 +698,22 @@ class SimpleModeService : Service() {
      */
     private fun launchAIEngine(aiEngine: AISearchEngine, searchText: String) {
         Log.d("SimpleModeService", "启动AI引擎: ${aiEngine.displayName}, 搜索文本: $searchText")
+        Log.d("SimpleModeService", "AI引擎详情: name=${aiEngine.name}, isChatMode=${aiEngine.isChatMode}, searchUrl=${aiEngine.searchUrl}")
         
         when {
             // API模式的AI引擎
             aiEngine.isChatMode -> {
+                Log.d("SimpleModeService", "选择API聊天模式")
                 launchAPIChatMode(aiEngine, searchText)
             }
             // 支持URL查询参数的AI引擎
             aiEngine.searchUrl.contains("{query}") -> {
+                Log.d("SimpleModeService", "选择Web AI（带查询）模式")
                 launchWebAIWithQuery(aiEngine, searchText)
             }
             // 不支持URL查询参数的AI引擎（需要工具栏）
             else -> {
+                Log.d("SimpleModeService", "选择Web AI（工具栏）模式")
                 launchWebAIWithToolbar(aiEngine, searchText)
             }
         }
@@ -720,14 +725,29 @@ class SimpleModeService : Service() {
     private fun launchAPIChatMode(aiEngine: AISearchEngine, searchText: String) {
         Log.d("SimpleModeService", "启动API聊天模式: ${aiEngine.name}")
         
-        // 发送搜索并销毁广播，启动DualFloatingWebViewService
-        val intent = Intent("com.example.aifloatingball.ACTION_SEARCH_AND_DESTROY").apply {
-            putExtra("search_query", searchText)
-            putExtra("search_engine", aiEngine.name)
-            putExtra("search_source", "简易模式-API聊天")
-            putExtra("startTime", System.currentTimeMillis())
+        try {
+            // 1. 切换模式，防止服务被自动重启
+            settingsManager.setDisplayMode("floating_ball")
+            Log.d("SimpleModeService", "显示模式已临时切换到 floating_ball")
+
+            // 2. 直接启动DualFloatingWebViewService
+            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", searchText)
+                putExtra("search_engine", aiEngine.name)
+                putExtra("search_source", "简易模式-API聊天")
+                putExtra("startTime", System.currentTimeMillis())
+            }
+            startService(serviceIntent)
+            Log.d("SimpleModeService", "已启动 DualFloatingWebViewService")
+
+            // 3. 最小化简易模式而不是停止
+            minimizeToEdge()
+            Log.d("SimpleModeService", "简易模式已最小化")
+            
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "启动API聊天模式失败", e)
+            Toast.makeText(this, "启动AI聊天失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-        sendBroadcast(intent)
     }
     
     /**
@@ -736,14 +756,29 @@ class SimpleModeService : Service() {
     private fun launchWebAIWithQuery(aiEngine: AISearchEngine, searchText: String) {
         Log.d("SimpleModeService", "启动Web AI（带查询）: ${aiEngine.name}")
         
-        // 发送搜索并销毁广播，启动DualFloatingWebViewService
-        val intent = Intent("com.example.aifloatingball.ACTION_SEARCH_AND_DESTROY").apply {
-            putExtra("search_query", searchText)
-            putExtra("search_engine", aiEngine.name)
-            putExtra("search_source", "简易模式-Web搜索")
-            putExtra("startTime", System.currentTimeMillis())
+        try {
+            // 1. 切换模式，防止服务被自动重启
+            settingsManager.setDisplayMode("floating_ball")
+            Log.d("SimpleModeService", "显示模式已临时切换到 floating_ball")
+
+            // 2. 直接启动DualFloatingWebViewService
+            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", searchText)
+                putExtra("search_engine", aiEngine.name)
+                putExtra("search_source", "简易模式-Web搜索")
+                putExtra("startTime", System.currentTimeMillis())
+            }
+            startService(serviceIntent)
+            Log.d("SimpleModeService", "已启动 DualFloatingWebViewService")
+
+            // 3. 最小化简易模式而不是停止
+            minimizeToEdge()
+            Log.d("SimpleModeService", "简易模式已最小化")
+            
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "启动Web AI搜索失败", e)
+            Toast.makeText(this, "启动AI搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-        sendBroadcast(intent)
     }
     
     /**
@@ -752,29 +787,45 @@ class SimpleModeService : Service() {
     private fun launchWebAIWithToolbar(aiEngine: AISearchEngine, searchText: String) {
         Log.d("SimpleModeService", "启动Web AI（需工具栏）: ${aiEngine.name}")
         
-        // 发送搜索并销毁广播，启动DualFloatingWebViewService
-        val intent = Intent("com.example.aifloatingball.ACTION_SEARCH_AND_DESTROY").apply {
-            putExtra("search_query", searchText)
-            putExtra("search_engine", aiEngine.name)
-            putExtra("search_source", "简易模式-工具栏模式")
-            putExtra("startTime", System.currentTimeMillis())
-            putExtra("show_toolbar", true) // 标记需要显示工具栏
-        }
-        sendBroadcast(intent)
-        
-        // 延迟启动工具栏服务
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            try {
-                val toolbarIntent = Intent(this, Class.forName("com.example.aifloatingball.service.WebViewToolbarService")).apply {
-                    action = "com.example.aifloatingball.SHOW_TOOLBAR"
-                    putExtra("search_text", searchText)
-                    putExtra("ai_engine", aiEngine.displayName)
-                }
-                startService(toolbarIntent)
-            } catch (e: Exception) {
-                Log.e("SimpleModeService", "启动工具栏服务失败", e)
+        try {
+            // 1. 切换模式，防止服务被自动重启
+            settingsManager.setDisplayMode("floating_ball")
+            Log.d("SimpleModeService", "显示模式已临时切换到 floating_ball")
+
+            // 2. 直接启动DualFloatingWebViewService
+            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", searchText)
+                putExtra("search_engine", aiEngine.name)
+                putExtra("search_source", "简易模式-工具栏模式")
+                putExtra("startTime", System.currentTimeMillis())
+                putExtra("show_toolbar", true) // 标记需要显示工具栏
             }
-        }, 3000) // 3秒延迟
+            startService(serviceIntent)
+            Log.d("SimpleModeService", "已启动 DualFloatingWebViewService")
+
+            // 3. 最小化简易模式而不是停止
+            minimizeToEdge()
+            Log.d("SimpleModeService", "简易模式已最小化")
+
+            // 4. 延迟启动工具栏服务
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                try {
+                    val toolbarIntent = Intent(this, Class.forName("com.example.aifloatingball.service.WebViewToolbarService")).apply {
+                        action = "com.example.aifloatingball.SHOW_TOOLBAR"
+                        putExtra("search_text", searchText)
+                        putExtra("ai_engine", aiEngine.displayName)
+                    }
+                    startService(toolbarIntent)
+                    Log.d("SimpleModeService", "已启动工具栏服务")
+                } catch (e: Exception) {
+                    Log.e("SimpleModeService", "启动工具栏服务失败", e)
+                }
+            }, 3000) // 3秒延迟
+            
+        } catch (e: Exception) {
+            Log.e("SimpleModeService", "启动Web AI（工具栏）失败", e)
+            Toast.makeText(this, "启动AI搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
     
     /**

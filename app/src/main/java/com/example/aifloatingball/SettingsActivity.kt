@@ -268,6 +268,8 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             findPreference<Preference>("category_floating_ball")?.isVisible = displayMode == "floating_ball"
             findPreference<Preference>("category_dynamic_island")?.isVisible = displayMode == "dynamic_island"
             findPreference<Preference>("category_simple_mode")?.isVisible = displayMode == "simple_mode"
+            // AI助手分类在所有模式下都可见
+            findPreference<Preference>("category_ai_assistant")?.isVisible = true
         }
     }
 

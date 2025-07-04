@@ -1,5 +1,8 @@
 package com.example.aifloatingball.service
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -11,12 +14,14 @@ import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import androidx.core.app.NotificationCompat
+import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 
 /**
  * 双窗口浮动WebView服务
  */
-class DualFloatingWebViewService : Service() {
+class DualFloatingWebViewService : FloatingServiceBase() {
 
     companion object {
         const val TAG = "DualFloatingWebViewService"
@@ -29,6 +34,10 @@ class DualFloatingWebViewService : Service() {
         const val ACTION_UPDATE_AI_ENGINES = "com.example.aifloatingball.ACTION_UPDATE_AI_ENGINES"
         const val ACTION_UPDATE_MENU = "com.example.aifloatingball.ACTION_UPDATE_MENU"
         
+        // 通知相关常量
+        const val NOTIFICATION_ID = 2
+        const val CHANNEL_ID = "DualFloatingWebViewChannel"
+        
         // 添加静态isRunning字段
         @JvmStatic
         var isRunning = false
@@ -36,20 +45,9 @@ class DualFloatingWebViewService : Service() {
 
     // 状态变量
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var settingsManager: SettingsManager
 
-    // 添加settingsManager属性，供FloatingWindowManager使用
-    val settingsManager = object {
-        fun getSearchEngineForPosition(position: Int): String {
-            return "google"
-        }
-    }
-    
-    // 添加webViewManager属性，供TextSelectionManager使用
-    val webViewManager = object {
-        fun getWebViews(): List<Any> {
-            return emptyList()
-        }
-    }
+    // WebViewManager将在后续实现中添加
 
     // 广播接收器
     private val broadcastReceiver = object : BroadcastReceiver() {
@@ -73,8 +71,47 @@ class DualFloatingWebViewService : Service() {
         Log.d(TAG, "DualFloatingWebViewService: onCreate")
         isRunning = true
 
+        // 初始化SettingsManager
+        settingsManager = SettingsManager.getInstance(this)
+
+        // 创建通知渠道和启动前台服务
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, createNotification())
+
         // 注册广播接收器
         registerBroadcastReceiver()
+    }
+
+    /**
+     * 创建通知渠道
+     */
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "双窗口浮动WebView服务"
+            val descriptionText = "保持多窗口浮动WebView服务运行"
+            val importance = NotificationManager.IMPORTANCE_LOW
+            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+                description = descriptionText
+                setShowBadge(false)
+            }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    /**
+     * 创建通知
+     */
+    private fun createNotification(): Notification {
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_search)
+            .setContentTitle("多窗口浮动WebView服务")
+            .setContentText("服务正在运行")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+        
+        return builder.build()
     }
 
     /**
@@ -180,6 +217,9 @@ class DualFloatingWebViewService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
+        
+        // 停止前台服务
+        stopForeground(true)
         
         // 取消注册广播接收器
         try {

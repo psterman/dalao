@@ -13,7 +13,7 @@ class AIApiSettingsActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_master_prompt_settings)
+        setContentView(R.layout.activity_ai_api_settings)
         
         // 设置标题栏
         val toolbar: MaterialToolbar = findViewById(R.id.toolbar)

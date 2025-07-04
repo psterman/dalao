@@ -62,6 +62,10 @@
         <activity
             android:name=".MasterPromptSettingsActivity"
             android:label="@string/title_master_prompt_settings"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar"/>
+        <activity
+            android:name=".MasterPromptSimpleActivity"
+            android:label="@string/title_master_prompt_settings"
             android:theme="@style/Theme.AIFloatingBall.Settings"/>
 
         <activity
