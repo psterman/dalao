@@ -282,7 +282,7 @@ class FloatingWindowManager(
             } else {
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
             },
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -1710,6 +1710,20 @@ class FloatingWindowManager(
             }
         } catch (e: Exception) {
             Log.e(TAG, "调整窗口方向失败", e)
+        }
+    }
+
+    fun setWindowFocusable(focusable: Boolean) {
+        params?.let { p ->
+            if (focusable) {
+                p.flags = p.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                p.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            } else {
+                p.flags = p.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                p.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
+            }
+            windowManager?.updateViewLayout(floatingView, p)
         }
     }
 } 
