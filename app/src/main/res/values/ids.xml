@@ -18,4 +18,5 @@
     <item name="normal_engine_container" type="id"/>
     <item name="ai_engine_container" type="id"/>
     <item name="app_search_results_recycler_view" type="id" />
+    <item name="touch_target_view" type="id" />
 </resources> 

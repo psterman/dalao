@@ -89,6 +89,7 @@ import com.example.aifloatingball.model.AssistantPrompt
 import com.example.aifloatingball.adapter.AssistantPromptAdapter
 import com.example.aifloatingball.model.AssistantCategory
 import com.airbnb.lottie.LottieAnimationView
+import com.example.aifloatingball.ui.DynamicIslandIndicatorView
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -158,6 +159,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var selectedAssistantPrompt: AssistantPrompt? = null
 
     private val uiHandler = Handler(Looper.getMainLooper())
+    private var savePositionRunnable: Runnable? = null
     private val notificationReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent ?: return
@@ -322,18 +324,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         windowContainerView = FrameLayout(this)
         val stageParams = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT, // Use full width for the stage
-            statusBarHeight * 2,
+            WindowManager.LayoutParams.WRAP_CONTENT, // Adjust height to content
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            gravity = Gravity.TOP or Gravity.START // Change gravity to START to avoid horizontal conflicts
             y = 0
         }
 
-        // 2. The Animating View
+        // 2. The Animating View (Island itself, not the proxy bar)
         animatingIslandView = FrameLayout(this).apply {
-            // The background is set during transitions
             background = ColorDrawable(Color.TRANSPARENT)
             layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
             visibility = View.GONE // Initially hidden
@@ -348,57 +349,135 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         appSearchIconContainer = islandContentView!!.findViewById(R.id.app_search_icon_container)
         animatingIslandView!!.addView(islandContentView)
 
-        // 4. Create a larger, invisible touch target for the indicator
+        // 4. Create a touch target that spans the full width to avoid clipping
         val touchTargetView = FrameLayout(this).apply {
-            layoutParams = FrameLayout.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, statusBarHeight * 2, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            id = R.id.touch_target_view // Set an ID to find this view later
+            // Use full width to prevent clipping when the indicator moves to screen edges
+            val touchableWidth = WindowManager.LayoutParams.MATCH_PARENT
+            // A reasonable height for a touch target below the status bar
+            val touchableHeight = 36.dpToPx() 
+            
+            layoutParams = FrameLayout.LayoutParams(touchableWidth, touchableHeight, Gravity.TOP or Gravity.START).apply {
+                // Position the entire touch target just below the status bar
+                topMargin = statusBarHeight
+            }
+            
+            // Don't set click listeners on the container to avoid wide touch area
+        }
+
+        // 5. The Proxy Indicator (Enhanced Dynamic Island), now inside the touch target with its own click handling
+        proxyIndicatorView = DynamicIslandIndicatorView(this).apply {
+            // The new DynamicIslandIndicatorView handles its own sizing and touch area
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.START or Gravity.TOP
+            )
+            
             setOnClickListener {
                 if (!isSearchModeActive) {
+                    // Show app icon based on action
                     val action = settingsManager.getActionIslandClick()
+                    showActionIcon(action)
                     executeAction(action)
                 }
             }
             setOnLongClickListener {
                 if (!isSearchModeActive) {
                     val action = settingsManager.getActionIslandLongPress()
+                    showActionIcon(action)
                     executeAction(action)
                     true // Consume the long click
                 } else {
                     false
                 }
             }
-        }
-
-        // 5. The Proxy Indicator (Visual Bar), now inside the touch target
-        proxyIndicatorView = View(this).apply {
-            background = getDrawable(R.drawable.touch_proxy_bar)
-            layoutParams = FrameLayout.LayoutParams(36.dpToPx(), 4.dpToPx(), Gravity.START or Gravity.TOP).apply {
-                // Position it vertically centered within the status bar area.
-                topMargin = statusBarHeight + (statusBarHeight - 4.dpToPx()) / 2
+            
+            // 设置拖拽监听器
+            setOnDragListener(object : DynamicIslandIndicatorView.OnDragListener {
+                private var isDragInProgress = false
                 
-                // Apply horizontal position based on settings
-                val position = settingsManager.getIslandPosition()
-                val screenWidth = resources.displayMetrics.widthPixels
-                val indicatorWidth = 36.dpToPx()
-                val edgeMargin = 4.dpToPx() // 减少边距，让小横条能更接近边缘
+                override fun onDragStart() {
+                    isDragInProgress = true
+                    Log.d(TAG, "拖拽开始")
+                }
                 
-                // Calculate absolute position from left edge
-                val minX = edgeMargin
-                val maxX = screenWidth - edgeMargin - indicatorWidth
-                
-                val targetX = when {
-                    position <= 0 -> minX
-                    position >= 100 -> maxX
-                    else -> {
-                        val range = maxX - minX
-                        minX + (position / 100.0f * range).toInt()
+                override fun onDragMove(deltaX: Float, deltaY: Float) {
+                    if (!isDragInProgress) return
+                    
+                    // 拖拽移动时更新位置
+                    val touchTarget = windowContainerView?.findViewById<FrameLayout>(R.id.touch_target_view)
+                    touchTarget?.let { target ->
+                        val params = target.layoutParams as FrameLayout.LayoutParams
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        
+                        // 使用translationX来实现平滑移动，避免跳跃
+                        val currentTranslationX = target.translationX
+                        val newTranslationX = currentTranslationX + deltaX
+                        
+                        // 计算实际位置（margin + translation）
+                        val actualX = params.leftMargin + newTranslationX
+                        val targetWidth = target.width
+                        
+                        // 限制在屏幕范围内
+                        val minX = 0f
+                        val maxX = (screenWidth - targetWidth).toFloat()
+                        val clampedX = actualX.coerceIn(minX, maxX)
+                        
+                        // 更新translationX
+                        target.translationX = clampedX - params.leftMargin
+                        
+                        // 根据新位置计算百分比并保存（减少保存频率，避免频繁IO）
+                        val position = if (maxX > minX) {
+                            ((clampedX / maxX) * 100).toInt().coerceIn(0, 100)
+                        } else {
+                            50
+                        }
+                        
+                        // 使用Handler延迟保存，避免频繁保存
+                        savePositionRunnable?.let { uiHandler.removeCallbacks(it) }
+                        val newRunnable = Runnable {
+                            settingsManager.setIslandPosition(position)
+                        }
+                        savePositionRunnable = newRunnable
+                        uiHandler.postDelayed(newRunnable, 50)
                     }
                 }
                 
-                leftMargin = targetX
-                Log.d(TAG, "初始化小横条位置: position=$position, targetX=$targetX, screenWidth=$screenWidth")
-            }
+                override fun onDragEnd() {
+                    isDragInProgress = false
+                    Log.d(TAG, "拖拽结束")
+                    
+                    // 拖拽结束时，将translationX合并到margin中，重置translationX
+                    val touchTarget = windowContainerView?.findViewById<FrameLayout>(R.id.touch_target_view)
+                    touchTarget?.let { target ->
+                        val params = target.layoutParams as FrameLayout.LayoutParams
+                        val finalX = params.leftMargin + target.translationX.toInt()
+                        
+                        params.leftMargin = finalX
+                        target.translationX = 0f
+                        target.layoutParams = params
+                        
+                        // 立即保存最终位置
+                        savePositionRunnable?.let { uiHandler.removeCallbacks(it) }
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val targetWidth = target.width
+                        val maxX = screenWidth - targetWidth
+                        val position = if (maxX > 0) {
+                            (finalX * 100 / maxX).coerceIn(0, 100)
+                        } else {
+                            50
+                        }
+                        settingsManager.setIslandPosition(position)
+                    }
+                }
+            })
         }
         touchTargetView.addView(proxyIndicatorView)
+
+        // Position the entire touchTargetView horizontally
+        updateIslandPositionForView(touchTargetView)
+        
         setupProxyIndicator()
         
         windowContainerView!!.addView(animatingIslandView)
@@ -411,6 +490,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun showActionIcon(action: String) {
+        val indicatorView = proxyIndicatorView as? DynamicIslandIndicatorView ?: return
+        
+        val iconResId = when (action) {
+            "voice_recognize" -> R.drawable.ic_mic
+            "floating_menu" -> R.drawable.ic_menu
+            "dual_search" -> R.drawable.ic_search
+            "island_panel" -> R.drawable.ic_apps
+            "settings" -> R.drawable.ic_settings
+            else -> R.drawable.ic_apps // 默认图标
+        }
+        
+        indicatorView.showAppIcon(iconResId)
     }
 
     private fun executeAction(action: String) {
@@ -694,6 +788,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         hideEditingScrim()
         hidePasteButton()
         proxyIndicatorAnimator?.cancel()
+        savePositionRunnable?.let { uiHandler.removeCallbacks(it) }
     }
 
     private fun cleanupViews() {
@@ -1409,6 +1504,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
             "theme_mode" -> {
+                // Update indicator theme and recreate views if needed
+                (proxyIndicatorView as? DynamicIslandIndicatorView)?.updateSettings()
                 recreateAllViews()
             }
             "ball_alpha" -> {
@@ -1855,79 +1952,73 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun setupProxyIndicator() {
         proxyIndicatorAnimator?.cancel()
         proxyIndicatorAnimator = null
-        proxyIndicatorView?.let { view ->
-            val opacity = settingsManager.getBallAlpha()
-            view.alpha = opacity / 100f
-        }
+        
+        // Update the custom indicator view settings
+        (proxyIndicatorView as? DynamicIslandIndicatorView)?.updateSettings()
+        
         // Apply the current position setting
         updateProxyIndicatorPosition()
     }
 
     private fun updateProxyIndicatorPosition() {
         Log.d(TAG, "更新小横条位置: proxyIndicatorView=${proxyIndicatorView != null}")
-        proxyIndicatorView?.let { view ->
-            val position = settingsManager.getIslandPosition() // 0-100
-            Log.d(TAG, "当前设置位置: $position")
-            val layoutParams = view.layoutParams as? FrameLayout.LayoutParams
-            layoutParams?.let {
-                // Calculate horizontal position based on setting
-                // 0 = left edge, 50 = center, 100 = right edge
-                val screenWidth = resources.displayMetrics.widthPixels
-                val indicatorWidth = 36.dpToPx()
-                val edgeMargin = 4.dpToPx() // 减少边距，让小横条能更接近边缘
-                
-                // Calculate absolute position from left edge
-                val minX = edgeMargin
-                val maxX = screenWidth - edgeMargin - indicatorWidth
-                
-                // Convert position percentage to actual X coordinate
-                val targetX = when {
-                    position <= 0 -> minX
-                    position >= 100 -> maxX
-                    else -> {
-                        val range = maxX - minX
-                        minX + (position / 100.0f * range).toInt()
-                    }
-                }
-                
-                val currentX = it.leftMargin
-                
-                Log.d(TAG, "位置计算: position=$position, targetX=$targetX, currentX=$currentX, screenWidth=$screenWidth")
-                
-                // Animate the position change for smooth movement
-                if (currentX != targetX) {
-                    ValueAnimator.ofInt(currentX, targetX).apply {
-                        duration = 200
-                        interpolator = AccelerateDecelerateInterpolator()
-                        addUpdateListener { animator ->
-                            val animatedX = animator.animatedValue as Int
-                            it.gravity = Gravity.START or Gravity.TOP
-                            it.leftMargin = animatedX
-                            it.rightMargin = 0
-                            view.layoutParams = it
-                            Log.d(TAG, "动画更新位置: animatedX=$animatedX")
-                        }
-                        start()
-                    }
-                } else {
-                    // No animation needed, set directly
-                    it.gravity = Gravity.START or Gravity.TOP
-                    it.leftMargin = targetX
-                    it.rightMargin = 0
-                    view.layoutParams = it
-                    Log.d(TAG, "直接设置位置: targetX=$targetX")
-                }
-            }
+        
+        // Find the touchTargetView first
+        val touchTargetView = windowContainerView?.findViewById<FrameLayout>(R.id.touch_target_view)
+        touchTargetView?.let { targetView ->
+            updateIslandPositionForView(targetView)
+            Log.d(TAG, "通过 touchTargetView 更新小横条位置")
+        } ?: run {
+            Log.d(TAG, "未找到 touchTargetView，无法更新位置")
         }
     }
 
     private fun updateIslandPosition(position: Int) {
-        Log.d(TAG, "开始更新灵动岛位置: position=$position")
-        // Update the proxy indicator position immediately (设置已由preference保存)
-        updateProxyIndicatorPosition()
+        // Find the touchTargetView and proxyIndicatorView and update their position
+        windowContainerView?.let { container ->
+            val touchTarget = container.findViewById<FrameLayout>(R.id.touch_target_view)
+            touchTarget?.let {
+                updateIslandPositionForView(it)
+                Log.d(TAG, "动态更新小横条位置: position=$position")
+            }
+        }
+    }
+
+    private fun updateIslandPositionForView(touchTargetView: View) {
+        val position = settingsManager.getIslandPosition()
+        val screenWidth = resources.displayMetrics.widthPixels
         
-        // If the island is in expanded state, we might also want to adjust the main island position
-        // For now, we only move the proxy indicator
+        // Find the proxyIndicatorView within the touchTargetView
+        val proxyIndicator = if (touchTargetView is FrameLayout) {
+            touchTargetView.getChildAt(0) // proxyIndicatorView is the first (and only) child
+        } else {
+            null
+        }
+        
+        proxyIndicator?.let { indicator ->
+            val indicatorWidth = indicator.layoutParams.width
+            val edgeMargin = 4.dpToPx()
+            
+            val minX = edgeMargin
+            val maxX = screenWidth - edgeMargin - indicatorWidth
+            
+            val targetX = when {
+                position <= 0 -> minX
+                position >= 100 -> maxX
+                else -> {
+                    val range = maxX - minX
+                    minX + (position / 100.0f * range).toInt()
+                }
+            }
+            
+            // Update the proxyIndicatorView position within its parent
+            (indicator.layoutParams as FrameLayout.LayoutParams).apply {
+                gravity = Gravity.START or Gravity.TOP
+                leftMargin = targetX
+                rightMargin = 0
+            }
+            indicator.requestLayout()
+        }
     }
 
     private fun expandIsland() {

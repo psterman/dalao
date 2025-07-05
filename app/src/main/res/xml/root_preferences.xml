@@ -60,21 +60,13 @@
             app:key="onboarding_guide"
             app:title="新手入门指南"
             app:summary="查看应用主要功能的使用方法"
-            app:icon="@drawable/ic_assistant">
-            <intent
-                android:targetPackage="com.example.aifloatingball"
-                android:targetClass="com.example.aifloatingball.ui.onboarding.OnboardingActivity" />
-        </Preference>
+            app:icon="@drawable/ic_assistant" />
 
         <Preference
             app:key="permission_management"
             app:title="权限管理"
             app:summary="检查和管理应用所需的权限"
-            app:icon="@drawable/ic_permission">
-            <intent
-                android:targetPackage="com.example.aifloatingball"
-                android:targetClass="com.example.aifloatingball.PermissionActivity" />
-        </Preference>
+            app:icon="@drawable/ic_permission" />
 
     </PreferenceCategory>
 

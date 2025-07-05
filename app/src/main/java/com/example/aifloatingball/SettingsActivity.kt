@@ -25,6 +25,7 @@ import androidx.appcompat.app.AlertDialog
 import android.content.DialogInterface
 import androidx.preference.ListPreference
 import android.content.Context
+import com.example.aifloatingball.ui.onboarding.OnboardingActivity
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -36,14 +37,6 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Check if onboarding is completed.
-        val sharedPref = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        if (!sharedPref.getBoolean("onboarding_complete", false)) {
-            startActivity(Intent(this, com.example.aifloatingball.ui.onboarding.OnboardingActivity::class.java))
-            finish()
-            return
-        }
         
         settingsManager = SettingsManager.getInstance(this)
         setContentView(R.layout.activity_settings)
@@ -224,6 +217,18 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             findPreference<Preference>("view_search_history")?.setOnPreferenceClickListener {
                 val intent = Intent(activity, SearchHistoryActivity::class.java)
                 startActivity(intent)
+                true
+            }
+
+            // 权限管理
+            findPreference<Preference>("permission_management")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), PermissionManagementActivity::class.java))
+                true
+            }
+
+            // 新手入门指南
+            findPreference<Preference>("onboarding_guide")?.setOnPreferenceClickListener {
+                startActivity(Intent(requireContext(), OnboardingActivity::class.java))
                 true
             }
 

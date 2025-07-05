@@ -262,14 +262,7 @@ class OnboardingActivity : AppCompatActivity() {
     }
 
     private fun finishOnboarding() {
-        // Set a flag to indicate that onboarding is complete
-        val sharedPref = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        with(sharedPref.edit()) {
-            putBoolean("onboarding_complete", true)
-            apply()
-        }
-
-        // Navigate to the main activity
+        SettingsManager.getInstance(this).setOnboardingComplete(true)
         val intent = Intent(this, SettingsActivity::class.java)
         startActivity(intent)
         finish()

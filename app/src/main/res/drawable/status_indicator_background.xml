@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    
+    <!-- 绿色圆点，表示活动状态 -->
+    <solid android:color="#34C759" />
+    
+    <!-- 微妙的边框 -->
+    <stroke
+        android:width="0.5dp"
+        android:color="#4D34C759" />
+    
+</shape> 

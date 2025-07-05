@@ -906,4 +906,12 @@ class SettingsManager private constructor(context: Context) {
     fun setVoiceInputTextSize(size: Float) {
         prefs.edit().putFloat("voice_input_text_size", size).apply()
     }
+
+    fun isOnboardingComplete(): Boolean {
+        return prefs.getBoolean("onboarding_complete", false)
+    }
+
+    fun setOnboardingComplete(isComplete: Boolean) {
+        prefs.edit().putBoolean("onboarding_complete", isComplete).apply()
+    }
 }

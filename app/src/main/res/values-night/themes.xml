@@ -35,4 +35,8 @@
     <style name="Theme_AIFloatingBall_Dialog" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
         <!-- Customize your theme here. -->
     </style>
+
+    <style name="Theme.Onboarding" parent="Theme.AIFloatingBall.NoActionBar">
+        <!-- Customize your theme for the onboarding screen here. -->
+    </style>
 </resources> 

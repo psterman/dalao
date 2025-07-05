@@ -27,6 +27,16 @@
         android:usesCleartextTraffic="true">
 
         <activity
+            android:name=".StartActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".HomeActivity"
             android:exported="true"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
@@ -34,19 +44,20 @@
         <!-- 引导页面Activity -->
         <activity
             android:name=".ui.onboarding.OnboardingActivity"
+            android:theme="@style/Theme.Onboarding"
+            android:exported="false" />
+        <activity
+            android:name=".PermissionManagementActivity"
             android:exported="false"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+            android:label="权限管理"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.AIFloatingBall.Settings" />
 
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.AIFloatingBall.Settings">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
 
         <activity android:name=".SearchActivity" />
@@ -57,7 +68,9 @@
             android:theme="@style/Theme.AIFloatingBall.NoActionBar"/>
         <activity android:name=".SearchEngineManagerActivity" />
         <activity android:name=".SearchEngineGroupManagerActivity" />
-        <activity android:name=".MenuManagerActivity"
+        <activity
+            android:name=".MenuManagerActivity"
+            android:exported="false"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
             android:name=".MasterPromptSettingsActivity"

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <Preference
+        app:key="permission_info"
+        app:title="💡 权限说明"
+        app:summary="点击下方权限项目可以快速跳转到相应的系统设置页面进行授权。绿色✓表示已授予，红色✗表示未授予。"
+        app:selectable="false"
+        app:iconSpaceReserved="false" />
+
+    <PreferenceCategory
+        app:title="核心权限"
+        app:summary="应用正常运行所需的必要权限"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="overlay_permission"
+            app:title="悬浮窗权限"
+            app:summary="允许应用在其他应用上层显示内容"
+            app:icon="@drawable/ic_floating_window"
+            app:selectable="true" />
+
+        <Preference
+            app:key="record_audio_permission"
+            app:title="录音权限"
+            app:summary="用于语音识别和AI对话功能"
+            app:icon="@drawable/ic_microphone"
+            app:selectable="true" />
+
+        <Preference
+            app:key="notification_permission"
+            app:title="通知权限"
+            app:summary="显示重要提醒和状态通知"
+            app:icon="@drawable/ic_notifications"
+            app:selectable="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:title="高级权限"
+        app:summary="增强功能所需的可选权限"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="notification_listener_permission"
+            app:title="通知监听权限"
+            app:summary="在灵动岛中显示系统通知"
+            app:icon="@drawable/ic_notification_listener"
+            app:selectable="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:title="系统优化"
+        app:summary="确保应用稳定运行的系统设置"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="auto_start_permission"
+            app:title="自启动权限"
+            app:summary="允许应用开机自启动和后台运行"
+            app:icon="@drawable/ic_autostart"
+            app:selectable="true" />
+
+        <Preference
+            app:key="battery_optimization_permission"
+            app:title="电池优化白名单"
+            app:summary="防止应用被系统省电策略杀死"
+            app:icon="@drawable/ic_battery"
+            app:selectable="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:title="快捷操作"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="one_click_authorization"
+            app:title="一键授权"
+            app:summary="启动权限授权流程，快速设置所有权限"
+            app:icon="@drawable/ic_rocket"
+            app:selectable="true" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen> 

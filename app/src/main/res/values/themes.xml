@@ -69,4 +69,8 @@
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowNoTitle">true</item>
     </style>
+
+    <style name="Theme.Onboarding" parent="Theme.AIFloatingBall.NoActionBar">
+        <!-- Customize your theme for the onboarding screen here. -->
+    </style>
 </resources> 
