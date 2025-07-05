@@ -591,6 +591,10 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
         updateTheme()
     }
     
+    fun isDragging(): Boolean {
+        return isDragging
+    }
+    
     override fun setOnLongClickListener(l: OnLongClickListener?) {
         onLongClickListener = l
     }

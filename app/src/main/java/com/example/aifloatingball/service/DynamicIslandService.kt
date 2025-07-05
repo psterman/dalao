@@ -383,7 +383,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
             setOnLongClickListener {
-                if (!isSearchModeActive) {
+                if (!isSearchModeActive && !isDragging()) {
                     val action = settingsManager.getActionIslandLongPress()
                     showActionIcon(action)
                     executeAction(action)
@@ -415,21 +415,37 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         val currentTranslationX = target.translationX
                         val newTranslationX = currentTranslationX + deltaX
                         
+                        // 获取小横条的实际宽度
+                        val proxyIndicator = target.getChildAt(0)
+                        val indicatorWidth = if (proxyIndicator != null) {
+                            if (proxyIndicator.measuredWidth == 0) {
+                                proxyIndicator.measure(
+                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                                )
+                            }
+                            proxyIndicator.measuredWidth
+                        } else {
+                            96.dpToPx() // 默认宽度
+                        }
+                        
                         // 计算实际位置（margin + translation）
                         val actualX = params.leftMargin + newTranslationX
-                        val targetWidth = target.width
+                        val edgeMargin = 4.dpToPx()
                         
                         // 限制在屏幕范围内
-                        val minX = 0f
-                        val maxX = (screenWidth - targetWidth).toFloat()
-                        val clampedX = actualX.coerceIn(minX, maxX)
+                        val minX = edgeMargin.toFloat()
+                        val maxX = (screenWidth - edgeMargin - indicatorWidth).toFloat()
+                        val safeMaxX = maxX.coerceAtLeast(minX)
+                        val clampedX = actualX.coerceIn(minX, safeMaxX)
                         
                         // 更新translationX
                         target.translationX = clampedX - params.leftMargin
                         
                         // 根据新位置计算百分比并保存（减少保存频率，避免频繁IO）
-                        val position = if (maxX > minX) {
-                            ((clampedX / maxX) * 100).toInt().coerceIn(0, 100)
+                        val range = safeMaxX - minX
+                        val position = if (range > 0) {
+                            (((clampedX - minX) / range) * 100).toInt().coerceIn(0, 100)
                         } else {
                             50
                         }
@@ -461,14 +477,42 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         // 立即保存最终位置
                         savePositionRunnable?.let { uiHandler.removeCallbacks(it) }
                         val screenWidth = resources.displayMetrics.widthPixels
-                        val targetWidth = target.width
-                        val maxX = screenWidth - targetWidth
-                        val position = if (maxX > 0) {
-                            (finalX * 100 / maxX).coerceIn(0, 100)
+                        
+                        // 获取小横条的实际宽度
+                        val proxyIndicator = target.getChildAt(0)
+                        val indicatorWidth = if (proxyIndicator != null) {
+                            if (proxyIndicator.measuredWidth == 0) {
+                                proxyIndicator.measure(
+                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                                )
+                            }
+                            proxyIndicator.measuredWidth
+                        } else {
+                            96.dpToPx() // 默认宽度
+                        }
+                        
+                        val edgeMargin = 4.dpToPx()
+                        val minX = edgeMargin
+                        val maxX = screenWidth - edgeMargin - indicatorWidth
+                        val safeMaxX = maxX.coerceAtLeast(minX)
+                        val range = safeMaxX - minX
+                        
+                        val position = if (range > 0) {
+                            ((finalX - minX) * 100 / range).coerceIn(0, 100)
                         } else {
                             50
                         }
+                        
+                        Log.d(TAG, "拖拽结束位置计算: finalX=$finalX, minX=$minX, maxX=$safeMaxX, range=$range, position=$position")
                         settingsManager.setIslandPosition(position)
+                    }
+                    
+                    // 拖拽结束后，如果处于搜索状态，需要隐藏小横条
+                    if (isSearchModeActive) {
+                        uiHandler.postDelayed({
+                            proxyIndicatorView?.visibility = View.GONE
+                        }, 100) // 短暂延迟确保拖拽动画完成
                     }
                 }
             })
@@ -545,7 +589,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (isSearchModeActive && !force) return
         isSearchModeActive = true
 
-        proxyIndicatorView?.visibility = View.GONE
+        // 检查是否正在拖拽，如果是则不隐藏小横条
+        val indicatorView = proxyIndicatorView as? DynamicIslandIndicatorView
+        val isDragging = indicatorView?.isDragging() ?: false
+        
+        if (!isDragging) {
+            proxyIndicatorView?.visibility = View.GONE
+        } else {
+            Log.d(TAG, "正在拖拽中，不隐藏小横条")
+        }
         proxyIndicatorAnimator?.cancel()
 
         val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
@@ -652,8 +704,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 // Ensure background is fully transparent after resize
                 windowContainerView?.setBackgroundColor(Color.TRANSPARENT)
 
+                // 确保小横条可见并重新设置
                 proxyIndicatorView?.visibility = View.VISIBLE
                 setupProxyIndicator()
+                Log.d(TAG, "搜索状态结束，恢复小横条显示")
             }
             ?.start()
 
@@ -1996,20 +2050,37 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
         
         proxyIndicator?.let { indicator ->
-            val indicatorWidth = indicator.layoutParams.width
+            // 确保View已经测量过，获取实际宽度
+            if (indicator.measuredWidth == 0) {
+                indicator.measure(
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                )
+            }
+            
+            val indicatorWidth = indicator.measuredWidth
             val edgeMargin = 4.dpToPx()
             
             val minX = edgeMargin
             val maxX = screenWidth - edgeMargin - indicatorWidth
             
+            // 确保maxX不小于minX，避免负数范围
+            val safeMaxX = maxX.coerceAtLeast(minX)
+            
             val targetX = when {
                 position <= 0 -> minX
-                position >= 100 -> maxX
+                position >= 100 -> safeMaxX
                 else -> {
-                    val range = maxX - minX
-                    minX + (position / 100.0f * range).toInt()
+                    val range = safeMaxX - minX
+                    if (range > 0) {
+                        minX + (position / 100.0f * range).toInt()
+                    } else {
+                        minX
+                    }
                 }
             }
+            
+            Log.d(TAG, "位置计算: position=$position, screenWidth=$screenWidth, indicatorWidth=$indicatorWidth, targetX=$targetX, range=${safeMaxX - minX}")
             
             // Update the proxyIndicatorView position within its parent
             (indicator.layoutParams as FrameLayout.LayoutParams).apply {
