@@ -110,9 +110,9 @@
             app:summary="调整悬浮球的透明度"
             app:defaultValue="85"
             android:max="100"
-            app:min="0"
-            app:showSeekBarValue="false"
-            app:icon="@drawable/ic_settings"/>
+            app:min="20"
+            app:showSeekBarValue="true"
+            app:icon="@drawable/ic_opacity"/>
 
         <SwitchPreferenceCompat
             app:key="auto_hide"
@@ -159,6 +159,26 @@
             app:showSeekBarValue="false"
             app:icon="@drawable/ic_resize"/>
 
+        <SeekBarPreference
+            app:key="island_width"
+            app:title="灵动岛宽度"
+            app:summary="调整灵动岛小横条的宽度大小"
+            app:defaultValue="72"
+            android:max="120"
+            app:min="48"
+            app:showSeekBarValue="true"
+            app:icon="@drawable/ic_width"/>
+
+        <SeekBarPreference
+            app:key="island_alpha"
+            app:title="灵动岛透明度"
+            app:summary="调整灵动岛小横条的透明度"
+            app:defaultValue="255"
+            android:max="255"
+            app:min="64"
+            app:showSeekBarValue="true"
+            app:icon="@drawable/ic_opacity"/>
+
         <SwitchPreferenceCompat
             app:key="enable_notification_listener"
             app:title="启用通知监听"
@@ -170,6 +190,13 @@
             app:title="通知应用管理"
             app:summary="选择哪些应用的通知可以在灵动岛中显示"
             app:icon="@drawable/ic_settings"
+            app:dependency="enable_notification_listener"/>
+
+        <Preference
+            app:key="test_notification"
+            app:title="测试通知功能"
+            app:summary="发送测试通知以验证灵动岛通知显示功能"
+            app:icon="@drawable/ic_notification"
             app:dependency="enable_notification_listener"/>
 
     </PreferenceCategory>

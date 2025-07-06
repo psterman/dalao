@@ -1,4 +1,4 @@
-package com.example.aifloatingball
+ package com.example.aifloatingball
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -52,6 +52,10 @@ class SettingsManager private constructor(context: Context) {
         // 默认API地址
         const val DEFAULT_DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
         const val DEFAULT_CHATGPT_API_URL = "https://api.openai.com/v1/chat/completions"
+        
+        // 灵动岛设置的默认值
+        private const val DEFAULT_ISLAND_WIDTH = 72 // dp
+        private const val DEFAULT_ISLAND_ALPHA = 255 // 0-255
         
         @Volatile
         private var instance: SettingsManager? = null
@@ -913,5 +917,27 @@ class SettingsManager private constructor(context: Context) {
 
     fun setOnboardingComplete(isComplete: Boolean) {
         prefs.edit().putBoolean("onboarding_complete", isComplete).apply()
+    }
+
+    // 灵动岛宽度设置 (dp)
+    fun getIslandWidth(): Int {
+        return prefs.getInt("island_width", DEFAULT_ISLAND_WIDTH)
+    }
+    
+    fun setIslandWidth(width: Int) {
+        val clampedWidth = width.coerceIn(48, 120) // 限制宽度范围在48-120dp之间
+        prefs.edit().putInt("island_width", clampedWidth).apply()
+        notifyListeners("island_width", clampedWidth)
+    }
+    
+    // 灵动岛透明度设置 (0-255)
+    fun getIslandAlpha(): Int {
+        return prefs.getInt("island_alpha", DEFAULT_ISLAND_ALPHA)
+    }
+    
+    fun setIslandAlpha(alpha: Int) {
+        val clampedAlpha = alpha.coerceIn(64, 255) // 限制透明度范围在64-255之间
+        prefs.edit().putInt("island_alpha", clampedAlpha).apply()
+        notifyListeners("island_alpha", clampedAlpha)
     }
 }

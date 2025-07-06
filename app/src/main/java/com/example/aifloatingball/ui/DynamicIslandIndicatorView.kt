@@ -6,7 +6,9 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -14,12 +16,16 @@ import android.graphics.RectF
 import android.graphics.drawable.Drawable
 import android.os.Handler
 import android.os.Looper
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 import kotlin.math.abs
@@ -37,9 +43,10 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
     
     // 小横条的基础尺寸
-    private val baseWidth = 72f  // dp
+    private var baseWidth = settingsManager.getIslandWidth().toFloat()  // 使用设置中的宽度
     private val baseHeight = 6f  // dp
     private var cornerRadius = 0f
     private var bounds = RectF()
@@ -62,6 +69,10 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     
     // Icon properties
     private var currentIcon: Drawable? = null
+    private var notificationIcon: Bitmap? = null
+    private var notificationTitle: CharSequence = ""
+    private var notificationText: CharSequence = ""
+    private var notificationTextLayout: StaticLayout? = null
     private var showIcon = false
     
     // Touch and drag properties
@@ -88,6 +99,21 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     private var onLongClickListener: OnLongClickListener? = null
     private var onDragListener: OnDragListener? = null
     
+    // Settings change listener
+    private val settingsChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs: SharedPreferences?, key: String? ->
+        when (key) {
+            "island_width" -> {
+                baseWidth = settingsManager.getIslandWidth().toFloat()
+                requestLayout()
+                invalidate()
+            }
+            "island_alpha" -> {
+                updateAlpha()
+                invalidate()
+            }
+        }
+    }
+    
     interface OnDragListener {
         fun onDragStart()
         fun onDragMove(deltaX: Float, deltaY: Float)
@@ -98,6 +124,12 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
         setupView()
         updateTheme()
         startIdleAnimation()
+        
+        // 注册设置变更监听器
+        settingsManager.registerOnSharedPreferenceChangeListener(settingsChangeListener)
+
+        textPaint.color = Color.WHITE
+        textPaint.textSize = 14f * resources.displayMetrics.density
     }
     
     private fun setupView() {
@@ -144,9 +176,10 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     }
     
     private fun updateAlpha() {
-        val opacity = settingsManager.getBallAlpha()
-        pulseAlpha = opacity / 100f
-        alpha = pulseAlpha
+        val alpha = settingsManager.getIslandAlpha()
+        backgroundPaint.alpha = alpha
+        glowPaint.alpha = (alpha * 0.8f).toInt()
+        shadowPaint.alpha = (alpha * 0.4f).toInt()
     }
     
     private fun startIdleAnimation() {
@@ -167,71 +200,62 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         
-        val centerX = width / 2f
-        val centerY = height / 2f
         val density = resources.displayMetrics.density
+        val currentWidth = width.toFloat()
+        val currentHeight = height.toFloat() // Use the actual, animated height
+        bounds.set(0f, 0f, currentWidth, currentHeight)
+        val currentCornerRadius = currentHeight / 2f // Make it a capsule
         
-        // 应用所有缩放效果
-        val totalScale = currentScale * breatheScale
-        val rectWidth = baseWidth * density * currentWidth * totalScale
-        val rectHeight = baseHeight * density * currentHeight * totalScale
+        // Draw shadow
+        shadowPaint.setShadowLayer(10f, 0f, 5f, shadowColor)
+        canvas.drawRoundRect(bounds, currentCornerRadius, currentCornerRadius, shadowPaint)
         
-        // 计算绘制区域
-        val left = centerX - rectWidth / 2f
-        val top = centerY - rectHeight / 2f
-        val right = centerX + rectWidth / 2f
-        val bottom = centerY + rectHeight / 2f
+        // Draw background
+        canvas.drawRoundRect(bounds, currentCornerRadius, currentCornerRadius, backgroundPaint)
         
-        bounds.set(left, top, right, bottom)
-        
-        // 绘制波纹效果
-        if (rippleScale > 0 && rippleAlpha > 0) {
-            val rippleRadius = rectWidth * rippleScale
-            glowPaint.alpha = (rippleAlpha * 60).toInt()
-            canvas.drawCircle(centerX, centerY, rippleRadius, glowPaint)
-        }
-        
-        // 绘制阴影
-        if (!isPressed) {
-            shadowPaint.setShadowLayer(4f * density, 0f, 2f * density, shadowColor)
-            canvas.drawRoundRect(bounds, cornerRadius, cornerRadius, shadowPaint)
-            shadowPaint.clearShadowLayer()
-        }
-        
-        // 绘制发光效果
-        if (currentGlowAlpha > 0) {
-            glowPaint.alpha = (currentGlowAlpha * 100).toInt()
-            
-            // 创建发光效果
-            for (i in 1..2) {
-                val glowOffset = 8f * density * i / 2f
-                val glowAlpha = (currentGlowAlpha * (3 - i) / 2f * 80).toInt()
-                glowPaint.alpha = glowAlpha
+        if (showIcon && notificationIcon != null) {
+            // Draw notification
+            val iconSize = currentHeight * 0.7f // Icon size is 70% of the bar's height
+            val iconLeft = (currentHeight - iconSize) / 2f // Use height for symmetric padding
+            val iconTop = (currentHeight - iconSize) / 2f
+            notificationIcon?.let {
+                canvas.drawBitmap(it, null, RectF(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize), iconPaint)
+            }
+
+            // Draw text
+            val textLeft = iconLeft + iconSize + 8 * density // Padding between icon and text
+            val availableTextWidth = currentWidth - textLeft - (8 * density) // available width for text
+            if (availableTextWidth > 0) {
+                val fullText = "$notificationTitle: $notificationText"
+                notificationTextLayout = StaticLayout.Builder.obtain(fullText, 0, fullText.length, textPaint, availableTextWidth.toInt())
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setLineSpacing(0f, 1.0f)
+                    .setIncludePad(false)
+                    .setMaxLines(1)
+                    .setEllipsize(android.text.TextUtils.TruncateAt.END)
+                    .build()
                 
-                val glowBounds = RectF(
-                    left - glowOffset,
-                    top - glowOffset,
-                    right + glowOffset,
-                    bottom + glowOffset
-                )
-                
-                canvas.drawRoundRect(glowBounds, cornerRadius + glowOffset, cornerRadius + glowOffset, glowPaint)
+                canvas.save()
+                canvas.translate(textLeft, (currentHeight - (notificationTextLayout?.height?.toFloat() ?: 0f)) / 2f)
+                notificationTextLayout?.draw(canvas)
+                canvas.restore()
+            }
+        } else {
+            // Draw regular icon/animation if any
+            if (currentIcon != null && currentIconAlpha > 0) {
+                iconPaint.alpha = (currentIconAlpha * 255).toInt()
+                val iconSize = (currentHeight * 0.8f).toInt()
+                val iconLeft = ((currentWidth - iconSize) / 2).toInt()
+                val iconTop = ((currentHeight - iconSize) / 2).toInt()
+                currentIcon?.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize)
+                currentIcon?.draw(canvas)
             }
         }
-        
-        // 绘制主背景
-        backgroundPaint.alpha = (255 * pulseAlpha).toInt()
-        canvas.drawRoundRect(bounds, cornerRadius, cornerRadius, backgroundPaint)
-        
-        // 绘制图标
-        if (showIcon && currentIcon != null && currentIconAlpha > 0) {
-            val iconSize = (rectHeight * 1.5f).toInt()
-            val iconLeft = (centerX - iconSize / 2).toInt()
-            val iconTop = (centerY - iconSize / 2).toInt()
-            
-            currentIcon?.setBounds(iconLeft, iconTop, iconLeft + iconSize, iconTop + iconSize)
-            currentIcon?.alpha = (255 * currentIconAlpha).toInt()
-            currentIcon?.draw(canvas)
+
+        // Draw glow effect
+        if (currentGlowAlpha > 0) {
+            glowPaint.alpha = (currentGlowAlpha * 255).toInt()
+            canvas.drawRoundRect(bounds, currentCornerRadius, currentCornerRadius, glowPaint)
         }
     }
     
@@ -620,5 +644,87 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
         currentAnimator?.cancel()
         pulseAnimator?.cancel()
         rippleAnimator?.cancel()
+        // 取消注册设置变更监听器
+        settingsManager.unregisterOnSharedPreferenceChangeListener(settingsChangeListener)
+    }
+
+    fun showNotification(icon: Bitmap, title: String, text: String) {
+        handler.removeCallbacksAndMessages(null) // Cancel any pending hide animations
+
+        this.notificationIcon = icon
+        this.notificationTitle = title
+        this.notificationText = text
+        this.showIcon = true
+
+        val density = resources.displayMetrics.density
+        val targetWidth = 200 * density
+        val targetHeight = 36 * density // Animate to a larger height
+
+        val widthAnimator = ValueAnimator.ofFloat(width.toFloat(), targetWidth)
+        widthAnimator.addUpdateListener {
+            val animatedWidth = it.animatedValue as Float
+            layoutParams.width = animatedWidth.toInt()
+            requestLayout()
+        }
+
+        val heightAnimator = ValueAnimator.ofFloat(height.toFloat(), targetHeight)
+        heightAnimator.addUpdateListener {
+            val animatedHeight = it.animatedValue as Float
+            layoutParams.height = animatedHeight.toInt()
+            requestLayout()
+        }
+
+        val animatorSet = AnimatorSet().apply {
+            playTogether(widthAnimator, heightAnimator)
+            duration = 350
+            interpolator = OvershootInterpolator()
+        }
+        animatorSet.start()
+
+        // Hide after 5 seconds
+        handler.postDelayed({
+            clearNotification()
+        }, 5000)
+    }
+
+    fun clearNotification() {
+        if (!showIcon) return
+        handler.removeCallbacksAndMessages(null)
+
+        val density = resources.displayMetrics.density
+        val targetWidth = baseWidth * density
+        // Revert to the original measured height.
+        // We call onMeasure to get the default height.
+        val defaultHeight = ((baseHeight + 24) * density).toInt()
+
+        val widthAnimator = ValueAnimator.ofFloat(width.toFloat(), targetWidth)
+        widthAnimator.addUpdateListener {
+            val animatedWidth = it.animatedValue as Float
+            layoutParams.width = animatedWidth.toInt()
+            requestLayout()
+        }
+
+        val heightAnimator = ValueAnimator.ofFloat(height.toFloat(), defaultHeight.toFloat())
+        heightAnimator.addUpdateListener {
+            val animatedHeight = it.animatedValue as Float
+            layoutParams.height = animatedHeight.toInt()
+            requestLayout()
+        }
+
+        val animatorSet = AnimatorSet().apply {
+            playTogether(widthAnimator, heightAnimator)
+            duration = 350
+            interpolator = AccelerateDecelerateInterpolator()
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    this@DynamicIslandIndicatorView.showIcon = false
+                    this@DynamicIslandIndicatorView.notificationIcon = null
+                    this@DynamicIslandIndicatorView.notificationTitle = ""
+                    this@DynamicIslandIndicatorView.notificationText = ""
+                    invalidate()
+                }
+            })
+        }
+        animatorSet.start()
     }
 } 

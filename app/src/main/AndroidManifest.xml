@@ -94,7 +94,8 @@
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
             android:name=".settings.AppSelectionActivity"
-            android:label="选择应用" />
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" />
         <activity
             android:name=".SearchHistoryActivity"
             android:label="搜索历史" />

@@ -90,6 +90,8 @@ import com.example.aifloatingball.adapter.AssistantPromptAdapter
 import com.example.aifloatingball.model.AssistantCategory
 import com.airbnb.lottie.LottieAnimationView
 import com.example.aifloatingball.ui.DynamicIslandIndicatorView
+import android.widget.ImageButton
+import com.example.aifloatingball.adapter.NotificationAdapter
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -169,15 +171,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
             when (command) {
                 NotificationListener.COMMAND_POSTED -> {
-                    val packageName = intent.getStringExtra(NotificationListener.EXTRA_PACKAGE_NAME)
+                    val title = intent.getStringExtra(NotificationListener.EXTRA_TITLE) ?: ""
+                    val text = intent.getStringExtra(NotificationListener.EXTRA_TEXT) ?: ""
                     val iconByteArray = intent.getByteArrayExtra(NotificationListener.EXTRA_ICON)
-                    if (packageName != null && iconByteArray != null) {
+                    
+                    if (iconByteArray != null) {
                         val iconBitmap = BitmapFactory.decodeByteArray(iconByteArray, 0, iconByteArray.size)
                         addNotificationIcon(key, iconBitmap)
+                        showNotificationOnIndicator(iconBitmap, title, text)
                     }
                 }
                 NotificationListener.COMMAND_REMOVED -> {
                     removeNotificationIcon(key)
+                    if (activeNotifications.isEmpty()) {
+                        clearNotificationOnIndicator()
+                    }
                 }
             }
         }
@@ -313,9 +321,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
         statusBarHeight = getStatusBarHeight()
 
-        // Recalculate dimensions based on current configuration
+        // Recalculate dimensions based on current configuration and settings
         val displayMetrics = resources.displayMetrics
-        compactWidth = (displayMetrics.widthPixels * 0.4).toInt()
+        val islandWidth = settingsManager.getIslandWidth()
+        compactWidth = (islandWidth * displayMetrics.density).toInt()
         expandedWidth = (displayMetrics.widthPixels * 0.9).toInt()
         compactHeight = resources.getDimensionPixelSize(R.dimen.dynamic_island_compact_height)
         expandedHeight = resources.getDimensionPixelSize(R.dimen.dynamic_island_expanded_height)
@@ -344,7 +353,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         islandContentView = inflater.inflate(R.layout.dynamic_island_layout, animatingIslandView, false)
         islandContentView?.background = ColorDrawable(Color.TRANSPARENT)
         notificationIconContainer = islandContentView!!.findViewById(R.id.notification_icon_container)
-        notificationIconContainer.visibility = View.GONE // Permanently hide notification icons
+        // 移除永久隐藏通知图标的代码
+        // notificationIconContainer.visibility = View.GONE // 删除这行
         appSearchIconScrollView = islandContentView!!.findViewById(R.id.app_search_icon_scroll_view)
         appSearchIconContainer = islandContentView!!.findViewById(R.id.app_search_icon_container)
         animatingIslandView!!.addView(islandContentView)
@@ -368,7 +378,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 5. The Proxy Indicator (Enhanced Dynamic Island), now inside the touch target with its own click handling
         proxyIndicatorView = DynamicIslandIndicatorView(this).apply {
             // The new DynamicIslandIndicatorView handles its own sizing and touch area
-            layoutParams = FrameLayout.LayoutParams(
+            (this as View).layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 Gravity.START or Gravity.TOP
@@ -376,10 +386,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             setOnClickListener {
                 if (!isSearchModeActive) {
-                    // Show app icon based on action
-                    val action = settingsManager.getActionIslandClick()
-                    showActionIcon(action)
-                    executeAction(action)
+                    // 检查是否有通知需要显示
+                    if (activeNotifications.isNotEmpty()) {
+                        showNotificationExpandedView()
+                    } else {
+                        // Show app icon based on action
+                        val action = settingsManager.getActionIslandClick()
+                        showActionIcon(action)
+                        executeAction(action)
+                    }
                 }
             }
             setOnLongClickListener {
@@ -594,7 +609,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val isDragging = indicatorView?.isDragging() ?: false
         
         if (!isDragging) {
-            proxyIndicatorView?.visibility = View.GONE
+        proxyIndicatorView?.visibility = View.GONE
         } else {
             Log.d(TAG, "正在拖拽中，不隐藏小横条")
         }
@@ -776,37 +791,215 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         transitionToCompactState()
     }
 
-    private fun addNotificationIcon(key: String, icon: android.graphics.Bitmap) {
-        uiHandler.post {
-            if (activeNotifications.containsKey(key)) return@post
-
+    private fun addNotificationIcon(key: String, iconBitmap: android.graphics.Bitmap) {
+        if (!activeNotifications.containsKey(key)) {
             val imageView = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    getStatusBarHeight() - 16.dpToPx(),
-                    getStatusBarHeight() - 16.dpToPx()
-                ).also { params ->
-                    params.setMargins(4.dpToPx(), 0, 4.dpToPx(), 0)
+                layoutParams = LinearLayout.LayoutParams(48, 48).apply {
+                    marginEnd = 8
                 }
-                setImageBitmap(icon)
+                setImageBitmap(iconBitmap)
             }
-            notificationIconContainer.addView(imageView)
             activeNotifications[key] = imageView
-            updateIslandVisibility()
+            // UI update will be handled by showNotificationOnIndicator
         }
     }
 
     private fun removeNotificationIcon(key: String) {
-        uiHandler.post {
-            activeNotifications.remove(key)?.let {
-                notificationIconContainer.removeView(it)
-                updateIslandVisibility()
-            }
-        }
+        activeNotifications.remove(key)
+        // UI update will be handled by show/clear NotificationOnIndicator
+    }
+
+    private fun showNotificationOnIndicator(icon: android.graphics.Bitmap, title: String, text: String) {
+        (proxyIndicatorView as? DynamicIslandIndicatorView)?.showNotification(icon, title, text)
+    }
+
+    private fun clearNotificationOnIndicator() {
+        (proxyIndicatorView as? DynamicIslandIndicatorView)?.clearNotification()
     }
 
     private fun updateIslandVisibility() {
+        val hasNotifications = activeNotifications.isNotEmpty()
+        val hasAppSearchIcons = appSearchIconContainer?.childCount ?: 0 > 0
+        
+        if (hasNotifications && !isSearchModeActive) {
+            // 显示通知图标，隐藏应用搜索图标
+            notificationIconContainer.visibility = View.VISIBLE
+            appSearchIconScrollView?.visibility = View.GONE
+            
+            // 动画展开小横条以适应通知图标
+            animateIslandExpansion(calculateNotificationWidth())
+        } else if (hasAppSearchIcons && isSearchModeActive) {
+            // 搜索模式下显示应用图标
+            notificationIconContainer.visibility = View.GONE
+            appSearchIconScrollView?.visibility = View.VISIBLE
+        } else {
+            // 都隐藏，保持紧凑状态
+            notificationIconContainer.visibility = View.GONE
+            appSearchIconScrollView?.visibility = View.GONE
+        }
+        
         windowContainerView?.visibility = View.VISIBLE
     }
+
+    private fun animateIslandExpansion(targetWidth: Int) {
+        val currentWidth = animatingIslandView?.width ?: compactWidth
+        if (currentWidth == targetWidth) return
+        
+        ValueAnimator.ofInt(currentWidth, targetWidth).apply {
+            duration = 300
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { animator ->
+                val width = animator.animatedValue as Int
+                animatingIslandView?.layoutParams?.width = width
+                animatingIslandView?.requestLayout()
+            }
+            start()
+        }
+    }
+
+    private fun calculateNotificationWidth(): Int {
+        val iconSize = getStatusBarHeight() - 16.dpToPx()
+        val iconMargin = 8.dpToPx()
+        val padding = 32.dpToPx()
+        val notificationCount = activeNotifications.size.coerceAtMost(5) // 最多显示5个图标
+        return (notificationCount * (iconSize + iconMargin)) + padding
+    }
+
+    private fun showNotificationExpandedView() {
+        if (configPanelView != null) return // 如果已经有面板显示，不重复显示
+        
+        val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
+        val inflater = LayoutInflater.from(themedContext)
+        configPanelView = inflater.inflate(R.layout.notification_expanded_panel, null)
+        
+        setupNotificationExpandedView()
+        
+        val panelParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP
+        ).apply {
+            topMargin = statusBarHeight + 60.dpToPx()
+            leftMargin = 16.dpToPx()
+            rightMargin = 16.dpToPx()
+        }
+
+        // Add the panel to the window
+        windowContainerView?.addView(configPanelView, panelParams)
+        configPanelView?.apply {
+            alpha = 0f
+            translationY = -100f
+            animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(300)
+                .start()
+        }
+    }
+
+    private fun setupNotificationExpandedView() {
+        val notificationList = configPanelView?.findViewById<RecyclerView>(R.id.notification_list)
+        val closeButton = configPanelView?.findViewById<ImageButton>(R.id.close_notification_panel)
+        
+        // 设置关闭按钮
+        closeButton?.setOnClickListener {
+            hideNotificationExpandedView()
+        }
+        
+        // 设置通知列表
+        val notifications = getRecentNotifications()
+        val adapter = NotificationAdapter(notifications) { notification, selectedText ->
+            onNotificationTextSelected(notification, selectedText)
+        }
+        
+        notificationList?.layoutManager = LinearLayoutManager(this)
+        notificationList?.adapter = adapter
+    }
+
+    private fun hideNotificationExpandedView() {
+        configPanelView?.animate()
+            ?.alpha(0f)
+            ?.translationY(-100f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                windowContainerView?.removeView(configPanelView)
+                configPanelView = null
+            }
+            ?.start()
+    }
+
+    private fun getRecentNotifications(): List<NotificationInfo> {
+        val notifications = mutableListOf<NotificationInfo>()
+        
+        // 从NotificationListener的存储中获取真实通知数据
+        val storedNotifications = NotificationListener.getAllNotifications()
+        
+        storedNotifications.forEach { notificationData ->
+            notifications.add(NotificationInfo(
+                key = notificationData.key,
+                packageName = notificationData.packageName,
+                title = notificationData.title,
+                text = notificationData.text,
+                subText = notificationData.subText,
+                bigText = notificationData.bigText,
+                icon = notificationData.icon,
+                largeIcon = null,
+                actions = emptyList(),
+                timestamp = notificationData.timestamp
+            ))
+        }
+        
+        // 如果没有真实通知，添加一些示例数据用于测试
+        if (notifications.isEmpty() && activeNotifications.isNotEmpty()) {
+            notifications.add(NotificationInfo(
+                key = "test_notification_1",
+                packageName = "com.example.test",
+                title = "测试通知",
+                text = "这是一个测试通知内容，可以点击提取关键词进行搜索",
+                subText = "",
+                bigText = "",
+                icon = null,
+                largeIcon = null,
+                actions = emptyList(),
+                timestamp = System.currentTimeMillis()
+            ))
+        }
+        
+        return notifications.take(10) // 最多显示10个最近的通知
+    }
+
+    private fun onNotificationTextSelected(notification: NotificationInfo, selectedText: String) {
+        // 将选中的文本填入搜索框
+        transitionToSearchState()
+        
+        // 延迟设置文本，确保搜索界面已经创建
+        uiHandler.postDelayed({
+            searchInput?.setText(selectedText)
+            searchInput?.setSelection(selectedText.length)
+        }, 100)
+        
+        // 隐藏通知展开面板
+        hideNotificationExpandedView()
+    }
+
+    // 数据类定义
+    data class NotificationInfo(
+        val key: String,
+        val packageName: String,
+        val title: String,
+        val text: String,
+        val subText: String,
+        val bigText: String,
+        val icon: android.graphics.Bitmap?,
+        val largeIcon: android.graphics.Bitmap?,
+        val actions: List<NotificationAction>,
+        val timestamp: Long
+    )
+
+    data class NotificationAction(
+        val title: String,
+        val actionIntent: android.app.PendingIntent?
+    )
 
     private fun getStatusBarHeight(): Int {
         val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
@@ -1552,22 +1745,19 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
-            "display_mode" -> {
-            if (sharedPreferences?.getString(key, "floating_ball") != "dynamic_island") {
-                stopSelf()
+            "island_width" -> {
+                // 重新计算并更新视图大小
+                val displayMetrics = resources.displayMetrics
+                val islandWidth = settingsManager.getIslandWidth()
+                compactWidth = (islandWidth * displayMetrics.density).toInt()
+                
+                // 如果不在搜索模式，更新当前宽度
+                if (!isSearchModeActive) {
+                    animatingIslandView?.layoutParams?.width = compactWidth
+                    animatingIslandView?.requestLayout()
                 }
             }
-            "theme_mode" -> {
-                // Update indicator theme and recreate views if needed
-                (proxyIndicatorView as? DynamicIslandIndicatorView)?.updateSettings()
-                recreateAllViews()
-            }
-            "ball_alpha" -> {
-                setupProxyIndicator()
-            }
             "island_position" -> {
-                // 监听位置设置变化，作为广播的备用方案
-                Log.d(TAG, "检测到SharedPreferences位置变化")
                 updateProxyIndicatorPosition()
             }
         }

@@ -222,4 +222,9 @@
     <color name="tab_selected_text">#000000</color>
     <color name="tab_unselected_text">#757575</color>
 
+    <!-- 通知相关颜色 -->
+    <color name="chip_background_color">#FF6B73FF</color>
+    <color name="notification_panel_background">#F5F5F5</color>
+    <color name="notification_panel_background_dark">#2C2C2C</color>
+
 </resources> 

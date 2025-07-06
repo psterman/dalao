@@ -1,5 +1,6 @@
 package com.example.aifloatingball.service
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -48,7 +49,7 @@ import com.example.aifloatingball.model.AppSearchConfig
 import com.example.aifloatingball.model.AppSearchSettings
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.SearchEngineShortcut
-import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.service.NotificationHelper
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -69,6 +70,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.AppSearchAdapter
 import com.example.aifloatingball.manager.AppInfoManager
 import com.example.aifloatingball.model.AppInfo
+import com.example.aifloatingball.utils.FaviconLoader
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -182,8 +184,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     }
 
     companion object {
-        private const val NOTIFICATION_ID = 1
-        private const val CHANNEL_ID = "FloatingWindowServiceChannel"
+        private const val NOTIFICATION_ID = NotificationHelper.NOTIFICATION_ID
+        private const val CHANNEL_ID = NotificationHelper.CHANNEL_ID
         private const val TAG = "FloatingWindowService"
         const val ACTION_SHOW_SEARCH = "com.example.aifloatingball.service.SHOW_SEARCH"
         const val ACTION_UPDATE_POSITION = "com.example.aifloatingball.service.UPDATE_POSITION"
@@ -198,28 +200,41 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         appSearchSettings = AppSearchSettings.getInstance(this)
         settingsManager.registerOnSharedPreferenceChangeListener(this)
         appInfoManager = AppInfoManager.getInstance()
-        appInfoManager.loadApps(this)
 
-        textSelectionManager = TextSelectionManager(this, windowManager)
-        initializeViews()
-        initializeNotificationBar()
+        setupView()
         setupFloatingBall()
-        loadSearchEngines()
-        loadSavedCombos()
-        loadAndDisplayAppSearch()
-        startForegroundService()
-        resetIdleTimer() // Start idle timer on creation
+        setupNotificationBar()
+        setupPasteButton()
 
-        val filter = IntentFilter(NotificationListener.ACTION_NOTIFICATION)
-        LocalBroadcastManager.getInstance(this).registerReceiver(notificationReceiver, filter)
-
-        // Register position update receiver
-        val positionFilter = IntentFilter(ACTION_UPDATE_POSITION)
+        // Register broadcast receivers
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(positionUpdateReceiver, positionFilter, Context.RECEIVER_NOT_EXPORTED)
+            registerReceiver(positionUpdateReceiver, IntentFilter(ACTION_UPDATE_POSITION), Context.RECEIVER_NOT_EXPORTED)
         } else {
-            registerReceiver(positionUpdateReceiver, positionFilter)
+            registerReceiver(positionUpdateReceiver, IntentFilter(ACTION_UPDATE_POSITION))
         }
+        LocalBroadcastManager.getInstance(this).registerReceiver(notificationReceiver,
+            IntentFilter(NotificationListener.ACTION_NOTIFICATION))
+        LocalBroadcastManager.getInstance(this).registerReceiver(settingsChangeReceiver,
+            IntentFilter("com.example.aifloatingball.SETTINGS_CHANGED"))
+
+        // Create notification channel and start foreground service
+        NotificationHelper.createNotificationChannel(this)
+        startForeground(NOTIFICATION_ID, NotificationHelper.createNotification(this))
+    }
+
+    private fun setupView() {
+        // Initialize views and themed context
+        initializeViews()
+    }
+
+    private fun setupNotificationBar() {
+        // Initialize notification bar view
+        initializeNotificationBar()
+    }
+
+    private fun setupPasteButton() {
+        // Initialize paste button view - the actual initialization is done in showPasteButton()
+        // when the button is first shown
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -471,6 +486,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
         try {
             windowManager.addView(floatingView, params)
+            // 设置初始透明度
+            updateBallAlpha()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to add floating view", e)
         }
@@ -1100,6 +1117,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         val alphaPercentage = settingsManager.getBallAlpha()
         val alpha = alphaPercentage / 100f
         floatingBallIcon?.alpha = alpha
+        Log.d(TAG, "Updated ball alpha to $alpha (from percentage $alphaPercentage)")
     }
 
     private fun resetIdleTimer() {

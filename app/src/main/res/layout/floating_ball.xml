@@ -5,16 +5,12 @@
     android:layout_height="wrap_content">
 
     <!-- 悬浮球按钮 -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+    <ImageView
         android:id="@+id/floating_ball_icon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
         android:layout_gravity="center"
         android:contentDescription="@string/app_name"
-        app:backgroundTint="@color/colorPrimary"
-        app:elevation="6dp"
-        app:fabSize="mini"
-        app:rippleColor="#40FFFFFF"
-        app:tint="#FFFFFF" />
+        android:src="@drawable/floating_ball_background" />
 
 </FrameLayout> 
