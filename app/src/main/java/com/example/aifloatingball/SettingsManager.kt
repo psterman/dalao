@@ -25,6 +25,7 @@ class SettingsManager private constructor(context: Context) {
     private val listeners = mutableMapOf<String, MutableList<(String, Any?) -> Unit>>()
     
     companion object {
+        private const val TAG = "SettingsManager"
         private const val PREFS_NAME = "settings"
         private const val DEFAULT_BALL_ALPHA = 85
         private const val DEFAULT_LAYOUT_THEME = 0
@@ -62,7 +63,7 @@ class SettingsManager private constructor(context: Context) {
         
         fun getInstance(context: Context): SettingsManager {
             return instance ?: synchronized(this) {
-                instance ?: SettingsManager(context.applicationContext).also { instance = it }
+                instance ?: SettingsManager(context).also { instance = it }
             }
         }
     }
@@ -242,44 +243,6 @@ class SettingsManager private constructor(context: Context) {
     fun saveEnabledAIEngines(enabledEngines: Set<String>) {
         prefs.edit().putStringSet("enabled_ai_engines", enabledEngines).apply()
         notifyListeners("enabled_ai_engines", enabledEngines)
-    }
-    
-    // 获取默认的AI搜索引擎
-    fun getDefaultAIEngine(): String {
-        val enabledAIEngines = getEnabledAIEngines()
-        return enabledAIEngines.firstOrNull() ?: "deepseek_chat" // 如果没有启用的AI引擎，则返回一个默认值
-    }
-    
-    // 为多窗口浏览器设置搜索引擎
-    fun getLeftWindowSearchEngine(): String {
-        return prefs.getString("left_window_search_engine", "baidu") ?: "baidu"
-    }
-    
-    fun setLeftWindowSearchEngine(engine: String) {
-        prefs.edit().putString("left_window_search_engine", engine).apply()
-        notifyListeners("left_window_search_engine", engine)
-    }
-
-    fun getCenterWindowSearchEngine(): String {
-        return prefs.getString("center_window_search_engine", "bing") ?: "bing"
-    }
-
-    fun setCenterWindowSearchEngine(engine: String) {
-        prefs.edit().putString("center_window_search_engine", engine).apply()
-        notifyListeners("center_window_search_engine", engine)
-    }
-
-    fun getRightWindowSearchEngine(): String {
-        return prefs.getString("right_window_search_engine", "google") ?: "google"
-    }
-
-    fun setRightWindowSearchEngine(engine: String) {
-        prefs.edit().putString("right_window_search_engine", engine).apply()
-        notifyListeners("right_window_search_engine", engine)
-    }
-    
-    fun getSearchEngineShortcuts(): String {
-        return prefs.getString("search_engine_shortcuts", "") ?: ""
     }
 
     // 获取所有已启用的搜索引擎（包括普通搜索引擎和AI搜索引擎）
@@ -939,5 +902,46 @@ class SettingsManager private constructor(context: Context) {
         val clampedAlpha = alpha.coerceIn(64, 255) // 限制透明度范围在64-255之间
         prefs.edit().putInt("island_alpha", clampedAlpha).apply()
         notifyListeners("island_alpha", clampedAlpha)
+    }
+
+    fun updateSearchEngineSettings(enabledEngines: Set<String>) {
+        saveEnabledSearchEngines(enabledEngines)
+    }
+
+    // 为多窗口浏览器设置搜索引擎
+    fun getLeftWindowSearchEngine(): String {
+        return prefs.getString("left_window_search_engine", "baidu") ?: "baidu"
+    }
+    
+    fun setLeftWindowSearchEngine(engine: String) {
+        prefs.edit().putString("left_window_search_engine", engine).apply()
+        notifyListeners("left_window_search_engine", engine)
+    }
+
+    fun getCenterWindowSearchEngine(): String {
+        return prefs.getString("center_window_search_engine", "bing") ?: "bing"
+    }
+
+    fun setCenterWindowSearchEngine(engine: String) {
+        prefs.edit().putString("center_window_search_engine", engine).apply()
+        notifyListeners("center_window_search_engine", engine)
+    }
+
+    fun getRightWindowSearchEngine(): String {
+        return prefs.getString("right_window_search_engine", "google") ?: "google"
+    }
+
+    fun setRightWindowSearchEngine(engine: String) {
+        prefs.edit().putString("right_window_search_engine", engine).apply()
+        notifyListeners("right_window_search_engine", engine)
+    }
+
+    fun getSearchEngineShortcuts(): String {
+        return prefs.getString("search_engine_shortcuts", "") ?: ""
+    }
+
+    fun setSearchEngineShortcuts(shortcuts: String) {
+        prefs.edit().putString("search_engine_shortcuts", shortcuts).apply()
+        notifyListeners("search_engine_shortcuts", shortcuts)
     }
 }

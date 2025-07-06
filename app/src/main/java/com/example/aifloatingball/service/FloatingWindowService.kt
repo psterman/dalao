@@ -261,8 +261,8 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         when (key) {
             "theme_mode" -> recreateViews()
             "search_engine_shortcuts" -> loadSavedCombos()
-            "floating_window_display_mode" -> {
-                if (isMenuVisible) updateSearchModeVisibility()
+            "enabled_search_engines", "enabled_ai_engines", "floating_window_display_mode" -> {
+                loadSearchEngines()
             }
             "left_handed_mode" -> {
                 // No-op. The change will be reflected the next time the menu is opened.
@@ -285,11 +285,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         // This will inflate a new view with the correct theme based on the latest settings
         initializeViews()
         setupTouchListener()
-
-        // Repopulate the content. This was the missing piece.
-        loadSearchEngines()
-        loadSavedCombos()
-        loadAndDisplayAppSearch()
 
         // Restore the previous params (especially position) and add the new view
         params = currentParams
@@ -368,6 +363,11 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         closeAppSearchButton?.setOnClickListener {
             hideAppSearchResults()
         }
+
+        // Load content before setting up listeners that might depend on it
+        loadSearchEngines()
+        loadSavedCombos()
+        loadAndDisplayAppSearch()
 
         setupSearchInput()
 
@@ -832,96 +832,170 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     }
 
     private fun loadSearchEngines() {
-        aiSearchEngines = AISearchEngine.DEFAULT_AI_ENGINES.toList()
-        regularSearchEngines = SearchEngine.DEFAULT_ENGINES.toList()
-        updateSearchEngineDisplay()
+        try {
+            // 从 SettingsManager 获取用户配置的搜索引擎名称
+            val enabledAIEngineNames = settingsManager.getEnabledAIEngines()
+            val enabledRegularEngineNames = settingsManager.getEnabledSearchEngines()
+
+            Log.d(TAG, "Enabled AI engines: $enabledAIEngineNames")
+            Log.d(TAG, "Enabled regular engines: $enabledRegularEngineNames")
+
+            // 获取所有可用的搜索引擎
+            val allAIEngines = AISearchEngine.DEFAULT_AI_ENGINES
+            val allRegularEngines = SearchEngine.DEFAULT_ENGINES
+
+            // 如果没有启用的引擎，使用所有默认引擎
+            aiSearchEngines = if (enabledAIEngineNames.isEmpty()) {
+                allAIEngines.toList()
+            } else {
+                allAIEngines.filter { it.name in enabledAIEngineNames }
+            }
+
+            regularSearchEngines = if (enabledRegularEngineNames.isEmpty()) {
+                allRegularEngines.toList()
+            } else {
+                allRegularEngines.filter { it.name in enabledRegularEngineNames }
+            }
+
+            Log.d(TAG, "Loaded AI engines: ${aiSearchEngines.map { it.name }}")
+            Log.d(TAG, "Loaded regular engines: ${regularSearchEngines.map { it.name }}")
+
+            updateSearchEngineDisplay()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading search engines", e)
+            // 出错时使用默认引擎
+            aiSearchEngines = AISearchEngine.DEFAULT_AI_ENGINES.toList()
+            regularSearchEngines = SearchEngine.DEFAULT_ENGINES.toList()
+            updateSearchEngineDisplay()
+        }
     }
 
     private fun updateSearchEngineDisplay() {
-        aiEnginesContainer?.removeAllViews()
-        regularEnginesContainer?.removeAllViews()
+        try {
+            aiEnginesContainer?.removeAllViews()
+            regularEnginesContainer?.removeAllViews()
 
-        addEnginesToContainer(aiEnginesContainer, aiSearchEngines)
-        addEnginesToContainer(regularEnginesContainer, regularSearchEngines)
+            // 获取显示模式设置
+            val enabledModes = settingsManager.getFloatingWindowDisplayModes()
+            
+            // 根据显示模式决定是否显示各类搜索引擎
+            if (enabledModes.contains("ai")) {
+                addEnginesToContainer(aiEnginesContainer, aiSearchEngines)
+            }
+            
+            if (enabledModes.contains("normal")) {
+                addEnginesToContainer(regularEnginesContainer, regularSearchEngines)
+            }
+
+            // 更新各容器的可见性
+            updateSearchModeVisibility()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating search engine display", e)
+        }
     }
 
     private fun addEnginesToContainer(container: LinearLayout?, engines: List<Any>) {
         if (container == null || engines.isEmpty()) return
 
-        val horizontalScrollView = HorizontalScrollView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            isHorizontalScrollBarEnabled = false
-        }
-        val linearLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
+        try {
+            val horizontalScrollView = HorizontalScrollView(themedContext ?: this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                isHorizontalScrollBarEnabled = false
+            }
+            
+            val linearLayout = LinearLayout(themedContext ?: this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            }
 
-        engines.forEach { engine ->
-            val engineView = createEngineView(engine)
-            linearLayout.addView(engineView)
-        }
+            engines.forEach { engine ->
+                val engineView = createEngineView(engine)
+                linearLayout.addView(engineView)
+            }
 
-        horizontalScrollView.addView(linearLayout)
-        container.addView(horizontalScrollView)
+            horizontalScrollView.addView(linearLayout)
+            container.addView(horizontalScrollView)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding engines to container", e)
+        }
     }
 
     private fun createEngineView(engine: Any): View {
-        val view = View.inflate(this, R.layout.search_engine_shortcut, null)
-        val icon = view.findViewById<ImageView>(R.id.shortcut_icon)
-        val name = view.findViewById<TextView>(R.id.shortcut_name)
+        try {
+            val view = LayoutInflater.from(themedContext ?: this).inflate(R.layout.search_engine_shortcut, null)
+            val icon = view.findViewById<ImageView>(R.id.shortcut_icon)
+            val name = view.findViewById<TextView>(R.id.shortcut_name)
 
-        val url: String
-        val engineName: String
-        val fallbackIconResId: Int
-        when (engine) {
-            is SearchEngine -> {
-                url = engine.url
-                engineName = engine.name
-                fallbackIconResId = R.drawable.ic_web_default
-            }
-            is AISearchEngine -> {
-                url = engine.url
-                engineName = engine.name
-                fallbackIconResId = R.drawable.ic_web_default
-            }
-            else -> return view // Should not happen
-        }
-        FaviconLoader.loadIcon(icon, url, fallbackIconResId)
-        name.text = engineName
-        view.setOnClickListener {
-            val query = searchInput?.text.toString()
-            val isAiEngine = engine is AISearchEngine
-
-            if (isAiEngine || query.isNotBlank()) {
-                val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                    putExtra("search_query", query)
-                    putExtra("engine_key", engineName)
-                    putExtra("search_source", "悬浮窗")
-                    putExtra("startTime", System.currentTimeMillis())
+            val url: String
+            val engineName: String
+            val fallbackIconResId: Int
+            when (engine) {
+                is SearchEngine -> {
+                    url = engine.url
+                    engineName = engine.name
+                    fallbackIconResId = R.drawable.ic_web_default
                 }
-                startService(serviceIntent)
-                hideSearchInterface()
-            } else {
-                // 此分支现在仅在普通引擎且无查询时触发
-                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                is AISearchEngine -> {
+                    url = engine.url
+                    engineName = engine.name
+                    fallbackIconResId = R.drawable.ic_web_default
+                }
+                else -> {
+                    Log.e(TAG, "Unknown engine type: ${engine.javaClass.simpleName}")
+                    return view
+                }
             }
+
+            // 加载图标
+            try {
+                FaviconLoader.loadIcon(icon, url, fallbackIconResId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading favicon for $engineName", e)
+                icon.setImageResource(fallbackIconResId)
+            }
+
+            // 设置引擎名称
+            name.text = engineName
+
+            // 设置点击事件
+            view.setOnClickListener {
+                val query = searchInput?.text.toString()
+                val isAiEngine = engine is AISearchEngine
+
+                if (isAiEngine || query.isNotBlank()) {
+                    val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                        putExtra("search_query", query)
+                        putExtra("engine_key", engineName)
+                        putExtra("search_source", "悬浮窗")
+                        putExtra("startTime", System.currentTimeMillis())
+                    }
+                    startService(serviceIntent)
+                    hideSearchInterface()
+                } else {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            return view
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating engine view", e)
+            // 返回一个空的视图作为后备
+            return View(themedContext ?: this)
         }
-        return view
     }
 
     private fun loadSavedCombos() {
         val json = settingsManager.getSearchEngineShortcuts()
         if (json.isNotEmpty()) {
-            val type = object : TypeToken<List<SearchEngineShortcut>>() {}.type
             try {
-                searchEngineShortcuts = gson.fromJson(json, type)
+                val listType = object : TypeToken<List<SearchEngineShortcut>>() {}.type
+                searchEngineShortcuts = gson.fromJson<List<SearchEngineShortcut>>(json, listType)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse search engine shortcuts", e)
                 searchEngineShortcuts = emptyList()

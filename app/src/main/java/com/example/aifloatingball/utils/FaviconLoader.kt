@@ -294,48 +294,98 @@ object FaviconLoader {
         }
     }
 
-    fun loadIcon(imageView: ImageView, engineUrl: String, fallbackResId: Int) {
-        val faviconUrl = getFaviconServiceUrl(engineUrl)
-
-        if (faviconUrl == null) {
-            imageView.setImageResource(fallbackResId)
+    fun loadIcon(imageView: ImageView, url: String, fallbackResId: Int) {
+        // 首先检查是否是AI引擎
+        val engineName = getEngineNameFromUrl(url)
+        if (engineName != null) {
+            loadAIEngineIcon(imageView, engineName, fallbackResId)
             return
         }
         
-        imageView.tag = faviconUrl
+        // 生成缓存键
+        val cacheKey = "favicon_$url"
+        imageView.tag = cacheKey
 
-        val cachedBitmap = memoryCache.get(faviconUrl)
+        // 检查内存缓存
+        val cachedBitmap = memoryCache.get(cacheKey)
         if (cachedBitmap != null) {
             imageView.setImageBitmap(cachedBitmap)
             return
         }
 
-        // Set fallback icon while loading
+        // 设置默认图标
         imageView.setImageResource(fallbackResId)
 
+        // 获取favicon URL
+        val faviconUrl = getFaviconServiceUrl(url)
+        if (faviconUrl == null) {
+            Log.e("FaviconLoader", "Invalid URL: $url")
+            return
+        }
+
+        // 异步加载图标
         executor.execute {
             try {
-                val url = URL(faviconUrl)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.connect()
-
-                if (connection.responseCode == 200) {
-                    val inputStream = connection.inputStream
-                    val bitmap = BitmapFactory.decodeStream(inputStream)
-                    inputStream.close()
-
+                val bitmap = loadBitmapFromUrl(faviconUrl)
                     if (bitmap != null) {
-                        memoryCache.put(faviconUrl, bitmap)
+                    memoryCache.put(cacheKey, bitmap)
                         uiHandler.post {
-                            if (imageView.tag == faviconUrl) {
+                        if (imageView.tag == cacheKey) {
                                 imageView.setImageBitmap(bitmap)
-                            }
                         }
                     }
                 }
             } catch (e: Exception) {
-                Log.e("FaviconLoader", "Failed to load icon from $faviconUrl", e)
+                Log.e("FaviconLoader", "Error loading favicon for $url", e)
             }
+        }
+    }
+
+    private fun getEngineNameFromUrl(url: String): String? {
+        try {
+            val host = URL(url).host.toLowerCase()
+            return when {
+                host.contains("chat.openai.com") -> "chatgpt"
+                host.contains("claude.ai") -> "claude"
+                host.contains("gemini.google.com") -> "gemini"
+                host.contains("yiyan.baidu.com") -> "文心一言"
+                host.contains("chatglm.cn") -> "智谱清言"
+                host.contains("qianwen.aliyun.com") -> "通义千问"
+                host.contains("xinghuo.xfyun.cn") -> "讯飞星火"
+                host.contains("perplexity.ai") -> "perplexity"
+                host.contains("phind.com") -> "phind"
+                host.contains("poe.com") -> "poe"
+                host.contains("tiangong.cn") -> "天工ai"
+                host.contains("metaso.cn") -> "秘塔ai搜索"
+                host.contains("quark.cn") -> "夸克ai"
+                host.contains("sou.ai.360.cn") -> "360ai搜索"
+                host.contains("you.com") -> "you.com"
+                host.contains("search.brave.com") -> "brave search"
+                host.contains("wolframalpha.com") -> "wolframalpha"
+                else -> null
+            }
+        } catch (e: Exception) {
+            return null
+        }
+    }
+
+    private fun loadBitmapFromUrl(urlString: String): Bitmap? {
+        return try {
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connect()
+
+            if (connection.responseCode == 200) {
+                val inputStream = connection.inputStream
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream.close()
+                bitmap
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("FaviconLoader", "Failed to load bitmap from $urlString", e)
+            null
         }
     }
 } 
