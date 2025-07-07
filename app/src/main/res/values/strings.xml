@@ -155,4 +155,10 @@
     <string name="action_settings">设置</string>
     <string name="app_icon_description">应用图标</string>
     <string name="ai_api_settings">AI API 设置</string>
+
+    <!-- 简易模式字符串 -->
+    <string name="back_button_text">返回</string>
+    <string name="back_to_previous">返回上一级</string>
+    <string name="welcome_guide">欢迎使用简易模式！\n点击图标进入分类</string>
+    <string name="navigation_tip">💡 提示：点击"%1$s"可以回到主页面</string>
 </resources> 

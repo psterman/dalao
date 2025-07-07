@@ -227,4 +227,8 @@
     <color name="notification_panel_background">#F5F5F5</color>
     <color name="notification_panel_background_dark">#2C2C2C</color>
 
+    <!-- 图标颜色 -->
+    <color name="icon_tint">#2196F3</color>
+    <color name="icon_tint_unselected">#757575</color>
+
 </resources> 

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#E3F2FD">
+
+    <!-- 搜索栏 -->
+    <EditText
+        android:id="@+id/searchEditText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:hint="搜索或选择分类"
+        android:padding="16dp"
+        android:background="@drawable/search_bar_background_simple"
+        android:elevation="2dp" />
+
+    <!-- 宫格布局 -->
+    <GridLayout
+        android:id="@+id/grid_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:columnCount="3"
+        android:rowCount="4"
+        android:alignmentMode="alignMargins"
+        android:columnOrderPreserved="false"
+        android:padding="8dp">
+
+        <!-- 宫格项将在这里动态添加 -->
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_1" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_2" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_3" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_4" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_5" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_6" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_7" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_8" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_9" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_10" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_11" />
+        <include layout="@layout/grid_item_template" android:id="@+id/grid_item_12" />
+    </GridLayout>
+
+</LinearLayout> 

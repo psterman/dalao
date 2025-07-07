@@ -6,11 +6,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Vibrator
+import android.text.TextUtils
 import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
@@ -26,7 +29,9 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import android.view.HapticFeedbackConstants
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.SettingsActivity
@@ -35,6 +40,9 @@ import com.example.aifloatingball.model.AppSearchSettings
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import java.net.URLEncoder
+import android.graphics.Typeface
+import androidx.core.content.ContextCompat
+import android.widget.GridLayout
 
 class SimpleModeService : Service() {
     
@@ -55,6 +63,10 @@ class SimpleModeService : Service() {
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var dragThreshold = 10f
+
+    // 添加缺失的属性
+    private var currentLevel: Int = 1
+    private var currentCategory: String = ""
 
     private val commandReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -348,44 +360,35 @@ class SimpleModeService : Service() {
 
         showMinimizeHintIfNeeded()
 
+        // 优化搜索框
+        searchEditText.apply {
+            textSize = 16f
+            hint = "点击这里搜索，或选择下方分类"
+            setHintTextColor(Color.parseColor("#8A8A8A"))
+            background = ContextCompat.getDrawable(this@SimpleModeService, R.drawable.search_bar_background_simple)
+            setPadding(48, 28, 48, 28)
+            elevation = 2f
+        }
+
+        // 设置引导提示
+        showWelcomeGuide()
+
         searchButton.setOnClickListener {
             val query = searchEditText.text.toString().trim()
             if (query.isNotEmpty()) {
                 performSearch(query, true)
             } else {
-                Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "请输入搜索内容或选择下方分类", Toast.LENGTH_SHORT).show()
             }
         }
         
-        searchEditText.setOnEditorActionListener { _, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH || (event != null && event.keyCode == KeyEvent.KEYCODE_ENTER)) {
-                val query = searchEditText.text.toString().trim()
-                if (query.isNotEmpty()) {
-                    performSearch(query, true)
-                    hideKeyboard(searchEditText)
-                    return@setOnEditorActionListener true
-                }
-            }
-            false
-        }
+        // 设置宫格布局
+        setupTemplateGrid()
         
-        searchEditText.setOnFocusChangeListener { _, hasFocus ->
-            updateWindowFocusability(hasFocus)
+        // 设置底部导航
+        tabHome.setOnClickListener { 
+            showMainTemplates() // 显示主模板
         }
-        
-        // Setup App Search Icons
-        setupAppSearchIcons()
-
-        // 设置AI引擎宫格
-        setupAIEngineGridItems(searchEditText)
-        gridItem12.setOnClickListener {
-            val intent = Intent(this, SettingsActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startActivity(intent)
-        }
-        
-        tabHome.setOnClickListener { }
         tabSearch.setOnClickListener {
             searchEditText.requestFocus()
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -399,96 +402,295 @@ class SimpleModeService : Service() {
             }
             startActivity(intent)
         }
-        tabProfile.setOnClickListener { Toast.makeText(this, "个人中心开发中", Toast.LENGTH_SHORT).show() }
+        tabProfile.setOnClickListener { 
+            Toast.makeText(this, "个人中心开发中", Toast.LENGTH_SHORT).show() 
+        }
 
-        simpleModeView.isFocusableInTouchMode = true
-        simpleModeView.setOnKeyListener { _, keyCode, _ ->
-            if (keyCode == KeyEvent.KEYCODE_BACK) {
-                stopSelf()
-                return@setOnKeyListener true
-            }
-            false
+        setupBackButton()
+    }
+
+    private fun showWelcomeGuide() {
+        val prefs = getSharedPreferences("simple_mode_prefs", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("guide_shown", false)) {
+            Toast.makeText(
+                this,
+                getString(R.string.welcome_guide),
+                Toast.LENGTH_LONG
+            ).show()
+            prefs.edit().putBoolean("guide_shown", true).apply()
         }
     }
-    
-    private fun setupAppSearchIcons() {
-        val container = simpleModeView.findViewById<LinearLayout>(R.id.app_search_icons_container)
-        container.removeAllViews()
 
-        val appSearchSettings = AppSearchSettings.getInstance(this)
-        
-        // 确保抖音被启用 - 临时解决方案
-        appSearchSettings.toggleAppEnabled("douyin", true)
-        
-        val allApps = appSearchSettings.getAppConfigs()
-        Log.d("SimpleModeService", "所有应用配置数量: ${allApps.size}")
-        
-        val enabledApps = allApps.filter { it.isEnabled }.sortedBy { it.order }
-        Log.d("SimpleModeService", "已启用应用数量: ${enabledApps.size}")
-        
-        enabledApps.forEach { app ->
-            Log.d("SimpleModeService", "已启用应用: ${app.appName} (${app.packageName}) - 启用状态: ${app.isEnabled}")
+    private fun setupTemplateGrid() {
+        val templates = listOf(
+            Triple("health", "健康养生", "👨‍⚕️"), // 更换为医生图标
+            Triple("daily", "生活服务", "🏠"),
+            Triple("entertainment", "休闲娱乐", "🎵"), // 更换为音乐图标，更活泼
+            Triple("family", "家庭生活", "👨‍👩‍👧"),
+            Triple("tech", "智能设备", "📱")
+        )
+
+        // 设置主要分类
+        templates.forEachIndexed { index, (id, title, icon) ->
+            val gridItem = simpleModeView.findViewById<LinearLayout>(
+                resources.getIdentifier("grid_item_${index + 1}", "id", packageName)
+            )
+            setupGridItem(gridItem, title, icon) { 
+                showSecondLevel(id)
+                // 添加触感反馈
+                gridItem.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            }
         }
 
-        val iconSize = (40 * resources.displayMetrics.density).toInt()
-        val margin = (4 * resources.displayMetrics.density).toInt()
+        // 隐藏未使用的格子
+        for (i in (templates.size + 1)..12) {
+            val gridItem = simpleModeView.findViewById<LinearLayout>(
+                resources.getIdentifier("grid_item_$i", "id", packageName)
+            )
+            gridItem.visibility = View.GONE
+        }
+    }
 
-        for (appConfig in enabledApps) {
-            val imageButton = ImageButton(this).apply {
-                layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).also {
-                    it.setMargins(margin, 0, margin, 0)
+    private fun setupGridItem(gridItem: LinearLayout, title: String, icon: String, onClick: () -> Unit) {
+        gridItem.apply {
+            // 设置整体样式
+            background = ContextCompat.getDrawable(context, R.drawable.grid_item_background)
+            setPadding(16, 24, 16, 24)
+        }
+
+        // 设置图标
+        val iconView = gridItem.getChildAt(0) as TextView
+        iconView.apply {
+            text = icon
+            textSize = 32f // 更大的图标
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT
+        }
+        
+        // 设置标题
+        val titleView = gridItem.getChildAt(1) as TextView
+        titleView.apply {
+            text = title
+            textSize = 18f // 更大的文字
+            setTextColor(Color.BLACK)
+            typeface = Typeface.DEFAULT_BOLD
+            setPadding(0, 12, 0, 0)
+        }
+        
+        // 设置点击效果
+        gridItem.setOnClickListener { 
+            onClick()
+            gridItem.animate()
+                .scaleX(0.95f)
+                .scaleY(0.95f)
+                .setDuration(100)
+                .withEndAction {
+                    gridItem.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .start()
                 }
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                background = null // Or use a transparent background
-                contentDescription = appConfig.appName
-                
-                try {
-                    val icon = packageManager.getApplicationIcon(appConfig.packageName)
-                    setImageDrawable(icon)
-                } catch (e: PackageManager.NameNotFoundException) {
-                    setImageResource(appConfig.iconResId) // Fallback icon
-                }
-                
-                setOnClickListener {
-                    val searchEditText = simpleModeView.findViewById<EditText>(R.id.searchEditText)
-                    val query = searchEditText.text.toString().trim()
-                    if (query.isNotEmpty()) {
-                        try {
-                            // Special handling for Douyin
-                            if (appConfig.packageName == "com.ss.android.ugc.aweme") {
-                                Log.d("SimpleModeService", "点击抖音图标，查询词: $query")
-                                showPopupWebView(query)
-                            } else {
-                                val encodedQuery = URLEncoder.encode(query, "UTF-8")
-                                val searchUri = appConfig.searchUrl.replace("{q}", encodedQuery)
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUri)).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    setPackage(appConfig.packageName)
-                                }
-                                startActivity(intent)
-                                minimizeToEdge()
-                            }
-                        } catch (e: Exception) {
-                            Toast.makeText(this@SimpleModeService, "操作失败: ${e.message}", Toast.LENGTH_SHORT).show()
-                            Log.e("SimpleModeService", "应用图标点击处理失败 - ${appConfig.appName}", e)
-                        }
+                .start()
+        }
+    }
+
+    private fun showSecondLevel(categoryId: String) {
+        // 显示返回提示
+        showBackHint()
+        
+        val secondLevelTemplates = when(categoryId) {
+            "health" -> listOf(
+                Triple("health_issue", "不舒服找医生", "🏥"),
+                Triple("daily_health", "日常保健", "💪"),
+                Triple("wellness", "养生食疗", "🍵")
+            )
+            "daily" -> listOf(
+                Triple("medical", "挂号就医", "👨‍⚕️"),
+                Triple("convenience", "生活缴费", "💳"),
+                Triple("government", "办事指南", "📋")
+            )
+            "entertainment" -> listOf(
+                Triple("dance", "广场舞", "💃"),
+                Triple("video", "看视频", "📺"),
+                Triple("games", "棋牌游戏", "🎲")
+            )
+            "family" -> listOf(
+                Triple("relationship", "亲子交流", "👨‍👧"),
+                Triple("housework", "家务技巧", "🧹"),
+                Triple("finance", "理财规划", "💰")
+            )
+            "tech" -> listOf(
+                Triple("phone", "手机指南", "📱"),
+                Triple("apps", "常用软件", "��"),
+                Triple("troubleshoot", "问题解决", "🔧")
+            )
+            else -> emptyList()
+        }
+
+        // 更新宫格显示
+        secondLevelTemplates.forEachIndexed { index, (id, title, icon) ->
+            val gridItem = simpleModeView.findViewById<LinearLayout>(
+                resources.getIdentifier("grid_item_${index + 1}", "id", packageName)
+            )
+            setupGridItem(gridItem, title, icon) { showThirdLevel(categoryId, id) }
+            gridItem.visibility = View.VISIBLE
+        }
+
+        // 添加返回按钮
+        val backGridItem = simpleModeView.findViewById<LinearLayout>(
+            resources.getIdentifier("grid_item_${secondLevelTemplates.size + 1}", "id", packageName)
+        )
+        setupBackButton(backGridItem) { showMainTemplates() }
+
+        // 隐藏其余格子
+        for (i in (secondLevelTemplates.size + 2)..12) {
+            val gridItem = simpleModeView.findViewById<LinearLayout>(
+                resources.getIdentifier("grid_item_$i", "id", packageName)
+            )
+            gridItem.visibility = View.GONE
+        }
+    }
+
+    private fun setupBackButton(gridItem: LinearLayout, onClick: () -> Unit) {
+        gridItem.apply {
+            visibility = View.VISIBLE
+            background = ContextCompat.getDrawable(context, R.drawable.back_button_background)
+            setPadding(16, 24, 16, 24)
+        }
+
+        // 设置返回图标
+        val iconView = gridItem.getChildAt(0) as TextView
+        iconView.apply {
+            text = "⬅️"
+            textSize = 28f
+        }
+
+        // 设置返回文字
+        val titleView = gridItem.getChildAt(1) as TextView
+        titleView.apply {
+            text = "返回上一级"
+            textSize = 16f
+            setTextColor(Color.BLACK)
+        }
+
+        // 设置点击效果
+        gridItem.setOnClickListener { 
+            onClick()
+            // 添加触感反馈
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                gridItem.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     } else {
-                        Toast.makeText(this@SimpleModeService, "请输入搜索内容", Toast.LENGTH_SHORT).show()
-                    }
-                }
+                gridItem.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
             }
-            container.addView(imageButton)
         }
+    }
+
+    private fun showBackHint() {
+        val prefs = getSharedPreferences("simple_mode_prefs", Context.MODE_PRIVATE)
+        val hasShownBackHint = prefs.getBoolean("back_hint_shown", false)
         
-        // 如果没有应用图标，显示提示
-        if (enabledApps.isEmpty()) {
-            val textView = android.widget.TextView(this).apply {
-                text = "请在设置中启用应用搜索"
-                textSize = 12f
-                setPadding(16, 8, 16, 8)
+        if (!hasShownBackHint) {
+            Toast.makeText(this, 
+                getString(R.string.navigation_tip, getString(R.string.back_to_previous)),
+                Toast.LENGTH_SHORT).show()
+            prefs.edit().putBoolean("back_hint_shown", true).apply()
+        }
+    }
+
+    private fun showThirdLevel(categoryId: String, subCategoryId: String) {
+        val thirdLevelTemplates = when("$categoryId:$subCategoryId") {
+            "health:health_issue:headache" -> listOf(
+                Triple("headache", "头痛头晕", "😵"),
+                Triple("joint_pain", "关节疼痛", "🦴"),
+                Triple("insomnia", "失眠多梦", "😴")
+            )
+            // ... 其他三级模板定义
+            else -> emptyList()
+        }
+
+        // 更新宫格显示
+        thirdLevelTemplates.forEachIndexed { index, (id, title, icon) ->
+            val gridItem = simpleModeView.findViewById<LinearLayout>(
+                resources.getIdentifier("grid_item_${index + 1}", "id", packageName)
+            )
+            setupGridItem(gridItem, title, icon) { 
+                launchTemplateSearch(categoryId, subCategoryId, id)
             }
-            container.addView(textView)
-            Log.d("SimpleModeService", "没有启用的应用，显示提示文本")
+        }
+
+        // 添加返回按钮
+        val backGridItem = simpleModeView.findViewById<LinearLayout>(
+            resources.getIdentifier("grid_item_${thirdLevelTemplates.size + 1}", "id", packageName)
+        )
+        setupGridItem(backGridItem, getString(R.string.back_button_text), "⬅️") { showSecondLevel(categoryId) }
+
+        // 隐藏其余格子
+        for (i in (thirdLevelTemplates.size + 2)..12) {
+            val gridItem = simpleModeView.findViewById<LinearLayout>(
+                resources.getIdentifier("grid_item_$i", "id", packageName)
+            )
+            gridItem.visibility = View.GONE
+        }
+    }
+
+    private val mainTemplates = listOf(
+        Triple("health", "健康养生", "❤️"),
+        Triple("lifestyle", "生活服务", "🏠"),
+        Triple("leisure", "休闲娱乐", "😊"),
+        Triple("family", "家庭生活", "👨‍👩‍👧‍👦"),
+        Triple("tech", "智能设备", "📱")
+    )
+
+    private fun showMainTemplates() {
+        currentLevel = 1
+        currentCategory = ""
+        
+        mainTemplates.forEachIndexed { index, template ->
+            val gridItem = simpleModeView.findViewById<LinearLayout>(
+                resources.getIdentifier("grid_item_${index + 1}", "id", packageName)
+            )
+            gridItem.visibility = View.VISIBLE
+            setupGridItem(gridItem, template.second, template.third) {
+                showSecondLevel(template.first)
+            }
+        }
+
+        // 隐藏多余的格子
+        for (i in (mainTemplates.size + 1)..12) {
+            val gridItem = simpleModeView.findViewById<LinearLayout>(
+                resources.getIdentifier("grid_item_$i", "id", packageName)
+            )
+            gridItem.visibility = View.GONE
+        }
+    }
+
+    private fun launchTemplateSearch(categoryId: String, subCategoryId: String, itemId: String) {
+        // 显示加载提示
+        Toast.makeText(this, "正在为您准备搜索结果...", Toast.LENGTH_SHORT).show()
+        
+        // 根据模板ID生成搜索提示和选择合适的搜索引擎
+        val (searchPrompt, engines) = getTemplateSearchConfig(categoryId, subCategoryId, itemId)
+        
+        // 启动搜索服务
+        val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+            putExtra("search_query", searchPrompt)
+            putExtra("search_engines", engines.toTypedArray())
+            putExtra("search_source", "模板搜索")
+            putExtra("show_toolbar", true)
+        }
+        startService(intent)
+        minimizeToEdge()
+    }
+
+    private fun getTemplateSearchConfig(categoryId: String, subCategoryId: String, itemId: String): Pair<String, List<String>> {
+        return when("$categoryId:$subCategoryId:$itemId") {
+            "health:health_issue:headache" -> Pair(
+                "头痛头晕的常见原因和缓解方法，以及需要就医的情况",
+                listOf("deepseek", "douban", "zhihu")
+            )
+            // ... 其他模板配置
+            else -> Pair("", emptyList())
         }
     }
 
@@ -632,287 +834,6 @@ class SimpleModeService : Service() {
         }
     }
 
-    /**
-     * 设置AI引擎宫格项
-     */
-    private fun setupAIEngineGridItems(searchEditText: EditText) {
-        // 获取前11个AI引擎（第12个保留给设置）
-        val aiEngines = AISearchEngine.DEFAULT_AI_ENGINES.take(11)
-        
-        for (i in 1..11) {
-            val gridItem = simpleModeView.findViewById<LinearLayout>(
-                resources.getIdentifier("grid_item_$i", "id", packageName)
-            )
-            
-            if (i <= aiEngines.size) {
-                val aiEngine = aiEngines[i - 1]
-                setupAIGridItem(gridItem, aiEngine, searchEditText, i)
-        } else {
-                // 如果AI引擎不够，设置为占位符
-                setupPlaceholderGridItem(gridItem, i)
-            }
-        }
-    }
-    
-    /**
-     * 设置单个AI引擎宫格项
-     */
-    private fun setupAIGridItem(gridItem: LinearLayout, aiEngine: AISearchEngine, searchEditText: EditText, index: Int) {
-        // 更新标题
-        val titleTextView = gridItem.getChildAt(1) as? android.widget.TextView
-        titleTextView?.text = aiEngine.displayName
-        
-        // 处理图标显示
-        val iconContainer = gridItem.getChildAt(0)
-        
-        if (iconContainer is android.widget.TextView) {
-            // 如果是TextView，先隐藏文本，然后动态添加ImageView
-            iconContainer.text = ""
-            iconContainer.visibility = View.GONE
-            
-            // 检查是否已经添加了ImageView
-            var iconImageView = gridItem.findViewWithTag<ImageView>("ai_icon_$index")
-            if (iconImageView == null) {
-                // 创建新的ImageView
-                iconImageView = ImageView(this).apply {
-                    tag = "ai_icon_$index"
-                    layoutParams = LinearLayout.LayoutParams(
-                        (48 * resources.displayMetrics.density).toInt(),
-                        (48 * resources.displayMetrics.density).toInt()
-                    ).apply {
-                        bottomMargin = (4 * resources.displayMetrics.density).toInt()
-                    }
-                    scaleType = ImageView.ScaleType.CENTER_CROP
-                    contentDescription = aiEngine.displayName
-                }
-                
-                // 将ImageView插入到第一个位置（替换TextView的位置）
-                gridItem.addView(iconImageView, 0)
-            }
-            
-            // 使用FaviconLoader加载AI引擎图标
-            com.example.aifloatingball.utils.FaviconLoader.loadAIEngineIcon(
-                iconImageView, 
-                aiEngine.name, 
-                R.drawable.ic_web_default
-            )
-        }
-        
-        // 设置点击事件
-        gridItem.setOnClickListener {
-            val query = searchEditText.text.toString().trim()
-            
-            if (query.isNotEmpty()) {
-                launchAIEngine(aiEngine, query)
-            } else {
-                Toast.makeText(this, "请先输入搜索内容", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-    
-    /**
-     * 设置占位符宫格项
-     */
-    private fun setupPlaceholderGridItem(gridItem: LinearLayout, index: Int) {
-        val titleTextView = gridItem.getChildAt(1) as? android.widget.TextView
-        titleTextView?.text = "功能${index}"
-        
-        val iconTextView = gridItem.getChildAt(0) as? android.widget.TextView
-        iconTextView?.text = "🔧"
-        
-        gridItem.setOnClickListener {
-            Toast.makeText(this, "功能开发中", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    /**
-     * 启动AI引擎
-     */
-    private fun launchAIEngine(aiEngine: AISearchEngine, searchText: String) {
-        Log.d("SimpleModeService", "启动AI引擎: ${aiEngine.displayName}, 搜索文本: $searchText")
-        Log.d("SimpleModeService", "AI引擎详情: name=${aiEngine.name}, isChatMode=${aiEngine.isChatMode}, searchUrl=${aiEngine.searchUrl}")
-        
-        when {
-            // API模式的AI引擎
-            aiEngine.isChatMode -> {
-                Log.d("SimpleModeService", "选择API聊天模式")
-                launchAPIChatMode(aiEngine, searchText)
-            }
-            // 支持URL查询参数的AI引擎
-            aiEngine.searchUrl.contains("{query}") -> {
-                Log.d("SimpleModeService", "选择Web AI（带查询）模式")
-                launchWebAIWithQuery(aiEngine, searchText)
-            }
-            // 不支持URL查询参数的AI引擎（需要工具栏）
-            else -> {
-                Log.d("SimpleModeService", "选择Web AI（工具栏）模式")
-                launchWebAIWithToolbar(aiEngine, searchText)
-            }
-        }
-    }
-    
-    /**
-     * 启动API聊天模式
-     */
-    private fun launchAPIChatMode(aiEngine: AISearchEngine, searchText: String) {
-        Log.d("SimpleModeService", "启动API聊天模式: ${aiEngine.name}")
-        
-        try {
-            // 1. 切换模式，防止服务被自动重启
-            settingsManager.setDisplayMode("floating_ball")
-            Log.d("SimpleModeService", "显示模式已临时切换到 floating_ball")
-
-            // 2. 直接启动DualFloatingWebViewService
-            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("search_query", searchText)
-                putExtra("engine_key", aiEngine.name)
-                putExtra("search_source", "简易模式-API聊天")
-                putExtra("startTime", System.currentTimeMillis())
-            }
-            startService(serviceIntent)
-            Log.d("SimpleModeService", "已启动 DualFloatingWebViewService")
-
-            // 3. 最小化简易模式而不是停止
-            minimizeToEdge()
-            Log.d("SimpleModeService", "简易模式已最小化")
-            
-        } catch (e: Exception) {
-            Log.e("SimpleModeService", "启动API聊天模式失败", e)
-            Toast.makeText(this, "启动AI聊天失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    /**
-     * 启动支持查询参数的Web AI
-     */
-    private fun launchWebAIWithQuery(aiEngine: AISearchEngine, searchText: String) {
-        Log.d("SimpleModeService", "启动Web AI（带查询）: ${aiEngine.name}")
-        
-        try {
-            // 1. 切换模式，防止服务被自动重启
-            settingsManager.setDisplayMode("floating_ball")
-            Log.d("SimpleModeService", "显示模式已临时切换到 floating_ball")
-
-            // 2. 直接启动DualFloatingWebViewService
-            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("search_query", searchText)
-                putExtra("engine_key", aiEngine.name)
-                putExtra("search_source", "简易模式-Web搜索")
-                putExtra("startTime", System.currentTimeMillis())
-            }
-            startService(serviceIntent)
-            Log.d("SimpleModeService", "已启动 DualFloatingWebViewService")
-
-            // 3. 最小化简易模式而不是停止
-            minimizeToEdge()
-            Log.d("SimpleModeService", "简易模式已最小化")
-            
-        } catch (e: Exception) {
-            Log.e("SimpleModeService", "启动Web AI搜索失败", e)
-            Toast.makeText(this, "启动AI搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    /**
-     * 启动需要工具栏的Web AI
-     */
-    private fun launchWebAIWithToolbar(aiEngine: AISearchEngine, searchText: String) {
-        Log.d("SimpleModeService", "启动Web AI（需工具栏）: ${aiEngine.name}")
-        
-        try {
-            // 1. 切换模式，防止服务被自动重启
-            settingsManager.setDisplayMode("floating_ball")
-            Log.d("SimpleModeService", "显示模式已临时切换到 floating_ball")
-
-            // 2. 直接启动DualFloatingWebViewService
-            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("search_query", searchText)
-                putExtra("engine_key", aiEngine.name)
-                putExtra("search_source", "简易模式-工具栏模式")
-                putExtra("startTime", System.currentTimeMillis())
-                putExtra("show_toolbar", true) // 标记需要显示工具栏
-            }
-            startService(serviceIntent)
-            Log.d("SimpleModeService", "已启动 DualFloatingWebViewService")
-
-            // 3. 最小化简易模式而不是停止
-            minimizeToEdge()
-            Log.d("SimpleModeService", "简易模式已最小化")
-
-            // 4. 延迟启动工具栏服务
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                try {
-                    val toolbarIntent = Intent(this, Class.forName("com.example.aifloatingball.service.WebViewToolbarService")).apply {
-                        action = "com.example.aifloatingball.SHOW_TOOLBAR"
-                        putExtra("search_text", searchText)
-                        putExtra("ai_engine", aiEngine.displayName)
-                    }
-                    startService(toolbarIntent)
-                    Log.d("SimpleModeService", "已启动工具栏服务")
-                } catch (e: Exception) {
-                    Log.e("SimpleModeService", "启动工具栏服务失败", e)
-                }
-            }, 3000) // 3秒延迟
-            
-        } catch (e: Exception) {
-            Log.e("SimpleModeService", "启动Web AI（工具栏）失败", e)
-            Toast.makeText(this, "启动AI搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    /**
-     * 获取AI引擎图标
-     */
-    private fun getAIEngineIcon(engineName: String): String {
-        return when (engineName.lowercase()) {
-            "chatgpt" -> "🤖"
-            "claude" -> "🧠"
-            "gemini" -> "✨"
-            "文心一言" -> "🎯"
-            "智谱清言" -> "💭"
-            "通义千问" -> "🔮"
-            "讯飞星火" -> "⚡"
-            "perplexity" -> "🔍"
-            "phind" -> "🔎"
-            "poe" -> "🎭"
-            "天工ai" -> "🛠️"
-            "秘塔ai搜索" -> "🗂️"
-            "夸克ai" -> "⚛️"
-            "360ai搜索" -> "🌐"
-            "百度ai" -> "🐻"
-            "you.com" -> "🌟"
-            "brave search" -> "🦁"
-            "wolframalpha" -> "🧮"
-            "kimi" -> "🌙"
-            "deepseek (web)" -> "🌊"
-            "万知" -> "📚"
-            "百小应" -> "🐼"
-            "跃问" -> "🚀"
-            "豆包" -> "📦"
-            "cici" -> "🎀"
-            "海螺" -> "🐚"
-            "groq" -> "💨"
-            "腾讯元宝" -> "💎"
-            "商量" -> "💼"
-            "devv" -> "👨‍💻"
-            "huggingchat" -> "🤗"
-            "纳米ai搜索" -> "🔬"
-            "thinkany" -> "🤔"
-            "hika" -> "⭐"
-            "genspark" -> "💫"
-            "grok" -> "🎯"
-            "flowith" -> "🌊"
-            "notebooklm" -> "📝"
-            "coze" -> "🤖"
-            "dify" -> "⚙️"
-            "wps灵感" -> "📄"
-            "lechat" -> "💬"
-            "monica" -> "👩‍💼"
-            "知乎" -> "🎓"
-            else -> "🤖"
-        }
-    }
-
     private fun hideWindow() {
         if (isWindowVisible && simpleModeView.parent != null) {
             windowManager.removeView(simpleModeView)
@@ -939,5 +860,68 @@ class SimpleModeService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? {
         return null
+    }
+
+    private fun showNavigationTip() {
+        val backText = getString(R.string.back_to_previous)
+        val tipText = getString(R.string.navigation_tip, backText)
+        Toast.makeText(this, tipText, Toast.LENGTH_LONG).show()
+    }
+
+    private fun setupBackButton() {
+        simpleModeView.findViewById<ImageButton>(R.id.back_button)?.apply {
+            contentDescription = getString(R.string.back_to_previous)
+            setOnClickListener {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+            } else {
+                    performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                }
+                handleBackPress()
+            }
+        }
+    }
+
+    private fun handleBackPress() {
+        if (currentLevel > 1) {
+            currentLevel--
+            updateGridItems()
+        } else {
+            hideSimpleMode()
+        }
+    }
+
+    private fun showBackTooltip() {
+        Toast.makeText(
+            this,
+            getString(R.string.back_to_previous),
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+    
+    private fun updateGridItems() {
+        when (currentLevel) {
+            1 -> showMainTemplates()
+            2 -> {
+                // 显示二级模板
+                setupTemplateGrid()
+            }
+            3 -> {
+                // 显示三级模板
+                setupTemplateGrid()
+            }
+        }
+    }
+    
+    private fun hideSimpleMode() {
+        hideWindow()
+    }
+
+    private fun checkOrientation() {
+        val orientation = resources.configuration.orientation
+        if (orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            val gridLayout = simpleModeView.findViewById<GridLayout>(R.id.grid_layout)
+            gridLayout.columnCount = 3
+        }
     }
 } 
