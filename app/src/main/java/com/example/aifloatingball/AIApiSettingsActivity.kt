@@ -1,68 +1,57 @@
 package com.example.aifloatingball
 
-import android.content.Intent
 import android.os.Bundle
+import android.widget.Button
+import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.preference.EditTextPreference
-import androidx.preference.Preference
-import androidx.preference.PreferenceFragmentCompat
 import com.google.android.material.appbar.MaterialToolbar
 
 class AIApiSettingsActivity : AppCompatActivity() {
-    
+
+    private lateinit var settingsManager: SettingsManager
+
+    private lateinit var deepSeekApiKeyEditText: EditText
+    private lateinit var chatGPTApiKeyEditText: EditText
+    private lateinit var saveButton: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_ai_api_settings)
-        
-        // 设置标题栏
+
+        settingsManager = SettingsManager.getInstance(this)
+
+        setupToolbar()
+
+        deepSeekApiKeyEditText = findViewById(R.id.  deepseek_api_key)
+        chatGPTApiKeyEditText = findViewById(R.id.chatgpt_api_key)
+        saveButton = findViewById(R.id.save_api_keys_button)
+
+        loadApiKeys()
+
+        saveButton.setOnClickListener {
+            saveApiKeys()
+            Toast.makeText(this, "API 密钥已保存", Toast.LENGTH_SHORT).show()
+            finish()
+        }
+    }
+
+    private fun setupToolbar() {
         val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
-        supportActionBar?.apply {
-            title = "AI API 设置"
-            setDisplayHomeAsUpEnabled(true)
-        }
-
-        // 加载设置Fragment
-        if (savedInstanceState == null) {
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.settings_container, AIApiSettingsFragment())
-                .commit()
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        toolbar.setNavigationOnClickListener {
+            onBackPressed()
         }
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        onBackPressedDispatcher.onBackPressed()
-        return true
+    private fun loadApiKeys() {
+        deepSeekApiKeyEditText.setText(settingsManager.getDeepSeekApiKey())
+        chatGPTApiKeyEditText.setText(settingsManager.getChatGPTApiKey())
     }
 
-    class AIApiSettingsFragment : PreferenceFragmentCompat() {
-        private lateinit var settingsManager: SettingsManager
-
-        override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.ai_api_preferences, rootKey)
-            settingsManager = SettingsManager.getInstance(requireContext())
-
-            // DeepSeek API设置
-            findPreference<EditTextPreference>("deepseek_api_key")?.apply {
-                text = settingsManager.getDeepSeekApiKey()
-                setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setDeepSeekApiKey(newValue.toString())
-                    Toast.makeText(context, "DeepSeek API密钥已保存", Toast.LENGTH_SHORT).show()
-                    true
-                }
-            }
-
-            // ChatGPT API设置
-            findPreference<EditTextPreference>("chatgpt_api_key")?.apply {
-                text = settingsManager.getChatGPTApiKey()
-                setOnPreferenceChangeListener { _, newValue ->
-                    settingsManager.setChatGPTApiKey(newValue.toString())
-                    Toast.makeText(context, "ChatGPT API密钥已保存", Toast.LENGTH_SHORT).show()
-                    true
-                }
-            }
-        }
+    private fun saveApiKeys() {
+        settingsManager.setDeepSeekApiKey(deepSeekApiKeyEditText.text.toString().trim())
+        settingsManager.setChatGPTApiKey(chatGPTApiKeyEditText.text.toString().trim())
     }
-} 
+}

@@ -194,8 +194,12 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             updateDrawerGravity()
         }
 
-        // 初始化标签页管理
-        initTabManagement()
+        // 初始化标签页管理 - 暂时禁用
+        // initTabManagement()
+        
+        // 初始化WebView
+        webView = findViewById(R.id.webview)
+        setupWebView()
 
         // 设置手势检测
         initGestureDetectors()
@@ -1158,8 +1162,11 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private fun setupShortcuts() {
         shortcutsGrid.layoutManager = GridLayoutManager(this, 4)
-        // TODO: 实现快捷方式适配器
+        // 暂时隐藏快捷方式网格，使用长按设置按钮访问AI指令中心
+        shortcutsGrid.visibility = View.GONE
     }
+    
+
 
     private fun setupBottomBar() {
         findViewById<ImageButton>(R.id.btn_menu).setOnClickListener {
@@ -1176,8 +1183,16 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             startActivity(Intent(this, BookmarkActivity::class.java))
         }
 
-        findViewById<ImageButton>(R.id.btn_settings).setOnClickListener {
-            startActivity(Intent(this, SettingsActivity::class.java))
+        findViewById<ImageButton>(R.id.btn_settings).apply {
+            setOnClickListener {
+                startActivity(Intent(this@HomeActivity, SettingsActivity::class.java))
+            }
+            // 长按设置按钮打开AI指令中心（临时功能）
+            setOnLongClickListener {
+                startActivity(Intent(this@HomeActivity, MasterPromptSettingsActivity::class.java))
+                Toast.makeText(this@HomeActivity, "已打开AI指令中心", Toast.LENGTH_SHORT).show()
+                true
+            }
         }
     }
 

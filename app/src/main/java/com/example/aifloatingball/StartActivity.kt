@@ -10,13 +10,13 @@ class StartActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         val settingsManager = SettingsManager.getInstance(this)
+
+        // Check if onboarding is completed.
         if (!settingsManager.isOnboardingComplete()) {
-            // 第一次运行，启动引导页
             startActivity(Intent(this, OnboardingActivity::class.java))
         } else {
-            // 非第一次运行，启动主界面
-            startActivity(Intent(this, SettingsActivity::class.java))
+            startActivity(Intent(this, HomeActivity::class.java))
         }
-        finish() // 结束当前Activity，防止用户返回
+        finish()
     }
-} 
+}

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="?android:attr/colorBackground">
+
+    <TextView
+        android:id="@+id/dialog_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="📝 个人信息设置"
+        android:textAppearance="@style/TextAppearance.MaterialComponents.Headline6"
+        android:layout_gravity="center_horizontal"
+        android:textColor="?android:attr/textColorPrimary"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/dialog_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="您好！为了给您提供更贴心的服务，需要先了解一下您的基本信息：\n\n• 您是什么身份（如退休教师、医生等）\n• 希望我用什么语气跟您说话\n• 您喜欢什么样的回答格式\n\n设置后，我会更懂您的需要。"
+        android:textAppearance="@style/TextAppearance.MaterialComponents.Body1"
+        android:textColor="?android:attr/textColorSecondary"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- This is the brute-force fix: A basic button with manually set properties -->
+    <Button
+        android:id="@+id/dialog_positive_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="现在就去填写"
+        android:background="#FF6200EE" 
+        android:textColor="@android:color/white"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/dialog_negative_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="暂时跳过"
+        style="?android:attr/borderlessButtonStyle"
+        android:textColor="?android:attr/textColorSecondary"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/dialog_neutral_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="取消搜索"
+        style="?android:attr/borderlessButtonStyle"
+        android:textColor="?android:attr/textColorSecondary"/>
+
+</LinearLayout>

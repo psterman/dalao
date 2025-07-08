@@ -73,4 +73,10 @@
     <style name="Theme.Onboarding" parent="Theme.AIFloatingBall.NoActionBar">
         <!-- Customize your theme for the onboarding screen here. -->
     </style>
-</resources> 
+
+    <!-- This is the style that was missing -->
+    <style name="ServiceDialogTheme" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
+        <item name="colorPrimary">@color/purple_500</item>
+    </style>
+
+</resources>
