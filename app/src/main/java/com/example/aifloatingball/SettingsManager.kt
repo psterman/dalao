@@ -68,6 +68,88 @@ class SettingsManager private constructor(context: Context) {
         }
     }
     
+    // --- Prompt Profile Management ---
+
+    /**
+     * 获取所有用户画像
+     */
+    fun getAllPromptProfiles(): MutableList<PromptProfile> {
+        val json = prefs.getString(KEY_PROMPT_PROFILES, null)
+        return if (json != null) {
+            val type = object : TypeToken<MutableList<PromptProfile>>() {}.type
+            gson.fromJson(json, type)
+        } else {
+            // 如果没有保存任何画像，返回一个包含默认画像的列表
+            mutableListOf(PromptProfile.DEFAULT)
+        }
+    }
+
+    /**
+     * 保存所有用户画像
+     */
+    fun saveAllPromptProfiles(profiles: List<PromptProfile>) {
+        val json = gson.toJson(profiles)
+        prefs.edit().putString(KEY_PROMPT_PROFILES, json).apply()
+        notifyListeners(KEY_PROMPT_PROFILES, profiles)
+    }
+
+    /**
+     * 添加或更新一个用户画像
+     */
+    fun savePromptProfile(profile: PromptProfile) {
+        val profiles = getAllPromptProfiles()
+        val index = profiles.indexOfFirst { it.id == profile.id }
+        if (index != -1) {
+            profiles[index] = profile
+        } else {
+            profiles.add(profile)
+        }
+        saveAllPromptProfiles(profiles)
+    }
+
+    /**
+     * 删除一个用户画像
+     */
+    fun deletePromptProfile(profileId: String) {
+        // 不允许删除默认画像
+        if (profileId == PromptProfile.DEFAULT.id) {
+            Log.w(TAG, "Attempted to delete the default prompt profile.")
+            return
+        }
+        val profiles = getAllPromptProfiles()
+        profiles.removeAll { it.id == profileId }
+        // 如果删除的是当前激活的画像，则将激活画像重置为默认
+        if (getActivePromptProfileId() == profileId) {
+            setActivePromptProfileId(PromptProfile.DEFAULT.id)
+        }
+        saveAllPromptProfiles(profiles)
+    }
+    
+    /**
+     * 设置当前激活的用户画像ID
+     */
+    fun setActivePromptProfileId(profileId: String) {
+        prefs.edit().putString(KEY_ACTIVE_PROMPT_PROFILE_ID, profileId).apply()
+        notifyListeners(KEY_ACTIVE_PROMPT_PROFILE_ID, profileId)
+    }
+
+    /**
+     * 获取当前激活的用户画像ID
+     */
+    fun getActivePromptProfileId(): String {
+        return prefs.getString(KEY_ACTIVE_PROMPT_PROFILE_ID, PromptProfile.DEFAULT.id) ?: PromptProfile.DEFAULT.id
+    }
+
+    /**
+     * 获取当前激活的用户画像实例
+     * 这是SimpleModeService需要的方法
+     */
+    fun getPromptProfile(): PromptProfile {
+        val activeId = getActivePromptProfileId()
+        return getAllPromptProfiles().find { it.id == activeId } ?: PromptProfile.DEFAULT
+    }
+
+
     /**
      * 获取所有搜索引擎，包括默认和自定义的。
      * 自定义搜索引擎会覆盖同名的默认搜索引擎。
@@ -381,11 +463,11 @@ class SettingsManager private constructor(context: Context) {
                 gson.fromJson(json, object : TypeToken<MutableList<PromptProfile>>() {}.type)
             } catch (e: Exception) {
                 // 如果解析失败，返回一个包含默认配置的列表
-                mutableListOf(PromptProfile(name = "默认档案"))
+                mutableListOf(PromptProfile.DEFAULT)
             }
         } else {
             // 如果没有存储过，创建一个包含默认配置的列表
-            mutableListOf(PromptProfile(name = "默认档案"))
+            mutableListOf(PromptProfile.DEFAULT)
         }
     }
 
@@ -403,80 +485,24 @@ class SettingsManager private constructor(context: Context) {
     }
 
     fun loadProfileToPreferences(profile: PromptProfile) {
+        // Simplified: Load the 5 core fields to preferences for backwards compatibility
         prefs.edit().apply {
-            putString("prompt_gender", profile.gender)
-            putString("prompt_birth_date", profile.birthDate)
-            putString("prompt_education", profile.education)
-            putString("prompt_occupation", profile.occupation)
-            putStringSet("prompt_occupation_current", profile.occupationCurrent)
-            putStringSet("prompt_occupation_interest", profile.occupationInterest)
-            putStringSet("prompt_interests", profile.interests)
-            putStringSet("prompt_interests_entertainment", profile.interestsEntertainment)
-            putStringSet("prompt_interests_shopping", profile.interestsShopping)
-            putStringSet("prompt_interests_niche", profile.interestsNiche)
-            putString("prompt_interests_orientation", profile.interestsOrientation)
-            putStringSet("prompt_interests_values", profile.interestsValues)
-            putStringSet("prompt_health", profile.health)
-            putStringSet("prompt_health_diet", profile.healthDiet)
-            putStringSet("prompt_health_chronic", profile.healthChronic)
-            putString("prompt_health_physical_state", profile.healthPhysicalState)
-            putString("prompt_health_medication", profile.healthMedication)
-            putStringSet("prompt_health_constitution", profile.healthConstitution)
-            putString("prompt_health_medical_pref", profile.healthMedicalPref)
-            putString("prompt_health_habits", profile.healthHabits)
-            putStringSet("prompt_health_diagnosed", profile.healthDiagnosed)
-            putBoolean("prompt_health_had_surgery", profile.healthHadSurgery)
-            putStringSet("prompt_health_surgery_type", profile.healthSurgeryType)
-            putString("prompt_health_surgery_time", profile.healthSurgeryTime)
-            putBoolean("prompt_health_has_allergies", profile.healthHasAllergies)
-            putStringSet("prompt_health_allergy_cause", profile.healthAllergyCause)
-            putStringSet("prompt_health_allergy_history", profile.healthAllergyHistory)
-            putStringSet("prompt_health_family_history", profile.healthFamilyHistory)
-            putStringSet("prompt_health_dietary_restrictions", profile.healthDietaryRestrictions)
-            putString("prompt_health_sleep_pattern", profile.healthSleepPattern)
-            putStringSet("prompt_reply_format", profile.replyFormats)
-            putStringSet("prompt_refused_topics", profile.refusedTopics)
-            putString("prompt_tone_style", profile.toneStyle)
+            putString("prompt_persona", profile.persona)
+            putString("prompt_tone", profile.tone)
+            putString("prompt_output_format", profile.outputFormat)
+            putString("prompt_custom_instructions", profile.customInstructions ?: "")
             apply()
         }
     }
 
     fun savePreferencesToProfile(profile: PromptProfile): PromptProfile {
-        return profile.apply {
-            gender = getPromptGender()
-            birthDate = getPromptBirthDate()
-            education = getPromptEducation()
-            occupation = getPromptOccupation()
-            occupationCurrent = getPromptOccupationCurrent()
-            occupationInterest = getPromptOccupationInterest()
-            interests = getPromptInterests()
-            interestsEntertainment = getPromptInterestsEntertainment()
-            interestsShopping = getPromptInterestsShopping()
-            interestsNiche = getPromptInterestsNiche()
-            interestsOrientation = getPromptInterestsOrientation()
-            interestsValues = getPromptInterestsValues()
-            health = getPromptHealth()
-            healthDiet = getPromptHealthDiet()
-            healthChronic = getPromptHealthChronic()
-            healthPhysicalState = getPromptHealthPhysicalState()
-            healthMedication = getPromptHealthMedication()
-            healthConstitution = getPromptHealthConstitution()
-            healthMedicalPref = getPromptHealthMedicalPref()
-            healthHabits = getPromptHealthHabits()
-            healthDiagnosed = getPromptHealthDiagnosed()
-            healthHadSurgery = getPromptHealthHadSurgery()
-            healthSurgeryType = getPromptHealthSurgeryType()
-            healthSurgeryTime = getPromptHealthSurgeryTime()
-            healthHasAllergies = getPromptHealthHasAllergies()
-            healthAllergyCause = getPromptHealthAllergyCause()
-            healthAllergyHistory = getPromptHealthAllergyHistory()
-            healthFamilyHistory = getPromptHealthFamilyHistory()
-            healthDietaryRestrictions = getPromptHealthDietaryRestrictions()
-            healthSleepPattern = getPromptHealthSleepPattern()
-            replyFormats = getPromptReplyFormats()
-            refusedTopics = getPromptRefusedTopics()
-            toneStyle = getPromptToneStyle()
-        }
+        // Simplified: Return a copy with updated core fields from preferences
+        return profile.copy(
+            persona = prefs.getString("prompt_persona", profile.persona) ?: profile.persona,
+            tone = prefs.getString("prompt_tone", profile.tone) ?: profile.tone,
+            outputFormat = prefs.getString("prompt_output_format", profile.outputFormat) ?: profile.outputFormat,
+            customInstructions = prefs.getString("prompt_custom_instructions", profile.customInstructions)?.takeIf { it.isNotBlank() }
+        )
     }
     // END: Prompt Profile Management
     
@@ -757,65 +783,15 @@ class SettingsManager private constructor(context: Context) {
     fun generateMasterPrompt(profile: PromptProfile): String {
         val prompt = StringBuilder()
 
-        prompt.append("### 用户画像(User Profile)\n\n")
-
-        // --- 基本信息 ---
-        prompt.append("#### 1. 基本信息:\n")
-        val gender = when (profile.gender) {
-            "male" -> "男"
-            "female" -> "女"
-            else -> "未指定"
+        prompt.append("### 用户画像 (User Profile)\n\n")
+        prompt.append("**姓名**: ${profile.name}\n")
+        prompt.append("**角色**: ${profile.persona}\n")
+        prompt.append("**语气**: ${profile.tone}\n")
+        prompt.append("**输出格式**: ${profile.outputFormat}\n")
+        
+        if (!profile.customInstructions.isNullOrBlank()) {
+            prompt.append("\n**自定义指令**:\n${profile.customInstructions}\n")
         }
-        prompt.append("- **性别**: $gender\n")
-        if (profile.birthDate.isNotBlank()) prompt.append("- **出生日期**: ${profile.birthDate}\n")
-        if (profile.education.isNotBlank()) prompt.append("- **教育程度**: ${profile.education}\n")
-
-        // --- 职业信息 ---
-        prompt.append("\n#### 2. 职业信息:\n")
-        if (profile.occupation.isNotBlank()) prompt.append("- **当前从事行业**: ${profile.occupation}\n")
-        if (profile.occupationCurrent.isNotEmpty()) prompt.append("- **具体职业/岗位**: ${profile.occupationCurrent.joinToString(", ")}\n")
-        if (profile.occupationInterest.isNotEmpty()) prompt.append("- **感兴趣的职业领域**: ${profile.occupationInterest.joinToString(", ")}\n")
-
-        // --- 兴趣爱好 ---
-        prompt.append("\n#### 3. 兴趣爱好:\n")
-        if (profile.interestsEntertainment.isNotEmpty()) prompt.append("- **娱乐偏好**: ${profile.interestsEntertainment.joinToString(", ")}\n")
-        if (profile.interestsShopping.isNotEmpty()) prompt.append("- **消费偏好**: ${profile.interestsShopping.joinToString(", ")}\n")
-        if (profile.interestsNiche.isNotEmpty()) prompt.append("- **小众爱好**: ${profile.interestsNiche.joinToString(", ")}\n")
-        if (profile.interestsValues.isNotEmpty()) prompt.append("- **看重的价值观**: ${profile.interestsValues.joinToString(", ")}\n")
-        val orientation = when (profile.interestsOrientation) {
-            "heterosexual" -> "异性恋"
-            "homosexual" -> "同性恋"
-            "bisexual" -> "双性恋"
-            "pansexual" -> "泛性恋"
-            "asexual" -> "无性恋"
-            else -> "不愿透露"
-        }
-        prompt.append("- **取向**: $orientation\n")
-
-        // --- 健康状况 ---
-        prompt.append("\n#### 4. 健康状况:\n")
-        if (profile.healthDiagnosed.isNotEmpty()) prompt.append("- **曾确诊的疾病**: ${profile.healthDiagnosed.joinToString(", ")}\n")
-        if (profile.healthHadSurgery) {
-            prompt.append("- **手术史**: 有\n")
-            if (profile.healthSurgeryType.isNotEmpty()) prompt.append("  - **手术类型**: ${profile.healthSurgeryType.joinToString(", ")}\n")
-            if (profile.healthSurgeryTime.isNotBlank()) prompt.append("  - **最近手术时间**: ${profile.healthSurgeryTime}\n")
-        }
-        if (profile.healthHasAllergies) {
-            prompt.append("- **过敏史**: 有\n")
-            if (profile.healthAllergyCause.isNotEmpty()) prompt.append("  - **过敏原因**: ${profile.healthAllergyCause.joinToString(", ")}\n")
-            if (profile.healthAllergyHistory.isNotEmpty()) prompt.append("  - **相关疾病/症状**: ${profile.healthAllergyHistory.joinToString(", ")}\n")
-        }
-        if (profile.healthFamilyHistory.isNotEmpty()) prompt.append("- **家族病史**: ${profile.healthFamilyHistory.joinToString(", ")}\n")
-        if (profile.healthDietaryRestrictions.isNotEmpty()) prompt.append("- **饮食偏好/禁忌**: ${profile.healthDietaryRestrictions.joinToString(", ")}\n")
-        if (profile.healthSleepPattern.isNotBlank()) prompt.append("- **睡眠状况**: ${profile.healthSleepPattern}\n")
-
-
-        // --- 回复偏好 ---
-        prompt.append("\n### 回复偏好(Reply Preferences)\n\n")
-        if (profile.replyFormats.isNotEmpty()) prompt.append("- **内容呈现形式**: ${profile.replyFormats.joinToString(", ")}\n")
-        if (profile.toneStyle.isNotBlank()) prompt.append("- **回复口吻**: ${profile.toneStyle}\n")
-        if (profile.refusedTopics.isNotEmpty()) prompt.append("- **希望避免的话题**: ${profile.refusedTopics.joinToString(", ")}\n")
-
 
         return prompt.toString()
     }
@@ -823,7 +799,7 @@ class SettingsManager private constructor(context: Context) {
     fun generateMasterPrompt(): String {
         val activeProfileId = getActiveProfileId()
         val profiles = getPromptProfiles()
-        val activeProfile = profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull() ?: PromptProfile()
+        val activeProfile = profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull() ?: PromptProfile.DEFAULT
         return generateMasterPrompt(activeProfile)
     }
 

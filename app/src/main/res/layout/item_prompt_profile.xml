@@ -1,13 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/profile_name"
-    android:layout_width="match_parent"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/card_view"
+    android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:padding="12dp"
-    android:gravity="center_vertical"
-    android:textAppearance="?attr/textAppearanceBody1"
-    android:background="?attr/selectableItemBackground"
-    android:ellipsize="end"
-    android:maxLines="1"
-    xmlns:tools="http://schemas.android.com/tools"
-    tools:text="默认档案" /> 
+    android:layout_margin="8dp"
+    app:cardElevation="2dp"
+    app:cardCornerRadius="16dp"
+    android:clickable="true"
+    android:focusable="true">
+
+    <TextView
+        android:id="@+id/profile_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="Profile Name"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?attr/colorOnSurface" />
+
+</com.google.android.material.card.MaterialCardView> 

@@ -1,22 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <item name="search_edit_text" type="id"/>
-    <item name="btn_switch_normal" type="id" />
-    <item name="menu_copy" type="id" />
-    <item name="menu_paste" type="id" />
-    <item name="menu_cut" type="id" />
-    <item name="menu_select_all" type="id" />
-    <item name="copyButton" type="id"/>
-    <item name="shareButton" type="id"/>
-    <item name="translateButton" type="id"/>
-    <item name="searchButton" type="id"/>
-    <item name="action_select_all" type="id"/>
-    <item name="action_copy" type="id"/>
-    <item name="action_cut" type="id"/>
-    <item name="action_paste" type="id"/>
-    <item name="control_panel_container" type="id"/>
-    <item name="normal_engine_container" type="id"/>
-    <item name="ai_engine_container" type="id"/>
-    <item name="app_search_results_recycler_view" type="id" />
-    <item name="touch_target_view" type="id" />
+    <item type="id" name="dynamic_edit_text" />
+    <item type="id" name="dynamic_radio_group" />
+    <item type="id" name="dynamic_checkbox_container" />
+    <item name="touch_target_view" type="id"/>
 </resources> 

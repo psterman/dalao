@@ -5,28 +5,27 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.EditText
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
-import androidx.preference.PreferenceFragmentCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.viewpager2.adapter.FragmentStateAdapter
-import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.adapter.ProfileAdapter
 import com.example.aifloatingball.model.PromptProfile
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.tabs.TabLayout
-import com.google.android.material.tabs.TabLayoutMediator
-import java.util.*
+import com.google.android.material.textfield.TextInputEditText
+import java.util.UUID
 
 class MasterPromptSettingsActivity : AppCompatActivity() {
 
     private lateinit var settingsManager: SettingsManager
     private lateinit var profilesRecyclerView: RecyclerView
     private lateinit var profileAdapter: ProfileAdapter
-    private lateinit var viewPager: ViewPager2
+
+    private lateinit var editProfileName: TextInputEditText
+    private lateinit var editPersona: TextInputEditText
+    private lateinit var editTone: TextInputEditText
+    private lateinit var editOutputFormat: TextInputEditText
+    private lateinit var editCustomInstructions: TextInputEditText
 
     private var profiles: MutableList<PromptProfile> = mutableListOf()
     private var activeProfile: PromptProfile? = null
@@ -39,7 +38,7 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
         setupToolbar()
         setupViews()
         loadProfiles()
-        setupViewPager()
+        setupRecyclerView()
     }
 
     private fun setupToolbar() {
@@ -51,136 +50,92 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
 
     private fun setupViews() {
         profilesRecyclerView = findViewById(R.id.profiles_recycler_view)
-        viewPager = findViewById(R.id.view_pager)
-        profilesRecyclerView.layoutManager = LinearLayoutManager(this)
-        profileAdapter = ProfileAdapter(profiles) { profile ->
-            // Save current profile before switching
-            activeProfile?.let { saveCurrentProfileData(it) }
-            // Switch to new profile
-            switchProfile(profile)
-        }
-        profilesRecyclerView.adapter = profileAdapter
+        editProfileName = findViewById(R.id.edit_profile_name)
+        editPersona = findViewById(R.id.edit_persona)
+        editTone = findViewById(R.id.edit_tone)
+        editOutputFormat = findViewById(R.id.edit_output_format)
+        editCustomInstructions = findViewById(R.id.edit_custom_instructions)
     }
-    
-    private fun setupViewPager() {
-        val tabLayout: TabLayout = findViewById(R.id.tab_layout)
-        val adapter = ViewPagerAdapter(this)
-        viewPager.adapter = adapter
-        TabLayoutMediator(tabLayout, viewPager) { tab, position ->
-            tab.text = adapter.getPageTitle(position)
-        }.attach()
+
+    private fun setupRecyclerView() {
+        profileAdapter = ProfileAdapter(profiles, ::onProfileSelected)
+        profilesRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        profilesRecyclerView.adapter = profileAdapter
     }
 
     private fun loadProfiles() {
-        profiles = settingsManager.getPromptProfiles()
-        val activeProfileId = settingsManager.getActiveProfileId()
-
-        if (profiles.isEmpty()) {
-            // Create a default profile if none exist
-            val defaultProfile = PromptProfile(name = "默认档案")
-            profiles.add(defaultProfile)
-            settingsManager.savePromptProfiles(profiles)
+        profiles = settingsManager.getAllPromptProfiles()
+        val activeProfileId = settingsManager.getActivePromptProfileId()
+        
+        activeProfile = profiles.find { it.id == activeProfileId }
+        if (activeProfile == null) {
+            activeProfile = profiles.firstOrNull()
+            activeProfile?.let { settingsManager.setActivePromptProfileId(it.id) }
         }
-        
-        activeProfile = profiles.find { it.id == activeProfileId } ?: profiles.first()
-        settingsManager.setActiveProfileId(activeProfile?.id)
-        
-        updateProfileSelection()
-        activeProfile?.let { settingsManager.loadProfileToPreferences(it) }
 
-        profileAdapter.updateData(profiles)
+        updateUIForActiveProfile()
     }
 
-    private fun switchProfile(selectedProfile: PromptProfile) {
+    private fun onProfileSelected(selectedProfile: PromptProfile) {
         if (selectedProfile.id == activeProfile?.id) return
 
-        // Save current changes to the old active profile
-        activeProfile?.let {
-            val updatedProfile = settingsManager.savePreferencesToProfile(it)
-            val index = profiles.indexOfFirst { p -> p.id == it.id }
+        // 1. Save current UI state to the old active profile object
+        saveCurrentUIToActiveProfile()
+
+        // 2. Switch to the new profile
+        activeProfile = selectedProfile
+        settingsManager.setActivePromptProfileId(selectedProfile.id)
+
+        // 3. Update UI with the new active profile's data
+        updateUIForActiveProfile()
+    }
+
+    private fun saveCurrentUIToActiveProfile() {
+        activeProfile?.let { profile ->
+            val updatedProfile = profile.copy(
+                name = editProfileName.text.toString(),
+                persona = editPersona.text.toString(),
+                tone = editTone.text.toString(),
+                outputFormat = editOutputFormat.text.toString(),
+                customInstructions = editCustomInstructions.text.toString().takeIf { it.isNotBlank() }
+            )
+            // Update the profile in our in-memory list
+            val index = profiles.indexOfFirst { it.id == profile.id }
             if (index != -1) {
                 profiles[index] = updatedProfile
             }
         }
-
-        // Switch to the new profile
-        activeProfile = selectedProfile
-        settingsManager.setActiveProfileId(activeProfile?.id)
-        
-        // Load new profile's data and refresh UI
-        activeProfile?.let { settingsManager.loadProfileToPreferences(it) }
-        updateProfileSelection()
-        
-        // Force ViewPager to recreate fragments to reflect new preferences
-        viewPager.adapter = ViewPagerAdapter(this)
-    }
-    
-    private fun updateProfileSelection() {
-        profiles.forEach { it.isSelected = (it.id == activeProfile?.id) }
-        profileAdapter.updateData(profiles)
     }
 
-    private fun saveCurrentProfileData(profile: PromptProfile) {
-        settingsManager.savePreferencesToProfile(profile)
-        // Also update the master list in memory
-        val index = profiles.indexOfFirst { it.id == profile.id }
-        if (index != -1) {
-            profiles[index] = profile
+    private fun updateUIForActiveProfile() {
+        activeProfile?.let {
+            editProfileName.setText(it.name)
+            editPersona.setText(it.persona)
+            editTone.setText(it.tone)
+            editOutputFormat.setText(it.outputFormat)
+            editCustomInstructions.setText(it.customInstructions ?: "")
+        }
+        profileAdapter.setActiveProfileId(activeProfile?.id)
+
+        // Scroll to the active profile
+        val activeIndex = profiles.indexOfFirst { it.id == activeProfile?.id }
+        if (activeIndex != -1) {
+            profilesRecyclerView.smoothScrollToPosition(activeIndex)
         }
     }
 
-    private fun handleProfileDeletion(profileToDelete: PromptProfile) {
-        if (profiles.size <= 1) {
-            Toast.makeText(this, "无法删除最后一个档案", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle("删除档案")
-            .setMessage("您确定要删除 “${profileToDelete.name}” 吗？此操作无法撤销。")
-            .setNegativeButton("取消", null)
-            .setPositiveButton("删除") { _, _ ->
-                val wasSelected = profileToDelete.isSelected
-                val deletedPosition = profiles.indexOf(profileToDelete)
-
-                // Remove from data source
-                profiles.remove(profileToDelete)
-                settingsManager.savePromptProfiles(profiles)
-
-                // Notify adapter
-                profileAdapter.updateData(profiles)
-
-                // If the deleted profile was selected, select a new one
-                if (wasSelected) {
-                    val newProfileToSelect = profiles.getOrNull(0) // Select the first one
-                    if (newProfileToSelect != null) {
-                        switchProfile(newProfileToSelect)
-                    } else {
-                        // This case should not happen due to the size check, but as a fallback:
-                        activeProfile = null
-                        settingsManager.setActiveProfileId(null)
-                        // Clear the form or show an empty state
-                        recreate() // Simple way to reset the view
-                    }
-                }
-            }
-            .show()
+    private fun saveAllChanges() {
+        saveCurrentUIToActiveProfile() // Save any pending changes in the UI
+        settingsManager.saveAllPromptProfiles(profiles)
+        Toast.makeText(this, "所有修改已保存", Toast.LENGTH_SHORT).show()
     }
 
     override fun onPause() {
         super.onPause()
-        // Save changes of the currently active profile before leaving
-        activeProfile?.let {
-            val updatedProfile = settingsManager.savePreferencesToProfile(it)
-            val index = profiles.indexOfFirst { p -> p.id == it.id }
-            if (index != -1) {
-                profiles[index] = updatedProfile
-            }
-            settingsManager.savePromptProfiles(profiles)
-        }
+        saveAllChanges()
     }
-    
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.master_prompt_menu, menu)
         return true
     }
@@ -188,7 +143,7 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             android.R.id.home -> {
-                onBackPressed()
+                finish()
                 true
             }
             R.id.action_add_profile -> {
@@ -196,16 +151,11 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
                 true
             }
             R.id.action_delete_profile -> {
-                activeProfile?.let { handleProfileDeletion(it) }
-                    ?: Toast.makeText(this, "没有选中的档案", Toast.LENGTH_SHORT).show()
+                activeProfile?.let { handleDeleteProfile(it) }
                 true
             }
             R.id.action_save_prompt -> {
-                activeProfile?.let {
-                    saveCurrentProfileData(it)
-                    settingsManager.savePromptProfiles(profiles) // Save the whole list
-                    Toast.makeText(this, "${it.name} 已保存", Toast.LENGTH_SHORT).show()
-                }
+                saveAllChanges()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -213,45 +163,49 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
     }
 
     private fun showAddProfileDialog() {
-        val editText = EditText(this)
-        AlertDialog.Builder(this)
-            .setTitle("新增档案")
-            .setMessage("请输入新档案的名称")
+        val editText = EditText(this).apply { hint = "例如：编程专家" }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("新建用户画像")
             .setView(editText)
-            .setPositiveButton("确定") { _, _ ->
-                val name = editText.text.toString()
+            .setNegativeButton("取消", null)
+            .setPositiveButton("创建") { _, _ ->
+                val name = editText.text.toString().trim()
                 if (name.isNotBlank()) {
-                    val newProfile = PromptProfile(name = name)
+                    // Create a new profile based on the default, but with a new ID and the entered name
+                    val newProfile = PromptProfile.DEFAULT.copy(
+                        id = UUID.randomUUID().toString(),
+                        name = name
+                    )
                     profiles.add(newProfile)
-                    settingsManager.savePromptProfiles(profiles)
-                    switchProfile(newProfile)
+                    profileAdapter.notifyItemInserted(profiles.size - 1)
+                    onProfileSelected(newProfile) // Switch to the new profile
                 }
             }
-            .setNegativeButton("取消", null)
             .show()
     }
+    
+    private fun handleDeleteProfile(profileToDelete: PromptProfile) {
+        if (profileToDelete.id == "default") {
+            Toast.makeText(this, "不能删除默认画像", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (profiles.size <= 1) {
+            Toast.makeText(this, "至少保留一个画像", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-    private inner class ViewPagerAdapter(activity: AppCompatActivity) : FragmentStateAdapter(activity) {
-        private val fragmentsInfo = listOf(
-            Pair("基本信息", MasterPromptSubPageFragment.newInstance(R.xml.prompt_basic_info_preferences)),
-            Pair("职业信息", PromptOccupationFragment()),
-            Pair("兴趣观念", PromptInterestsFragment()),
-            Pair("健康状况", PromptHealthFragment()),
-            Pair("回复偏好", MasterPromptSubPageFragment.newInstance(R.xml.prompt_reply_preferences))
-        )
-
-        override fun getItemCount(): Int = fragmentsInfo.size
-        override fun createFragment(position: Int): Fragment = fragmentsInfo[position].second
-        fun getPageTitle(position: Int): CharSequence = fragmentsInfo[position].first
+        MaterialAlertDialogBuilder(this)
+            .setTitle("删除画像")
+            .setMessage("确定要删除 “${profileToDelete.name}” 吗？")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("删除") { _, _ ->
+                val deleteIndex = profiles.indexOf(profileToDelete)
+                profiles.removeAt(deleteIndex)
+                profileAdapter.notifyItemRemoved(deleteIndex)
+                
+                // Select the first profile as the new active one
+                onProfileSelected(profiles.first())
+            }
+            .show()
     }
-
-    override fun onSupportNavigateUp(): Boolean {
-        onBackPressed()
-        return true
-    }
-
-    abstract class BaseSettingsFragment : PreferenceFragmentCompat()
-    class PromptOccupationFragment : BaseSettingsFragment() { override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) { setPreferencesFromResource(R.xml.preferences_prompt_occupation, rootKey) } }
-    class PromptInterestsFragment : BaseSettingsFragment() { override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) { setPreferencesFromResource(R.xml.preferences_prompt_interests, rootKey) } }
-    class PromptHealthFragment : BaseSettingsFragment() { override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) { setPreferencesFromResource(R.xml.preferences_prompt_health, rootKey) } }
 } 

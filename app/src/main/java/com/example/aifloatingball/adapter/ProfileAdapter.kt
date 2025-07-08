@@ -14,6 +14,8 @@ class ProfileAdapter(
     private val onProfileClicked: (PromptProfile) -> Unit
 ) : RecyclerView.Adapter<ProfileAdapter.ProfileViewHolder>() {
 
+    private var activeProfileId: String? = null
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ProfileViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_prompt_profile, parent, false)
@@ -22,7 +24,8 @@ class ProfileAdapter(
 
     override fun onBindViewHolder(holder: ProfileViewHolder, position: Int) {
         val profile = profiles[position]
-        holder.bind(profile, onProfileClicked)
+        val isActive = profile.id == activeProfileId
+        holder.bind(profile, isActive, onProfileClicked)
     }
 
     override fun getItemCount(): Int = profiles.size
@@ -33,18 +36,24 @@ class ProfileAdapter(
         notifyDataSetChanged()
     }
 
+    fun setActiveProfileId(profileId: String?) {
+        this.activeProfileId = profileId
+        notifyDataSetChanged()
+    }
+
     class ProfileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val nameTextView: TextView = itemView.findViewById(R.id.profile_name)
         private val defaultTextColor = nameTextView.currentTextColor
 
         fun bind(
             profile: PromptProfile,
+            isActive: Boolean,
             onProfileClicked: (PromptProfile) -> Unit
         ) {
             nameTextView.text = profile.name
             itemView.setOnClickListener { onProfileClicked(profile) }
 
-            if (profile.isSelected) {
+            if (isActive) {
                 itemView.setBackgroundColor(itemView.context.getColor(R.color.selected_item_background))
                 nameTextView.setTextColor(Color.BLACK)
             } else {
