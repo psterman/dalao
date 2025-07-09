@@ -126,6 +126,13 @@
             android:exported="false"
             android:label="搜索引擎设置"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
+            android:name=".ClipboardDialogActivity"
+            android:theme="@style/Theme.ClipboardDialog"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity=""
+            android:windowSoftInputMode="adjustResize" />
 
         <service
             android:name=".service.FloatingWindowService"
@@ -140,12 +147,14 @@
             android:exported="false"
             android:foregroundServiceType="specialUse"
             android:stopWithTask="false"
+            android:theme="@style/Theme.MaterialComponents.Light"
             android:configChanges="orientation|screenSize|keyboardHidden" />
             
         <service
             android:name=".service.SimpleModeService"
             android:enabled="true"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
             
         <service
             android:name=".FloatingWebViewService"

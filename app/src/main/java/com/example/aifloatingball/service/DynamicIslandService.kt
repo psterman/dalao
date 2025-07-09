@@ -319,7 +319,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun showDynamicIsland() {
         if (windowContainerView != null) return
 
-        val inflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+        // 使用MaterialComponents主题创建LayoutInflater
+        val contextThemeWrapper = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_Light)
+        val inflater = LayoutInflater.from(contextThemeWrapper)
         statusBarHeight = getStatusBarHeight()
 
         // Recalculate dimensions based on current configuration and settings
@@ -2574,5 +2576,68 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun updateBlurEffect(intensity: Float) {
         // ... existing code ...
+    }
+
+    private fun setupWindowLayoutParams(): WindowManager.LayoutParams {
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            resources.getDimensionPixelSize(R.dimen.dynamic_island_height),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                WindowManager.LayoutParams.TYPE_PHONE
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        )
+
+        // 设置初始位置
+        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        params.y = resources.getDimensionPixelSize(R.dimen.dynamic_island_margin_top)
+
+        // 设置最小宽度和最大宽度
+        val minWidth = resources.getDimensionPixelSize(R.dimen.dynamic_island_min_width)
+        val maxWidth = resources.getDimensionPixelSize(R.dimen.dynamic_island_max_width)
+        params.width = minWidth
+        
+        return params
+    }
+
+    private fun createIslandView() {
+        val inflater = LayoutInflater.from(ContextThemeWrapper(this, R.style.Theme_DynamicIsland))
+        val view = inflater.inflate(R.layout.dynamic_island_layout, null)
+        
+        // 设置圆角和背景
+        view.findViewById<MaterialCardView>(R.id.island_card_view)?.apply {
+            radius = resources.getDimension(R.dimen.dynamic_island_corner_radius)
+            setCardBackgroundColor(Color.parseColor("#CC000000"))
+            cardElevation = resources.getDimension(R.dimen.dynamic_island_elevation)
+        }
+
+        // 设置内容容器的大小
+        view.findViewById<LinearLayout>(R.id.notification_icon_container)?.apply {
+            val lp = layoutParams
+            lp.height = resources.getDimensionPixelSize(R.dimen.dynamic_island_height)
+            layoutParams = lp
+        }
+
+        // 设置图标大小
+        view.findViewById<ImageView>(R.id.notification_icon)?.apply {
+            val size = resources.getDimensionPixelSize(R.dimen.dynamic_island_icon_size)
+            val lp = layoutParams
+            lp.width = size
+            lp.height = size
+            layoutParams = lp
+        }
+
+        // 设置文字大小
+        view.findViewById<TextView>(R.id.notification_text)?.apply {
+            textSize = resources.getDimension(R.dimen.dynamic_island_text_size)
+        }
+
+        windowContainerView = view as FrameLayout
+        islandContentView = view
     }
 }

@@ -37,6 +37,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_CUSTOM_SEARCH_ENGINES = "custom_search_engines"
         private const val KEY_PROMPT_PROFILES = "prompt_profiles"
         private const val KEY_ACTIVE_PROMPT_PROFILE_ID = "active_prompt_profile_id"
+        private const val KEY_CLIPBOARD_LISTENER = "clipboard_listener"
         
         // API相关常量
         private const val KEY_DEEPSEEK_API_KEY = "deepseek_api_key"
@@ -372,12 +373,12 @@ class SettingsManager private constructor(context: Context) {
     
     // 剪贴板监听设置
     fun isClipboardListenerEnabled(): Boolean {
-        return prefs.getBoolean("clipboard_listener", true)
+        return prefs.getBoolean(KEY_CLIPBOARD_LISTENER, false)
     }
     
     fun setClipboardListenerEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean("clipboard_listener", enabled).apply()
-        notifyListeners("clipboard_listener", enabled)
+        prefs.edit().putBoolean(KEY_CLIPBOARD_LISTENER, enabled).apply()
+        notifyListeners(KEY_CLIPBOARD_LISTENER, enabled)
     }
     
     // AI模式设置
@@ -613,6 +614,7 @@ class SettingsManager private constructor(context: Context) {
     
     fun putBoolean(key: String, value: Boolean) {
         prefs.edit().putBoolean(key, value).apply()
+        notifyListeners(key, value)
     }
     
     fun getString(key: String, defaultValue: String?): String? {

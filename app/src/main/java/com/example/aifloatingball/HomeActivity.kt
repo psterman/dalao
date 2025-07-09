@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.Color
@@ -34,47 +35,32 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebChromeClient
-import android.widget.Button
-import android.widget.EditText
-import android.widget.FrameLayout
-import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.LinearLayout
-import android.widget.TextView
-import android.widget.Toast
-import android.widget.Switch
-import androidx.appcompat.widget.SwitchCompat
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.widget.PopupMenu
+import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.GestureDetectorCompat
 import androidx.core.view.GravityCompat
 import androidx.core.widget.NestedScrollView
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
-import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.aifloatingball.manager.BookmarkManager
+import com.example.aifloatingball.model.*
+import com.example.aifloatingball.service.*
+import com.example.aifloatingball.tab.TabManager
+import com.example.aifloatingball.utils.WebViewHelper
+import com.example.aifloatingball.view.LetterIndexBar
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.switchmaterial.SwitchMaterial
-import net.sourceforge.pinyin4j.PinyinHelper
-import com.example.aifloatingball.model.AISearchEngine
-import com.example.aifloatingball.model.SearchEngine
-import com.example.aifloatingball.model.BaseSearchEngine
-import com.example.aifloatingball.view.LetterIndexBar
-import com.example.aifloatingball.service.DualFloatingWebViewService
-import java.io.ByteArrayInputStream
-import kotlin.math.abs
-import com.example.aifloatingball.manager.BookmarkManager
-import com.example.aifloatingball.model.Bookmark
-import com.example.aifloatingball.tab.TabManager
-import com.example.aifloatingball.utils.WebViewHelper
 import com.google.android.material.textfield.TextInputEditText
-import com.example.aifloatingball.service.FloatingWindowService
-import com.example.aifloatingball.service.DynamicIslandService
-import android.content.SharedPreferences
+import net.sourceforge.pinyin4j.PinyinHelper
+import kotlin.math.abs
 
 class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     companion object {
@@ -834,113 +820,40 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun checkClipboard() {
+        // 检查是否启用了剪贴板监听
+        if (!settingsManager.isClipboardListenerEnabled()) {
+            return
+        }
+
         val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         if (clipboardManager.hasPrimaryClip()) {
             val clipData = clipboardManager.primaryClip
             val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()
             
-            if (!clipText.isNullOrEmpty()) {
-                // 有剪贴板内容，显示对话框
+            // 检查内容有效性
+            if (!clipText.isNullOrEmpty() && isValidContent(clipText)) {
                 showClipboardDialog(clipText)
             }
         }
     }
 
+    private fun isValidContent(content: String): Boolean {
+        return when {
+            // URL检查
+            URLUtil.isValidUrl(content) -> true
+            // 搜索词长度检查（避免太短的内容）
+            content.length < 2 -> false
+            // 纯数字检查（避免无意义的数字）
+            content.all { it.isDigit() } -> false
+            // 特殊字符检查（避免乱码或特殊符号）
+            content.all { !it.isLetterOrDigit() } -> false
+            // 默认允许
+            else -> true
+        }
+    }
+
     private fun showClipboardDialog(content: String) {
-        val dialogView = LayoutInflater.from(this).inflate(R.layout.overlay_dialog, null)
-        
-        // 设置内容
-        dialogView.findViewById<TextView>(R.id.dialog_title).text = "检测到剪贴板内容"
-        dialogView.findViewById<TextView>(R.id.dialog_message).text = content
-        
-        // 创建对话框
-        val dialog = AlertDialog.Builder(this, R.style.TransparentDialog)
-            .setView(dialogView)
-            .create()
-        
-        // 设置按钮点击事件
-        if (URLUtil.isValidUrl(content)) {
-            dialogView.findViewById<Button>(R.id.btn_open_link).apply {
-                visibility = View.VISIBLE
-                setOnClickListener {
-                    dialog.dismiss()
-                    openUrl(content)
-                }
-            }
-        }
-        
-        dialogView.findViewById<Button>(R.id.btn_search).setOnClickListener {
-            dialog.dismiss()
-            searchContent(content)
-        }
-        
-        dialogView.findViewById<Button>(R.id.btn_cancel).setOnClickListener {
-            dialog.dismiss()
-        }
-        
-        // 显示对话框
-        dialog.show()
-        
-        // 设置自动关闭
-        Handler(Looper.getMainLooper()).postDelayed({
-            if (dialog.isShowing) {
-                dialog.dismiss()
-            }
-        }, 5000)
-    }
-    
-    private fun openUrl(url: String) {
-        try {
-            // 确保URL格式正确
-            val processedUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                "https://$url"
-            } else {
-                url
-            }
-            
-            // 在当前标签页或新标签页打开URL
-            val currentTab = tabManager.getCurrentTab()
-            if (currentTab?.webView?.url == null || currentTab.webView?.url == "about:blank") {
-                currentTab?.webView?.loadUrl(processedUrl)
-            } else {
-                tabManager.addTab(processedUrl)
-            }
-            
-            // 更新UI显示
-            viewPager.visibility = View.VISIBLE
-            tabPreviewContainer.visibility = View.VISIBLE
-        homeContent.visibility = View.GONE
-            
-            Log.d(TAG, "在HomeActivity中打开URL: $processedUrl")
-        } catch (e: Exception) {
-            Log.e(TAG, "打开URL失败", e)
-            Toast.makeText(this, "无法打开页面: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    private fun searchContent(query: String) {
-        try {
-        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-        val searchUrl = "https://www.baidu.com/s?wd=$encodedQuery"
-            
-            // 在当前标签页或新标签页搜索
-            val currentTab = tabManager.getCurrentTab()
-            if (currentTab?.webView?.url == null || currentTab.webView?.url == "about:blank") {
-                currentTab?.webView?.loadUrl(searchUrl)
-            } else {
-                tabManager.addTab(searchUrl)
-            }
-            
-            // 更新UI显示
-            viewPager.visibility = View.VISIBLE
-            tabPreviewContainer.visibility = View.VISIBLE
-        homeContent.visibility = View.GONE
-            
-            Log.d(TAG, "在HomeActivity中搜索内容: $query")
-        } catch (e: Exception) {
-            Log.e(TAG, "搜索内容失败", e)
-            Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
+        ClipboardDialogActivity.show(this, content)
     }
 
     private fun setupSearch() {
@@ -1169,30 +1082,34 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
 
     private fun setupBottomBar() {
+        // 关闭按钮
+        findViewById<ImageButton>(R.id.btn_close).setOnClickListener {
+            finish()
+        }
+
+        // 菜单按钮
         findViewById<ImageButton>(R.id.btn_menu).setOnClickListener {
-            showMenuPanel()
+            drawerLayout.openDrawer(GravityCompat.START)
         }
 
+        // 历史记录按钮
         findViewById<ImageButton>(R.id.btn_history).setOnClickListener {
-            // TODO: 显示历史记录
-            Toast.makeText(this, "历史记录功能即将推出", Toast.LENGTH_SHORT).show()
+            // TODO: 实现历史记录功能
         }
 
+        // 书签按钮
         findViewById<ImageButton>(R.id.btn_bookmarks).setOnClickListener {
-            // 跳转到书签页面
-            startActivity(Intent(this, BookmarkActivity::class.java))
+            // TODO: 实现书签功能
         }
 
-        findViewById<ImageButton>(R.id.btn_settings).apply {
-            setOnClickListener {
-                startActivity(Intent(this@HomeActivity, SettingsActivity::class.java))
-            }
-            // 长按设置按钮打开AI指令中心（临时功能）
-            setOnLongClickListener {
-                startActivity(Intent(this@HomeActivity, MasterPromptSettingsActivity::class.java))
-                Toast.makeText(this@HomeActivity, "已打开AI指令中心", Toast.LENGTH_SHORT).show()
-                true
-            }
+        // 设置按钮
+        findViewById<ImageButton>(R.id.btn_settings).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        // 悬浮窗模式按钮
+        findViewById<ImageButton>(R.id.btn_floating_mode).setOnClickListener {
+            startFloatingMode()
         }
     }
 
@@ -1497,30 +1414,32 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private fun toggleFloatingMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             // 请求悬浮窗权限
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-            intent.data = Uri.parse("package:$packageName")
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
             startActivity(intent)
             Toast.makeText(this, "请授予悬浮窗权限", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 启动双窗口悬浮服务
-        val intent = Intent(this, DualFloatingWebViewService::class.java)
-        
-        // 获取用户设置的窗口数量
-        val windowCount = settingsManager.getDefaultWindowCount()
-        intent.putExtra("window_count", windowCount)
-        
-        // 如果当前在WebView中有URL，传递给服务
-        if (webView.visibility == View.VISIBLE && webView.url != null) {
-            intent.putExtra("url", webView.url)
+        // 根据当前设置选择启动的服务
+        when (settingsManager.getDisplayMode()) {
+            "floating_ball" -> {
+                val intent = Intent(this, FloatingWindowService::class.java)
+                startService(intent)
+            }
+            "dynamic_island" -> {
+                val intent = Intent(this, DynamicIslandService::class.java)
+                startService(intent)
+            }
+            else -> {
+                val intent = Intent(this, SimpleModeService::class.java)
+                startService(intent)
+            }
         }
         
-        if (DualFloatingWebViewService.isRunning) {
-            stopService(intent)
-        } else {
-            startService(intent)
-        }
+        // 关闭当前Activity
         finish()
     }
 
@@ -2268,5 +2187,37 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             stopService(Intent(this, FloatingWindowService::class.java))
             startService(Intent(this, DynamicIslandService::class.java))
         }
+    }
+
+    private fun startFloatingMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            // 请求悬浮窗权限
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:$packageName")
+            )
+            startActivity(intent)
+            Toast.makeText(this, "请授予悬浮窗权限", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 根据当前设置选择启动的服务
+        when (settingsManager.getDisplayMode()) {
+            "floating_ball" -> {
+                val intent = Intent(this, FloatingWindowService::class.java)
+                startService(intent)
+            }
+            "dynamic_island" -> {
+                val intent = Intent(this, DynamicIslandService::class.java)
+                startService(intent)
+            }
+            else -> {
+                val intent = Intent(this, SimpleModeService::class.java)
+                startService(intent)
+            }
+        }
+        
+        // 关闭当前Activity
+        finish()
     }
 } 

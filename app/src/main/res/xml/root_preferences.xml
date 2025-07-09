@@ -163,9 +163,9 @@
             app:key="island_width"
             app:title="灵动岛宽度"
             app:summary="调整灵动岛小横条的宽度大小"
-            app:defaultValue="72"
-            android:max="120"
-            app:min="48"
+            app:defaultValue="48"
+            android:max="80"
+            app:min="32"
             app:showSeekBarValue="true"
             app:icon="@drawable/ic_width"/>
 
@@ -173,9 +173,9 @@
             app:key="island_alpha"
             app:title="灵动岛透明度"
             app:summary="调整灵动岛小横条的透明度"
-            app:defaultValue="255"
+            app:defaultValue="220"
             android:max="255"
-            app:min="64"
+            app:min="128"
             app:showSeekBarValue="true"
             app:icon="@drawable/ic_opacity"/>
 
