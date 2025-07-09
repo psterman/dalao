@@ -161,4 +161,9 @@
     <string name="back_to_previous">返回上一级</string>
     <string name="welcome_guide">欢迎使用简易模式！\n点击图标进入分类</string>
     <string name="navigation_tip">💡 提示：点击"%1$s"可以回到主页面</string>
+
+    <!-- 个性化设置 -->
+    <string name="personalization_title">个性化设置</string>
+    <string name="personalization_summary">配置您的个人信息，帮助AI更好地理解您的需求</string>
+    <string name="prompt_education_summary">您的最高学历</string>
 </resources> 

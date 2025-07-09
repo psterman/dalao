@@ -34,7 +34,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.MasterPromptSettingsActivity
+import com.example.aifloatingball.adapter.ProfileSelectorAdapter
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.VoiceRecognitionActivity
@@ -270,8 +273,7 @@ class SimpleModeService : Service() {
             )
         }
         simpleModeView.findViewById<LinearLayout>(R.id.tab_profile).setOnClickListener {
-            val profile = settingsManager.getPromptProfile()
-            Toast.makeText(this, "当前画像: ${profile.name}", Toast.LENGTH_LONG).show()
+            showProfileSelectorDialog()
         }
 
         showIntentGrid()
@@ -944,5 +946,56 @@ class SimpleModeService : Service() {
                                 recommendedEngines = listOf("deepseek")
                         )
         )
+    }
+
+    private fun showProfileSelectorDialog() {
+        val context = ContextThemeWrapper(this, R.style.AppTheme)
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_profile_selector, null)
+        
+        val profiles = settingsManager.getPromptProfiles()
+        val currentProfileId = settingsManager.getActivePromptProfileId()
+        val currentProfile = profiles.find { it.id == currentProfileId } ?: profiles.firstOrNull()
+        
+        // 更新当前档案显示
+        val currentProfileText = dialogView.findViewById<TextView>(R.id.current_profile_text)
+        currentProfileText.text = "当前档案: ${currentProfile?.name ?: "未选择"}"
+        
+        // 设置RecyclerView
+        val recyclerView = dialogView.findViewById<RecyclerView>(R.id.profiles_recycler_view)
+        recyclerView.layoutManager = LinearLayoutManager(context)
+        
+        var selectedProfile = currentProfile
+        val adapter = ProfileSelectorAdapter(profiles, currentProfileId) { profile ->
+            selectedProfile = profile
+        }
+        recyclerView.adapter = adapter
+        
+        val dialog = AlertDialog.Builder(context)
+            .setView(dialogView)
+            .create()
+        
+        // 设置按钮点击事件
+        dialogView.findViewById<View>(R.id.btn_cancel).setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        dialogView.findViewById<View>(R.id.btn_confirm).setOnClickListener {
+            selectedProfile?.let { profile ->
+                settingsManager.setActivePromptProfileId(profile.id)
+                Toast.makeText(this, "已切换到档案: ${profile.name}", Toast.LENGTH_SHORT).show()
+            }
+            dialog.dismiss()
+        }
+        
+        dialogView.findViewById<View>(R.id.btn_manage_profiles).setOnClickListener {
+            val intent = Intent(this, MasterPromptSettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            dialog.dismiss()
+        }
+        
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        dialog.show()
     }
 }

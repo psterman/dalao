@@ -92,6 +92,7 @@ import com.airbnb.lottie.LottieAnimationView
 import com.example.aifloatingball.ui.DynamicIslandIndicatorView
 import android.widget.ImageButton
 import com.example.aifloatingball.adapter.NotificationAdapter
+import com.example.aifloatingball.adapter.ProfileSelectorAdapter
 
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -2501,7 +2502,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun getActiveProfile(): com.example.aifloatingball.model.PromptProfile? {
-        val activeProfileId = settingsManager.getActiveProfileId()
+        val activeProfileId = settingsManager.getActivePromptProfileId()
         val profiles = settingsManager.getPromptProfiles()
         return profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull()
     }
@@ -2513,31 +2514,60 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             return
         }
         
-        val context = configPanelView?.context
-        if (context == null) {
-            Toast.makeText(this, "无法显示对话框: 视图上下文无效", Toast.LENGTH_SHORT).show()
-            return
+        val context = configPanelView?.context ?: this
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_profile_selector, null)
+        
+        val currentProfileId = settingsManager.getActivePromptProfileId()
+        val currentProfile = profiles.find { it.id == currentProfileId } ?: profiles.firstOrNull()
+        
+        // 更新当前档案显示
+        val currentProfileText = dialogView.findViewById<TextView>(R.id.current_profile_text)
+        currentProfileText.text = "当前档案: ${currentProfile?.name ?: "未选择"}"
+        
+        // 设置RecyclerView
+        val recyclerView = dialogView.findViewById<RecyclerView>(R.id.profiles_recycler_view)
+        recyclerView.layoutManager = LinearLayoutManager(context)
+        
+        var selectedProfile = currentProfile
+        val adapter = ProfileSelectorAdapter(profiles, currentProfileId) { profile ->
+            selectedProfile = profile
         }
-
-        val profileNames = profiles.map { it.name }.toTypedArray()
-
+        recyclerView.adapter = adapter
+        
         val dialog = AlertDialog.Builder(context)
-            .setTitle("选择一个档案以生成PROMPT")
-            .setItems(profileNames) { dialog, which ->
-                val selectedProfile = profiles[which]
-                val generatedPrompt = settingsManager.generateMasterPrompt(selectedProfile)
+            .setView(dialogView)
+            .create()
+        
+        // 设置按钮点击事件
+        dialogView.findViewById<View>(R.id.btn_cancel).setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        dialogView.findViewById<View>(R.id.btn_confirm).setOnClickListener {
+            selectedProfile?.let { profile ->
+                // 切换档案
+                settingsManager.setActivePromptProfileId(profile.id)
                 
+                // 生成并插入提示词
+                val generatedPrompt = settingsManager.generateMasterPrompt(profile)
                 val currentText = searchInput?.text?.toString() ?: ""
                 val newText = if (currentText.isBlank()) generatedPrompt else "$currentText\n\n$generatedPrompt"
                 
                 searchInput?.setText(newText)
                 searchInput?.setSelection(searchInput?.text?.length ?: 0)
-                Toast.makeText(this, "已生成 ${selectedProfile.name} 的PROMPT", Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
+                Toast.makeText(this, "已切换到档案: ${profile.name} 并生成提示词", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
-            .create()
-
+            dialog.dismiss()
+        }
+        
+        dialogView.findViewById<View>(R.id.btn_manage_profiles).setOnClickListener {
+            val intent = Intent(this, MasterPromptSettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            dialog.dismiss()
+        }
+        
         dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
         dialog.show()
     }

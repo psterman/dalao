@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -11,114 +10,118 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <com.google.android.material.card.MaterialCardView
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/inference_mode_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardElevation="2dp"
-            app:cardUseCompatPadding="true">
+            android:layout_marginBottom="16dp"
+            android:hint="推理模式"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
-            <LinearLayout
+            <AutoCompleteTextView
+                android:id="@+id/inference_mode_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:inputType="none"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="AI参数"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:layout_marginBottom="16dp" />
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switch_reasoning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="显示推理过程"/>
 
-                <TextView
-                    style="?attr/textAppearanceBodyMedium"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="推理模式" />
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switch_examples"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:text="提供示例"/>
 
-                <EditText
-                    android:id="@+id/edit_inference_mode"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="速度优先/平衡/质量优先" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/code_style_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="代码风格"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/switch_reasoning"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="显示推理过程" />
+            <AutoCompleteTextView
+                android:id="@+id/code_style_dropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/switch_examples"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="提供示例" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="温度 (Temperature)"
+            android:layout_marginBottom="8dp"/>
 
-                <TextView
-                    style="?attr/textAppearanceBodyMedium"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="代码风格" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
 
-                <EditText
-                    android:id="@+id/edit_code_style"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="简洁/清晰/详细" />
+            <SeekBar
+                android:id="@+id/seek_temperature"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="温度 (0.0 - 2.0)" />
+            <TextView
+                android:id="@+id/label_temperature"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="0.70"/>
+        </LinearLayout>
 
-                <SeekBar
-                    android:id="@+id/seek_temperature"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="200" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Top P"
+            android:layout_marginBottom="8dp"/>
 
-                <TextView
-                    android:id="@+id/label_temperature"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="end"
-                    tools:text="0.7" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="Top-P (0.0 - 1.0)" />
+            <SeekBar
+                android:id="@+id/seek_top_p"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100"/>
 
-                <SeekBar
-                    android:id="@+id/seek_top_p"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="100" />
+            <TextView
+                android:id="@+id/label_top_p"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="0.90"/>
+        </LinearLayout>
 
-                <TextView
-                    android:id="@+id/label_top_p"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="end"
-                    tools:text="0.9" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/max_tokens_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="最大令牌数"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:hint="最大Token数">
+            <AutoCompleteTextView
+                android:id="@+id/max_tokens_dropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/edit_max_tokens"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="number" />
-                </com.google.android.material.textfield.TextInputLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 </ScrollView> 

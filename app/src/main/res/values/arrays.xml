@@ -874,4 +874,190 @@
         <item>none</item>
     </string-array>
 
+    <!-- 扩展配置页面选项 -->
+    <!-- 专业领域选项 -->
+    <string-array name="expertise_entries">
+        <item>科技/编程</item>
+        <item>教育/学术</item>
+        <item>医疗/健康</item>
+        <item>金融/投资</item>
+        <item>法律/政策</item>
+        <item>艺术/创意</item>
+        <item>营销/销售</item>
+        <item>体育/健身</item>
+        <item>旅游/地理</item>
+        <item>历史/文化</item>
+        <item>科学/研究</item>
+        <item>其他</item>
+    </string-array>
+    <string-array name="expertise_values">
+        <item>tech_programming</item>
+        <item>education_academic</item>
+        <item>medical_health</item>
+        <item>finance_investment</item>
+        <item>legal_policy</item>
+        <item>art_creative</item>
+        <item>marketing_sales</item>
+        <item>sports_fitness</item>
+        <item>travel_geography</item>
+        <item>history_culture</item>
+        <item>science_research</item>
+        <item>other</item>
+    </string-array>
+
+    <!-- 语言偏好选项 -->
+    <string-array name="language_entries">
+        <item>简体中文</item>
+        <item>繁体中文</item>
+        <item>英文</item>
+        <item>日文</item>
+        <item>韩文</item>
+        <item>法文</item>
+        <item>德文</item>
+        <item>西班牙文</item>
+        <item>俄文</item>
+        <item>阿拉伯文</item>
+        <item>多语言混合</item>
+    </string-array>
+    <string-array name="language_values">
+        <item>zh_CN</item>
+        <item>zh_TW</item>
+        <item>en</item>
+        <item>ja</item>
+        <item>ko</item>
+        <item>fr</item>
+        <item>de</item>
+        <item>es</item>
+        <item>ru</item>
+        <item>ar</item>
+        <item>multi</item>
+    </string-array>
+
+    <!-- 正式程度选项 -->
+    <string-array name="formality_entries">
+        <item>非常正式 (官方/学术)</item>
+        <item>正式 (商务/专业)</item>
+        <item>中性 (标准/通用)</item>
+        <item>随意 (日常/友好)</item>
+        <item>非常随意 (口语/幽默)</item>
+    </string-array>
+    <string-array name="formality_values">
+        <item>very_formal</item>
+        <item>formal</item>
+        <item>neutral</item>
+        <item>casual</item>
+        <item>very_casual</item>
+    </string-array>
+
+    <!-- 回复长度选项 -->
+    <string-array name="response_length_entries">
+        <item>极简 (1-2句)</item>
+        <item>简短 (1段)</item>
+        <item>中等 (2-3段)</item>
+        <item>详细 (多段)</item>
+        <item>全面 (长文)</item>
+    </string-array>
+    <string-array name="response_length_values">
+        <item>minimal</item>
+        <item>short</item>
+        <item>medium</item>
+        <item>detailed</item>
+        <item>comprehensive</item>
+    </string-array>
+
+    <!-- AI参数页面选项 -->
+    <!-- 推理模式选项 -->
+    <string-array name="inference_mode_entries">
+        <item>标准</item>
+        <item>创意</item>
+        <item>分析</item>
+        <item>批判性思考</item>
+        <item>头脑风暴</item>
+        <item>教学</item>
+    </string-array>
+    <string-array name="inference_mode_values">
+        <item>standard</item>
+        <item>creative</item>
+        <item>analytical</item>
+        <item>critical</item>
+        <item>brainstorm</item>
+        <item>teaching</item>
+    </string-array>
+
+    <!-- 代码风格选项 -->
+    <string-array name="code_style_entries">
+        <item>简洁实用</item>
+        <item>详细注释</item>
+        <item>性能优先</item>
+        <item>可读性优先</item>
+        <item>标准库优先</item>
+        <item>现代语法</item>
+    </string-array>
+    <string-array name="code_style_values">
+        <item>concise</item>
+        <item>commented</item>
+        <item>performance</item>
+        <item>readability</item>
+        <item>standard_lib</item>
+        <item>modern</item>
+    </string-array>
+
+    <!-- 最大令牌数选项 -->
+    <string-array name="max_tokens_entries">
+        <item>256 (极短)</item>
+        <item>512 (短)</item>
+        <item>1024 (中等)</item>
+        <item>2048 (长)</item>
+        <item>4096 (极长)</item>
+        <item>8192 (超长)</item>
+    </string-array>
+    <string-array name="max_tokens_values">
+        <item>256</item>
+        <item>512</item>
+        <item>1024</item>
+        <item>2048</item>
+        <item>4096</item>
+        <item>8192</item>
+    </string-array>
+    
+    <!-- 语调风格选项 -->
+    <string-array name="tone_entries">
+        <item>专业/学术</item>
+        <item>友好/对话</item>
+        <item>幽默/轻松</item>
+        <item>简洁/直接</item>
+        <item>热情/鼓励</item>
+        <item>诗意/文学</item>
+        <item>新闻/报道</item>
+    </string-array>
+    <string-array name="tone_values">
+        <item>professional</item>
+        <item>friendly</item>
+        <item>humorous</item>
+        <item>concise</item>
+        <item>enthusiastic</item>
+        <item>poetic</item>
+        <item>journalistic</item>
+    </string-array>
+    
+    <!-- 回答格式选项 -->
+    <string-array name="output_format_entries">
+        <item>自然段落</item>
+        <item>分点列表</item>
+        <item>表格形式</item>
+        <item>问答形式</item>
+        <item>分步指南</item>
+        <item>对比分析</item>
+        <item>摘要总结</item>
+    </string-array>
+    <string-array name="output_format_values">
+        <item>paragraph</item>
+        <item>bullet_points</item>
+        <item>table</item>
+        <item>qa</item>
+        <item>step_by_step</item>
+        <item>comparison</item>
+        <item>summary</item>
+    </string-array>
+
 </resources>

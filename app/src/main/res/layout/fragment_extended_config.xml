@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -11,94 +10,92 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <com.google.android.material.card.MaterialCardView
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/expertise_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardElevation="2dp"
-            app:cardUseCompatPadding="true">
+            android:layout_marginBottom="16dp"
+            android:hint="专业领域"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
-            <LinearLayout
+            <AutoCompleteTextView
+                android:id="@+id/expertise_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:inputType="none"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="扩展配置"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:layout_marginBottom="16dp" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/language_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="语言偏好"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="专业领域 (Expertise)">
+            <AutoCompleteTextView
+                android:id="@+id/language_dropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/edit_expertise"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-                </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/formality_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="正式程度"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
-                <TextView
-                    style="?attr/textAppearanceBodyMedium"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="语言偏好" />
+            <AutoCompleteTextView
+                android:id="@+id/formality_dropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-                <EditText
-                    android:id="@+id/edit_language"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="例如: 中文, English" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/response_length_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            android:hint="回复长度"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
 
-                <TextView
-                    style="?attr/textAppearanceBodyMedium"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="正式程度" />
+            <AutoCompleteTextView
+                android:id="@+id/response_length_dropdown"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-                <EditText
-                    android:id="@+id/edit_formality"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="例如: 正式, 适中, 非正式" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="创造性水平"
+            android:layout_marginBottom="8dp"/>
 
-                <TextView
-                    style="?attr/textAppearanceBodyMedium"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="回复长度" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp">
 
-                <EditText
-                    android:id="@+id/edit_response_length"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="例如: 简短, 适中, 详细" />
+            <SeekBar
+                android:id="@+id/seek_creativity"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="10"/>
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="创造力 (0-10)" />
+            <TextView
+                android:id="@+id/label_creativity"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="5"/>
+        </LinearLayout>
 
-                <SeekBar
-                    android:id="@+id/seek_creativity"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:max="10" />
-
-                <TextView
-                    android:id="@+id/label_creativity"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="end"
-                    tools:text="5" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
 </ScrollView> 
