@@ -10,10 +10,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
             app:title="@string/title_master_prompt_settings" />
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -29,7 +29,6 @@
             android:layout_height="wrap_content"
             android:text="请选择或新建一个个人档案"
             android:textAppearance="?attr/textAppearanceTitleMedium"
-            android:textSize="20sp"
             android:padding="16dp"/>
 
         <androidx.recyclerview.widget.RecyclerView
@@ -43,90 +42,17 @@
             android:paddingEnd="16dp"
             android:clipToPadding="false"/>
 
-        <ScrollView
-            android:id="@+id/scroll_view"
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabs"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
+            android:layout_height="wrap_content"
+            app:tabMode="scrollable" />
 
-        <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/view_pager"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="画像名称 (例如：退休生活助手、工作伙伴)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/edit_profile_name"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:textSize="18sp"/>
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:hint="我的身份 (请告诉我您是做什么的)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/edit_persona"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minLines="2"
-                        android:gravity="top"
-                        android:textSize="18sp"/>
-                </com.google.android.material.textfield.TextInputLayout>
-                
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:hint="希望的说话方式 (我应该用什么语气跟您交流)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/edit_tone"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minLines="2"
-                        android:gravity="top"
-                        android:textSize="18sp"/>
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:hint="回答格式 (您希望我怎样回答您的问题)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/edit_output_format"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minLines="2"
-                        android:gravity="top"
-                        android:textSize="18sp"/>
-                </com.google.android.material.textfield.TextInputLayout>
-
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:hint="其他要求 (可选，可以留空)">
-
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/edit_custom_instructions"
-                android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:minLines="3"
-                        android:gravity="top"
-                        android:textSize="18sp"/>
-                </com.google.android.material.textfield.TextInputLayout>
-
-        </LinearLayout>
-        </ScrollView>
     </LinearLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout> 

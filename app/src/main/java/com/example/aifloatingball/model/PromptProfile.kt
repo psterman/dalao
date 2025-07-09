@@ -24,7 +24,16 @@ data class PromptProfile(
     val tags: List<String> = listOf(), // 标签分类
     val description: String = "", // 详细描述
     val icon: String = "🤖", // 图标
-    val color: String = "#2196F3" // 主题色
+    val color: String = "#2196F3", // 主题色
+
+    // 新增AI参数和个性化设置
+    val inferenceMode: String = "平衡", // 推理模式: 速度优先/平衡/质量优先
+    val gender: String = "未设置", // 性别
+    val dateOfBirth: String = "未设置", // 出生日期
+    val occupation: String = "未设置", // 职业
+    val education: String = "未设置", // 教育
+    val interests: List<String> = listOf(), // 兴趣
+    val healthInfo: String = "未设置" // 健康信息
 ) {
     companion object {
         val DEFAULT = PromptProfile(
@@ -48,7 +57,14 @@ data class PromptProfile(
             tags = listOf("通用", "助手"),
             description = "适用于各种日常问题的通用AI助手",
             icon = "🤖",
-            color = "#2196F3"
+            color = "#2196F3",
+            inferenceMode = "平衡",
+            gender = "未设置",
+            dateOfBirth = "未设置",
+            occupation = "未设置",
+            education = "未设置",
+            interests = listOf(),
+            healthInfo = "未设置"
         )
         
         // 预定义的专业模板

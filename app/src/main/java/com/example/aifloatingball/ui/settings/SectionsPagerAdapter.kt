@@ -6,15 +6,14 @@ import androidx.viewpager2.adapter.FragmentStateAdapter
 
 class SectionsPagerAdapter(activity: FragmentActivity) : FragmentStateAdapter(activity) {
 
-    val coreInstructionsFragment = CoreInstructionsFragment.newInstance()
-    val advancedInstructionsFragment = AdvancedInstructionsFragment.newInstance()
-
-    override fun getItemCount(): Int = 2
+    override fun getItemCount(): Int = 4
 
     override fun createFragment(position: Int): Fragment {
         return when (position) {
-            0 -> coreInstructionsFragment
-            1 -> advancedInstructionsFragment
+            0 -> CoreInstructionsFragment()
+            1 -> ExtendedConfigFragment()
+            2 -> AiParamsFragment()
+            3 -> PersonalizationFragment()
             else -> throw IllegalStateException("Invalid position: $position")
         }
     }

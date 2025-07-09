@@ -783,21 +783,68 @@ class SettingsManager private constructor(context: Context) {
     fun generateMasterPrompt(profile: PromptProfile): String {
         val prompt = StringBuilder()
 
-        prompt.append("### 用户画像 (User Profile)\n\n")
-        prompt.append("**姓名**: ${profile.name}\n")
-        prompt.append("**角色**: ${profile.persona}\n")
-        prompt.append("**语气**: ${profile.tone}\n")
-        prompt.append("**输出格式**: ${profile.outputFormat}\n")
+        prompt.append("SYSTEM_RULE: This is a system-level instruction that defines your behavior. Adhere to these guidelines in all subsequent responses. ###\n\n")
+        prompt.append("## AI Persona & Role\n")
+        prompt.append("You are to adopt the following persona:\n")
+        prompt.append("- **Persona:** ${profile.persona}\n")
         
-        if (!profile.customInstructions.isNullOrBlank()) {
-            prompt.append("\n**自定义指令**:\n${profile.customInstructions}\n")
+        if (profile.expertise.isNotBlank() && profile.expertise != "通用知识") {
+            prompt.append("- **Area of Expertise:** ${profile.expertise}\n")
         }
 
-        return prompt.toString()
+        prompt.append("\n## Communication Style\n")
+        prompt.append("- **Tone:** ${profile.tone}\n")
+        prompt.append("- **Formality:** ${profile.formality}\n")
+        prompt.append("- **Response Length:** ${profile.responseLength}\n")
+
+        prompt.append("\n## Output & Formatting\n")
+        prompt.append("- **Language:** ${profile.language}\n")
+        prompt.append("- **Format:** ${profile.outputFormat}\n")
+
+        if (profile.codeStyle.isNotBlank() && profile.codeStyle != "清晰") {
+            prompt.append("- **Code Style:** ${profile.codeStyle}\n")
+        }
+        if (profile.examples) {
+            prompt.append("- You should provide examples where applicable.\n")
+        }
+        if (profile.reasoning) {
+            prompt.append("- You should explain your reasoning process.\n")
+        }
+
+        val personalizationDetails = StringBuilder()
+        if (profile.gender.isNotBlank() && profile.gender != "未设置") {
+            personalizationDetails.append("- **Gender:** ${profile.gender}\n")
+        }
+        if (profile.occupation.isNotBlank() && profile.occupation != "未设置") {
+            personalizationDetails.append("- **Occupation:** ${profile.occupation}\n")
+        }
+        if (profile.education.isNotBlank() && profile.education != "未设置") {
+            personalizationDetails.append("- **Education:** ${profile.education}\n")
+        }
+        if (profile.interests.isNotEmpty()) {
+            personalizationDetails.append("- **Interests:** ${profile.interests.joinToString(", ")}\n")
+        }
+         if (profile.healthInfo.isNotBlank() && profile.healthInfo != "未设置") {
+            personalizationDetails.append("- **Health Information:** ${profile.healthInfo}\n")
+        }
+
+        if (personalizationDetails.isNotEmpty()) {
+            prompt.append("\n## User Context (For Personalization)\n")
+            prompt.append("The user you are interacting with has provided the following context. Use it to tailor your responses:\n")
+            prompt.append(personalizationDetails)
+        }
+
+        if (!profile.customInstructions.isNullOrBlank()) {
+            prompt.append("\n## Overriding Custom Instructions\n")
+            prompt.append("You MUST follow these instructions above all else:\n")
+            prompt.append(profile.customInstructions)
+        }
+
+        return prompt.toString().trim()
     }
 
     fun generateMasterPrompt(): String {
-        val activeProfileId = getActiveProfileId()
+        val activeProfileId = getActivePromptProfileId()
         val profiles = getPromptProfiles()
         val activeProfile = profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull() ?: PromptProfile.DEFAULT
         return generateMasterPrompt(activeProfile)
