@@ -12,6 +12,7 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.text.TextWatcher
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -63,7 +64,7 @@ class SimpleModeActivity : AppCompatActivity() {
     private lateinit var stepGuidanceLayout: LinearLayout
     private lateinit var promptPreviewLayout: LinearLayout
     private lateinit var voiceLayout: LinearLayout
-    private lateinit var settingsLayout: LinearLayout
+    private lateinit var settingsLayout: ScrollView
     
     // 任务选择页面组件
     private lateinit var taskRecyclerView: RecyclerView
@@ -103,7 +104,7 @@ class SimpleModeActivity : AppCompatActivity() {
     private var recognizedText = ""
     private val handler = Handler(Looper.getMainLooper())
     
-    // 设置页面组件 - 使用Spinner和Switch替代之前的RadioGroup
+    // 设置页面组件 - 扩展所有设置选项
     private lateinit var displayModeSpinner: Spinner
     private lateinit var windowCountSpinner: Spinner
     private lateinit var clipboardMonitorSwitch: SwitchMaterial
@@ -112,17 +113,27 @@ class SimpleModeActivity : AppCompatActivity() {
     private lateinit var themeModeSpinner: Spinner
     private lateinit var ballAlphaSeekbar: SeekBar
     private lateinit var leftHandedSwitch: SwitchMaterial
+    private lateinit var autoPasteSwitch: SwitchMaterial
+    private lateinit var notificationListenerSwitch: SwitchMaterial
     private lateinit var aiApiSettingsItem: LinearLayout
     private lateinit var searchEngineSettingsItem: LinearLayout
     private lateinit var masterPromptSettingsItem: LinearLayout
+    private lateinit var appSearchSettingsItem: LinearLayout
+    private lateinit var permissionManagementItem: LinearLayout
+    private lateinit var viewSearchHistoryItem: LinearLayout
+    private lateinit var onboardingGuideItem: LinearLayout
     private lateinit var appVersionText: TextView
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_simple_mode)
         
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
+        
+        // 应用主题设置
+        applyTheme()
+        
+        setContentView(R.layout.activity_simple_mode)
         
         // 停止可能正在运行的SimpleModeService
         stopService(Intent(this, SimpleModeService::class.java))
@@ -174,7 +185,7 @@ class SimpleModeActivity : AppCompatActivity() {
         voiceClearButton = findViewById(R.id.voice_clear_button)
         voiceSearchButton = findViewById(R.id.voice_search_button)
         
-        // 设置页面 - 新的网格布局
+        // 设置页面 - 扩展所有设置选项
         displayModeSpinner = findViewById(R.id.display_mode_spinner)
         windowCountSpinner = findViewById(R.id.window_count_spinner)
         clipboardMonitorSwitch = findViewById(R.id.clipboard_monitor_switch)
@@ -183,9 +194,15 @@ class SimpleModeActivity : AppCompatActivity() {
         themeModeSpinner = findViewById(R.id.theme_mode_spinner)
         ballAlphaSeekbar = findViewById(R.id.ball_alpha_seekbar)
         leftHandedSwitch = findViewById(R.id.left_handed_switch)
+        autoPasteSwitch = findViewById(R.id.auto_paste_switch)
+        notificationListenerSwitch = findViewById(R.id.notification_listener_switch)
         aiApiSettingsItem = findViewById(R.id.ai_api_settings_item)
         searchEngineSettingsItem = findViewById(R.id.search_engine_settings_item)
         masterPromptSettingsItem = findViewById(R.id.master_prompt_settings_item)
+        appSearchSettingsItem = findViewById(R.id.app_search_settings_item)
+        permissionManagementItem = findViewById(R.id.permission_management_item)
+        viewSearchHistoryItem = findViewById(R.id.view_search_history_item)
+        onboardingGuideItem = findViewById(R.id.onboarding_guide_item)
         appVersionText = findViewById(R.id.app_version_text)
         
         // 设置搜索框监听器
@@ -216,9 +233,12 @@ class SimpleModeActivity : AppCompatActivity() {
         }
         
         findViewById<LinearLayout>(R.id.tab_search)?.setOnClickListener {
-            // 启动搜索Activity
-            val intent = Intent(this, SearchActivity::class.java)
-            startActivity(intent)
+            // 直接启动DualFloatingWebViewService搜索，不启动搜索Activity
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("window_count", settingsManager.getDefaultWindowCount())
+            }
+            startService(intent)
+            finish()
         }
         
         findViewById<LinearLayout>(R.id.tab_voice)?.setOnClickListener {
@@ -281,6 +301,7 @@ class SimpleModeActivity : AppCompatActivity() {
         taskSelectionLayout.visibility = View.VISIBLE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
     }
     
@@ -289,6 +310,8 @@ class SimpleModeActivity : AppCompatActivity() {
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.VISIBLE
         promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
         
         setupCurrentStep()
     }
@@ -298,6 +321,8 @@ class SimpleModeActivity : AppCompatActivity() {
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.VISIBLE
+        voiceLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
         
         generateFinalPrompt()
     }
@@ -524,6 +549,7 @@ class SimpleModeActivity : AppCompatActivity() {
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
         settingsLayout.visibility = View.VISIBLE
         
         // 更新设置页面的状态
@@ -538,7 +564,7 @@ class SimpleModeActivity : AppCompatActivity() {
         displayModeSpinner.adapter = displayModeAdapter
         
         // 窗口数量选择器
-        val windowCountOptions = arrayOf("1", "2", "3", "4")
+        val windowCountOptions = arrayOf("1", "2", "3", "4", "5", "6")
         val windowCountAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, windowCountOptions)
         windowCountAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         windowCountSpinner.adapter = windowCountAdapter
@@ -558,9 +584,9 @@ class SimpleModeActivity : AppCompatActivity() {
         // 设置应用版本信息
         try {
             val packageInfo = packageManager.getPackageInfo(packageName, 0)
-            appVersionText.text = packageInfo.versionName
+            appVersionText.text = "版本 ${packageInfo.versionName}"
         } catch (e: Exception) {
-            appVersionText.text = "未知"
+            appVersionText.text = "版本未知"
         }
     }
     
@@ -598,7 +624,13 @@ class SimpleModeActivity : AppCompatActivity() {
         // 主题模式监听器
         themeModeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                settingsManager.setThemeMode(position)
+                val themeMode = when (position) {
+                    0 -> SettingsManager.THEME_MODE_SYSTEM
+                    1 -> SettingsManager.THEME_MODE_LIGHT
+                    2 -> SettingsManager.THEME_MODE_DARK
+                    else -> SettingsManager.THEME_MODE_SYSTEM
+                }
+                settingsManager.setThemeMode(themeMode)
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
@@ -615,12 +647,22 @@ class SimpleModeActivity : AppCompatActivity() {
         
         // AI模式开关
         aiModeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.setIsAIMode(isChecked)
+            settingsManager.setDefaultAIMode(isChecked)
         }
         
         // 左手模式开关
         leftHandedSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.putBoolean("left_handed_mode", isChecked)
+            settingsManager.setLeftHandedMode(isChecked)
+        }
+        
+        // 自动粘贴开关
+        autoPasteSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.setAutoPasteEnabled(isChecked)
+        }
+        
+        // 通知监听开关
+        notificationListenerSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.putBoolean("enable_notification_listener", isChecked)
         }
         
         // 悬浮球透明度滑块
@@ -653,6 +695,30 @@ class SimpleModeActivity : AppCompatActivity() {
             val intent = Intent(this, MasterPromptSettingsActivity::class.java)
             startActivity(intent)
         }
+        
+        // 应用搜索设置
+        appSearchSettingsItem.setOnClickListener {
+            val intent = Intent(this, com.example.aifloatingball.settings.AppSearchSettingsActivity::class.java)
+            startActivity(intent)
+        }
+        
+        // 权限管理
+        permissionManagementItem.setOnClickListener {
+            val intent = Intent(this, PermissionManagementActivity::class.java)
+            startActivity(intent)
+        }
+        
+        // 查看搜索历史
+        viewSearchHistoryItem.setOnClickListener {
+            val intent = Intent(this, SearchHistoryActivity::class.java)
+            startActivity(intent)
+        }
+        
+        // 新手入门指南
+        onboardingGuideItem.setOnClickListener {
+            val intent = Intent(this, com.example.aifloatingball.ui.onboarding.OnboardingActivity::class.java)
+            startActivity(intent)
+        }
     }
     
     private fun updateSettingsUI() {
@@ -665,16 +731,26 @@ class SimpleModeActivity : AppCompatActivity() {
         
         // 更新窗口数量选择
         val windowCount = settingsManager.getDefaultWindowCount()
-        windowCountSpinner.setSelection(windowCount - 1)
+        if (windowCount <= 6) {
+            windowCountSpinner.setSelection(windowCount - 1)
+        }
         
         // 更新主题模式选择
-        themeModeSpinner.setSelection(settingsManager.getThemeMode())
+        val themeMode = settingsManager.getThemeMode()
+        val spinnerPosition = when (themeMode) {
+            SettingsManager.THEME_MODE_LIGHT -> 1
+            SettingsManager.THEME_MODE_DARK -> 2
+            else -> 0 // THEME_MODE_SYSTEM
+        }
+        themeModeSpinner.setSelection(spinnerPosition)
         
         // 更新开关状态
         clipboardMonitorSwitch.isChecked = settingsManager.isClipboardListenerEnabled()
         autoHideSwitch.isChecked = settingsManager.getAutoHide()
-        aiModeSwitch.isChecked = settingsManager.getIsAIMode()
-        leftHandedSwitch.isChecked = settingsManager.getBoolean("left_handed_mode", false)
+        aiModeSwitch.isChecked = settingsManager.isDefaultAIMode()
+        leftHandedSwitch.isChecked = settingsManager.isLeftHandedModeEnabled()
+        autoPasteSwitch.isChecked = settingsManager.isAutoPasteEnabled()
+        notificationListenerSwitch.isChecked = settingsManager.getBoolean("enable_notification_listener", false)
         
         // 更新透明度滑块
         ballAlphaSeekbar.progress = settingsManager.getBallAlpha()
@@ -721,10 +797,19 @@ class SimpleModeActivity : AppCompatActivity() {
             clearVoiceText()
         }
         
-        // 搜索按钮
+        // 搜索按钮 - 确保启用状态和点击事件正确设置
         voiceSearchButton.setOnClickListener {
             executeVoiceSearch()
         }
+        
+        // 手动输入文本时也启用搜索按钮
+        voiceTextInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                voiceSearchButton.isEnabled = !s.isNullOrBlank()
+            }
+        })
     }
     
     private fun resetVoiceUI() {
@@ -924,15 +1009,18 @@ class SimpleModeActivity : AppCompatActivity() {
         val query = voiceTextInput.text.toString().trim()
         if (query.isNotEmpty()) {
             // 停止语音识别
+            stopVoiceRecognition()
             releaseSpeechRecognizer()
             
-            // 启动搜索
+            // 启动DualFloatingWebViewService进行搜索
             val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
                 putExtra("search_query", query)
                 putExtra("window_count", settingsManager.getDefaultWindowCount())
             }
             startService(intent)
             finish()
+        } else {
+            Toast.makeText(this, "请先输入搜索内容", Toast.LENGTH_SHORT).show()
         }
     }
     
