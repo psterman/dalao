@@ -83,7 +83,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         when (settingsManager.getDisplayMode()) {
             "floating_ball" -> startService(intentBall)
             "dynamic_island" -> startService(intentIsland)
-            "simple_mode" -> startService(intentSimple)
+            "simple_mode" -> startActivity(Intent(this, SimpleModeActivity::class.java))
         }
     }
 

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
@@ -15,6 +16,7 @@ import com.example.aifloatingball.model.PromptField
 import com.example.aifloatingball.model.FieldType
 import com.example.aifloatingball.model.UserPromptData
 import com.example.aifloatingball.service.DualFloatingWebViewService
+import com.example.aifloatingball.service.SimpleModeService
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -45,6 +47,8 @@ class SimpleModeActivity : AppCompatActivity() {
     // 任务选择页面组件
     private lateinit var taskRecyclerView: RecyclerView
     private lateinit var taskAdapter: TaskTemplateAdapter
+    private lateinit var directSearchInput: EditText
+    private lateinit var directSearchButton: ImageButton
     
     // 步骤引导页面组件
     private lateinit var stepTitleText: TextView
@@ -67,6 +71,9 @@ class SimpleModeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_simple_mode)
         
+        // 停止可能正在运行的SimpleModeService
+        stopService(Intent(this, SimpleModeService::class.java))
+        
         initializeViews()
         setupTaskSelection()
         showTaskSelection()
@@ -76,13 +83,15 @@ class SimpleModeActivity : AppCompatActivity() {
     }
     
     private fun initializeViews() {
-        // 获取主要布局容器
+        // 主要布局
         taskSelectionLayout = findViewById(R.id.task_selection_layout)
         stepGuidanceLayout = findViewById(R.id.step_guidance_layout)
         promptPreviewLayout = findViewById(R.id.prompt_preview_layout)
         
         // 任务选择页面
         taskRecyclerView = findViewById(R.id.task_recycler_view)
+        directSearchInput = findViewById(R.id.direct_search_input)
+        directSearchButton = findViewById(R.id.direct_search_button)
         
         // 步骤引导页面
         stepTitleText = findViewById(R.id.step_title_text)
@@ -91,9 +100,9 @@ class SimpleModeActivity : AppCompatActivity() {
         stepInputText = findViewById(R.id.step_input_text)
         stepChoiceGroup = findViewById(R.id.step_choice_group)
         stepMultiChoiceLayout = findViewById(R.id.step_multi_choice_layout)
-        nextStepButton = findViewById(R.id.next_step_button)
         prevStepButton = findViewById(R.id.prev_step_button)
         skipStepButton = findViewById(R.id.skip_step_button)
+        nextStepButton = findViewById(R.id.next_step_button)
         
         // Prompt预览页面
         finalPromptText = findViewById(R.id.final_prompt_text)
@@ -101,13 +110,75 @@ class SimpleModeActivity : AppCompatActivity() {
         executeSearchButton = findViewById(R.id.execute_search_button)
         backToTasksButton = findViewById(R.id.back_to_tasks_button)
         
-        // 顶部控制按钮
-        findViewById<ImageButton>(R.id.simple_mode_close_button).setOnClickListener {
+        // 设置搜索框监听器
+        setupSearchListeners()
+        
+        // 设置顶部按钮
+        findViewById<ImageButton>(R.id.simple_mode_minimize_button)?.setOnClickListener {
+            moveTaskToBack(true)
+        }
+        
+        findViewById<ImageButton>(R.id.simple_mode_close_button)?.setOnClickListener {
             finish()
         }
         
-        findViewById<ImageButton>(R.id.simple_mode_minimize_button).setOnClickListener {
-            moveTaskToBack(true)
+        // 设置底部导航栏
+        setupBottomNavigation()
+    }
+    
+    private fun setupBottomNavigation() {
+        findViewById<LinearLayout>(R.id.tab_home)?.setOnClickListener {
+            // 返回主页面
+            val intent = Intent(this, HomeActivity::class.java)
+            startActivity(intent)
+        }
+        
+        findViewById<LinearLayout>(R.id.tab_search)?.setOnClickListener {
+            // 启动搜索Activity
+            val intent = Intent(this, SearchActivity::class.java)
+            startActivity(intent)
+        }
+        
+        findViewById<LinearLayout>(R.id.tab_voice)?.setOnClickListener {
+            // 启动语音识别
+            val intent = Intent(this, VoiceRecognitionActivity::class.java)
+            startActivity(intent)
+        }
+        
+        findViewById<LinearLayout>(R.id.tab_profile)?.setOnClickListener {
+            // 启动设置页面
+            val intent = Intent(this, SettingsActivity::class.java)
+            startActivity(intent)
+        }
+    }
+    
+    private fun setupSearchListeners() {
+        // 搜索按钮点击
+        directSearchButton.setOnClickListener {
+            performDirectSearch()
+        }
+        
+        // 搜索框回车
+        directSearchInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performDirectSearch()
+                true
+            } else {
+                false
+            }
+        }
+    }
+    
+    private fun performDirectSearch() {
+        val query = directSearchInput.text.toString().trim()
+        if (query.isNotEmpty()) {
+            // 启动DualFloatingWebViewService进行搜索
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", query)
+                putExtra("window_count", 2)
+            }
+            startService(intent)
+            finish()
         }
     }
     

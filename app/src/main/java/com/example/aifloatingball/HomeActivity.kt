@@ -1445,12 +1445,12 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 startService(intent)
             }
             "simple_mode" -> {
-                val intent = Intent(this, SimpleModeService::class.java)
-                startService(intent)
+                val intent = Intent(this, SimpleModeActivity::class.java)
+                startActivity(intent)
             }
             else -> {
-                val intent = Intent(this, SimpleModeService::class.java)
-                startService(intent)
+                val intent = Intent(this, SimpleModeActivity::class.java)
+                startActivity(intent)
             }
         }
         
@@ -2204,10 +2204,11 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             stopService(Intent(this, SimpleModeService::class.java))
             startService(Intent(this, DynamicIslandService::class.java))
         } else if (displayMode == "simple_mode") {
-            // 先停止其他服务，再启动正确的服务
+            // 先停止其他服务，再启动Activity
             stopService(Intent(this, FloatingWindowService::class.java))
             stopService(Intent(this, DynamicIslandService::class.java))
-            startService(Intent(this, SimpleModeService::class.java))
+            stopService(Intent(this, SimpleModeService::class.java))
+            startActivity(Intent(this, SimpleModeActivity::class.java))
         }
     }
 
@@ -2234,12 +2235,12 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 startService(intent)
             }
             "simple_mode" -> {
-                val intent = Intent(this, SimpleModeService::class.java)
-                startService(intent)
+                val intent = Intent(this, SimpleModeActivity::class.java)
+                startActivity(intent)
             }
             else -> {
-                val intent = Intent(this, SimpleModeService::class.java)
-                startService(intent)
+                val intent = Intent(this, SimpleModeActivity::class.java)
+                startActivity(intent)
             }
         }
         
