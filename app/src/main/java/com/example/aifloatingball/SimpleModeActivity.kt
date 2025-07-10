@@ -37,6 +37,7 @@ import com.google.android.material.card.MaterialCardView
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import androidx.appcompat.app.AppCompatDelegate
 
 class SimpleModeActivity : AppCompatActivity() {
     
@@ -146,6 +147,109 @@ class SimpleModeActivity : AppCompatActivity() {
         handleIntentData()
     }
     
+    /**
+     * 应用主题设置
+     */
+    private fun applyTheme() {
+        val themeMode = settingsManager.getThemeMode()
+        when (themeMode) {
+            SettingsManager.THEME_MODE_LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            SettingsManager.THEME_MODE_DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        }
+    }
+    
+    /**
+     * 动态更新界面颜色
+     */
+    private fun updateUIColors() {
+        val isDarkMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == 
+                         android.content.res.Configuration.UI_MODE_NIGHT_YES
+        
+        // 更新状态栏和导航栏颜色
+        window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, 
+            if (isDarkMode) R.color.simple_mode_status_bar_light else R.color.simple_mode_status_bar_light)
+        window.navigationBarColor = androidx.core.content.ContextCompat.getColor(this,
+            if (isDarkMode) R.color.simple_mode_navigation_bar_light else R.color.simple_mode_navigation_bar_light)
+            
+        // 更新根布局背景
+        findViewById<View>(android.R.id.content).setBackgroundColor(
+            androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
+            
+        // 更新标题栏颜色
+        updateHeaderColors()
+        
+        // 更新底部导航颜色
+        updateBottomNavigationColors()
+    }
+    
+    /**
+     * 更新标题栏颜色
+     */
+    private fun updateHeaderColors() {
+        val headerLayout = findViewById<LinearLayout>(R.id.simple_mode_header) ?: return
+        val titleText = headerLayout.findViewById<TextView>(R.id.simple_mode_title) ?: return
+        val minimizeButton = headerLayout.findViewById<ImageButton>(R.id.simple_mode_minimize_button) ?: return
+        val closeButton = headerLayout.findViewById<ImageButton>(R.id.simple_mode_close_button) ?: return
+        
+        // 设置标题栏背景色
+        headerLayout.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_background_light))
+        
+        // 设置标题文字颜色
+        titleText.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_text_light))
+        
+        // 设置图标颜色
+        val iconColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_icon_light)
+        minimizeButton.setColorFilter(iconColor)
+        closeButton.setColorFilter(iconColor)
+    }
+    
+    /**
+     * 更新底部导航颜色
+     */
+    private fun updateBottomNavigationColors() {
+        val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+        
+        // 设置导航栏背景色
+        bottomNav.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_background_light))
+        
+        // 更新所有Tab的颜色
+        updateTabColors()
+    }
+    
+    /**
+     * 更新Tab颜色
+     */
+    private fun updateTabColors() {
+        val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+        
+        for (i in 0 until bottomNav.childCount) {
+            val tabView = bottomNav.getChildAt(i) as? LinearLayout ?: continue
+            val iconView = tabView.getChildAt(0) as? ImageView ?: continue
+            val textView = tabView.getChildAt(1) as? TextView ?: continue
+            
+            val isSelected = when (i) {
+                0 -> currentState == UIState.TASK_SELECTION
+                1 -> false // 搜索tab
+                2 -> currentState == UIState.VOICE
+                3 -> currentState == UIState.SETTINGS
+                else -> false
+            }
+            
+            if (isSelected) {
+                // 选中状态
+                tabView.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_selected_light))
+                iconView.setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_icon_selected_light))
+                textView.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_text_selected_light))
+            } else {
+                // 正常状态
+                tabView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                iconView.setColorFilter(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_icon_normal_light))
+                textView.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_text_normal_light))
+            }
+        }
+    }
+    
     private fun initializeViews() {
         // 主要布局
         taskSelectionLayout = findViewById(R.id.task_selection_layout)
@@ -225,6 +329,10 @@ class SimpleModeActivity : AppCompatActivity() {
         
         // 设置底部导航栏
         setupBottomNavigation()
+        
+        // 初始化UI颜色
+        updateUIColors()
+        updateTabColors()
     }
     
     private fun setupBottomNavigation() {
@@ -303,6 +411,9 @@ class SimpleModeActivity : AppCompatActivity() {
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
+        
+        // 更新Tab颜色状态
+        updateTabColors()
     }
     
     private fun showStepGuidance() {
@@ -314,6 +425,8 @@ class SimpleModeActivity : AppCompatActivity() {
         settingsLayout.visibility = View.GONE
         
         setupCurrentStep()
+        // 更新Tab颜色状态
+        updateTabColors()
     }
     
     private fun showPromptPreview() {
@@ -325,6 +438,8 @@ class SimpleModeActivity : AppCompatActivity() {
         settingsLayout.visibility = View.GONE
         
         generateFinalPrompt()
+        // 更新Tab颜色状态
+        updateTabColors()
     }
     
     private fun setupCurrentStep() {
@@ -554,6 +669,8 @@ class SimpleModeActivity : AppCompatActivity() {
         
         // 更新设置页面的状态
         updateSettingsUI()
+        // 更新Tab颜色状态
+        updateTabColors()
     }
     
     private fun setupSettingsPage() {
@@ -631,6 +748,8 @@ class SimpleModeActivity : AppCompatActivity() {
                     else -> SettingsManager.THEME_MODE_SYSTEM
                 }
                 settingsManager.setThemeMode(themeMode)
+                applyTheme() // 应用新的主题
+                updateUIColors() // 更新界面颜色
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
@@ -782,8 +901,9 @@ class SimpleModeActivity : AppCompatActivity() {
         voiceLayout.visibility = View.VISIBLE
         settingsLayout.visibility = View.GONE
         
-        // 重置语音界面状态
-        resetVoiceUI()
+        setupVoicePage()
+        // 更新Tab颜色状态
+        updateTabColors()
     }
     
     private fun setupVoicePage() {

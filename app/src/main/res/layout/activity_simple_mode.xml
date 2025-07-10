@@ -4,23 +4,25 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/simple_mode_background">
+    android:background="@color/simple_mode_background_light">
 
     <!-- 顶部状态栏 -->
     <LinearLayout
+        android:id="@+id/simple_mode_header"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:background="@color/colorPrimary"
+        android:background="@color/simple_mode_header_background_light"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="16dp">
         
         <TextView
+            android:id="@+id/simple_mode_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="AI智能助手 - 简易模式"
-            android:textColor="@android:color/white"
+            android:textColor="@color/simple_mode_header_text_light"
             android:textSize="18sp"
             android:textStyle="bold" />
             
@@ -32,7 +34,7 @@
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_minimize"
             android:contentDescription="最小化"
-            app:tint="@android:color/white" />
+            app:tint="@color/simple_mode_header_icon_light" />
             
         <ImageButton
             android:id="@+id/simple_mode_close_button"
@@ -41,7 +43,7 @@
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_close"
             android:contentDescription="关闭"
-            app:tint="@android:color/white" />
+            app:tint="@color/simple_mode_header_icon_light" />
     </LinearLayout>
 
     <!-- 任务选择页面 -->
@@ -73,8 +75,8 @@
                 android:imeOptions="actionSearch"
                 android:inputType="text"
                 android:singleLine="true"
-                android:textColor="#333333"
-                android:textColorHint="#999999"
+                android:textColor="@color/simple_mode_input_text_light"
+                android:textColorHint="@color/simple_mode_input_hint_light"
                 android:textSize="16sp"
                 android:gravity="center_vertical" />
 
@@ -96,7 +98,7 @@
             android:text="选择您的任务类型"
             android:textSize="24sp"
             android:textStyle="bold"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/simple_mode_text_primary_light"
             android:layout_marginBottom="8dp" />
             
         <TextView
@@ -105,7 +107,7 @@
             android:layout_gravity="center_horizontal"
             android:text="我们将引导您一步步构建精准的搜索指令"
             android:textSize="16sp"
-            android:textColor="@color/text_secondary"
+            android:textColor="@color/simple_mode_text_secondary_light"
             android:layout_marginBottom="32dp" />
         
         <androidx.recyclerview.widget.RecyclerView
@@ -908,9 +910,10 @@
 
     <!-- 底部导航栏 -->
     <LinearLayout
+        android:id="@+id/bottom_navigation"
         android:layout_width="match_parent"
         android:layout_height="64dp"
-        android:background="@color/colorPrimary"
+        android:background="@color/simple_mode_tab_background_light"
         android:orientation="horizontal"
         android:gravity="center_vertical">
         
@@ -929,13 +932,13 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_home"
-                app:tint="@android:color/white" />
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
                 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="首页"
-                android:textColor="@android:color/white"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
@@ -955,13 +958,13 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_search"
-                app:tint="@android:color/white" />
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
                 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="搜索"
-                android:textColor="@android:color/white"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
@@ -981,13 +984,13 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_voice"
-                app:tint="@android:color/white" />
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
                 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="语音"
-                android:textColor="@android:color/white"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
@@ -1007,13 +1010,13 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_settings"
-                app:tint="@android:color/white" />
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
                 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="设置"
-                android:textColor="@android:color/white"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
