@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 简易模式深色主题颜色 -->
+    
+    <!-- 主要颜色 - 使用深色系 -->
+    <color name="simple_mode_background_light">#121212</color>
+    <color name="simple_mode_surface_light">#1E1E1E</color>
+    <color name="simple_mode_card_background_light">#2C2C2C</color>
+    
+    <!-- 标题栏颜色 - 深色模式使用深色背景 -->
+    <color name="simple_mode_header_background_light">#1E1E1E</color>
+    <color name="simple_mode_header_text_light">#FFFFFF</color>
+    <color name="simple_mode_header_icon_light">#CCCCCC</color>
+    
+    <!-- Tab导航颜色 - 深色模式 -->
+    <color name="simple_mode_tab_background_light">#1E1E1E</color>
+    <color name="simple_mode_tab_selected_light">#2C2C2C</color>
+    <color name="simple_mode_tab_icon_normal_light">#757575</color>
+    <color name="simple_mode_tab_icon_selected_light">#FFFFFF</color>
+    <color name="simple_mode_tab_text_normal_light">#757575</color>
+    <color name="simple_mode_tab_text_selected_light">#FFFFFF</color>
+    
+    <!-- 文本颜色 -->
+    <color name="simple_mode_text_primary_light">#FFFFFF</color>
+    <color name="simple_mode_text_secondary_light">#CCCCCC</color>
+    <color name="simple_mode_text_hint_light">#757575</color>
+    
+    <!-- 按钮颜色 -->
+    <color name="simple_mode_button_primary_light">#FFFFFF</color>
+    <color name="simple_mode_button_text_light">#121212</color>
+    <color name="simple_mode_button_outline_light">#555555</color>
+    
+    <!-- 分割线和边框 -->
+    <color name="simple_mode_divider_light">#333333</color>
+    <color name="simple_mode_border_light">#333333</color>
+    
+    <!-- 输入框颜色 -->
+    <color name="simple_mode_input_background_light">#2C2C2C</color>
+    <color name="simple_mode_input_text_light">#FFFFFF</color>
+    <color name="simple_mode_input_hint_light">#757575</color>
+    
+    <!-- 状态栏和导航栏 -->
+    <color name="simple_mode_status_bar_light">#1E1E1E</color>
+    <color name="simple_mode_navigation_bar_light">#1E1E1E</color>
+</resources> 

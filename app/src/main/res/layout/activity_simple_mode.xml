@@ -391,31 +391,36 @@
     </LinearLayout>
 
     <!-- 设置页面 -->
-    <LinearLayout
+    <ScrollView
         android:id="@+id/settings_layout"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical"
         android:visibility="gone"
-        android:padding="16dp">
+        android:padding="16dp"
+        android:scrollbars="none"
+        android:fadeScrollbars="true">
         
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="设置"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:textColor="@color/text_primary"
-            android:layout_marginBottom="16dp" />
-        
-        <!-- 网格布局容器 -->
-        <GridLayout
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:columnCount="2"
-            android:rowCount="8"
-            android:useDefaultMargins="true">
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+        
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="设置"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@color/text_primary"
+                android:layout_marginBottom="16dp" />
+            
+            <!-- 网格布局容器 -->
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="2"
+                android:useDefaultMargins="true">
             
             <!-- 显示模式 -->
             <LinearLayout
@@ -702,7 +707,173 @@
                     android:textColor="@color/text_secondary" />
             </LinearLayout>
             
-            <!-- 应用信息 -->
+            <!-- 自动粘贴 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/settings_item_background">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="自动粘贴"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+                
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/auto_paste_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="启用" />
+            </LinearLayout>
+            
+            <!-- 通知监听 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/settings_item_background">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="通知监听"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+                
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/notification_listener_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="启用" />
+            </LinearLayout>
+            
+            <!-- 应用搜索设置 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/settings_item_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:id="@+id/app_search_settings_item">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="应用搜索"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="管理应用搜索"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+            
+            <!-- 权限管理 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/settings_item_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:id="@+id/permission_management_item">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="权限管理"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="检查应用权限"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+            
+            <!-- 查看搜索历史 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/settings_item_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:id="@+id/view_search_history_item">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="搜索历史"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="查看搜索记录"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+            
+            <!-- 新手入门指南 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_columnWeight="1"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/settings_item_background"
+                android:clickable="true"
+                android:focusable="true"
+                android:id="@+id/onboarding_guide_item">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="新手指南"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="应用使用指南"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+
+            <!-- 应用版本 -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -724,12 +895,16 @@
                     android:id="@+id/app_version_text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="1.0.0"
+                    android:text="版本 1.0"
                     android:textSize="12sp"
                     android:textColor="@color/text_secondary" />
             </LinearLayout>
+
         </GridLayout>
-    </LinearLayout>
+
+        </LinearLayout>
+
+    </ScrollView>
 
     <!-- 底部导航栏 -->
     <LinearLayout

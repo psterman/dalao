@@ -194,6 +194,11 @@ class SettingsManager private constructor(context: Context) {
     fun isLeftHandedModeEnabled(): Boolean {
         return prefs.getBoolean("left_handed_mode", false)
     }
+    
+    fun setLeftHandedMode(enabled: Boolean) {
+        prefs.edit().putBoolean("left_handed_mode", enabled).apply()
+        notifyListeners("left_handed_mode", enabled)
+    }
 
     // 统一主题设置
     fun getThemeMode(): Int {
