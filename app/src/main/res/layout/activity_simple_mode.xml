@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/simple_mode_background">
+
+    <!-- 顶部状态栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:background="@color/colorPrimary"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp">
+        
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="AI智能助手 - 简易模式"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+            
+        <ImageButton
+            android:id="@+id/simple_mode_minimize_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="8dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_minimize"
+            android:contentDescription="最小化"
+            app:tint="@android:color/white" />
+            
+        <ImageButton
+            android:id="@+id/simple_mode_close_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_close"
+            android:contentDescription="关闭"
+            app:tint="@android:color/white" />
+    </LinearLayout>
+
+    <!-- 任务选择页面 -->
+    <LinearLayout
+        android:id="@+id/task_selection_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="24dp">
+        
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="选择您的任务类型"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="8dp" />
+            
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:text="我们将引导您一步步构建精准的搜索指令"
+            android:textSize="16sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="32dp" />
+        
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/task_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
+    <!-- 步骤引导页面 -->
+    <LinearLayout
+        android:id="@+id/step_guidance_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone">
+        
+        <TextView
+            android:id="@+id/step_title_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="任务名称 - 步骤 1/3"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="16dp" />
+            
+        <TextView
+            android:id="@+id/step_question_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="请输入您的问题或描述"
+            android:textSize="18sp"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="24dp" />
+        
+        <!-- 文本输入字段 -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/step_input_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+            
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/step_input_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="请输入..."
+                android:minLines="3"
+                android:gravity="top" />
+        </com.google.android.material.textfield.TextInputLayout>
+        
+        <!-- 单选字段 -->
+        <RadioGroup
+            android:id="@+id/step_choice_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:visibility="gone" />
+        
+        <!-- 多选字段 -->
+        <LinearLayout
+            android:id="@+id/step_multi_choice_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:orientation="vertical"
+            android:visibility="gone" />
+        
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+        
+        <!-- 步骤控制按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+            
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/prev_step_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:text="上一步"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+                
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/skip_step_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="8dp"
+                android:text="跳过"
+                style="@style/Widget.MaterialComponents.Button.TextButton" />
+            
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/next_step_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="下一步" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Prompt预览页面 -->
+    <LinearLayout
+        android:id="@+id/prompt_preview_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone">
+        
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="生成的搜索指令"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="16dp" />
+        
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+            
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="16dp">
+                
+                <TextView
+                    android:id="@+id/final_prompt_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="这里将显示最终生成的搜索指令..."
+                    android:textSize="16sp"
+                    android:textColor="@color/text_primary"
+                    android:lineSpacingExtra="4dp" />
+            </ScrollView>
+        </androidx.cardview.widget.CardView>
+        
+        <TextView
+            android:id="@+id/recommended_engines_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="推荐引擎：DeepSeek、ChatGPT"
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginBottom="24dp" />
+        
+        <!-- 执行按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/back_to_tasks_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:text="重新选择任务"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+            
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/execute_search_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="开始搜索" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout> 

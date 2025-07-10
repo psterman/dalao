@@ -133,6 +133,13 @@
             android:launchMode="singleInstance"
             android:taskAffinity=""
             android:windowSoftInputMode="adjustResize" />
+            
+        <activity
+            android:name=".SimpleModeActivity"
+            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait" />
 
         <service
             android:name=".service.FloatingWindowService"
@@ -154,7 +161,8 @@
             android:name=".service.SimpleModeService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="specialUse"
+            android:theme="@style/Theme.MaterialComponents.Light" />
             
         <service
             android:name=".FloatingWebViewService"

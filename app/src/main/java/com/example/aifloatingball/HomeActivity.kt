@@ -228,6 +228,12 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
                 startService(Intent(this, DynamicIslandService::class.java))
             }
+        } else if (displayMode == "simple_mode") {
+            // 简易模式启动Activity
+            startActivity(Intent(this, SimpleModeActivity::class.java))
+        } else {
+            // 默认启动简易模式Activity
+            startActivity(Intent(this, SimpleModeActivity::class.java))
         }
     }
 
@@ -238,6 +244,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         // 停止所有相关服务
         stopService(Intent(this, FloatingWindowService::class.java))
         stopService(Intent(this, DynamicIslandService::class.java))
+        stopService(Intent(this, SimpleModeService::class.java))
 
         // 根据新模式启动正确的服务
         when (displayMode) {
@@ -250,6 +257,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
                     startService(Intent(this, DynamicIslandService::class.java))
                 }
+            }
+            "simple_mode" -> {
+                // 简易模式启动Activity
+                startActivity(Intent(this, SimpleModeActivity::class.java))
             }
         }
     }
@@ -1433,6 +1444,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 val intent = Intent(this, DynamicIslandService::class.java)
                 startService(intent)
             }
+            "simple_mode" -> {
+                val intent = Intent(this, SimpleModeService::class.java)
+                startService(intent)
+            }
             else -> {
                 val intent = Intent(this, SimpleModeService::class.java)
                 startService(intent)
@@ -2179,13 +2194,20 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         Log.d(TAG, "Ensuring correct service for display mode: $displayMode")
 
         if (displayMode == "floating_ball") {
-            // 先停止另一个服务，再启动正确的服务
+            // 先停止其他服务，再启动正确的服务
             stopService(Intent(this, DynamicIslandService::class.java))
+            stopService(Intent(this, SimpleModeService::class.java))
             startService(Intent(this, FloatingWindowService::class.java))
         } else if (displayMode == "dynamic_island") {
-            // 先停止另一个服务，再启动正确的服务
+            // 先停止其他服务，再启动正确的服务
             stopService(Intent(this, FloatingWindowService::class.java))
+            stopService(Intent(this, SimpleModeService::class.java))
             startService(Intent(this, DynamicIslandService::class.java))
+        } else if (displayMode == "simple_mode") {
+            // 先停止其他服务，再启动正确的服务
+            stopService(Intent(this, FloatingWindowService::class.java))
+            stopService(Intent(this, DynamicIslandService::class.java))
+            startService(Intent(this, SimpleModeService::class.java))
         }
     }
 
@@ -2209,6 +2231,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
             "dynamic_island" -> {
                 val intent = Intent(this, DynamicIslandService::class.java)
+                startService(intent)
+            }
+            "simple_mode" -> {
+                val intent = Intent(this, SimpleModeService::class.java)
                 startService(intent)
             }
             else -> {

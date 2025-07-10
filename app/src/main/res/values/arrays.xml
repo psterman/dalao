@@ -1060,4 +1060,16 @@
         <item>summary</item>
     </string-array>
 
+    <string-array name="simple_mode_actions">
+        <item>搜索</item>
+        <item>翻译</item>
+        <item>自定义动作</item>
+    </string-array>
+
+    <string-array name="simple_mode_action_values">
+        <item>search</item>
+        <item>translate</item>
+        <item>custom</item>
+    </string-array>
+
 </resources>

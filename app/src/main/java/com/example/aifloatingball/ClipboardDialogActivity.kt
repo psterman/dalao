@@ -118,11 +118,12 @@ class ClipboardDialogActivity : AppCompatActivity() {
     }
 
     private fun startSimpleMode(content: String) {
-        val intent = Intent(this, SimpleModeService::class.java).apply {
+        val intent = Intent(this, SimpleModeActivity::class.java).apply {
             putExtra("search_content", content)
             putExtra("mode", "clipboard")
         }
-        startService(intent)
+        startActivity(intent)
+        finish() // 关闭剪贴板对话框
     }
 
     companion object {

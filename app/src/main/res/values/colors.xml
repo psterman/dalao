@@ -228,7 +228,11 @@
     <color name="notification_panel_background_dark">#2C2C2C</color>
 
     <!-- 图标颜色 -->
-    <color name="icon_tint">#2196F3</color>
+    <color name="icon_tint">#757575</color>
     <color name="icon_tint_unselected">#757575</color>
 
+    <!-- 简易模式专用颜色 -->
+    <color name="simple_mode_background">#F8F9FA</color>
+    <color name="button_background">#E3F2FD</color>
+    <color name="card_background">#FFFFFF</color>
 </resources> 

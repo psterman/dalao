@@ -209,6 +209,29 @@
         app:title="简易模式"
         app:iconSpaceReserved="false">
 
+        <ListPreference
+            app:key="simple_mode_action"
+            app:title="简易模式动作"
+            app:summary="选择简易模式执行的动作"
+            app:entries="@array/simple_mode_actions"
+            app:entryValues="@array/simple_mode_action_values"
+            app:defaultValue="search"
+            app:icon="@drawable/ic_settings"/>
+
+        <SwitchPreferenceCompat
+            app:key="simple_mode_auto_start"
+            app:title="自动启动简易模式"
+            app:summary="在剪贴板变化时自动启动简易模式"
+            app:defaultValue="false"
+            app:icon="@drawable/ic_settings"/>
+
+        <SwitchPreferenceCompat
+            app:key="simple_mode_floating"
+            app:title="悬浮窗显示"
+            app:summary="以悬浮窗形式显示简易模式"
+            app:defaultValue="true"
+            app:icon="@drawable/ic_settings"/>
+
     </PreferenceCategory>
 
     <!-- ===================================================================== -->
