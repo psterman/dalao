@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:gravity="center">
+
+    <TextView
+        android:id="@+id/status_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="简易模式服务状态: 未运行"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:layout_marginBottom="32dp"/>
+
+    <Button
+        android:id="@+id/start_service_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="启动简易模式服务"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/test_minimize_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="测试最小化功能"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/test_close_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="测试关闭功能"/>
+
+</LinearLayout> 

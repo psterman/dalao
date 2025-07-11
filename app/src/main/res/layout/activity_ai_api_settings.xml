@@ -5,15 +5,18 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:background="@color/simple_mode_background_light"
     tools:context=".AIApiSettingsActivity">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="?attr/colorPrimary"
+        android:background="@color/simple_mode_header_background_light"
         app:title="API 设置"
-        app:titleTextColor="?attr/colorOnPrimary" />
+        app:titleTextColor="@color/simple_mode_header_text_light"
+        app:navigationIcon="@drawable/ic_arrow_back"
+        app:navigationIconTint="@color/simple_mode_header_icon_light" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -25,34 +28,65 @@
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="DeepSeek API Key">
+            android:hint="DeepSeek API Key"
+            android:textColorHint="@color/simple_mode_input_hint_light"
+            app:boxStrokeColor="@color/simple_mode_border_light"
+            app:hintTextColor="@color/simple_mode_input_hint_light">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/deepseek_api_key"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content"
+                android:textColor="@color/simple_mode_input_text_light"
+                android:background="@color/simple_mode_input_background_light" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="ChatGPT API Key">
+            android:layout_marginTop="16dp"
+            android:hint="ChatGPT API Key"
+            android:textColorHint="@color/simple_mode_input_hint_light"
+            app:boxStrokeColor="@color/simple_mode_border_light"
+            app:hintTextColor="@color/simple_mode_input_hint_light">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/chatgpt_api_key"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content"
+                android:textColor="@color/simple_mode_input_text_light"
+                android:background="@color/simple_mode_input_background_light" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <Button
-            android:id="@+id/save_api_keys_button"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="16dp"
-            android:text="保存" />
+            android:orientation="horizontal"
+            android:layout_marginTop="24dp"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/back_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:text="上一步"
+                android:backgroundTint="@color/simple_mode_button_outline_light"
+                android:textColor="@color/simple_mode_text_primary_light"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+            <Button
+                android:id="@+id/save_api_keys_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="保存"
+                android:backgroundTint="@color/simple_mode_button_primary_light"
+                android:textColor="@color/simple_mode_button_text_light" />
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>

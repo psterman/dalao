@@ -71,6 +71,7 @@ import com.example.aifloatingball.adapter.AppSearchAdapter
 import com.example.aifloatingball.manager.AppInfoManager
 import com.example.aifloatingball.model.AppInfo
 import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.SearchHistoryActivity
 
 class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -241,6 +242,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         if (intent?.action == ACTION_SHOW_SEARCH) {
             showSearchInterface()
         }
+        
+        // 检查是否是从SimpleModeActivity关闭过来的
+        val isClosingFromSimpleMode = intent?.getBooleanExtra("closing_from_simple_mode", false) ?: false
+        if (isClosingFromSimpleMode) {
+            Log.d(TAG, "Service started from SimpleModeActivity closing")
+        }
+        
         return START_STICKY
     }
 
@@ -1160,6 +1168,14 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 R.id.menu_settings -> {
                     // Handle settings click
                     val intent = Intent(this, SettingsActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    hideSearchInterface()
+                    true // Handled
+                }
+                R.id.menu_search_history -> {
+                    // 处理查看搜索历史点击
+                    val intent = Intent(this, SearchHistoryActivity::class.java)
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     startActivity(intent)
                     hideSearchInterface()

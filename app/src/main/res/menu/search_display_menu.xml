@@ -20,6 +20,9 @@
     </group>
     <group android:id="@+id/group_actions">
         <item
+            android:id="@+id/menu_search_history"
+            android:title="查看搜索历史" />
+        <item
             android:id="@+id/menu_settings"
             android:title="设置" />
     </group>

@@ -1,6 +1,7 @@
 package com.example.aifloatingball
 
 // Android standard library imports
+import android.app.ActivityManager
 import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -220,6 +221,15 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
         // 应用启动时，根据当前设置启动正确的服务
         val displayMode = settingsManager.getDisplayMode()
+        
+        // 如果是简易模式，先检查服务是否已在运行（即是否已最小化）
+        if (displayMode == "simple_mode" && SimpleModeService.isRunning(this)) {
+            // 如果服务正在运行，说明是从最小化状态恢复，但用户打开了主活动
+            // 此时应该直接关闭主活动，保持最小化状态
+            finish()
+            return
+        }
+        
         if (displayMode == "floating_ball") {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
                 startService(Intent(this, FloatingWindowService::class.java))
@@ -2193,6 +2203,13 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         val displayMode = settingsManager.getDisplayMode()
         Log.d(TAG, "Ensuring correct service for display mode: $displayMode")
 
+        // 检查是否是从SimpleModeActivity关闭过来的
+        val isClosingFromSimpleMode = intent.getBooleanExtra("closing_from_simple_mode", false)
+        if (isClosingFromSimpleMode) {
+            Log.d(TAG, "Detected closing from SimpleModeActivity, not restarting it")
+            return
+        }
+
         if (displayMode == "floating_ball") {
             // 先停止其他服务，再启动正确的服务
             stopService(Intent(this, DynamicIslandService::class.java))
@@ -2208,8 +2225,29 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             stopService(Intent(this, FloatingWindowService::class.java))
             stopService(Intent(this, DynamicIslandService::class.java))
             stopService(Intent(this, SimpleModeService::class.java))
-            startActivity(Intent(this, SimpleModeActivity::class.java))
+            
+            // 检查SimpleModeActivity是否已经在运行
+            if (!isSimpleModeActivityRunning()) {
+                Log.d(TAG, "Starting SimpleModeActivity")
+                startActivity(Intent(this, SimpleModeActivity::class.java))
+            } else {
+                Log.d(TAG, "SimpleModeActivity is already running, not starting it again")
+            }
         }
+    }
+    
+    @Suppress("DEPRECATION") // getRunningTasks is deprecated but still useful for our purpose
+    private fun isSimpleModeActivityRunning(): Boolean {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val runningTasks = activityManager.getRunningTasks(10)
+        
+        for (task in runningTasks) {
+            val className = task.topActivity?.className
+            if (className == "com.example.aifloatingball.SimpleModeActivity") {
+                return true
+            }
+        }
+        return false
     }
 
     private fun startFloatingMode() {

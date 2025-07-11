@@ -136,10 +136,9 @@
             
         <activity
             android:name=".SimpleModeActivity"
-            android:theme="@style/Theme.MaterialComponents.Light.NoActionBar"
-            android:exported="false"
+            android:exported="true"
             android:launchMode="singleTask"
-            android:screenOrientation="portrait" />
+            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
 
         <service
             android:name=".service.FloatingWindowService"
@@ -216,6 +215,17 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/search_widget_info" />
         </receiver>
+        
+        <!-- 测试活动 -->
+        <activity
+            android:name=".TestMinimizeActivity"
+            android:exported="true"
+            android:label="测试最小化">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
         
     </application>
 

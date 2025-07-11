@@ -4,17 +4,21 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/simple_mode_background_light"
     tools:context=".MasterPromptSettingsActivity">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@color/simple_mode_header_background_light">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:title="@string/title_master_prompt_settings" />
+            app:title="@string/title_master_prompt_settings"
+            app:titleTextColor="@color/simple_mode_header_text_light"
+            app:navigationIconTint="@color/simple_mode_header_icon_light" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -28,6 +32,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="请选择或新建一个个人档案"
+            android:textColor="@color/simple_mode_text_primary_light"
             android:textAppearance="?attr/textAppearanceTitleMedium"
             android:padding="16dp"/>
 
@@ -46,7 +51,11 @@
             android:id="@+id/tabs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:tabMode="scrollable" />
+            app:tabMode="scrollable"
+            app:tabTextColor="@color/simple_mode_tab_text_normal_light"
+            app:tabSelectedTextColor="@color/simple_mode_tab_text_selected_light"
+            app:tabIndicatorColor="@color/simple_mode_button_primary_light"
+            android:background="@color/simple_mode_tab_background_light" />
 
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/view_pager"
@@ -55,4 +64,14 @@
             android:layout_weight="1" />
 
     </LinearLayout>
+    
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fab_save"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:src="@drawable/ic_save"
+        app:tint="@color/simple_mode_button_text_light"
+        app:backgroundTint="@color/simple_mode_button_primary_light" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout> 

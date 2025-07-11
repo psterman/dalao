@@ -38,6 +38,8 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import androidx.appcompat.app.AppCompatDelegate
+import android.provider.Settings
+import android.os.Build
 
 class SimpleModeActivity : AppCompatActivity() {
     
@@ -128,16 +130,29 @@ class SimpleModeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        Log.d(TAG, "onCreate called")
+        
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
+        
+        // 确保 SimpleModeService 不在运行
+        if (SimpleModeService.isRunning(this)) {
+            Log.d(TAG, "SimpleModeService is running, stopping it")
+            stopService(Intent(this, SimpleModeService::class.java))
+        }
+        
+        // 确保我们处于简易模式显示模式
+        val previousMode = settingsManager.getDisplayMode()
+        Log.d(TAG, "Previous display mode: $previousMode, setting to simple_mode")
+        settingsManager.setDisplayMode("simple_mode")
+        
+        // 检查权限状态
+        checkOverlayPermission()
         
         // 应用主题设置
         applyTheme()
         
         setContentView(R.layout.activity_simple_mode)
-        
-        // 停止可能正在运行的SimpleModeService
-        stopService(Intent(this, SimpleModeService::class.java))
         
         initializeViews()
         setupTaskSelection()
@@ -145,6 +160,21 @@ class SimpleModeActivity : AppCompatActivity() {
         
         // 处理从其他地方传入的搜索内容
         handleIntentData()
+    }
+    
+    private fun checkOverlayPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val hasPermission = Settings.canDrawOverlays(this)
+            Log.d(TAG, "Overlay permission status: $hasPermission")
+            if (!hasPermission) {
+                Toast.makeText(this, "警告：应用没有悬浮窗权限", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "悬浮窗权限正常", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Log.d(TAG, "Android version < M, no overlay permission check needed")
+            Toast.makeText(this, "无需权限检查（旧版本Android）", Toast.LENGTH_SHORT).show()
+        }
     }
     
     /**
@@ -319,12 +349,42 @@ class SimpleModeActivity : AppCompatActivity() {
         setupSettingsPage()
         
         // 设置顶部按钮
-        findViewById<ImageButton>(R.id.simple_mode_minimize_button)?.setOnClickListener {
-            moveTaskToBack(true)
+        val minimizeButton = findViewById<ImageButton>(R.id.simple_mode_minimize_button)
+        Log.d(TAG, "Minimize button found: ${minimizeButton != null}")
+        if (minimizeButton == null) {
+            Toast.makeText(this, "警告：找不到最小化按钮", Toast.LENGTH_LONG).show()
         }
         
-        findViewById<ImageButton>(R.id.simple_mode_close_button)?.setOnClickListener {
-            finish()
+        minimizeButton?.setOnClickListener {
+            Log.d(TAG, "Minimize button clicked!")
+            Toast.makeText(this, "最小化按钮被点击", Toast.LENGTH_SHORT).show()
+            
+            // 添加一个简单的测试
+            Log.d(TAG, "About to call minimizeToService")
+            Toast.makeText(this, "即将调用minimizeToService", Toast.LENGTH_SHORT).show()
+            
+            try {
+                minimizeToService()
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception in minimize button click", e)
+                Toast.makeText(this, "按钮点击异常: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+        
+        // 检查关闭按钮是否存在
+        val closeButton = findViewById<ImageButton>(R.id.simple_mode_close_button)
+        Log.d(TAG, "Close button found: ${closeButton != null}")
+        
+        closeButton?.setOnClickListener {
+            Log.d(TAG, "Close button clicked!")
+            Toast.makeText(this, "关闭按钮被点击", Toast.LENGTH_SHORT).show()
+            
+            // 记录当前显示模式和服务状态
+            val currentMode = settingsManager.getDisplayMode()
+            val serviceRunning = SimpleModeService.isRunning(this)
+            Log.d(TAG, "Before closing - Display mode: $currentMode, SimpleModeService running: $serviceRunning")
+            
+            closeSimpleMode()
         }
         
         // 设置底部导航栏
@@ -633,6 +693,15 @@ class SimpleModeActivity : AppCompatActivity() {
     }
     
     override fun onBackPressed() {
+        Log.d(TAG, "onBackPressed called, currentState: $currentState")
+        
+        // 如果用户在主界面按后退键，直接退出
+        if (currentState == UIState.TASK_SELECTION) {
+            Log.d(TAG, "在主界面按后退键，直接退出")
+            closeSimpleMode() // 使用我们的关闭方法
+            return
+        }
+        
         when (currentState) {
             UIState.STEP_GUIDANCE -> {
                 if (currentStepIndex > 0) {
@@ -653,8 +722,9 @@ class SimpleModeActivity : AppCompatActivity() {
             UIState.SETTINGS -> {
                 showTaskSelection()
             }
-            UIState.TASK_SELECTION -> {
-                super.onBackPressed()
+            else -> {
+                Log.d(TAG, "其他状态下按后退键，调用closeSimpleMode()")
+                closeSimpleMode() // 使用我们的关闭方法
             }
         }
     }
@@ -1151,6 +1221,88 @@ class SimpleModeActivity : AppCompatActivity() {
         }
         speechRecognizer = null
         isListening = false
+    }
+
+    private fun minimizeToService() {
+        // 检查悬浮窗权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "需要悬浮窗权限才能最小化", Toast.LENGTH_SHORT).show()
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                data = android.net.Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+            return
+        }
+
+        // 先执行淡出动画
+        val rootView = findViewById<View>(android.R.id.content)
+        rootView.animate()
+            .alpha(0.5f)
+            .setDuration(200)
+            .withEndAction {
+                // 启动最小化服务
+                val serviceIntent = Intent(this, SimpleModeService::class.java).apply {
+                    action = SimpleModeService.ACTION_MINIMIZE
+                }
+                startService(serviceIntent)
+                
+                // 延迟一点时间再关闭Activity，确保服务有足够时间创建窗口
+                handler.postDelayed({
+                    // 关闭Activity
+                    finish()
+                    overridePendingTransition(0, 0) // 禁用Activity切换动画
+                }, 300) // 300ms延迟
+            }
+            .start()
+    }
+
+    private fun closeSimpleMode() {
+        Log.d(TAG, "closeSimpleMode() called")
+        try {
+            // 1. 禁用按钮防止重复点击
+            findViewById<ImageButton>(R.id.simple_mode_close_button)?.isEnabled = false
+            
+            // 2. 停止 SimpleModeService 服务（如果正在运行）
+            Log.d(TAG, "Stopping SimpleModeService if running")
+            if (SimpleModeService.isRunning(this)) {
+                stopService(Intent(this, SimpleModeService::class.java))
+            }
+            
+            // 3. 告诉 SettingsManager 我们要退出简易模式
+            // 这样 HomeActivity 的 onResume 就不会再自动启动 SimpleModeActivity
+            settingsManager.setDisplayMode("floating_ball")
+            Log.d(TAG, "Changed display mode to floating_ball to prevent auto-restart")
+            
+            // 4. 启动悬浮球服务，确保用户仍然可以访问应用功能
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                Log.d(TAG, "Starting FloatingWindowService")
+                val serviceIntent = Intent(this, FloatingWindowService::class.java)
+                serviceIntent.putExtra("closing_from_simple_mode", true)
+                startService(serviceIntent)
+                
+                // 启动HomeActivity但告诉它不要再启动SimpleModeActivity
+                val homeIntent = Intent(this, HomeActivity::class.java)
+                homeIntent.putExtra("closing_from_simple_mode", true)
+                homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(homeIntent)
+            }
+            
+            // 5. 使用 finishAndRemoveTask() 彻底关闭活动和任务
+            Log.d(TAG, "Calling finishAndRemoveTask()")
+            finishAndRemoveTask()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during closing", e)
+            // 恢复按钮状态
+            findViewById<ImageButton>(R.id.simple_mode_close_button)?.isEnabled = true
+            Toast.makeText(this, "关闭失败，请重试", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    // 保留旧方法以避免其他地方的引用出错
+    private fun closeAndSwitchToFloatingBall() {
+        // 直接调用新方法
+        closeSimpleMode()
     }
 
     override fun onDestroy() {

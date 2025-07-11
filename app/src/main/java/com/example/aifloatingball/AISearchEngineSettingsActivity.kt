@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.adapter.AIEngineCategoryAdapter
@@ -22,21 +23,34 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_ai_search_engine_settings)
+        try {
+            setContentView(R.layout.activity_ai_search_engine_settings)
 
-        settingsManager = SettingsManager.getInstance(this)
+            settingsManager = SettingsManager.getInstance(this)
 
-        // 设置标题栏
-        val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+            // 设置标题栏
+            val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+            setSupportActionBar(toolbar)
+            supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
-        // 初始化UI组件
-        tabLayout = findViewById(R.id.tabLayout)
-        viewPager = findViewById(R.id.viewPager)
+            // 初始化UI组件
+            tabLayout = findViewById(R.id.tabLayout)
+            viewPager = findViewById(R.id.viewPager)
 
-        // 设置UI
-        setupUI()
+            // 设置UI
+            setupUI()
+        } catch (e: Exception) {
+            Toast.makeText(this, "加载AI搜索引擎设置失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            finish()
+        }
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == android.R.id.home) {
+            finish()
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     private fun setupUI() {
@@ -63,7 +77,8 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
         if (categories.isEmpty()) {
             tabLayout.visibility = View.GONE
             viewPager.visibility = View.GONE
-            // Optionally, show a message that there are no engines
+            // 显示一个空状态提示
+            Toast.makeText(this, "没有可用的AI搜索引擎", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -82,22 +97,5 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
             "Perplexity", "Phind", "天工AI", "秘塔AI搜索", "夸克AI",
             "360AI搜索", "百度AI", "You.com", "Brave Search", "WolframAlpha"
         )
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            android.R.id.home -> {
-                sendBroadcast(Intent(DualFloatingWebViewService.ACTION_UPDATE_AI_ENGINES))
-                finish()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // 发送广播以确保在退出时，任何更改都能被应用
-        sendBroadcast(Intent(DualFloatingWebViewService.ACTION_UPDATE_AI_ENGINES))
     }
 } 
