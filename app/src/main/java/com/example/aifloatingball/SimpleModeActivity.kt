@@ -14,7 +14,9 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.text.TextWatcher
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -32,6 +34,7 @@ import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
+import com.example.aifloatingball.voice.VoicePromptBranchManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -107,6 +110,18 @@ class SimpleModeActivity : AppCompatActivity() {
     private var recognizedText = ""
     private val handler = Handler(Looper.getMainLooper())
     
+    // 语音提示分支管理器
+    private lateinit var promptBranchManager: VoicePromptBranchManager
+    
+    // 长按处理相关
+    private val longPressHandler = Handler(Looper.getMainLooper())
+    private var isLongPress = false
+    private val longPressRunnable = Runnable {
+        isLongPress = true
+        // 显示提示分支界面
+        showPromptBranches()
+    }
+
     // 设置页面组件 - 扩展所有设置选项
     private lateinit var displayModeSpinner: Spinner
     private lateinit var windowCountSpinner: Spinner
@@ -134,6 +149,9 @@ class SimpleModeActivity : AppCompatActivity() {
         
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
+        
+        // 初始化语音提示分支管理器
+        promptBranchManager = VoicePromptBranchManager(this)
         
         // 确保 SimpleModeService 不在运行
         if (SimpleModeService.isRunning(this)) {
@@ -977,9 +995,33 @@ class SimpleModeActivity : AppCompatActivity() {
     }
     
     private fun setupVoicePage() {
-        // 麦克风点击事件
-        voiceMicContainer.setOnClickListener {
-            toggleVoiceRecognition()
+        // 麦克风长按和点击事件
+        voiceMicContainer.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    // 设置长按检测
+                    longPressHandler.postDelayed(longPressRunnable, 500) // 500ms长按阈值
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    // 如果是长按状态，消费事件
+                    isLongPress
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    // 取消长按检测
+                    longPressHandler.removeCallbacks(longPressRunnable)
+                    
+                    // 如果不是长按，则触发点击事件
+                    if (!isLongPress) {
+                        toggleVoiceRecognition()
+                    }
+                    
+                    // 重置长按状态
+                    isLongPress = false
+                    true
+                }
+                else -> false
+            }
         }
         
         // 清空按钮
@@ -1000,6 +1042,46 @@ class SimpleModeActivity : AppCompatActivity() {
                 voiceSearchButton.isEnabled = !s.isNullOrBlank()
             }
         })
+    }
+    
+    /**
+     * 显示提示分支选择界面
+     */
+    private fun showPromptBranches() {
+        // 获取根视图
+        val rootView = findViewById<ViewGroup>(android.R.id.content)
+        
+        // 创建并显示分支视图
+        promptBranchManager.showBranchView(rootView, voiceTextInput)
+        
+        // 添加背景模糊效果
+        applyBackgroundBlur(true)
+    }
+    
+    /**
+     * 应用背景模糊效果
+     * @param blur 是否模糊
+     */
+    fun applyBackgroundBlur(blur: Boolean) {
+        // 获取需要保持清晰的视图
+        val textInputLayout = findViewById<TextInputLayout>(R.id.voice_text_input_layout)
+        
+        if (blur) {
+            // 应用模糊效果到整个布局
+            voiceLayout.alpha = 0.7f
+            
+            // 保持文本输入框清晰
+            textInputLayout.alpha = 1.0f
+            textInputLayout.elevation = 10f
+            
+            // 隐藏麦克风容器
+            voiceMicContainer.animate().alpha(0.3f).setDuration(200).start()
+        } else {
+            // 恢复正常显示
+            voiceLayout.alpha = 1.0f
+            textInputLayout.elevation = 0f
+            voiceMicContainer.animate().alpha(1.0f).setDuration(200).start()
+        }
     }
     
     private fun resetVoiceUI() {
@@ -1313,5 +1395,21 @@ class SimpleModeActivity : AppCompatActivity() {
         
         // 移除所有延迟任务
         handler.removeCallbacksAndMessages(null)
+        longPressHandler.removeCallbacksAndMessages(null)
+    }
+    
+    override fun onPause() {
+        super.onPause()
+        
+        // 取消长按检测
+        longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
+        
+        // 隐藏分支视图
+        if (::promptBranchManager.isInitialized) {
+            promptBranchManager.hideBranchView()
+        }
+        
+        // 恢复正常显示
+        applyBackgroundBlur(false)
     }
 } 

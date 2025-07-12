@@ -235,4 +235,8 @@
     <color name="simple_mode_background">#F8F9FA</color>
     <color name="button_background">#E3F2FD</color>
     <color name="card_background">#FFFFFF</color>
+    <color name="directory_background">#3F51B5</color>
+    <color name="directory_text">#FFFFFF</color>
+    <color name="leaf_background">#4CAF50</color>
+    <color name="leaf_text">#FFFFFF</color>
 </resources> 
