@@ -235,8 +235,14 @@
     <color name="simple_mode_background">#F8F9FA</color>
     <color name="button_background">#E3F2FD</color>
     <color name="card_background">#FFFFFF</color>
-    <color name="directory_background">#3F51B5</color>
-    <color name="directory_text">#FFFFFF</color>
-    <color name="leaf_background">#4CAF50</color>
-    <color name="leaf_text">#FFFFFF</color>
+    <color name="directory_background">#E3F2FD</color>
+    <color name="directory_text">#1565C0</color>
+    <color name="leaf_background">#E8F5E9</color>
+    <color name="leaf_text">#2E7D32</color>
+
+    <!-- Material Design 调色板 -->
+    <color name="mtrl_blue_50">#E3F2FD</color>
+    <color name="mtrl_blue_100">#BBDEFB</color>
+    <color name="mtrl_green_50">#E8F5E9</color>
+    <color name="mtrl_green_100">#C8E6C9</color>
 </resources> 

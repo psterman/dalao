@@ -323,7 +323,6 @@
         android:layout_weight="1"
         android:orientation="vertical"
         android:padding="24dp"
-        android:gravity="center"
         android:visibility="gone"
         android:background="@color/simple_mode_background_light">
         
@@ -390,6 +389,32 @@
                 android:textColor="@color/simple_mode_input_text_light"
                 android:background="@color/simple_mode_input_background_light" />
         </com.google.android.material.textfield.TextInputLayout>
+        
+        <!-- 交互模式切换按钮 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="16dp">
+            
+            <ImageButton
+                android:id="@+id/voice_interaction_mode_toggle"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_click"
+                android:contentDescription="切换交互模式"
+                android:padding="8dp"
+                app:tint="?attr/colorControlNormal" />
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="切换交互模式"
+                android:layout_marginStart="8dp"
+                android:textColor="@color/simple_mode_text_secondary_light" />
+        </LinearLayout>
         
         <!-- 控制按钮 -->
         <LinearLayout

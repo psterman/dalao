@@ -3,32 +3,60 @@ package com.example.aifloatingball.voice
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.ContextCompat
 import com.example.aifloatingball.R
-import com.example.aifloatingball.SimpleModeActivity
 import com.google.android.material.card.MaterialCardView
-import kotlin.math.abs
-import kotlin.math.atan2
+import android.os.Handler
+import android.os.Looper
+import android.graphics.Rect
 
-class VoicePromptBranchManager(private val context: Context) {
+class VoicePromptBranchManager(private val context: Context, private val listener: BranchViewListener) {
+    private val TAG = "VoicePromptBranchManager"
+
+    interface BranchViewListener {
+        fun onBranchViewHidden()
+    }
+
+    enum class InteractionMode {
+        CLICK,
+        DRAG
+    }
+
+    var interactionMode: InteractionMode = InteractionMode.CLICK
+
     private var branchRootView: View? = null
     private var targetTextView: TextView? = null
-    private var selectedBranchId = -1
-    private var hasBranchSelected = false
     private var currentLevel = 0
     private var currentPath = mutableListOf<BranchOption>()
     private var backButton: ImageButton? = null
+    private var currentOptions: List<BranchOption> = emptyList()
 
-    /**
-     * 分支选项数据类
-     */
+    // 拖动状态变量
+    private var isDragging = false
+    private var dragLineView: DragLineView? = null
+    private val anchorStack = mutableListOf<Pair<Float, Float>>() // 锚点栈
+    private val containerLocation = IntArray(2)
+
+    // 新增：用于映射视图和选项数据
+    private val viewOptionMap = mutableMapOf<View, BranchOption>()
+    
+    // 新增：用于处理悬停事件
+    private val hoverHandler = Handler(Looper.getMainLooper())
+    private var hoverRunnable: Runnable? = null
+    private var hoveredCard: MaterialCardView? = null
+
     data class BranchOption(
         val title: String,
         val prompt: String = "",
@@ -36,7 +64,6 @@ class VoicePromptBranchManager(private val context: Context) {
         val isDirectory: Boolean = false
     )
 
-    // 定义提示词目录树
     private val promptTree = listOf(
         BranchOption("详细解释", isDirectory = true, children = listOf(
             BranchOption("技术概念", isDirectory = true, children = listOf(
@@ -93,90 +120,72 @@ class VoicePromptBranchManager(private val context: Context) {
         ))
     )
 
-    private var currentOptions = promptTree
-
-    /**
-     * 显示分支视图
-     */
-    fun showBranchView(rootView: ViewGroup, targetView: TextView) {
+    fun showBranchView(rootView: ViewGroup, targetView: TextView, micCenterX: Float, micCenterY: Float) {
         this.targetTextView = targetView
-        
-        // 重置状态
         resetBranchState()
-        currentLevel = 0
-        currentPath.clear()
-        currentOptions = promptTree
-        
-        // 创建分支视图
         val inflater = android.view.LayoutInflater.from(context)
         branchRootView = inflater.inflate(R.layout.voice_prompt_branch_layout, rootView, false)
-        
-        // 设置返回按钮
+
+        branchRootView?.apply {
+            isClickable = true
+            isFocusable = true
+            
+            alpha = 0f
+            animate().alpha(1f).setDuration(200).start()
+
+            post {
+                val container = findViewById<ConstraintLayout>(R.id.branch_level_2) ?: return@post
+                container.getLocationOnScreen(containerLocation)
+
+                // 初始化锚点栈，第一个锚点是麦克风按钮
+                anchorStack.clear()
+                val initialAnchorX = micCenterX - containerLocation[0]
+                val initialAnchorY = micCenterY - containerLocation[1]
+                anchorStack.add(initialAnchorX to initialAnchorY)
+            }
+        }
+
         setupBackButton()
-        
-        // 显示当前层级的选项
+        currentOptions = promptTree
         showCurrentLevelOptions()
-        
-        // 添加到根视图
         rootView.addView(branchRootView)
-        
-        // 添加显示动画
-        branchRootView?.alpha = 0f
-        branchRootView?.animate()
-            ?.alpha(1f)
-            ?.setDuration(200)
-            ?.start()
     }
 
-    /**
-     * 设置返回按钮
-     */
     private fun setupBackButton() {
         backButton = branchRootView?.findViewById(R.id.branch_back_button)
         backButton?.apply {
             visibility = if (currentLevel > 0) View.VISIBLE else View.GONE
             setOnClickListener {
-                navigateBack()
-            }
-        }
-    }
-
-    /**
-     * 返回上一级
-     */
-    private fun navigateBack() {
-        if (currentLevel > 0) {
-            currentLevel--
-            currentPath.removeAt(currentPath.lastIndex)
-            currentOptions = if (currentPath.isEmpty()) {
-                promptTree
-            } else {
-                var options = promptTree
-                for (option in currentPath) {
-                    options = options.find { it.title == option.title }?.children ?: promptTree
+                if (canNavigateBack()) {
+                    navigateBack()
+                } else {
+                    hideBranchView()
                 }
-                options
             }
-            showCurrentLevelOptions()
-            setupBackButton()
         }
     }
 
-    /**
-     * 显示当前层级的选项
-     */
     private fun showCurrentLevelOptions() {
-        val level2Container = branchRootView?.findViewById<ConstraintLayout>(R.id.branch_level_2)
-        level2Container?.removeAllViews()
+        val container = branchRootView?.findViewById<ConstraintLayout>(R.id.branch_level_2) ?: return
+        // 清理旧视图和映射，但保留DragLineView
+        val viewsToRemove = mutableListOf<View>()
+        for (i in 0 until container.childCount) {
+            val child = container.getChildAt(i)
+            if (child is MaterialCardView) {
+                viewsToRemove.add(child)
+            }
+        }
+        viewsToRemove.forEach { container.removeView(it) }
+        viewOptionMap.clear()
         
-        currentOptions.forEachIndexed { index, option ->
-            createOptionView(option, index, level2Container)
+        // 延迟布局，确保容器已经测量完毕
+        container.post {
+            currentOptions.forEachIndexed { index, option ->
+                createOptionView(option, index, container)
+            }
         }
     }
 
-    /**
-     * 创建选项视图
-     */
     private fun createOptionView(option: BranchOption, index: Int, container: ConstraintLayout?) {
         val cardView = MaterialCardView(context).apply {
             id = View.generateViewId()
@@ -184,123 +193,368 @@ class VoicePromptBranchManager(private val context: Context) {
                 ConstraintLayout.LayoutParams.WRAP_CONTENT,
                 ConstraintLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                // 根据索引设置位置
-                when (index % 3) {
-                    0 -> {
-                        topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                        startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                        topMargin = 100 + (index / 3) * 150
-                        marginStart = 50
-                    }
-                    1 -> {
-                        topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                        startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                        endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-                        topMargin = 100 + (index / 3) * 150
-                    }
-                    2 -> {
-                        topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                        endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-                        topMargin = 100 + (index / 3) * 150
-                        marginEnd = 50
+                if (interactionMode == InteractionMode.DRAG) {
+                    // 拖动模式采用环形布局
+                    topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                    bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                    startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                    endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+
+                    val angle = 360f / currentOptions.size * index
+                    // 使用已测量好的容器宽度
+                    val radius = (container?.width ?: 0) / 3
+                    
+                    circleConstraint = ConstraintLayout.LayoutParams.PARENT_ID
+                    circleAngle = angle
+                    circleRadius = radius
+                } else {
+                    // 点击模式维持原布局
+                    when (index % 3) {
+                        0 -> { topToTop = ConstraintLayout.LayoutParams.PARENT_ID; startToStart = ConstraintLayout.LayoutParams.PARENT_ID; topMargin = 100 + (index / 3) * 150; marginStart = 50 }
+                        1 -> { topToTop = ConstraintLayout.LayoutParams.PARENT_ID; startToStart = ConstraintLayout.LayoutParams.PARENT_ID; endToEnd = ConstraintLayout.LayoutParams.PARENT_ID; topMargin = 100 + (index / 3) * 150 }
+                        2 -> { topToTop = ConstraintLayout.LayoutParams.PARENT_ID; endToEnd = ConstraintLayout.LayoutParams.PARENT_ID; topMargin = 100 + (index / 3) * 150; marginEnd = 50 }
                     }
                 }
             }
-            radius = context.resources.getDimension(com.google.android.material.R.dimen.mtrl_card_corner_radius)
-            cardElevation = context.resources.getDimension(com.google.android.material.R.dimen.mtrl_card_elevation)
-            alpha = 0.9f
+            radius = context.resources.getDimension(R.dimen.mtrl_card_corner_radius_large)
+            cardElevation = context.resources.getDimension(R.dimen.mtrl_card_elevation_large)
             
-            // 设置目录和叶子节点的不同样式
+            // 关键：在拖动模式下，卡片本身不处理点击，让事件穿透到父视图
+            isClickable = interactionMode != InteractionMode.DRAG
+            isFocusable = interactionMode != InteractionMode.DRAG
+
             if (option.isDirectory) {
-                setCardBackgroundColor(ContextCompat.getColor(context, R.color.directory_background))
+                setCardBackgroundColor(ContextCompat.getColor(context, R.color.mtrl_blue_50))
             } else {
-                setCardBackgroundColor(ContextCompat.getColor(context, R.color.leaf_background))
+                setCardBackgroundColor(ContextCompat.getColor(context, R.color.mtrl_green_50))
+            }
+
+            // 点击模式下才设置单独的点击监听
+            if (interactionMode == InteractionMode.CLICK) {
+                setOnClickListener { handleOptionClick(option) }
             }
         }
 
-        // 创建文本视图
         val textView = TextView(context).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            )
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
             text = option.title
             textSize = 14f
             setPadding(24, 16, 24, 16)
             setTextColor(ContextCompat.getColor(context, if (option.isDirectory) R.color.directory_text else R.color.leaf_text))
         }
 
-        // 添加文本到卡片
         cardView.addView(textView)
-
-        // 设置点击事件
-        cardView.setOnClickListener {
-            if (option.isDirectory) {
-                // 如果是目录，进入下一级
-                currentLevel++
-                currentPath.add(option)
-                currentOptions = option.children
-                showCurrentLevelOptions()
-                setupBackButton()
-            } else {
-                // 如果是叶子节点，应用提示并关闭
-                applyPromptToInput(option.prompt)
-                hideBranchView()
-            }
-        }
-
-        // 添加到容器
         container?.addView(cardView)
+        // 映射视图和数据
+        viewOptionMap[cardView] = option
 
-        // 添加显示动画
+        // 入场动画
         cardView.alpha = 0f
+        cardView.scaleX = 0.5f
+        cardView.scaleY = 0.5f
         cardView.animate()
             .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
             .setDuration(200)
             .setStartDelay((index * 50).toLong())
             .start()
     }
 
-    /**
-     * 应用提示到输入框
-     */
-    private fun applyPromptToInput(prompt: String) {
-        targetTextView?.let {
-            val currentText = it.text.toString()
-            val newText = if (currentText.isEmpty()) {
-                prompt
-            } else {
-                "$currentText\n\n$prompt"
+    fun handleDragEvent(event: MotionEvent) {
+        if (interactionMode != InteractionMode.DRAG || anchorStack.isEmpty()) return
+        val container = branchRootView?.findViewById<ConstraintLayout>(R.id.branch_level_2) ?: return
+
+        val (anchorX, anchorY) = anchorStack.last() // 始终从当前层级的锚点画线
+        val containerX = event.rawX - containerLocation[0]
+        val containerY = event.rawY - containerLocation[1]
+
+        val viewUnderPoint = findViewAt(container, containerX, containerY)
+
+        when (event.action) {
+            MotionEvent.ACTION_MOVE -> {
+                if (!isDragging) {
+                    isDragging = true
+                    Log.d(TAG, "DRAG: Dragging started on first move.")
+                    if (dragLineView == null) {
+                        dragLineView = DragLineView(context).apply {
+                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                        }
+                        container.addView(dragLineView, 0)
+                    }
+                    dragLineView?.visibility = View.VISIBLE
+                }
+
+                dragLineView?.updateLine(anchorX, anchorY, containerX, containerY)
+
+                val cardUnderPoint = viewUnderPoint as? MaterialCardView
+                if (cardUnderPoint != hoveredCard) {
+                    hoveredCard?.let { animateCardForDrag(it, false) }
+                    hoverHandler.removeCallbacks(hoverRunnable ?: Runnable {})
+                    
+                    hoveredCard = cardUnderPoint
+                    
+                    val optionUnderPoint = hoveredCard?.let { viewOptionMap[it] }
+                    if (hoveredCard != null && optionUnderPoint?.isDirectory == true) {
+                        animateCardForDrag(hoveredCard!!, true)
+                        hoverRunnable = Runnable {
+                            val currentViewUnderPoint = findViewAt(container, containerX, containerY)
+                            if (currentViewUnderPoint == hoveredCard) {
+                                openSubDirectory(optionUnderPoint, hoveredCard!!)
+                            } else {
+                                hoveredCard?.let { animateCardForDrag(it, false) }
+                            }
+                        }
+                        hoverHandler.postDelayed(hoverRunnable!!, 400)
+                    }
+                }
             }
-            it.setText(newText)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (isDragging) {
+                    val finalOption = viewUnderPoint?.let { viewOptionMap[it] }
+                    if (finalOption != null && !finalOption.isDirectory) {
+                        val fullPrompt = (currentPath.map { it.title } + finalOption.title).joinToString(" > ") + ": " + finalOption.prompt
+                        applyPromptWithAnimation(fullPrompt)
+                    } else {
+                        hideBranchView()
+                    }
+                }
+                resetDragState()
+            }
         }
     }
 
-    /**
-     * 隐藏分支视图
-     */
+    private fun findViewAt(parent: ViewGroup, x: Float, y: Float): View? {
+        for (i in (parent.childCount - 1) downTo 0) {
+            val child = parent.getChildAt(i)
+            if (child is MaterialCardView) {
+                val rect = Rect()
+                child.getHitRect(rect)
+                if (rect.contains(x.toInt(), y.toInt())) {
+                    return child
+                }
+            }
+        }
+        return null
+    }
+
     fun hideBranchView() {
+        if (!isBranchViewVisible) return
+        
         branchRootView?.let { view ->
             view.animate()
                 .alpha(0f)
                 .setDuration(200)
                 .withEndAction {
-                    val parent = view.parent as? ViewGroup
-                    parent?.removeView(view)
+                    (view.parent as? ViewGroup)?.removeView(view)
                     branchRootView = null
-                    
-                    val activity = context as? SimpleModeActivity
-                    activity?.applyBackgroundBlur(false)
+                    resetBranchState()
+                    listener.onBranchViewHidden()
                 }
                 .start()
         }
     }
 
-    /**
-     * 重置分支状态
-     */
+    private fun resetDragState() {
+        isDragging = false
+        dragLineView?.visibility = View.GONE
+        hoverHandler.removeCallbacks(hoverRunnable ?: Runnable {})
+        hoveredCard?.let { animateCardForDrag(it, false) }
+        hoveredCard = null
+        hoverRunnable = null
+    }
+
+    private fun handleOptionClick(option: BranchOption) {
+        try {
+            if (option.isDirectory) {
+                val view = viewOptionMap.entries.find { it.value == option }?.key
+                if (view != null) {
+                    openSubDirectory(option, view)
+                }
+            } else {
+                applyPromptWithAnimation(option.prompt)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling option click: ${e.message}")
+            showErrorToast("无法处理选项，请重试")
+        }
+    }
+    
+    private fun openSubDirectory(option: BranchOption, parentCard: View) {
+        val container = branchRootView?.findViewById<ConstraintLayout>(R.id.branch_level_2) ?: return
+        
+        // 计算并推入新的锚点
+        val newAnchorX = parentCard.left + parentCard.width / 2f
+        val newAnchorY = parentCard.top + parentCard.height / 2f
+        anchorStack.add(newAnchorX to newAnchorY)
+
+        // 播放过渡动画
+        animateDirectoryTransition {
+            currentLevel++
+            currentPath.add(option)
+            currentOptions = option.children
+            showCurrentLevelOptions()
+            setupBackButton()
+        }
+    }
+
+    fun navigateBack() {
+        if (!canNavigateBack()) return
+        
+        // 弹出锚点
+        if (anchorStack.size > 1) {
+            anchorStack.removeAt(anchorStack.lastIndex)
+        }
+
+        try {
+            animateDirectoryTransition {
+                currentLevel--
+                currentPath.removeAt(currentPath.lastIndex)
+                currentOptions = if (currentPath.isEmpty()) promptTree else currentPath.last().children
+                showCurrentLevelOptions()
+                setupBackButton()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error navigating back: ${e.message}")
+            showErrorToast("返回失败，请重试")
+        }
+    }
+
+    fun canNavigateBack(): Boolean = currentLevel > 0
+
+    val isBranchViewVisible: Boolean
+        get() = branchRootView != null
+    
     private fun resetBranchState() {
-        selectedBranchId = -1
-        hasBranchSelected = false
+        currentLevel = 0
+        currentPath.clear()
+        currentOptions = promptTree
+        anchorStack.clear() // 彻底清空锚点
+        isDragging = false
+        dragLineView?.visibility = View.GONE
+        dragLineView = null // 释放旧的View引用
+        hoverHandler.removeCallbacks(hoverRunnable ?: Runnable {})
+        hoveredCard?.let { animateCardForDrag(it, false) }
+        hoveredCard = null
+        hoverRunnable = null
+    }
+
+    private fun applyPromptWithAnimation(prompt: String) {
+        targetTextView?.let { textView ->
+            val animatorSet = AnimatorSet()
+            val scaleX = ObjectAnimator.ofFloat(textView, "scaleX", 1f, 1.2f, 1f)
+            val scaleY = ObjectAnimator.ofFloat(textView, "scaleY", 1f, 1.2f, 1f)
+            
+            animatorSet.playTogether(scaleX, scaleY)
+            animatorSet.duration = 300
+            animatorSet.addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    val currentText = textView.text.toString().substringBefore("\n\n") // 只保留用户自己输入的部分
+                    val newText = if (currentText.isEmpty()) prompt else "$currentText\n\n$prompt"
+                    textView.text = newText
+                    hideBranchView() // 应用后自动隐藏
+                }
+            })
+            animatorSet.start()
+        }
+    }
+
+    private fun animateDirectoryTransition(onTransitionComplete: () -> Unit) {
+        val container = branchRootView?.findViewById<ConstraintLayout>(R.id.branch_level_2)
+        container?.animate()
+                ?.alpha(0f)
+                ?.setDuration(150)
+                ?.withEndAction {
+                    onTransitionComplete()
+                    // 在内容更新后，再播放淡入动画
+                    container.animate()
+                        .alpha(1f)
+                        .setDuration(150)
+                        .start()
+                }
+                ?.start()
+    }
+    
+    private fun animateToSubDirectory(card: MaterialCardView, onAnimationEnd: () -> Unit) {
+        val container = card.parent as? ViewGroup
+        val animSet = AnimatorSet()
+        
+        // 其他卡片飞出
+        container?.let { c ->
+            for (i in 0 until c.childCount) {
+                val childView = c.getChildAt(i)
+                if (childView is MaterialCardView && childView != card) {
+                    val flyOut = ObjectAnimator.ofFloat(childView, "alpha", 1f, 0f).setDuration(200)
+                    animSet.play(flyOut)
+                }
+            }
+        }
+
+        // 被选中的卡片放大并消失
+        val scaleX = ObjectAnimator.ofFloat(card, "scaleX", 1f, 1.5f)
+        val scaleY = ObjectAnimator.ofFloat(card, "scaleY", 1f, 1.5f)
+        val alpha = ObjectAnimator.ofFloat(card, "alpha", 1f, 0f)
+        
+        val selectionAnim = AnimatorSet()
+        selectionAnim.playTogether(scaleX, scaleY, alpha)
+        selectionAnim.duration = 300
+        
+        animSet.play(selectionAnim)
+        animSet.addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                onAnimationEnd()
+            }
+        })
+        animSet.start()
+    }
+
+    private fun animateCardForDrag(card: MaterialCardView, isDragging: Boolean) {
+        val scale = if (isDragging) 1.2f else 1f
+        val elevation = if (isDragging) context.resources.getDimension(R.dimen.mtrl_card_elevation_large) * 2
+                        else context.resources.getDimension(R.dimen.mtrl_card_elevation_large)
+        
+        card.animate().scaleX(scale).scaleY(scale).setDuration(200).start()
+        ObjectAnimator.ofFloat(card, "cardElevation", card.cardElevation, elevation).setDuration(200).start()
+    }
+
+    private fun resetCardAnimation(card: MaterialCardView) {
+        card.animate().scaleX(1f).scaleY(1f).setDuration(200).start()
+        ObjectAnimator.ofFloat(card, "cardElevation", card.cardElevation, context.resources.getDimension(R.dimen.mtrl_card_elevation_large)).setDuration(200).start()
+    }
+    
+    private fun showErrorToast(message: String) {
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private inner class DragLineView(context: Context) : View(context) {
+        private val paint = Paint().apply {
+            color = ContextCompat.getColor(context, R.color.colorAccent) // 使用主题强调色
+            strokeWidth = 8f // 加粗线条
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND // 圆头画笔
+            pathEffect = android.graphics.DashPathEffect(floatArrayOf(20f, 10f), 0f) // 虚线效果
+            isAntiAlias = true
+        }
+        private val path = Path()
+        private var startX = 0f
+        private var startY = 0f
+        private var endX = 0f
+        private var endY = 0f
+
+        fun updateLine(startX: Float, startY: Float, endX: Float, endY: Float) {
+            this.startX = startX; this.startY = startY; this.endX = endX; this.endY = endY
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            if (startX == 0f && startY == 0f) return // 避免画线到(0,0)
+            
+            path.reset()
+            path.moveTo(startX, startY)
+            // 使用贝塞尔曲线，使线条更平滑
+            path.quadTo(startX, endY, endX, endY)
+            canvas.drawPath(path, paint)
+        }
     }
 } 

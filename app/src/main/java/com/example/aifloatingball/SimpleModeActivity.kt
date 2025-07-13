@@ -44,10 +44,12 @@ import androidx.appcompat.app.AppCompatDelegate
 import android.provider.Settings
 import android.os.Build
 
-class SimpleModeActivity : AppCompatActivity() {
+class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchViewListener {
     
     companion object {
         private const val TAG = "SimpleModeActivity"
+        // 为交互模式定义一个存储键
+        private const val KEY_VOICE_INTERACTION_MODE = "voice_interaction_mode"
     }
     
     // 界面状态
@@ -103,6 +105,7 @@ class SimpleModeActivity : AppCompatActivity() {
     private lateinit var voiceTextInput: TextInputEditText
     private lateinit var voiceClearButton: MaterialButton
     private lateinit var voiceSearchButton: MaterialButton
+    private lateinit var voiceInteractionToggleButton: ImageButton
     
     // 语音识别相关
     private var speechRecognizer: SpeechRecognizer? = null
@@ -121,7 +124,7 @@ class SimpleModeActivity : AppCompatActivity() {
         // 显示提示分支界面
         showPromptBranches()
     }
-
+    
     // 设置页面组件 - 扩展所有设置选项
     private lateinit var displayModeSpinner: Spinner
     private lateinit var windowCountSpinner: Spinner
@@ -151,7 +154,14 @@ class SimpleModeActivity : AppCompatActivity() {
         settingsManager = SettingsManager.getInstance(this)
         
         // 初始化语音提示分支管理器
-        promptBranchManager = VoicePromptBranchManager(this)
+        promptBranchManager = VoicePromptBranchManager(this, this)
+        // 关键：从设置中读取并应用保存的交互模式
+        val savedMode = settingsManager.getString(KEY_VOICE_INTERACTION_MODE, "CLICK")
+        promptBranchManager.interactionMode = if (savedMode == "DRAG") {
+            VoicePromptBranchManager.InteractionMode.DRAG
+        } else {
+            VoicePromptBranchManager.InteractionMode.CLICK
+        }
         
         // 确保 SimpleModeService 不在运行
         if (SimpleModeService.isRunning(this)) {
@@ -336,6 +346,7 @@ class SimpleModeActivity : AppCompatActivity() {
         voiceTextInput = findViewById(R.id.voice_text_input)
         voiceClearButton = findViewById(R.id.voice_clear_button)
         voiceSearchButton = findViewById(R.id.voice_search_button)
+        voiceInteractionToggleButton = findViewById(R.id.voice_interaction_mode_toggle)
         
         // 设置页面 - 扩展所有设置选项
         displayModeSpinner = findViewById(R.id.display_mode_spinner)
@@ -382,7 +393,7 @@ class SimpleModeActivity : AppCompatActivity() {
             Toast.makeText(this, "即将调用minimizeToService", Toast.LENGTH_SHORT).show()
             
             try {
-                minimizeToService()
+            minimizeToService()
             } catch (e: Exception) {
                 Log.e(TAG, "Exception in minimize button click", e)
                 Toast.makeText(this, "按钮点击异常: ${e.message}", Toast.LENGTH_LONG).show()
@@ -410,6 +421,159 @@ class SimpleModeActivity : AppCompatActivity() {
         
         // 初始化UI颜色
         updateUIColors()
+        updateTabColors()
+    }
+
+    private fun setupVoicePage() {
+        // 语音交互模式切换
+        voiceInteractionToggleButton.setOnClickListener {
+            promptBranchManager.interactionMode = if (promptBranchManager.interactionMode == VoicePromptBranchManager.InteractionMode.CLICK) {
+                it.contentDescription = "切换到点击模式"
+                Toast.makeText(this, "已切换到拖动模式", Toast.LENGTH_SHORT).show()
+                (it as ImageButton).setImageResource(R.drawable.ic_drag_handle) // 更新图标
+                // 保存设置
+                settingsManager.putString(KEY_VOICE_INTERACTION_MODE, "DRAG")
+                VoicePromptBranchManager.InteractionMode.DRAG
+            } else {
+                it.contentDescription = "切换到拖动模式"
+                Toast.makeText(this, "已切换到点击模式", Toast.LENGTH_SHORT).show()
+                (it as ImageButton).setImageResource(R.drawable.ic_click) // 更新图标
+                 // 保存设置
+                settingsManager.putString(KEY_VOICE_INTERACTION_MODE, "CLICK")
+                VoicePromptBranchManager.InteractionMode.CLICK
+            }
+        }
+        // 根据保存的模式初始化按钮图标
+        if (promptBranchManager.interactionMode == VoicePromptBranchManager.InteractionMode.DRAG) {
+            voiceInteractionToggleButton.setImageResource(R.drawable.ic_drag_handle)
+        } else {
+            voiceInteractionToggleButton.setImageResource(R.drawable.ic_click)
+        }
+
+        // 麦克风按钮触摸监听，处理单击和长按
+        voiceMicContainer.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isLongPress = false
+                    longPressHandler.postDelayed(longPressRunnable, 500) // 500ms算长按
+                    true // 消费事件
+                }
+                MotionEvent.ACTION_MOVE -> {
+                     if (isLongPress) {
+                        // 如果是长按模式，则将事件转发给分支管理器
+                        promptBranchManager.handleDragEvent(event)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    longPressHandler.removeCallbacks(longPressRunnable)
+                    if (isLongPress) {
+                        // 如果是长按模式，则将UP事件也转发，用于结束拖动
+                         promptBranchManager.handleDragEvent(event)
+                    } else {
+                        // 否则认为是单击
+                        toggleVoiceRecognition()
+                    }
+                    isLongPress = false
+                    true // 消费事件
+                }
+                else -> false
+            }
+        }
+
+        voiceClearButton.setOnClickListener { clearVoiceText() }
+        voiceSearchButton.setOnClickListener { executeVoiceSearch() }
+    }
+
+    private fun setupSettingsPage() {
+        // 加载当前设置
+        loadSettings()
+
+        // 设置监听器
+        displayModeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                val selectedMode = parent.getItemAtPosition(position).toString()
+                // ... 根据需要处理
+            }
+            override fun onNothingSelected(parent: AdapterView<*>) {}
+        }
+
+        themeModeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                val selectedTheme = when(position) {
+                    0 -> SettingsManager.THEME_MODE_LIGHT
+                    1 -> SettingsManager.THEME_MODE_DARK
+                    else -> SettingsManager.THEME_MODE_SYSTEM
+                }
+                settingsManager.setThemeMode(selectedTheme)
+                applyTheme() // 立即应用主题
+            }
+            override fun onNothingSelected(parent: AdapterView<*>) {}
+        }
+
+        aiApiSettingsItem.setOnClickListener { 
+            startActivity(Intent(this, AIApiSettingsActivity::class.java))
+        }
+
+        searchEngineSettingsItem.setOnClickListener {
+            startActivity(Intent(this, AISearchEngineSettingsActivity::class.java))
+        }
+
+        masterPromptSettingsItem.setOnClickListener {
+            startActivity(Intent(this, MasterPromptSettingsActivity::class.java))
+        }
+
+        // ... 为其他设置项添加监听器
+        
+        // 设置App版本号
+        try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            val version = pInfo.versionName
+            appVersionText.text = "版本: $version"
+        } catch (e: PackageManager.NameNotFoundException) {
+            e.printStackTrace()
+            appVersionText.text = "版本: N/A"
+        }
+    }
+
+    private fun loadSettings() {
+        // 主题设置
+        val themeMode = settingsManager.getThemeMode()
+        themeModeSpinner.setSelection(when(themeMode) {
+            SettingsManager.THEME_MODE_LIGHT -> 0
+            SettingsManager.THEME_MODE_DARK -> 1
+            else -> 2
+        })
+        // ... 加载其他设置
+    }
+    
+    private fun showVoice() {
+        currentState = UIState.VOICE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.VISIBLE
+        settingsLayout.visibility = View.GONE
+        
+        // 检查录音权限
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, 
+                arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
+        }
+
+        updateTabColors()
+    }
+    
+    private fun showSettings() {
+        currentState = UIState.SETTINGS
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        settingsLayout.visibility = View.VISIBLE
+        
+        loadSettings() // 每次显示时重新加载设置
         updateTabColors()
     }
     
@@ -711,351 +875,55 @@ class SimpleModeActivity : AppCompatActivity() {
     }
     
     override fun onBackPressed() {
-        Log.d(TAG, "onBackPressed called, currentState: $currentState")
-        
-        // 如果用户在主界面按后退键，直接退出
-        if (currentState == UIState.TASK_SELECTION) {
-            Log.d(TAG, "在主界面按后退键，直接退出")
-            closeSimpleMode() // 使用我们的关闭方法
-            return
-        }
-        
-        when (currentState) {
-            UIState.STEP_GUIDANCE -> {
-                if (currentStepIndex > 0) {
-                    currentStepIndex--
-                    setupCurrentStep()
+        // 如果分支视图可见，则优先处理它的返回逻辑
+        if (promptBranchManager.isBranchViewVisible) {
+            if (promptBranchManager.canNavigateBack()) {
+                promptBranchManager.navigateBack()
                 } else {
-                    showTaskSelection()
-                }
+                promptBranchManager.hideBranchView()
             }
-            UIState.PROMPT_PREVIEW -> {
-                showStepGuidance()
-            }
-            UIState.VOICE -> {
-                // 停止语音识别并返回首页
-                releaseSpeechRecognizer()
-                showTaskSelection()
-            }
-            UIState.SETTINGS -> {
-                showTaskSelection()
-            }
-            else -> {
-                Log.d(TAG, "其他状态下按后退键，调用closeSimpleMode()")
-                closeSimpleMode() // 使用我们的关闭方法
-            }
-        }
-    }
-
-    private fun showSettings() {
-        currentState = UIState.SETTINGS
-        taskSelectionLayout.visibility = View.GONE
-        stepGuidanceLayout.visibility = View.GONE
-        promptPreviewLayout.visibility = View.GONE
-        voiceLayout.visibility = View.GONE
-        settingsLayout.visibility = View.VISIBLE
-        
-        // 更新设置页面的状态
-        updateSettingsUI()
-        // 更新Tab颜色状态
-        updateTabColors()
-    }
-    
-    private fun setupSettingsPage() {
-        // 显示模式选择器
-        val displayModeOptions = arrayOf("简易模式", "悬浮球模式", "动态岛模式")
-        val displayModeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, displayModeOptions)
-        displayModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        displayModeSpinner.adapter = displayModeAdapter
-        
-        // 窗口数量选择器
-        val windowCountOptions = arrayOf("1", "2", "3", "4", "5", "6")
-        val windowCountAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, windowCountOptions)
-        windowCountAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        windowCountSpinner.adapter = windowCountAdapter
-        
-        // 主题模式选择器
-        val themeModeOptions = arrayOf("跟随系统", "浅色模式", "深色模式")
-        val themeModeAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, themeModeOptions)
-        themeModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        themeModeSpinner.adapter = themeModeAdapter
-        
-        // 设置监听器
-        setupSettingsListeners()
-        
-        // 设置点击事件
-        setupSettingsClickEvents()
-        
-        // 设置应用版本信息
-        try {
-            val packageInfo = packageManager.getPackageInfo(packageName, 0)
-            appVersionText.text = "版本 ${packageInfo.versionName}"
-        } catch (e: Exception) {
-            appVersionText.text = "版本未知"
-        }
-    }
-    
-    private fun setupSettingsListeners() {
-        // 显示模式监听器
-        displayModeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                when (position) {
-                    0 -> {
-                        settingsManager.setDisplayMode("simple_mode")
-                        // 当前已经在简易模式，无需切换
-                    }
-                    1 -> {
-                        settingsManager.setDisplayMode("floating_ball")
-                        switchToFloatingBallMode()
-                    }
-                    2 -> {
-                        settingsManager.setDisplayMode("dynamic_island")
-                        switchToDynamicIslandMode()
-                    }
-                }
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            return // 消费返回事件
         }
         
-        // 窗口数量监听器
-        windowCountSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val count = (position + 1)
-                settingsManager.setDefaultWindowCount(count)
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-        }
-        
-        // 主题模式监听器
-        themeModeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val themeMode = when (position) {
-                    0 -> SettingsManager.THEME_MODE_SYSTEM
-                    1 -> SettingsManager.THEME_MODE_LIGHT
-                    2 -> SettingsManager.THEME_MODE_DARK
-                    else -> SettingsManager.THEME_MODE_SYSTEM
-                }
-                settingsManager.setThemeMode(themeMode)
-                applyTheme() // 应用新的主题
-                updateUIColors() // 更新界面颜色
-            }
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
-        }
-        
-        // 剪贴板监控开关
-        clipboardMonitorSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.setClipboardListenerEnabled(isChecked)
-        }
-        
-        // 自动隐藏开关
-        autoHideSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.setAutoHide(isChecked)
-        }
-        
-        // AI模式开关
-        aiModeSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.setDefaultAIMode(isChecked)
-        }
-        
-        // 左手模式开关
-        leftHandedSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.setLeftHandedMode(isChecked)
-        }
-        
-        // 自动粘贴开关
-        autoPasteSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.setAutoPasteEnabled(isChecked)
-        }
-        
-        // 通知监听开关
-        notificationListenerSwitch.setOnCheckedChangeListener { _, isChecked ->
-            settingsManager.putBoolean("enable_notification_listener", isChecked)
-        }
-        
-        // 悬浮球透明度滑块
-        ballAlphaSeekbar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (fromUser) {
-                    settingsManager.setBallAlpha(progress)
-                }
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-    }
-    
-    private fun setupSettingsClickEvents() {
-        // AI API设置
-        aiApiSettingsItem.setOnClickListener {
-            val intent = Intent(this, AIApiSettingsActivity::class.java)
-            startActivity(intent)
-        }
-        
-        // 搜索引擎设置
-        searchEngineSettingsItem.setOnClickListener {
-            val intent = Intent(this, SearchEngineSettingsActivity::class.java)
-            startActivity(intent)
-        }
-        
-        // 主提示词设置
-        masterPromptSettingsItem.setOnClickListener {
-            val intent = Intent(this, MasterPromptSettingsActivity::class.java)
-            startActivity(intent)
-        }
-        
-        // 应用搜索设置
-        appSearchSettingsItem.setOnClickListener {
-            val intent = Intent(this, com.example.aifloatingball.settings.AppSearchSettingsActivity::class.java)
-            startActivity(intent)
-        }
-        
-        // 权限管理
-        permissionManagementItem.setOnClickListener {
-            val intent = Intent(this, PermissionManagementActivity::class.java)
-            startActivity(intent)
-        }
-        
-        // 查看搜索历史
-        viewSearchHistoryItem.setOnClickListener {
-            val intent = Intent(this, SearchHistoryActivity::class.java)
-            startActivity(intent)
-        }
-        
-        // 新手入门指南
-        onboardingGuideItem.setOnClickListener {
-            val intent = Intent(this, com.example.aifloatingball.ui.onboarding.OnboardingActivity::class.java)
-            startActivity(intent)
-        }
-    }
-    
-    private fun updateSettingsUI() {
-        // 更新显示模式选择
-        when (settingsManager.getDisplayMode()) {
-            "simple_mode" -> displayModeSpinner.setSelection(0)
-            "floating_ball" -> displayModeSpinner.setSelection(1)
-            "dynamic_island" -> displayModeSpinner.setSelection(2)
-        }
-        
-        // 更新窗口数量选择
-        val windowCount = settingsManager.getDefaultWindowCount()
-        if (windowCount <= 6) {
-            windowCountSpinner.setSelection(windowCount - 1)
-        }
-        
-        // 更新主题模式选择
-        val themeMode = settingsManager.getThemeMode()
-        val spinnerPosition = when (themeMode) {
-            SettingsManager.THEME_MODE_LIGHT -> 1
-            SettingsManager.THEME_MODE_DARK -> 2
-            else -> 0 // THEME_MODE_SYSTEM
-        }
-        themeModeSpinner.setSelection(spinnerPosition)
-        
-        // 更新开关状态
-        clipboardMonitorSwitch.isChecked = settingsManager.isClipboardListenerEnabled()
-        autoHideSwitch.isChecked = settingsManager.getAutoHide()
-        aiModeSwitch.isChecked = settingsManager.isDefaultAIMode()
-        leftHandedSwitch.isChecked = settingsManager.isLeftHandedModeEnabled()
-        autoPasteSwitch.isChecked = settingsManager.isAutoPasteEnabled()
-        notificationListenerSwitch.isChecked = settingsManager.getBoolean("enable_notification_listener", false)
-        
-        // 更新透明度滑块
-        ballAlphaSeekbar.progress = settingsManager.getBallAlpha()
-    }
-    
-    private fun switchToFloatingBallMode() {
-        // 启动悬浮球服务
-        val intent = Intent(this, FloatingWindowService::class.java)
-        startService(intent)
-        
-        // 关闭当前Activity
-        finish()
-    }
-    
-    private fun switchToDynamicIslandMode() {
-        // 启动动态岛服务
-        val intent = Intent(this, DynamicIslandService::class.java)
-        startService(intent)
-        
-        // 关闭当前Activity
-        finish()
-    }
-
-    private fun showVoice() {
-        currentState = UIState.VOICE
-        taskSelectionLayout.visibility = View.GONE
-        stepGuidanceLayout.visibility = View.GONE
-        promptPreviewLayout.visibility = View.GONE
-        voiceLayout.visibility = View.VISIBLE
-        settingsLayout.visibility = View.GONE
-        
-        setupVoicePage()
-        // 更新Tab颜色状态
-        updateTabColors()
-    }
-    
-    private fun setupVoicePage() {
-        // 麦克风长按和点击事件
-        voiceMicContainer.setOnTouchListener { view, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    // 设置长按检测
-                    longPressHandler.postDelayed(longPressRunnable, 500) // 500ms长按阈值
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    // 如果是长按状态，消费事件
-                    isLongPress
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    // 取消长按检测
-                    longPressHandler.removeCallbacks(longPressRunnable)
-                    
-                    // 如果不是长按，则触发点击事件
-                    if (!isLongPress) {
-                        toggleVoiceRecognition()
-                    }
-                    
-                    // 重置长按状态
-                    isLongPress = false
-                    true
-                }
-                else -> false
-            }
-        }
-        
-        // 清空按钮
-        voiceClearButton.setOnClickListener {
-            clearVoiceText()
-        }
-        
-        // 搜索按钮 - 确保启用状态和点击事件正确设置
-        voiceSearchButton.setOnClickListener {
-            executeVoiceSearch()
-        }
-        
-        // 手动输入文本时也启用搜索按钮
-        voiceTextInput.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                voiceSearchButton.isEnabled = !s.isNullOrBlank()
-            }
-        })
+        // 否则，执行Activity的默认返回逻辑
+                super.onBackPressed()
     }
     
     /**
-     * 显示提示分支选择界面
+     * 分支视图隐藏时的回调
+     */
+    override fun onBranchViewHidden() {
+        applyBackgroundBlur(false)
+        setBottomNavigationEnabled(true) // 恢复底部导航
+    }
+
+    /**
+     * 显示语音提示分支视图
      */
     private fun showPromptBranches() {
-        // 获取根视图
-        val rootView = findViewById<ViewGroup>(android.R.id.content)
-        
-        // 创建并显示分支视图
-        promptBranchManager.showBranchView(rootView, voiceTextInput)
-        
-        // 添加背景模糊效果
+        if (promptBranchManager.isBranchViewVisible) {
+            return
+        }
+
+        val rootView = window.decorView.rootView as ViewGroup
+        val micCenterX = voiceMicContainer.x + voiceMicContainer.width / 2
+        val micCenterY = voiceMicContainer.y + voiceMicContainer.height / 2
+
+        promptBranchManager.showBranchView(rootView, voiceTextInput, micCenterX, micCenterY)
         applyBackgroundBlur(true)
+        setBottomNavigationEnabled(false) // 禁用底部导航
+    }
+    
+    /**
+     * 启用或禁用底部导航栏
+     */
+    private fun setBottomNavigationEnabled(enabled: Boolean) {
+        val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+        for (i in 0 until bottomNav.childCount) {
+            val tab = bottomNav.getChildAt(i)
+            tab.isEnabled = enabled
+            tab.alpha = if (enabled) 1.0f else 0.5f
+        }
     }
     
     /**
@@ -1317,11 +1185,11 @@ class SimpleModeActivity : AppCompatActivity() {
         }
 
         // 先执行淡出动画
-        val rootView = findViewById<View>(android.R.id.content)
-        rootView.animate()
+            val rootView = findViewById<View>(android.R.id.content)
+            rootView.animate()
             .alpha(0.5f)
-            .setDuration(200)
-            .withEndAction {
+                .setDuration(200)
+                .withEndAction {
                 // 启动最小化服务
                 val serviceIntent = Intent(this, SimpleModeService::class.java).apply {
                     action = SimpleModeService.ACTION_MINIMIZE
@@ -1334,8 +1202,8 @@ class SimpleModeActivity : AppCompatActivity() {
                     finish()
                     overridePendingTransition(0, 0) // 禁用Activity切换动画
                 }, 300) // 300ms延迟
-            }
-            .start()
+                }
+                .start()
     }
 
     private fun closeSimpleMode() {

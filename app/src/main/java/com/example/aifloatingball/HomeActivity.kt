@@ -2229,7 +2229,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             // 检查SimpleModeActivity是否已经在运行
             if (!isSimpleModeActivityRunning()) {
                 Log.d(TAG, "Starting SimpleModeActivity")
-                startActivity(Intent(this, SimpleModeActivity::class.java))
+            startActivity(Intent(this, SimpleModeActivity::class.java))
             } else {
                 Log.d(TAG, "SimpleModeActivity is already running, not starting it again")
             }

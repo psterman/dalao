@@ -93,4 +93,8 @@
     <dimen name="dynamic_island_icon_size">20dp</dimen>
     <dimen name="dynamic_island_text_size">14sp</dimen>
     <dimen name="dynamic_island_elevation">4dp</dimen>
+
+    <!-- Material Design 风格的圆角和阴影 -->
+    <dimen name="mtrl_card_corner_radius_large">12dp</dimen>
+    <dimen name="mtrl_card_elevation_large">6dp</dimen>
 </resources> 
