@@ -54,7 +54,8 @@ class SearchEngineListPreference @JvmOverloads constructor(
     )
 
     init {
-        entries = context.resources.getStringArray(R.array.search_engine_entries)
+        entries = context.resources.getStringArray(R.array.
+         search_engine_entries)
         entryValues = context.resources.getStringArray(R.array.search_engine_values)
         setDefaultValue("baidu")
         

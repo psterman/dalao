@@ -107,17 +107,25 @@ class GenericSearchEngineAdapter<T : BaseSearchEngine>(
     @SuppressLint("NotifyDataSetChanged")
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val engine = engines[position]
-            holder.nameTextView.text = engine.displayName
-            FaviconLoader.loadIcon(holder.iconImageView, engine.url, R.drawable.ic_web_default)
-            holder.toggleSwitch.visibility = View.VISIBLE
-            holder.toggleSwitch.isChecked = enabledEngines.contains(engine.name)
-            holder.toggleSwitch.setOnCheckedChangeListener { _, isChecked ->
-                if (isChecked) {
-                    enabledEngines.add(engine.name)
-                } else {
-                    enabledEngines.remove(engine.name)
-                }
-                onEngineToggled(engine.name, isChecked)
+
+        // 设置搜索引擎名称
+        holder.nameTextView.text = engine.displayName
+
+        // 设置搜索引擎图标
+        holder.iconImageView.setImageResource(engine.iconResId)
+
+        // 显示开关按钮
+        holder.toggleSwitch.visibility = View.VISIBLE
+        holder.toggleSwitch.isChecked = enabledEngines.contains(engine.name)
+
+        // 设置开关监听器
+        holder.toggleSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                enabledEngines.add(engine.name)
+            } else {
+                enabledEngines.remove(engine.name)
+            }
+            onEngineToggled(engine.name, isChecked)
             }
             holder.itemView.setOnClickListener {
                 holder.toggleSwitch.isChecked = !holder.toggleSwitch.isChecked

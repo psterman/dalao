@@ -138,6 +138,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var notificationListenerSwitch: SwitchMaterial
     private lateinit var aiApiSettingsItem: LinearLayout
     private lateinit var searchEngineSettingsItem: LinearLayout
+    private lateinit var aiSearchEngineSettingsItem: LinearLayout
     private lateinit var masterPromptSettingsItem: LinearLayout
     private lateinit var appSearchSettingsItem: LinearLayout
     private lateinit var permissionManagementItem: LinearLayout
@@ -361,6 +362,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         notificationListenerSwitch = findViewById(R.id.notification_listener_switch)
         aiApiSettingsItem = findViewById(R.id.ai_api_settings_item)
         searchEngineSettingsItem = findViewById(R.id.search_engine_settings_item)
+        aiSearchEngineSettingsItem = findViewById(R.id.ai_search_engine_settings_item)
         masterPromptSettingsItem = findViewById(R.id.master_prompt_settings_item)
         appSearchSettingsItem = findViewById(R.id.app_search_settings_item)
         permissionManagementItem = findViewById(R.id.permission_management_item)
@@ -489,11 +491,42 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 加载当前设置
         loadSettings()
 
-        // 设置监听器
+        // 设置下拉菜单适配器
+        val displayModeAdapter = ArrayAdapter.createFromResource(
+            this,
+            R.array.display_mode_entries,
+            android.R.layout.simple_spinner_item
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        displayModeSpinner.adapter = displayModeAdapter
+
+        val themeAdapter = ArrayAdapter.createFromResource(
+            this,
+            R.array.theme_mode_entries,
+            android.R.layout.simple_spinner_item
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        themeModeSpinner.adapter = themeAdapter
+
+        val windowCountAdapter = ArrayAdapter.createFromResource(
+            this,
+            R.array.window_count_entries,
+            android.R.layout.simple_spinner_item
+        ).apply {
+            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        }
+        windowCountSpinner.adapter = windowCountAdapter
+
+        // 设置下拉菜单监听器
         displayModeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
-                val selectedMode = parent.getItemAtPosition(position).toString()
-                // ... 根据需要处理
+                val displayModeValues = resources.getStringArray(R.array.display_mode_values)
+                if (position < displayModeValues.size) {
+                    val selectedMode = displayModeValues[position]
+                    settingsManager.setDisplayMode(selectedMode)
+                }
             }
             override fun onNothingSelected(parent: AdapterView<*>) {}
         }
@@ -506,24 +539,133 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     else -> SettingsManager.THEME_MODE_SYSTEM
                 }
                 settingsManager.setThemeMode(selectedTheme)
-                applyTheme() // 立即应用主题
+                applyTheme()
             }
             override fun onNothingSelected(parent: AdapterView<*>) {}
         }
 
+        windowCountSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                // 窗口数量选项：1, 2, 3
+                val windowCount = position + 1
+                settingsManager.setDefaultWindowCount(windowCount)
+            }
+            override fun onNothingSelected(parent: AdapterView<*>) {}
+        }
+
+        // 设置开关监听器
+        leftHandedSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.setLeftHandedMode(isChecked)
+            // 立即应用左手模式
+            updateLayoutForHandedness(isChecked)
+        }
+
+        clipboardMonitorSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.setClipboardListenerEnabled(isChecked)
+        }
+
+        autoHideSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.setAutoHide(isChecked)
+        }
+
+        aiModeSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.setIsAIMode(isChecked)
+        }
+
+        autoPasteSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.setAutoPasteEnabled(isChecked)
+        }
+
+        notificationListenerSwitch.setOnCheckedChangeListener { _, isChecked ->
+            // 通知监听器设置需要使用通用的putBoolean方法
+            settingsManager.putBoolean("enable_notification_listener", isChecked)
+        }
+
+        // 设置透明度SeekBar监听器
+        ballAlphaSeekbar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    // 将0-100的进度转换为0-255的alpha值
+                    val alphaValue = ((progress / 100.0) * 255).toInt()
+                    settingsManager.setBallAlpha(alphaValue)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        // 设置点击事件
         aiApiSettingsItem.setOnClickListener { 
-            startActivity(Intent(this, AIApiSettingsActivity::class.java))
+            try {
+                startActivity(Intent(this, AIApiSettingsActivity::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open AIApiSettings", e)
+                Toast.makeText(this, "无法打开AI API设置", Toast.LENGTH_SHORT).show()
+            }
         }
 
         searchEngineSettingsItem.setOnClickListener {
-            startActivity(Intent(this, AISearchEngineSettingsActivity::class.java))
+            try {
+                startActivity(Intent(this, SearchEngineManagerActivity::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open SearchEngineSettings", e)
+                Toast.makeText(this, "无法打开搜索引擎设置", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        aiSearchEngineSettingsItem.setOnClickListener {
+            try {
+                startActivity(Intent(this, AISearchEngineSettingsActivity::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open AISearchEngineSettings", e)
+                Toast.makeText(this, "无法打开AI搜索引擎设置", Toast.LENGTH_SHORT).show()
+            }
         }
 
         masterPromptSettingsItem.setOnClickListener {
-            startActivity(Intent(this, MasterPromptSettingsActivity::class.java))
+            try {
+                startActivity(Intent(this, MasterPromptSettingsActivity::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open MasterPromptSettings", e)
+                Toast.makeText(this, "无法打开Master Prompt设置", Toast.LENGTH_SHORT).show()
+            }
         }
 
-        // ... 为其他设置项添加监听器
+        appSearchSettingsItem.setOnClickListener {
+            try {
+                startActivity(Intent(this, com.example.aifloatingball.settings.AppSearchSettingsActivity::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open AppSearchSettings", e)
+                Toast.makeText(this, "无法打开应用搜索设置", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        permissionManagementItem.setOnClickListener {
+            try {
+                startActivity(Intent(this, PermissionManagementActivity::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open PermissionManagement", e)
+                Toast.makeText(this, "无法打开权限管理", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        viewSearchHistoryItem.setOnClickListener {
+            try {
+                startActivity(Intent(this, SearchHistoryActivity::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open SearchHistory", e)
+                Toast.makeText(this, "无法打开搜索历史", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        onboardingGuideItem.setOnClickListener {
+            try {
+                startActivity(Intent(this, com.example.aifloatingball.ui.onboarding.OnboardingActivity::class.java))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to open OnboardingGuide", e)
+                Toast.makeText(this, "无法打开新手指南", Toast.LENGTH_SHORT).show()
+            }
+        }
         
         // 设置App版本号
         try {
@@ -536,15 +678,77 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
+    /**
+     * 更新左右手模式布局
+     */
+    private fun updateLayoutForHandedness(isLeftHanded: Boolean) {
+        // 更新UI布局以适应左右手模式
+        val rootLayout = findViewById<ViewGroup>(android.R.id.content)
+        if (rootLayout != null) {
+            // 镜像翻转整个布局
+            rootLayout.scaleX = if (isLeftHanded) -1f else 1f
+            
+            // 修正文本方向
+            val textViews = ArrayList<TextView>()
+            findAllTextViews(rootLayout, textViews)
+            for (textView in textViews) {
+                textView.scaleX = if (isLeftHanded) -1f else 1f
+            }
+        }
+    }
+
+    /**
+     * 递归查找所有TextView
+     */
+    private fun findAllTextViews(view: View, textViews: ArrayList<TextView>) {
+        if (view is TextView) {
+            textViews.add(view)
+        } else if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                findAllTextViews(view.getChildAt(i), textViews)
+            }
+        }
+    }
+
     private fun loadSettings() {
-        // 主题设置
-        val themeMode = settingsManager.getThemeMode()
-        themeModeSpinner.setSelection(when(themeMode) {
-            SettingsManager.THEME_MODE_LIGHT -> 0
-            SettingsManager.THEME_MODE_DARK -> 1
-            else -> 2
-        })
-        // ... 加载其他设置
+        try {
+            // 加载显示模式
+            val currentDisplayMode = settingsManager.getDisplayMode()
+            val displayModeValues = resources.getStringArray(R.array.display_mode_values)
+            val displayModeIndex = displayModeValues.indexOf(currentDisplayMode)
+            if (displayModeIndex != -1) {
+                displayModeSpinner.setSelection(displayModeIndex, false)
+            }
+
+            // 加载主题设置
+            val themeMode = settingsManager.getThemeMode()
+            themeModeSpinner.setSelection(when(themeMode) {
+                SettingsManager.THEME_MODE_LIGHT -> 0
+                SettingsManager.THEME_MODE_DARK -> 1
+                else -> 2
+            }, false)
+
+            // 加载开关状态
+            clipboardMonitorSwitch.isChecked = settingsManager.isClipboardListenerEnabled()
+            autoHideSwitch.isChecked = settingsManager.getAutoHide()
+            aiModeSwitch.isChecked = settingsManager.getIsAIMode()
+            leftHandedSwitch.isChecked = settingsManager.isLeftHandedModeEnabled()
+            autoPasteSwitch.isChecked = settingsManager.isAutoPasteEnabled()
+            notificationListenerSwitch.isChecked = settingsManager.getBoolean("enable_notification_listener", false)
+
+            // 加载透明度设置 - getBallAlpha()返回0-255，需要转换为0-100
+            ballAlphaSeekbar.progress = ((settingsManager.getBallAlpha() / 255.0) * 100).toInt()
+
+            // 加载窗口数量设置
+            val windowCount = settingsManager.getDefaultWindowCount()
+            windowCountSpinner.setSelection(windowCount - 1) // 转换为0-based索引
+
+            // 立即应用左手模式
+            updateLayoutForHandedness(settingsManager.isLeftHandedModeEnabled())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading settings", e)
+            Toast.makeText(this, "加载设置时出错", Toast.LENGTH_SHORT).show()
+        }
     }
     
     private fun showVoice() {
