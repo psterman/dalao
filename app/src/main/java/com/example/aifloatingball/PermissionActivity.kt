@@ -46,12 +46,10 @@ class PermissionActivity : AppCompatActivity() {
     ) {
         if (Settings.canDrawOverlays(this)) {
             Log.d(TAG, "已获取悬浮窗权限，继续检查其他权限")
-            checkOtherPermissions()
         } else {
-            Log.e(TAG, "用户拒绝了悬浮窗权限")
-            Toast.makeText(this, "需要悬浮窗权限才能使用此功能", Toast.LENGTH_LONG).show()
-            finish()
+            Log.w(TAG, "用户拒绝了悬浮窗权限，但继续运行")
         }
+        checkOtherPermissions()
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,16 +69,11 @@ class PermissionActivity : AppCompatActivity() {
     }
     
     private fun checkAndRequestPermissions() {
-            if (!Settings.canDrawOverlays(this)) {
-            // 请求悬浮窗权限
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            overlayPermissionLauncher.launch(intent)
-        } else {
-            checkOtherPermissions()
+        // 简化权限检查，直接检查其他权限，不强制要求悬浮窗权限
+        if (!Settings.canDrawOverlays(this)) {
+            Log.w(TAG, "Overlay permission not granted, but continuing")
         }
+        checkOtherPermissions()
     }
     
     private fun checkOtherPermissions() {
@@ -108,11 +101,11 @@ class PermissionActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == OVERLAY_PERMISSION_REQ_CODE) {
             if (Settings.canDrawOverlays(this)) {
-                checkOtherPermissions()
+                Log.d(TAG, "Overlay permission granted")
             } else {
-                Toast.makeText(this, "需要悬浮窗权限才能运行", Toast.LENGTH_LONG).show()
-                finish()
+                Log.w(TAG, "Overlay permission denied, but continuing")
             }
+            checkOtherPermissions()
         }
     }
     

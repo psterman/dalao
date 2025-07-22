@@ -5,9 +5,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.View
 import android.view.WindowManager
 import android.webkit.URLUtil
 import android.widget.CheckBox
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.example.aifloatingball.service.DynamicIslandService
@@ -67,40 +69,94 @@ class ClipboardDialogActivity : AppCompatActivity() {
     }
 
     private fun setupUI(content: String) {
-        // 设置标题和内容
-        findViewById<TextView>(R.id.dialog_title).text = when {
-            URLUtil.isValidUrl(content) -> "检测到网址"
-            else -> "检测到文本"
-        }
-        
-        findViewById<TextView>(R.id.dialog_message).text = content
-        
-        // 搜索按钮
-        findViewById<MaterialButton>(R.id.btn_search).setOnClickListener {
-            when (settingsManager.getDisplayMode()) {
-                "floating_ball" -> startFloatingSearch(content)
-                "dynamic_island" -> startIslandSearch(content)
-                else -> startSimpleMode(content)
+        // 设置图标和标题
+        val isUrl = URLUtil.isValidUrl(content)
+        val dialogIcon = findViewById<ImageView>(R.id.dialog_icon)
+        val dialogTitle = findViewById<TextView>(R.id.dialog_title)
+
+        when {
+            isUrl -> {
+                dialogIcon.setImageResource(R.drawable.ic_link)
+                dialogTitle.text = "检测到网址"
             }
+            content.length > 50 -> {
+                dialogIcon.setImageResource(R.drawable.ic_article)
+                dialogTitle.text = "检测到长文本"
+            }
+            else -> {
+                dialogIcon.setImageResource(R.drawable.ic_content_paste)
+                dialogTitle.text = "检测到文本"
+            }
+        }
+
+        // 设置内容预览
+        findViewById<TextView>(R.id.dialog_message).text = content
+
+        // 设置背景遮罩点击事件
+        findViewById<View>(R.id.background_overlay).setOnClickListener {
             finishWithAnimation()
         }
-        
+
+        // 搜索按钮
+        findViewById<MaterialButton>(R.id.btn_search).apply {
+            text = if (isUrl) "打开链接" else "搜索"
+            setOnClickListener {
+                when (settingsManager.getDisplayMode()) {
+                    "floating_ball" -> startFloatingSearch(content)
+                    "dynamic_island" -> startIslandSearch(content)
+                    else -> startSimpleMode(content)
+                }
+                finishWithAnimation()
+            }
+        }
+
         // 跳过按钮
         findViewById<MaterialButton>(R.id.btn_skip).setOnClickListener {
             finishWithAnimation()
         }
-        
+
         // 设置"不再提示"选项
         findViewById<CheckBox>(R.id.cb_dont_show_again).apply {
             setOnCheckedChangeListener { _, isChecked ->
                 settingsManager.setClipboardListenerEnabled(!isChecked)
             }
         }
+
+        // 添加进入动画
+        val contentCard = findViewById<View>(R.id.content_card)
+        contentCard.alpha = 0f
+        contentCard.scaleX = 0.8f
+        contentCard.scaleY = 0.8f
+        contentCard.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(300)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
     }
 
     private fun finishWithAnimation() {
-        finish()
-        overridePendingTransition(0, R.anim.dialog_fade_out)
+        val contentCard = findViewById<View>(R.id.content_card)
+        val backgroundOverlay = findViewById<View>(R.id.background_overlay)
+
+        // 同时执行卡片和背景的退出动画
+        contentCard.animate()
+            .alpha(0f)
+            .scaleX(0.8f)
+            .scaleY(0.8f)
+            .setDuration(250)
+            .setInterpolator(android.view.animation.AccelerateInterpolator())
+            .start()
+
+        backgroundOverlay.animate()
+            .alpha(0f)
+            .setDuration(250)
+            .withEndAction {
+                finish()
+                overridePendingTransition(0, 0) // 不使用系统动画
+            }
+            .start()
     }
 
     private fun startFloatingSearch(content: String) {

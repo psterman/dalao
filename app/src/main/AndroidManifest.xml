@@ -216,16 +216,11 @@
                 android:resource="@xml/search_widget_info" />
         </receiver>
         
-        <!-- 测试活动 -->
+        <!-- 测试活动 - 移除启动器注册，避免在桌面显示 -->
         <activity
             android:name=".TestMinimizeActivity"
-            android:exported="true"
-            android:label="测试最小化">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="false"
+            android:label="测试最小化" />
         
     </application>
 

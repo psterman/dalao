@@ -181,8 +181,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             updateDrawerGravity()
         }
 
-        // 初始化标签页管理 - 暂时禁用
-        // initTabManagement()
+        // 初始化标签页管理
+        initTabManagement()
         
         // 初始化WebView
         webView = findViewById(R.id.webview)
@@ -215,9 +215,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         // 设置开关状态
         updateSwitchStates()
 
-        findViewById<ImageButton>(R.id.btn_floating_mode).setOnClickListener {
-            toggleFloatingMode()
-        }
+        // 悬浮窗模式按钮点击监听器将在setupBottomBar中设置
 
         // 应用启动时，根据当前设置启动正确的服务
         val displayMode = settingsManager.getDisplayMode()
@@ -365,71 +363,40 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private fun updateToolbarLayout(isRightHanded: Boolean) {
         // 获取搜索栏容器
         val searchBarContainer = findViewById<AppBarLayout>(R.id.appbar) ?: return
-        val searchBarParams = searchBarContainer.layoutParams as ViewGroup.MarginLayoutParams
-        
+
         // 获取底部工具栏容器和按钮组
         val leftButtonGroup = findViewById<LinearLayout>(R.id.left_buttons)
         val rightButtonGroup = findViewById<LinearLayout>(R.id.right_buttons)
-        val menuButton = findViewById<ImageButton>(R.id.btn_menu)
-        val historyButton = findViewById<ImageButton>(R.id.btn_history)
-        val bookmarksButton = findViewById<ImageButton>(R.id.btn_bookmarks)
-        val settingsButton = findViewById<ImageButton>(R.id.btn_settings)
+        val menuButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_menu)
+        val historyButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_history)
+        val bookmarksButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_bookmarks)
+        val settingsButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_settings)
+
+        // 检查按钮是否存在
+        if (menuButton == null || historyButton == null || bookmarksButton == null || settingsButton == null) {
+            return
+        }
         
         if (isRightHanded) {
-            // 右手模式
-            searchBarParams.marginStart = resources.getDimensionPixelSize(R.dimen.search_bar_margin)
-            searchBarParams.marginEnd = resources.getDimensionPixelSize(R.dimen.search_bar_margin)
-            
+            // 右手模式 - 菜单按钮在左侧，功能按钮在右侧
+
             // 移动菜单按钮到左侧
             leftButtonGroup?.apply {
                 removeAllViews()
                 addView(menuButton)
             }
-            
+
             // 功能按钮在右侧
             rightButtonGroup?.apply {
                 removeAllViews()
                 addView(historyButton)
                 addView(bookmarksButton)
                 addView(settingsButton)
-            }
-            
-            // 设置边距
-            leftButtonGroup?.setPadding(
-                resources.getDimensionPixelSize(R.dimen.toolbar_edge_margin),
-                0,
-                resources.getDimensionPixelSize(R.dimen.toolbar_group_spacing),
-                0
-            )
-            
-            rightButtonGroup?.setPadding(
-                resources.getDimensionPixelSize(R.dimen.toolbar_group_spacing),
-                0,
-                resources.getDimensionPixelSize(R.dimen.toolbar_edge_margin),
-                0
-            )
-            
-            // 重新设置按钮间距
-            historyButton.layoutParams = (historyButton.layoutParams as LinearLayout.LayoutParams).apply {
-                marginStart = 0
-            }
-            bookmarksButton.layoutParams = (bookmarksButton.layoutParams as LinearLayout.LayoutParams).apply {
-                marginStart = resources.getDimensionPixelSize(R.dimen.toolbar_icon_spacing)
-            }
-            settingsButton.layoutParams = (settingsButton.layoutParams as LinearLayout.LayoutParams).apply {
-                marginStart = resources.getDimensionPixelSize(R.dimen.toolbar_icon_spacing)
+                // 悬浮模式按钮保持在原位置
             }
         } else {
-            // 左手模式
-            searchBarParams.marginStart = resources.getDimensionPixelSize(R.dimen.search_bar_margin_left_handed)
-            searchBarParams.marginEnd = resources.getDimensionPixelSize(R.dimen.search_bar_margin)
-            
-            // 移动菜单按钮到右侧
-            rightButtonGroup?.apply {
-                removeAllViews()
-                addView(menuButton)
-            }
-            
+            // 左手模式 - 功能按钮在左侧，菜单按钮在右侧
+
             // 功能按钮在左侧
             leftButtonGroup?.apply {
                 removeAllViews()
@@ -437,36 +404,14 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 addView(bookmarksButton)
                 addView(settingsButton)
             }
-            
-            // 设置边距
-            leftButtonGroup?.setPadding(
-                resources.getDimensionPixelSize(R.dimen.toolbar_edge_margin_left_handed),
-                0,
-                resources.getDimensionPixelSize(R.dimen.toolbar_group_spacing),
-                0
-            )
-            
-            rightButtonGroup?.setPadding(
-                resources.getDimensionPixelSize(R.dimen.toolbar_group_spacing),
-                0,
-                resources.getDimensionPixelSize(R.dimen.toolbar_edge_margin_left_handed),
-                0
-            )
-            
-            // 重新设置按钮间距
-            historyButton.layoutParams = (historyButton.layoutParams as LinearLayout.LayoutParams).apply {
-                marginStart = 0
-            }
-            bookmarksButton.layoutParams = (bookmarksButton.layoutParams as LinearLayout.LayoutParams).apply {
-                marginStart = resources.getDimensionPixelSize(R.dimen.toolbar_icon_spacing)
-            }
-            settingsButton.layoutParams = (settingsButton.layoutParams as LinearLayout.LayoutParams).apply {
-                marginStart = resources.getDimensionPixelSize(R.dimen.toolbar_icon_spacing)
+
+            // 移动菜单按钮到右侧
+            rightButtonGroup?.apply {
+                removeAllViews()
+                addView(menuButton)
+                // 悬浮模式按钮保持在原位置
             }
         }
-        
-        // 应用搜索栏布局参数
-        searchBarContainer.layoutParams = searchBarParams
     }
 
     private fun applyDrawerTheme() {
@@ -1104,33 +1049,33 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private fun setupBottomBar() {
         // 关闭按钮
-        findViewById<ImageButton>(R.id.btn_close).setOnClickListener {
+        findViewById<ImageButton>(R.id.btn_close)?.setOnClickListener {
             finish()
         }
 
         // 菜单按钮
-        findViewById<ImageButton>(R.id.btn_menu).setOnClickListener {
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_menu)?.setOnClickListener {
             drawerLayout.openDrawer(GravityCompat.START)
         }
 
         // 历史记录按钮
-        findViewById<ImageButton>(R.id.btn_history).setOnClickListener {
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_history)?.setOnClickListener {
             // TODO: 实现历史记录功能
         }
 
         // 书签按钮
-        findViewById<ImageButton>(R.id.btn_bookmarks).setOnClickListener {
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_bookmarks)?.setOnClickListener {
             // TODO: 实现书签功能
         }
 
         // 设置按钮
-        findViewById<ImageButton>(R.id.btn_settings).setOnClickListener {
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_settings)?.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
         // 悬浮窗模式按钮
-        findViewById<ImageButton>(R.id.btn_floating_mode).setOnClickListener {
-            startFloatingMode()
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_floating_mode)?.setOnClickListener {
+            toggleFloatingMode()
         }
     }
 
@@ -1345,13 +1290,12 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         val useFloatingMode = settingsManager.getBoolean("use_floating_mode", false)
         
         if (useFloatingMode) {
-            // 检查是否有SYSTEM_ALERT_WINDOW权限
+            // 简化权限检查，如果没有权限就使用简易模式
             if (!Settings.canDrawOverlays(this)) {
-                // 没有权限，请求权限
-                Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
-                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                intent.data = Uri.parse("package:$packageName")
-                startActivity(intent)
+                Log.w(TAG, "No overlay permission, switching to simple mode")
+                settingsManager.setDisplayMode("simple")
+                startActivity(Intent(this, SimpleModeActivity::class.java))
+                finish()
                 return
             }
             
@@ -1434,13 +1378,11 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private fun toggleFloatingMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            // 请求悬浮窗权限
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-            Toast.makeText(this, "请授予悬浮窗权限", Toast.LENGTH_SHORT).show()
+            // 没有权限时切换到简易模式
+            Log.w(TAG, "No overlay permission, switching to simple mode instead")
+            settingsManager.setDisplayMode("simple")
+            startActivity(Intent(this, SimpleModeActivity::class.java))
+            finish()
             return
         }
 
@@ -1733,9 +1675,9 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             } else {
                 // 按字母筛选
                 filteredEngines.filter { engine ->
-                val firstChar = engine.name.first()
+                val firstChar = engine.displayName.first()
                 when {
-                    firstChar.toString().matches(Regex("[A-Za-z]")) -> 
+                    firstChar.toString().matches(Regex("[A-Za-z]")) ->
                         firstChar.uppercaseChar() == letter.uppercaseChar()
                     firstChar.toString().matches(Regex("[\u4e00-\u9fa5]")) -> {
                             try {
@@ -1830,27 +1772,27 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             // 设置引擎图标
             engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
                 try {
-                    // 尝试设置图标资源，如果失败则使用默认图标
-                    if (engine.iconResId != 0) {
-                setImageResource(engine.iconResId)
-                    } else {
-                        setImageResource(R.drawable.ic_search)
-                    }
+                    // 使用FaviconLoader加载图标
+                    com.example.aifloatingball.utils.FaviconLoader.loadIcon(
+                        this,
+                        engine.url,
+                        if (engine.iconResId != 0) engine.iconResId else R.drawable.ic_search
+                    )
                 } catch (e: Exception) {
                     // 如果无法加载指定的图标，使用默认图标
-                    Log.e(TAG, "加载图标失败: ${engine.name}, 使用默认图标", e)
+                    Log.e(TAG, "加载图标失败: ${engine.displayName}, 使用默认图标", e)
                     setImageResource(R.drawable.ic_search)
                 }
-                
+
                 // 设置图标颜色
-                setColorFilter(ContextCompat.getColor(context, 
+                setColorFilter(ContextCompat.getColor(context,
                     if (isDarkMode) android.R.color.white else android.R.color.black))
             }
 
             // 设置引擎名称
             engineItem.findViewById<TextView>(R.id.engine_name).apply {
-                text = engine.name
-                setTextColor(ContextCompat.getColor(context, 
+                text = engine.displayName
+                setTextColor(ContextCompat.getColor(context,
                     if (isDarkMode) android.R.color.white else android.R.color.black))
             }
 
@@ -2252,13 +2194,11 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
     private fun startFloatingMode() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            // 请求悬浮窗权限
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-            Toast.makeText(this, "请授予悬浮窗权限", Toast.LENGTH_SHORT).show()
+            // 没有权限时自动切换到简易模式
+            Log.w(TAG, "No overlay permission for floating mode, switching to simple mode")
+            settingsManager.setDisplayMode("simple")
+            startActivity(Intent(this, SimpleModeActivity::class.java))
+            finish()
             return
         }
 

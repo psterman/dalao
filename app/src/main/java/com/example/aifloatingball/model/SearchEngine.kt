@@ -29,9 +29,11 @@ data class SearchEngine(
         val DEFAULT_ENGINES = listOf(
             // A1. 通用搜索引擎
             SearchEngine(name = "baidu", displayName = "百度", url = "https://www.baidu.com", iconResId = R.drawable.ic_baidu, description = "全球最大的中文搜索引擎", searchUrl = "https://www.baidu.com/s?wd={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "google", displayName = "谷歌", url = "https://www.google.com", iconResId = R.drawable.ic_google, description = "全球最大的搜索引擎", searchUrl = "https://www.google.com/search?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "sogou", displayName = "搜狗", url = "https://www.sogou.com", iconResId = R.drawable.ic_sogou, description = "腾讯旗下，深度整合微信公众号和知乎内容", searchUrl = "https://www.sogou.com/web?query={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "360", displayName = "360搜索", url = "https://www.so.com", iconResId = R.drawable.ic_360search, description = "奇虎360旗下，以\"安全\"为特色", searchUrl = "https://www.so.com/s?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "bing_cn", displayName = "必应", url = "https://cn.bing.com", iconResId = R.drawable.ic_bing, description = "微软旗下，提供高质量国际视野和学术搜索", searchUrl = "https://cn.bing.com/search?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "duckduckgo", displayName = "DuckDuckGo", url = "https://duckduckgo.com", iconResId = R.drawable.ic_duckduckgo, description = "注重隐私保护的搜索引擎", searchUrl = "https://duckduckgo.com/?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "shenma", displayName = "神马", url = "https://m.sm.cn", iconResId = R.drawable.ic_search, description = "阿里巴巴旗下，专注于移动端体验", searchUrl = "https://m.sm.cn/s?q={query}", category = SearchEngineCategory.GENERAL),
 
             // A2. 新闻与门户
@@ -87,7 +89,17 @@ data class SearchEngine(
             SearchEngine(name = "github", displayName = "GitHub", url = "https://github.com", iconResId = R.drawable.ic_search, description = "全球最大的代码托管平台和开发者社区", searchUrl = "https://github.com/search?q={query}", category = SearchEngineCategory.DEVELOPER),
             SearchEngine(name = "stackoverflow", displayName = "Stack Overflow", url = "https://stackoverflow.com", iconResId = R.drawable.ic_search, description = "专业的程序员问答社区", searchUrl = "https://stackoverflow.com/search?q={query}", category = SearchEngineCategory.DEVELOPER),
             SearchEngine(name = "csdn", displayName = "CSDN", url = "https://www.csdn.net", iconResId = R.drawable.ic_search, description = "中文IT技术社区和服务平台", searchUrl = "https://so.csdn.net/so/search?q={query}", category = SearchEngineCategory.DEVELOPER),
-            SearchEngine(name = "juejin", displayName = "稀土掘金", url = "https://juejin.cn", iconResId = R.drawable.ic_search, description = "一个帮助开发者成长的技术社区", searchUrl = "https://juejin.cn/search?query={query}", category = SearchEngineCategory.DEVELOPER)
+            SearchEngine(name = "juejin", displayName = "稀土掘金", url = "https://juejin.cn", iconResId = R.drawable.ic_search, description = "一个帮助开发者成长的技术社区", searchUrl = "https://juejin.cn/search?query={query}", category = SearchEngineCategory.DEVELOPER),
+
+            // G1. 知识与百科
+            SearchEngine(name = "baidu_baike", displayName = "百度百科", url = "https://baike.baidu.com", iconResId = R.drawable.ic_baidu, description = "中文网络百科全书", searchUrl = "https://baike.baidu.com/search?word={query}", category = SearchEngineCategory.KNOWLEDGE),
+            SearchEngine(name = "wikipedia", displayName = "维基百科", url = "https://zh.wikipedia.org", iconResId = R.drawable.ic_search, description = "自由的百科全书", searchUrl = "https://zh.wikipedia.org/wiki/Special:Search?search={query}", category = SearchEngineCategory.KNOWLEDGE),
+            SearchEngine(name = "hudong_baike", displayName = "互动百科", url = "http://www.baike.com", iconResId = R.drawable.ic_search, description = "全球最大中文百科网站", searchUrl = "http://www.baike.com/wiki/{query}", category = SearchEngineCategory.KNOWLEDGE),
+
+            // H1. 设计与创意
+            SearchEngine(name = "dribbble", displayName = "Dribbble", url = "https://dribbble.com", iconResId = R.drawable.ic_search, description = "设计师作品展示和交流平台", searchUrl = "https://dribbble.com/search/{query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine(name = "behance", displayName = "Behance", url = "https://www.behance.net", iconResId = R.drawable.ic_search, description = "Adobe旗下的创意作品展示平台", searchUrl = "https://www.behance.net/search/projects?search={query}", category = SearchEngineCategory.DESIGN),
+            SearchEngine(name = "zcool", displayName = "站酷", url = "https://www.zcool.com.cn", iconResId = R.drawable.ic_search, description = "中国设计师互动平台", searchUrl = "https://www.zcool.com.cn/search/content?word={query}", category = SearchEngineCategory.DESIGN)
         )
 
         @JvmStatic

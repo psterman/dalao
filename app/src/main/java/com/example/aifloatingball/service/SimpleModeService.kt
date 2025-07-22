@@ -96,9 +96,9 @@ class SimpleModeService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun showMinimizedBar() {
-        // 检查悬浮窗权限
+        // 简化权限检查，没有权限时直接停止服务
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "请授予悬浮窗权限", Toast.LENGTH_SHORT).show()
+            Log.w("SimpleModeService", "No overlay permission, stopping service")
             stopSelf()
             return
         }

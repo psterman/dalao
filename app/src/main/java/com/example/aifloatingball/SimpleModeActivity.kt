@@ -195,14 +195,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val hasPermission = Settings.canDrawOverlays(this)
             Log.d(TAG, "Overlay permission status: $hasPermission")
+            // 移除权限提醒，只记录日志
             if (!hasPermission) {
-                Toast.makeText(this, "警告：应用没有悬浮窗权限", Toast.LENGTH_LONG).show()
-            } else {
-                Toast.makeText(this, "悬浮窗权限正常", Toast.LENGTH_SHORT).show()
+                Log.w(TAG, "Overlay permission not granted, but continuing without notification")
             }
         } else {
             Log.d(TAG, "Android version < M, no overlay permission check needed")
-            Toast.makeText(this, "无需权限检查（旧版本Android）", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -1378,13 +1376,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun minimizeToService() {
-        // 检查悬浮窗权限
+        // 简化权限检查，如果没有权限就直接关闭应用
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "需要悬浮窗权限才能最小化", Toast.LENGTH_SHORT).show()
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                data = android.net.Uri.parse("package:$packageName")
-            }
-            startActivity(intent)
+            Log.w(TAG, "No overlay permission, closing app instead of minimizing")
+            finish()
             return
         }
 

@@ -90,6 +90,7 @@ class GroupedSearchEngineAdapter(
     // 分类标题ViewHolder
     inner class CategoryHeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val categoryTitle: TextView = itemView.findViewById(R.id.category_title)
+            ?: throw IllegalStateException("category_title not found in item_category_header.xml")
 
         fun bind(category: SearchEngineCategory) {
             categoryTitle.text = category.displayName
@@ -99,8 +100,11 @@ class GroupedSearchEngineAdapter(
     // 搜索引擎ViewHolder
     inner class SearchEngineViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val engineIcon: ImageView = itemView.findViewById(R.id.engine_icon)
+            ?: throw IllegalStateException("engine_icon not found in item_search_engine_with_switch.xml")
         private val engineName: TextView = itemView.findViewById(R.id.engine_name)
+            ?: throw IllegalStateException("engine_name not found in item_search_engine_with_switch.xml")
         private val engineSwitch: Switch = itemView.findViewById(R.id.engine_switch)
+            ?: throw IllegalStateException("engine_switch not found in item_search_engine_with_switch.xml")
 
         fun bind(engine: SearchEngine, isEnabled: Boolean, onToggle: (Boolean) -> Unit) {
             engineIcon.setImageResource(engine.iconResId)

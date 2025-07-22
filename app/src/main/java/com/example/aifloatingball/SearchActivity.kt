@@ -552,13 +552,9 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun toggleFloatingMode() {
-        // 检查是否有SYSTEM_ALERT_WINDOW权限
+        // 简化权限检查，没有权限时直接返回
         if (!Settings.canDrawOverlays(this)) {
-            // 没有权限，请求权限
-            Toast.makeText(this, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
-            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-            intent.data = Uri.parse("package:$packageName")
-            startActivity(intent)
+            Log.w("SearchActivity", "No overlay permission, cannot toggle floating mode")
             return
         }
 
@@ -908,7 +904,7 @@ class SearchActivity : AppCompatActivity() {
             private val descriptionTextView: TextView = itemView.findViewById(R.id.engine_description)
 
             fun bind(engine: BaseSearchEngine) {
-                nameTextView.text = engine.name
+                nameTextView.text = engine.displayName
                 descriptionTextView.text = engine.description
                 itemView.setOnClickListener { onEngineSelected(engine) }
             }

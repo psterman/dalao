@@ -19,7 +19,12 @@ class SearchEngineAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val engine = searchEngines[position]
-        holder.binding.searchEngineIcon.setImageResource(engine.iconResId)
+        // 使用FaviconLoader加载图标
+        com.example.aifloatingball.utils.FaviconLoader.loadIcon(
+            holder.binding.searchEngineIcon,
+            engine.searchUrl,
+            engine.iconResId
+        )
         holder.binding.searchEngineName.text = engine.name
         holder.binding.searchEngineDescription.text = engine.description
         holder.itemView.setOnClickListener {

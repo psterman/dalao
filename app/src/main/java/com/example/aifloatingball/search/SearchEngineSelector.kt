@@ -45,17 +45,17 @@ class SearchEngineSelector(private val context: Context) {
                 textSize = 16f
                 setPadding(24, 16, 24, 16)
                 background = ColorDrawable(Color.TRANSPARENT)
-                
+
                 // 高亮当前选中的搜索引擎
                 if (engine == currentEngine) {
                     setBackgroundResource(R.drawable.selected_item_background)
                 }
-                
+
                 setOnClickListener {
                     onEngineSelected(engine)
                     popupWindow?.dismiss()
                 }
-                
+
                 layout.addView(this)
             }
         }
