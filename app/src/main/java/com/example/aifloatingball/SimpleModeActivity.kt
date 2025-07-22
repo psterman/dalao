@@ -190,6 +190,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 处理从其他地方传入的搜索内容
         handleIntentData()
     }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 配置变化时重新应用颜色
+        updateUIColors()
+    }
     
     private fun checkOverlayPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -220,26 +226,73 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 动态更新界面颜色
      */
     private fun updateUIColors() {
-        val isDarkMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == 
+        val isDarkMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
                          android.content.res.Configuration.UI_MODE_NIGHT_YES
-        
+
         // 更新状态栏和导航栏颜色
-        window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, 
-            if (isDarkMode) R.color.simple_mode_status_bar_light else R.color.simple_mode_status_bar_light)
-        window.navigationBarColor = androidx.core.content.ContextCompat.getColor(this,
-            if (isDarkMode) R.color.simple_mode_navigation_bar_light else R.color.simple_mode_navigation_bar_light)
-            
+        window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_status_bar_light)
+        window.navigationBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_navigation_bar_light)
+
         // 更新根布局背景
         findViewById<View>(android.R.id.content).setBackgroundColor(
             androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
-            
+
+        // 更新主布局背景
+        findViewById<LinearLayout>(android.R.id.content)?.setBackgroundColor(
+            androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
+
         // 更新标题栏颜色
         updateHeaderColors()
-        
+
         // 更新底部导航颜色
         updateBottomNavigationColors()
+
+        // 更新所有文本颜色
+        updateAllTextColors()
     }
-    
+
+    /**
+     * 更新所有文本颜色
+     */
+    private fun updateAllTextColors() {
+        // 递归更新所有TextView的颜色
+        val rootView = findViewById<ViewGroup>(android.R.id.content)
+        updateTextColorsRecursively(rootView)
+    }
+
+    /**
+     * 递归更新ViewGroup中所有TextView的颜色
+     */
+    private fun updateTextColorsRecursively(viewGroup: ViewGroup) {
+        for (i in 0 until viewGroup.childCount) {
+            val child = viewGroup.getChildAt(i)
+            when (child) {
+                is TextView -> {
+                    // 根据TextView的用途设置不同的颜色
+                    when (child.id) {
+                        R.id.simple_mode_title -> {
+                            child.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_text_light))
+                        }
+                        R.id.final_prompt_text -> {
+                            child.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_primary_light))
+                        }
+                        R.id.recommended_engines_text -> {
+                            child.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_secondary_light))
+                        }
+                        else -> {
+                            // 默认使用主要文本颜色
+                            child.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_primary_light))
+                        }
+                    }
+                }
+                is ViewGroup -> {
+                    // 递归处理子ViewGroup
+                    updateTextColorsRecursively(child)
+                }
+            }
+        }
+    }
+
     /**
      * 更新标题栏颜色
      */

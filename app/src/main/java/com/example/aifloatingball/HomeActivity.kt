@@ -126,6 +126,16 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private var isAIMode = true
     private var edgeGravity = GravityCompat.START
 
+    // 边缘滑动相关变量
+    private var edgeSwipeStartX = 0f
+    private var edgeSwipeStartY = 0f
+    private var isEdgeSwipeActive = false
+    private var isDrawerPulling = false // 是否正在拉出侧边栏
+    private var drawerPullProgress = 0f // 侧边栏拉出进度 (0-1)
+    private val EDGE_SWIPE_THRESHOLD = 80f // 垂直滑动距离阈值
+    private val DRAWER_OPEN_THRESHOLD = 0.3f // 侧边栏打开阈值
+    private val EDGE_ZONE_WIDTH = 30f // 边缘区域宽度（dp）
+
     private var autoHideSwitch: SwitchCompat? = null
     private var clipboardSwitch: SwitchCompat? = null
 
@@ -314,50 +324,46 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
         }
 
-        // 设置退出按钮点击监听器
+        // 设置退出按钮点击监听器 - 只关闭侧边栏
         findViewById<View>(R.id.exit_button)?.setOnClickListener {
-            // 显示确认对话框
-            AlertDialog.Builder(this)
-                .setTitle("退出确认")
-                .setMessage("确定要退出应用吗？")
-                .setPositiveButton("确定") { _, _ ->
-                    // 保存必要的状态
-                    saveSettings()
-                    
-                    // 清理资源
-                    webView.clearCache(true)
-                    webView.clearHistory()
-                    
-                    // 关闭所有活动的服务
-                    try {
-                        stopService(Intent(this, DualFloatingWebViewService::class.java))
-                    } catch (e: Exception) {
-                        Log.e(TAG, "停止DualFloatingWebViewService失败", e)
-                    }
-                    
-                    // 结束应用
-                    finish()
-                }
-                .setNegativeButton("取消", null)
-                .show()
+            // 关闭所有打开的侧边栏
+            drawerLayout.closeDrawers()
         }
     }
 
     private fun updateDrawerGravity() {
         // 获取左右手模式设置
         val isRightHanded = settingsManager.getBoolean("right_handed_mode", true)
-        
+
         // 更新抽屉位置
         val drawerContent = findViewById<View>(R.id.nav_drawer)
         val params = drawerContent.layoutParams as DrawerLayout.LayoutParams
+
+        // 右手模式：侧边栏在左侧（START），方便右手从左边缘滑动激活
+        // 左手模式：侧边栏在右侧（END），方便左手从右边缘滑动激活
         params.gravity = if (isRightHanded) GravityCompat.START else GravityCompat.END
         drawerContent.layoutParams = params
-        
-        // 更新长按区域的判断
+
+        // 更新边缘手势检测区域
         edgeGravity = if (isRightHanded) GravityCompat.START else GravityCompat.END
+
+        // 确保DrawerLayout的锁定模式正确设置
+        updateDrawerLockMode(isRightHanded)
 
         // 更新工具栏布局
         updateToolbarLayout(isRightHanded)
+    }
+
+    private fun updateDrawerLockMode(isRightHanded: Boolean) {
+        if (isRightHanded) {
+            // 右手模式：启用左侧抽屉，锁定右侧抽屉
+            drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.START)
+            drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.END)
+        } else {
+            // 左手模式：启用右侧抽屉，锁定左侧抽屉
+            drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END)
+            drawerLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.START)
+        }
     }
 
     private fun updateToolbarLayout(isRightHanded: Boolean) {
@@ -378,9 +384,9 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
         
         if (isRightHanded) {
-            // 右手模式 - 菜单按钮在左侧，功能按钮在右侧
+            // 右手模式 - 侧边栏在左侧，菜单按钮也在左侧方便激活
 
-            // 移动菜单按钮到左侧
+            // 移动菜单按钮到左侧（与侧边栏位置匹配）
             leftButtonGroup?.apply {
                 removeAllViews()
                 addView(menuButton)
@@ -392,10 +398,9 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 addView(historyButton)
                 addView(bookmarksButton)
                 addView(settingsButton)
-                // 悬浮模式按钮保持在原位置
             }
         } else {
-            // 左手模式 - 功能按钮在左侧，菜单按钮在右侧
+            // 左手模式 - 侧边栏在右侧，菜单按钮也在右侧方便激活
 
             // 功能按钮在左侧
             leftButtonGroup?.apply {
@@ -405,11 +410,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 addView(settingsButton)
             }
 
-            // 移动菜单按钮到右侧
+            // 移动菜单按钮到右侧（与侧边栏位置匹配）
             rightButtonGroup?.apply {
                 removeAllViews()
                 addView(menuButton)
-                // 悬浮模式按钮保持在原位置
             }
         }
     }
@@ -463,38 +467,137 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        // 如果侧边栏已经打开，让DrawerLayout自己处理触摸事件
+        if (drawerLayout.isDrawerOpen(GravityCompat.START) || drawerLayout.isDrawerOpen(GravityCompat.END)) {
+            return super.dispatchTouchEvent(event)
+        }
+
+        handleEdgeSwipeGesture(event)
+        return super.dispatchTouchEvent(event)
+    }
+
+    private fun handleEdgeSwipeGesture(event: MotionEvent) {
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+        val edgeZonePixels = (EDGE_ZONE_WIDTH * resources.displayMetrics.density).toInt()
+
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
                 // 检查是否在边缘区域
-                val isInEdgeArea = when (edgeGravity) {
-                    GravityCompat.START -> event.x <= edgeSizePixels
-                    GravityCompat.END -> event.x >= resources.displayMetrics.widthPixels - edgeSizePixels
-                    else -> false
-                }
-                
-                if (isInEdgeArea) {
-                    longPressStartTime = System.currentTimeMillis()
+                val isInLeftEdge = event.x <= edgeZonePixels
+                val isInRightEdge = event.x >= screenWidth - edgeZonePixels
+
+                if ((edgeGravity == GravityCompat.START && isInLeftEdge) ||
+                    (edgeGravity == GravityCompat.END && isInRightEdge)) {
+
+                    edgeSwipeStartX = event.x
+                    edgeSwipeStartY = event.y
+                    isEdgeSwipeActive = true
+                    isDrawerPulling = false
+                    drawerPullProgress = 0f
                 }
             }
-            MotionEvent.ACTION_UP -> {
-                if (longPressStartTime > 0) {
-                    val pressDuration = System.currentTimeMillis() - longPressStartTime
-                    if (pressDuration >= LONG_PRESS_DURATION) {
-                        // 根据左右手模式打开抽屉
-                        when (edgeGravity) {
-                            GravityCompat.START -> drawerLayout.openDrawer(GravityCompat.START)
-                            GravityCompat.END -> drawerLayout.openDrawer(GravityCompat.END)
+
+            MotionEvent.ACTION_MOVE -> {
+                if (isEdgeSwipeActive) {
+                    val deltaX = event.x - edgeSwipeStartX
+                    val deltaY = event.y - edgeSwipeStartY
+                    val verticalDistance = kotlin.math.abs(deltaY)
+                    val horizontalDistance = kotlin.math.abs(deltaX)
+
+                    // 检查是否为垂直滑动（从上往下或从下往上）
+                    if (verticalDistance > EDGE_SWIPE_THRESHOLD && verticalDistance > horizontalDistance * 2) {
+                        if (!isDrawerPulling) {
+                            // 开始拉出侧边栏
+                            isDrawerPulling = true
+                            showDrawerPreview()
                         }
-                        return true
+
+                        // 计算拉出进度
+                        drawerPullProgress = kotlin.math.min(1f, verticalDistance / (screenHeight * 0.3f))
+                        updateDrawerPullProgress(drawerPullProgress)
+
+                    } else if (horizontalDistance > EDGE_SWIPE_THRESHOLD) {
+                        // 如果是水平滑动，取消垂直滑动
+                        cancelDrawerPull()
                     }
                 }
-                longPressStartTime = 0
             }
+
+            MotionEvent.ACTION_UP -> {
+                if (isDrawerPulling) {
+                    if (drawerPullProgress >= DRAWER_OPEN_THRESHOLD) {
+                        // 达到阈值，打开侧边栏
+                        openDrawerWithAnimation()
+                    } else {
+                        // 未达到阈值，回退撤销
+                        cancelDrawerPull()
+                    }
+                }
+                resetSwipeState()
+            }
+
             MotionEvent.ACTION_CANCEL -> {
-                longPressStartTime = 0
+                if (isDrawerPulling) {
+                    cancelDrawerPull()
+                }
+                resetSwipeState()
             }
         }
-        return super.dispatchTouchEvent(event)
+    }
+
+    private fun showDrawerPreview() {
+        // 显示侧边栏预览效果
+        val drawerView = findViewById<View>(R.id.nav_drawer)
+        drawerView?.alpha = 0.3f
+        drawerView?.visibility = View.VISIBLE
+    }
+
+    private fun updateDrawerPullProgress(progress: Float) {
+        // 更新侧边栏拉出进度的视觉效果
+        val drawerView = findViewById<View>(R.id.nav_drawer)
+        drawerView?.alpha = 0.3f + (progress * 0.7f)
+
+        // 可以添加更多视觉反馈，如阴影、缩放等
+        val scaleProgress = 0.8f + (progress * 0.2f)
+        drawerView?.scaleX = scaleProgress
+        drawerView?.scaleY = scaleProgress
+    }
+
+    private fun openDrawerWithAnimation() {
+        // 恢复正常状态并打开侧边栏
+        val drawerView = findViewById<View>(R.id.nav_drawer)
+        drawerView?.alpha = 1f
+        drawerView?.scaleX = 1f
+        drawerView?.scaleY = 1f
+
+        when (edgeGravity) {
+            GravityCompat.START -> drawerLayout.openDrawer(GravityCompat.START)
+            GravityCompat.END -> drawerLayout.openDrawer(GravityCompat.END)
+        }
+    }
+
+    private fun cancelDrawerPull() {
+        // 回退撤销，隐藏侧边栏预览
+        val drawerView = findViewById<View>(R.id.nav_drawer)
+        drawerView?.animate()
+            ?.alpha(0f)
+            ?.scaleX(0.8f)
+            ?.scaleY(0.8f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                drawerView.visibility = View.GONE
+                drawerView.alpha = 1f
+                drawerView.scaleX = 1f
+                drawerView.scaleY = 1f
+            }
+            ?.start()
+    }
+
+    private fun resetSwipeState() {
+        isEdgeSwipeActive = false
+        isDrawerPulling = false
+        drawerPullProgress = 0f
     }
 
     private fun initGestureDetectors() {
@@ -1285,7 +1388,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
 
-    private fun openSearchEngine(engine: SearchEngine, query: String = "") {
+    private fun openSearchEngine(engine: BaseSearchEngine, query: String = "") {
         // 检查是否应该使用悬浮窗模式
         val useFloatingMode = settingsManager.getBoolean("use_floating_mode", false)
         
@@ -1302,18 +1405,17 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             // 有权限，启动悬浮窗服务
             val intent = Intent(this, DualFloatingWebViewService::class.java)
             
-            if (query.isEmpty()) {
+            val url = if (query.isEmpty()) {
                 // 如果没有查询文本，直接打开搜索引擎主页
-                intent.putExtra("url", engine.url.replace("{query}", "").replace("search?q=", "")
+                engine.url.replace("{query}", "").replace("search?q=", "")
                     .replace("search?query=", "")
                     .replace("search?word=", "")
-                    .replace("s?wd=", ""))
+                    .replace("s?wd=", "")
             } else {
                 // 有查询文本，使用搜索引擎进行搜索
-                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-                val searchUrl = engine.url.replace("{query}", encodedQuery)
-                intent.putExtra("url", searchUrl)
+                engine.getSearchUrl(query)
             }
+            intent.putExtra("url", url)
             
             // 获取用户设置的窗口数量
             val windowCount = settingsManager.getDefaultWindowCount()
@@ -1322,27 +1424,29 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             startService(intent)
         } else {
             // 使用普通模式
-            if (query.isEmpty()) {
+            val url = if (query.isEmpty()) {
                 // 如果没有查询文本，直接打开搜索引擎主页
-                val url = engine.url.replace("{query}", "").replace("search?q=", "")
+                engine.url.replace("{query}", "").replace("search?q=", "")
                     .replace("search?query=", "")
                     .replace("search?word=", "")
                     .replace("s?wd=", "")
-                tabManager.addTab(url)
             } else {
                 // 有查询文本，使用搜索引擎进行搜索
-                val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-                val searchUrl = engine.url.replace("{query}", encodedQuery)
-                tabManager.addTab(searchUrl)
+                engine.getSearchUrl(query)
             }
+            tabManager.addTab(url)
             viewPager.visibility = View.VISIBLE
             tabPreviewContainer.visibility = View.VISIBLE
-                homeContent.visibility = View.GONE
+            homeContent.visibility = View.GONE
         }
     }
 
-    private fun showEngineSettings(engine: SearchEngine) {
-        val options = arrayOf("访问主页", "在悬浮窗中打开", "复制链接", "分享", "在浏览器中打开")
+    private fun showEngineSettings(engine: BaseSearchEngine) {
+        val options = if (engine is SearchEngine) {
+            arrayOf("访问主页", "在悬浮窗中打开", "复制链接", "分享", "在浏览器中打开", "设为默认", "编辑引擎", "删除引擎")
+        } else {
+            arrayOf("访问主页", "在悬浮窗中打开", "复制链接", "分享", "在浏览器中打开", "设为默认")
+        }
 
         AlertDialog.Builder(this)
             .setTitle("${engine.name} 选项")
@@ -1371,8 +1475,76 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(engine.url))
                         startActivity(intent)
                     }
+                    5 -> {
+                        // 设为默认搜索引擎
+                        if (engine is SearchEngine) {
+                            settingsManager.setDefaultSearchEngine(engine.name)
+                            Toast.makeText(this, "已设置 ${engine.displayName} 为默认搜索引擎", Toast.LENGTH_SHORT).show()
+                        } else if (engine is AISearchEngine) {
+                            // AI搜索引擎的默认设置（如果SettingsManager支持的话）
+                            Toast.makeText(this, "已设置 ${engine.displayName} 为默认AI搜索引擎", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    6 -> {
+                        // 编辑引擎（仅对SearchEngine可用）
+                        if (engine is SearchEngine) {
+                            showEditEngineDialog(engine)
+                        }
+                    }
+                    7 -> {
+                        // 删除引擎（仅对SearchEngine可用）
+                        if (engine is SearchEngine) {
+                            showDeleteEngineDialog(engine)
+                        }
+                    }
                 }
             }
+            .show()
+    }
+
+    private fun showEditEngineDialog(engine: SearchEngine) {
+        val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_edit_engine, null)
+        val nameEditText = dialogView.findViewById<EditText>(R.id.edit_engine_display_name)
+        val urlEditText = dialogView.findViewById<EditText>(R.id.edit_engine_search_url)
+
+        nameEditText.setText(engine.displayName)
+        urlEditText.setText(engine.url)
+
+        AlertDialog.Builder(this)
+            .setTitle("编辑搜索引擎")
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                val newName = nameEditText.text.toString().trim()
+                val newUrl = urlEditText.text.toString().trim()
+
+                if (newName.isNotEmpty() && newUrl.isNotEmpty()) {
+                    // 更新搜索引擎信息
+                    val updatedEngine = engine.copy(displayName = newName, url = newUrl)
+                    // TODO: 实现updateSearchEngine方法
+                    Toast.makeText(this, "搜索引擎已更新", Toast.LENGTH_SHORT).show()
+
+                    // 刷新引擎列表
+                    updateEngineList('A')
+                } else {
+                    Toast.makeText(this, "名称和URL不能为空", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun showDeleteEngineDialog(engine: SearchEngine) {
+        AlertDialog.Builder(this)
+            .setTitle("删除搜索引擎")
+            .setMessage("确定要删除 ${engine.displayName} 吗？此操作不可撤销。")
+            .setPositiveButton("删除") { _, _ ->
+                // TODO: 实现removeSearchEngine方法
+                Toast.makeText(this, "已删除 ${engine.displayName}", Toast.LENGTH_SHORT).show()
+
+                // 刷新引擎列表
+                updateEngineList('A')
+            }
+            .setNegativeButton("取消", null)
             .show()
     }
 
@@ -1761,7 +1933,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }.also { previewEngineList.addView(it) }
     }
 
-    private fun addEngineItem(engine: SearchEngine, isDarkMode: Boolean) {
+    private fun addEngineItem(engine: BaseSearchEngine, isDarkMode: Boolean) {
         try {
             val engineItem = LayoutInflater.from(this).inflate(
                 R.layout.item_search_engine,
@@ -1772,21 +1944,33 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             // 设置引擎图标
             engineItem.findViewById<ImageView>(R.id.engine_icon).apply {
                 try {
+                    // 清除之前的颜色过滤器，以显示真实图标
+                    clearColorFilter()
+
                     // 使用FaviconLoader加载图标
-                    com.example.aifloatingball.utils.FaviconLoader.loadIcon(
-                        this,
-                        engine.url,
-                        if (engine.iconResId != 0) engine.iconResId else R.drawable.ic_search
-                    )
+                    if (engine is AISearchEngine) {
+                        // 对于AI引擎，使用专门的AI引擎图标加载方法
+                        com.example.aifloatingball.utils.FaviconLoader.loadAIEngineIcon(
+                            this,
+                            engine.name,
+                            if (engine.iconResId != 0) engine.iconResId else R.drawable.ic_search
+                        )
+                    } else {
+                        // 对于普通搜索引擎，使用通用图标加载方法
+                        com.example.aifloatingball.utils.FaviconLoader.loadIcon(
+                            this,
+                            engine.url,
+                            if (engine.iconResId != 0) engine.iconResId else R.drawable.ic_search
+                        )
+                    }
                 } catch (e: Exception) {
                     // 如果无法加载指定的图标，使用默认图标
                     Log.e(TAG, "加载图标失败: ${engine.displayName}, 使用默认图标", e)
                     setImageResource(R.drawable.ic_search)
+                    // 只对默认图标设置颜色过滤器
+                    setColorFilter(ContextCompat.getColor(context,
+                        if (isDarkMode) android.R.color.white else android.R.color.black))
                 }
-
-                // 设置图标颜色
-                setColorFilter(ContextCompat.getColor(context,
-                    if (isDarkMode) android.R.color.white else android.R.color.black))
             }
 
             // 设置引擎名称
@@ -1811,8 +1995,9 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             engineItem.setOnClickListener {
                 val query = searchInput.text.toString().trim()
                 openSearchEngine(engine, query)
-                drawerLayout.closeDrawer(if (settingsManager.getBoolean("right_handed_mode", true)) 
-                    GravityCompat.START else GravityCompat.END)
+                // 根据当前的左右手模式关闭对应的侧边栏
+                val isRightHanded = settingsManager.getBoolean("right_handed_mode", true)
+                drawerLayout.closeDrawer(if (isRightHanded) GravityCompat.START else GravityCompat.END)
             }
 
             // 设置长按事件

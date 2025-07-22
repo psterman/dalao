@@ -1,11 +1,16 @@
 package com.example.aifloatingball.view
 
 import android.animation.ValueAnimator
+import android.view.animation.OvershootInterpolator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.util.AttributeSet
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -37,16 +42,16 @@ class LetterIndexBar @JvmOverloads constructor(
     private val letterOffsets = FloatArray(27) { 0f }
     private val scaleAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
         duration = 250
-        interpolator = AccelerateDecelerateInterpolator()
+        interpolator = OvershootInterpolator(0.8f)
         addUpdateListener { animator ->
             val progress = animator.animatedValue as Float
-            
+
             letterScales.fill(1.0f)
             letterOffsets.fill(0f)
-            
+
             if (selectedIndex in letterScales.indices) {
-                // 增大选中字母的放大效果
-                letterScales[selectedIndex] = 1.0f + (1.5f * progress)
+                // 适度放大选中字母，避免过度效果
+                letterScales[selectedIndex] = 1.0f + (0.5f * progress)
                 
                 // 基础参数设置
                 val maxCompression = 0.6f // 最大压缩比例
@@ -185,19 +190,30 @@ class LetterIndexBar @JvmOverloads constructor(
             val centerX = rect.centerX()
             val centerY = rect.centerY()
             
-            // 如果是选中的字母，绘制背景
+            // 如果是选中的字母，绘制背景效果
             if (index == selectedIndex) {
                 paint.style = Paint.Style.FILL
+
+                // 计算安全的圆环半径，确保不超出视图边界
+                val maxRadius = minOf(width * 0.4f, paint.textSize * 0.8f)
+                val outerRadius = maxRadius * scale
+                val innerRadius = maxRadius * 0.7f * scale
+
+                // 绘制外层半透明背景
+                paint.color = Color.argb(80, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))
+                canvas.drawCircle(centerX, centerY, outerRadius, paint)
+
+                // 绘制内层背景
                 paint.color = accentColor
-                canvas.drawCircle(centerX, centerY, paint.textSize * 0.7f, paint)
+                canvas.drawCircle(centerX, centerY, innerRadius, paint)
             }
-            
+
             canvas.translate(0f, offset)
             canvas.scale(scale, scale, centerX, centerY)
-            
+
             paint.style = Paint.Style.FILL
             val textY = centerY + (paint.textSize / 3)
-            paint.color = if (index == selectedIndex) accentColor else textColor
+            paint.color = if (index == selectedIndex) Color.WHITE else textColor
             
             // 为"全部"选项显示特殊文本
             val displayText = if (letter == '#') "全部" else letter.toString()
@@ -228,6 +244,15 @@ class LetterIndexBar @JvmOverloads constructor(
                     if (lastAnimatedIndex != index) {
                         startScaleAnimation()
                         lastAnimatedIndex = index
+
+                        // 添加触觉反馈
+                        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+
+                        // 对于Android 8.0+，使用更精细的振动反馈
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                            vibrator?.vibrate(VibrationEffect.createOneShot(10, VibrationEffect.DEFAULT_AMPLITUDE))
+                        }
                     }
                     invalidate()
                     onLetterSelectedListener?.onLetterSelected(this, letters[index])
