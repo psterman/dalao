@@ -360,7 +360,7 @@
                     android:layout_height="24dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_floating_mode"
-                    android:tint="@android:color/darker_gray" />
+                    android:tint="?android:attr/textColorSecondary" />
             </FrameLayout>
 
             <TextView

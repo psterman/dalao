@@ -1434,10 +1434,21 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 // 有查询文本，使用搜索引擎进行搜索
                 engine.getSearchUrl(query)
             }
-            tabManager.addTab(url)
+
+            // 确保WebView容器可见
+            webViewContainer.visibility = View.VISIBLE
             viewPager.visibility = View.VISIBLE
             tabPreviewContainer.visibility = View.VISIBLE
             homeContent.visibility = View.GONE
+
+            // 添加标签页并加载URL
+            tabManager.addTab(url)
+
+            // 确保界面更新
+            runOnUiThread {
+                viewPager.requestLayout()
+                tabPreviewContainer.requestLayout()
+            }
         }
     }
 
@@ -2406,8 +2417,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 startActivity(intent)
             }
         }
-        
+
         // 关闭当前Activity
         finish()
     }
-} 
+
+
+}

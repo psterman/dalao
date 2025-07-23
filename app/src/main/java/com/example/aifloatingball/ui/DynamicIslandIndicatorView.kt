@@ -151,27 +151,37 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     }
     
     private fun updateTheme() {
-        val isDarkMode = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        
-        // Update colors based on theme
+        // 获取用户设置的主题模式，而不是系统主题
+        val themeMode = settingsManager.getThemeMode()
+        val isDarkMode = when (themeMode) {
+            SettingsManager.THEME_MODE_DARK -> true
+            SettingsManager.THEME_MODE_LIGHT -> false
+            else -> (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        }
+
+        // Update colors based on theme - 修正颜色逻辑，让灵动岛在不同模式下都有良好对比度
         backgroundColor = if (isDarkMode) {
-            Color.parseColor("#FFFFFF")  // 深色模式下用白色
+            Color.parseColor("#F2F2F7")  // 深色模式下用浅色背景，形成对比
         } else {
-            Color.parseColor("#1C1C1E")  // 浅色模式下用深色
+            Color.parseColor("#1C1C1E")  // 浅色模式下用深色背景，形成对比
         }
-        
+
         glowColor = if (isDarkMode) {
-            Color.parseColor("#FFFFFF")  // 白色发光
+            Color.parseColor("#007AFF")  // 深色模式下用蓝色发光
         } else {
-            Color.parseColor("#007AFF")  // iOS蓝色发光
+            Color.parseColor("#007AFF")  // 浅色模式下也用蓝色发光
         }
-        
-        shadowColor = Color.parseColor("#40000000")  // 半透明黑色阴影
-        
+
+        shadowColor = if (isDarkMode) {
+            Color.parseColor("#40000000")  // 深色模式下用黑色阴影
+        } else {
+            Color.parseColor("#40FFFFFF")  // 浅色模式下用白色阴影
+        }
+
         backgroundPaint.color = backgroundColor
         glowPaint.color = glowColor
         shadowPaint.color = shadowColor
-        
+
         invalidate()
     }
     

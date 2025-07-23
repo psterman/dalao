@@ -14,28 +14,39 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.text.TextWatcher
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.widget.*
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.viewpager2.widget.ViewPager2
+import androidx.core.view.GravityCompat
+import androidx.core.view.GestureDetectorCompat
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.button.MaterialButton
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.TaskTemplateAdapter
 import com.example.aifloatingball.data.SimpleTaskTemplates
 import com.example.aifloatingball.model.PromptTemplate
 import com.example.aifloatingball.model.PromptField
 import com.example.aifloatingball.model.FieldType
 import com.example.aifloatingball.model.UserPromptData
-import com.example.aifloatingball.service.DualFloatingWebViewService
+
 import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.voice.VoicePromptBranchManager
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
@@ -58,6 +69,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         STEP_GUIDANCE,     // 步骤引导页面
         PROMPT_PREVIEW,    // Prompt预览页面
         VOICE,             // 语音页面
+        BROWSER,           // 浏览器页面
         SETTINGS           // 设置页面
     }
     
@@ -72,6 +84,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var stepGuidanceLayout: LinearLayout
     private lateinit var promptPreviewLayout: LinearLayout
     private lateinit var voiceLayout: LinearLayout
+    private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
     private lateinit var settingsLayout: ScrollView
     
     // 任务选择页面组件
@@ -106,6 +119,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var voiceClearButton: MaterialButton
     private lateinit var voiceSearchButton: MaterialButton
     private lateinit var voiceInteractionToggleButton: ImageButton
+
+    // 浏览器页面组件 - 完整功能版本
+    private lateinit var browserWebViewContainer: FrameLayout
+    private lateinit var browserWebView: WebView
+    private lateinit var browserHomeContent: LinearLayout
+    private lateinit var browserBtnClose: ImageButton
+    private lateinit var browserSearchInput: EditText
+    private lateinit var browserBtnMenu: ImageButton
+    private lateinit var browserProgressBar: ProgressBar
+    private lateinit var browserShortcutsGrid: androidx.recyclerview.widget.RecyclerView
+    private lateinit var browserGestureHint: TextView
+    private lateinit var browserNavDrawer: LinearLayout
+    private lateinit var browserLetterTitle: TextView
+    private lateinit var browserPreviewEngineList: LinearLayout
+    private lateinit var browserExitButton: Button
+    private lateinit var browserLetterIndexBar: com.example.aifloatingball.view.LetterIndexBar
+
+    // 浏览器功能相关
+    private lateinit var browserGestureDetector: GestureDetectorCompat
+    private var currentSearchEngine: com.example.aifloatingball.model.SearchEngine? = null
+
+    // 隐藏的组件用于兼容性
+    private lateinit var browserViewPager: androidx.viewpager2.widget.ViewPager2
+    private lateinit var browserTabPreviewContainer: LinearLayout
+    private lateinit var browserBtnAddTab: ImageButton
+    private lateinit var browserAppbar: com.google.android.material.appbar.AppBarLayout
+    private lateinit var browserVoiceSearch: ImageButton
+    private lateinit var browserBottomBar: LinearLayout
+    private lateinit var browserLeftButtons: LinearLayout
+    private lateinit var browserRightButtons: LinearLayout
+    private lateinit var browserBtnHistory: ImageButton
+    private lateinit var browserBtnBookmarks: ImageButton
+    private lateinit var browserBtnSettings: ImageButton
+    private lateinit var browserAutoHideSwitch: androidx.appcompat.widget.SwitchCompat
+    private lateinit var browserClipboardSwitch: androidx.appcompat.widget.SwitchCompat
     
     // 语音识别相关
     private var speechRecognizer: SpeechRecognizer? = null
@@ -237,8 +285,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<View>(android.R.id.content).setBackgroundColor(
             androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
 
-        // 更新主布局背景
-        findViewById<LinearLayout>(android.R.id.content)?.setBackgroundColor(
+        // 更新主布局背景 - 修复ClassCastException
+        val mainLayout = findViewById<LinearLayout>(R.id.simple_mode_main_layout)
+        mainLayout?.setBackgroundColor(
             androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
 
         // 更新标题栏颜色
@@ -340,7 +389,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             val isSelected = when (i) {
                 0 -> currentState == UIState.TASK_SELECTION
-                1 -> false // 搜索tab
+                1 -> currentState == UIState.BROWSER // 搜索tab
                 2 -> currentState == UIState.VOICE
                 3 -> currentState == UIState.SETTINGS
                 else -> false
@@ -366,6 +415,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout = findViewById(R.id.step_guidance_layout)
         promptPreviewLayout = findViewById(R.id.prompt_preview_layout)
         voiceLayout = findViewById(R.id.voice_layout)
+        browserLayout = findViewById(R.id.browser_layout)
         settingsLayout = findViewById(R.id.settings_layout)
         
         // 任务选择页面
@@ -399,6 +449,37 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceClearButton = findViewById(R.id.voice_clear_button)
         voiceSearchButton = findViewById(R.id.voice_search_button)
         voiceInteractionToggleButton = findViewById(R.id.voice_interaction_mode_toggle)
+
+        // 浏览器页面 - 完整功能版本组件初始化
+        browserWebViewContainer = findViewById(R.id.browser_webview_container)
+        browserWebView = findViewById(R.id.browser_webview)
+        browserHomeContent = findViewById(R.id.browser_home_content)
+        browserBtnClose = findViewById(R.id.browser_btn_close)
+        browserSearchInput = findViewById(R.id.browser_search_input)
+        browserBtnMenu = findViewById(R.id.browser_btn_menu)
+        browserProgressBar = findViewById(R.id.browser_progress_bar)
+        browserShortcutsGrid = findViewById(R.id.browser_shortcuts_grid)
+        browserGestureHint = findViewById(R.id.browser_gesture_hint)
+        browserNavDrawer = findViewById(R.id.browser_nav_drawer)
+        browserLetterTitle = findViewById(R.id.browser_letter_title)
+        browserPreviewEngineList = findViewById(R.id.browser_preview_engine_list)
+        browserExitButton = findViewById(R.id.browser_exit_button)
+        browserLetterIndexBar = findViewById(R.id.browser_letter_index_bar)
+
+        // 创建虚拟组件用于兼容性（这些组件在当前布局中不存在）
+        browserViewPager = androidx.viewpager2.widget.ViewPager2(this)
+        browserTabPreviewContainer = LinearLayout(this)
+        browserBtnAddTab = ImageButton(this)
+        browserAppbar = com.google.android.material.appbar.AppBarLayout(this)
+        browserVoiceSearch = ImageButton(this)
+        browserBottomBar = LinearLayout(this)
+        browserLeftButtons = LinearLayout(this)
+        browserRightButtons = LinearLayout(this)
+        browserBtnHistory = ImageButton(this)
+        browserBtnBookmarks = ImageButton(this)
+        browserBtnSettings = ImageButton(this)
+        browserAutoHideSwitch = androidx.appcompat.widget.SwitchCompat(this)
+        browserClipboardSwitch = androidx.appcompat.widget.SwitchCompat(this)
         
         // 设置页面 - 扩展所有设置选项
         displayModeSpinner = findViewById(R.id.display_mode_spinner)
@@ -471,7 +552,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 设置底部导航栏
         setupBottomNavigation()
-        
+
+        // 设置浏览器
+        setupBrowserWebView()
+
         // 初始化UI颜色
         updateUIColors()
         updateTabColors()
@@ -808,6 +892,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.VISIBLE
+        browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
         
         // 检查录音权限
@@ -826,9 +911,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.VISIBLE
-        
+
         loadSettings() // 每次显示时重新加载设置
+        updateTabColors()
+    }
+
+    private fun showBrowser() {
+        currentState = UIState.BROWSER
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
+        browserLayout.visibility = View.VISIBLE
+
+        // 确保浏览器已正确初始化
+        if (!::browserWebView.isInitialized) {
+            setupBrowserWebView()
+        }
+
+        // 显示主页内容
+        showBrowserHome()
+
         updateTabColors()
     }
     
@@ -838,12 +944,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
         
         findViewById<LinearLayout>(R.id.tab_search)?.setOnClickListener {
-            // 直接启动DualFloatingWebViewService搜索，不启动搜索Activity
-            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("window_count", settingsManager.getDefaultWindowCount())
-            }
-            startService(intent)
-            finish()
+            showBrowser()
         }
         
         findViewById<LinearLayout>(R.id.tab_voice)?.setOnClickListener {
@@ -875,13 +976,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun performDirectSearch() {
         val query = directSearchInput.text.toString().trim()
         if (query.isNotEmpty()) {
-            // 启动DualFloatingWebViewService进行搜索
-            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("search_query", query)
-                putExtra("window_count", 2)
-            }
-            startService(intent)
-            finish()
+            // 使用内嵌浏览器进行搜索
+            showBrowser()
+            browserSearchInput.setText(query)
+            performBrowserSearch()
         }
     }
     
@@ -907,6 +1005,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
         
         // 更新Tab颜色状态
@@ -919,6 +1018,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.VISIBLE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
         
         setupCurrentStep()
@@ -932,6 +1032,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.VISIBLE
         voiceLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
         
         generateFinalPrompt()
@@ -1104,18 +1205,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     private fun executeSearch(prompt: String, engineKey: String) {
         Log.d(TAG, "执行搜索: prompt='$prompt', engine='$engineKey'")
-        
-        // 启动DualFloatingWebViewService进行搜索
-        val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-            putExtra("search_query", prompt)
-            putExtra("engine_key", engineKey)
-            putExtra("search_source", "simple_mode")
-            putExtra("show_toolbar", true)
+
+        // 使用内嵌浏览器进行搜索
+        showBrowser()
+        browserSearchInput.setText(prompt)
+
+        // 根据引擎类型构建搜索URL
+        val searchUrl = when (engineKey) {
+            "Google" -> "https://www.google.com/search?q=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
+            "Bing" -> "https://www.bing.com/search?q=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
+            "百度" -> "https://www.baidu.com/s?wd=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
+            else -> "https://www.google.com/search?q=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
         }
-        startService(intent)
-        
-        // 关闭简易模式
-        finish()
+
+        browserWebView.loadUrl(searchUrl)
     }
     
     private fun handleIntentData() {
@@ -1139,9 +1242,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             return // 消费返回事件
         }
-        
+
+        // 如果在浏览器页面，处理返回逻辑
+        if (currentState == UIState.BROWSER) {
+            // 如果抽屉打开，先关闭抽屉
+            if (browserLayout.isDrawerOpen(GravityCompat.START)) {
+                browserLayout.closeDrawer(GravityCompat.START)
+                return
+            }
+
+            // 如果WebView可见且可以返回，则返回上一页
+            if (browserWebView.visibility == View.VISIBLE && browserWebView.canGoBack()) {
+                browserWebView.goBack()
+                return
+            }
+
+            // 如果WebView可见但无法返回，显示主页
+            if (browserWebView.visibility == View.VISIBLE) {
+                showBrowserHome()
+                return
+            }
+
+            // 如果在主页，返回任务选择页面
+            showTaskSelection()
+            return
+        }
+
         // 否则，执行Activity的默认返回逻辑
-                super.onBackPressed()
+        super.onBackPressed()
     }
     
     /**
@@ -1406,14 +1534,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 停止语音识别
             stopVoiceRecognition()
             releaseSpeechRecognizer()
-            
-            // 启动DualFloatingWebViewService进行搜索
-            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("search_query", query)
-                putExtra("window_count", settingsManager.getDefaultWindowCount())
-            }
-            startService(intent)
-            finish()
+
+            // 使用内嵌浏览器进行搜索
+            showBrowser()
+            browserSearchInput.setText(query)
+            performBrowserSearch()
         } else {
             Toast.makeText(this, "请先输入搜索内容", Toast.LENGTH_SHORT).show()
         }
@@ -1509,10 +1634,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     override fun onDestroy() {
         super.onDestroy()
-        
+
         // 释放语音识别器
         releaseSpeechRecognizer()
-        
+
+        // 清理WebView资源
+        if (::browserWebView.isInitialized) {
+            browserWebView.clearHistory()
+            browserWebView.clearCache(true)
+            browserWebView.loadUrl("about:blank")
+            browserWebView.onPause()
+            browserWebView.removeAllViews()
+            browserWebView.destroyDrawingCache()
+            browserWebView.destroy()
+        }
+
         // 移除所有延迟任务
         handler.removeCallbacksAndMessages(null)
         longPressHandler.removeCallbacksAndMessages(null)
@@ -1532,4 +1668,471 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 恢复正常显示
         applyBackgroundBlur(false)
     }
-} 
+
+    /**
+     * 设置浏览器WebView - 参考HomeActivity的完整实现
+     */
+    private fun setupBrowserWebView() {
+        // 配置WebView设置 - 完全参考HomeActivity
+        browserWebView.settings.apply {
+            // 设置移动端User-Agent
+            userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+
+            // 基本设置
+            javaScriptEnabled = true
+            domStorageEnabled = true
+            databaseEnabled = true
+
+            // 缓存设置
+            cacheMode = WebSettings.LOAD_DEFAULT
+
+            // 页面自适应
+            useWideViewPort = true
+            loadWithOverviewMode = true
+
+            // 缩放设置
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
+
+            // 多窗口支持
+            setSupportMultipleWindows(true)
+            javaScriptCanOpenWindowsAutomatically = true
+
+            // 混合内容
+            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+
+            // 设置默认编码
+            defaultTextEncodingName = "UTF-8"
+
+            // 允许文件访问
+            allowFileAccess = true
+            allowContentAccess = true
+        }
+
+        // 设置WebViewClient - 参考HomeActivity
+        browserWebView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                return false // 让WebView处理URL加载
+            }
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                browserProgressBar.visibility = View.VISIBLE
+                browserProgressBar.progress = 0
+                Log.d(TAG, "页面开始加载: $url")
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                browserProgressBar.visibility = View.GONE
+                // 更新搜索框显示当前URL
+                url?.let {
+                    browserSearchInput.setText(it)
+                    Log.d(TAG, "页面加载完成: $it")
+                }
+            }
+
+            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                super.onReceivedError(view, errorCode, description, failingUrl)
+                Log.e(TAG, "WebView加载错误: $description")
+                Toast.makeText(this@SimpleModeActivity, "页面加载失败: $description", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 设置WebChromeClient处理进度条
+        browserWebView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                if (newProgress < 100) {
+                    browserProgressBar.visibility = View.VISIBLE
+                    browserProgressBar.progress = newProgress
+                } else {
+                    browserProgressBar.visibility = View.GONE
+                }
+            }
+
+            override fun onReceivedTitle(view: WebView?, title: String?) {
+                super.onReceivedTitle(view, title)
+                Log.d(TAG, "页面标题: $title")
+            }
+        }
+
+        // 设置搜索框监听器
+        browserSearchInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                performBrowserSearch()
+                true
+            } else {
+                false
+            }
+        }
+
+        // 设置手势检测
+        setupBrowserGestureDetector()
+
+        // 设置按钮监听器
+        setupBrowserButtons()
+
+        // 设置抽屉
+        setupBrowserDrawer()
+
+        // 设置快捷方式
+        setupBrowserShortcuts()
+
+        // 初始化搜索引擎
+        initializeBrowserSearchEngine()
+
+        // 初始显示主页内容
+        showBrowserHome()
+    }
+
+    /**
+     * 设置浏览器手势检测
+     */
+    private fun setupBrowserGestureDetector() {
+        browserGestureDetector = GestureDetectorCompat(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                // 双击显示手势提示
+                showBrowserGestureHint("双击检测")
+                return true
+            }
+
+            override fun onLongPress(e: MotionEvent) {
+                // 长按显示菜单
+                showBrowserGestureHint("长按检测")
+            }
+
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                // 手势滑动检测
+                if (Math.abs(velocityX) > Math.abs(velocityY)) {
+                    if (velocityX > 0) {
+                        showBrowserGestureHint("向右滑动")
+                    } else {
+                        showBrowserGestureHint("向左滑动")
+                    }
+                }
+                return true
+            }
+        })
+
+        // 为WebView容器设置手势监听
+        browserWebViewContainer.setOnTouchListener { _, event ->
+            browserGestureDetector.onTouchEvent(event)
+            false
+        }
+    }
+
+    /**
+     * 显示浏览器手势提示
+     */
+    private fun showBrowserGestureHint(text: String) {
+        browserGestureHint.text = text
+        browserGestureHint.visibility = View.VISIBLE
+
+        // 2秒后隐藏提示
+        handler.postDelayed({
+            browserGestureHint.visibility = View.GONE
+        }, 2000)
+    }
+
+    /**
+     * 设置浏览器按钮监听器
+     */
+    private fun setupBrowserButtons() {
+        // 关闭按钮 - 智能返回逻辑
+        browserBtnClose.setOnClickListener {
+            if (browserWebView.visibility == View.VISIBLE && browserWebView.canGoBack()) {
+                browserWebView.goBack()
+            } else if (browserWebView.visibility == View.VISIBLE) {
+                showBrowserHome()
+            } else {
+                showTaskSelection()
+            }
+        }
+
+        // 菜单按钮 - 打开搜索引擎侧边栏
+        browserBtnMenu.setOnClickListener {
+            if (browserLayout.isDrawerOpen(GravityCompat.START)) {
+                browserLayout.closeDrawer(GravityCompat.START)
+            } else {
+                browserLayout.openDrawer(GravityCompat.START)
+            }
+        }
+    }
+
+    /**
+     * 设置浏览器抽屉 - 完整功能版本
+     */
+    private fun setupBrowserDrawer() {
+        // 设置抽屉监听器
+        browserLayout.addDrawerListener(object : DrawerLayout.DrawerListener {
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
+                // 更新透明度和动画
+                drawerView.alpha = 0.3f + (0.7f * slideOffset)
+            }
+
+            override fun onDrawerOpened(drawerView: View) {
+                drawerView.alpha = 1.0f
+                // 打开抽屉时更新搜索引擎列表
+                updateBrowserEngineList('#')
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+                // 抽屉关闭
+            }
+
+            override fun onDrawerStateChanged(newState: Int) {}
+        })
+
+        // 设置退出按钮点击监听器
+        browserExitButton.setOnClickListener {
+            browserLayout.closeDrawer(GravityCompat.START)
+        }
+
+        // 设置字母索引栏
+        setupBrowserLetterIndexBar()
+    }
+
+    /**
+     * 设置浏览器快捷方式
+     */
+    private fun setupBrowserShortcuts() {
+        browserShortcutsGrid.layoutManager = GridLayoutManager(this, 4)
+
+        // 创建快捷方式数据
+        val shortcuts = listOf(
+            BrowserShortcut("百度", "https://www.baidu.com", R.drawable.ic_baidu),
+            BrowserShortcut("谷歌", "https://www.google.com", R.drawable.ic_google),
+            BrowserShortcut("必应", "https://www.bing.com", R.drawable.ic_bing),
+            BrowserShortcut("知乎", "https://www.zhihu.com", R.drawable.ic_zhihu),
+            BrowserShortcut("微博", "https://weibo.com", R.drawable.ic_weibo),
+            BrowserShortcut("淘宝", "https://www.taobao.com", R.drawable.ic_taobao),
+            BrowserShortcut("京东", "https://www.jd.com", R.drawable.ic_jd),
+            BrowserShortcut("B站", "https://www.bilibili.com", R.drawable.ic_bilibili)
+        )
+
+        // 设置适配器
+        val adapter = BrowserShortcutAdapter(shortcuts) { shortcut ->
+            loadBrowserContent(shortcut.url)
+        }
+        browserShortcutsGrid.adapter = adapter
+    }
+
+    /**
+     * 浏览器快捷方式数据类
+     */
+    data class BrowserShortcut(
+        val name: String,
+        val url: String,
+        val iconResId: Int
+    )
+
+    /**
+     * 浏览器快捷方式适配器
+     */
+    inner class BrowserShortcutAdapter(
+        private val shortcuts: List<BrowserShortcut>,
+        private val onShortcutClick: (BrowserShortcut) -> Unit
+    ) : androidx.recyclerview.widget.RecyclerView.Adapter<BrowserShortcutAdapter.ViewHolder>() {
+
+        inner class ViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
+            val icon: ImageView = view.findViewById(R.id.shortcut_icon)
+            val name: TextView = view.findViewById(R.id.shortcut_name)
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val view = LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_browser_shortcut, parent, false)
+            return ViewHolder(view)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            val shortcut = shortcuts[position]
+            holder.icon.setImageResource(shortcut.iconResId)
+            holder.name.text = shortcut.name
+            holder.itemView.setOnClickListener {
+                onShortcutClick(shortcut)
+            }
+        }
+
+        override fun getItemCount() = shortcuts.size
+    }
+
+    /**
+     * 初始化浏览器搜索引擎
+     */
+    private fun initializeBrowserSearchEngine() {
+        // 获取默认搜索引擎
+        val defaultEngines = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES
+        currentSearchEngine = if (defaultEngines.isNotEmpty()) {
+            defaultEngines[0] // 使用第一个作为默认搜索引擎
+        } else {
+            // 如果没有默认引擎，创建一个Google搜索引擎
+            com.example.aifloatingball.model.SearchEngine(
+                name = "Google",
+                displayName = "Google",
+                url = "https://www.google.com/search?q={query}",
+                iconResId = R.drawable.ic_google,
+                description = "Google搜索"
+            )
+        }
+
+        Log.d(TAG, "初始化默认搜索引擎: ${currentSearchEngine?.name}")
+    }
+
+    /**
+     * 显示浏览器主页
+     */
+    private fun showBrowserHome() {
+        browserWebView.visibility = View.GONE
+        browserHomeContent.visibility = View.VISIBLE
+        browserSearchInput.setText("")
+    }
+
+    /**
+     * 执行浏览器搜索 - 参考HomeActivity的实现
+     */
+    private fun performBrowserSearch() {
+        val query = browserSearchInput.text.toString().trim()
+        if (query.isNotEmpty()) {
+            try {
+                // 增强的URL判断逻辑 - 参考HomeActivity
+                val isUrl = when {
+                    // 1. 标准URL格式判断
+                    android.webkit.URLUtil.isValidUrl(query) -> true
+                    // 2. 包含域名但没有协议的情况
+                    query.contains(".") && !query.contains(" ") -> true
+                    // 3. 明确的协议开头
+                    query.startsWith("http://") || query.startsWith("https://") -> true
+                    // 4. 本地文件
+                    query.startsWith("file://") -> true
+                    // 5. 其他协议
+                    query.contains("://") -> true
+                    else -> false
+                }
+
+                val url = if (isUrl) {
+                    // 如果是URL，确保有http/https前缀
+                    if (query.startsWith("http://") || query.startsWith("https://") || query.startsWith("file://")) {
+                        query
+                    } else {
+                        "https://$query"
+                    }
+                } else {
+                    // 如果不是URL，使用当前搜索引擎搜索
+                    currentSearchEngine?.getSearchUrl(query) ?: "https://www.google.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+                }
+
+                // 加载URL
+                loadBrowserContent(url)
+
+                Log.d(TAG, "浏览器搜索 - 输入: $query, 是否URL: $isUrl, 最终URL: $url")
+
+            } catch (e: Exception) {
+                Log.e(TAG, "浏览器搜索失败", e)
+                Toast.makeText(this, "搜索失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * 加载浏览器内容 - 完全参考HomeActivity的实现
+     */
+    private fun loadBrowserContent(url: String) {
+        try {
+            Log.d(TAG, "开始加载URL: $url")
+
+            // 在WebView中加载URL
+            browserWebView.loadUrl(url)
+
+            // 更新UI显示
+            browserWebView.visibility = View.VISIBLE
+            browserHomeContent.visibility = View.GONE
+
+            // 更新搜索框显示URL
+            browserSearchInput.setText(url)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "加载内容失败", e)
+            Toast.makeText(this, "无法加载页面: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 设置浏览器字母索引栏
+     */
+    private fun setupBrowserLetterIndexBar() {
+        // 获取所有搜索引擎
+        val allEngines = mutableListOf<com.example.aifloatingball.model.SearchEngine>()
+
+        // 添加默认搜索引擎
+        val defaultEngines = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES
+        allEngines.addAll(defaultEngines)
+
+        // 设置字母索引栏
+        browserLetterIndexBar.engines = allEngines
+        browserLetterIndexBar.onLetterSelectedListener = object : com.example.aifloatingball.view.LetterIndexBar.OnLetterSelectedListener {
+            override fun onLetterSelected(view: View, letter: Char) {
+                updateBrowserEngineList(letter)
+            }
+        }
+    }
+
+    /**
+     * 更新浏览器搜索引擎列表
+     */
+    private fun updateBrowserEngineList(letter: Char) {
+        browserLetterTitle.text = letter.toString()
+
+        // 获取所有搜索引擎
+        val allEngines = mutableListOf<com.example.aifloatingball.model.SearchEngine>()
+        val defaultEngines = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES
+        allEngines.addAll(defaultEngines)
+
+        // 过滤以指定字母开头的引擎
+        val filteredEngines = allEngines.filter { engine ->
+            engine.name.uppercase().startsWith(letter.uppercase())
+        }
+
+        // 清空现有列表
+        browserPreviewEngineList.removeAllViews()
+
+        // 添加搜索引擎到列表
+        filteredEngines.forEach { engine ->
+            val engineView = createBrowserEngineView(engine)
+            browserPreviewEngineList.addView(engineView)
+        }
+    }
+
+    /**
+     * 创建浏览器搜索引擎视图
+     */
+    private fun createBrowserEngineView(engine: com.example.aifloatingball.model.SearchEngine): View {
+        val engineView = layoutInflater.inflate(R.layout.item_search_engine_preview, null)
+
+        val engineIcon = engineView.findViewById<ImageView>(R.id.engine_icon)
+        val engineName = engineView.findViewById<TextView>(R.id.engine_name)
+        val engineDescription = engineView.findViewById<TextView>(R.id.engine_description)
+
+        // 设置引擎信息
+        engineIcon.setImageResource(engine.iconResId)
+        engineName.text = engine.displayName
+        engineDescription.text = engine.description
+
+        // 设置点击监听器
+        engineView.setOnClickListener {
+            val query = browserSearchInput.text.toString().trim()
+            val url = if (query.isNotEmpty()) {
+                engine.getSearchUrl(query)
+            } else {
+                // 如果没有查询内容，加载搜索引擎主页
+                engine.url.split("?")[0]
+            }
+
+            loadBrowserContent(url)
+            browserLayout.closeDrawer(GravityCompat.START)
+        }
+
+        return engineView
+    }
+}

@@ -204,16 +204,29 @@ class MenuAdapter(
         
         // 如果是搜索引擎，加载网络图标
         if (item.category == MenuCategory.NORMAL_SEARCH || item.category == MenuCategory.AI_SEARCH) {
-            val iconUrl = getIconUrlForEngine(item)
-            
-            // 使用 IconLoader 加载网站图标
             val defaultIcon = if (item.category == MenuCategory.AI_SEARCH) {
                 R.drawable.ic_ai_search
             } else {
                 R.drawable.ic_search
             }
-            
-            iconLoader.loadIcon(iconUrl, holder.icon, defaultIcon)
+
+            // 使用 FaviconLoader 加载网站图标
+            if (item.category == MenuCategory.AI_SEARCH) {
+                // 对于AI引擎，使用专门的AI引擎图标加载方法
+                com.example.aifloatingball.utils.FaviconLoader.loadAIEngineIcon(
+                    holder.icon,
+                    item.name,
+                    defaultIcon
+                )
+            } else {
+                // 对于普通搜索引擎，使用通用图标加载方法
+                val iconUrl = getIconUrlForEngine(item)
+                com.example.aifloatingball.utils.FaviconLoader.loadIcon(
+                    holder.icon,
+                    iconUrl,
+                    defaultIcon
+                )
+            }
         }
         
         holder.switch.setOnCheckedChangeListener { _, isChecked ->

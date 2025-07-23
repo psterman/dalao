@@ -20,6 +20,7 @@ import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -1924,6 +1925,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx()).also { params ->
                     params.marginEnd = 12.dpToPx()
                 }
+
+                // 设置透明背景，增加透明感
+                val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+                val backgroundColor = if (isDarkMode) {
+                    Color.parseColor("#33FFFFFF")  // 深色模式：半透明白色背景
+                } else {
+                    Color.parseColor("#33000000")  // 浅色模式：半透明黑色背景
+                }
+
+                // 创建圆形背景
+                val backgroundDrawable = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(backgroundColor)
+                }
+                background = backgroundDrawable
+
+                // 设置内边距，让图标不会贴边
+                setPadding(4.dpToPx(), 4.dpToPx(), 4.dpToPx(), 4.dpToPx())
+                scaleType = ImageView.ScaleType.CENTER_CROP
+
                 try {
                     setImageDrawable(packageManager.getApplicationIcon(config.packageName))
                 } catch (e: PackageManager.NameNotFoundException) {
@@ -2606,13 +2627,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun createIslandView() {
-        val inflater = LayoutInflater.from(ContextThemeWrapper(this, R.style.Theme_DynamicIsland))
+        val themedContext = getThemedContext()
+        val inflater = LayoutInflater.from(ContextThemeWrapper(themedContext, R.style.Theme_DynamicIsland))
         val view = inflater.inflate(R.layout.dynamic_island_layout, null)
-        
-        // 设置圆角和背景
+
+        // 根据主题设置圆角和背景
         view.findViewById<MaterialCardView>(R.id.island_card_view)?.apply {
             radius = resources.getDimension(R.dimen.dynamic_island_corner_radius)
-            setCardBackgroundColor(Color.parseColor("#CC000000"))
+
+            // 根据主题设置背景颜色
+            val isDarkMode = (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            val backgroundColor = if (isDarkMode) {
+                Color.parseColor("#CC1C1C1E")  // 深色模式：半透明深色
+            } else {
+                Color.parseColor("#CCFFFFFF")  // 浅色模式：半透明白色
+            }
+            setCardBackgroundColor(backgroundColor)
             cardElevation = resources.getDimension(R.dimen.dynamic_island_elevation)
         }
 

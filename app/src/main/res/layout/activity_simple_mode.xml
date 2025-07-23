@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/simple_mode_main_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -1059,6 +1060,211 @@
         </LinearLayout>
 
     </ScrollView>
+
+    <!-- 浏览器页面 - 完整功能版本 -->
+    <androidx.drawerlayout.widget.DrawerLayout
+        android:id="@+id/browser_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginBottom="64dp"
+        android:visibility="gone">
+
+        <!-- 主要内容区域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical">
+
+            <!-- 工具栏 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:background="@color/simple_mode_header_background_light"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp">
+
+                <!-- 返回按钮 -->
+                <ImageButton
+                    android:id="@+id/browser_btn_close"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_arrow_back"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="返回"
+                    app:tint="@color/simple_mode_header_icon_light" />
+
+                <!-- 搜索框 -->
+                <EditText
+                    android:id="@+id/browser_search_input"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:layout_marginHorizontal="12dp"
+                    android:background="@drawable/search_input_background"
+                    android:hint="搜索或输入网址"
+                    android:paddingHorizontal="16dp"
+                    android:textSize="16sp"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:textColorHint="@color/simple_mode_text_secondary_light"
+                    android:imeOptions="actionSearch"
+                    android:inputType="textUri" />
+
+                <!-- 菜单按钮 -->
+                <ImageButton
+                    android:id="@+id/browser_btn_menu"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_menu"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="菜单"
+                    app:tint="@color/simple_mode_header_icon_light" />
+
+            </LinearLayout>
+
+            <!-- WebView容器 -->
+            <FrameLayout
+                android:id="@+id/browser_webview_container"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1">
+
+                <!-- 主页内容 -->
+                <LinearLayout
+                    android:id="@+id/browser_home_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <!-- 欢迎文本 -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="搜索或输入网址"
+                        android:textSize="20sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:gravity="center"
+                        android:layout_marginTop="32dp"
+                        android:layout_marginBottom="24dp" />
+
+                    <!-- 快捷方式网格 -->
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/browser_shortcuts_grid"
+                        android:layout_width="match_parent"
+                        android:layout_height="0dp"
+                        android:layout_weight="1"
+                        android:clipToPadding="false"
+                        android:padding="8dp" />
+
+                </LinearLayout>
+
+                <!-- WebView -->
+                <WebView
+                    android:id="@+id/browser_webview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+
+                <!-- 加载进度条 -->
+                <ProgressBar
+                    android:id="@+id/browser_progress_bar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="3dp"
+                    android:layout_gravity="top"
+                    android:progressDrawable="@drawable/progress_bar_drawable"
+                    android:visibility="gone" />
+
+                <!-- 手势提示 -->
+                <TextView
+                    android:id="@+id/browser_gesture_hint"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_gesture_hint"
+                    android:padding="8dp"
+                    android:textColor="@android:color/white"
+                    android:visibility="gone" />
+
+            </FrameLayout>
+
+        </LinearLayout>
+
+        <!-- 搜索引擎侧边栏 -->
+        <LinearLayout
+            android:id="@+id/browser_nav_drawer"
+            android:layout_width="280dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="start"
+            android:background="@android:color/white"
+            android:orientation="horizontal">
+
+            <!-- 搜索引擎列表容器 -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <!-- 字母标题 -->
+                <TextView
+                    android:id="@+id/browser_letter_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:padding="16dp"
+                    android:text="全部"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/simple_mode_text_primary_light" />
+
+                <!-- 搜索引擎列表 -->
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:fillViewport="true">
+
+                    <LinearLayout
+                        android:id="@+id/browser_preview_engine_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="8dp" />
+
+                </ScrollView>
+
+                <!-- 底部按钮区域 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="8dp"
+                    android:gravity="center">
+
+                    <Button
+                        android:id="@+id/browser_exit_button"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="关闭"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        style="@style/Widget.AppCompat.Button.Colored" />
+
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 字母索引栏 -->
+            <com.example.aifloatingball.view.LetterIndexBar
+                android:id="@+id/browser_letter_index_bar"
+                android:layout_width="32dp"
+                android:layout_height="match_parent" />
+
+        </LinearLayout>
+
+
+
+    </androidx.drawerlayout.widget.DrawerLayout>
 
     <!-- 底部导航栏 -->
     <LinearLayout

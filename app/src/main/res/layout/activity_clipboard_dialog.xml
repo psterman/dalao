@@ -116,8 +116,9 @@
                     android:textSize="16sp"
                     app:cornerRadius="16dp"
                     app:icon="@drawable/ic_search"
-                    app:iconGravity="textStart"
-                    app:iconSize="20dp" />
+                    app:iconGravity="start"
+                    app:iconSize="18dp"
+                    app:iconPadding="8dp" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btn_skip"

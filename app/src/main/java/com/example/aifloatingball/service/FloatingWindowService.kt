@@ -389,19 +389,53 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             searchInput?.text?.clear()
         }
 
-        // Programmatically set the tint for the clear button based on the theme
-        themedContext?.let {
-            val nightModeFlags = it.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
-            val tintColor = if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                android.graphics.Color.WHITE
-            } else {
-                android.graphics.Color.DKGRAY
-            }
-            clearButton?.setColorFilter(tintColor, android.graphics.PorterDuff.Mode.SRC_IN)
-        }
+        // Apply theme to all UI elements
+        applyThemeToAllElements()
 
         updateSearchModeVisibility()
         updateBallAlpha()
+    }
+
+    private fun applyThemeToAllElements() {
+        themedContext?.let { context ->
+            val nightModeFlags = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+            val isDarkMode = nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES
+
+            // 定义颜色
+            val iconColor = if (isDarkMode) android.graphics.Color.WHITE else android.graphics.Color.DKGRAY
+            val textColor = if (isDarkMode) android.graphics.Color.WHITE else android.graphics.Color.BLACK
+            val hintColor = if (isDarkMode) android.graphics.Color.LTGRAY else android.graphics.Color.GRAY
+
+            // 应用到清除按钮
+            val clearButton = floatingView?.findViewById<ImageButton>(R.id.clear_button)
+            clearButton?.setColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN)
+
+            // 应用到搜索输入框
+            searchInput?.let { input ->
+                input.setTextColor(textColor)
+                input.setHintTextColor(hintColor)
+            }
+
+            // 应用到搜索按钮（放大镜图标）
+            val searchButton = floatingView?.findViewById<ImageButton>(R.id.search_button)
+            searchButton?.setColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN)
+
+            // 应用到搜索模式按钮（放大镜图标）
+            val searchModeButton = floatingView?.findViewById<ImageButton>(R.id.search_mode_button)
+            searchModeButton?.setColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN)
+
+            // 应用到其他按钮（只处理存在的按钮）
+            val voiceSearchButton = floatingView?.findViewById<ImageButton>(R.id.voice_search_button)
+            voiceSearchButton?.setColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN)
+
+            // 应用到关闭应用搜索按钮
+            val closeAppSearchButton = floatingView?.findViewById<ImageButton>(R.id.close_app_search_button)
+            closeAppSearchButton?.setColorFilter(iconColor, android.graphics.PorterDuff.Mode.SRC_IN)
+
+            // 应用到文本视图（只处理存在的文本视图）
+            val shortcutNameViews = floatingView?.findViewById<TextView>(R.id.shortcut_name)
+            shortcutNameViews?.setTextColor(textColor)
+        }
     }
 
     private fun initializeNotificationBar() {
