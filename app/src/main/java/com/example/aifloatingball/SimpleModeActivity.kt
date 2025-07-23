@@ -1710,9 +1710,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             allowContentAccess = true
         }
 
-        // 设置WebViewClient - 参考HomeActivity
+        // 设置WebViewClient - 参考HomeActivity + 广告拦截
         browserWebView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                // 拦截广告和恶意URL
+                if (url != null && isAdOrMaliciousUrl(url)) {
+                    Log.d(TAG, "拦截广告URL: $url")
+                    return true // 拦截该URL
+                }
                 return false // 让WebView处理URL加载
             }
 
@@ -1726,10 +1731,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 browserProgressBar.visibility = View.GONE
-                // 更新搜索框显示当前URL
-                url?.let {
-                    browserSearchInput.setText(it)
-                    Log.d(TAG, "页面加载完成: $it")
+
+                // 注入广告拦截JavaScript
+                injectAdBlockingScript(view)
+
+                // 只在特定情况下更新搜索框URL
+                url?.let { currentUrl ->
+                    val currentInput = browserSearchInput.text.toString().trim()
+
+                    // 如果当前输入框为空，或者输入的是之前的URL，则更新为新URL
+                    // 但不要覆盖用户正在输入的搜索关键词
+                    if (currentInput.isEmpty() ||
+                        currentInput.startsWith("http") ||
+                        currentInput == currentUrl ||
+                        android.webkit.URLUtil.isValidUrl(currentInput)) {
+                        browserSearchInput.setText(currentUrl)
+                    }
+
+                    Log.d(TAG, "页面加载完成: $currentUrl")
                 }
             }
 
@@ -1981,6 +2000,68 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 检查是否为广告或恶意URL
+     */
+    private fun isAdOrMaliciousUrl(url: String): Boolean {
+        val adKeywords = listOf(
+            "googleads", "googlesyndication", "doubleclick", "adsystem",
+            "amazon-adsystem", "facebook.com/tr", "google-analytics",
+            "baidu.com/cpro", "pos.baidu.com", "cbjs.baidu.com",
+            "union.360.cn", "tanx.com", "alimama.com", "taobao.com/go/act",
+            "download", "install", "apk", "exe", "setup",
+            "popup", "alert", "confirm", "prompt"
+        )
+
+        val lowerUrl = url.lowercase()
+        return adKeywords.any { keyword -> lowerUrl.contains(keyword) }
+    }
+
+    /**
+     * 注入广告拦截JavaScript
+     */
+    private fun injectAdBlockingScript(webView: WebView?) {
+        val adBlockScript = """
+            javascript:(function() {
+                // 移除常见广告元素
+                var adSelectors = [
+                    '[id*="ad"]', '[class*="ad"]', '[id*="banner"]', '[class*="banner"]',
+                    '[id*="popup"]', '[class*="popup"]', '[id*="modal"]', '[class*="modal"]',
+                    '.advertisement', '.ads', '.ad-container', '.banner-ad',
+                    'iframe[src*="ads"]', 'iframe[src*="doubleclick"]'
+                ];
+
+                adSelectors.forEach(function(selector) {
+                    var elements = document.querySelectorAll(selector);
+                    elements.forEach(function(el) {
+                        if (el && el.parentNode) {
+                            el.parentNode.removeChild(el);
+                        }
+                    });
+                });
+
+                // 阻止弹窗
+                window.alert = function() { return false; };
+                window.confirm = function() { return false; };
+                window.prompt = function() { return null; };
+
+                // 移除倒计时广告
+                var countdownElements = document.querySelectorAll('[id*="countdown"], [class*="countdown"]');
+                countdownElements.forEach(function(el) {
+                    if (el && el.parentNode) {
+                        el.parentNode.removeChild(el);
+                    }
+                });
+            })();
+        """
+
+        try {
+            webView?.evaluateJavascript(adBlockScript, null)
+        } catch (e: Exception) {
+            Log.w(TAG, "注入广告拦截脚本失败: ${e.message}")
+        }
+    }
+
+    /**
      * 显示浏览器主页
      */
     private fun showBrowserHome() {
@@ -1990,43 +2071,52 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 执行浏览器搜索 - 参考HomeActivity的实现
+     * 执行浏览器搜索 - 修复搜索关键词机制
      */
     private fun performBrowserSearch() {
         val query = browserSearchInput.text.toString().trim()
         if (query.isNotEmpty()) {
             try {
-                // 增强的URL判断逻辑 - 参考HomeActivity
+                // 增强的URL判断逻辑
                 val isUrl = when {
                     // 1. 标准URL格式判断
                     android.webkit.URLUtil.isValidUrl(query) -> true
-                    // 2. 包含域名但没有协议的情况
-                    query.contains(".") && !query.contains(" ") -> true
+                    // 2. 包含域名但没有协议的情况（至少包含一个点且不包含空格）
+                    query.contains(".") && !query.contains(" ") && query.count { it == '.' } >= 1 -> true
                     // 3. 明确的协议开头
                     query.startsWith("http://") || query.startsWith("https://") -> true
                     // 4. 本地文件
                     query.startsWith("file://") -> true
                     // 5. 其他协议
                     query.contains("://") -> true
+                    // 6. IP地址格式
+                    query.matches(Regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(:\\d+)?(/.*)?$")) -> true
                     else -> false
                 }
 
                 val url = if (isUrl) {
                     // 如果是URL，确保有http/https前缀
-                    if (query.startsWith("http://") || query.startsWith("https://") || query.startsWith("file://")) {
-                        query
-                    } else {
-                        "https://$query"
+                    when {
+                        query.startsWith("http://") || query.startsWith("https://") || query.startsWith("file://") -> query
+                        query.matches(Regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}.*")) -> "http://$query" // IP地址用http
+                        else -> "https://$query"
                     }
                 } else {
                     // 如果不是URL，使用当前搜索引擎搜索
-                    currentSearchEngine?.getSearchUrl(query) ?: "https://www.google.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+                    val searchEngine = currentSearchEngine ?: com.example.aifloatingball.model.SearchEngine(
+                        name = "Google",
+                        displayName = "Google",
+                        url = "https://www.google.com/search?q={query}",
+                        iconResId = R.drawable.ic_google,
+                        description = "Google搜索"
+                    )
+                    searchEngine.getSearchUrl(query)
                 }
 
                 // 加载URL
                 loadBrowserContent(url)
 
-                Log.d(TAG, "浏览器搜索 - 输入: $query, 是否URL: $isUrl, 最终URL: $url")
+                Log.d(TAG, "浏览器搜索 - 输入: '$query', 是否URL: $isUrl, 搜索引擎: ${currentSearchEngine?.name}, 最终URL: $url")
 
             } catch (e: Exception) {
                 Log.e(TAG, "浏览器搜索失败", e)
@@ -2036,7 +2126,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 加载浏览器内容 - 完全参考HomeActivity的实现
+     * 加载浏览器内容 - 修复搜索框更新逻辑
      */
     private fun loadBrowserContent(url: String) {
         try {
@@ -2049,8 +2139,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             browserWebView.visibility = View.VISIBLE
             browserHomeContent.visibility = View.GONE
 
-            // 更新搜索框显示URL
-            browserSearchInput.setText(url)
+            // 不要立即更新搜索框，让WebViewClient的onPageFinished来处理
+            // 这样可以避免将搜索关键词替换为URL
 
         } catch (e: Exception) {
             Log.e(TAG, "加载内容失败", e)
@@ -2082,16 +2172,40 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 更新浏览器搜索引擎列表
      */
     private fun updateBrowserEngineList(letter: Char) {
-        browserLetterTitle.text = letter.toString()
+        browserLetterTitle.text = if (letter == '#') "全部" else letter.toString()
 
         // 获取所有搜索引擎
         val allEngines = mutableListOf<com.example.aifloatingball.model.SearchEngine>()
         val defaultEngines = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES
         allEngines.addAll(defaultEngines)
 
-        // 过滤以指定字母开头的引擎
-        val filteredEngines = allEngines.filter { engine ->
-            engine.name.uppercase().startsWith(letter.uppercase())
+        // 添加AI搜索引擎
+        try {
+            val aiEngines = com.example.aifloatingball.model.AISearchEngine.DEFAULT_AI_ENGINES.map { aiEngine ->
+                com.example.aifloatingball.model.SearchEngine(
+                    name = aiEngine.name,
+                    displayName = aiEngine.name,
+                    url = aiEngine.url,
+                    iconResId = aiEngine.iconResId,
+                    description = aiEngine.description,
+                    searchUrl = aiEngine.searchUrl ?: aiEngine.url,
+                    isAI = true
+                )
+            }
+            allEngines.addAll(aiEngines)
+        } catch (e: Exception) {
+            Log.w(TAG, "无法加载AI搜索引擎: ${e.message}")
+        }
+
+        // 过滤搜索引擎
+        val filteredEngines = if (letter == '#') {
+            // 显示所有搜索引擎
+            allEngines
+        } else {
+            // 过滤以指定字母开头的引擎
+            allEngines.filter { engine ->
+                engine.name.uppercase().startsWith(letter.uppercase())
+            }
         }
 
         // 清空现有列表
@@ -2102,6 +2216,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val engineView = createBrowserEngineView(engine)
             browserPreviewEngineList.addView(engineView)
         }
+
+        Log.d(TAG, "更新搜索引擎列表: 字母=$letter, 总数=${allEngines.size}, 过滤后=${filteredEngines.size}")
     }
 
     /**
@@ -2121,16 +2237,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置点击监听器
         engineView.setOnClickListener {
+            // 切换当前搜索引擎
+            currentSearchEngine = engine
+
             val query = browserSearchInput.text.toString().trim()
-            val url = if (query.isNotEmpty()) {
+
+            // 检查输入是否为URL（避免将URL作为搜索关键词）
+            val isUrl = query.isNotEmpty() && (
+                query.startsWith("http://") ||
+                query.startsWith("https://") ||
+                query.contains("://") ||
+                (query.contains(".") && !query.contains(" "))
+            )
+
+            val url = if (query.isNotEmpty() && !isUrl) {
+                // 有查询内容且不是URL，使用搜索引擎搜索
                 engine.getSearchUrl(query)
             } else {
-                // 如果没有查询内容，加载搜索引擎主页
-                engine.url.split("?")[0]
+                // 没有查询内容或输入的是URL，跳转到搜索引擎首页
+                val baseUrl = engine.url.split("?")[0].replace("{query}", "")
+                    .replace("search", "").replace("/s", "").replace("/search", "")
+                if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
             }
 
             loadBrowserContent(url)
             browserLayout.closeDrawer(GravityCompat.START)
+
+            Log.d(TAG, "选择搜索引擎: ${engine.name}, 查询: '$query', 是否URL: $isUrl, 最终URL: $url")
         }
 
         return engineView
