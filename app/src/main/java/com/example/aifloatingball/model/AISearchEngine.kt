@@ -60,9 +60,9 @@ data class AISearchEngine(
             AISearchEngine(
                 name = "文心一言",
                 url = "https://yiyan.baidu.com",
-                iconResId = R.drawable.ic_web_default,
+                iconResId = R.drawable.ic_wenxin,
                 description = "百度文心一言",
-                searchUrl = "https://yiyan.baidu.com/search?query={query}"
+                searchUrl = "https://yiyan.baidu.com"
             ),
             AISearchEngine(
                 name = "智谱清言",
@@ -80,17 +80,17 @@ data class AISearchEngine(
             ),
             AISearchEngine(
                 name = "讯飞星火",
-                url = "https://xinghuo.xfyun.cn",
-                iconResId = R.drawable.ic_web_default,
+                url = "https://m.xfyun.cn/login?callback=aHR0cHM6Ly94aW5naHVvLnhmeXVuLmNuLw&website_name=sparkdesk",
+                iconResId = R.drawable.ic_xinghuo,
                 description = "讯飞星火认知大模型",
-                searchUrl = "https://xinghuo.xfyun.cn/desk?q={query}"
+                searchUrl = "https://xinghuo.xfyun.cn"
             ),
             AISearchEngine(
                 name = "Perplexity",
-                url = "https://perplexity.ai",
-                iconResId = R.drawable.ic_web_default,
+                url = "https://www.perplexity.ai",
+                iconResId = R.drawable.ic_perplexity,
                 description = "Perplexity AI",
-                searchUrl = "https://perplexity.ai/search?q={query}"
+                searchUrl = "https://www.perplexity.ai"
             ),
             AISearchEngine(
                 name = "Phind",
@@ -108,10 +108,10 @@ data class AISearchEngine(
             ),
             AISearchEngine(
                 name = "天工AI",
-                url = "https://www.tiangong.cn",
-                iconResId = R.drawable.ic_web_default, // Placeholder icon
+                url = "https://m.tiangong.cn",
+                iconResId = R.drawable.ic_web_default,
                 description = "昆仑万维 天工AI搜索",
-                searchUrl = "https://www.tiangong.cn/search?q={query}"
+                searchUrl = "https://m.tiangong.cn"
             ),
             AISearchEngine(
                 name = "秘塔AI搜索",
@@ -122,17 +122,17 @@ data class AISearchEngine(
             ),
             AISearchEngine(
                 name = "夸克AI",
-                url = "https://www.quark.cn",
-                iconResId = R.drawable.ic_web_default,
+                url = "https://quark.sm.cn",
+                iconResId = R.drawable.ic_quark,
                 description = "夸克AI搜索",
-                searchUrl = "https://www.quark.cn/s?q={query}"
+                searchUrl = "https://quark.sm.cn"
             ),
             AISearchEngine(
                 name = "360AI搜索",
-                url = "https://sou.ai.360.cn",
-                iconResId = R.drawable.ic_web_default,
+                url = "https://www.so.com",
+                iconResId = R.drawable.ic_360search,
                 description = "360AI搜索",
-                searchUrl = "https://sou.ai.360.cn/?q={query}"
+                searchUrl = "https://www.so.com/s?q={query}"
             ),
             AISearchEngine(
                 name = "百度AI",
@@ -165,18 +165,18 @@ data class AISearchEngine(
             // API 对话模式
             AISearchEngine(
                 name = "ChatGPT (API)",
-                url = "chat://chatgpt",
+                url = "https://chat.openai.com",
                 iconResId = R.drawable.ic_chatgpt,
                 description = "使用API进行ChatGPT对话",
-                searchUrl = "chat://chatgpt",
+                searchUrl = "https://chat.openai.com",
                 isChatMode = true
             ),
             AISearchEngine(
                 name = "DeepSeek (API)",
-                url = "chat://deepseek",
+                url = "https://chat.deepseek.com",
                 iconResId = R.drawable.ic_deepseek,
                 description = "使用API进行DeepSeek对话",
-                searchUrl = "chat://deepseek",
+                searchUrl = "https://chat.deepseek.com",
                 isChatMode = true
             ),
             // New Engines Added
@@ -196,24 +196,24 @@ data class AISearchEngine(
             ),
             AISearchEngine(
                 name = "万知",
-                url = "https://www.wanzhi.com/",
+                url = "https://wanzhi.com",
                 iconResId = R.drawable.ic_web_default,
                 description = "万知AI",
-                searchUrl = "https://www.wanzhi.com/search?q={query}"
+                searchUrl = "https://wanzhi.com"
             ),
             AISearchEngine(
                 name = "百小应",
-                url = "https://ying.baidu.com/",
+                url = "https://ying.baidu.com",
                 iconResId = R.drawable.ic_web_default,
                 description = "百度出品，AI伙伴",
-                searchUrl = "https://ying.baidu.com/"
+                searchUrl = "https://ying.baidu.com"
             ),
             AISearchEngine(
                 name = "跃问",
-                url = "https://www.stepfun.com/yewen",
+                url = "https://yuewen.cn",
                 iconResId = R.drawable.ic_web_default,
                 description = "阶跃星辰 跃问",
-                searchUrl = "https://www.stepfun.com/yewen"
+                searchUrl = "https://yuewen.cn"
             ),
             AISearchEngine(
                 name = "豆包",
@@ -231,31 +231,24 @@ data class AISearchEngine(
             ),
             AISearchEngine(
                 name = "海螺",
-                url = "https://hailuoyun.com.cn/",
+                url = "https://hailuoai.com",
                 iconResId = R.drawable.ic_web_default,
                 description = "OPPO AI 海螺",
-                searchUrl = "https://hailuoyun.com.cn/"
-            ),
-            AISearchEngine(
-                name = "Groq",
-                url = "https://groq.com/",
-                iconResId = R.drawable.ic_web_default,
-                description = "Groq LPU 推理引擎",
-                searchUrl = "https://groq.com/"
+                searchUrl = "https://hailuoai.com"
             ),
             AISearchEngine(
                 name = "腾讯元宝",
-                url = "https://yuanbao.tencent.com/",
+                url = "https://yuanbao.tencent.com",
                 iconResId = R.drawable.ic_web_default,
                 description = "腾讯元宝",
                 searchUrl = "https://yuanbao.tencent.com/"
             ),
             AISearchEngine(
                 name = "商量",
-                url = "https://shangliang.sensetime.com/",
+                url = "https://chat.sensetime.com",
                 iconResId = R.drawable.ic_web_default,
                 description = "商汤商量",
-                searchUrl = "https://shangliang.sensetime.com/"
+                searchUrl = "https://chat.sensetime.com"
             ),
             AISearchEngine(
                 name = "DEVV",
@@ -273,10 +266,10 @@ data class AISearchEngine(
             ),
             AISearchEngine(
                 name = "纳米AI搜索",
-                url = "https://www.nainami.com/",
+                url = "https://nami.run",
                 iconResId = R.drawable.ic_web_default,
                 description = "纳米AI搜索",
-                searchUrl = "https://www.nainami.com/search?text={query}"
+                searchUrl = "https://nami.run"
             ),
             AISearchEngine(
                 name = "ThinkAny",
@@ -306,13 +299,7 @@ data class AISearchEngine(
                 description = "xAI Grok",
                 searchUrl = "https://grok.x.ai/"
             ),
-            AISearchEngine(
-                name = "Flowith",
-                url = "https://flowith.me/",
-                iconResId = R.drawable.ic_web_default,
-                description = "Flowith AI智能体",
-                searchUrl = "https://flowith.me/"
-            ),
+
             AISearchEngine(
                 name = "NotebookLM",
                 url = "https://notebooklm.google.com/",
@@ -343,17 +330,17 @@ data class AISearchEngine(
             ),
             AISearchEngine(
                 name = "LeChat",
-                url = "https://lechat.minmax.com.cn/",
+                url = "https://lechat.cas-ll.cn",
                 iconResId = R.drawable.ic_web_default,
                 description = "海螺问问(LeChat)",
-                searchUrl = "https://lechat.minmax.com.cn/"
+                searchUrl = "https://lechat.cas-ll.cn"
             ),
             AISearchEngine(
                 name = "Monica",
-                url = "https://monica.im/",
+                url = "https://monica.im/chat",
                 iconResId = R.drawable.ic_web_default,
                 description = "Monica - AI Copilot",
-                searchUrl = "https://monica.im/"
+                searchUrl = "https://monica.im/chat"
             ),
             AISearchEngine(
                 name = "知乎",

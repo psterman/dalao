@@ -942,17 +942,37 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.tab_home)?.setOnClickListener {
             showTaskSelection()
         }
-        
+
         findViewById<LinearLayout>(R.id.tab_search)?.setOnClickListener {
             showBrowser()
         }
-        
+
         findViewById<LinearLayout>(R.id.tab_voice)?.setOnClickListener {
             showVoice()
         }
-        
+
         findViewById<LinearLayout>(R.id.tab_settings)?.setOnClickListener {
             showSettings()
+        }
+
+        // 初始化搜索tab图标
+        updateSearchTabIcon()
+    }
+
+    /**
+     * 更新搜索tab的图标 - 使用FaviconLoader
+     */
+    private fun updateSearchTabIcon() {
+        val searchTab = findViewById<LinearLayout>(R.id.tab_search)
+        val searchTabIcon = searchTab?.findViewById<ImageView>(R.id.search_tab_icon)
+
+        if (searchTabIcon != null && currentSearchEngine != null) {
+            // 使用当前搜索引擎的图标
+            com.example.aifloatingball.utils.FaviconLoader.loadIcon(
+                searchTabIcon,
+                currentSearchEngine!!.url,
+                R.drawable.ic_search
+            )
         }
     }
     
@@ -1673,10 +1693,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置浏览器WebView - 参考HomeActivity的完整实现
      */
     private fun setupBrowserWebView() {
-        // 配置WebView设置 - 完全参考HomeActivity
+        // 配置WebView设置 - 增强移动端兼容性
         browserWebView.settings.apply {
-            // 设置移动端User-Agent
-            userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+            // 设置移动端User-Agent - 更新为最新版本
+            userAgentString = "Mozilla/5.0 (Linux; Android 12; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 
             // 基本设置
             javaScriptEnabled = true
@@ -1685,10 +1705,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 缓存设置
             cacheMode = WebSettings.LOAD_DEFAULT
+            // setAppCacheEnabled已弃用，使用其他缓存策略
 
-            // 页面自适应
+            // 页面自适应 - 增强移动端适配
             useWideViewPort = true
             loadWithOverviewMode = true
+            layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
 
             // 缩放设置
             setSupportZoom(true)
@@ -1697,7 +1719,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 多窗口支持
             setSupportMultipleWindows(true)
-            javaScriptCanOpenWindowsAutomatically = true
+            javaScriptCanOpenWindowsAutomatically = false // 防止恶意弹窗
 
             // 混合内容
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -1708,6 +1730,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 允许文件访问
             allowFileAccess = true
             allowContentAccess = true
+            allowUniversalAccessFromFileURLs = false
+            allowFileAccessFromFileURLs = false
+
+            // 媒体播放设置
+            mediaPlaybackRequiresUserGesture = false
+
+            // 地理位置
+            setGeolocationEnabled(false)
+
+            // 安全设置
+            setSavePassword(false)
+            setSaveFormData(false)
+
+            // 性能优化
+            setRenderPriority(WebSettings.RenderPriority.HIGH)
+
+            // 字体设置
+            minimumFontSize = 8
+            minimumLogicalFontSize = 8
+            defaultFontSize = 16
+            defaultFixedFontSize = 13
         }
 
         // 设置WebViewClient - 参考HomeActivity + 广告拦截
@@ -1735,6 +1778,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 注入广告拦截JavaScript
                 injectAdBlockingScript(view)
 
+                // 特殊处理小红书页面
+                url?.let { currentUrl ->
+                    if (currentUrl.contains("xiaohongshu.com")) {
+                        // 小红书需要特殊处理，延迟执行JavaScript来确保页面完全加载
+                        handler.postDelayed({
+                            view?.evaluateJavascript("""
+                                javascript:(function() {
+                                    // 强制刷新小红书页面内容
+                                    if (window.location.href.includes('xiaohongshu.com')) {
+                                        var event = new Event('resize');
+                                        window.dispatchEvent(event);
+
+                                        // 触发页面重新渲染
+                                        document.body.style.display = 'none';
+                                        document.body.offsetHeight; // 触发重排
+                                        document.body.style.display = '';
+                                    }
+                                })();
+                            """, null)
+                        }, 1000)
+                    }
+                }
+
                 // 只在特定情况下更新搜索框URL
                 url?.let { currentUrl ->
                     val currentInput = browserSearchInput.text.toString().trim()
@@ -1759,7 +1825,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
-        // 设置WebChromeClient处理进度条
+        // 设置WebChromeClient处理进度条和favicon
         browserWebView.webChromeClient = object : WebChromeClient() {
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 if (newProgress < 100) {
@@ -1773,6 +1839,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 super.onReceivedTitle(view, title)
                 Log.d(TAG, "页面标题: $title")
+            }
+
+            override fun onReceivedIcon(view: WebView?, icon: android.graphics.Bitmap?) {
+                super.onReceivedIcon(view, icon)
+                // 当WebView接收到页面favicon时，更新搜索tab图标
+                icon?.let { favicon ->
+                    val searchTab = findViewById<LinearLayout>(R.id.tab_search)
+                    val searchTabIcon = searchTab?.findViewById<ImageView>(R.id.search_tab_icon)
+                    searchTabIcon?.setImageBitmap(favicon)
+                    Log.d(TAG, "更新搜索tab图标为页面favicon")
+                }
             }
         }
 
@@ -1918,16 +1995,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun setupBrowserShortcuts() {
         browserShortcutsGrid.layoutManager = GridLayoutManager(this, 4)
 
-        // 创建快捷方式数据
+        // 创建快捷方式数据 - 修复移动端适配和错误网址
         val shortcuts = listOf(
-            BrowserShortcut("百度", "https://www.baidu.com", R.drawable.ic_baidu),
+            BrowserShortcut("百度", "https://m.baidu.com", R.drawable.ic_baidu),
             BrowserShortcut("谷歌", "https://www.google.com", R.drawable.ic_google),
-            BrowserShortcut("必应", "https://www.bing.com", R.drawable.ic_bing),
+            BrowserShortcut("必应", "https://cn.bing.com", R.drawable.ic_bing),
             BrowserShortcut("知乎", "https://www.zhihu.com", R.drawable.ic_zhihu),
-            BrowserShortcut("微博", "https://weibo.com", R.drawable.ic_weibo),
-            BrowserShortcut("淘宝", "https://www.taobao.com", R.drawable.ic_taobao),
-            BrowserShortcut("京东", "https://www.jd.com", R.drawable.ic_jd),
-            BrowserShortcut("B站", "https://www.bilibili.com", R.drawable.ic_bilibili)
+            BrowserShortcut("微博", "https://m.weibo.cn", R.drawable.ic_weibo),
+            BrowserShortcut("淘宝", "https://m.taobao.com", R.drawable.ic_taobao),
+            BrowserShortcut("京东", "https://m.jd.com", R.drawable.ic_jd),
+            BrowserShortcut("B站", "https://m.bilibili.com", R.drawable.ic_bilibili),
+            BrowserShortcut("豆瓣", "https://m.douban.com/home_guide", R.drawable.ic_douban),
+            BrowserShortcut("小红书", "https://www.xiaohongshu.com", R.drawable.ic_xiaohongshu),
+            BrowserShortcut("腾讯新闻", "https://xw.qq.com", R.drawable.ic_toutiao),
+            BrowserShortcut("新浪新闻", "https://news.sina.cn", R.drawable.ic_weibo),
+            BrowserShortcut("网易新闻", "https://3g.163.com/news", R.drawable.ic_web_default),
+            BrowserShortcut("搜狐新闻", "https://m.sohu.com", R.drawable.ic_web_default),
+            BrowserShortcut("人民网", "https://wap.people.com.cn", R.drawable.ic_web_default),
+            BrowserShortcut("新华网", "https://m.xinhuanet.com", R.drawable.ic_web_default),
+            BrowserShortcut("知网", "https://i.cnki.net/newHome.html", R.drawable.ic_web_default),
+            BrowserShortcut("万方", "https://m.wanfangdata.com.cn", R.drawable.ic_web_default),
+            BrowserShortcut("维普", "https://m.cqvip.com", R.drawable.ic_web_default),
+            BrowserShortcut("美团", "https://i.meituan.com", R.drawable.ic_web_default),
+            BrowserShortcut("CSDN", "https://m.csdn.net", R.drawable.ic_web_default),
+            BrowserShortcut("稀土掘金", "https://juejin.cn", R.drawable.ic_web_default)
         )
 
         // 设置适配器
@@ -1967,8 +2058,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
             val shortcut = shortcuts[position]
-            holder.icon.setImageResource(shortcut.iconResId)
             holder.name.text = shortcut.name
+
+            // 使用FaviconLoader加载快捷方式图标
+            com.example.aifloatingball.utils.FaviconLoader.loadIcon(
+                holder.icon,
+                shortcut.url,
+                shortcut.iconResId
+            )
+
             holder.itemView.setOnClickListener {
                 onShortcutClick(shortcut)
             }
@@ -1997,19 +2095,47 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         Log.d(TAG, "初始化默认搜索引擎: ${currentSearchEngine?.name}")
+
+        // 更新搜索tab图标
+        updateSearchTabIcon()
     }
 
     /**
-     * 检查是否为广告或恶意URL
+     * 检查是否为广告或恶意URL - 增强版
      */
     private fun isAdOrMaliciousUrl(url: String): Boolean {
         val adKeywords = listOf(
+            // 通用广告
             "googleads", "googlesyndication", "doubleclick", "adsystem",
             "amazon-adsystem", "facebook.com/tr", "google-analytics",
+
+            // 中文广告平台
             "baidu.com/cpro", "pos.baidu.com", "cbjs.baidu.com",
             "union.360.cn", "tanx.com", "alimama.com", "taobao.com/go/act",
-            "download", "install", "apk", "exe", "setup",
-            "popup", "alert", "confirm", "prompt"
+            "irs01.com", "irs03.com", "mediav.com", "adnxs.com",
+
+            // 下载和安装相关
+            "download", "install", "apk", "exe", "setup", "installer",
+
+            // 弹窗和广告
+            "popup", "alert", "confirm", "prompt", "modal", "overlay",
+            "advertisement", "banner", "sponsor",
+
+            // 倒计时广告
+            "countdown", "timer", "seconds", "跳过广告", "广告倒计时",
+            "skip-ad", "ad-skip", "ad-countdown", "ad-timer",
+
+            // 新闻网站常见广告
+            "sohu.com/a/", "163.com/dy/", "sina.com.cn/zt/",
+            "qq.com/rain/", "people.com.cn/GB/",
+
+            // 视频广告
+            "video-ad", "pre-roll", "mid-roll", "post-roll",
+            "youku.com/show_page/", "iqiyi.com/adv/",
+
+            // 应用商店跳转
+            "itunes.apple.com", "play.google.com/store",
+            "app-download", "app-install"
         )
 
         val lowerUrl = url.lowercase()
@@ -2017,45 +2143,116 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 注入广告拦截JavaScript
+     * 注入广告拦截JavaScript - 增强版
      */
     private fun injectAdBlockingScript(webView: WebView?) {
         val adBlockScript = """
             javascript:(function() {
-                // 移除常见广告元素
+                // 移除常见广告元素 - 扩展选择器
                 var adSelectors = [
+                    // 通用广告选择器
                     '[id*="ad"]', '[class*="ad"]', '[id*="banner"]', '[class*="banner"]',
                     '[id*="popup"]', '[class*="popup"]', '[id*="modal"]', '[class*="modal"]',
                     '.advertisement', '.ads', '.ad-container', '.banner-ad',
-                    'iframe[src*="ads"]', 'iframe[src*="doubleclick"]'
+                    'iframe[src*="ads"]', 'iframe[src*="doubleclick"]',
+
+                    // 倒计时广告选择器
+                    '[id*="countdown"]', '[class*="countdown"]', '[id*="timer"]', '[class*="timer"]',
+                    '[id*="skip"]', '[class*="skip"]', '.ad-skip', '.skip-ad',
+                    '.countdown-ad', '.ad-countdown', '.timer-ad', '.ad-timer',
+
+                    // 中文广告选择器
+                    '[class*="广告"]', '[id*="广告"]', '[class*="推广"]', '[id*="推广"]',
+                    '.ad-wrap', '.ad-box', '.ad-content', '.sponsor', '.promotion',
+
+                    // 新闻网站特定广告
+                    '.sohu-ad', '.sina-ad', '.netease-ad', '.qq-ad', '.tencent-ad',
+                    '.news-ad', '.article-ad', '.content-ad',
+
+                    // 视频广告
+                    '.video-ad', '.player-ad', '.pre-roll', '.mid-roll', '.post-roll',
+
+                    // 下载提示
+                    '.download-tip', '.app-download', '.install-app', '.download-app',
+
+                    // 弹窗遮罩
+                    '.mask', '.overlay', '.dialog-mask', '.popup-mask'
                 ];
 
+                // 移除广告元素
                 adSelectors.forEach(function(selector) {
-                    var elements = document.querySelectorAll(selector);
-                    elements.forEach(function(el) {
-                        if (el && el.parentNode) {
-                            el.parentNode.removeChild(el);
-                        }
-                    });
+                    try {
+                        var elements = document.querySelectorAll(selector);
+                        elements.forEach(function(el) {
+                            if (el && el.parentNode) {
+                                el.style.display = 'none';
+                                el.parentNode.removeChild(el);
+                            }
+                        });
+                    } catch(e) {}
                 });
 
-                // 阻止弹窗
+                // 阻止弹窗函数
                 window.alert = function() { return false; };
                 window.confirm = function() { return false; };
                 window.prompt = function() { return null; };
 
-                // 移除倒计时广告
-                var countdownElements = document.querySelectorAll('[id*="countdown"], [class*="countdown"]');
-                countdownElements.forEach(function(el) {
-                    if (el && el.parentNode) {
-                        el.parentNode.removeChild(el);
+                // 阻止页面跳转到应用商店
+                var originalOpen = window.open;
+                window.open = function(url, name, specs) {
+                    if (url && (url.includes('itunes.apple.com') ||
+                               url.includes('play.google.com') ||
+                               url.includes('app-download') ||
+                               url.includes('download'))) {
+                        return null;
                     }
+                    return originalOpen.call(this, url, name, specs);
+                };
+
+                // 移除包含特定文本的元素
+                var textPatterns = ['跳过广告', '广告', '下载APP', '立即下载', '安装应用', 'Skip Ad'];
+                textPatterns.forEach(function(pattern) {
+                    var walker = document.createTreeWalker(
+                        document.body,
+                        NodeFilter.SHOW_TEXT,
+                        null,
+                        false
+                    );
+                    var textNodes = [];
+                    var node;
+                    while (node = walker.nextNode()) {
+                        if (node.textContent.includes(pattern)) {
+                            textNodes.push(node);
+                        }
+                    }
+                    textNodes.forEach(function(textNode) {
+                        var element = textNode.parentElement;
+                        if (element && element.tagName !== 'SCRIPT') {
+                            element.style.display = 'none';
+                        }
+                    });
                 });
+
+                // 定期清理动态加载的广告
+                setInterval(function() {
+                    adSelectors.forEach(function(selector) {
+                        try {
+                            var elements = document.querySelectorAll(selector);
+                            elements.forEach(function(el) {
+                                if (el && el.style.display !== 'none') {
+                                    el.style.display = 'none';
+                                }
+                            });
+                        } catch(e) {}
+                    });
+                }, 2000);
+
             })();
         """
 
         try {
             webView?.evaluateJavascript(adBlockScript, null)
+            Log.d(TAG, "广告拦截脚本注入成功")
         } catch (e: Exception) {
             Log.w(TAG, "注入广告拦截脚本失败: ${e.message}")
         }
@@ -2068,6 +2265,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserWebView.visibility = View.GONE
         browserHomeContent.visibility = View.VISIBLE
         browserSearchInput.setText("")
+
+        // 恢复默认搜索引擎图标
+        updateSearchTabIcon()
+
+        Log.d(TAG, "显示浏览器主页")
     }
 
     /**
@@ -2231,9 +2433,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val engineDescription = engineView.findViewById<TextView>(R.id.engine_description)
 
         // 设置引擎信息
-        engineIcon.setImageResource(engine.iconResId)
         engineName.text = engine.displayName
         engineDescription.text = engine.description
+
+        // 使用FaviconLoader加载搜索引擎图标
+        com.example.aifloatingball.utils.FaviconLoader.loadIcon(
+            engineIcon,
+            engine.url,
+            engine.iconResId
+        )
 
         // 设置点击监听器
         engineView.setOnClickListener {
@@ -2262,6 +2470,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             loadBrowserContent(url)
             browserLayout.closeDrawer(GravityCompat.START)
+
+            // 更新搜索tab图标
+            updateSearchTabIcon()
 
             Log.d(TAG, "选择搜索引擎: ${engine.name}, 查询: '$query', 是否URL: $isUrl, 最终URL: $url")
         }
