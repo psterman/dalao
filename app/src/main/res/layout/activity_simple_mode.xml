@@ -484,15 +484,33 @@
                 android:paddingStart="4dp"
                 android:paddingEnd="4dp" />
                 
-            <!-- 显示模式 -->
+            <!-- 模式切换组件 (暂时禁用) -->
+            <!--
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/settings_item_background">
+
+                <com.example.aifloatingball.widget.ModeSwitchWidget
+                    android:id="@+id/mode_switch_widget"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+            -->
+
+            <!-- 显示模式（隐藏，保留兼容性） -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="16dp"
                 android:layout_marginBottom="8dp"
-                android:background="@drawable/settings_item_background">
-                
+                android:background="@drawable/settings_item_background"
+                android:visibility="gone">
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -501,7 +519,7 @@
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
-                
+
                 <Spinner
                     android:id="@+id/display_mode_spinner"
                     android:layout_width="match_parent"
@@ -558,6 +576,40 @@
                     style="@style/SimpleModeSwitch" />
             </LinearLayout>
             
+            <!-- 多标签页浏览器 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/settings_item_background">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="多标签页浏览器"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="启用后搜索将使用多标签页浏览器，支持AdBlock广告拦截"
+                    android:textSize="12sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="8dp" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/multi_tab_browser_switch"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="启用多标签页浏览器"
+                    style="@style/SimpleModeSwitch" />
+            </LinearLayout>
+
             <!-- 自动粘贴 -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -566,7 +618,7 @@
                 android:padding="16dp"
                 android:layout_marginBottom="8dp"
                 android:background="@drawable/settings_item_background">
-                
+
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -575,7 +627,7 @@
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
-                
+
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/auto_paste_switch"
                     android:layout_width="match_parent"

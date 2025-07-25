@@ -34,7 +34,15 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- 应用快捷方式 (暂时禁用) -->
+            <!--
+            <meta-data android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+            -->
         </activity>
+
+
 
         <activity
             android:name=".HomeActivity"
@@ -117,6 +125,22 @@
             android:name=".FullscreenWebViewActivity"
             android:exported="false"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+
+        <!-- 多标签页浏览器 -->
+        <activity
+            android:name=".MultiTabBrowserActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+        </activity>
         <activity
             android:name=".PermissionActivity"
             android:exported="false"
@@ -221,7 +245,21 @@
             android:name=".TestMinimizeActivity"
             android:exported="false"
             android:label="测试最小化" />
-        
+
+        <!-- 桌面小组件 (暂时禁用) -->
+        <!--
+        <receiver
+            android:name=".widget.ModeQuickSwitchWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/mode_quick_switch_widget_info" />
+        </receiver>
+        -->
+
     </application>
 
     <queries>

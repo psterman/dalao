@@ -92,9 +92,71 @@
     <string name="title_activity_ai_search_engine_settings">AI搜索引擎管理</string>
     <string name="title_activity_menu_manager">菜单管理</string>
 
-    <!-- Master Prompt Settings -->
+    <!-- AI Assistant Center -->
+    <string name="title_ai_assistant_center">AI 助手中心</string>
+    <string name="subtitle_ai_assistant_center">创建个性化AI助手，让对话更贴心</string>
     <string name="title_master_prompt_settings">AI 指令中心</string>
     <string name="summary_master_prompt_settings">设置您的个人信息与偏好，让AI更懂你</string>
+
+    <!-- Profile Management -->
+    <string name="profile_selection_title">选择助手档案</string>
+    <string name="add_profile">新建档案</string>
+    <string name="save_profile">保存档案</string>
+
+    <!-- Basic Information -->
+    <string name="basic_info_title">基础信息</string>
+    <string name="profile_name_hint">档案名称</string>
+    <string name="profile_name_helper">为您的AI助手起个名字，如"学习助手"、"工作伙伴"</string>
+    <string name="persona_hint">我是谁</string>
+    <string name="persona_helper">描述您的身份角色，如"大学生"、"程序员"、"设计师"</string>
+
+    <!-- Communication Style -->
+    <string name="tone_style_hint">对话风格</string>
+    <string name="tone_style_helper">选择您喜欢的AI对话方式</string>
+    <string name="output_format_hint">回答格式</string>
+    <string name="output_format_helper">AI回答时采用的格式风格</string>
+
+    <!-- Custom Instructions -->
+    <string name="custom_instructions_hint">特殊要求</string>
+    <string name="custom_instructions_helper">告诉AI您的特殊需求，如"回答要简洁"、"多举例子"</string>
+
+    <!-- Quick Templates -->
+    <string name="quick_templates_title">快速模板</string>
+    <string name="quick_templates_description">选择预设模板快速创建助手档案</string>
+    <string name="template_student">学生助手</string>
+    <string name="template_professional">职场助手</string>
+    <string name="template_creative">创意助手</string>
+    <string name="template_technical">技术助手</string>
+
+    <!-- AI Behavior Settings -->
+    <string name="ai_behavior_title">AI行为设置</string>
+    <string name="thinking_mode_hint">思考模式</string>
+    <string name="thinking_mode_helper">选择AI的推理方式</string>
+    <string name="show_reasoning_title">显示思考过程</string>
+    <string name="show_reasoning_description">让AI展示解题思路和推理步骤</string>
+    <string name="provide_examples_title">提供示例</string>
+    <string name="provide_examples_description">AI回答时会包含具体的例子</string>
+    <string name="code_style_hint">代码风格</string>
+    <string name="code_style_helper">编程相关问题的代码格式偏好</string>
+
+    <!-- Advanced Parameters -->
+    <string name="advanced_params_title">高级参数</string>
+    <string name="creativity_level_title">创造性程度</string>
+    <string name="creativity_level_description">控制AI回答的创新性和随机性</string>
+    <string name="precision_level_title">回答精确度</string>
+    <string name="precision_level_description">控制AI回答的聚焦程度</string>
+    <string name="response_length_hint">回答长度</string>
+    <string name="response_length_helper">设置AI回答的详细程度</string>
+    <string name="conservative">保守</string>
+    <string name="creative">创新</string>
+    <string name="diverse">多样</string>
+    <string name="focused">聚焦</string>
+
+    <!-- Tab Names -->
+    <string name="tab_basic_info">基础信息</string>
+    <string name="tab_extended_config">扩展配置</string>
+    <string name="tab_ai_behavior">AI行为</string>
+    <string name="tab_personalization">个性化</string>
     <string name="prompt_category_personal_info">个人信息</string>
     <string name="prompt_gender_title">性别</string>
     <string name="prompt_gender_summary">提供性别以便AI使用更贴切的称谓和语气</string>
@@ -166,4 +228,5 @@
     <string name="personalization_title">个性化设置</string>
     <string name="personalization_summary">配置您的个人信息，帮助AI更好地理解您的需求</string>
     <string name="prompt_education_summary">您的最高学历</string>
-</resources> 
+
+</resources>

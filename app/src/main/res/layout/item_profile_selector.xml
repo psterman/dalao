@@ -27,7 +27,7 @@
             android:text="档案名称"
             android:textSize="16sp"
             android:textStyle="bold"
-            android:textColor="?attr/colorOnSurface" />
+            android:textColor="?android:attr/textColorPrimary" />
 
         <TextView
             android:id="@+id/profile_description"
@@ -35,7 +35,7 @@
             android:layout_height="wrap_content"
             android:text="角色描述"
             android:textSize="14sp"
-            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textColor="?android:attr/textColorSecondary"
             android:layout_marginTop="4dp" />
 
     </LinearLayout>

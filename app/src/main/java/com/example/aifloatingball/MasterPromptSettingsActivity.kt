@@ -60,10 +60,18 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
         viewPager.adapter = pagerAdapter
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             tab.text = when (position) {
-                0 -> "核心指令"
-                1 -> "扩展配置"
-                2 -> "AI参数"
-                3 -> "个性化"
+                0 -> getString(R.string.tab_basic_info)
+                1 -> getString(R.string.tab_extended_config)
+                2 -> getString(R.string.tab_ai_behavior)
+                3 -> getString(R.string.tab_personalization)
+                else -> null
+            }
+            // 添加图标
+            tab.icon = when (position) {
+                0 -> getDrawable(R.drawable.ic_edit)
+                1 -> getDrawable(R.drawable.ic_settings)
+                2 -> getDrawable(R.drawable.ic_brain)
+                3 -> getDrawable(R.drawable.ic_person)
                 else -> null
             }
         }.attach()

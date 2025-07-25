@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_back"
+        android:title="后退"
+        android:icon="@drawable/ic_arrow_back"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_forward"
+        android:title="前进"
+        android:icon="@drawable/ic_arrow_forward"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_refresh"
+        android:title="刷新"
+        android:icon="@drawable/ic_refresh"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_new_tab"
+        android:title="新建标签页"
+        android:icon="@drawable/ic_add"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_close_tab"
+        android:title="关闭标签页"
+        android:icon="@drawable/ic_close"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_adblock_settings"
+        android:title="广告拦截设置"
+        android:icon="@drawable/ic_shield"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_bookmarks"
+        android:title="书签"
+        android:icon="@drawable/ic_bookmark"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_history"
+        android:title="历史记录"
+        android:icon="@drawable/ic_history"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_settings"
+        android:title="设置"
+        android:icon="@drawable/ic_settings"
+        app:showAsAction="never" />
+
+</menu>

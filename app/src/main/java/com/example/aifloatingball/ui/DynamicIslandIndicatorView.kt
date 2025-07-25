@@ -364,56 +364,78 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     
     private fun startPressAnimation() {
         currentAnimator?.cancel()
-        
+
         // 按下效果：轻微缩小 + 发光
         val scaleAnimator = ValueAnimator.ofFloat(currentScale, 0.95f).apply {
-            duration = 100
+            duration = 80  // 缩短按下动画时间
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener { animator ->
                 currentScale = animator.animatedValue as Float
                 invalidate()
             }
         }
-        
-        val glowAnimator = ValueAnimator.ofFloat(currentGlowAlpha, 0.6f).apply {
-            duration = 100
+
+        val glowAnimator = ValueAnimator.ofFloat(currentGlowAlpha, 0.5f).apply {  // 降低发光强度
+            duration = 80
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener { animator ->
                 currentGlowAlpha = animator.animatedValue as Float
                 invalidate()
             }
         }
-        
+
         currentAnimator = AnimatorSet().apply {
             playTogether(scaleAnimator, glowAnimator)
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: Animator) {
+                    // 动画被取消时重置状态
+                    currentAnimator = null
+                }
+            })
             start()
         }
     }
     
     private fun startReleaseAnimation() {
         currentAnimator?.cancel()
-        
+
         // 释放效果：回弹 + 发光消失
         val scaleAnimator = ValueAnimator.ofFloat(currentScale, 1f).apply {
-            duration = 200
-            interpolator = OvershootInterpolator(1.2f)
+            duration = 150  // 缩短动画时间
+            interpolator = OvershootInterpolator(1.1f)  // 减小回弹幅度
             addUpdateListener { animator ->
                 currentScale = animator.animatedValue as Float
                 invalidate()
             }
         }
-        
+
         val glowAnimator = ValueAnimator.ofFloat(currentGlowAlpha, 0f).apply {
-            duration = 300
+            duration = 150
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener { animator ->
                 currentGlowAlpha = animator.animatedValue as Float
                 invalidate()
             }
         }
-        
+
         currentAnimator = AnimatorSet().apply {
             playTogether(scaleAnimator, glowAnimator)
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    // 确保动画结束时状态正确
+                    currentScale = 1f
+                    currentGlowAlpha = 0f
+                    currentAnimator = null
+                    invalidate()
+                }
+                override fun onAnimationCancel(animation: Animator) {
+                    // 动画被取消时也要重置状态
+                    currentScale = 1f
+                    currentGlowAlpha = 0f
+                    currentAnimator = null
+                    invalidate()
+                }
+            })
             start()
         }
     }
@@ -421,19 +443,33 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     private fun startClickAnimation() {
         // 点击波纹效果
         rippleAnimator?.cancel()
+
+        // 重置波纹状态
+        rippleScale = 0f
+        rippleAlpha = 0f
+
         rippleAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 400
+            duration = 300  // 缩短动画时间，减少残影
             interpolator = AccelerateDecelerateInterpolator()
             addUpdateListener { animator ->
                 val progress = animator.animatedValue as Float
-                rippleScale = progress * 2f
-                rippleAlpha = (1f - progress) * 0.8f
+                rippleScale = progress * 1.5f  // 减小波纹范围
+                rippleAlpha = (1f - progress) * 0.6f  // 降低透明度
                 invalidate()
             }
             addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: Animator) {
+                    // 确保动画结束时完全清理
                     rippleScale = 0f
                     rippleAlpha = 0f
+                    rippleAnimator = null
+                    invalidate()
+                }
+                override fun onAnimationCancel(animation: Animator) {
+                    // 动画被取消时也要清理
+                    rippleScale = 0f
+                    rippleAlpha = 0f
+                    rippleAnimator = null
                     invalidate()
                 }
             })
@@ -648,14 +684,7 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
     
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        hideIconRunnable?.let { handler.removeCallbacks(it) }
-        longPressRunnable?.let { handler.removeCallbacks(it) }
-        breatheAnimator?.cancel()
-        currentAnimator?.cancel()
-        pulseAnimator?.cancel()
-        rippleAnimator?.cancel()
-        // 取消注册设置变更监听器
-        settingsManager.unregisterOnSharedPreferenceChangeListener(settingsChangeListener)
+        cleanup()
     }
 
     fun showNotification(icon: Bitmap, title: String, text: String) {
@@ -737,4 +766,52 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
         }
         animatorSet.start()
     }
-} 
+
+    /**
+     * 清理所有动画和资源，防止内存泄漏和残影
+     */
+    fun cleanup() {
+        // 取消所有动画
+        currentAnimator?.cancel()
+        breatheAnimator?.cancel()
+        pulseAnimator?.cancel()
+        rippleAnimator?.cancel()
+
+        // 清空动画引用
+        currentAnimator = null
+        breatheAnimator = null
+        pulseAnimator = null
+        rippleAnimator = null
+
+        // 移除所有回调
+        handler.removeCallbacksAndMessages(null)
+        hideIconRunnable = null
+        longPressRunnable = null
+
+        // 重置所有动画状态
+        currentScale = 1f
+        currentGlowAlpha = 0f
+        currentIconAlpha = 0f
+        currentWidth = 1f
+        currentHeight = 1f
+        breatheScale = 1f
+        pulseAlpha = 1f
+        rippleScale = 0f
+        rippleAlpha = 0f
+
+        // 重置触摸状态
+        isPressed = false
+        isDragging = false
+        showIcon = false
+
+        // 清空图标
+        currentIcon = null
+        notificationIcon = null
+
+        // 注销设置监听器
+        settingsManager.unregisterOnSharedPreferenceChangeListener(settingsChangeListener)
+
+        // 最后一次刷新确保清理完成
+        invalidate()
+    }
+}

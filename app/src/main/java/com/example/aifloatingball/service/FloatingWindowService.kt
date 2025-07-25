@@ -50,6 +50,8 @@ import com.example.aifloatingball.model.AppSearchSettings
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.SearchEngineShortcut
 import com.example.aifloatingball.service.NotificationHelper
+import com.example.aifloatingball.manager.ModeManager
+import com.example.aifloatingball.MultiTabBrowserActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -190,6 +192,16 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         private const val TAG = "FloatingWindowService"
         const val ACTION_SHOW_SEARCH = "com.example.aifloatingball.service.SHOW_SEARCH"
         const val ACTION_UPDATE_POSITION = "com.example.aifloatingball.service.UPDATE_POSITION"
+
+        /**
+         * 检查FloatingWindowService是否正在运行
+         */
+        @Suppress("DEPRECATION") // 为了兼容性保留旧API
+        fun isRunning(context: Context): Boolean {
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            return manager.getRunningServices(Integer.MAX_VALUE)
+                .any { it.service.className == FloatingWindowService::class.java.name }
+        }
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -581,16 +593,41 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
     private fun performSearch(query: String) {
         if (query.isNotBlank()) {
-            val engineName = settingsManager.getSearchEngineForPosition(0)
-            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                putExtra("search_query", query)
-                putExtra("engine_key", engineName)
-                putExtra("search_source", "悬浮窗")
-                putExtra("startTime", System.currentTimeMillis())
+            // 检查用户偏好，决定使用哪种浏览器
+            val useMultiTabBrowser = settingsManager.getBoolean("use_multi_tab_browser", false)
+
+            if (useMultiTabBrowser) {
+                // 使用新的多标签页浏览器
+                val browserIntent = Intent(this, MultiTabBrowserActivity::class.java).apply {
+                    putExtra(MultiTabBrowserActivity.EXTRA_INITIAL_QUERY, query)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                try {
+                    startActivity(browserIntent)
+                    Log.d(TAG, "启动多标签页浏览器进行搜索: $query")
+                } catch (e: Exception) {
+                    Log.e(TAG, "启动多标签页浏览器失败，回退到双搜索", e)
+                    // 回退到原有的双搜索功能
+                    startDualSearch(query)
+                }
+            } else {
+                // 使用原有的双搜索功能
+                startDualSearch(query)
             }
-            startService(serviceIntent)
+
             hideSearchInterface()
         }
+    }
+
+    private fun startDualSearch(query: String) {
+        val engineName = settingsManager.getSearchEngineForPosition(0)
+        val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+            putExtra("search_query", query)
+            putExtra("engine_key", engineName)
+            putExtra("search_source", "悬浮窗")
+            putExtra("startTime", System.currentTimeMillis())
+        }
+        startService(serviceIntent)
     }
 
     private fun startForegroundService() {
@@ -655,7 +692,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     if (isMoving) {
                         params?.x = initialX + dx.toInt()
                         params?.y = initialY + dy.toInt()
-                        windowManager.updateViewLayout(floatingView, params)
+                        try {
+                            if (floatingView?.isAttachedToWindow == true && params != null) {
+                                windowManager.updateViewLayout(floatingView, params)
+                            }
+                        } catch (e: IllegalArgumentException) {
+                            android.util.Log.w("FloatingWindowService", "View not attached during drag", e)
+                        }
                     }
                     true // Consume the event
                 }
@@ -694,7 +737,27 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             "dual_search" -> startDualSearch()
             "island_panel" -> { /* No-op in FloatingWindowService */ }
             "settings" -> openSettings()
+            "mode_switch" -> showModeSwitchMenu()
             "none" -> { /* No-op */ }
+        }
+    }
+
+    /**
+     * 显示模式切换菜单
+     */
+    private fun showModeSwitchMenu() {
+        try {
+            // 直接切换到下一个模式，而不是显示菜单
+            // 因为在Service中显示PopupMenu比较复杂
+            ModeManager.switchToNextMode(this)
+
+            // 显示Toast提示当前模式
+            val currentMode = ModeManager.getCurrentMode(this)
+            Toast.makeText(this, "已切换到: ${currentMode.displayName}", Toast.LENGTH_SHORT).show()
+
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingWindowService", "模式切换失败", e)
+            Toast.makeText(this, "模式切换功能暂时不可用", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -778,7 +841,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
 
         // Make search container focusable
         params?.flags = params?.flags?.and(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
-        windowManager.updateViewLayout(floatingView, params)
+        try {
+            if (floatingView?.isAttachedToWindow == true && params != null) {
+                windowManager.updateViewLayout(floatingView, params)
+            }
+        } catch (e: IllegalArgumentException) {
+            android.util.Log.w("FloatingWindowService", "View not attached during showSearchInterface", e)
+        }
 
         searchInput?.requestFocus()
         if (settingsManager.isAutoPasteEnabled()) {
@@ -801,13 +870,24 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             searchContainer?.alpha = 1f
 
             // Adjust position and flags AFTER menu is gone
-            if (!settingsManager.isLeftHandedModeEnabled()) { // Right-handed, menu was on the left
-                params?.x = params?.x?.plus(menuWidth)
-            }
-            params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-                ?.and(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH.inv())
+            try {
+                if (!settingsManager.isLeftHandedModeEnabled()) { // Right-handed, menu was on the left
+                    params?.x = params?.x?.plus(menuWidth)
+                }
+                params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                    ?.and(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH.inv())
 
-            windowManager.updateViewLayout(floatingView, params)
+                // 检查floatingView是否仍然附加到WindowManager
+                if (floatingView?.isAttachedToWindow == true && params != null) {
+                    windowManager.updateViewLayout(floatingView, params)
+                }
+            } catch (e: IllegalArgumentException) {
+                // View已经从WindowManager中移除，忽略这个错误
+                android.util.Log.w("FloatingWindowService", "View not attached to window manager during hideSearchInterface", e)
+            } catch (e: Exception) {
+                // 处理其他可能的异常
+                android.util.Log.e("FloatingWindowService", "Error updating view layout in hideSearchInterface", e)
+            }
         }
 
         hideKeyboard()
@@ -1408,10 +1488,15 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             screenWidth - (floatingView?.width ?: 0)
         }
 
-        windowManager.updateViewLayout(floatingView, params)
-        // 保存最后的位置
-        params?.let {
-            settingsManager.setFloatingBallPosition(it.x, it.y)
+        try {
+            val currentParams = params
+            if (floatingView?.isAttachedToWindow == true && currentParams != null) {
+                windowManager.updateViewLayout(floatingView, currentParams)
+                // 保存最后的位置
+                settingsManager.setFloatingBallPosition(currentParams.x, currentParams.y)
+            }
+        } catch (e: IllegalArgumentException) {
+            android.util.Log.w("FloatingWindowService", "View not attached during snapToEdge", e)
         }
     }
 

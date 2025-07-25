@@ -62,6 +62,7 @@ import android.net.Uri
 import android.content.ActivityNotFoundException
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.utils.EngineUtil
+import com.example.aifloatingball.manager.ModeManager
 import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.tabs.TabLayout
 import android.content.res.Configuration
@@ -225,10 +226,20 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         private const val TAG = "DynamicIslandService"
         private const val NOTIFICATION_ID = 2
         private const val CHANNEL_ID = "DynamicIslandChannel"
-        
+
         @Volatile
         var isRunning = false
             private set
+
+        /**
+         * 检查DynamicIslandService是否正在运行
+         */
+        @Suppress("DEPRECATION") // 为了兼容性保留旧API
+        fun isRunning(context: Context): Boolean {
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            return manager.getRunningServices(Integer.MAX_VALUE)
+                .any { it.service.className == DynamicIslandService::class.java.name }
+        }
     }
 
     private var isHiding = false
@@ -577,31 +588,69 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             "dual_search" -> startDualSearch()
             "island_panel" -> transitionToSearchState()
             "settings" -> openSettings()
+            "mode_switch" -> showModeSwitchDialog()
             "none" -> { /* No-op */ }
         }
     }
 
-    private fun startVoiceRecognition() {
-        val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    /**
+     * 显示模式切换对话框
+     */
+    private fun showModeSwitchDialog() {
+        try {
+            // 直接切换到下一个模式，而不是显示对话框
+            // 因为在Service中显示对话框需要特殊权限
+            ModeManager.switchToNextMode(this)
+
+            // 显示Toast提示当前模式
+            val currentMode = ModeManager.getCurrentMode(this)
+            Toast.makeText(this, "已切换到: ${currentMode.displayName}", Toast.LENGTH_SHORT).show()
+
+        } catch (e: Exception) {
+            android.util.Log.e("DynamicIslandService", "模式切换失败", e)
+            Toast.makeText(this, "模式切换功能暂时不可用", Toast.LENGTH_SHORT).show()
         }
-        startActivity(intent)
+    }
+
+    private fun startVoiceRecognition() {
+        try {
+            val intent = Intent(this, VoiceRecognitionActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            Log.d(TAG, "启动语音识别")
+        } catch (e: Exception) {
+            Log.e(TAG, "启动语音识别失败", e)
+            Toast.makeText(this, "无法启动语音识别", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun startDualSearch() {
-        // This action might open the multi-window search directly
-        // It might be useful to pre-fill a query from clipboard if available
-        val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        try {
+            // This action might open the multi-window search directly
+            // It might be useful to pre-fill a query from clipboard if available
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startService(intent)
+            Log.d(TAG, "启动双搜索服务")
+        } catch (e: Exception) {
+            Log.e(TAG, "启动双搜索服务失败", e)
+            Toast.makeText(this, "无法启动双搜索功能", Toast.LENGTH_SHORT).show()
         }
-        startService(intent)
     }
 
     private fun openSettings() {
-        val intent = Intent(this, SettingsActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            val intent = Intent(this, SettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            Log.d(TAG, "打开设置页面")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开设置页面失败", e)
+            Toast.makeText(this, "无法打开设置页面", Toast.LENGTH_SHORT).show()
         }
-        startActivity(intent)
     }
 
     private fun transitionToSearchState(force: Boolean = false) {
@@ -1044,13 +1093,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun cleanupViews() {
         try {
+            // 清理DynamicIslandIndicatorView的动画
+            (proxyIndicatorView as? DynamicIslandIndicatorView)?.cleanup()
+
             if (windowContainerView?.isAttachedToWindow == true) {
                 windowManager.removeView(windowContainerView)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error removing windowContainerView", e)
         }
-        
+
         // Nullify all view references to allow them to be garbage collected
         // and to ensure showDynamicIsland creates new ones.
         windowContainerView = null
@@ -1059,6 +1111,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         configPanelView = null
         searchEngineSelectorView = null
         assistantSelectorView = null
+        proxyIndicatorView = null
         assistantPromptSelectorView = null
         selectorScrimView = null
         editingScrimView = null
@@ -1192,6 +1245,32 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             } ?: run {
                 Toast.makeText(this, "请先在AI指令中心设置档案", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        // 设置按钮点击处理
+        val settingsButton = configPanelView?.findViewById<View>(R.id.btn_settings)
+        settingsButton?.setOnClickListener {
+            animationView?.apply {
+                visibility = View.VISIBLE
+                playAnimation()
+            }
+
+            // 添加点击动画效果
+            settingsButton.animate()
+                .scaleX(0.95f)
+                .scaleY(0.95f)
+                .setDuration(100)
+                .withEndAction {
+                    settingsButton.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .start()
+                }
+                .start()
+
+            // 打开设置页面
+            openSettings()
         }
 
         val panelParams = FrameLayout.LayoutParams(

@@ -862,6 +862,7 @@
         <item>启动多屏搜索</item>
         <item>打开灵动岛面板</item>
         <item>打开设置</item>
+        <item>模式切换</item>
         <item>无操作</item>
     </string-array>
 
@@ -871,6 +872,7 @@
         <item>dual_search</item>
         <item>island_panel</item>
         <item>settings</item>
+        <item>mode_switch</item>
         <item>none</item>
     </string-array>
 

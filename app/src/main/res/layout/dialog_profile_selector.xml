@@ -14,7 +14,7 @@
         android:textStyle="bold"
         android:layout_gravity="center_horizontal"
         android:layout_marginBottom="16dp"
-        android:textColor="?attr/colorOnSurface" />
+        android:textColor="?android:attr/textColorPrimary" />
 
     <TextView
         android:id="@+id/current_profile_text"
@@ -24,7 +24,7 @@
         android:textSize="14sp"
         android:layout_gravity="center_horizontal"
         android:layout_marginBottom="16dp"
-        android:textColor="?attr/colorPrimary" />
+        android:textColor="@color/primary" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/profiles_recycler_view"
@@ -46,7 +46,7 @@
             android:layout_height="wrap_content"
             android:text="管理档案"
             android:layout_marginEnd="8dp"
-            style="@style/Widget.Material3.Button.TextButton" />
+            style="@style/Widget.MaterialComponents.Button.TextButton" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_cancel"
@@ -54,14 +54,14 @@
             android:layout_height="wrap_content"
             android:text="取消"
             android:layout_marginEnd="8dp"
-            style="@style/Widget.Material3.Button.TextButton" />
+            style="@style/Widget.MaterialComponents.Button.TextButton" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_confirm"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="确认"
-            style="@style/Widget.Material3.Button" />
+            style="@style/Widget.MaterialComponents.Button" />
 
     </LinearLayout>
 

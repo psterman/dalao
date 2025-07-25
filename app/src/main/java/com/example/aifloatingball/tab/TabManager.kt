@@ -10,6 +10,9 @@ import androidx.viewpager2.widget.ViewPager2
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import com.example.aifloatingball.adblock.AdBlockFilter
+import com.example.aifloatingball.web.EnhancedWebViewClient
+import com.google.android.material.tabs.TabLayout
 
 class TabManager(private val context: Context) {
     private val _tabs = MutableStateFlow<List<WebViewTab>>(emptyList())

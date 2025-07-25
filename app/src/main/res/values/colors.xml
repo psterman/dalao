@@ -233,6 +233,8 @@
 
     <!-- 简易模式专用颜色 -->
     <color name="simple_mode_background">#F8F9FA</color>
+    <color name="simple_mode_primary_light">#2196F3</color>
+    <color name="simple_mode_primary_dark">#1976D2</color>
     <color name="button_background">#E3F2FD</color>
     <color name="card_background">#FFFFFF</color>
     <color name="directory_background">#E3F2FD</color>
@@ -245,4 +247,36 @@
     <color name="mtrl_blue_100">#BBDEFB</color>
     <color name="mtrl_green_50">#E8F5E9</color>
     <color name="mtrl_green_100">#C8E6C9</color>
-</resources> 
+
+    <!-- 浏览器界面颜色 -->
+    <color name="background_light">#F5F5F5</color>
+    <color name="background_dark">#121212</color>
+    <color name="surface_light">#FFFFFF</color>
+    <color name="surface_dark">#1E1E1E</color>
+
+    <!-- 灵动岛配置面板按钮颜色 -->
+    <color name="dynamic_island_button_background_light">#F0F0F0</color>
+    <color name="dynamic_island_button_background_dark">#2A2A2A</color>
+    <color name="dynamic_island_button_text_light">#1A1A1A</color>
+    <color name="dynamic_island_button_text_dark">#E0E0E0</color>
+    <color name="dynamic_island_button_icon_light">#666666</color>
+    <color name="dynamic_island_button_icon_dark">#B0B0B0</color>
+    <color name="dynamic_island_button_stroke_light">#E0E0E0</color>
+    <color name="dynamic_island_button_stroke_dark">#404040</color>
+    <color name="dynamic_island_button_ripple_light">#20000000</color>
+    <color name="dynamic_island_button_ripple_dark">#20FFFFFF</color>
+
+    <!-- 设置按钮特殊颜色 -->
+    <color name="dynamic_island_settings_button_background_light">#E3F2FD</color>
+    <color name="dynamic_island_settings_button_background_dark">#1A237E</color>
+    <color name="dynamic_island_settings_button_text_light">#1976D2</color>
+    <color name="dynamic_island_settings_button_text_dark">#90CAF9</color>
+    <color name="dynamic_island_settings_button_icon_light">#1976D2</color>
+    <color name="dynamic_island_settings_button_icon_dark">#90CAF9</color>
+    <color name="dynamic_island_settings_button_stroke_light">#BBDEFB</color>
+    <color name="dynamic_island_settings_button_stroke_dark">#3F51B5</color>
+
+    <!-- AI参数界面颜色 -->
+    <color name="primary_light">#E3F2FD</color>
+    <color name="primary_container_light">#BBDEFB</color>
+</resources>

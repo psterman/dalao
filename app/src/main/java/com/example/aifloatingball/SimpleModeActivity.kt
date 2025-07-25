@@ -36,6 +36,7 @@ import com.google.android.material.button.MaterialButton
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.aifloatingball.manager.ModeManager
 import com.example.aifloatingball.adapter.TaskTemplateAdapter
 import com.example.aifloatingball.data.SimpleTaskTemplates
 import com.example.aifloatingball.model.PromptTemplate
@@ -86,7 +87,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var voiceLayout: LinearLayout
     private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
     private lateinit var settingsLayout: ScrollView
-    
+    // private lateinit var modeSwitchWidget: ModeSwitchWidget  // 暂时禁用
+
     // 任务选择页面组件
     private lateinit var taskRecyclerView: RecyclerView
     private lateinit var taskAdapter: TaskTemplateAdapter
@@ -183,6 +185,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var ballAlphaSeekbar: SeekBar
     private lateinit var leftHandedSwitch: SwitchMaterial
     private lateinit var autoPasteSwitch: SwitchMaterial
+    private lateinit var multiTabBrowserSwitch: SwitchMaterial
     private lateinit var notificationListenerSwitch: SwitchMaterial
     private lateinit var aiApiSettingsItem: LinearLayout
     private lateinit var searchEngineSettingsItem: LinearLayout
@@ -417,7 +420,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceLayout = findViewById(R.id.voice_layout)
         browserLayout = findViewById(R.id.browser_layout)
         settingsLayout = findViewById(R.id.settings_layout)
-        
+        // modeSwitchWidget = findViewById(R.id.mode_switch_widget)  // 暂时禁用
+
         // 任务选择页面
         taskRecyclerView = findViewById(R.id.task_recycler_view)
         directSearchInput = findViewById(R.id.direct_search_input)
@@ -491,6 +495,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         ballAlphaSeekbar = findViewById(R.id.ball_alpha_seekbar)
         leftHandedSwitch = findViewById(R.id.left_handed_switch)
         autoPasteSwitch = findViewById(R.id.auto_paste_switch)
+        multiTabBrowserSwitch = findViewById(R.id.multi_tab_browser_switch)
         notificationListenerSwitch = findViewById(R.id.notification_listener_switch)
         aiApiSettingsItem = findViewById(R.id.ai_api_settings_item)
         searchEngineSettingsItem = findViewById(R.id.search_engine_settings_item)
@@ -623,6 +628,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun setupSettingsPage() {
+        // 设置模式切换组件 (暂时禁用)
+        // setupModeSwitchWidget()
+
         // 加载当前设置
         loadSettings()
 
@@ -709,6 +717,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         autoPasteSwitch.setOnCheckedChangeListener { _, isChecked ->
             settingsManager.setAutoPasteEnabled(isChecked)
+        }
+
+        multiTabBrowserSwitch.setOnCheckedChangeListener { _, isChecked ->
+            settingsManager.putBoolean("use_multi_tab_browser", isChecked)
+            Log.d(TAG, "多标签页浏览器设置: $isChecked")
         }
 
         notificationListenerSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -869,6 +882,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             aiModeSwitch.isChecked = settingsManager.getIsAIMode()
             leftHandedSwitch.isChecked = settingsManager.isLeftHandedModeEnabled()
             autoPasteSwitch.isChecked = settingsManager.isAutoPasteEnabled()
+            multiTabBrowserSwitch.isChecked = settingsManager.getBoolean("use_multi_tab_browser", false)
             notificationListenerSwitch.isChecked = settingsManager.getBoolean("enable_notification_listener", false)
 
             // 加载透明度设置 - getBallAlpha()返回0-255，需要转换为0-100
@@ -2271,6 +2285,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         Log.d(TAG, "显示浏览器主页")
     }
+
+    // setupModeSwitchWidget方法已移除，因为ModeSwitchWidget已被禁用
 
     /**
      * 执行浏览器搜索 - 修复搜索关键词机制
