@@ -120,7 +120,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var taskSelectionLayout: LinearLayout
     private lateinit var stepGuidanceLayout: LinearLayout
     private lateinit var promptPreviewLayout: LinearLayout
-    private lateinit var voiceLayout: LinearLayout
+    private lateinit var voiceLayout: ScrollView
     private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
     private lateinit var settingsLayout: ScrollView
     // private lateinit var modeSwitchWidget: ModeSwitchWidget  // 暂时禁用
@@ -170,7 +170,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserGestureHint: TextView
     private lateinit var browserNavDrawer: LinearLayout
     private lateinit var browserLetterTitle: TextView
-    private lateinit var browserPreviewEngineList: LinearLayout
+    private lateinit var browserPreviewEngineList: androidx.recyclerview.widget.RecyclerView
+    private lateinit var draggableEngineAdapter: com.example.aifloatingball.adapter.DraggableSearchEngineAdapter
     private lateinit var browserExitButton: Button
     private lateinit var browserLetterIndexBar: com.example.aifloatingball.view.LetterIndexBar
 
@@ -427,9 +428,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 is TextView -> {
                     // 根据TextView的用途设置不同的颜色
                     when (child.id) {
-                        R.id.simple_mode_title -> {
-                            child.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_text_light))
-                        }
                         R.id.final_prompt_text -> {
                             child.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_primary_light))
                         }
@@ -451,28 +449,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 更新标题栏颜色
+     * 更新标题栏颜色 (已移除标题栏，此方法保留以避免调用错误)
      */
     private fun updateHeaderColors() {
-        try {
-            val headerLayout = findViewById<LinearLayout>(R.id.simple_mode_header) ?: return
-            val titleText = headerLayout.findViewById<TextView>(R.id.simple_mode_title) ?: return
-            val minimizeButton = headerLayout.findViewById<ImageButton>(R.id.simple_mode_minimize_button) ?: return
-            val closeButton = headerLayout.findViewById<ImageButton>(R.id.simple_mode_close_button) ?: return
-
-            // 设置标题栏背景色
-            headerLayout.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_background_light))
-
-            // 设置标题文字颜色
-            titleText.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_text_light))
-
-            // 设置图标颜色
-            val iconColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_icon_light)
-            minimizeButton.setColorFilter(iconColor)
-            closeButton.setColorFilter(iconColor)
-        } catch (e: Exception) {
-            android.util.Log.e("SimpleModeActivity", "Error updating header colors", e)
-        }
+        // 标题栏已移除，此方法不再需要执行任何操作
+        // 保留此方法以避免其他地方的调用出错
     }
     
     /**
@@ -619,51 +600,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置搜索框监听器
         setupSearchListeners()
-        
+
+        // 设置搜索引擎RecyclerView
+        setupSearchEngineRecyclerView()
+
         // 设置语音页面
         setupVoicePage()
         
         // 设置设置页面
         setupSettingsPage()
         
-        // 设置顶部按钮
-        val minimizeButton = findViewById<ImageButton>(R.id.simple_mode_minimize_button)
-        Log.d(TAG, "Minimize button found: ${minimizeButton != null}")
-        if (minimizeButton == null) {
-            Toast.makeText(this, "警告：找不到最小化按钮", Toast.LENGTH_LONG).show()
-        }
-        
-        minimizeButton?.setOnClickListener {
-            Log.d(TAG, "Minimize button clicked!")
-            Toast.makeText(this, "最小化按钮被点击", Toast.LENGTH_SHORT).show()
-            
-            // 添加一个简单的测试
-            Log.d(TAG, "About to call minimizeToService")
-            Toast.makeText(this, "即将调用minimizeToService", Toast.LENGTH_SHORT).show()
-            
-            try {
-            minimizeToService()
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception in minimize button click", e)
-                Toast.makeText(this, "按钮点击异常: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-        
-        // 检查关闭按钮是否存在
-        val closeButton = findViewById<ImageButton>(R.id.simple_mode_close_button)
-        Log.d(TAG, "Close button found: ${closeButton != null}")
-        
-        closeButton?.setOnClickListener {
-            Log.d(TAG, "Close button clicked!")
-            Toast.makeText(this, "关闭按钮被点击", Toast.LENGTH_SHORT).show()
-            
-            // 记录当前显示模式和服务状态
-            val currentMode = settingsManager.getDisplayMode()
-            val serviceRunning = SimpleModeService.isRunning(this)
-            Log.d(TAG, "Before closing - Display mode: $currentMode, SimpleModeService running: $serviceRunning")
-            
-            closeSimpleMode()
-        }
+        // 标题栏按钮已移除，不再需要设置按钮监听器
+        Log.d(TAG, "标题栏已移除，跳过按钮设置")
         
         // 设置底部导航栏
         setupBottomNavigation()
@@ -1153,7 +1101,64 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             )
         }
     }
-    
+
+    /**
+     * 设置搜索引擎RecyclerView
+     */
+    private fun setupSearchEngineRecyclerView() {
+        try {
+            // 设置LayoutManager
+            browserPreviewEngineList.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+
+            // 初始化适配器
+            draggableEngineAdapter = com.example.aifloatingball.adapter.DraggableSearchEngineAdapter(
+                engines = mutableListOf(),
+                onEngineClick = { engine ->
+                    // 点击搜索引擎时的处理
+                    val searchText = browserSearchInput.text.toString().trim()
+                    if (searchText.isNotEmpty()) {
+                        val searchUrl = engine.getSearchUrl(searchText)
+                        browserWebView.loadUrl(searchUrl)
+                    } else {
+                        // 如果没有搜索文本，打开搜索引擎主页
+                        val baseUrl = engine.url.split("?")[0]
+                        browserWebView.loadUrl(baseUrl)
+                    }
+                },
+                onEngineReorder = { reorderedEngines ->
+                    // 保存新的排序到设置中
+                    saveSearchEngineOrder(reorderedEngines)
+                }
+            )
+
+            // 设置适配器
+            browserPreviewEngineList.adapter = draggableEngineAdapter
+
+            // 附加拖动功能
+            draggableEngineAdapter.attachToRecyclerView(browserPreviewEngineList)
+
+            Log.d(TAG, "搜索引擎RecyclerView设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置搜索引擎RecyclerView失败", e)
+        }
+    }
+
+    /**
+     * 保存搜索引擎排序
+     */
+    private fun saveSearchEngineOrder(engines: List<com.example.aifloatingball.model.SearchEngine>) {
+        try {
+            // 这里可以保存到SharedPreferences或数据库
+            val engineNames = engines.map { it.name }
+            val editor = getSharedPreferences("search_engine_order", MODE_PRIVATE).edit()
+            editor.putString("engine_order", engineNames.joinToString(","))
+            editor.apply()
+            Log.d(TAG, "搜索引擎排序已保存: ${engineNames.joinToString(", ")}")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存搜索引擎排序失败", e)
+        }
+    }
+
     private fun setupSearchListeners() {
         // 搜索按钮点击
         directSearchButton.setOnClickListener {
@@ -1858,8 +1863,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun closeSimpleMode() {
         Log.d(TAG, "closeSimpleMode() called")
         try {
-            // 1. 禁用按钮防止重复点击
-            findViewById<ImageButton>(R.id.simple_mode_close_button)?.isEnabled = false
+            // 1. 标题栏按钮已移除，跳过按钮禁用
 
             // 2. 停止 SimpleModeService 服务（如果正在运行）
             Log.d(TAG, "Stopping SimpleModeService if running")
@@ -1892,8 +1896,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
         } catch (e: Exception) {
             Log.e(TAG, "Error during closing", e)
-            // 恢复按钮状态
-            findViewById<ImageButton>(R.id.simple_mode_close_button)?.isEnabled = true
+            // 标题栏按钮已移除，跳过按钮状态恢复
             Toast.makeText(this, "关闭失败，请重试", Toast.LENGTH_SHORT).show()
         }
     }
@@ -2664,13 +2667,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
-        // 清空现有列表
-        browserPreviewEngineList.removeAllViews()
-
-        // 添加搜索引擎到列表
-        filteredEngines.forEach { engine ->
-            val engineView = createBrowserEngineView(engine)
-            browserPreviewEngineList.addView(engineView)
+        // 更新RecyclerView适配器
+        if (::draggableEngineAdapter.isInitialized) {
+            draggableEngineAdapter.updateEngines(filteredEngines)
         }
 
         Log.d(TAG, "更新搜索引擎列表: 字母=$letter, 总数=${allEngines.size}, 过滤后=${filteredEngines.size}")
