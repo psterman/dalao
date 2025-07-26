@@ -24,23 +24,48 @@ class AISearchEngineSettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
+            android.util.Log.d("AISearchEngineSettings", "开始创建AI搜索引擎设置Activity")
+
             setContentView(R.layout.activity_ai_search_engine_settings)
+            android.util.Log.d("AISearchEngineSettings", "成功设置内容视图")
 
             settingsManager = SettingsManager.getInstance(this)
+            android.util.Log.d("AISearchEngineSettings", "成功初始化SettingsManager")
 
             // 设置标题栏
-            val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
+            val toolbar: MaterialToolbar? = findViewById(R.id.toolbar)
+            if (toolbar == null) {
+                android.util.Log.e("AISearchEngineSettings", "找不到toolbar控件")
+                Toast.makeText(this, "界面加载失败：找不到标题栏", Toast.LENGTH_LONG).show()
+                finish()
+                return
+            }
+
             setSupportActionBar(toolbar)
             supportActionBar?.setDisplayHomeAsUpEnabled(true)
+            android.util.Log.d("AISearchEngineSettings", "成功设置工具栏")
 
             // 初始化UI组件
-            tabLayout = findViewById(R.id.tabLayout)
-            viewPager = findViewById(R.id.viewPager)
+            val tabLayoutView = findViewById<TabLayout>(R.id.tabLayout)
+            val viewPagerView = findViewById<ViewPager2>(R.id.viewPager)
+
+            if (tabLayoutView == null || viewPagerView == null) {
+                android.util.Log.e("AISearchEngineSettings", "找不到TabLayout或ViewPager控件")
+                Toast.makeText(this, "界面加载失败：找不到必要控件", Toast.LENGTH_LONG).show()
+                finish()
+                return
+            }
+
+            tabLayout = tabLayoutView
+            viewPager = viewPagerView
+            android.util.Log.d("AISearchEngineSettings", "成功初始化UI组件")
 
             // 设置UI
             setupUI()
+            android.util.Log.d("AISearchEngineSettings", "AI搜索引擎设置Activity创建完成")
         } catch (e: Exception) {
-            Toast.makeText(this, "加载AI搜索引擎设置失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            android.util.Log.e("AISearchEngineSettings", "创建AI搜索引擎设置Activity失败", e)
+            Toast.makeText(this, "加载AI搜索引擎设置失败: ${e.message}", Toast.LENGTH_LONG).show()
             finish()
         }
     }

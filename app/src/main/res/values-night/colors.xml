@@ -93,4 +93,35 @@
     <!-- AI参数界面颜色 - 夜间模式 -->
     <color name="primary_light">#1A237E</color>
     <color name="primary_container_light">#3F51B5</color>
+
+    <!-- 适老化配色方案 - 夜间模式 -->
+    <!-- 主色调：柔和的蓝色，减少眼部疲劳 -->
+    <color name="elderly_primary">#90CAF9</color>
+    <color name="elderly_primary_light">#1A237E</color>
+    <color name="elderly_primary_dark">#42A5F5</color>
+
+    <!-- 背景色：深色但不过暗，保护视力 -->
+    <color name="elderly_background">#121212</color>
+    <color name="elderly_surface">#1E1E1E</color>
+    <color name="elderly_card_background">#2A2A2A</color>
+
+    <!-- 文字颜色：高对比度，易于阅读 -->
+    <color name="elderly_text_primary">#FFFFFF</color>
+    <color name="elderly_text_secondary">#E0E0E0</color>
+    <color name="elderly_text_hint">#BDBDBD</color>
+
+    <!-- 边框和分割线：适中对比度 -->
+    <color name="elderly_divider">#424242</color>
+    <color name="elderly_outline">#616161</color>
+
+    <!-- 状态颜色：夜间模式下的柔和版本 -->
+    <color name="elderly_success">#81C784</color>
+    <color name="elderly_warning">#FFB74D</color>
+    <color name="elderly_error">#E57373</color>
+
+    <!-- 按钮颜色：夜间模式适配 -->
+    <color name="elderly_button_primary">#90CAF9</color>
+    <color name="elderly_button_secondary">#424242</color>
+    <color name="elderly_button_text_primary">#121212</color>
+    <color name="elderly_button_text_secondary">#90CAF9</color>
 </resources>

@@ -22,18 +22,55 @@ class PermissionManagementActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_permission_management)
-        
-        // 设置工具栏
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = "权限管理"
-        
-        // 加载权限管理Fragment
-        if (savedInstanceState == null) {
-            supportFragmentManager
-                .beginTransaction()
-                .replace(R.id.permission_fragment_container, PermissionManagementFragment())
-                .commit()
+
+        try {
+            android.util.Log.d("PermissionManagement", "开始创建权限管理Activity")
+
+            setContentView(R.layout.activity_permission_management)
+            android.util.Log.d("PermissionManagement", "成功设置内容视图")
+
+            // 设置工具栏
+            val toolbar = findViewById<com.google.android.material.appbar.MaterialToolbar>(R.id.toolbar)
+            if (toolbar != null) {
+                setSupportActionBar(toolbar)
+                supportActionBar?.setDisplayHomeAsUpEnabled(true)
+                supportActionBar?.title = "权限管理"
+                android.util.Log.d("PermissionManagement", "成功设置工具栏")
+            } else {
+                android.util.Log.w("PermissionManagement", "找不到toolbar，使用默认ActionBar")
+                supportActionBar?.setDisplayHomeAsUpEnabled(true)
+                supportActionBar?.title = "权限管理"
+            }
+
+            // 检查Fragment容器是否存在
+            val container = findViewById<android.widget.FrameLayout>(R.id.permission_fragment_container)
+            if (container == null) {
+                android.util.Log.e("PermissionManagement", "找不到Fragment容器")
+                android.widget.Toast.makeText(this, "界面加载失败：找不到容器", android.widget.Toast.LENGTH_LONG).show()
+                finish()
+                return
+            }
+
+            // 加载权限管理Fragment
+            if (savedInstanceState == null) {
+                try {
+                    supportFragmentManager
+                        .beginTransaction()
+                        .replace(R.id.permission_fragment_container, PermissionManagementFragment())
+                        .commit()
+                    android.util.Log.d("PermissionManagement", "成功加载Fragment")
+                } catch (e: Exception) {
+                    android.util.Log.e("PermissionManagement", "加载Fragment失败", e)
+                    android.widget.Toast.makeText(this, "加载权限设置失败: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                    finish()
+                }
+            }
+
+            android.util.Log.d("PermissionManagement", "权限管理Activity创建完成")
+        } catch (e: Exception) {
+            android.util.Log.e("PermissionManagement", "创建权限管理Activity失败", e)
+            android.widget.Toast.makeText(this, "加载权限管理失败: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            finish()
         }
     }
     
@@ -45,56 +82,118 @@ class PermissionManagementActivity : AppCompatActivity() {
     class PermissionManagementFragment : PreferenceFragmentCompat() {
         
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
-            setPreferencesFromResource(R.xml.permission_management_preferences, rootKey)
-            
-            setupPermissionPreferences()
+            try {
+                android.util.Log.d("PermissionManagementFragment", "开始创建偏好设置")
+
+                setPreferencesFromResource(R.xml.permission_management_preferences, rootKey)
+                android.util.Log.d("PermissionManagementFragment", "成功加载偏好设置XML")
+
+                setupPermissionPreferences()
+                android.util.Log.d("PermissionManagementFragment", "成功设置权限偏好")
+
+                android.util.Log.d("PermissionManagementFragment", "偏好设置创建完成")
+            } catch (e: Exception) {
+                android.util.Log.e("PermissionManagementFragment", "创建偏好设置失败", e)
+                // 不要让Fragment崩溃，而是显示错误信息
+                android.widget.Toast.makeText(context, "加载权限设置失败: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            }
         }
         
         private fun setupPermissionPreferences() {
-            // 悬浮窗权限
-            findPreference<Preference>("overlay_permission")?.setOnPreferenceClickListener {
-                requestOverlayPermission()
-                true
+            try {
+                android.util.Log.d("PermissionManagementFragment", "开始设置权限偏好")
+
+                // 悬浮窗权限
+                val overlayPref = findPreference<Preference>("overlay_permission")
+                if (overlayPref != null) {
+                    overlayPref.setOnPreferenceClickListener {
+                        requestOverlayPermission()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置悬浮窗权限偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到overlay_permission偏好")
+                }
+
+                // 录音权限
+                val recordPref = findPreference<Preference>("record_audio_permission")
+                if (recordPref != null) {
+                    recordPref.setOnPreferenceClickListener {
+                        requestRecordAudioPermission()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置录音权限偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到record_audio_permission偏好")
+                }
+
+                // 通知权限
+                val notificationPref = findPreference<Preference>("notification_permission")
+                if (notificationPref != null) {
+                    notificationPref.setOnPreferenceClickListener {
+                        requestNotificationPermission()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置通知权限偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到notification_permission偏好")
+                }
+
+                // 通知监听权限
+                val listenerPref = findPreference<Preference>("notification_listener_permission")
+                if (listenerPref != null) {
+                    listenerPref.setOnPreferenceClickListener {
+                        requestNotificationListenerPermission()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置通知监听权限偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到notification_listener_permission偏好")
+                }
+
+                // 自启动权限
+                val autoStartPref = findPreference<Preference>("auto_start_permission")
+                if (autoStartPref != null) {
+                    autoStartPref.setOnPreferenceClickListener {
+                        requestAutoStartPermission()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置自启动权限偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到auto_start_permission偏好")
+                }
+
+                // 电池优化白名单
+                val batteryPref = findPreference<Preference>("battery_optimization_permission")
+                if (batteryPref != null) {
+                    batteryPref.setOnPreferenceClickListener {
+                        requestBatteryOptimizationPermission()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置电池优化权限偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到battery_optimization_permission偏好")
+                }
+
+                // 一键授权
+                val oneClickPref = findPreference<Preference>("one_click_authorization")
+                if (oneClickPref != null) {
+                    oneClickPref.setOnPreferenceClickListener {
+                        performOneClickAuthorization()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置一键授权偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到one_click_authorization偏好")
+                }
+
+                // 更新权限状态
+                updatePermissionStatus()
+                android.util.Log.d("PermissionManagementFragment", "权限偏好设置完成")
+            } catch (e: Exception) {
+                android.util.Log.e("PermissionManagementFragment", "设置权限偏好失败", e)
+                android.widget.Toast.makeText(context, "设置权限选项失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
             }
-            
-            // 录音权限
-            findPreference<Preference>("record_audio_permission")?.setOnPreferenceClickListener {
-                requestRecordAudioPermission()
-                true
-            }
-            
-            // 通知权限
-            findPreference<Preference>("notification_permission")?.setOnPreferenceClickListener {
-                requestNotificationPermission()
-                true
-            }
-            
-            // 通知监听权限
-            findPreference<Preference>("notification_listener_permission")?.setOnPreferenceClickListener {
-                requestNotificationListenerPermission()
-                true
-            }
-            
-            // 自启动权限
-            findPreference<Preference>("auto_start_permission")?.setOnPreferenceClickListener {
-                requestAutoStartPermission()
-                true
-            }
-            
-            // 电池优化白名单
-            findPreference<Preference>("battery_optimization_permission")?.setOnPreferenceClickListener {
-                requestBatteryOptimizationPermission()
-                true
-            }
-            
-            // 一键授权
-            findPreference<Preference>("one_click_authorization")?.setOnPreferenceClickListener {
-                performOneClickAuthorization()
-                true
-            }
-            
-            // 更新权限状态
-            updatePermissionStatus()
         }
         
         private fun updatePermissionStatus() {

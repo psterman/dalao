@@ -43,10 +43,14 @@ class SearchEngineManagerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         try {
+            Log.d(TAG, "开始创建搜索引擎管理Activity")
+
             setContentView(R.layout.activity_search_engine_manager)
+            Log.d(TAG, "成功设置内容视图")
 
             // 初始化SettingsManager
             settingsManager = SettingsManager.getInstance(this)
+            Log.d(TAG, "成功初始化SettingsManager")
 
             // 设置标题栏
             supportActionBar?.apply {
@@ -55,18 +59,42 @@ class SearchEngineManagerActivity : AppCompatActivity() {
             }
 
             // 初始化已启用的搜索引擎集合
-            enabledSearchEngines.addAll(settingsManager.getEnabledSearchEngines())
-
-            Log.d(TAG, "Enabled search engines: $enabledSearchEngines")
+            try {
+                enabledSearchEngines.addAll(settingsManager.getEnabledSearchEngines())
+                Log.d(TAG, "Enabled search engines: $enabledSearchEngines")
+            } catch (e: Exception) {
+                Log.e(TAG, "获取已启用搜索引擎失败", e)
+                Toast.makeText(this, "获取搜索引擎配置失败", Toast.LENGTH_SHORT).show()
+            }
 
             // 初始化视图
-            setupViews()
+            try {
+                setupViews()
+                Log.d(TAG, "成功设置视图")
+            } catch (e: Exception) {
+                Log.e(TAG, "设置视图失败", e)
+                Toast.makeText(this, "界面初始化失败: ${e.message}", Toast.LENGTH_LONG).show()
+                finish()
+                return
+            }
 
             // 设置分类标签
-            setupCategoryTabs()
+            try {
+                setupCategoryTabs()
+                Log.d(TAG, "成功设置分类标签")
+            } catch (e: Exception) {
+                Log.e(TAG, "设置分类标签失败", e)
+                Toast.makeText(this, "分类标签初始化失败", Toast.LENGTH_SHORT).show()
+            }
 
             // 加载搜索引擎列表
-            loadSearchEngines()
+            try {
+                loadSearchEngines()
+                Log.d(TAG, "成功加载搜索引擎列表")
+            } catch (e: Exception) {
+                Log.e(TAG, "加载搜索引擎列表失败", e)
+                Toast.makeText(this, "加载搜索引擎失败", Toast.LENGTH_SHORT).show()
+            }
 
             Log.d(TAG, "SearchEngineManagerActivity initialized successfully")
 

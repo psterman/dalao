@@ -19,7 +19,9 @@ import com.example.aifloatingball.ui.settings.PersonalizationFragment
 import com.example.aifloatingball.ui.settings.SectionsPagerAdapter
 import com.example.aifloatingball.viewmodel.SettingsViewModel
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import java.util.UUID
@@ -39,13 +41,35 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_master_prompt_settings)
-        settingsManager = SettingsManager.getInstance(this)
 
-        setupToolbar()
-        setupViews()
-        setupRecyclerView()
-        setupViewPager()
+        try {
+            android.util.Log.d("MasterPromptSettings", "开始创建主提示词设置Activity")
+
+            setContentView(R.layout.activity_master_prompt_settings)
+            android.util.Log.d("MasterPromptSettings", "成功设置内容视图")
+
+            settingsManager = SettingsManager.getInstance(this)
+            android.util.Log.d("MasterPromptSettings", "成功初始化SettingsManager")
+
+            setupToolbar()
+            android.util.Log.d("MasterPromptSettings", "成功设置工具栏")
+
+            setupViews()
+            android.util.Log.d("MasterPromptSettings", "成功设置视图")
+
+            setupRecyclerView()
+            android.util.Log.d("MasterPromptSettings", "成功设置RecyclerView")
+
+            setupViewPager()
+            android.util.Log.d("MasterPromptSettings", "成功设置ViewPager")
+
+            android.util.Log.d("MasterPromptSettings", "主提示词设置Activity创建完成")
+        } catch (e: Exception) {
+            android.util.Log.e("MasterPromptSettings", "创建主提示词设置Activity失败", e)
+            Toast.makeText(this, "加载主提示词设置失败: ${e.message}", Toast.LENGTH_LONG).show()
+            finish()
+        }
+        setupButtons()
         loadProfiles()
     }
 
@@ -53,6 +77,20 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
         profilesRecyclerView = findViewById(R.id.profiles_recycler_view)
         viewPager = findViewById(R.id.view_pager)
         tabLayout = findViewById(R.id.tabs)
+    }
+
+    private fun setupButtons() {
+        // 新建档案按钮
+        val addProfileButton = findViewById<MaterialButton>(R.id.btn_add_profile)
+        addProfileButton?.setOnClickListener {
+            createNewProfile()
+        }
+
+        // 保存档案按钮
+        val saveButton = findViewById<ExtendedFloatingActionButton>(R.id.fab_save)
+        saveButton?.setOnClickListener {
+            saveCurrentProfile()
+        }
     }
 
     private fun setupViewPager() {
@@ -109,6 +147,23 @@ class MasterPromptSettingsActivity : AppCompatActivity() {
         viewModel.selectProfile(profile) // Update ViewModel
         profileAdapter.setActiveProfileId(profile.id)
         settingsManager.setActivePromptProfileId(profile.id)
+    }
+
+    private fun createNewProfile() {
+        val newProfile = PromptProfile(
+            id = "profile_${System.currentTimeMillis()}",
+            name = "新档案 ${profiles.size + 1}",
+            persona = "",
+            tone = "友好",
+            outputFormat = "详细",
+            customInstructions = ""
+        )
+
+        profiles.add(newProfile)
+        profileAdapter.updateData(profiles)
+        selectProfile(newProfile)
+
+        Toast.makeText(this, "已创建新档案", Toast.LENGTH_SHORT).show()
     }
 
     private fun saveCurrentProfile() {

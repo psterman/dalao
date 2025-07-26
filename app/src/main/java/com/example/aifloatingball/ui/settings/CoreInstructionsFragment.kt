@@ -27,25 +27,102 @@ class CoreInstructionsFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val view = inflater.inflate(R.layout.fragment_core_instructions, container, false)
-        setupViews(view)
-        setupDropdowns()
-        return view
+        return try {
+            android.util.Log.d("CoreInstructionsFragment", "开始创建视图")
+
+            val view = inflater.inflate(R.layout.fragment_core_instructions, container, false)
+            android.util.Log.d("CoreInstructionsFragment", "成功加载布局")
+
+            setupViews(view)
+            android.util.Log.d("CoreInstructionsFragment", "成功设置视图")
+
+            setupDropdowns()
+            android.util.Log.d("CoreInstructionsFragment", "成功设置下拉菜单")
+
+            android.util.Log.d("CoreInstructionsFragment", "视图创建完成")
+            view
+        } catch (e: Exception) {
+            android.util.Log.e("CoreInstructionsFragment", "创建视图失败", e)
+            // 返回一个简单的错误视图
+            createErrorView(inflater, container, e.message ?: "未知错误")
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        viewModel.selectedProfile.observe(viewLifecycleOwner) { profile ->
-            displayProfile(profile)
+        try {
+            viewModel.selectedProfile.observe(viewLifecycleOwner) { profile ->
+                displayProfile(profile)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CoreInstructionsFragment", "设置观察者失败", e)
+        }
+    }
+
+    /**
+     * 创建错误视图
+     */
+    private fun createErrorView(inflater: LayoutInflater, container: ViewGroup?, errorMessage: String): View {
+        return android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+
+            addView(android.widget.TextView(requireContext()).apply {
+                text = "加载失败"
+                textSize = 18f
+                setTextColor(android.graphics.Color.RED)
+                gravity = android.view.Gravity.CENTER
+            })
+
+            addView(android.widget.TextView(requireContext()).apply {
+                text = "错误信息: $errorMessage"
+                textSize = 14f
+                setTextColor(android.graphics.Color.GRAY)
+                gravity = android.view.Gravity.CENTER
+                setPadding(0, 16, 0, 0)
+            })
+
+            addView(android.widget.Button(requireContext()).apply {
+                text = "重试"
+                setOnClickListener {
+                    // 尝试重新加载Fragment
+                    parentFragmentManager.beginTransaction()
+                        .replace(android.R.id.content, CoreInstructionsFragment())
+                        .commit()
+                }
+            })
         }
     }
 
     private fun setupViews(view: View) {
-        editProfileName = view.findViewById(R.id.edit_profile_name)
-        editPersona = view.findViewById(R.id.edit_persona)
-        toneDropdown = view.findViewById(R.id.tone_dropdown)
-        outputFormatDropdown = view.findViewById(R.id.output_format_dropdown)
-        editCustomInstructions = view.findViewById(R.id.edit_custom_instructions)
+        try {
+            android.util.Log.d("CoreInstructionsFragment", "开始设置视图")
+
+            editProfileName = view.findViewById(R.id.edit_profile_name)
+                ?: throw IllegalStateException("找不到edit_profile_name控件")
+            android.util.Log.d("CoreInstructionsFragment", "成功找到edit_profile_name")
+
+            editPersona = view.findViewById(R.id.edit_persona)
+                ?: throw IllegalStateException("找不到edit_persona控件")
+            android.util.Log.d("CoreInstructionsFragment", "成功找到edit_persona")
+
+            toneDropdown = view.findViewById(R.id.tone_dropdown)
+                ?: throw IllegalStateException("找不到tone_dropdown控件")
+            android.util.Log.d("CoreInstructionsFragment", "成功找到tone_dropdown")
+
+            outputFormatDropdown = view.findViewById(R.id.output_format_dropdown)
+                ?: throw IllegalStateException("找不到output_format_dropdown控件")
+            android.util.Log.d("CoreInstructionsFragment", "成功找到output_format_dropdown")
+
+            editCustomInstructions = view.findViewById(R.id.edit_custom_instructions)
+                ?: throw IllegalStateException("找不到edit_custom_instructions控件")
+            android.util.Log.d("CoreInstructionsFragment", "成功找到edit_custom_instructions")
+
+            android.util.Log.d("CoreInstructionsFragment", "所有视图设置完成")
+        } catch (e: Exception) {
+            android.util.Log.e("CoreInstructionsFragment", "设置视图失败", e)
+            throw e
+        }
     }
     
     private fun setupDropdowns() {

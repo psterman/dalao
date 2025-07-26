@@ -45,10 +45,10 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_CHATGPT_API_KEY = "chatgpt_api_key"
         private const val KEY_CHATGPT_API_URL = "chatgpt_api_url"
         
-        // 主题模式常量
+        // 主题模式常量 - 修复错乱问题
         const val THEME_MODE_SYSTEM = -1   // 跟随系统 (AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
-        const val THEME_MODE_LIGHT = 1     // 浅色主题 (AppCompatDelegate.MODE_NIGHT_NO)
-        const val THEME_MODE_DARK = 2      // 深色主题 (AppCompatDelegate.MODE_NIGHT_YES)
+        const val THEME_MODE_LIGHT = 0     // 浅色主题 (AppCompatDelegate.MODE_NIGHT_NO) - 修复：改为0
+        const val THEME_MODE_DARK = 1      // 深色主题 (AppCompatDelegate.MODE_NIGHT_YES) - 修复：改为1
         const val THEME_MODE_DEFAULT = THEME_MODE_SYSTEM  // 默认主题模式
         
         // 默认API地址
@@ -214,12 +214,24 @@ class SettingsManager private constructor(context: Context) {
     
     fun setThemeMode(mode: Int) {
         prefs.edit().putString("theme_mode", mode.toString()).apply()
-        // 根据主题模式设置应用主题
+        // 根据主题模式设置应用主题 - 修复错乱问题
         when (mode) {
-            THEME_MODE_LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-            THEME_MODE_DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-            THEME_MODE_SYSTEM -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
-            else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+            THEME_MODE_LIGHT -> {
+                android.util.Log.d("SettingsManager", "Setting LIGHT mode (MODE_NIGHT_NO)")
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+            }
+            THEME_MODE_DARK -> {
+                android.util.Log.d("SettingsManager", "Setting DARK mode (MODE_NIGHT_YES)")
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+            }
+            THEME_MODE_SYSTEM -> {
+                android.util.Log.d("SettingsManager", "Setting SYSTEM mode (MODE_NIGHT_FOLLOW_SYSTEM)")
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+            }
+            else -> {
+                android.util.Log.d("SettingsManager", "Setting default SYSTEM mode")
+                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+            }
         }
         notifyListeners("theme_mode", mode)
     }

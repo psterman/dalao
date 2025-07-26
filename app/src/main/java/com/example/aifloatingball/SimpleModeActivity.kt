@@ -62,6 +62,42 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val TAG = "SimpleModeActivity"
         // 为交互模式定义一个存储键
         private const val KEY_VOICE_INTERACTION_MODE = "voice_interaction_mode"
+        // 用于保存当前界面状态的键
+        private const val KEY_CURRENT_STATE = "current_state"
+    }
+
+    /**
+     * 安全启动Activity的通用方法
+     */
+    private fun safeStartActivity(activityClass: Class<*>, activityName: String) {
+        try {
+            Log.d(TAG, "尝试启动$activityName")
+
+            // 检查Activity类是否存在
+            val intent = Intent(this, activityClass)
+
+            // 检查是否有可以处理这个Intent的Activity
+            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            if (resolveInfo == null) {
+                Log.e(TAG, "找不到可以处理Intent的Activity: $activityName")
+                Toast.makeText(this, "无法找到$activityName", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            Log.d(TAG, "Intent验证成功，准备启动$activityName")
+            startActivity(intent)
+            Log.d(TAG, "$activityName 启动成功")
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "启动$activityName 时权限不足", e)
+            Toast.makeText(this, "启动$activityName 权限不足", Toast.LENGTH_LONG).show()
+        } catch (e: android.content.ActivityNotFoundException) {
+            Log.e(TAG, "找不到$activityName", e)
+            Toast.makeText(this, "找不到$activityName", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "启动$activityName 失败", e)
+            Toast.makeText(this, "启动$activityName 失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
     
     // 界面状态
@@ -187,6 +223,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var autoPasteSwitch: SwitchMaterial
     private lateinit var multiTabBrowserSwitch: SwitchMaterial
     private lateinit var notificationListenerSwitch: SwitchMaterial
+    private lateinit var floatingBallSettingsContainer: LinearLayout
     private lateinit var aiApiSettingsItem: LinearLayout
     private lateinit var searchEngineSettingsItem: LinearLayout
     private lateinit var aiSearchEngineSettingsItem: LinearLayout
@@ -199,12 +236,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         Log.d(TAG, "onCreate called")
-        
+
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
-        
+
         // 初始化语音提示分支管理器
         promptBranchManager = VoicePromptBranchManager(this, this)
         // 关键：从设置中读取并应用保存的交互模式
@@ -214,30 +251,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } else {
             VoicePromptBranchManager.InteractionMode.CLICK
         }
-        
+
         // 确保 SimpleModeService 不在运行
         if (SimpleModeService.isRunning(this)) {
             Log.d(TAG, "SimpleModeService is running, stopping it")
             stopService(Intent(this, SimpleModeService::class.java))
         }
-        
+
         // 确保我们处于简易模式显示模式
         val previousMode = settingsManager.getDisplayMode()
         Log.d(TAG, "Previous display mode: $previousMode, setting to simple_mode")
         settingsManager.setDisplayMode("simple_mode")
-        
+
         // 检查权限状态
         checkOverlayPermission()
-        
+
         // 应用主题设置
         applyTheme()
-        
+
         setContentView(R.layout.activity_simple_mode)
-        
+
         initializeViews()
         setupTaskSelection()
-        showTaskSelection()
-        
+
+        // 检查是否需要恢复之前的状态
+        val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
+        if (savedState != null) {
+            Log.d(TAG, "Restoring saved state: $savedState")
+            restoreState(savedState)
+        } else {
+            Log.d(TAG, "No saved state, showing task selection")
+            showTaskSelection()
+        }
+
         // 处理从其他地方传入的搜索内容
         handleIntentData()
     }
@@ -246,6 +292,52 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         super.onConfigurationChanged(newConfig)
         // 配置变化时重新应用颜色
         updateUIColors()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // 保存当前界面状态
+        outState.putString(KEY_CURRENT_STATE, currentState.name)
+        Log.d(TAG, "Saving state: ${currentState.name}")
+    }
+
+    /**
+     * 恢复保存的界面状态
+     */
+    private fun restoreState(stateName: String) {
+        try {
+            val state = UIState.valueOf(stateName)
+            Log.d(TAG, "Restoring to state: $state")
+
+            when (state) {
+                UIState.TASK_SELECTION -> showTaskSelection()
+                UIState.STEP_GUIDANCE -> {
+                    // 如果有保存的任务数据，恢复到步骤引导页面
+                    // 否则回到任务选择页面
+                    if (::userPromptData.isInitialized) {
+                        showStepGuidance()
+                    } else {
+                        showTaskSelection()
+                    }
+                }
+                UIState.PROMPT_PREVIEW -> {
+                    // 如果有保存的提示词数据，恢复到预览页面
+                    // 否则回到任务选择页面
+                    if (::userPromptData.isInitialized) {
+                        showPromptPreview()
+                    } else {
+                        showTaskSelection()
+                    }
+                }
+                UIState.VOICE -> showVoice()
+                UIState.BROWSER -> showBrowser()
+                UIState.SETTINGS -> showSettings()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error restoring state: $stateName", e)
+            // 如果恢复失败，回到默认状态
+            showTaskSelection()
+        }
     }
     
     private fun checkOverlayPermission() {
@@ -266,10 +358,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun applyTheme() {
         val themeMode = settingsManager.getThemeMode()
-        when (themeMode) {
-            SettingsManager.THEME_MODE_LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-            SettingsManager.THEME_MODE_DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-            else -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        val targetNightMode = when (themeMode) {
+            SettingsManager.THEME_MODE_LIGHT -> AppCompatDelegate.MODE_NIGHT_NO
+            SettingsManager.THEME_MODE_DARK -> AppCompatDelegate.MODE_NIGHT_YES
+            else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+        }
+
+        // 只有当目标模式与当前模式不同时才应用新主题
+        val currentNightMode = AppCompatDelegate.getDefaultNightMode()
+        if (currentNightMode != targetNightMode) {
+            Log.d(TAG, "Applying theme change: $currentNightMode -> $targetNightMode")
+            AppCompatDelegate.setDefaultNightMode(targetNightMode)
+        } else {
+            Log.d(TAG, "Theme mode unchanged: $targetNightMode")
         }
     }
     
@@ -277,30 +378,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 动态更新界面颜色
      */
     private fun updateUIColors() {
-        val isDarkMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                         android.content.res.Configuration.UI_MODE_NIGHT_YES
+        try {
+            val isDarkMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                             android.content.res.Configuration.UI_MODE_NIGHT_YES
 
-        // 更新状态栏和导航栏颜色
-        window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_status_bar_light)
-        window.navigationBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_navigation_bar_light)
+            // 更新状态栏和导航栏颜色
+            window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_status_bar_light)
+            window.navigationBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_navigation_bar_light)
 
-        // 更新根布局背景
-        findViewById<View>(android.R.id.content).setBackgroundColor(
-            androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
+            // 更新根布局背景
+            findViewById<View>(android.R.id.content)?.setBackgroundColor(
+                androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
 
-        // 更新主布局背景 - 修复ClassCastException
-        val mainLayout = findViewById<LinearLayout>(R.id.simple_mode_main_layout)
-        mainLayout?.setBackgroundColor(
-            androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
+            // 更新主布局背景 - 修复ClassCastException
+            val mainLayout = findViewById<LinearLayout>(R.id.simple_mode_main_layout)
+            mainLayout?.setBackgroundColor(
+                androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
 
-        // 更新标题栏颜色
-        updateHeaderColors()
+            // 更新标题栏颜色
+            updateHeaderColors()
 
-        // 更新底部导航颜色
-        updateBottomNavigationColors()
+            // 更新底部导航颜色
+            updateBottomNavigationColors()
 
-        // 更新所有文本颜色
-        updateAllTextColors()
+            // 更新所有文本颜色
+            updateAllTextColors()
+        } catch (e: Exception) {
+            android.util.Log.e("SimpleModeActivity", "Error updating UI colors", e)
+        }
     }
 
     /**
@@ -349,21 +454,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 更新标题栏颜色
      */
     private fun updateHeaderColors() {
-        val headerLayout = findViewById<LinearLayout>(R.id.simple_mode_header) ?: return
-        val titleText = headerLayout.findViewById<TextView>(R.id.simple_mode_title) ?: return
-        val minimizeButton = headerLayout.findViewById<ImageButton>(R.id.simple_mode_minimize_button) ?: return
-        val closeButton = headerLayout.findViewById<ImageButton>(R.id.simple_mode_close_button) ?: return
-        
-        // 设置标题栏背景色
-        headerLayout.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_background_light))
-        
-        // 设置标题文字颜色
-        titleText.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_text_light))
-        
-        // 设置图标颜色
-        val iconColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_icon_light)
-        minimizeButton.setColorFilter(iconColor)
-        closeButton.setColorFilter(iconColor)
+        try {
+            val headerLayout = findViewById<LinearLayout>(R.id.simple_mode_header) ?: return
+            val titleText = headerLayout.findViewById<TextView>(R.id.simple_mode_title) ?: return
+            val minimizeButton = headerLayout.findViewById<ImageButton>(R.id.simple_mode_minimize_button) ?: return
+            val closeButton = headerLayout.findViewById<ImageButton>(R.id.simple_mode_close_button) ?: return
+
+            // 设置标题栏背景色
+            headerLayout.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_background_light))
+
+            // 设置标题文字颜色
+            titleText.setTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_text_light))
+
+            // 设置图标颜色
+            val iconColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_header_icon_light)
+            minimizeButton.setColorFilter(iconColor)
+            closeButton.setColorFilter(iconColor)
+        } catch (e: Exception) {
+            android.util.Log.e("SimpleModeActivity", "Error updating header colors", e)
+        }
     }
     
     /**
@@ -506,7 +615,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         viewSearchHistoryItem = findViewById(R.id.view_search_history_item)
         onboardingGuideItem = findViewById(R.id.onboarding_guide_item)
         appVersionText = findViewById(R.id.app_version_text)
-        
+        floatingBallSettingsContainer = findViewById(R.id.floating_ball_settings_container)
+
         // 设置搜索框监听器
         setupSearchListeners()
         
@@ -668,7 +778,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val displayModeValues = resources.getStringArray(R.array.display_mode_values)
                 if (position < displayModeValues.size) {
                     val selectedMode = displayModeValues[position]
-                    settingsManager.setDisplayMode(selectedMode)
+                    val currentMode = settingsManager.getDisplayMode()
+
+                    // 只有当模式真正改变时才执行切换
+                    if (selectedMode != currentMode) {
+                        Log.d(TAG, "Display mode changed from $currentMode to $selectedMode")
+                        settingsManager.setDisplayMode(selectedMode)
+
+                        // 根据选择的模式执行相应的切换操作
+                        when (selectedMode) {
+                            "floating_ball" -> {
+                                // 切换到悬浮球模式
+                                switchToFloatingBallMode()
+                            }
+                            "dynamic_island" -> {
+                                // 切换到灵动岛模式
+                                switchToDynamicIslandMode()
+                            }
+                            "simple_mode" -> {
+                                // 已经在简易模式，无需切换，但需要更新设置可见性
+                                Log.d(TAG, "Already in simple mode")
+                                updateFloatingBallSettingsVisibility()
+                            }
+                        }
+                    } else {
+                        // 即使模式没有改变，也要确保设置可见性正确
+                        updateFloatingBallSettingsVisibility()
+                    }
                 }
             }
             override fun onNothingSelected(parent: AdapterView<*>) {}
@@ -676,13 +812,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         themeModeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>, view: View?, position: Int, id: Long) {
+                // 修复主题模式映射：
+                // 数组顺序：[跟随系统, 浅色模式, 深色模式] → 索引 [0, 1, 2]
+                // 对应常量：[THEME_MODE_SYSTEM, THEME_MODE_LIGHT, THEME_MODE_DARK]
                 val selectedTheme = when(position) {
-                    0 -> SettingsManager.THEME_MODE_LIGHT
-                    1 -> SettingsManager.THEME_MODE_DARK
+                    0 -> SettingsManager.THEME_MODE_SYSTEM  // 跟随系统
+                    1 -> SettingsManager.THEME_MODE_LIGHT   // 浅色模式
+                    2 -> SettingsManager.THEME_MODE_DARK    // 深色模式
                     else -> SettingsManager.THEME_MODE_SYSTEM
                 }
-                settingsManager.setThemeMode(selectedTheme)
-                applyTheme()
+
+                val currentTheme = settingsManager.getThemeMode()
+                // 只有当主题真正改变时才应用新主题
+                if (selectedTheme != currentTheme) {
+                    Log.d(TAG, "Theme mode changed from $currentTheme to $selectedTheme")
+                    settingsManager.setThemeMode(selectedTheme)
+
+                    // 应用新主题（Activity会自动保存和恢复状态）
+                    applyTheme()
+                } else {
+                    Log.d(TAG, "Theme mode unchanged: $selectedTheme")
+                }
             }
             override fun onNothingSelected(parent: AdapterView<*>) {}
         }
@@ -753,39 +903,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         searchEngineSettingsItem.setOnClickListener {
-            try {
-                startActivity(Intent(this, SearchEngineManagerActivity::class.java))
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to open SearchEngineSettings", e)
-                Toast.makeText(this, "无法打开搜索引擎设置", Toast.LENGTH_SHORT).show()
-            }
+            safeStartActivity(SearchEngineManagerActivity::class.java, "搜索引擎设置")
         }
 
         aiSearchEngineSettingsItem.setOnClickListener {
-            try {
-                startActivity(Intent(this, AISearchEngineSettingsActivity::class.java))
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to open AISearchEngineSettings", e)
-                Toast.makeText(this, "无法打开AI搜索引擎设置", Toast.LENGTH_SHORT).show()
-            }
+            safeStartActivity(AISearchEngineSettingsActivity::class.java, "AI搜索引擎设置")
         }
 
         masterPromptSettingsItem.setOnClickListener {
-            try {
-                startActivity(Intent(this, MasterPromptSettingsActivity::class.java))
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to open MasterPromptSettings", e)
-                Toast.makeText(this, "无法打开Master Prompt设置", Toast.LENGTH_SHORT).show()
-            }
+            safeStartActivity(MasterPromptSettingsActivity::class.java, "主提示词设置")
         }
 
         appSearchSettingsItem.setOnClickListener {
-            try {
-                startActivity(Intent(this, com.example.aifloatingball.settings.AppSearchSettingsActivity::class.java))
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to open AppSearchSettings", e)
-                Toast.makeText(this, "无法打开应用搜索设置", Toast.LENGTH_SHORT).show()
-            }
+            safeStartActivity(com.example.aifloatingball.settings.AppSearchSettingsActivity::class.java, "应用搜索设置")
         }
 
         permissionManagementItem.setOnClickListener {
@@ -870,11 +1000,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 加载主题设置
             val themeMode = settingsManager.getThemeMode()
-            themeModeSpinner.setSelection(when(themeMode) {
-                SettingsManager.THEME_MODE_LIGHT -> 0
-                SettingsManager.THEME_MODE_DARK -> 1
-                else -> 2
-            }, false)
+            Log.d(TAG, "Loading theme mode: $themeMode")
+
+            // 修复主题模式加载映射：
+            // 常量值 → 数组索引：
+            // THEME_MODE_SYSTEM(-1) → 0 (跟随系统)
+            // THEME_MODE_LIGHT(0) → 1 (浅色模式)
+            // THEME_MODE_DARK(1) → 2 (深色模式)
+            val themeIndex = when(themeMode) {
+                SettingsManager.THEME_MODE_SYSTEM -> 0  // 跟随系统
+                SettingsManager.THEME_MODE_LIGHT -> 1   // 浅色模式
+                SettingsManager.THEME_MODE_DARK -> 2    // 深色模式
+                else -> 0 // 默认跟随系统
+            }
+
+            Log.d(TAG, "Setting theme spinner to index: $themeIndex")
+            themeModeSpinner.setSelection(themeIndex, false)
 
             // 加载开关状态
             clipboardMonitorSwitch.isChecked = settingsManager.isClipboardListenerEnabled()
@@ -929,7 +1070,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         settingsLayout.visibility = View.VISIBLE
 
         loadSettings() // 每次显示时重新加载设置
+        updateFloatingBallSettingsVisibility() // 根据显示模式控制悬浮球设置可见性
         updateTabColors()
+    }
+
+    /**
+     * 根据当前显示模式控制悬浮球设置的可见性
+     */
+    private fun updateFloatingBallSettingsVisibility() {
+        try {
+            val currentDisplayMode = settingsManager.getDisplayMode()
+            val shouldShowFloatingBallSettings = currentDisplayMode == "floating_ball"
+
+            Log.d(TAG, "Current display mode: $currentDisplayMode, show floating ball settings: $shouldShowFloatingBallSettings")
+
+            floatingBallSettingsContainer.visibility = if (shouldShowFloatingBallSettings) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating floating ball settings visibility", e)
+            // 默认隐藏悬浮球设置
+            floatingBallSettingsContainer.visibility = View.GONE
+        }
     }
 
     private fun showBrowser() {
@@ -1617,37 +1781,111 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 .start()
     }
 
+    /**
+     * 切换到悬浮球模式
+     */
+    private fun switchToFloatingBallMode() {
+        Log.d(TAG, "Switching to floating ball mode")
+        try {
+            // 停止简易模式服务
+            if (SimpleModeService.isRunning(this)) {
+                stopService(Intent(this, SimpleModeService::class.java))
+            }
+
+            // 检查悬浮窗权限
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                // 启动悬浮球服务
+                val serviceIntent = Intent(this, FloatingWindowService::class.java)
+                startService(serviceIntent)
+
+                // 启动HomeActivity
+                val homeIntent = Intent(this, HomeActivity::class.java)
+                homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                startActivity(homeIntent)
+
+                // 关闭当前Activity
+                finish()
+            } else {
+                // 没有权限，提示用户
+                Toast.makeText(this, "需要悬浮窗权限才能使用悬浮球模式", Toast.LENGTH_LONG).show()
+                // 恢复到简易模式选择
+                settingsManager.setDisplayMode("simple_mode")
+                loadSettings()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error switching to floating ball mode", e)
+            Toast.makeText(this, "切换到悬浮球模式失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 切换到灵动岛模式
+     */
+    private fun switchToDynamicIslandMode() {
+        Log.d(TAG, "Switching to dynamic island mode")
+        try {
+            // 停止简易模式服务
+            if (SimpleModeService.isRunning(this)) {
+                stopService(Intent(this, SimpleModeService::class.java))
+            }
+
+            // 检查悬浮窗权限
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                // 启动灵动岛服务
+                val serviceIntent = Intent(this, DynamicIslandService::class.java)
+                startService(serviceIntent)
+
+                // 启动HomeActivity
+                val homeIntent = Intent(this, HomeActivity::class.java)
+                homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                startActivity(homeIntent)
+
+                // 关闭当前Activity
+                finish()
+            } else {
+                // 没有权限，提示用户
+                Toast.makeText(this, "需要悬浮窗权限才能使用灵动岛模式", Toast.LENGTH_LONG).show()
+                // 恢复到简易模式选择
+                settingsManager.setDisplayMode("simple_mode")
+                loadSettings()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error switching to dynamic island mode", e)
+            Toast.makeText(this, "切换到灵动岛模式失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun closeSimpleMode() {
         Log.d(TAG, "closeSimpleMode() called")
         try {
             // 1. 禁用按钮防止重复点击
             findViewById<ImageButton>(R.id.simple_mode_close_button)?.isEnabled = false
-            
+
             // 2. 停止 SimpleModeService 服务（如果正在运行）
             Log.d(TAG, "Stopping SimpleModeService if running")
             if (SimpleModeService.isRunning(this)) {
                 stopService(Intent(this, SimpleModeService::class.java))
             }
-            
+
             // 3. 告诉 SettingsManager 我们要退出简易模式
             // 这样 HomeActivity 的 onResume 就不会再自动启动 SimpleModeActivity
             settingsManager.setDisplayMode("floating_ball")
             Log.d(TAG, "Changed display mode to floating_ball to prevent auto-restart")
-            
+
             // 4. 启动悬浮球服务，确保用户仍然可以访问应用功能
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
                 Log.d(TAG, "Starting FloatingWindowService")
                 val serviceIntent = Intent(this, FloatingWindowService::class.java)
                 serviceIntent.putExtra("closing_from_simple_mode", true)
                 startService(serviceIntent)
-                
+
                 // 启动HomeActivity但告诉它不要再启动SimpleModeActivity
                 val homeIntent = Intent(this, HomeActivity::class.java)
                 homeIntent.putExtra("closing_from_simple_mode", true)
                 homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(homeIntent)
             }
-            
+
             // 5. 使用 finishAndRemoveTask() 彻底关闭活动和任务
             Log.d(TAG, "Calling finishAndRemoveTask()")
             finishAndRemoveTask()

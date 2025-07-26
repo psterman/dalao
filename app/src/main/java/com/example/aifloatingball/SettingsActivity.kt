@@ -44,8 +44,12 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         settingsManager = SettingsManager.getInstance(this)
+
+        // 应用适老化主题
+        applyElderlyTheme()
+
         setContentView(R.layout.activity_settings)
 
         settingsManager.registerOnSharedPreferenceChangeListener(this)
@@ -57,7 +61,9 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
                 .replace(R.id.settings_container, SettingsFragment())
                 .commit()
         }
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+
+        // 设置适老化的ActionBar
+        setupElderlyActionBar()
 
         // Initialize search components
         searchManager = SettingsSearchManager(this)
@@ -69,6 +75,41 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
     override fun onResume() {
         super.onResume()
         updateDisplayMode()
+        // 确保主题正确应用
+        applyElderlyTheme()
+    }
+
+    private fun applyElderlyTheme() {
+        try {
+            // 设置状态栏和导航栏颜色为适老化蓝色
+            window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.elderly_primary)
+            window.navigationBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.elderly_background)
+
+            // 设置背景色
+            findViewById<View>(android.R.id.content)?.setBackgroundColor(
+                androidx.core.content.ContextCompat.getColor(this, R.color.elderly_background)
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsActivity", "Error applying elderly theme", e)
+        }
+    }
+
+    private fun setupElderlyActionBar() {
+        try {
+            supportActionBar?.let { actionBar ->
+                actionBar.setDisplayHomeAsUpEnabled(true)
+                actionBar.title = "设置"
+
+                // 设置ActionBar背景色为适老化蓝色
+                actionBar.setBackgroundDrawable(
+                    android.graphics.drawable.ColorDrawable(
+                        androidx.core.content.ContextCompat.getColor(this, R.color.elderly_primary)
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SettingsActivity", "Error setting up elderly action bar", e)
+        }
     }
 
     private fun updateDisplayMode() {

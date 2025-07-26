@@ -501,7 +501,7 @@
             </LinearLayout>
             -->
 
-            <!-- 显示模式（隐藏，保留兼容性） -->
+            <!-- 显示模式选择器 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -509,7 +509,7 @@
                 android:padding="16dp"
                 android:layout_marginBottom="8dp"
                 android:background="@drawable/settings_item_background"
-                android:visibility="gone">
+                android:visibility="visible">
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -520,10 +520,20 @@
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="选择应用的主要交互方式"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
                 <Spinner
                     android:id="@+id/display_mode_spinner"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="48dp"
+                    android:background="@drawable/spinner_background"
+                    android:padding="12dp" />
             </LinearLayout>
             
             <!-- 主题模式 -->
@@ -543,11 +553,21 @@
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
-                
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="选择界面的颜色风格：浅色、深色或跟随系统设置"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
                 <Spinner
                     android:id="@+id/theme_mode_spinner"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="48dp"
+                    android:background="@drawable/spinner_background"
+                    android:padding="12dp" />
             </LinearLayout>
             
             <!-- 剪贴板监控 -->
@@ -567,7 +587,15 @@
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
-                
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="复制文字时自动检测并弹出搜索提示，方便快速搜索"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/clipboard_monitor_switch"
                     android:layout_width="match_parent"
@@ -628,6 +656,14 @@
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
 
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="打开搜索界面时，自动将剪贴板内容粘贴到搜索框"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/auto_paste_switch"
                     android:layout_width="match_parent"
@@ -652,7 +688,15 @@
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
-                
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="调整界面布局，让左手用户更方便操作"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/left_handed_switch"
                     android:layout_width="match_parent"
@@ -660,68 +704,94 @@
                     android:text="启用" />
             </LinearLayout>
             
-            <!-- 悬浮球设置分类 -->
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="悬浮球设置"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="@color/simple_mode_text_primary_light"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="8dp"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp" />
-                
-            <!-- 自动隐藏 -->
+            <!-- 悬浮球设置容器 - 根据显示模式动态显示/隐藏 -->
             <LinearLayout
+                android:id="@+id/floating_ball_settings_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp"
-                android:layout_marginBottom="8dp"
-                android:background="@drawable/settings_item_background">
-                
+                android:visibility="gone">
+
+                <!-- 悬浮球设置分类 -->
                 <TextView
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="自动隐藏"
+                    android:text="悬浮球设置"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
-                    android:layout_marginBottom="8dp" />
-                
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/auto_hide_switch"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp" />
+
+                <!-- 自动隐藏 -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="启用" />
-            </LinearLayout>
-            
-            <!-- 悬浮球透明度 -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"
-                android:layout_marginBottom="8dp"
-                android:background="@drawable/settings_item_background">
-                
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="悬浮球透明度"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/simple_mode_text_primary_light"
-                    android:layout_marginBottom="8dp" />
-                
-                <SeekBar
-                    android:id="@+id/ball_alpha_seekbar"
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/settings_item_background">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="自动隐藏"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="一段时间无操作后，悬浮球自动贴边半透明隐藏"
+                        android:textSize="14sp"
+                        android:textColor="@color/simple_mode_text_secondary_light"
+                        android:layout_marginBottom="12dp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/auto_hide_switch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="启用" />
+                </LinearLayout>
+
+                <!-- 悬浮球透明度 -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:max="100"
-                    android:progress="80" />
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/settings_item_background">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="悬浮球透明度"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="调整悬浮球的透明度"
+                        android:textSize="14sp"
+                        android:textColor="@color/simple_mode_text_secondary_light"
+                        android:layout_marginBottom="12dp" />
+
+                    <SeekBar
+                        android:id="@+id/ball_alpha_seekbar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:max="100"
+                        android:progress="80" />
+                </LinearLayout>
+
             </LinearLayout>
             
             <!-- AI助手设置分类 -->
@@ -754,7 +824,15 @@
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
-                
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="启用后优先使用AI搜索引擎，获得更智能的搜索结果"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/ai_mode_switch"
                     android:layout_width="match_parent"
@@ -850,11 +928,21 @@
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
-                
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="设置搜索时同时打开的浏览器窗口数量，多窗口可以对比结果"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
                 <Spinner
                     android:id="@+id/window_count_spinner"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="48dp"
+                    android:background="@drawable/spinner_background"
+                    android:padding="12dp" />
             </LinearLayout>
             
             <!-- 搜索引擎设置 -->
@@ -974,7 +1062,15 @@
                     android:textStyle="bold"
                     android:textColor="@color/simple_mode_text_primary_light"
                     android:layout_marginBottom="8dp" />
-                
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="允许应用读取通知内容，在灵动岛模式下显示通知信息"
+                    android:textSize="14sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:layout_marginBottom="12dp" />
+
                 <com.google.android.material.switchmaterial.SwitchMaterial
                     android:id="@+id/notification_listener_switch"
                     android:layout_width="match_parent"
@@ -1019,7 +1115,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="检查应用权限"
+                    android:text="检查和管理应用所需的各项权限，确保功能正常使用"
                     android:textSize="14sp"
                     android:textColor="@color/simple_mode_text_secondary_light" />
             </LinearLayout>
@@ -1048,7 +1144,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="查看搜索记录"
+                    android:text="查看和管理之前的搜索记录，方便重复搜索"
                     android:textSize="14sp"
                     android:textColor="@color/simple_mode_text_secondary_light" />
             </LinearLayout>
@@ -1077,7 +1173,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="应用使用指南"
+                    android:text="学习如何使用应用的各项功能，快速上手"
                     android:textSize="14sp"
                     android:textColor="@color/simple_mode_text_secondary_light" />
             </LinearLayout>

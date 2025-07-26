@@ -29,11 +29,20 @@ class ExtendedConfigFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val view = inflater.inflate(R.layout.fragment_extended_config, container, false)
-        setupViews(view)
-        setupDropdowns()
-        setupSeekBarListeners()
-        return view
+        return try {
+            val view = inflater.inflate(R.layout.fragment_extended_config, container, false)
+            setupViews(view)
+            setupDropdowns()
+            setupSeekBarListeners()
+            view
+        } catch (e: Exception) {
+            android.util.Log.e("ExtendedConfigFragment", "Error in onCreateView", e)
+            // 返回一个简单的错误视图
+            val errorView = TextView(requireContext())
+            errorView.text = "扩展配置加载失败，请重试"
+            errorView.gravity = android.view.Gravity.CENTER
+            errorView
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -44,12 +53,17 @@ class ExtendedConfigFragment : Fragment() {
     }
 
     private fun setupViews(view: View) {
-        expertiseDropdown = view.findViewById(R.id.expertise_dropdown)
-        languageDropdown = view.findViewById(R.id.language_dropdown)
-        formalityDropdown = view.findViewById(R.id.formality_dropdown)
-        responseLengthDropdown = view.findViewById(R.id.response_length_dropdown)
-        seekCreativity = view.findViewById(R.id.seek_creativity)
-        labelCreativity = view.findViewById(R.id.label_creativity)
+        try {
+            expertiseDropdown = view.findViewById(R.id.expertise_dropdown) ?: throw IllegalStateException("expertise_dropdown not found")
+            languageDropdown = view.findViewById(R.id.language_dropdown) ?: throw IllegalStateException("language_dropdown not found")
+            formalityDropdown = view.findViewById(R.id.formality_dropdown) ?: throw IllegalStateException("formality_dropdown not found")
+            responseLengthDropdown = view.findViewById(R.id.response_length_dropdown) ?: throw IllegalStateException("response_length_dropdown not found")
+            seekCreativity = view.findViewById(R.id.seek_creativity) ?: throw IllegalStateException("seek_creativity not found")
+            labelCreativity = view.findViewById(R.id.label_creativity) ?: throw IllegalStateException("label_creativity not found")
+        } catch (e: Exception) {
+            android.util.Log.e("ExtendedConfigFragment", "Error setting up views", e)
+            throw e
+        }
     }
     
     private fun setupDropdowns() {

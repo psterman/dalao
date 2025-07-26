@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?android:attr/colorBackground"
+    android:background="@color/elderly_background"
     tools:context=".MasterPromptSettingsActivity">
 
     <com.google.android.material.appbar.AppBarLayout
@@ -18,8 +18,11 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            android:background="@color/elderly_primary"
             app:title="@string/title_ai_assistant_center"
+            app:titleTextColor="@color/elderly_button_text_primary"
             app:navigationIcon="@drawable/ic_arrow_back"
+            app:navigationIconTint="@color/elderly_button_text_primary"
             style="@style/Widget.MaterialComponents.Toolbar.Primary" />
 
         <!-- 副标题说明 -->
@@ -49,7 +52,7 @@
             android:layout_margin="16dp"
             app:cardElevation="2dp"
             app:cardCornerRadius="16dp"
-            app:cardBackgroundColor="?attr/colorSurfaceVariant">
+            app:cardBackgroundColor="@color/elderly_card_background">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -78,7 +81,7 @@
                         android:text="@string/profile_selection_title"
                         android:textSize="16sp"
                         android:textStyle="bold"
-                        android:textColor="?android:attr/textColorPrimary" />
+                        android:textColor="@color/elderly_text_primary" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_add_profile"
@@ -86,8 +89,11 @@
                         android:layout_height="36dp"
                         android:text="@string/add_profile"
                         android:textSize="12sp"
+                        android:backgroundTint="@color/elderly_button_primary"
+                        android:textColor="@color/elderly_button_text_primary"
                         app:icon="@drawable/ic_add"
                         app:iconSize="16dp"
+                        app:iconTint="@color/elderly_button_text_primary"
                         style="@style/Widget.MaterialComponents.Button" />
                 </LinearLayout>
 
@@ -141,6 +147,9 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:text="@string/save_profile"
+        android:backgroundTint="@color/elderly_button_primary"
+        android:textColor="@color/elderly_button_text_primary"
         app:icon="@drawable/ic_save"
-        app:iconSize="20dp" />
+        app:iconSize="20dp"
+        app:iconTint="@color/elderly_button_text_primary" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout> 

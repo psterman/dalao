@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
+import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import com.example.aifloatingball.R
@@ -43,7 +44,16 @@ class PersonalizationFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        return inflater.inflate(R.layout.fragment_personalization, container, false)
+        return try {
+            inflater.inflate(R.layout.fragment_personalization, container, false)
+        } catch (e: Exception) {
+            android.util.Log.e("PersonalizationFragment", "Error in onCreateView", e)
+            // 返回一个简单的错误视图
+            val errorView = TextView(requireContext())
+            errorView.text = "个性化配置加载失败，请重试"
+            errorView.gravity = android.view.Gravity.CENTER
+            errorView
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

@@ -279,4 +279,39 @@
     <!-- AI参数界面颜色 -->
     <color name="primary_light">#E3F2FD</color>
     <color name="primary_container_light">#BBDEFB</color>
+
+    <!-- 适老化配色方案 -->
+    <!-- 主色调：温和的蓝色，易于识别 -->
+    <color name="elderly_primary">#1976D2</color>
+    <color name="elderly_primary_light">#E3F2FD</color>
+    <color name="elderly_primary_dark">#0D47A1</color>
+
+    <!-- 背景色：高对比度，易于阅读 -->
+    <color name="elderly_background">#FFFFFF</color>
+    <color name="elderly_surface">#F8F9FA</color>
+    <color name="elderly_card_background">#FFFFFF</color>
+
+    <!-- 文字颜色：高对比度 -->
+    <color name="elderly_text_primary">#212121</color>
+    <color name="elderly_text_secondary">#757575</color>
+    <color name="elderly_text_hint">#9E9E9E</color>
+
+    <!-- 边框和分割线：清晰可见 -->
+    <color name="elderly_divider">#E0E0E0</color>
+    <color name="elderly_outline">#BDBDBD</color>
+
+    <!-- 状态颜色：清晰明确 -->
+    <color name="elderly_success">#4CAF50</color>
+    <color name="elderly_warning">#FF9800</color>
+    <color name="elderly_error">#F44336</color>
+
+    <!-- 按钮颜色：易于识别 -->
+    <color name="elderly_button_primary">#1976D2</color>
+    <color name="elderly_button_secondary">#F5F5F5</color>
+    <color name="elderly_button_pressed">#E3F2FD</color>
+    <color name="elderly_button_text_primary">#FFFFFF</color>
+    <color name="elderly_button_text_secondary">#1976D2</color>
+
+    <!-- 边框颜色 -->
+    <color name="elderly_border">#E0E0E0</color>
 </resources>

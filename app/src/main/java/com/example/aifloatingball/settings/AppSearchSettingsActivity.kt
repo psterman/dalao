@@ -30,17 +30,47 @@ class AppSearchSettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_app_search_settings)
 
-        val toolbar: androidx.appcompat.widget.Toolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.title = "应用内搜索管理"
+        try {
+            android.util.Log.d("AppSearchSettings", "开始创建应用搜索设置Activity")
 
-        appSearchSettings = AppSearchSettings.getInstance(this)
-        recyclerView = findViewById(R.id.app_search_recycler_view)
-        
-        loadAppConfigs()
+            setContentView(R.layout.activity_app_search_settings)
+            android.util.Log.d("AppSearchSettings", "成功设置内容视图")
+
+            val toolbar: androidx.appcompat.widget.Toolbar? = findViewById(R.id.toolbar)
+            if (toolbar == null) {
+                android.util.Log.e("AppSearchSettings", "找不到toolbar控件")
+                android.widget.Toast.makeText(this, "界面加载失败：找不到标题栏", android.widget.Toast.LENGTH_LONG).show()
+                finish()
+                return
+            }
+
+            setSupportActionBar(toolbar)
+            supportActionBar?.setDisplayHomeAsUpEnabled(true)
+            supportActionBar?.title = "应用内搜索管理"
+            android.util.Log.d("AppSearchSettings", "成功设置工具栏")
+
+            appSearchSettings = AppSearchSettings.getInstance(this)
+            android.util.Log.d("AppSearchSettings", "成功初始化AppSearchSettings")
+
+            val recyclerViewView = findViewById<RecyclerView>(R.id.app_search_recycler_view)
+            if (recyclerViewView == null) {
+                android.util.Log.e("AppSearchSettings", "找不到RecyclerView控件")
+                android.widget.Toast.makeText(this, "界面加载失败：找不到列表控件", android.widget.Toast.LENGTH_LONG).show()
+                finish()
+                return
+            }
+
+            recyclerView = recyclerViewView
+            android.util.Log.d("AppSearchSettings", "成功初始化RecyclerView")
+
+            loadAppConfigs()
+            android.util.Log.d("AppSearchSettings", "应用搜索设置Activity创建完成")
+        } catch (e: Exception) {
+            android.util.Log.e("AppSearchSettings", "创建应用搜索设置Activity失败", e)
+            android.widget.Toast.makeText(this, "加载应用搜索设置失败: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            finish()
+        }
 
         appSearchAdapter = AppSearchAdapter(this, appConfigs, { config, isEnabled ->
             config.isEnabled = isEnabled
