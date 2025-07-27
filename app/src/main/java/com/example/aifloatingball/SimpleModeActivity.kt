@@ -33,6 +33,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -48,7 +49,6 @@ import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.voice.VoicePromptBranchManager
-import com.google.android.material.card.MaterialCardView
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -224,7 +224,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var autoPasteSwitch: SwitchMaterial
     private lateinit var multiTabBrowserSwitch: SwitchMaterial
     private lateinit var notificationListenerSwitch: SwitchMaterial
-    private lateinit var floatingBallSettingsContainer: LinearLayout
+    private lateinit var floatingBallSettingsContainer: MaterialCardView
     private lateinit var aiApiSettingsItem: LinearLayout
     private lateinit var searchEngineSettingsItem: LinearLayout
     private lateinit var aiSearchEngineSettingsItem: LinearLayout
