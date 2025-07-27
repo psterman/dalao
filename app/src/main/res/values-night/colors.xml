@@ -124,4 +124,21 @@
     <color name="elderly_button_secondary">#424242</color>
     <color name="elderly_button_text_primary">#121212</color>
     <color name="elderly_button_text_secondary">#90CAF9</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== WEBVIEW AND OTHER DARK THEME COLORS =========== -->
+    <!-- =============================================================== -->
+
+    <!-- WebView暗色主题 -->
+    <color name="webview_background_dark">#1E1E1E</color>
+    <color name="webview_toolbar_background_dark">#2D2D2D</color>
+    <color name="webview_address_bar_background_dark">#333333</color>
+
+    <!-- 浮动球暗色主题 -->
+    <color name="floating_ball_background_dark">#BB86FC</color>
+    <color name="floating_ball_text_dark">#000000</color>
+
+    <!-- 搜索相关暗色主题 -->
+    <color name="search_input_background_dark">#333333</color>
+    <color name="search_suggestion_background_dark">#2D2D2D</color>
 </resources>

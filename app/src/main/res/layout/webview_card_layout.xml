@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <!-- 卡片标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:orientation="horizontal"
+        android:background="@color/simple_mode_background_light"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="8dp">
+
+        <!-- 页面图标 -->
+        <ImageView
+            android:id="@+id/card_favicon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_web"
+            android:scaleType="centerCrop"
+            app:tint="@color/simple_mode_text_secondary_light" />
+
+        <!-- 页面标题 -->
+        <TextView
+            android:id="@+id/card_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="新标签页"
+            android:textSize="14sp"
+            android:textColor="@color/simple_mode_text_primary_light"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <!-- 关闭按钮 -->
+        <ImageButton
+            android:id="@+id/card_close_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_close"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"
+            android:contentDescription="关闭页面"
+            app:tint="@color/simple_mode_text_secondary_light" />
+
+    </LinearLayout>
+
+    <!-- WebView容器 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- WebView将动态添加到这里 -->
+        <FrameLayout
+            android:id="@+id/card_webview_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- 覆盖层，用于防止WebView拦截触摸事件 -->
+        <View
+            android:id="@+id/card_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <!-- 加载指示器 -->
+        <ProgressBar
+            android:id="@+id/card_loading_indicator"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+</LinearLayout>

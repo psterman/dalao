@@ -1791,71 +1791,338 @@
             </LinearLayout>
 
             <!-- WebView容器 -->
-            <FrameLayout
-                android:id="@+id/browser_webview_container"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_weight="1">
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-                <!-- 主页内容 -->
+                <!-- 标签栏容器 -->
                 <LinearLayout
-                    android:id="@+id/browser_home_content"
+                    android:id="@+id/browser_tab_container"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    android:layout_height="48dp"
+                    android:orientation="horizontal"
+                    android:background="@color/simple_mode_background_light"
+                    android:elevation="2dp"
+                    android:visibility="gone">
 
-                    <!-- 欢迎文本 -->
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="搜索或输入网址"
-                        android:textSize="20sp"
-                        android:textColor="@color/simple_mode_text_primary_light"
-                        android:gravity="center"
-                        android:layout_marginTop="32dp"
-                        android:layout_marginBottom="24dp" />
+                    <!-- 标签栏 -->
+                    <com.example.aifloatingball.views.WebViewTabBar
+                        android:id="@+id/browser_tab_bar"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1" />
 
-                    <!-- 快捷方式网格 -->
-                    <androidx.recyclerview.widget.RecyclerView
-                        android:id="@+id/browser_shortcuts_grid"
-                        android:layout_width="match_parent"
-                        android:layout_height="0dp"
-                        android:layout_weight="1"
-                        android:clipToPadding="false"
-                        android:padding="8dp" />
+                    <!-- 新建标签按钮 -->
+                    <ImageButton
+                        android:id="@+id/browser_new_tab_button"
+                        android:layout_width="48dp"
+                        android:layout_height="match_parent"
+                        android:src="@drawable/ic_add"
+                        android:background="?attr/selectableItemBackground"
+                        android:contentDescription="新建标签页"
+                        app:tint="@color/simple_mode_text_primary_light" />
 
                 </LinearLayout>
 
-                <!-- WebView -->
-                <WebView
-                    android:id="@+id/browser_webview"
+                <!-- 多页面WebView容器 -->
+                <FrameLayout
+                    android:id="@+id/browser_webview_container"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:visibility="gone" />
+                    android:layout_height="0dp"
+                    android:layout_weight="1">
 
-                <!-- 加载进度条 -->
-                <ProgressBar
-                    android:id="@+id/browser_progress_bar"
-                    style="?android:attr/progressBarStyleHorizontal"
-                    android:layout_width="match_parent"
-                    android:layout_height="3dp"
-                    android:layout_gravity="top"
-                    android:progressDrawable="@drawable/progress_bar_drawable"
-                    android:visibility="gone" />
+                    <!-- 主页内容 -->
+                    <LinearLayout
+                        android:id="@+id/browser_home_content"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:orientation="vertical"
+                        android:padding="16dp">
 
-                <!-- 手势提示 -->
-                <TextView
-                    android:id="@+id/browser_gesture_hint"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:background="@drawable/bg_gesture_hint"
-                    android:padding="8dp"
-                    android:textColor="@android:color/white"
-                    android:visibility="gone" />
+                        <!-- 欢迎文本 -->
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="卡片式浏览器"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/simple_mode_text_primary_light"
+                            android:gravity="center"
+                            android:layout_marginTop="32dp"
+                            android:layout_marginBottom="16dp" />
 
-            </FrameLayout>
+                        <!-- 描述文本 -->
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="同时查看多个网页卡片，点击卡片全屏浏览\n在搜索框中输入内容开始浏览"
+                            android:textSize="16sp"
+                            android:textColor="@color/simple_mode_text_secondary_light"
+                            android:gravity="center"
+                            android:layout_marginBottom="24dp" />
+
+                        <!-- 搜索引擎选择器 -->
+                        <com.example.aifloatingball.views.MaterialSearchEngineSelector
+                            android:id="@+id/browser_search_engine_selector"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="24dp" />
+
+                        <!-- 美化的浏览器操作按钮组 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center"
+                            android:layout_marginBottom="24dp">
+
+                            <!-- 创建新卡片按钮 -->
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/browser_start_browsing_button"
+                                android:layout_width="0dp"
+                                android:layout_height="48dp"
+                                android:layout_weight="1"
+                                android:layout_marginEnd="4dp"
+                                android:text="新建卡片"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                app:icon="@drawable/ic_add"
+                                app:iconGravity="start"
+                                app:iconSize="18dp"
+                                app:cornerRadius="24dp"
+                                style="@style/Widget.Material3.Button" />
+
+                            <!-- 卡片预览按钮 -->
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/browser_preview_cards_button"
+                                android:layout_width="0dp"
+                                android:layout_height="48dp"
+                                android:layout_weight="1"
+                                android:layout_marginStart="4dp"
+                                android:layout_marginEnd="4dp"
+                                android:text="卡片预览"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                app:icon="@drawable/ic_view_module"
+                                app:iconGravity="start"
+                                app:iconSize="18dp"
+                                app:cornerRadius="24dp"
+                                style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                            <!-- 手势指南按钮 -->
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/browser_gesture_guide_button"
+                                android:layout_width="0dp"
+                                android:layout_height="48dp"
+                                android:layout_weight="1"
+                                android:layout_marginStart="4dp"
+                                android:text="手势指南"
+                                android:textSize="14sp"
+                                android:textStyle="bold"
+                                app:icon="@drawable/ic_hand"
+                                app:iconGravity="start"
+                                app:iconSize="18dp"
+                                app:cornerRadius="24dp"
+                                style="@style/Widget.Material3.Button.TonalButton" />
+
+                        </LinearLayout>
+
+                        <!-- 快捷方式网格 -->
+                        <androidx.recyclerview.widget.RecyclerView
+                            android:id="@+id/browser_shortcuts_grid"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:clipToPadding="false"
+                            android:padding="8dp" />
+
+                    </LinearLayout>
+
+                    <!-- 加载进度条 -->
+                    <ProgressBar
+                        android:id="@+id/browser_progress_bar"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="3dp"
+                        android:layout_gravity="top"
+                        android:progressDrawable="@drawable/progress_bar_drawable"
+                        android:visibility="gone" />
+
+                    <!-- 手势提示覆盖层 -->
+                    <FrameLayout
+                        android:id="@+id/browser_gesture_overlay"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="#88000000"
+                        android:visibility="gone"
+                        android:clickable="true">
+
+                        <!-- 手势提示卡片 -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="320dp"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="8dp"
+                            app:cardBackgroundColor="@android:color/white">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:padding="24dp">
+
+                                <!-- 标题 -->
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="手势操作指南"
+                                    android:textSize="20sp"
+                                    android:textStyle="bold"
+                                    android:textColor="@color/material_grey_800"
+                                    android:gravity="center"
+                                    android:layout_marginBottom="16dp" />
+
+                                <!-- 手势列表 -->
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="vertical">
+
+                                    <!-- 左右滑动 -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="12dp">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="← → 左右滑动"
+                                            android:textSize="16sp"
+                                            android:textColor="@color/material_grey_800" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="切换卡片"
+                                            android:textSize="14sp"
+                                            android:textColor="@color/simple_mode_text_secondary_light" />
+
+                                    </LinearLayout>
+
+                                    <!-- 上滑 -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="12dp">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="↑ 上滑"
+                                            android:textSize="16sp"
+                                            android:textColor="@color/material_grey_800" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="进入预览模式"
+                                            android:textSize="14sp"
+                                            android:textColor="@color/simple_mode_text_secondary_light" />
+
+                                    </LinearLayout>
+
+                                    <!-- 下滑 -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="12dp">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="↓ 下滑"
+                                            android:textSize="16sp"
+                                            android:textColor="@color/material_grey_800" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="退出预览模式"
+                                            android:textSize="14sp"
+                                            android:textColor="@color/simple_mode_text_secondary_light" />
+
+                                    </LinearLayout>
+
+                                    <!-- 双击 -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="16dp">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="双击"
+                                            android:textSize="16sp"
+                                            android:textColor="@color/material_grey_800" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="显示操作栏"
+                                            android:textSize="14sp"
+                                            android:textColor="@color/simple_mode_text_secondary_light" />
+
+                                    </LinearLayout>
+
+                                </LinearLayout>
+
+                                <!-- 关闭按钮 -->
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/browser_gesture_hint_close"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="我知道了"
+                                    android:textSize="16sp"
+                                    app:cornerRadius="8dp"
+                                    style="@style/Widget.Material3.Button" />
+
+                            </LinearLayout>
+
+                        </com.google.android.material.card.MaterialCardView>
+
+                    </FrameLayout>
+
+                    <!-- 简单手势提示 -->
+                    <TextView
+                        android:id="@+id/browser_gesture_hint"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:background="@drawable/bg_gesture_hint"
+                        android:padding="8dp"
+                        android:textColor="@android:color/white"
+                        android:visibility="gone" />
+
+                </FrameLayout>
+
+            </LinearLayout>
 
         </LinearLayout>
 

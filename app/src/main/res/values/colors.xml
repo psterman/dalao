@@ -19,6 +19,25 @@
     <color name="colorPrimaryDark">#1976D2</color>
     <color name="colorAccent">#03A9F4</color>
 
+    <!-- Material Design Colors -->
+    <color name="material_blue_500">#2196F3</color>
+    <color name="material_blue_600">#1976D2</color>
+    <color name="material_blue_200">#90CAF9</color>
+    <color name="material_blue_100">#BBDEFB</color>
+    <color name="material_green_600">#43A047</color>
+    <color name="material_indigo_600">#3949AB</color>
+    <color name="material_purple_600">#8E24AA</color>
+    <color name="material_red_600">#E53935</color>
+    <color name="material_orange_600">#FB8C00</color>
+    <color name="material_grey_100">#F5F5F5</color>
+    <color name="material_grey_800">#424242</color>
+
+    <!-- WebView Tab Colors -->
+    <color name="webview_tab_normal">#F5F5F5</color>
+    <color name="webview_tab_selected">#FFFFFF</color>
+    <color name="webview_tab_pressed">#E0E0E0</color>
+    <color name="webview_tab_border">#E0E0E0</color>
+
     <!-- Theme-specific Colors -->
     <!-- Fold Theme -->
     <color name="fold_background_light">#FFFFFF</color>

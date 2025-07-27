@@ -49,6 +49,12 @@ import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.voice.VoicePromptBranchManager
+import com.example.aifloatingball.webview.MultiPageWebViewManager
+import com.example.aifloatingball.webview.CardWebViewManager
+import com.example.aifloatingball.webview.GestureCardWebViewManager
+import com.example.aifloatingball.views.WebViewTabBar
+import com.example.aifloatingball.views.MaterialSearchEngineSelector
+import com.example.aifloatingball.views.CardPreviewOverlay
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -158,14 +164,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var voiceSearchButton: MaterialButton
     private lateinit var voiceInteractionToggleButton: ImageButton
 
-    // 浏览器页面组件 - 完整功能版本
+    // 浏览器页面组件 - 多页面WebView版本
     private lateinit var browserWebViewContainer: FrameLayout
-    private lateinit var browserWebView: WebView
     private lateinit var browserHomeContent: LinearLayout
     private lateinit var browserBtnClose: ImageButton
     private lateinit var browserSearchInput: EditText
     private lateinit var browserBtnMenu: ImageButton
     private lateinit var browserProgressBar: ProgressBar
+    private lateinit var browserTabContainer: LinearLayout
+    private lateinit var browserTabBar: WebViewTabBar
+    private lateinit var browserNewTabButton: ImageButton
+
+    // 多页面WebView管理器
+    private var multiPageWebViewManager: MultiPageWebViewManager? = null
+
+    // 手势卡片式WebView管理器
+    private var gestureCardWebViewManager: GestureCardWebViewManager? = null
     private lateinit var browserShortcutsGrid: androidx.recyclerview.widget.RecyclerView
     private lateinit var browserGestureHint: TextView
     private lateinit var browserNavDrawer: LinearLayout
@@ -174,6 +188,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var draggableEngineAdapter: com.example.aifloatingball.adapter.DraggableSearchEngineAdapter
     private lateinit var browserExitButton: Button
     private lateinit var browserLetterIndexBar: com.example.aifloatingball.view.LetterIndexBar
+    private lateinit var browserSearchEngineSelector: MaterialSearchEngineSelector
+    private lateinit var browserPreviewCardsButton: MaterialButton
+    private lateinit var browserGestureOverlay: FrameLayout
+    private lateinit var browserGestureHintClose: MaterialButton
+    private lateinit var cardPreviewOverlay: CardPreviewOverlay
 
     // 浏览器功能相关
     private lateinit var browserGestureDetector: GestureDetectorCompat
@@ -544,21 +563,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceSearchButton = findViewById(R.id.voice_search_button)
         voiceInteractionToggleButton = findViewById(R.id.voice_interaction_mode_toggle)
 
-        // 浏览器页面 - 完整功能版本组件初始化
+        // 浏览器页面 - 多页面WebView版本组件初始化
         browserWebViewContainer = findViewById(R.id.browser_webview_container)
-        browserWebView = findViewById(R.id.browser_webview)
         browserHomeContent = findViewById(R.id.browser_home_content)
         browserBtnClose = findViewById(R.id.browser_btn_close)
         browserSearchInput = findViewById(R.id.browser_search_input)
         browserBtnMenu = findViewById(R.id.browser_btn_menu)
         browserProgressBar = findViewById(R.id.browser_progress_bar)
+        browserTabContainer = findViewById(R.id.browser_tab_container)
+        browserTabBar = findViewById(R.id.browser_tab_bar)
+        browserNewTabButton = findViewById(R.id.browser_new_tab_button)
         browserShortcutsGrid = findViewById(R.id.browser_shortcuts_grid)
+
+        // 开始浏览按钮
+        val browserStartBrowsingButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)
         browserGestureHint = findViewById(R.id.browser_gesture_hint)
         browserNavDrawer = findViewById(R.id.browser_nav_drawer)
         browserLetterTitle = findViewById(R.id.browser_letter_title)
         browserPreviewEngineList = findViewById(R.id.browser_preview_engine_list)
         browserExitButton = findViewById(R.id.browser_exit_button)
         browserLetterIndexBar = findViewById(R.id.browser_letter_index_bar)
+        browserSearchEngineSelector = findViewById(R.id.browser_search_engine_selector)
+        browserPreviewCardsButton = findViewById(R.id.browser_preview_cards_button)
+        browserGestureOverlay = findViewById(R.id.browser_gesture_overlay)
+        browserGestureHintClose = findViewById(R.id.browser_gesture_hint_close)
 
         // 创建虚拟组件用于兼容性（这些组件在当前布局中不存在）
         browserViewPager = androidx.viewpager2.widget.ViewPager2(this)
@@ -1053,13 +1081,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         settingsLayout.visibility = View.GONE
         browserLayout.visibility = View.VISIBLE
 
-        // 确保浏览器已正确初始化
-        if (!::browserWebView.isInitialized) {
+        // 确保手势卡片式WebView管理器已正确初始化
+        if (gestureCardWebViewManager == null) {
             setupBrowserWebView()
         }
 
-        // 显示主页内容
-        showBrowserHome()
+        // 检查是否有已打开的卡片
+        val hasCards = gestureCardWebViewManager?.getAllCards()?.isNotEmpty() == true
+        if (hasCards) {
+            // 如果有卡片，隐藏标签栏和主页内容，显示全屏卡片界面
+            browserTabContainer.visibility = View.GONE
+            browserHomeContent.visibility = View.GONE
+            Log.d(TAG, "显示手势卡片式WebView界面，卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}")
+        } else {
+            // 如果没有卡片，显示主页内容
+            showBrowserHome()
+        }
 
         updateTabColors()
     }
@@ -1118,11 +1155,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val searchText = browserSearchInput.text.toString().trim()
                     if (searchText.isNotEmpty()) {
                         val searchUrl = engine.getSearchUrl(searchText)
-                        browserWebView.loadUrl(searchUrl)
+                        loadBrowserContent(searchUrl)
                     } else {
                         // 如果没有搜索文本，打开搜索引擎主页
                         val baseUrl = engine.url.split("?")[0]
-                        browserWebView.loadUrl(baseUrl)
+                        loadBrowserContent(baseUrl)
                     }
                 },
                 onEngineReorder = { reorderedEngines ->
@@ -1421,7 +1458,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             else -> "https://www.google.com/search?q=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
         }
 
-        browserWebView.loadUrl(searchUrl)
+        loadBrowserContent(searchUrl)
     }
     
     private fun handleIntentData() {
@@ -1448,20 +1485,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 如果在浏览器页面，处理返回逻辑
         if (currentState == UIState.BROWSER) {
+            // 如果卡片预览覆盖层可见，先关闭预览
+            if (::cardPreviewOverlay.isInitialized && cardPreviewOverlay.visibility == View.VISIBLE) {
+                cardPreviewOverlay.hide()
+                return
+            }
+
+            // 如果手势提示覆盖层可见，先关闭提示
+            if (browserGestureOverlay.visibility == View.VISIBLE) {
+                hideGestureHint()
+                return
+            }
+
             // 如果抽屉打开，先关闭抽屉
             if (browserLayout.isDrawerOpen(GravityCompat.START)) {
                 browserLayout.closeDrawer(GravityCompat.START)
                 return
             }
 
-            // 如果WebView可见且可以返回，则返回上一页
-            if (browserWebView.visibility == View.VISIBLE && browserWebView.canGoBack()) {
-                browserWebView.goBack()
+            // 如果有WebView卡片且可以返回，则返回上一页
+            val currentCard = gestureCardWebViewManager?.getCurrentCard()
+            if (currentCard?.webView?.canGoBack() == true) {
+                currentCard.webView.goBack()
                 return
             }
 
-            // 如果WebView可见但无法返回，显示主页
-            if (browserWebView.visibility == View.VISIBLE) {
+            // 如果有WebView卡片但无法返回，显示主页
+            if (gestureCardWebViewManager?.getAllCards()?.isNotEmpty() == true) {
                 showBrowserHome()
                 return
             }
@@ -1769,20 +1819,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             rootView.animate()
             .alpha(0.5f)
                 .setDuration(200)
-                .withEndAction {
-                // 启动最小化服务
-                val serviceIntent = Intent(this, SimpleModeService::class.java).apply {
-                    action = SimpleModeService.ACTION_MINIMIZE
-                }
-                startService(serviceIntent)
-                
-                // 延迟一点时间再关闭Activity，确保服务有足够时间创建窗口
-                handler.postDelayed({
-                    // 关闭Activity
-                    finish()
-                    overridePendingTransition(0, 0) // 禁用Activity切换动画
-                }, 300) // 300ms延迟
-                }
+                .setListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        // 启动最小化服务
+                        val serviceIntent = Intent(this@SimpleModeActivity, SimpleModeService::class.java).apply {
+                            action = SimpleModeService.ACTION_MINIMIZE
+                        }
+                        startService(serviceIntent)
+
+                        // 延迟一点时间再关闭Activity，确保服务有足够时间创建窗口
+                        handler.postDelayed({
+                            // 关闭Activity
+                            finish()
+                            overridePendingTransition(0, 0) // 禁用Activity切换动画
+                        }, 300) // 300ms延迟
+                    }
+                })
                 .start()
     }
 
@@ -1913,16 +1965,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 释放语音识别器
         releaseSpeechRecognizer()
 
-        // 清理WebView资源
-        if (::browserWebView.isInitialized) {
-            browserWebView.clearHistory()
-            browserWebView.clearCache(true)
-            browserWebView.loadUrl("about:blank")
-            browserWebView.onPause()
-            browserWebView.removeAllViews()
-            browserWebView.destroyDrawingCache()
-            browserWebView.destroy()
-        }
+        // 清理多页面WebView管理器
+        multiPageWebViewManager?.destroy()
+        multiPageWebViewManager = null
 
         // 移除所有延迟任务
         handler.removeCallbacksAndMessages(null)
@@ -1945,168 +1990,64 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 设置浏览器WebView - 参考HomeActivity的完整实现
+     * 设置浏览器WebView - 手势卡片式版本
      */
     private fun setupBrowserWebView() {
-        // 配置WebView设置 - 增强移动端兼容性
-        browserWebView.settings.apply {
-            // 设置移动端User-Agent - 更新为最新版本
-            userAgentString = "Mozilla/5.0 (Linux; Android 12; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        // 初始化手势卡片式WebView管理器
+        gestureCardWebViewManager = GestureCardWebViewManager(
+            context = this,
+            container = browserWebViewContainer
+        )
 
-            // 基本设置
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            databaseEnabled = true
+        // 设置页面变化监听器
+        gestureCardWebViewManager?.setOnPageChangeListener(object : GestureCardWebViewManager.OnPageChangeListener {
+            override fun onCardAdded(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 隐藏主页内容，显示全屏卡片界面
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
 
-            // 缓存设置
-            cacheMode = WebSettings.LOAD_DEFAULT
-            // setAppCacheEnabled已弃用，使用其他缓存策略
-
-            // 页面自适应 - 增强移动端适配
-            useWideViewPort = true
-            loadWithOverviewMode = true
-            layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
-
-            // 缩放设置
-            setSupportZoom(true)
-            builtInZoomControls = true
-            displayZoomControls = false
-
-            // 多窗口支持
-            setSupportMultipleWindows(true)
-            javaScriptCanOpenWindowsAutomatically = false // 防止恶意弹窗
-
-            // 混合内容
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-
-            // 设置默认编码
-            defaultTextEncodingName = "UTF-8"
-
-            // 允许文件访问
-            allowFileAccess = true
-            allowContentAccess = true
-            allowUniversalAccessFromFileURLs = false
-            allowFileAccessFromFileURLs = false
-
-            // 媒体播放设置
-            mediaPlaybackRequiresUserGesture = false
-
-            // 地理位置
-            setGeolocationEnabled(false)
-
-            // 安全设置
-            setSavePassword(false)
-            setSaveFormData(false)
-
-            // 性能优化
-            setRenderPriority(WebSettings.RenderPriority.HIGH)
-
-            // 字体设置
-            minimumFontSize = 8
-            minimumLogicalFontSize = 8
-            defaultFontSize = 16
-            defaultFixedFontSize = 13
-        }
-
-        // 设置WebViewClient - 参考HomeActivity + 广告拦截
-        browserWebView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                // 拦截广告和恶意URL
-                if (url != null && isAdOrMaliciousUrl(url)) {
-                    Log.d(TAG, "拦截广告URL: $url")
-                    return true // 拦截该URL
-                }
-                return false // 让WebView处理URL加载
+                Log.d(TAG, "添加卡片: ${cardData.title}")
             }
 
-            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                super.onPageStarted(view, url, favicon)
-                browserProgressBar.visibility = View.VISIBLE
-                browserProgressBar.progress = 0
-                Log.d(TAG, "页面开始加载: $url")
-            }
-
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                browserProgressBar.visibility = View.GONE
-
-                // 注入广告拦截JavaScript
-                injectAdBlockingScript(view)
-
-                // 特殊处理小红书页面
-                url?.let { currentUrl ->
-                    if (currentUrl.contains("xiaohongshu.com")) {
-                        // 小红书需要特殊处理，延迟执行JavaScript来确保页面完全加载
-                        handler.postDelayed({
-                            view?.evaluateJavascript("""
-                                javascript:(function() {
-                                    // 强制刷新小红书页面内容
-                                    if (window.location.href.includes('xiaohongshu.com')) {
-                                        var event = new Event('resize');
-                                        window.dispatchEvent(event);
-
-                                        // 触发页面重新渲染
-                                        document.body.style.display = 'none';
-                                        document.body.offsetHeight; // 触发重排
-                                        document.body.style.display = '';
-                                    }
-                                })();
-                            """, null)
-                        }, 1000)
-                    }
+            override fun onCardRemoved(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 如果没有卡片了，显示主页
+                if (gestureCardWebViewManager?.getAllCards()?.isEmpty() == true) {
+                    showBrowserHome()
                 }
 
-                // 只在特定情况下更新搜索框URL
-                url?.let { currentUrl ->
-                    val currentInput = browserSearchInput.text.toString().trim()
-
-                    // 如果当前输入框为空，或者输入的是之前的URL，则更新为新URL
-                    // 但不要覆盖用户正在输入的搜索关键词
-                    if (currentInput.isEmpty() ||
-                        currentInput.startsWith("http") ||
-                        currentInput == currentUrl ||
-                        android.webkit.URLUtil.isValidUrl(currentInput)) {
-                        browserSearchInput.setText(currentUrl)
-                    }
-
-                    Log.d(TAG, "页面加载完成: $currentUrl")
-                }
+                Log.d(TAG, "移除卡片: ${cardData.title}")
             }
 
-            override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
-                super.onReceivedError(view, errorCode, description, failingUrl)
-                Log.e(TAG, "WebView加载错误: $description")
-                Toast.makeText(this@SimpleModeActivity, "页面加载失败: $description", Toast.LENGTH_SHORT).show()
-            }
-        }
+            override fun onCardSwitched(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 更新搜索框URL
+                browserSearchInput.setText(cardData.url)
 
-        // 设置WebChromeClient处理进度条和favicon
-        browserWebView.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                if (newProgress < 100) {
-                    browserProgressBar.visibility = View.VISIBLE
-                    browserProgressBar.progress = newProgress
-                } else {
-                    browserProgressBar.visibility = View.GONE
-                }
+                Log.d(TAG, "切换到卡片: ${cardData.title}")
             }
 
-            override fun onReceivedTitle(view: WebView?, title: String?) {
-                super.onReceivedTitle(view, title)
-                Log.d(TAG, "页面标题: $title")
+            override fun onPreviewModeChanged(isPreview: Boolean) {
+                // 预览模式变化
+                Log.d(TAG, "预览模式变化: $isPreview")
             }
 
-            override fun onReceivedIcon(view: WebView?, icon: android.graphics.Bitmap?) {
-                super.onReceivedIcon(view, icon)
-                // 当WebView接收到页面favicon时，更新搜索tab图标
-                icon?.let { favicon ->
-                    val searchTab = findViewById<LinearLayout>(R.id.tab_search)
-                    val searchTabIcon = searchTab?.findViewById<ImageView>(R.id.search_tab_icon)
-                    searchTabIcon?.setImageBitmap(favicon)
-                    Log.d(TAG, "更新搜索tab图标为页面favicon")
-                }
+            override fun onPageTitleChanged(cardData: GestureCardWebViewManager.WebViewCardData, title: String) {
+                // 更新页面标题
+                Log.d(TAG, "卡片标题变化: $title")
             }
-        }
+
+            override fun onPageLoadingStateChanged(cardData: GestureCardWebViewManager.WebViewCardData, isLoading: Boolean) {
+                // 更新加载状态
+                Log.d(TAG, "卡片加载状态变化: ${cardData.title} - $isLoading")
+            }
+
+            override fun onGoHome() {
+                // 返回浏览器首页
+                showBrowserHome()
+                Log.d(TAG, "返回浏览器首页")
+            }
+        })
+
+        // 卡片式浏览器不需要标签栏，移除相关监听器
 
         // 设置搜索框监听器
         browserSearchInput.setOnEditorActionListener { _, actionId, _ ->
@@ -2132,6 +2073,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 初始化搜索引擎
         initializeBrowserSearchEngine()
+
+        // 设置搜索引擎选择器
+        setupBrowserSearchEngineSelector()
+
+        // 设置卡片预览功能
+        setupCardPreviewFeature()
+
+        // 设置手势提示功能
+        setupGestureHintFeature()
 
         // 初始显示主页内容
         showBrowserHome()
@@ -2192,9 +2142,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun setupBrowserButtons() {
         // 关闭按钮 - 智能返回逻辑
         browserBtnClose.setOnClickListener {
-            if (browserWebView.visibility == View.VISIBLE && browserWebView.canGoBack()) {
-                browserWebView.goBack()
-            } else if (browserWebView.visibility == View.VISIBLE) {
+            if (multiPageWebViewManager?.canGoBack() == true) {
+                multiPageWebViewManager?.goBack()
+            } else if (multiPageWebViewManager?.getAllPages()?.isNotEmpty() == true) {
                 showBrowserHome()
             } else {
                 showTaskSelection()
@@ -2209,6 +2159,52 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 browserLayout.openDrawer(GravityCompat.START)
             }
         }
+
+        // 开始浏览按钮 - 创建新卡片
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.setOnClickListener {
+            // 创建新卡片并显示手势卡片式WebView界面
+            gestureCardWebViewManager?.addNewCard("about:blank")
+            Log.d(TAG, "用户点击开始浏览按钮，创建新卡片")
+        }
+
+        // 手势指南按钮
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_gesture_guide_button)?.setOnClickListener {
+            showGestureHint()
+            Log.d(TAG, "用户点击手势指南按钮")
+        }
+
+        // 设置手势卡片管理器监听器
+        gestureCardWebViewManager?.setOnPageChangeListener(object : GestureCardWebViewManager.OnPageChangeListener {
+            override fun onCardAdded(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                Log.d(TAG, "卡片已添加: ${cardData.title}")
+            }
+
+            override fun onCardRemoved(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                Log.d(TAG, "卡片已移除: ${cardData.title}")
+            }
+
+            override fun onCardSwitched(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                Log.d(TAG, "切换到卡片: ${cardData.title}")
+            }
+
+            override fun onPreviewModeChanged(isPreview: Boolean) {
+                Log.d(TAG, "预览模式变化: $isPreview")
+            }
+
+            override fun onPageTitleChanged(cardData: GestureCardWebViewManager.WebViewCardData, title: String) {
+                Log.d(TAG, "页面标题变化: $title")
+            }
+
+            override fun onPageLoadingStateChanged(cardData: GestureCardWebViewManager.WebViewCardData, isLoading: Boolean) {
+                Log.d(TAG, "页面加载状态变化: $isLoading")
+            }
+
+            override fun onGoHome() {
+                // 返回浏览器首页
+                showBrowserHome()
+                Log.d(TAG, "返回浏览器首页")
+            }
+        })
     }
 
     /**
@@ -2353,6 +2349,160 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 更新搜索tab图标
         updateSearchTabIcon()
+    }
+
+    /**
+     * 设置浏览器搜索引擎选择器
+     */
+    private fun setupBrowserSearchEngineSelector() {
+        browserSearchEngineSelector.setOnEngineClickListener(object : MaterialSearchEngineSelector.OnEngineClickListener {
+            override fun onEngineClick(engine: MaterialSearchEngineSelector.SearchEngine) {
+                // 获取搜索框中的文本
+                val searchText = browserSearchInput.text.toString().trim()
+
+                if (searchText.isNotEmpty()) {
+                    // 如果有搜索文本，执行搜索
+                    val searchUrl = engine.getSearchUrl(searchText)
+                    loadBrowserContent(searchUrl)
+
+                    // 高亮选中的搜索引擎
+                    browserSearchEngineSelector.highlightEngine(engine.name)
+
+                    Log.d(TAG, "使用${engine.displayName}搜索: $searchText")
+                } else {
+                    // 如果没有搜索文本，打开搜索引擎主页
+                    loadBrowserContent(engine.url)
+
+                    Log.d(TAG, "打开${engine.displayName}主页")
+                }
+            }
+        })
+
+        Log.d(TAG, "浏览器搜索引擎选择器设置完成")
+    }
+
+    /**
+     * 设置卡片预览功能
+     */
+    private fun setupCardPreviewFeature() {
+        // 创建卡片预览覆盖层
+        cardPreviewOverlay = CardPreviewOverlay(this)
+        cardPreviewOverlay.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        cardPreviewOverlay.visibility = View.GONE
+        browserWebViewContainer.addView(cardPreviewOverlay)
+
+        // 设置卡片预览按钮点击事件
+        browserPreviewCardsButton.setOnClickListener {
+            showCardPreview()
+        }
+
+        // 设置卡片预览覆盖层监听器
+        cardPreviewOverlay.setOnCardClickListener(object : CardPreviewOverlay.OnCardClickListener {
+            override fun onCardClick(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 切换到指定卡片
+                gestureCardWebViewManager?.switchToCard(position)
+                Log.d(TAG, "切换到卡片: ${cardData.title}")
+            }
+
+            override fun onCardClose(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 关闭指定卡片
+                gestureCardWebViewManager?.removeCard(position)
+
+                // 如果还有卡片，更新预览
+                val remainingCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+                if (remainingCards.isNotEmpty()) {
+                    cardPreviewOverlay.show(remainingCards)
+                } else {
+                    cardPreviewOverlay.hide()
+                }
+
+                Log.d(TAG, "关闭卡片: ${cardData.title}")
+            }
+        })
+
+        cardPreviewOverlay.setOnCloseListener(object : CardPreviewOverlay.OnCloseListener {
+            override fun onClose() {
+                Log.d(TAG, "关闭卡片预览")
+            }
+        })
+
+        Log.d(TAG, "卡片预览功能设置完成")
+    }
+
+    /**
+     * 设置手势提示功能
+     */
+    private fun setupGestureHintFeature() {
+        // 设置手势提示关闭按钮
+        browserGestureHintClose.setOnClickListener {
+            hideGestureHint()
+        }
+
+        // 点击覆盖层关闭提示
+        browserGestureOverlay.setOnClickListener {
+            hideGestureHint()
+        }
+
+        // 首次使用时显示手势提示
+        val sharedPrefs = getSharedPreferences("gesture_hints", MODE_PRIVATE)
+        val hasShownHint = sharedPrefs.getBoolean("has_shown_gesture_hint", false)
+
+        if (!hasShownHint) {
+            // 延迟3秒显示手势提示
+            handler.postDelayed({
+                showGestureHint()
+                sharedPrefs.edit().putBoolean("has_shown_gesture_hint", true).apply()
+            }, 3000)
+        }
+
+        Log.d(TAG, "手势提示功能设置完成")
+    }
+
+    /**
+     * 显示卡片预览
+     */
+    private fun showCardPreview() {
+        val cards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+        if (cards.isNotEmpty()) {
+            cardPreviewOverlay.show(cards)
+            Log.d(TAG, "显示卡片预览，卡片数: ${cards.size}")
+        } else {
+            Toast.makeText(this, "暂无卡片", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示手势提示
+     */
+    private fun showGestureHint() {
+        browserGestureOverlay.visibility = View.VISIBLE
+        browserGestureOverlay.alpha = 0f
+        browserGestureOverlay.animate()
+            .alpha(1f)
+            .setDuration(300)
+            .start()
+
+        Log.d(TAG, "显示手势提示")
+    }
+
+    /**
+     * 隐藏手势提示
+     */
+    private fun hideGestureHint() {
+        browserGestureOverlay.animate()
+            .alpha(0f)
+            .setDuration(200)
+            .setListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    browserGestureOverlay.visibility = View.GONE
+                }
+            })
+            .start()
+
+        Log.d(TAG, "隐藏手势提示")
     }
 
     /**
@@ -2517,9 +2667,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示浏览器主页
      */
     private fun showBrowserHome() {
-        browserWebView.visibility = View.GONE
+        // 显示主页内容
         browserHomeContent.visibility = View.VISIBLE
         browserSearchInput.setText("")
+
+        // 隐藏标签栏
+        browserTabContainer.visibility = View.GONE
 
         // 恢复默认搜索引擎图标
         updateSearchTabIcon()
@@ -2572,7 +2725,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     searchEngine.getSearchUrl(query)
                 }
 
-                // 加载URL
+                // 加载URL到当前页面或新页面
                 loadBrowserContent(url)
 
                 Log.d(TAG, "浏览器搜索 - 输入: '$query', 是否URL: $isUrl, 搜索引擎: ${currentSearchEngine?.name}, 最终URL: $url")
@@ -2585,21 +2738,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 加载浏览器内容 - 修复搜索框更新逻辑
+     * 加载浏览器内容 - 多页面版本
      */
     private fun loadBrowserContent(url: String) {
         try {
             Log.d(TAG, "开始加载URL: $url")
 
-            // 在WebView中加载URL
-            browserWebView.loadUrl(url)
+            // 如果没有卡片，创建新卡片
+            if (gestureCardWebViewManager?.getAllCards()?.isEmpty() == true) {
+                gestureCardWebViewManager?.addNewCard(url)
+            } else {
+                // 在现有卡片中加载URL
+                gestureCardWebViewManager?.loadUrl(url)
+            }
 
-            // 更新UI显示
-            browserWebView.visibility = View.VISIBLE
+            // 隐藏主页内容，显示手势卡片式WebView界面
             browserHomeContent.visibility = View.GONE
+            browserTabContainer.visibility = View.GONE
 
-            // 不要立即更新搜索框，让WebViewClient的onPageFinished来处理
-            // 这样可以避免将搜索关键词替换为URL
+            Log.d(TAG, "显示手势卡片式WebView界面，当前卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}")
 
         } catch (e: Exception) {
             Log.e(TAG, "加载内容失败", e)

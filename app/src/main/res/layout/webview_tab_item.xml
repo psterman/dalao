@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="160dp"
+    android:layout_height="40dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/webview_tab_background"
+    android:paddingStart="12dp"
+    android:paddingEnd="8dp"
+    android:layout_marginEnd="4dp"
+    android:clickable="true"
+    android:focusable="true">
+
+    <!-- 页面图标 -->
+    <ImageView
+        android:id="@+id/tab_favicon"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:src="@drawable/ic_web"
+        android:scaleType="centerCrop"
+        app:tint="@color/simple_mode_text_secondary_light" />
+
+    <!-- 页面标题 -->
+    <TextView
+        android:id="@+id/tab_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="新标签页"
+        android:textSize="12sp"
+        android:textColor="@color/simple_mode_text_primary_light"
+        android:singleLine="true"
+        android:ellipsize="end" />
+
+    <!-- 关闭按钮 -->
+    <ImageView
+        android:id="@+id/tab_close"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/ic_close"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:padding="2dp"
+        android:clickable="true"
+        android:focusable="true"
+        app:tint="@color/simple_mode_text_secondary_light" />
+
+</LinearLayout>
