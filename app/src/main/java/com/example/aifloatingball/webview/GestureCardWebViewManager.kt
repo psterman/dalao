@@ -13,7 +13,7 @@ import android.widget.FrameLayout
 import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.R
 import com.example.aifloatingball.adapter.GestureCardAdapter
-import com.example.aifloatingball.views.CardOperationBar
+import com.example.aifloatingball.views.ArcOperationBar
 
 /**
  * 全屏手势卡片WebView管理器
@@ -33,7 +33,7 @@ class GestureCardWebViewManager(
     private var adapter: GestureCardAdapter? = null
     
     // 底部操作栏
-    private var operationBar: CardOperationBar? = null
+    private var operationBar: ArcOperationBar? = null
     
     // 卡片数据列表
     private val webViewCards = mutableListOf<WebViewCardData>()
@@ -72,6 +72,7 @@ class GestureCardWebViewManager(
         fun onPageTitleChanged(cardData: WebViewCardData, title: String)
         fun onPageLoadingStateChanged(cardData: WebViewCardData, isLoading: Boolean)
         fun onGoHome()
+        fun onPageRefresh()
     }
 
     init {
@@ -108,7 +109,6 @@ class GestureCardWebViewManager(
                         currentCardIndex = position
                         val cardData = webViewCards[position]
                         onPageChangeListener?.onCardSwitched(cardData, position)
-                        operationBar?.updateCardInfo(cardData.title, position + 1, webViewCards.size)
                         Log.d(TAG, "切换到卡片: ${cardData.title}")
                     }
                 }
@@ -123,31 +123,23 @@ class GestureCardWebViewManager(
      * 设置底部操作栏
      */
     private fun setupOperationBar() {
-        operationBar = CardOperationBar(context).apply {
+        Log.d(TAG, "开始设置ArcOperationBar")
+
+        operationBar = ArcOperationBar(context).apply {
+            // 使用WRAP_CONTENT避免覆盖整个容器
             layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                gravity = android.view.Gravity.BOTTOM
+                // 定位到右下角
+                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+                marginEnd = (16 * context.resources.displayMetrics.density).toInt()
+                bottomMargin = (16 * context.resources.displayMetrics.density).toInt()
             }
-            
+
             // 设置操作监听器
-            setOnOperationListener(object : CardOperationBar.OnOperationListener {
-                override fun onNewCard() {
-                    addNewCard("about:blank")
-                }
-                
-                override fun onCloseCard() {
-                    if (webViewCards.isNotEmpty()) {
-                        removeCard(currentCardIndex)
-                    }
-                }
-                
-                override fun onRefresh() {
-                    getCurrentCard()?.webView?.reload()
-                }
-                
-                override fun onGoBack() {
+            setOnOperationListener(object : ArcOperationBar.OnOperationListener {
+                override fun onBack() {
                     getCurrentCard()?.webView?.let { webView ->
                         if (webView.canGoBack()) {
                             webView.goBack()
@@ -155,18 +147,27 @@ class GestureCardWebViewManager(
                     }
                 }
 
-                override fun onGoHome() {
+                override fun onRefresh() {
+                    getCurrentCard()?.webView?.reload()
+                    // 通知页面刷新，可以触发地址栏动画
+                    onPageChangeListener?.onPageRefresh()
+                }
+
+                override fun onHome() {
                     onPageChangeListener?.onGoHome()
                 }
 
-                override fun onPreviewToggle() {
-                    togglePreviewMode()
+                override fun onNew() {
+                    addNewCard("about:blank")
                 }
             })
         }
-        
-        container.addView(operationBar)
-        Log.d(TAG, "设置底部操作栏")
+
+        Log.d(TAG, "ArcOperationBar创建完成: ${operationBar != null}")
+        Log.d(TAG, "ArcOperationBar初始layoutParams: ${operationBar?.layoutParams?.javaClass?.simpleName}")
+
+        // 不在这里添加操作栏，由SimpleModeActivity管理
+        Log.d(TAG, "设置圆弧操作栏完成")
     }
 
     /**
@@ -204,8 +205,7 @@ class GestureCardWebViewManager(
             }
 
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                // 双击切换操作栏显示状态
-                operationBar?.toggle()
+                // 双击功能已移除，ArcOperationBar使用切换按钮
                 return true
             }
         })
@@ -335,10 +335,6 @@ class GestureCardWebViewManager(
                 if (!title.isNullOrEmpty()) {
                     cardData.title = title
                     onPageChangeListener?.onPageTitleChanged(cardData, title)
-                    // 更新操作栏显示
-                    if (webViewCards.indexOf(cardData) == currentCardIndex) {
-                        operationBar?.updateCardInfo(title, currentCardIndex + 1, webViewCards.size)
-                    }
                     Log.d(TAG, "卡片标题更新: $title")
                 }
             }
@@ -457,6 +453,13 @@ class GestureCardWebViewManager(
      */
     fun setOnPageChangeListener(listener: OnPageChangeListener) {
         this.onPageChangeListener = listener
+    }
+
+    /**
+     * 获取操作栏
+     */
+    fun getOperationBar(): ArcOperationBar? {
+        return operationBar
     }
 
     /**

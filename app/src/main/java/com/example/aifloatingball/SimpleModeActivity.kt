@@ -1086,17 +1086,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setupBrowserWebView()
         }
 
-        // 检查是否有已打开的卡片
-        val hasCards = gestureCardWebViewManager?.getAllCards()?.isNotEmpty() == true
-        if (hasCards) {
-            // 如果有卡片，隐藏标签栏和主页内容，显示全屏卡片界面
-            browserTabContainer.visibility = View.GONE
-            browserHomeContent.visibility = View.GONE
-            Log.d(TAG, "显示手势卡片式WebView界面，卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}")
-        } else {
-            // 如果没有卡片，显示主页内容
-            showBrowserHome()
-        }
+        // 临时禁用ArcOperationBar管理，专注于修复触摸问题
+        Log.d(TAG, "临时跳过ArcOperationBar管理")
+
+        // 强制刷新UI状态，确保所有组件都处于正确状态
+        forceRefreshUIState()
 
         updateTabColors()
     }
@@ -2006,7 +2000,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 browserHomeContent.visibility = View.GONE
                 browserTabContainer.visibility = View.GONE
 
-                Log.d(TAG, "添加卡片: ${cardData.title}")
+                // 关键修复：确保ViewPager2可见
+                showViewPager2()
+
+                Log.d(TAG, "添加卡片: ${cardData.title}，ViewPager2已显示")
             }
 
             override fun onCardRemoved(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
@@ -2041,9 +2038,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             override fun onGoHome() {
-                // 返回浏览器首页
-                showBrowserHome()
-                Log.d(TAG, "返回浏览器首页")
+                // 返回简易模式搜索tab首页
+                showBrowser() // 显示浏览器界面
+                showBrowserHome() // 显示浏览器主页内容
+
+                // 切换到搜索tab
+                findViewById<LinearLayout>(R.id.tab_search)?.performClick()
+
+                Log.d(TAG, "返回简易模式搜索tab首页")
+            }
+
+            override fun onPageRefresh() {
+                // 刷新时的地址栏滚动动画
+                showAddressBarRefreshAnimation()
+                Log.d(TAG, "页面刷新")
             }
         })
 
@@ -2162,6 +2170,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 开始浏览按钮 - 创建新卡片
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.setOnClickListener {
+            // 先隐藏所有覆盖层
+            hideAllOverlays()
             // 创建新卡片并显示手势卡片式WebView界面
             gestureCardWebViewManager?.addNewCard("about:blank")
             Log.d(TAG, "用户点击开始浏览按钮，创建新卡片")
@@ -2169,7 +2179,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 手势指南按钮
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_gesture_guide_button)?.setOnClickListener {
-            showGestureHint()
+            // 先隐藏其他覆盖层
+            hideAllOverlays()
+            // 延迟显示手势指南，确保其他覆盖层完全隐藏
+            browserLayout.postDelayed({
+                showGestureHint()
+            }, 100)
             Log.d(TAG, "用户点击手势指南按钮")
         }
 
@@ -2203,6 +2218,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 返回浏览器首页
                 showBrowserHome()
                 Log.d(TAG, "返回浏览器首页")
+            }
+
+            override fun onPageRefresh() {
+                // 页面刷新
+                Log.d(TAG, "页面刷新")
             }
         })
     }
@@ -2355,14 +2375,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置浏览器搜索引擎选择器
      */
     private fun setupBrowserSearchEngineSelector() {
+        Log.d(TAG, "开始设置浏览器搜索引擎选择器")
+
         browserSearchEngineSelector.setOnEngineClickListener(object : MaterialSearchEngineSelector.OnEngineClickListener {
             override fun onEngineClick(engine: MaterialSearchEngineSelector.SearchEngine) {
+                Log.d(TAG, "搜索引擎按钮被点击: ${engine.displayName}")
+
                 // 获取搜索框中的文本
                 val searchText = browserSearchInput.text.toString().trim()
+                Log.d(TAG, "搜索框文本: '$searchText'")
 
                 if (searchText.isNotEmpty()) {
                     // 如果有搜索文本，执行搜索
                     val searchUrl = engine.getSearchUrl(searchText)
+                    Log.d(TAG, "执行搜索，URL: $searchUrl")
                     loadBrowserContent(searchUrl)
 
                     // 高亮选中的搜索引擎
@@ -2371,6 +2397,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     Log.d(TAG, "使用${engine.displayName}搜索: $searchText")
                 } else {
                     // 如果没有搜索文本，打开搜索引擎主页
+                    Log.d(TAG, "打开搜索引擎主页，URL: ${engine.url}")
                     loadBrowserContent(engine.url)
 
                     Log.d(TAG, "打开${engine.displayName}主页")
@@ -2392,11 +2419,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             FrameLayout.LayoutParams.MATCH_PARENT
         )
         cardPreviewOverlay.visibility = View.GONE
-        browserWebViewContainer.addView(cardPreviewOverlay)
+
+        // 关键修复：将覆盖层添加到根布局而不是WebView容器
+        // 这样可以避免与搜索引擎界面混合
+        browserLayout.addView(cardPreviewOverlay)
+
+        Log.d(TAG, "卡片预览覆盖层已添加到根布局")
 
         // 设置卡片预览按钮点击事件
         browserPreviewCardsButton.setOnClickListener {
-            showCardPreview()
+            // 先隐藏其他覆盖层
+            hideAllOverlays()
+            // 延迟显示卡片预览，确保其他覆盖层完全隐藏
+            browserLayout.postDelayed({
+                showCardPreview()
+            }, 100)
         }
 
         // 设置卡片预览覆盖层监听器
@@ -2467,6 +2504,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showCardPreview() {
         val cards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
         if (cards.isNotEmpty()) {
+            // 确保卡片预览覆盖层在最前面
+            cardPreviewOverlay.bringToFront()
             cardPreviewOverlay.show(cards)
             Log.d(TAG, "显示卡片预览，卡片数: ${cards.size}")
         } else {
@@ -2478,6 +2517,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示手势提示
      */
     private fun showGestureHint() {
+        // 确保手势提示覆盖层在最前面
+        browserGestureOverlay.bringToFront()
         browserGestureOverlay.visibility = View.VISIBLE
         browserGestureOverlay.alpha = 0f
         browserGestureOverlay.animate()
@@ -2664,20 +2705,326 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 统一管理所有覆盖层的显示状态
+     */
+    private fun hideAllOverlays() {
+        Log.d(TAG, "开始隐藏所有覆盖层")
+
+        // 隐藏手势提示覆盖层
+        if (browserGestureOverlay.visibility == View.VISIBLE) {
+            hideGestureHint()
+            Log.d(TAG, "手势提示覆盖层已隐藏")
+        }
+
+        // 隐藏卡片预览覆盖层
+        if (::cardPreviewOverlay.isInitialized && cardPreviewOverlay.visibility == View.VISIBLE) {
+            cardPreviewOverlay.hide()
+            Log.d(TAG, "卡片预览覆盖层已隐藏")
+        }
+
+        Log.d(TAG, "所有覆盖层已隐藏")
+    }
+
+    /**
+     * 清除所有可能阻挡触摸的覆盖层
+     */
+    private fun clearAllOverlays() {
+        Log.d(TAG, "开始清除所有覆盖层")
+
+        // 1. 确保手势提示覆盖层完全隐藏和禁用
+        findViewById<FrameLayout>(R.id.browser_gesture_overlay)?.let { overlay ->
+            overlay.visibility = View.GONE
+            overlay.isClickable = false
+            overlay.isFocusable = false
+            overlay.isEnabled = false
+            Log.d(TAG, "手势提示覆盖层已完全禁用")
+        }
+
+        // 1.5. 确保卡片预览覆盖层隐藏
+        if (::cardPreviewOverlay.isInitialized && cardPreviewOverlay.visibility == View.VISIBLE) {
+            cardPreviewOverlay.hide()
+            Log.d(TAG, "卡片预览覆盖层已隐藏")
+        }
+
+        // 2. 检查WebView容器中的所有子视图，隐藏可能覆盖主页的视图
+        val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+        webViewContainer?.let { container ->
+            Log.d(TAG, "WebView容器子视图数量: ${container.childCount}")
+
+            for (i in 0 until container.childCount) {
+                val child = container.getChildAt(i)
+                Log.d(TAG, "子视图$i: ${child.javaClass.simpleName}, visibility: ${child.visibility}")
+
+                // 如果是ViewPager2，在主页模式下隐藏它
+                if (child.javaClass.simpleName.contains("ViewPager2")) {
+                    Log.d(TAG, "发现ViewPager2，在主页模式下隐藏")
+                    child.visibility = View.GONE
+                }
+
+                // 如果是ArcOperationBar，暂时移除它
+                if (child.javaClass.simpleName.contains("ArcOperationBar")) {
+                    Log.d(TAG, "发现ArcOperationBar，暂时移除")
+                    container.removeView(child)
+                    break
+                }
+            }
+        }
+
+        // 3. 确保主页内容容器没有被其他视图覆盖
+        browserHomeContent.bringToFront()
+
+        Log.d(TAG, "覆盖层清除完成")
+    }
+
+    /**
      * 显示浏览器主页
      */
     private fun showBrowserHome() {
+        Log.d(TAG, "开始显示浏览器主页")
+
+        // 强制清除所有可能的覆盖层
+        hideAllOverlays()
+        clearAllOverlays()
+
         // 显示主页内容
         browserHomeContent.visibility = View.VISIBLE
+        browserHomeContent.isEnabled = true
+        browserHomeContent.isClickable = true
         browserSearchInput.setText("")
 
         // 隐藏标签栏
         browserTabContainer.visibility = View.GONE
 
+        // 确保搜索引擎选择器完全可用
+        browserSearchEngineSelector.visibility = View.VISIBLE
+        browserSearchEngineSelector.isEnabled = true
+        browserSearchEngineSelector.isClickable = true
+        browserSearchEngineSelector.isFocusable = true
+        browserSearchEngineSelector.alpha = 1.0f
+
+        // 确保底部按钮也可用
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.let { newBtn ->
+            newBtn.visibility = View.VISIBLE
+            newBtn.isEnabled = true
+            newBtn.isClickable = true
+            newBtn.alpha = 1.0f
+        }
+
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_preview_cards_button)?.let { cardsBtn ->
+            cardsBtn.visibility = View.VISIBLE
+            cardsBtn.isEnabled = true
+            cardsBtn.isClickable = true
+            cardsBtn.alpha = 1.0f
+        }
+
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_gesture_guide_button)?.let { gestureBtn ->
+            gestureBtn.visibility = View.VISIBLE
+            gestureBtn.isEnabled = true
+            gestureBtn.isClickable = true
+            gestureBtn.alpha = 1.0f
+        }
+
+        // 隐藏ArcOperationBar（在主页时不需要）
+        gestureCardWebViewManager?.getOperationBar()?.let { operationBar ->
+            operationBar.visibility = View.GONE
+            // 确保不会拦截点击事件
+            operationBar.isClickable = false
+            operationBar.isFocusable = false
+            Log.d(TAG, "ArcOperationBar已隐藏并禁用交互")
+        }
+
         // 恢复默认搜索引擎图标
         updateSearchTabIcon()
 
-        Log.d(TAG, "显示浏览器主页")
+        Log.d(TAG, "显示浏览器主页，搜索引擎选择器已启用，ArcOperationBar已隐藏")
+
+        // 调试信息：检查各组件的状态
+        Log.d(TAG, "主页组件状态检查:")
+        Log.d(TAG, "- browserHomeContent.visibility: ${browserHomeContent.visibility}")
+        Log.d(TAG, "- browserSearchEngineSelector.visibility: ${browserSearchEngineSelector.visibility}")
+        Log.d(TAG, "- browserSearchEngineSelector.isEnabled: ${browserSearchEngineSelector.isEnabled}")
+        Log.d(TAG, "- browserSearchEngineSelector.isClickable: ${browserSearchEngineSelector.isClickable}")
+
+        // 检查底部按钮状态
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.let { btn ->
+            Log.d(TAG, "- 新建按钮状态: visible=${btn.visibility}, enabled=${btn.isEnabled}, clickable=${btn.isClickable}")
+        }
+
+        // 检查ArcOperationBar状态
+        gestureCardWebViewManager?.getOperationBar()?.let { operationBar ->
+            Log.d(TAG, "- ArcOperationBar状态: visible=${operationBar.visibility}, clickable=${operationBar.isClickable}")
+        }
+
+        // 确保手势提示覆盖层不会干扰
+        findViewById<FrameLayout>(R.id.browser_gesture_overlay)?.let { overlay ->
+            overlay.visibility = View.GONE
+            Log.d(TAG, "- 手势提示覆盖层已隐藏")
+        }
+
+        // 检查WebView容器的子视图，确保没有覆盖层
+        val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+        webViewContainer?.let { container ->
+            Log.d(TAG, "WebView容器子视图数量: ${container.childCount}")
+            for (i in 0 until container.childCount) {
+                val child = container.getChildAt(i)
+                Log.d(TAG, "- 子视图$i: ${child.javaClass.simpleName}, visibility=${child.visibility}, clickable=${child.isClickable}")
+
+                // 如果是ArcOperationBar，检查其布局参数
+                if (child.javaClass.simpleName.contains("ArcOperationBar")) {
+                    val layoutParams = child.layoutParams as? android.widget.FrameLayout.LayoutParams
+                    Log.d(TAG, "  - ArcOperationBar布局: ${layoutParams?.width}x${layoutParams?.height}, gravity=${layoutParams?.gravity}")
+                }
+            }
+        }
+
+        // 最终测试：确保关键元素可以接收触摸事件
+        testTouchability()
+    }
+
+    /**
+     * 显示ViewPager2（WebView卡片容器）
+     */
+    private fun showViewPager2() {
+        Log.d(TAG, "开始显示ViewPager2")
+
+        val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+        webViewContainer?.let { container ->
+            Log.d(TAG, "WebView容器子视图数量: ${container.childCount}")
+
+            for (i in 0 until container.childCount) {
+                val child = container.getChildAt(i)
+                Log.d(TAG, "子视图$i: ${child.javaClass.simpleName}, 当前visibility: ${child.visibility}")
+
+                if (child.javaClass.simpleName.contains("ViewPager2")) {
+                    val oldVisibility = child.visibility
+                    child.visibility = View.VISIBLE
+                    Log.d(TAG, "ViewPager2可见性: $oldVisibility -> ${child.visibility}")
+
+                    // 确保ViewPager2在最前面
+                    child.bringToFront()
+                    Log.d(TAG, "ViewPager2已显示并置于最前面")
+                    return
+                }
+            }
+            Log.w(TAG, "未找到ViewPager2")
+        } ?: run {
+            Log.e(TAG, "WebView容器为null")
+        }
+    }
+
+    /**
+     * 测试关键元素的触摸能力
+     */
+    private fun testTouchability() {
+        Log.d(TAG, "开始测试触摸能力")
+
+        // 测试搜索引擎选择器
+        Log.d(TAG, "搜索引擎选择器状态:")
+        Log.d(TAG, "- visibility: ${browserSearchEngineSelector.visibility}")
+        Log.d(TAG, "- isEnabled: ${browserSearchEngineSelector.isEnabled}")
+        Log.d(TAG, "- isClickable: ${browserSearchEngineSelector.isClickable}")
+        Log.d(TAG, "- isFocusable: ${browserSearchEngineSelector.isFocusable}")
+        Log.d(TAG, "- alpha: ${browserSearchEngineSelector.alpha}")
+
+        // 测试底部按钮
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.let { btn ->
+            Log.d(TAG, "新建按钮状态:")
+            Log.d(TAG, "- visibility: ${btn.visibility}")
+            Log.d(TAG, "- isEnabled: ${btn.isEnabled}")
+            Log.d(TAG, "- isClickable: ${btn.isClickable}")
+            Log.d(TAG, "- alpha: ${btn.alpha}")
+        }
+
+        // 测试主页内容容器
+        Log.d(TAG, "主页内容容器状态:")
+        Log.d(TAG, "- visibility: ${browserHomeContent.visibility}")
+        Log.d(TAG, "- isEnabled: ${browserHomeContent.isEnabled}")
+        Log.d(TAG, "- isClickable: ${browserHomeContent.isClickable}")
+
+        Log.d(TAG, "触摸能力测试完成")
+    }
+
+    /**
+     * 管理ArcOperationBar的显示
+     */
+    private fun manageArcOperationBar() {
+        Log.d(TAG, "开始管理ArcOperationBar")
+
+        val operationBar = gestureCardWebViewManager?.getOperationBar()
+        val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+
+        if (operationBar != null && webViewContainer != null) {
+            Log.d(TAG, "ArcOperationBar存在，当前父容器: ${operationBar.parent?.javaClass?.simpleName}")
+
+            // 如果ArcOperationBar还没有被添加到任何容器中，添加它
+            if (operationBar.parent == null) {
+                Log.d(TAG, "ArcOperationBar没有父容器，需要添加到WebView容器")
+
+                webViewContainer.addView(operationBar)
+                Log.d(TAG, "ArcOperationBar已添加到WebView容器")
+            } else if (operationBar.parent != webViewContainer) {
+                Log.d(TAG, "ArcOperationBar在错误的容器中，需要移动")
+
+                // 从旧容器中移除
+                (operationBar.parent as? android.view.ViewGroup)?.removeView(operationBar)
+
+                // 添加到正确的容器
+                webViewContainer.addView(operationBar)
+                Log.d(TAG, "ArcOperationBar已移动到WebView容器")
+            } else {
+                Log.d(TAG, "ArcOperationBar已在正确容器中")
+            }
+
+            // 确保布局参数正确
+            val layoutParams = operationBar.layoutParams as? android.widget.FrameLayout.LayoutParams
+            if (layoutParams != null) {
+                Log.d(TAG, "当前布局参数: ${layoutParams.width}x${layoutParams.height}, gravity=${layoutParams.gravity}")
+
+                // 确保不是MATCH_PARENT
+                if (layoutParams.width == android.widget.FrameLayout.LayoutParams.MATCH_PARENT ||
+                    layoutParams.height == android.widget.FrameLayout.LayoutParams.MATCH_PARENT) {
+                    Log.w(TAG, "检测到MATCH_PARENT布局参数，这会覆盖整个容器！")
+                }
+            }
+        } else {
+            if (operationBar == null) {
+                Log.e(TAG, "ArcOperationBar为null，可能未正确初始化")
+            }
+            if (webViewContainer == null) {
+                Log.e(TAG, "WebView容器为null")
+            }
+        }
+    }
+
+    /**
+     * 显示地址栏刷新动画
+     */
+    private fun showAddressBarRefreshAnimation() {
+        // 地址栏滚动动画
+        val currentText = browserSearchInput.text.toString()
+        if (currentText.isNotEmpty()) {
+            // 创建滚动动画
+            val scrollAnimator = android.animation.ObjectAnimator.ofInt(
+                browserSearchInput, "scrollX", 0, browserSearchInput.width / 2, 0
+            ).apply {
+                duration = 800
+                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            }
+
+            // 创建透明度动画
+            val alphaAnimator = android.animation.ObjectAnimator.ofFloat(
+                browserSearchInput, "alpha", 1f, 0.7f, 1f
+            ).apply {
+                duration = 800
+                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            }
+
+            // 组合动画
+            android.animation.AnimatorSet().apply {
+                playTogether(scrollAnimator, alphaAnimator)
+                start()
+            }
+        }
     }
 
     // setupModeSwitchWidget方法已移除，因为ModeSwitchWidget已被禁用
@@ -2756,7 +3103,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             browserHomeContent.visibility = View.GONE
             browserTabContainer.visibility = View.GONE
 
-            Log.d(TAG, "显示手势卡片式WebView界面，当前卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}")
+            // 关键修复：确保ViewPager2可见
+            showViewPager2()
+
+            // 使用post确保UI状态在下一个循环中同步
+            browserLayout.post {
+                // 再次确保ViewPager2可见（防止时序问题）
+                showViewPager2()
+                Log.d(TAG, "UI状态已同步，ViewPager2确保可见")
+            }
+
+            Log.d(TAG, "已切换到WebView模式，ViewPager2已显示")
+
+            // 显示并启用ArcOperationBar
+            gestureCardWebViewManager?.getOperationBar()?.let { operationBar ->
+                Log.d(TAG, "准备显示ArcOperationBar")
+                Log.d(TAG, "- 当前visibility: ${operationBar.visibility}")
+                Log.d(TAG, "- 当前parent: ${operationBar.parent?.javaClass?.simpleName}")
+
+                operationBar.visibility = View.VISIBLE
+                operationBar.isClickable = true
+                operationBar.isFocusable = true
+
+                Log.d(TAG, "ArcOperationBar已显示并启用交互")
+                Log.d(TAG, "- 设置后visibility: ${operationBar.visibility}")
+                Log.d(TAG, "- 设置后parent: ${operationBar.parent?.javaClass?.simpleName}")
+            } ?: run {
+                Log.e(TAG, "ArcOperationBar为null，无法显示")
+            }
+
+            Log.d(TAG, "显示手势卡片式WebView界面，当前卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}，ArcOperationBar已显示")
 
         } catch (e: Exception) {
             Log.e(TAG, "加载内容失败", e)
@@ -2888,5 +3264,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         return engineView
+    }
+
+    /**
+     * 强制刷新UI状态，确保所有组件都处于正确状态
+     */
+    private fun forceRefreshUIState() {
+        val hasCards = gestureCardWebViewManager?.getAllCards()?.isNotEmpty() == true
+
+        Log.d(TAG, "强制刷新UI状态，是否有卡片: $hasCards")
+
+        if (hasCards) {
+            // WebView模式：显示卡片，隐藏主页
+            browserHomeContent.visibility = View.GONE
+            browserTabContainer.visibility = View.GONE
+
+            // 显示ViewPager2
+            showViewPager2()
+
+            // 启用ArcOperationBar（暂时跳过）
+            // gestureCardWebViewManager?.getOperationBar()?.let { operationBar ->
+            //     operationBar.visibility = View.VISIBLE
+            //     operationBar.isClickable = true
+            //     operationBar.isFocusable = true
+            // }
+
+            Log.d(TAG, "切换到WebView模式")
+        } else {
+            // 主页模式：隐藏卡片，显示主页
+            showBrowserHome()
+            Log.d(TAG, "切换到主页模式")
+        }
+    }
+
+    /**
+     * dp转px的扩展函数
+     */
+    private fun Int.dpToPx(): Int {
+        return (this * resources.displayMetrics.density).toInt()
     }
 }
