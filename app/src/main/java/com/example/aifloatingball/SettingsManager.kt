@@ -642,6 +642,23 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putString(key, value).apply()
     }
 
+    fun getLong(key: String, defaultValue: Long): Long {
+        return prefs.getLong(key, defaultValue)
+    }
+
+    fun putLong(key: String, value: Long) {
+        prefs.edit().putLong(key, value).apply()
+    }
+
+    fun getInt(key: String, defaultValue: Int): Int {
+        return prefs.getInt(key, defaultValue)
+    }
+
+    fun putInt(key: String, value: Int) {
+        prefs.edit().putInt(key, value).apply()
+        notifyListeners(key, value)
+    }
+
     // 移除旧的主题相关方法
     @Deprecated("Use getThemeMode() instead", ReplaceWith("getThemeMode()"))
     fun getLayoutTheme(): Int = getThemeMode()

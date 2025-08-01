@@ -253,8 +253,6 @@
 
     <!-- 简易模式专用颜色 -->
     <color name="simple_mode_background">#F8F9FA</color>
-    <color name="simple_mode_primary_light">#2196F3</color>
-    <color name="simple_mode_primary_dark">#1976D2</color>
     <color name="button_background">#E3F2FD</color>
     <color name="card_background">#FFFFFF</color>
     <color name="directory_background">#E3F2FD</color>
@@ -334,4 +332,79 @@
 
     <!-- 边框颜色 -->
     <color name="elderly_border">#E0E0E0</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== 简易模式微信绿主题色系 V4.0 =================== -->
+    <!-- =============================================================== -->
+
+    <!-- 🌿 主色调 - 基于微信绿色系 -->
+    <color name="simple_mode_primary_light">#07C160</color>          <!-- 微信绿主色 -->
+    <color name="simple_mode_primary_variant_light">#06AD56</color>  <!-- 深绿色 -->
+    <color name="simple_mode_secondary_light">#10D876</color>        <!-- 亮绿色强调 -->
+    <color name="simple_mode_tertiary_light">#00D7FF</color>         <!-- 青色辅助 -->
+
+    <!-- 🌃 背景色系 - 亮色模式 -->
+    <color name="simple_mode_background_light">#F7F7F7</color>       <!-- 主背景 -->
+    <color name="simple_mode_surface_light">#FFFFFF</color>          <!-- 表面色 -->
+    <color name="simple_mode_card_background_light">#FFFFFF</color>  <!-- 卡片背景 -->
+    <color name="simple_mode_input_background_light">#F5F5F5</color> <!-- 输入框背景 -->
+
+    <!-- 📝 文字色系 - 亮色模式 -->
+    <color name="simple_mode_text_primary_light">#191919</color>     <!-- 主要文字 -->
+    <color name="simple_mode_text_secondary_light">#666666</color>   <!-- 次要文字 -->
+    <color name="simple_mode_text_hint_light">#999999</color>        <!-- 提示文字 -->
+    <color name="simple_mode_text_disabled_light">#CCCCCC</color>    <!-- 禁用文字 -->
+
+    <!-- 🔘 按钮色系 - 亮色模式 -->
+    <color name="simple_mode_button_primary_light">#07C160</color>   <!-- 主按钮背景 -->
+    <color name="simple_mode_button_text_light">#FFFFFF</color>      <!-- 主按钮文字 -->
+    <color name="simple_mode_button_outline_light">#07C160</color>   <!-- 边框按钮 -->
+    <color name="simple_mode_button_surface_light">#F5F5F5</color>   <!-- 表面按钮 -->
+
+    <!-- 🎯 强调色系 - 亮色模式 -->
+    <color name="simple_mode_accent_light">#07C160</color>           <!-- 强调色 -->
+    <color name="simple_mode_error_light">#FA5151</color>            <!-- 错误色 -->
+    <color name="simple_mode_success_light">#07C160</color>          <!-- 成功色 -->
+    <color name="simple_mode_warning_light">#FF9500</color>          <!-- 警告色 -->
+
+    <!-- 📱 界面元素 - 亮色模式 -->
+    <color name="simple_mode_divider_light">#EBEBEB</color>          <!-- 分割线 -->
+    <color name="simple_mode_border_light">#E5E5E5</color>           <!-- 边框 -->
+    <color name="simple_mode_shadow_light">#1A000000</color>         <!-- 阴影 -->
+    <color name="simple_mode_overlay_light">#80000000</color>        <!-- 遮罩 -->
+
+    <!-- 🏠 标题栏色系 - 亮色模式 -->
+    <color name="simple_mode_header_background_light">#07C160</color>    <!-- 标题栏背景 -->
+    <color name="simple_mode_header_text_light">#FFFFFF</color>          <!-- 标题栏文字 -->
+    <color name="simple_mode_header_icon_light">#FFFFFF</color>          <!-- 标题栏图标 -->
+    <color name="simple_mode_status_bar_light">#06AD56</color>           <!-- 状态栏 -->
+
+    <!-- 📋 Tab导航色系 - 亮色模式 -->
+    <color name="simple_mode_tab_background_light">#FFFFFF</color>       <!-- Tab背景 -->
+    <color name="simple_mode_tab_selected_light">#E8F5E8</color>         <!-- 选中Tab背景 -->
+    <color name="simple_mode_tab_indicator_light">#07C160</color>        <!-- Tab指示器 -->
+    <color name="simple_mode_tab_icon_selected_light">#07C160</color>    <!-- 选中Tab图标 -->
+    <color name="simple_mode_tab_icon_normal_light">#999999</color>      <!-- 普通Tab图标 -->
+    <color name="simple_mode_tab_text_selected_light">#07C160</color>    <!-- 选中Tab文字 -->
+    <color name="simple_mode_tab_text_normal_light">#999999</color>      <!-- 普通Tab文字 -->
+
+    <!-- 💬 输入框色系 - 亮色模式 -->
+    <color name="simple_mode_input_text_light">#191919</color>           <!-- 输入文字 -->
+    <color name="simple_mode_input_hint_light">#999999</color>           <!-- 输入提示 -->
+    <color name="simple_mode_input_stroke_light">#E5E5E5</color>         <!-- 输入框边框 -->
+    <color name="simple_mode_input_stroke_focused_light">#07C160</color> <!-- 聚焦边框 -->
+
+    <!-- 🌿 绿色渐变系列 - 亮色模式 -->
+    <color name="simple_mode_green_50_light">#F0F9FF</color>             <!-- 最浅绿 -->
+    <color name="simple_mode_green_100_light">#E8F5E8</color>            <!-- 浅绿背景 -->
+    <color name="simple_mode_green_200_light">#C8E6C9</color>            <!-- 淡绿 -->
+    <color name="simple_mode_green_300_light">#A5D6A7</color>            <!-- 中淡绿 -->
+    <color name="simple_mode_green_400_light">#81C784</color>            <!-- 中绿 -->
+    <color name="simple_mode_green_500_light">#07C160</color>            <!-- 标准绿(微信绿) -->
+    <color name="simple_mode_green_600_light">#06AD56</color>            <!-- 深绿 -->
+    <color name="simple_mode_green_700_light">#05994C</color>            <!-- 更深绿 -->
+    <color name="simple_mode_green_800_light">#048542</color>            <!-- 很深绿 -->
+    <color name="simple_mode_green_900_light">#037139</color>            <!-- 最深绿 -->
+
+
 </resources>

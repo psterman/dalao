@@ -13,7 +13,7 @@ import android.widget.FrameLayout
 import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.R
 import com.example.aifloatingball.adapter.GestureCardAdapter
-import com.example.aifloatingball.views.ArcOperationBar
+
 
 /**
  * 全屏手势卡片WebView管理器
@@ -32,8 +32,7 @@ class GestureCardWebViewManager(
     private var viewPager: ViewPager2? = null
     private var adapter: GestureCardAdapter? = null
     
-    // 底部操作栏
-    private var operationBar: ArcOperationBar? = null
+
     
     // 卡片数据列表
     private val webViewCards = mutableListOf<WebViewCardData>()
@@ -77,7 +76,6 @@ class GestureCardWebViewManager(
 
     init {
         setupViewPager()
-        setupOperationBar()
         setupGestureDetector()
     }
 
@@ -119,56 +117,7 @@ class GestureCardWebViewManager(
         Log.d(TAG, "设置全屏卡片ViewPager2")
     }
 
-    /**
-     * 设置底部操作栏
-     */
-    private fun setupOperationBar() {
-        Log.d(TAG, "开始设置ArcOperationBar")
 
-        operationBar = ArcOperationBar(context).apply {
-            // 使用WRAP_CONTENT避免覆盖整个容器
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                // 定位到右下角
-                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
-                marginEnd = (16 * context.resources.displayMetrics.density).toInt()
-                bottomMargin = (16 * context.resources.displayMetrics.density).toInt()
-            }
-
-            // 设置操作监听器
-            setOnOperationListener(object : ArcOperationBar.OnOperationListener {
-                override fun onBack() {
-                    getCurrentCard()?.webView?.let { webView ->
-                        if (webView.canGoBack()) {
-                            webView.goBack()
-                        }
-                    }
-                }
-
-                override fun onRefresh() {
-                    getCurrentCard()?.webView?.reload()
-                    // 通知页面刷新，可以触发地址栏动画
-                    onPageChangeListener?.onPageRefresh()
-                }
-
-                override fun onHome() {
-                    onPageChangeListener?.onGoHome()
-                }
-
-                override fun onNew() {
-                    addNewCard("about:blank")
-                }
-            })
-        }
-
-        Log.d(TAG, "ArcOperationBar创建完成: ${operationBar != null}")
-        Log.d(TAG, "ArcOperationBar初始layoutParams: ${operationBar?.layoutParams?.javaClass?.simpleName}")
-
-        // 不在这里添加操作栏，由SimpleModeActivity管理
-        Log.d(TAG, "设置圆弧操作栏完成")
-    }
 
     /**
      * 设置手势检测器
@@ -205,7 +154,7 @@ class GestureCardWebViewManager(
             }
 
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                // 双击功能已移除，ArcOperationBar使用切换按钮
+                // 双击功能已移除
                 return true
             }
         })
@@ -318,6 +267,8 @@ class GestureCardWebViewManager(
                 cardData.url = url ?: "about:blank"
                 onPageChangeListener?.onPageLoadingStateChanged(cardData, false)
                 Log.d(TAG, "卡片加载完成: $url")
+
+
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -449,17 +400,23 @@ class GestureCardWebViewManager(
     }
 
     /**
+     * 切换到下一个卡片
+     */
+    fun switchToNextCard() {
+        if (webViewCards.isEmpty()) return
+
+        val currentPosition = viewPager?.currentItem ?: 0
+        val nextPosition = (currentPosition + 1) % webViewCards.size
+
+        viewPager?.setCurrentItem(nextPosition, true)
+        Log.d(TAG, "切换到下一个卡片: $nextPosition")
+    }
+
+    /**
      * 设置页面变化监听器
      */
     fun setOnPageChangeListener(listener: OnPageChangeListener) {
         this.onPageChangeListener = listener
-    }
-
-    /**
-     * 获取操作栏
-     */
-    fun getOperationBar(): ArcOperationBar? {
-        return operationBar
     }
 
     /**
@@ -475,9 +432,6 @@ class GestureCardWebViewManager(
         // 清理ViewPager
         viewPager?.adapter = null
         container.removeView(viewPager)
-
-        // 清理操作栏
-        container.removeView(operationBar)
 
         Log.d(TAG, "销毁手势卡片管理器")
     }

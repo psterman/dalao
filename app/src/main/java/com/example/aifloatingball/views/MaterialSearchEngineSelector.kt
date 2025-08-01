@@ -37,9 +37,9 @@ class MaterialSearchEngineSelector @JvmOverloads constructor(
                 "必应" -> "https://cn.bing.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
                 "知乎" -> "https://www.zhihu.com/search?type=content&q=${java.net.URLEncoder.encode(query, "UTF-8")}"
                 "微博" -> "https://s.weibo.com/weibo?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
-                "淘宝" -> "https://s.taobao.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
-                "京东" -> "https://search.jd.com/Search?keyword=${java.net.URLEncoder.encode(query, "UTF-8")}"
-                "B站" -> "https://search.bilibili.com/all?keyword=${java.net.URLEncoder.encode(query, "UTF-8")}"
+                "DeepSeek" -> "https://chat.deepseek.com"
+                "ChatGPT" -> "https://chat.openai.com"
+                "文心一言" -> "https://yiyan.baidu.com"
                 else -> url.replace("{query}", java.net.URLEncoder.encode(query, "UTF-8"))
             }
         }
@@ -47,14 +47,14 @@ class MaterialSearchEngineSelector @JvmOverloads constructor(
 
     // 默认搜索引擎列表
     private val searchEngines = listOf(
-        SearchEngine("百度", "百度", "https://www.baidu.com", R.drawable.ic_search),
-        SearchEngine("Google", "谷歌", "https://www.google.com", R.drawable.ic_search),
-        SearchEngine("必应", "必应", "https://cn.bing.com", R.drawable.ic_search),
-        SearchEngine("知乎", "知乎", "https://www.zhihu.com", R.drawable.ic_search),
-        SearchEngine("微博", "微博", "https://weibo.com", R.drawable.ic_search),
-        SearchEngine("淘宝", "淘宝", "https://www.taobao.com", R.drawable.ic_search),
-        SearchEngine("京东", "京东", "https://www.jd.com", R.drawable.ic_search),
-        SearchEngine("B站", "B站", "https://www.bilibili.com", R.drawable.ic_search)
+        SearchEngine("百度", "百度", "https://www.baidu.com", R.drawable.ic_baidu),
+        SearchEngine("Google", "谷歌", "https://www.google.com", R.drawable.ic_google),
+        SearchEngine("必应", "必应", "https://cn.bing.com", R.drawable.ic_bing),
+        SearchEngine("知乎", "知乎", "https://www.zhihu.com", R.drawable.ic_zhihu),
+        SearchEngine("微博", "微博", "https://weibo.com", R.drawable.ic_weibo),
+        SearchEngine("DeepSeek", "DeepSeek对话", "https://chat.deepseek.com", R.drawable.ic_deepseek),
+        SearchEngine("ChatGPT", "ChatGPT对话", "https://chat.openai.com", R.drawable.ic_chatgpt),
+        SearchEngine("文心一言", "文心一言", "https://yiyan.baidu.com", R.drawable.ic_wenxin)
     )
 
     // 点击监听器

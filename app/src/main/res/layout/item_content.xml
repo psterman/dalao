@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:background="?attr/selectableItemBackground">
+
+    <!-- 平台指示器 -->
+    <View
+        android:id="@+id/platform_indicator"
+        android:layout_width="3dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="12dp"
+        android:background="@color/simple_mode_accent_light" />
+
+    <!-- 创作者头像 -->
+    <ImageView
+        android:id="@+id/iv_creator_avatar"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="12dp"
+        android:src="@drawable/ic_person"
+        android:background="@drawable/circle_avatar_background"
+        android:scaleType="centerCrop" />
+
+    <!-- 内容信息 -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <!-- 创作者信息和时间 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:id="@+id/tv_creator_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="创作者名称"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="@color/simple_mode_text_primary_light"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/tv_publish_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1小时前"
+                android:textSize="11sp"
+                android:textColor="@color/simple_mode_text_secondary_light" />
+
+        </LinearLayout>
+
+        <!-- 内容标题 -->
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="内容标题"
+            android:textSize="14sp"
+            android:textColor="@color/simple_mode_text_primary_light"
+            android:textStyle="bold"
+            android:lineSpacingExtra="2dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:layout_marginBottom="4dp" />
+
+        <!-- 内容描述 -->
+        <TextView
+            android:id="@+id/tv_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="内容描述..."
+            android:textSize="13sp"
+            android:textColor="@color/simple_mode_text_secondary_light"
+            android:lineSpacingExtra="1dp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:layout_marginBottom="6dp" />
+
+        <!-- 封面图片 -->
+        <ImageView
+            android:id="@+id/iv_cover"
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:layout_marginBottom="6dp"
+            android:scaleType="centerCrop"
+            android:background="@drawable/bg_rounded_corner"
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:src="@drawable/ic_image" />
+
+        <!-- 底部信息栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- 内容类型标签 -->
+            <LinearLayout
+                android:id="@+id/layout_type_tag"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_tag_rounded"
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="2dp"
+                android:layout_marginEnd="8dp">
+
+                <ImageView
+                    android:id="@+id/iv_type_icon"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_marginEnd="3dp"
+                    android:src="@drawable/ic_video"
+                    android:tint="@color/simple_mode_accent_light" />
+
+                <TextView
+                    android:id="@+id/tv_type_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="视频"
+                    android:textSize="9sp"
+                    android:textColor="@color/simple_mode_accent_light" />
+
+            </LinearLayout>
+
+            <!-- 统计信息 -->
+            <TextView
+                android:id="@+id/tv_stats"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="1.2万播放 · 234赞 · 5:30"
+                android:textSize="11sp"
+                android:textColor="@color/simple_mode_text_secondary_light"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 更多操作按钮 -->
+    <ImageButton
+        android:id="@+id/btn_more"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@drawable/ic_more_vert"
+        android:tint="@color/simple_mode_text_secondary_light"
+        android:contentDescription="更多操作" />
+
+</LinearLayout>

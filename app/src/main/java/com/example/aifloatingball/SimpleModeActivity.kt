@@ -52,9 +52,19 @@ import com.example.aifloatingball.voice.VoicePromptBranchManager
 import com.example.aifloatingball.webview.MultiPageWebViewManager
 import com.example.aifloatingball.webview.CardWebViewManager
 import com.example.aifloatingball.webview.GestureCardWebViewManager
+import com.example.aifloatingball.webview.MobileCardManager
 import com.example.aifloatingball.views.WebViewTabBar
 import com.example.aifloatingball.views.MaterialSearchEngineSelector
 import com.example.aifloatingball.views.CardPreviewOverlay
+import com.example.aifloatingball.views.QuarterArcOperationBar
+import com.example.aifloatingball.views.MultiPlatformContentView
+import com.example.aifloatingball.manager.ContentSubscriptionManager
+import com.example.aifloatingball.service.ContentServiceFactory
+import com.example.aifloatingball.service.BilibiliContentService
+import com.example.aifloatingball.model.*
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -162,7 +172,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var voiceTextInput: TextInputEditText
     private lateinit var voiceClearButton: MaterialButton
     private lateinit var voiceSearchButton: MaterialButton
-    private lateinit var voiceInteractionToggleButton: ImageButton
+    private lateinit var voiceInteractionModeSwitch: com.google.android.material.switchmaterial.SwitchMaterial
 
     // 浏览器页面组件 - 多页面WebView版本
     private lateinit var browserWebViewContainer: FrameLayout
@@ -180,6 +190,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 手势卡片式WebView管理器
     private var gestureCardWebViewManager: GestureCardWebViewManager? = null
+
+    // 新的手机卡片管理器
+    private var mobileCardManager: MobileCardManager? = null
+
+    // 四分之一圆弧操作栏
+    private var quarterArcOperationBar: QuarterArcOperationBar? = null
+
+
     private lateinit var browserShortcutsGrid: androidx.recyclerview.widget.RecyclerView
     private lateinit var browserGestureHint: TextView
     private lateinit var browserNavDrawer: LinearLayout
@@ -197,6 +215,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 浏览器功能相关
     private lateinit var browserGestureDetector: GestureDetectorCompat
     private var currentSearchEngine: com.example.aifloatingball.model.SearchEngine? = null
+
+    // 多平台内容相关
+    private lateinit var multiPlatformContentView: MultiPlatformContentView
+    private lateinit var contentSubscriptionManager: ContentSubscriptionManager
 
     // 隐藏的组件用于兼容性
     private lateinit var browserViewPager: androidx.viewpager2.widget.ViewPager2
@@ -243,6 +265,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var autoPasteSwitch: SwitchMaterial
     private lateinit var multiTabBrowserSwitch: SwitchMaterial
     private lateinit var notificationListenerSwitch: SwitchMaterial
+
+
     private lateinit var floatingBallSettingsContainer: MaterialCardView
     private lateinit var aiApiSettingsItem: LinearLayout
     private lateinit var searchEngineSettingsItem: LinearLayout
@@ -291,6 +315,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         setContentView(R.layout.activity_simple_mode)
 
+        // 应用UI颜色
+        updateUIColors()
+
         initializeViews()
         setupTaskSelection()
 
@@ -306,6 +333,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 处理从其他地方传入的搜索内容
         handleIntentData()
+
+        // 初始化时应用左手模式布局方向
+        applyLayoutDirection(settingsManager.isLeftHandedModeEnabled())
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -389,31 +419,49 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         if (currentNightMode != targetNightMode) {
             Log.d(TAG, "Applying theme change: $currentNightMode -> $targetNightMode")
             AppCompatDelegate.setDefaultNightMode(targetNightMode)
+
+            // 延迟更新UI颜色，确保主题已经应用
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                updateUIColors()
+            }, 100)
         } else {
             Log.d(TAG, "Theme mode unchanged: $targetNightMode")
+            // 即使主题模式没有改变，也要更新UI颜色以确保正确显示
+            updateUIColors()
         }
     }
     
+    /**
+     * 检查是否为暗色模式
+     */
+    private fun isDarkMode(): Boolean {
+        return (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+               android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+
     /**
      * 动态更新界面颜色
      */
     private fun updateUIColors() {
         try {
-            val isDarkMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                             android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val isDarkMode = isDarkMode()
+
+            Log.d(TAG, "更新UI颜色 - 暗色模式: $isDarkMode")
 
             // 更新状态栏和导航栏颜色
-            window.statusBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_status_bar_light)
-            window.navigationBarColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_navigation_bar_light)
+            val backgroundColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light)
+            window.statusBarColor = backgroundColor
+            window.navigationBarColor = backgroundColor
 
             // 更新根布局背景
-            findViewById<View>(android.R.id.content)?.setBackgroundColor(
-                androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
+            findViewById<View>(android.R.id.content)?.setBackgroundColor(backgroundColor)
 
-            // 更新主布局背景 - 修复ClassCastException
+            // 更新主布局背景
             val mainLayout = findViewById<LinearLayout>(R.id.simple_mode_main_layout)
-            mainLayout?.setBackgroundColor(
-                androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light))
+            mainLayout?.setBackgroundColor(backgroundColor)
+
+            // 更新各个页面布局的背景
+            updatePageBackgrounds()
 
             // 更新标题栏颜色
             updateHeaderColors()
@@ -423,6 +471,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 更新所有文本颜色
             updateAllTextColors()
+
+            // 更新输入框和按钮颜色
+            updateInputAndButtonColors()
+
+            // 更新卡片背景颜色
+            updateCardBackgrounds()
+
         } catch (e: Exception) {
             android.util.Log.e("SimpleModeActivity", "Error updating UI colors", e)
         }
@@ -441,6 +496,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 递归更新ViewGroup中所有TextView的颜色
      */
     private fun updateTextColorsRecursively(viewGroup: ViewGroup) {
+        val isDarkMode = isDarkMode()
         for (i in 0 until viewGroup.childCount) {
             val child = viewGroup.getChildAt(i)
             when (child) {
@@ -468,6 +524,165 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 更新页面背景颜色
+     */
+    private fun updatePageBackgrounds() {
+        val isDarkMode = isDarkMode()
+        val backgroundColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_background_light)
+
+        // 更新各个页面布局的背景
+        findViewById<LinearLayout>(R.id.step_guidance_layout)?.setBackgroundColor(backgroundColor)
+        findViewById<LinearLayout>(R.id.prompt_preview_layout)?.setBackgroundColor(backgroundColor)
+        findViewById<ScrollView>(R.id.voice_layout)?.setBackgroundColor(backgroundColor)
+        findViewById<ScrollView>(R.id.settings_layout)?.setBackgroundColor(backgroundColor)
+        findViewById<LinearLayout>(R.id.browser_layout)?.setBackgroundColor(backgroundColor)
+    }
+
+    /**
+     * 更新输入框和按钮颜色
+     */
+    private fun updateInputAndButtonColors() {
+        val isDarkMode = isDarkMode()
+        // 更新搜索框背景
+        val inputBackground = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_input_background_light)
+        val inputTextColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_primary_light)
+        val inputHintColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_secondary_light)
+
+        // 直接搜索输入框
+        findViewById<EditText>(R.id.direct_search_input)?.apply {
+            setTextColor(inputTextColor)
+            setHintTextColor(inputHintColor)
+            setBackgroundColor(inputBackground)
+        }
+
+        // 步骤输入框
+        findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.step_input_text)?.apply {
+            setTextColor(inputTextColor)
+            setBackgroundColor(inputBackground)
+        }
+
+        // 语音输入框
+        findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.voice_text_input)?.apply {
+            setTextColor(inputTextColor)
+            setBackgroundColor(inputBackground)
+        }
+    }
+
+    /**
+     * 更新卡片背景颜色
+     */
+    private fun updateCardBackgrounds() {
+        val isDarkMode = isDarkMode()
+        val cardBackground = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_card_background_light)
+
+        // 更新Prompt预览页面中的卡片
+        findViewById<androidx.cardview.widget.CardView>(R.id.prompt_preview_layout)?.let { cardView ->
+            cardView.setCardBackgroundColor(cardBackground)
+        }
+
+        // 更新语音页面中的卡片
+        val voiceLayout = findViewById<ScrollView>(R.id.voice_layout)
+        voiceLayout?.let { updateCardBackgroundsRecursively(it, cardBackground) }
+
+        // 更新设置页面中的卡片
+        val settingsLayout = findViewById<ScrollView>(R.id.settings_layout)
+        settingsLayout?.let { updateCardBackgroundsRecursively(it, cardBackground) }
+
+        // 更新浏览器页面中的卡片和搜索框背景
+        updateBrowserPageColors()
+    }
+
+    /**
+     * 更新浏览器页面颜色
+     */
+    private fun updateBrowserPageColors() {
+        val cardBackground = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_card_background_light)
+        val inputBackground = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_input_background_light)
+        val textColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_primary_light)
+
+        // 更新浏览器页面的搜索框背景
+        val browserLayout = findViewById<LinearLayout>(R.id.browser_layout)
+        browserLayout?.let { layout ->
+            // 递归更新浏览器页面中的所有元素
+            updateBrowserElementsRecursively(layout, cardBackground, inputBackground, textColor)
+        }
+    }
+
+    /**
+     * 递归更新浏览器页面元素
+     */
+    private fun updateBrowserElementsRecursively(view: View, cardBackground: Int, inputBackground: Int, textColor: Int) {
+        when (view) {
+            is com.google.android.material.card.MaterialCardView -> {
+                view.setCardBackgroundColor(cardBackground)
+            }
+            is androidx.cardview.widget.CardView -> {
+                view.setCardBackgroundColor(cardBackground)
+            }
+            is LinearLayout -> {
+                // 检查是否是搜索框容器
+                if (view.background != null) {
+                    view.setBackgroundColor(inputBackground)
+                }
+                // 继续递归处理子视图
+                for (i in 0 until view.childCount) {
+                    updateBrowserElementsRecursively(view.getChildAt(i), cardBackground, inputBackground, textColor)
+                }
+            }
+            is TextView -> {
+                view.setTextColor(textColor)
+            }
+            is ViewGroup -> {
+                for (i in 0 until view.childCount) {
+                    updateBrowserElementsRecursively(view.getChildAt(i), cardBackground, inputBackground, textColor)
+                }
+            }
+        }
+    }
+
+    /**
+     * 递归更新卡片背景
+     */
+    private fun updateCardBackgroundsRecursively(view: View, cardBackground: Int) {
+        val inputBackground = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_input_background_light)
+        val textColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_primary_light)
+
+        when (view) {
+            is com.google.android.material.card.MaterialCardView -> {
+                view.setCardBackgroundColor(cardBackground)
+            }
+            is androidx.cardview.widget.CardView -> {
+                view.setCardBackgroundColor(cardBackground)
+            }
+            is EditText -> {
+                // 更新输入框背景和文字颜色
+                view.setBackgroundColor(inputBackground)
+                view.setTextColor(textColor)
+                view.setHintTextColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_secondary_light))
+            }
+            is TextView -> {
+                // 更新文字颜色
+                view.setTextColor(textColor)
+            }
+            is LinearLayout -> {
+                // 如果LinearLayout有背景，可能是一个容器，更新其背景
+                if (view.background != null) {
+                    view.setBackgroundColor(cardBackground)
+                }
+                // 继续递归处理子视图
+                for (i in 0 until view.childCount) {
+                    updateCardBackgroundsRecursively(view.getChildAt(i), cardBackground)
+                }
+            }
+            is ViewGroup -> {
+                for (i in 0 until view.childCount) {
+                    updateCardBackgroundsRecursively(view.getChildAt(i), cardBackground)
+                }
+            }
+        }
+    }
+
+    /**
      * 更新标题栏颜色 (已移除标题栏，此方法保留以避免调用错误)
      */
     private fun updateHeaderColors() {
@@ -480,10 +695,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun updateBottomNavigationColors() {
         val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
-        
+
         // 设置导航栏背景色
         bottomNav.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_background_light))
-        
+
         // 更新所有Tab的颜色
         updateTabColors()
     }
@@ -493,20 +708,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun updateTabColors() {
         val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
-        
+
         for (i in 0 until bottomNav.childCount) {
             val tabView = bottomNav.getChildAt(i) as? LinearLayout ?: continue
             val iconView = tabView.getChildAt(0) as? ImageView ?: continue
             val textView = tabView.getChildAt(1) as? TextView ?: continue
-            
+
+            // 由于底部导航栏始终保持LTR方向，tab顺序在左右手模式下都是一致的
+            // 所以可以使用固定的索引映射
             val isSelected = when (i) {
-                0 -> currentState == UIState.TASK_SELECTION
-                1 -> currentState == UIState.BROWSER // 搜索tab
-                2 -> currentState == UIState.VOICE
-                3 -> currentState == UIState.SETTINGS
+                0 -> currentState == UIState.TASK_SELECTION  // 首页
+                1 -> currentState == UIState.BROWSER         // 搜索
+                2 -> currentState == UIState.VOICE           // 语音
+                3 -> currentState == UIState.SETTINGS        // 设置
                 else -> false
             }
-            
+
             if (isSelected) {
                 // 选中状态
                 tabView.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_tab_selected_light))
@@ -561,7 +778,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceTextInput = findViewById(R.id.voice_text_input)
         voiceClearButton = findViewById(R.id.voice_clear_button)
         voiceSearchButton = findViewById(R.id.voice_search_button)
-        voiceInteractionToggleButton = findViewById(R.id.voice_interaction_mode_toggle)
+        voiceInteractionModeSwitch = findViewById(R.id.voice_interaction_mode_switch)
 
         // 浏览器页面 - 多页面WebView版本组件初始化
         browserWebViewContainer = findViewById(R.id.browser_webview_container)
@@ -602,7 +819,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserBtnSettings = ImageButton(this)
         browserAutoHideSwitch = androidx.appcompat.widget.SwitchCompat(this)
         browserClipboardSwitch = androidx.appcompat.widget.SwitchCompat(this)
-        
+
+        // 多平台内容视图
+        multiPlatformContentView = findViewById(R.id.multi_platform_content_view)
+
         // 设置页面 - 扩展所有设置选项
         displayModeSpinner = findViewById(R.id.display_mode_spinner)
         windowCountSpinner = findViewById(R.id.window_count_spinner)
@@ -615,6 +835,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         autoPasteSwitch = findViewById(R.id.auto_paste_switch)
         multiTabBrowserSwitch = findViewById(R.id.multi_tab_browser_switch)
         notificationListenerSwitch = findViewById(R.id.notification_listener_switch)
+
+
         aiApiSettingsItem = findViewById(R.id.ai_api_settings_item)
         searchEngineSettingsItem = findViewById(R.id.search_engine_settings_item)
         aiSearchEngineSettingsItem = findViewById(R.id.ai_search_engine_settings_item)
@@ -647,6 +869,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置浏览器
         setupBrowserWebView()
 
+        // 初始化多平台内容订阅
+        setupMultiPlatformContent()
+
         // 初始化UI颜色
         updateUIColors()
         updateTabColors()
@@ -654,30 +879,51 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     private fun setupVoicePage() {
         // 语音交互模式切换
-        voiceInteractionToggleButton.setOnClickListener {
-            promptBranchManager.interactionMode = if (promptBranchManager.interactionMode == VoicePromptBranchManager.InteractionMode.CLICK) {
-                it.contentDescription = "切换到点击模式"
+        voiceInteractionModeSwitch.setOnCheckedChangeListener { _, isChecked ->
+            promptBranchManager.interactionMode = if (isChecked) {
                 Toast.makeText(this, "已切换到拖动模式", Toast.LENGTH_SHORT).show()
-                (it as ImageButton).setImageResource(R.drawable.ic_drag_handle) // 更新图标
+                updateVoiceInteractionModeUI(VoicePromptBranchManager.InteractionMode.DRAG)
                 // 保存设置
                 settingsManager.putString(KEY_VOICE_INTERACTION_MODE, "DRAG")
                 VoicePromptBranchManager.InteractionMode.DRAG
             } else {
-                it.contentDescription = "切换到拖动模式"
                 Toast.makeText(this, "已切换到点击模式", Toast.LENGTH_SHORT).show()
-                (it as ImageButton).setImageResource(R.drawable.ic_click) // 更新图标
-                 // 保存设置
+                updateVoiceInteractionModeUI(VoicePromptBranchManager.InteractionMode.CLICK)
+                // 保存设置
                 settingsManager.putString(KEY_VOICE_INTERACTION_MODE, "CLICK")
                 VoicePromptBranchManager.InteractionMode.CLICK
             }
         }
-        // 根据保存的模式初始化按钮图标
-        if (promptBranchManager.interactionMode == VoicePromptBranchManager.InteractionMode.DRAG) {
-            voiceInteractionToggleButton.setImageResource(R.drawable.ic_drag_handle)
-        } else {
-            voiceInteractionToggleButton.setImageResource(R.drawable.ic_click)
-        }
 
+        // 根据保存的模式初始化开关状态
+        val isDragMode = promptBranchManager.interactionMode == VoicePromptBranchManager.InteractionMode.DRAG
+        voiceInteractionModeSwitch.isChecked = isDragMode
+        updateVoiceInteractionModeUI(promptBranchManager.interactionMode)
+
+        // 设置麦克风监听器
+        setupVoiceMicListener()
+    }
+
+    /**
+     * 更新语音交互模式UI显示
+     */
+    private fun updateVoiceInteractionModeUI(mode: VoicePromptBranchManager.InteractionMode) {
+        val iconView = findViewById<ImageView>(R.id.voice_interaction_mode_icon)
+        val descView = findViewById<TextView>(R.id.voice_interaction_mode_desc)
+
+        when (mode) {
+            VoicePromptBranchManager.InteractionMode.CLICK -> {
+                iconView?.setImageResource(R.drawable.ic_click)
+                descView?.text = "点击模式：点击开始/停止录音"
+            }
+            VoicePromptBranchManager.InteractionMode.DRAG -> {
+                iconView?.setImageResource(R.drawable.ic_drag_handle)
+                descView?.text = "拖动模式：长按拖动录音"
+            }
+        }
+    }
+
+    private fun setupVoiceMicListener() {
         // 麦克风按钮触摸监听，处理单击和长按
         voiceMicContainer.setOnTouchListener { _, event ->
             when (event.action) {
@@ -855,6 +1101,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             settingsManager.putBoolean("enable_notification_listener", isChecked)
         }
 
+
+
         // 设置透明度SeekBar监听器
         ballAlphaSeekbar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -867,6 +1115,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+
+
 
         // 设置点击事件
         aiApiSettingsItem.setOnClickListener { 
@@ -936,18 +1186,399 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 更新左右手模式布局
      */
     private fun updateLayoutForHandedness(isLeftHanded: Boolean) {
-        // 更新UI布局以适应左右手模式
-        val rootLayout = findViewById<ViewGroup>(android.R.id.content)
-        if (rootLayout != null) {
-            // 镜像翻转整个布局
-            rootLayout.scaleX = if (isLeftHanded) -1f else 1f
-            
-            // 修正文本方向
-            val textViews = ArrayList<TextView>()
-            findAllTextViews(rootLayout, textViews)
-            for (textView in textViews) {
-                textView.scaleX = if (isLeftHanded) -1f else 1f
+        // 应用RTL布局方向
+        applyLayoutDirection(isLeftHanded)
+
+        // 更新搜索引擎抽屉位置和按钮
+        updateSearchDrawerForHandedness(isLeftHanded)
+
+        // 更新设置页面标题对齐
+        updateSettingsPageLayout(isLeftHanded)
+
+        // 更新底部导航栏布局方向
+        updateBottomNavigationDirection(isLeftHanded)
+
+        // 不再对整个布局进行镜像翻转，避免影响WebView内容
+        // 只更新需要适应左手模式的特定组件
+
+        // 更新四分之一圆弧操作栏的位置和模式
+        quarterArcOperationBar?.let { operationBar ->
+            // 先更新布局参数
+            val layoutParams = operationBar.layoutParams as? FrameLayout.LayoutParams
+            layoutParams?.let { params ->
+                params.gravity = if (isLeftHanded) {
+                    android.view.Gravity.BOTTOM or android.view.Gravity.START
+                } else {
+                    android.view.Gravity.BOTTOM or android.view.Gravity.END
+                }
+
+                val margin = (16 * resources.displayMetrics.density).toInt()
+                params.leftMargin = if (isLeftHanded) margin else 0
+                params.rightMargin = if (isLeftHanded) 0 else margin
+                params.bottomMargin = margin
+
+                operationBar.layoutParams = params
+
+                // 强制重新布局
+                operationBar.requestLayout()
+
+                Log.d(TAG, "四分之一圆弧操作栏布局参数已更新为左手模式: $isLeftHanded")
             }
+
+            // 然后设置左手模式（这会触发内部重新计算）
+            operationBar.setLeftHandedMode(isLeftHanded)
+        }
+
+        // 可以在这里添加其他需要适应左手模式的UI组件
+        // 但不影响WebView的内容排列
+    }
+
+    /**
+     * 应用布局方向（RTL支持）
+     */
+    private fun applyLayoutDirection(isLeftHanded: Boolean) {
+        if (isLeftHanded) {
+            window.decorView.layoutDirection = View.LAYOUT_DIRECTION_RTL
+        } else {
+            window.decorView.layoutDirection = View.LAYOUT_DIRECTION_LTR
+        }
+    }
+
+    /**
+     * 更新搜索引擎抽屉位置以适应左手模式
+     */
+    private fun updateSearchDrawerForHandedness(isLeftHanded: Boolean) {
+        // 查找搜索页面中的抽屉布局
+        val drawerLayout = findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.browser_layout)
+        val drawerContent = findViewById<LinearLayout>(R.id.browser_nav_drawer)
+
+        if (drawerLayout != null && drawerContent != null) {
+            val layoutParams = drawerContent.layoutParams as? androidx.drawerlayout.widget.DrawerLayout.LayoutParams
+            layoutParams?.let { params ->
+                // 左手模式：抽屉在左边，右手模式：抽屉在右边
+                params.gravity = if (isLeftHanded) {
+                    androidx.core.view.GravityCompat.START
+                } else {
+                    androidx.core.view.GravityCompat.END
+                }
+                drawerContent.layoutParams = params
+            }
+
+            // 更新抽屉锁定模式
+            if (isLeftHanded) {
+                drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED, androidx.core.view.GravityCompat.START)
+                drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED, androidx.core.view.GravityCompat.END)
+            } else {
+                drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED, androidx.core.view.GravityCompat.END)
+                drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED, androidx.core.view.GravityCompat.START)
+            }
+        }
+
+        // 更新标题栏按钮位置
+        updateToolbarButtonsForHandedness(isLeftHanded)
+    }
+
+    /**
+     * 更新标题栏按钮位置以适应左手模式
+     */
+    private fun updateToolbarButtonsForHandedness(isLeftHanded: Boolean) {
+        // 查找搜索页面的标题栏按钮
+        val closeButton = findViewById<ImageButton>(R.id.browser_btn_close)
+        val menuButton = findViewById<ImageButton>(R.id.browser_btn_menu)
+        val searchInput = findViewById<EditText>(R.id.browser_search_input)
+        val toolbar = closeButton?.parent as? LinearLayout
+
+        if (toolbar != null && closeButton != null && menuButton != null && searchInput != null) {
+            // 确保按钮可见
+            closeButton.visibility = View.VISIBLE
+            menuButton.visibility = View.VISIBLE
+            searchInput.visibility = View.VISIBLE
+
+            // 不重新排列按钮，只是确保它们都可见
+            // 让RTL布局自动处理视觉位置
+
+            // 设置菜单按钮的点击事件来打开抽屉
+            menuButton.setOnClickListener {
+                val drawerLayout = findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.browser_layout)
+                if (drawerLayout != null) {
+                    if (isLeftHanded) {
+                        // 左手模式：打开左侧抽屉
+                        if (drawerLayout.isDrawerOpen(androidx.core.view.GravityCompat.START)) {
+                            drawerLayout.closeDrawer(androidx.core.view.GravityCompat.START)
+                        } else {
+                            drawerLayout.openDrawer(androidx.core.view.GravityCompat.START)
+                        }
+                    } else {
+                        // 右手模式：打开右侧抽屉
+                        if (drawerLayout.isDrawerOpen(androidx.core.view.GravityCompat.END)) {
+                            drawerLayout.closeDrawer(androidx.core.view.GravityCompat.END)
+                        } else {
+                            drawerLayout.openDrawer(androidx.core.view.GravityCompat.END)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 更新底部导航栏布局方向
+     */
+    private fun updateBottomNavigationDirection(isLeftHanded: Boolean) {
+        try {
+            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+            if (bottomNav != null) {
+                // 无论左手还是右手模式，都保持LTR方向，确保tab顺序一致
+                bottomNav.layoutDirection = View.LAYOUT_DIRECTION_LTR
+                Log.d(TAG, "底部导航栏布局方向已设置为LTR，保持tab顺序一致")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新底部导航栏布局方向时出错", e)
+        }
+    }
+
+    /**
+     * 初始化多平台内容订阅功能
+     */
+    private fun setupMultiPlatformContent() {
+        try {
+            // 初始化内容订阅管理器
+            contentSubscriptionManager = ContentSubscriptionManager.getInstance(this)
+
+            // 注册B站内容服务
+            val bilibiliService = BilibiliContentService.getInstance(this)
+            ContentServiceFactory.registerService(ContentPlatform.BILIBILI, bilibiliService)
+
+            // 设置支持的平台
+            val supportedPlatforms = ContentServiceFactory.getSupportedPlatforms()
+            multiPlatformContentView.setSupportedPlatforms(supportedPlatforms)
+
+            // 设置事件监听器
+            multiPlatformContentView.setOnActionListener(object : MultiPlatformContentView.OnActionListener {
+                override fun onPlatformSelected(platform: ContentPlatform) {
+                    Log.d(TAG, "Selected platform: ${platform.displayName}")
+                }
+
+                override fun onManagePlatformsClick() {
+                    showPlatformManagementDialog()
+                }
+
+                override fun onAddCreatorClick(platform: ContentPlatform) {
+                    showAddCreatorDialog(platform)
+                }
+
+                override fun onRefreshClick(platform: ContentPlatform) {
+                    refreshPlatformContent(platform)
+                }
+
+                override fun onContentClick(content: Content) {
+                    openContentInBrowser(content)
+                }
+
+                override fun onCreatorClick(creator: Creator) {
+                    openCreatorProfile(creator)
+                }
+            })
+
+            // 添加内容更新监听器
+            contentSubscriptionManager.addContentUpdateListener { platform, contents ->
+                runOnUiThread {
+                    multiPlatformContentView.updatePlatformContents(platform, contents)
+                }
+            }
+
+            // 添加订阅变化监听器
+            contentSubscriptionManager.addSubscriptionChangeListener { platform, creators ->
+                runOnUiThread {
+                    multiPlatformContentView.updatePlatformCreators(platform, creators)
+                }
+            }
+
+            // 初始加载所有平台内容
+            loadInitialPlatformContents()
+
+            Log.d(TAG, "多平台内容订阅功能初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化多平台内容订阅功能失败", e)
+        }
+    }
+
+    /**
+     * 加载初始平台内容
+     */
+    private fun loadInitialPlatformContents() {
+        val supportedPlatforms = ContentServiceFactory.getSupportedPlatforms()
+
+        supportedPlatforms.forEach { platform ->
+            // 加载缓存的内容
+            val cachedContents = contentSubscriptionManager.getPlatformContents(platform)
+            multiPlatformContentView.updatePlatformContents(platform, cachedContents)
+
+            // 加载订阅的创作者
+            val creators = contentSubscriptionManager.getSubscribedCreators(platform)
+            multiPlatformContentView.updatePlatformCreators(platform, creators)
+
+            // 如果需要更新，则在后台更新
+            if (contentSubscriptionManager.shouldUpdate(platform)) {
+                refreshPlatformContent(platform)
+            }
+        }
+    }
+
+    /**
+     * 刷新指定平台内容
+     */
+    private fun refreshPlatformContent(platform: ContentPlatform) {
+        multiPlatformContentView.showPlatformLoading(platform)
+
+        lifecycleScope.launch {
+            try {
+                val result = contentSubscriptionManager.updatePlatformContents(platform)
+                if (result.isSuccess) {
+                    runOnUiThread {
+                        Toast.makeText(this@SimpleModeActivity, "${platform.displayName}内容更新完成", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    runOnUiThread {
+                        Toast.makeText(this@SimpleModeActivity, "${platform.displayName}内容更新失败", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "刷新${platform.displayName}内容失败", e)
+                runOnUiThread {
+                    Toast.makeText(this@SimpleModeActivity, "${platform.displayName}内容更新出错", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * 显示平台管理对话框
+     */
+    private fun showPlatformManagementDialog() {
+        // TODO: 实现平台管理对话框
+        Toast.makeText(this, "平台管理功能开发中", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 显示添加创作者对话框
+     */
+    private fun showAddCreatorDialog(platform: ContentPlatform) {
+        // TODO: 实现添加创作者对话框
+        Toast.makeText(this, "添加${platform.displayName}创作者功能开发中", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 在浏览器中打开内容
+     */
+    private fun openContentInBrowser(content: Content) {
+        val url = if (content.contentUrl.isNotEmpty()) {
+            content.contentUrl
+        } else {
+            content.platform.baseUrl
+        }
+        openUrlInBrowser(url)
+    }
+
+    /**
+     * 打开创作者主页
+     */
+    private fun openCreatorProfile(creator: Creator) {
+        val url = if (creator.profileUrl.isNotEmpty()) {
+            creator.profileUrl
+        } else {
+            ContentServiceFactory.getService(creator.platform)?.getCreatorUrl(creator.uid) ?: creator.platform.baseUrl
+        }
+        openUrlInBrowser(url)
+    }
+
+    /**
+     * 在浏览器中打开URL
+     */
+    private fun openUrlInBrowser(url: String) {
+        try {
+            // 在当前浏览器中打开URL
+            browserSearchInput.setText(url)
+            performBrowserSearch()
+        } catch (e: Exception) {
+            Log.e(TAG, "打开URL失败: $url", e)
+            Toast.makeText(this, "打开链接失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 更新设置页面布局以适应左手模式
+     */
+    private fun updateSettingsPageLayout(isLeftHanded: Boolean) {
+        try {
+            Log.d(TAG, "更新设置页面布局，左手模式: $isLeftHanded")
+
+            // 查找设置页面的主要标题元素
+            val settingsLayout = findViewById<ScrollView>(R.id.settings_layout)
+            if (settingsLayout == null) {
+                Log.d(TAG, "设置页面布局未找到")
+                return
+            }
+
+            // 查找并更新所有设置标题的对齐方式
+            updateSettingsTitleAlignment(settingsLayout, isLeftHanded)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "更新设置页面布局时出错", e)
+        }
+    }
+
+    /**
+     * 更新设置标题的对齐方式
+     */
+    private fun updateSettingsTitleAlignment(parentView: View, isLeftHanded: Boolean) {
+        try {
+            when (parentView) {
+                is ViewGroup -> {
+                    // 检查当前ViewGroup是否是标题布局
+                    if (parentView is LinearLayout && parentView.orientation == LinearLayout.HORIZONTAL) {
+                        // 检查是否包含ImageView和TextView（标题的典型结构）
+                        var hasImageView = false
+                        var hasTextView = false
+                        var textView: TextView? = null
+
+                        for (i in 0 until parentView.childCount) {
+                            val child = parentView.getChildAt(i)
+                            when (child) {
+                                is ImageView -> hasImageView = true
+                                is TextView -> {
+                                    hasTextView = true
+                                    textView = child
+                                }
+                            }
+                        }
+
+                        // 如果是标题布局，更新对齐方式
+                        if (hasImageView && hasTextView && textView != null) {
+                            // 检查文字大小，确保是标题而不是普通文本
+                            val textSizeInSp = textView.textSize / resources.displayMetrics.scaledDensity
+                            if (textSizeInSp >= 16f) { // 标题通常是16sp或更大
+                                if (isLeftHanded) {
+                                    // 左手模式：标题靠右对齐
+                                    parentView.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+                                    Log.d(TAG, "设置标题右对齐: ${textView.text}")
+                                } else {
+                                    // 右手模式：标题靠左对齐
+                                    parentView.gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                                    Log.d(TAG, "设置标题左对齐: ${textView.text}")
+                                }
+                            }
+                        }
+                    }
+
+                    // 递归处理子视图
+                    for (i in 0 until parentView.childCount) {
+                        updateSettingsTitleAlignment(parentView.getChildAt(i), isLeftHanded)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "更新标题对齐时出错", e)
         }
     }
 
@@ -1005,12 +1636,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 加载透明度设置 - getBallAlpha()返回0-255，需要转换为0-100
             ballAlphaSeekbar.progress = ((settingsManager.getBallAlpha() / 255.0) * 100).toInt()
 
+
+
             // 加载窗口数量设置
             val windowCount = settingsManager.getDefaultWindowCount()
             windowCountSpinner.setSelection(windowCount - 1) // 转换为0-based索引
 
             // 立即应用左手模式
-            updateLayoutForHandedness(settingsManager.isLeftHandedModeEnabled())
+            val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+            updateLayoutForHandedness(isLeftHanded)
+            applyLayoutDirection(isLeftHanded)
         } catch (e: Exception) {
             Log.e(TAG, "Error loading settings", e)
             Toast.makeText(this, "加载设置时出错", Toast.LENGTH_SHORT).show()
@@ -1085,9 +1720,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         if (gestureCardWebViewManager == null) {
             setupBrowserWebView()
         }
-
-        // 临时禁用ArcOperationBar管理，专注于修复触摸问题
-        Log.d(TAG, "临时跳过ArcOperationBar管理")
 
         // 强制刷新UI状态，确保所有组件都处于正确状态
         forceRefreshUIState()
@@ -1353,8 +1985,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
         
         prevStepButton.setOnClickListener {
-            currentStepIndex--
-            setupCurrentStep()
+            if (currentStepIndex > 0) {
+                currentStepIndex--
+                setupCurrentStep()
+            } else {
+                // 如果是第一步，返回首页
+                showTaskSelection()
+            }
         }
         
         skipStepButton.setOnClickListener {
@@ -1956,12 +2593,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     override fun onDestroy() {
         super.onDestroy()
 
+
+
         // 释放语音识别器
         releaseSpeechRecognizer()
 
         // 清理多页面WebView管理器
         multiPageWebViewManager?.destroy()
         multiPageWebViewManager = null
+
+        // 清理四分之一圆弧操作栏
+        quarterArcOperationBar?.let { operationBar ->
+            (operationBar.parent as? ViewGroup)?.removeView(operationBar)
+        }
+        quarterArcOperationBar = null
 
         // 移除所有延迟任务
         handler.removeCallbacksAndMessages(null)
@@ -2091,9 +2736,182 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置手势提示功能
         setupGestureHintFeature()
 
+        // 设置四分之一圆弧操作栏
+        setupQuarterArcOperationBar()
+
         // 初始显示主页内容
         showBrowserHome()
     }
+
+    /**
+     * 设置四分之一圆弧操作栏
+     */
+    private fun setupQuarterArcOperationBar() {
+        Log.d(TAG, "开始设置四分之一圆弧操作栏")
+
+        quarterArcOperationBar = QuarterArcOperationBar(this).apply {
+            // 设置布局参数 - 使用足够大的尺寸确保不被截断
+            val size = (300 * resources.displayMetrics.density).toInt()
+            layoutParams = FrameLayout.LayoutParams(size, size).apply {
+                // 根据左手模式设置位置
+                val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+                gravity = if (isLeftHanded) {
+                    android.view.Gravity.BOTTOM or android.view.Gravity.START
+                } else {
+                    android.view.Gravity.BOTTOM or android.view.Gravity.END
+                }
+
+                val margin = (16 * resources.displayMetrics.density).toInt()
+                if (isLeftHanded) {
+                    leftMargin = margin
+                } else {
+                    rightMargin = margin
+                }
+                bottomMargin = margin
+            }
+
+            // 设置左手模式
+            setLeftHandedMode(settingsManager.isLeftHandedModeEnabled())
+
+            // 设置高层级
+            elevation = 25f
+            isClickable = true
+            isFocusable = true
+
+            // 设置操作监听器
+            setOnOperationListener(object : QuarterArcOperationBar.OnOperationListener {
+                override fun onRefresh() {
+                    // 刷新当前页面
+                    var refreshed = false
+
+                    // 优先检查MobileCardManager
+                    val mobileCurrentCard = mobileCardManager?.getCurrentCard()
+                    if (mobileCurrentCard?.webView != null) {
+                        mobileCurrentCard.webView.reload()
+                        refreshed = true
+                        Log.d(TAG, "四分之一圆弧操作栏: 手机卡片页面已刷新")
+                    }
+
+                    // 如果没有手机卡片，检查手势卡片
+                    if (!refreshed) {
+                        val gestureCurrentCard = gestureCardWebViewManager?.getCurrentCard()
+                        if (gestureCurrentCard?.webView != null) {
+                            gestureCurrentCard.webView.reload()
+                            refreshed = true
+                            Log.d(TAG, "四分之一圆弧操作栏: 手势卡片页面已刷新")
+                        }
+                    }
+
+                    if (refreshed) {
+                        Toast.makeText(this@SimpleModeActivity, "页面已刷新", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this@SimpleModeActivity, "没有可刷新的页面", Toast.LENGTH_SHORT).show()
+                    }
+                }
+
+                override fun onNextTab() {
+                    // 切换到下一个标签
+                    var switched = false
+
+                    // 优先检查MobileCardManager
+                    val mobileCards = mobileCardManager?.getAllCards()
+                    if (!mobileCards.isNullOrEmpty() && mobileCards.size > 1) {
+                        mobileCardManager?.switchToNextCard()
+                        val currentCard = mobileCardManager?.getCurrentCard()
+                        Toast.makeText(this@SimpleModeActivity, "已切换到: ${currentCard?.title ?: "下一个标签"}", Toast.LENGTH_SHORT).show()
+                        switched = true
+                        Log.d(TAG, "四分之一圆弧操作栏: 手机卡片切换到下一个标签")
+                    }
+
+                    // 如果没有手机卡片或只有一个，检查手势卡片
+                    if (!switched) {
+                        val gestureCards = gestureCardWebViewManager?.getAllCards()
+                        if (!gestureCards.isNullOrEmpty() && gestureCards.size > 1) {
+                            gestureCardWebViewManager?.switchToNextCard()
+                            val currentCard = gestureCardWebViewManager?.getCurrentCard()
+                            Toast.makeText(this@SimpleModeActivity, "已切换到: ${currentCard?.title ?: "下一个标签"}", Toast.LENGTH_SHORT).show()
+                            switched = true
+                            Log.d(TAG, "四分之一圆弧操作栏: 手势卡片切换到下一个标签")
+                        }
+                    }
+
+                    if (!switched) {
+                        Toast.makeText(this@SimpleModeActivity, "没有其他标签可切换", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "四分之一圆弧操作栏: 没有可切换的标签")
+                    }
+                }
+
+                override fun onBack() {
+                    // 智能返回逻辑
+                    handleBrowserBackButtonClick(false)
+                    Log.d(TAG, "四分之一圆弧操作栏: 执行返回操作")
+                }
+
+                override fun onUndoClose() {
+                    // 撤回关闭：创建新标签页作为临时实现
+                    var created = false
+
+                    // 优先在MobileCardManager中创建新标签
+                    if (mobileCardManager != null) {
+                        val newCard = mobileCardManager?.addNewCard("about:blank")
+                        if (newCard != null) {
+                            Toast.makeText(this@SimpleModeActivity, "已创建新标签页", Toast.LENGTH_SHORT).show()
+                            created = true
+                            Log.d(TAG, "四分之一圆弧操作栏: 手机卡片创建新标签")
+                        }
+                    }
+
+                    // 如果手机卡片管理器不可用，在手势卡片中创建
+                    if (!created && gestureCardWebViewManager != null) {
+                        val newCard = gestureCardWebViewManager?.addNewCard("about:blank")
+                        if (newCard != null) {
+                            Toast.makeText(this@SimpleModeActivity, "已创建新标签页", Toast.LENGTH_SHORT).show()
+                            created = true
+                            Log.d(TAG, "四分之一圆弧操作栏: 手势卡片创建新标签")
+                        }
+                    }
+
+                    if (!created) {
+                        Toast.makeText(this@SimpleModeActivity, "无法创建新标签", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "四分之一圆弧操作栏: 创建新标签失败")
+                    }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  }
+            })
+
+            // 设置配置监听器
+            setOnConfigListener(object : QuarterArcOperationBar.OnConfigListener {
+                override fun onShowConfig() {
+                    // 显示配置对话框
+                    quarterArcOperationBar?.showConfigDialog(supportFragmentManager, settingsManager)
+                }
+            })
+
+            // 设置位置变化监听器
+            setOnPositionChangeListener(object : QuarterArcOperationBar.OnPositionChangeListener {
+                override fun onPositionChanged(x: Float, y: Float) {
+                    // 保存新位置到设置
+                    // 这里可以添加位置保存逻辑
+                    Log.d(TAG, "圆弧操作栏位置已更新: ($x, $y)")
+                }
+            })
+
+            // 设置可见性变化监听器
+            setOnVisibilityChangeListener(object : QuarterArcOperationBar.OnVisibilityChangeListener {
+                override fun onVisibilityChanged(isMinimized: Boolean) {
+                    val statusText = if (isMinimized) "圆弧操作栏已最小化" else "圆弧操作栏已恢复"
+                    Toast.makeText(this@SimpleModeActivity, statusText, Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "圆弧操作栏可见性已更新: 最小化=$isMinimized")
+                }
+            })
+        }
+
+        // 添加到WebView容器中
+        browserWebViewContainer.addView(quarterArcOperationBar)
+
+        Log.d(TAG, "四分之一圆弧操作栏创建完成")
+    }
+
+
 
     /**
      * 设置浏览器手势检测
@@ -2145,18 +2963,68 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 处理浏览器返回按钮点击
+     * @param isLongPress 是否为长按
+     */
+    private fun handleBrowserBackButtonClick(isLongPress: Boolean) {
+        Log.d(TAG, "浏览器返回按钮${if (isLongPress) "长按" else "短按"}")
+
+        if (isLongPress) {
+            // 长按：返回搜索tab首页（不跳转到全局首页）
+            showBrowserHome()
+            Log.d(TAG, "长按返回搜索tab首页")
+        } else {
+            // 短按：返回上一页
+            var handled = false
+
+            // 优先检查MobileCardManager
+            val mobileCurrentCard = mobileCardManager?.getCurrentCard()
+            if (mobileCurrentCard?.webView?.canGoBack() == true) {
+                mobileCurrentCard.webView.goBack()
+                handled = true
+                Log.d(TAG, "短按：手机卡片返回上一页")
+            }
+
+            // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
+            if (!handled) {
+                val gestureCurrentCard = gestureCardWebViewManager?.getCurrentCard()
+                if (gestureCurrentCard?.webView?.canGoBack() == true) {
+                    gestureCurrentCard.webView.goBack()
+                    handled = true
+                    Log.d(TAG, "短按：手势卡片返回上一页")
+                }
+            }
+
+            // 如果都没有处理，检查MultiPageWebViewManager
+            if (!handled) {
+                if (multiPageWebViewManager?.canGoBack() == true) {
+                    multiPageWebViewManager?.goBack()
+                    handled = true
+                    Log.d(TAG, "短按：多页面管理器返回上一页")
+                }
+            }
+
+            // 如果没有可返回的页面，返回搜索tab首页
+            if (!handled) {
+                showBrowserHome()
+                Log.d(TAG, "短按：无可返回页面，显示搜索tab首页")
+            }
+        }
+    }
+
+    /**
      * 设置浏览器按钮监听器
      */
     private fun setupBrowserButtons() {
-        // 关闭按钮 - 智能返回逻辑
+        // 关闭按钮 - 智能返回逻辑（短按返回上一页，长按返回搜索tab首页）
         browserBtnClose.setOnClickListener {
-            if (multiPageWebViewManager?.canGoBack() == true) {
-                multiPageWebViewManager?.goBack()
-            } else if (multiPageWebViewManager?.getAllPages()?.isNotEmpty() == true) {
-                showBrowserHome()
-            } else {
-                showTaskSelection()
-            }
+            handleBrowserBackButtonClick(false) // 短按
+        }
+
+        // 设置长按监听器
+        browserBtnClose.setOnLongClickListener {
+            handleBrowserBackButtonClick(true) // 长按
+            true
         }
 
         // 菜单按钮 - 打开搜索引擎侧边栏
@@ -2169,23 +3037,48 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         // 开始浏览按钮 - 创建新卡片
-        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.setOnClickListener {
-            // 先隐藏所有覆盖层
-            hideAllOverlays()
-            // 创建新卡片并显示手势卡片式WebView界面
-            gestureCardWebViewManager?.addNewCard("about:blank")
-            Log.d(TAG, "用户点击开始浏览按钮，创建新卡片")
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)?.setOnClickListener { button ->
+            // 添加点击动画
+            button.animate()
+                .scaleX(0.95f)
+                .scaleY(0.95f)
+                .setDuration(100)
+                .withEndAction {
+                    button.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(100)
+                        .withEndAction {
+                            // 动画完成后执行操作
+                            performCreateNewCard()
+                        }
+                        .start()
+                }
+                .start()
+
+            Log.d(TAG, "用户点击开始浏览按钮")
         }
 
         // 手势指南按钮
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_gesture_guide_button)?.setOnClickListener {
-            // 先隐藏其他覆盖层
-            hideAllOverlays()
-            // 延迟显示手势指南，确保其他覆盖层完全隐藏
-            browserLayout.postDelayed({
-                showGestureHint()
-            }, 100)
             Log.d(TAG, "用户点击手势指南按钮")
+
+            // 检查当前状态
+            if (browserGestureOverlay.visibility == View.VISIBLE) {
+                Log.d(TAG, "手势指南已显示，隐藏它")
+                hideGestureHint()
+            } else {
+                Log.d(TAG, "显示手势指南")
+                // 先隐藏其他覆盖层（但不包括手势指南本身）
+                if (::cardPreviewOverlay.isInitialized && cardPreviewOverlay.visibility == View.VISIBLE) {
+                    cardPreviewOverlay.hide()
+                }
+
+                // 延迟显示手势指南
+                browserLayout.postDelayed({
+                    showGestureHint()
+                }, 100)
+            }
         }
 
         // 设置手势卡片管理器监听器
@@ -2439,8 +3332,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置卡片预览覆盖层监听器
         cardPreviewOverlay.setOnCardClickListener(object : CardPreviewOverlay.OnCardClickListener {
             override fun onCardClick(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 隐藏卡片预览
+                cardPreviewOverlay.hide()
+
                 // 切换到指定卡片
                 gestureCardWebViewManager?.switchToCard(position)
+
+                // 确保UI状态正确
+                browserLayout.postDelayed({
+                    forceRefreshUIState()
+                }, 300) // 等待隐藏动画完成
+
                 Log.d(TAG, "切换到卡片: ${cardData.title}")
             }
 
@@ -2463,6 +3365,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         cardPreviewOverlay.setOnCloseListener(object : CardPreviewOverlay.OnCloseListener {
             override fun onClose() {
                 Log.d(TAG, "关闭卡片预览")
+
+                // 确保返回到正确的状态
+                browserLayout.postDelayed({
+                    forceRefreshUIState()
+                }, 100)
+            }
+        })
+
+        cardPreviewOverlay.setOnAddCardListener(object : CardPreviewOverlay.OnAddCardListener {
+            override fun onAddCard() {
+                // 隐藏预览界面
+                cardPreviewOverlay.hide()
+
+                // 创建新卡片
+                browserLayout.postDelayed({
+                    performCreateNewCard()
+                }, 300) // 等待隐藏动画完成
+
+                Log.d(TAG, "从卡片预览创建新卡片")
             }
         })
 
@@ -2502,12 +3423,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示卡片预览
      */
     private fun showCardPreview() {
-        val cards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
-        if (cards.isNotEmpty()) {
+        // 合并所有管理器的卡片
+        val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+        val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
+        val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+
+        allCards.addAll(gestureCards)
+        allCards.addAll(mobileCards)
+
+        Log.d(TAG, "卡片预览 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 总计: ${allCards.size}")
+
+        if (allCards.isNotEmpty()) {
             // 确保卡片预览覆盖层在最前面
             cardPreviewOverlay.bringToFront()
-            cardPreviewOverlay.show(cards)
-            Log.d(TAG, "显示卡片预览，卡片数: ${cards.size}")
+            cardPreviewOverlay.show(allCards)
+            Log.d(TAG, "显示卡片预览，卡片数: ${allCards.size}")
         } else {
             Toast.makeText(this, "暂无卡片", Toast.LENGTH_SHORT).show()
         }
@@ -2517,33 +3447,78 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示手势提示
      */
     private fun showGestureHint() {
-        // 确保手势提示覆盖层在最前面
-        browserGestureOverlay.bringToFront()
-        browserGestureOverlay.visibility = View.VISIBLE
-        browserGestureOverlay.alpha = 0f
-        browserGestureOverlay.animate()
-            .alpha(1f)
-            .setDuration(300)
-            .start()
+        try {
+            // 安全检查：确保组件已初始化
+            if (!::browserGestureOverlay.isInitialized) {
+                Log.e(TAG, "browserGestureOverlay未初始化，无法显示手势提示")
+                return
+            }
 
-        Log.d(TAG, "显示手势提示")
+            // 检查Activity状态
+            if (isFinishing || isDestroyed) {
+                Log.w(TAG, "Activity正在结束或已销毁，跳过显示手势提示")
+                return
+            }
+
+            // 确保手势提示覆盖层在最前面
+            browserGestureOverlay.bringToFront()
+            browserGestureOverlay.visibility = View.VISIBLE
+            browserGestureOverlay.alpha = 0f
+            browserGestureOverlay.animate()
+                .alpha(1f)
+                .setDuration(300)
+                .withStartAction {
+                    Log.d(TAG, "开始显示手势提示动画")
+                }
+                .withEndAction {
+                    Log.d(TAG, "手势提示动画完成")
+                }
+                .start()
+
+            Log.d(TAG, "显示手势提示")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示手势提示时发生错误", e)
+        }
     }
 
     /**
      * 隐藏手势提示
      */
     private fun hideGestureHint() {
-        browserGestureOverlay.animate()
-            .alpha(0f)
-            .setDuration(200)
-            .setListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    browserGestureOverlay.visibility = View.GONE
-                }
-            })
-            .start()
+        try {
+            // 安全检查：确保组件已初始化
+            if (!::browserGestureOverlay.isInitialized) {
+                Log.e(TAG, "browserGestureOverlay未初始化，无法隐藏手势提示")
+                return
+            }
 
-        Log.d(TAG, "隐藏手势提示")
+            // 检查Activity状态
+            if (isFinishing || isDestroyed) {
+                Log.w(TAG, "Activity正在结束或已销毁，跳过隐藏手势提示")
+                return
+            }
+
+            browserGestureOverlay.animate()
+                .alpha(0f)
+                .setDuration(200)
+                .setListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationStart(animation: android.animation.Animator) {
+                        Log.d(TAG, "开始隐藏手势提示动画")
+                    }
+
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        browserGestureOverlay.visibility = View.GONE
+                        Log.d(TAG, "手势提示动画完成并隐藏")
+                    }
+                })
+                .start()
+
+            Log.d(TAG, "隐藏手势提示")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏手势提示时发生错误", e)
+        }
     }
 
     /**
@@ -2705,13 +3680,120 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 执行创建新卡片操作
+     */
+    private fun performCreateNewCard() {
+        try {
+            Log.d(TAG, "开始创建新卡片")
+
+            // 先隐藏所有覆盖层
+            hideAllOverlays()
+
+            // 尝试使用MobileCardManager，如果失败则使用原有的管理器
+            var newCard: GestureCardWebViewManager.WebViewCardData? = null
+
+            try {
+                // 初始化MobileCardManager（如果还没有）
+                if (mobileCardManager == null) {
+                    setupMobileCardManager()
+                }
+
+                // 创建新卡片
+                newCard = mobileCardManager?.addNewCard("about:blank")
+            } catch (e: Exception) {
+                Log.w(TAG, "MobileCardManager创建卡片失败，使用原有管理器", e)
+
+                // 确保原有管理器已初始化
+                if (gestureCardWebViewManager == null) {
+                    setupBrowserWebView()
+                }
+
+                // 使用原有管理器创建卡片
+                newCard = gestureCardWebViewManager?.addNewCard("about:blank")
+            }
+
+            if (newCard != null) {
+                Log.d(TAG, "新卡片创建成功: ${newCard.id}")
+
+                // 检查卡片总数
+                val mobileCardCount = mobileCardManager?.getAllCards()?.size ?: 0
+                val gestureCardCount = gestureCardWebViewManager?.getAllCards()?.size ?: 0
+                Log.d(TAG, "当前卡片数量 - 手机卡片: $mobileCardCount, 手势卡片: $gestureCardCount")
+
+                // 显示成功提示
+                Toast.makeText(this, "新卡片已创建 (总计: ${mobileCardCount + gestureCardCount})", Toast.LENGTH_SHORT).show()
+
+                // 确保UI状态正确切换
+                browserLayout.post {
+                    forceRefreshUIState()
+                }
+            } else {
+                Log.e(TAG, "新卡片创建失败")
+                Toast.makeText(this, "创建卡片失败", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "创建新卡片时发生错误", e)
+            Toast.makeText(this, "创建卡片时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 设置新的手机卡片管理器
+     */
+    private fun setupMobileCardManager() {
+        Log.d(TAG, "开始设置手机卡片管理器")
+
+        mobileCardManager = MobileCardManager(
+            context = this,
+            container = browserWebViewContainer
+        )
+
+        // 设置卡片变化监听器
+        mobileCardManager?.setOnCardChangeListener(object : MobileCardManager.OnCardChangeListener {
+            override fun onCardAdded(card: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 隐藏主页内容，显示卡片界面
+                browserHomeContent.visibility = View.GONE
+                browserTabContainer.visibility = View.GONE
+                showViewPager2()
+
+                Log.d(TAG, "手机卡片已添加: ${card.title}")
+            }
+
+            override fun onCardRemoved(card: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 如果没有卡片了，显示主页
+                if (mobileCardManager?.getAllCards()?.isEmpty() == true) {
+                    showBrowserHome()
+                }
+
+                Log.d(TAG, "手机卡片已移除: ${card.title}")
+            }
+
+            override fun onCardSwitched(card: GestureCardWebViewManager.WebViewCardData, position: Int) {
+                // 更新搜索框URL
+                browserSearchInput.setText(card.url)
+
+                Log.d(TAG, "切换到手机卡片: ${card.title}")
+            }
+
+            override fun onAllCardsRemoved() {
+                // 所有卡片都被移除，显示主页
+                showBrowserHome()
+                Log.d(TAG, "所有手机卡片已移除")
+            }
+        })
+
+        Log.d(TAG, "手机卡片管理器设置完成")
+    }
+
+    /**
      * 统一管理所有覆盖层的显示状态
      */
-    private fun hideAllOverlays() {
-        Log.d(TAG, "开始隐藏所有覆盖层")
+    private fun hideAllOverlays(includeGestureHint: Boolean = true) {
+        Log.d(TAG, "开始隐藏所有覆盖层，包括手势提示: $includeGestureHint")
 
         // 隐藏手势提示覆盖层
-        if (browserGestureOverlay.visibility == View.VISIBLE) {
+        if (includeGestureHint && browserGestureOverlay.visibility == View.VISIBLE) {
             hideGestureHint()
             Log.d(TAG, "手势提示覆盖层已隐藏")
         }
@@ -2722,7 +3804,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "卡片预览覆盖层已隐藏")
         }
 
-        Log.d(TAG, "所有覆盖层已隐藏")
+        Log.d(TAG, "覆盖层隐藏完成")
     }
 
     /**
@@ -2761,12 +3843,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     child.visibility = View.GONE
                 }
 
-                // 如果是ArcOperationBar，暂时移除它
-                if (child.javaClass.simpleName.contains("ArcOperationBar")) {
-                    Log.d(TAG, "发现ArcOperationBar，暂时移除")
-                    container.removeView(child)
-                    break
-                }
+
             }
         }
 
@@ -2794,6 +3871,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 隐藏标签栏
         browserTabContainer.visibility = View.GONE
+
+        // 隐藏四分之一圆弧操作栏（在主页不需要）
+        quarterArcOperationBar?.hide()
 
         // 确保搜索引擎选择器完全可用
         browserSearchEngineSelector.visibility = View.VISIBLE
@@ -2824,19 +3904,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             gestureBtn.alpha = 1.0f
         }
 
-        // 隐藏ArcOperationBar（在主页时不需要）
-        gestureCardWebViewManager?.getOperationBar()?.let { operationBar ->
-            operationBar.visibility = View.GONE
-            // 确保不会拦截点击事件
-            operationBar.isClickable = false
-            operationBar.isFocusable = false
-            Log.d(TAG, "ArcOperationBar已隐藏并禁用交互")
-        }
+
 
         // 恢复默认搜索引擎图标
         updateSearchTabIcon()
 
-        Log.d(TAG, "显示浏览器主页，搜索引擎选择器已启用，ArcOperationBar已隐藏")
+        Log.d(TAG, "显示浏览器主页，搜索引擎选择器已启用")
 
         // 调试信息：检查各组件的状态
         Log.d(TAG, "主页组件状态检查:")
@@ -2850,10 +3923,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "- 新建按钮状态: visible=${btn.visibility}, enabled=${btn.isEnabled}, clickable=${btn.isClickable}")
         }
 
-        // 检查ArcOperationBar状态
-        gestureCardWebViewManager?.getOperationBar()?.let { operationBar ->
-            Log.d(TAG, "- ArcOperationBar状态: visible=${operationBar.visibility}, clickable=${operationBar.isClickable}")
-        }
+
 
         // 确保手势提示覆盖层不会干扰
         findViewById<FrameLayout>(R.id.browser_gesture_overlay)?.let { overlay ->
@@ -2869,11 +3939,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val child = container.getChildAt(i)
                 Log.d(TAG, "- 子视图$i: ${child.javaClass.simpleName}, visibility=${child.visibility}, clickable=${child.isClickable}")
 
-                // 如果是ArcOperationBar，检查其布局参数
-                if (child.javaClass.simpleName.contains("ArcOperationBar")) {
-                    val layoutParams = child.layoutParams as? android.widget.FrameLayout.LayoutParams
-                    Log.d(TAG, "  - ArcOperationBar布局: ${layoutParams?.width}x${layoutParams?.height}, gravity=${layoutParams?.gravity}")
-                }
+
             }
         }
 
@@ -2944,57 +4010,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         Log.d(TAG, "触摸能力测试完成")
     }
 
-    /**
-     * 管理ArcOperationBar的显示
-     */
-    private fun manageArcOperationBar() {
-        Log.d(TAG, "开始管理ArcOperationBar")
 
-        val operationBar = gestureCardWebViewManager?.getOperationBar()
-        val webViewContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
 
-        if (operationBar != null && webViewContainer != null) {
-            Log.d(TAG, "ArcOperationBar存在，当前父容器: ${operationBar.parent?.javaClass?.simpleName}")
 
-            // 如果ArcOperationBar还没有被添加到任何容器中，添加它
-            if (operationBar.parent == null) {
-                Log.d(TAG, "ArcOperationBar没有父容器，需要添加到WebView容器")
-
-                webViewContainer.addView(operationBar)
-                Log.d(TAG, "ArcOperationBar已添加到WebView容器")
-            } else if (operationBar.parent != webViewContainer) {
-                Log.d(TAG, "ArcOperationBar在错误的容器中，需要移动")
-
-                // 从旧容器中移除
-                (operationBar.parent as? android.view.ViewGroup)?.removeView(operationBar)
-
-                // 添加到正确的容器
-                webViewContainer.addView(operationBar)
-                Log.d(TAG, "ArcOperationBar已移动到WebView容器")
-            } else {
-                Log.d(TAG, "ArcOperationBar已在正确容器中")
-            }
-
-            // 确保布局参数正确
-            val layoutParams = operationBar.layoutParams as? android.widget.FrameLayout.LayoutParams
-            if (layoutParams != null) {
-                Log.d(TAG, "当前布局参数: ${layoutParams.width}x${layoutParams.height}, gravity=${layoutParams.gravity}")
-
-                // 确保不是MATCH_PARENT
-                if (layoutParams.width == android.widget.FrameLayout.LayoutParams.MATCH_PARENT ||
-                    layoutParams.height == android.widget.FrameLayout.LayoutParams.MATCH_PARENT) {
-                    Log.w(TAG, "检测到MATCH_PARENT布局参数，这会覆盖整个容器！")
-                }
-            }
-        } else {
-            if (operationBar == null) {
-                Log.e(TAG, "ArcOperationBar为null，可能未正确初始化")
-            }
-            if (webViewContainer == null) {
-                Log.e(TAG, "WebView容器为null")
-            }
-        }
-    }
 
     /**
      * 显示地址栏刷新动画
@@ -3091,13 +4109,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             Log.d(TAG, "开始加载URL: $url")
 
-            // 如果没有卡片，创建新卡片
-            if (gestureCardWebViewManager?.getAllCards()?.isEmpty() == true) {
-                gestureCardWebViewManager?.addNewCard(url)
-            } else {
-                // 在现有卡片中加载URL
-                gestureCardWebViewManager?.loadUrl(url)
-            }
+            // 修改逻辑：总是在新卡片中打开链接
+            loadUrlInNewCard(url)
 
             // 隐藏主页内容，显示手势卡片式WebView界面
             browserHomeContent.visibility = View.GONE
@@ -3115,24 +4128,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             Log.d(TAG, "已切换到WebView模式，ViewPager2已显示")
 
-            // 显示并启用ArcOperationBar
-            gestureCardWebViewManager?.getOperationBar()?.let { operationBar ->
-                Log.d(TAG, "准备显示ArcOperationBar")
-                Log.d(TAG, "- 当前visibility: ${operationBar.visibility}")
-                Log.d(TAG, "- 当前parent: ${operationBar.parent?.javaClass?.simpleName}")
-
-                operationBar.visibility = View.VISIBLE
-                operationBar.isClickable = true
-                operationBar.isFocusable = true
-
-                Log.d(TAG, "ArcOperationBar已显示并启用交互")
-                Log.d(TAG, "- 设置后visibility: ${operationBar.visibility}")
-                Log.d(TAG, "- 设置后parent: ${operationBar.parent?.javaClass?.simpleName}")
-            } ?: run {
-                Log.e(TAG, "ArcOperationBar为null，无法显示")
-            }
-
-            Log.d(TAG, "显示手势卡片式WebView界面，当前卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}，ArcOperationBar已显示")
+            Log.d(TAG, "显示手势卡片式WebView界面，当前卡片数: ${gestureCardWebViewManager?.getAllCards()?.size}")
 
         } catch (e: Exception) {
             Log.e(TAG, "加载内容失败", e)
@@ -3267,12 +4263,109 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 在新卡片中加载URL
+     */
+    private fun loadUrlInNewCard(url: String, inBackground: Boolean = false) {
+        Log.d(TAG, "在新卡片中加载URL: $url, 后台模式: $inBackground")
+
+        try {
+            var newCard: GestureCardWebViewManager.WebViewCardData? = null
+
+            // 优先使用MobileCardManager
+            if (mobileCardManager != null) {
+                newCard = mobileCardManager?.addNewCard(url)
+                Log.d(TAG, "使用MobileCardManager创建新卡片")
+            } else {
+                // 确保GestureCardWebViewManager已初始化
+                if (gestureCardWebViewManager == null) {
+                    setupBrowserWebView()
+                }
+                newCard = gestureCardWebViewManager?.addNewCard(url)
+                Log.d(TAG, "使用GestureCardWebViewManager创建新卡片")
+            }
+
+            if (newCard != null) {
+                Log.d(TAG, "新卡片创建成功: ${newCard.id}")
+
+                if (!inBackground) {
+                    // 前台模式：立即切换到新卡片
+                    showWebViewMode()
+                } else {
+                    // 后台模式：不切换，保持当前状态
+                    Toast.makeText(this, "已在后台打开新页面", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Log.e(TAG, "创建新卡片失败")
+                Toast.makeText(this, "无法打开新页面", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "在新卡片中加载URL时发生错误", e)
+            Toast.makeText(this, "打开页面失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 在当前卡片中加载URL
+     */
+    private fun loadUrlInCurrentCard(url: String) {
+        Log.d(TAG, "在当前卡片中加载URL: $url")
+
+        try {
+            var loaded = false
+
+            // 优先使用MobileCardManager
+            if (mobileCardManager != null) {
+                mobileCardManager?.loadUrl(url)
+                loaded = true
+                Log.d(TAG, "使用MobileCardManager在当前卡片中加载URL")
+            } else if (gestureCardWebViewManager != null) {
+                gestureCardWebViewManager?.loadUrl(url)
+                loaded = true
+                Log.d(TAG, "使用GestureCardWebViewManager在当前卡片中加载URL")
+            }
+
+            if (loaded) {
+                showWebViewMode()
+            } else {
+                // 如果没有当前卡片，创建新卡片
+                loadUrlInNewCard(url)
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "在当前卡片中加载URL时发生错误", e)
+            // 回退到新建卡片
+            loadUrlInNewCard(url)
+        }
+    }
+
+    /**
+     * 显示WebView模式
+     */
+    private fun showWebViewMode() {
+        // 隐藏主页内容，显示手势卡片式WebView界面
+        browserHomeContent.visibility = View.GONE
+        browserTabContainer.visibility = View.GONE
+
+        // 显示ViewPager2
+        showViewPager2()
+
+        // 显示四分之一圆弧操作栏（在WebView模式下需要）
+        quarterArcOperationBar?.show()
+
+        Log.d(TAG, "已切换到WebView模式")
+    }
+
+    /**
      * 强制刷新UI状态，确保所有组件都处于正确状态
      */
     private fun forceRefreshUIState() {
-        val hasCards = gestureCardWebViewManager?.getAllCards()?.isNotEmpty() == true
+        // 检查两种卡片管理器是否有卡片
+        val hasGestureCards = gestureCardWebViewManager?.getAllCards()?.isNotEmpty() == true
+        val hasMobileCards = mobileCardManager?.getAllCards()?.isNotEmpty() == true
+        val hasCards = hasGestureCards || hasMobileCards
 
-        Log.d(TAG, "强制刷新UI状态，是否有卡片: $hasCards")
+        Log.d(TAG, "强制刷新UI状态，手势卡片: $hasGestureCards, 手机卡片: $hasMobileCards, 总计有卡片: $hasCards")
 
         if (hasCards) {
             // WebView模式：显示卡片，隐藏主页
@@ -3282,12 +4375,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 显示ViewPager2
             showViewPager2()
 
-            // 启用ArcOperationBar（暂时跳过）
-            // gestureCardWebViewManager?.getOperationBar()?.let { operationBar ->
-            //     operationBar.visibility = View.VISIBLE
-            //     operationBar.isClickable = true
-            //     operationBar.isFocusable = true
-            // }
+            // 显示四分之一圆弧操作栏
+            quarterArcOperationBar?.show()
 
             Log.d(TAG, "切换到WebView模式")
         } else {

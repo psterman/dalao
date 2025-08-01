@@ -270,11 +270,8 @@ class OnboardingActivity : AppCompatActivity() {
     
     private fun finishOnboardingWithPermissions() {
         // Set a flag to indicate that onboarding is complete
-        val sharedPref = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        with(sharedPref.edit()) {
-            putBoolean("onboarding_complete", true)
-            apply()
-        }
+        // 使用SettingsManager统一管理，确保与StartActivity中的检查一致
+        SettingsManager.getInstance(this).setOnboardingComplete(true)
 
         // 启动对应的服务
         try {

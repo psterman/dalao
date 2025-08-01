@@ -26,6 +26,19 @@
             android:textColor="@android:color/white"
             android:gravity="center_vertical" />
 
+        <!-- 新建卡片按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/preview_add_card_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:text="+"
+            android:textSize="24sp"
+            android:textColor="@android:color/white"
+            app:backgroundTint="#4CAF50"
+            app:cornerRadius="24dp"
+            android:layout_marginEnd="8dp"
+            style="@style/Widget.Material3.Button.TextButton" />
+
         <!-- 关闭按钮 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/preview_close_button"

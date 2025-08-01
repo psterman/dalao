@@ -35,9 +35,11 @@ class CardPreviewOverlay @JvmOverloads constructor(
     private lateinit var adapter: CardPreviewAdapter
     private lateinit var titleText: TextView
     private lateinit var closeButton: View
-    
+    private lateinit var addCardButton: View
+
     private var onCardClickListener: OnCardClickListener? = null
     private var onCloseListener: OnCloseListener? = null
+    private var onAddCardListener: OnAddCardListener? = null
 
     /**
      * 卡片点击监听器
@@ -52,6 +54,13 @@ class CardPreviewOverlay @JvmOverloads constructor(
      */
     interface OnCloseListener {
         fun onClose()
+    }
+
+    /**
+     * 新建卡片监听器
+     */
+    interface OnAddCardListener {
+        fun onAddCard()
     }
 
     init {
@@ -73,13 +82,20 @@ class CardPreviewOverlay @JvmOverloads constructor(
         recyclerView = view.findViewById(R.id.cards_recycler_view)
         titleText = view.findViewById(R.id.preview_title)
         closeButton = view.findViewById(R.id.preview_close_button)
-        
+        addCardButton = view.findViewById(R.id.preview_add_card_button)
+
         // 设置RecyclerView
         setupRecyclerView()
-        
+
         // 设置关闭按钮
         closeButton.setOnClickListener {
             hide()
+            onCloseListener?.onClose()
+        }
+
+        // 设置新建卡片按钮
+        addCardButton.setOnClickListener {
+            onAddCardListener?.onAddCard()
         }
         
         // 点击背景关闭
@@ -164,6 +180,13 @@ class CardPreviewOverlay @JvmOverloads constructor(
 
     fun setOnCloseListener(listener: OnCloseListener) {
         this.onCloseListener = listener
+    }
+
+    /**
+     * 设置新建卡片监听器
+     */
+    fun setOnAddCardListener(listener: OnAddCardListener) {
+        this.onAddCardListener = listener
     }
 
     /**

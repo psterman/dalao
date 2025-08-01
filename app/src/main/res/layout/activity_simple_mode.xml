@@ -117,7 +117,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="24dp"
             style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:hint="请输入..."
+            android:hint=""
             android:textColorHint="@color/simple_mode_input_hint_light"
             app:boxStrokeColor="@color/simple_mode_border_light"
             app:hintTextColor="@color/simple_mode_input_hint_light">
@@ -128,7 +128,9 @@
                 android:layout_height="wrap_content"
                 android:minLines="3"
                 android:gravity="top"
+                android:hint="请输入..."
                 android:textColor="@color/simple_mode_input_text_light"
+                android:textColorHint="@color/simple_mode_input_hint_light"
                 android:background="@color/simple_mode_input_background_light" />
         </com.google.android.material.textfield.TextInputLayout>
         
@@ -331,7 +333,7 @@
                     android:layout_width="140dp"
                     android:layout_height="140dp"
                     android:layout_marginBottom="16dp"
-                    app:cardBackgroundColor="@color/colorPrimary"
+                    app:cardBackgroundColor="@color/simple_mode_accent_light"
                     app:cardCornerRadius="70dp"
                     app:cardElevation="12dp"
                     android:clickable="true"
@@ -374,7 +376,7 @@
                 android:layout_marginBottom="24dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/voice_text_input_layout"
@@ -383,8 +385,8 @@
                     android:layout_margin="16dp"
                     style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                     android:hint="语音识别结果或手动输入"
-                    app:boxStrokeColor="@color/colorPrimary"
-                    app:hintTextColor="@color/colorPrimary"
+                    app:boxStrokeColor="@color/simple_mode_accent_light"
+                    app:hintTextColor="@color/simple_mode_accent_light"
                     app:endIconMode="clear_text">
 
                     <com.google.android.material.textfield.TextInputEditText
@@ -408,7 +410,7 @@
                 android:layout_marginBottom="24dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -441,7 +443,7 @@
                             android:layout_width="24dp"
                             android:layout_height="24dp"
                             android:src="@drawable/ic_click"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -467,14 +469,13 @@
                                 android:layout_marginTop="2dp" />
                         </LinearLayout>
 
-                        <ImageButton
-                            android:id="@+id/voice_interaction_mode_toggle"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:src="@drawable/ic_arrow_forward"
-                            android:contentDescription="切换交互模式"
-                            app:tint="@color/simple_mode_text_secondary_light" />
+                        <!-- 使用Material Design开关替代箭头按钮 -->
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/voice_interaction_mode_switch"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false"
+                            style="@style/SimpleModeSwitch" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -496,8 +497,8 @@
                     android:text="清空"
                     android:textSize="16sp"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    app:strokeColor="@color/colorPrimary"
-                    android:textColor="@color/colorPrimary"
+                    app:strokeColor="@color/simple_mode_accent_light"
+                    android:textColor="@color/simple_mode_accent_light"
                     app:icon="@drawable/ic_clear"
                     app:iconGravity="textStart" />
 
@@ -509,8 +510,8 @@
                     android:layout_marginStart="8dp"
                     android:text="开始搜索"
                     android:textSize="16sp"
-                    android:backgroundTint="@color/colorPrimary"
-                    android:textColor="@android:color/white"
+                    android:backgroundTint="@color/simple_mode_accent_light"
+                    android:textColor="@color/simple_mode_button_text_light"
                     app:icon="@drawable/ic_search"
                     app:iconGravity="textStart" />
             </LinearLayout>
@@ -545,7 +546,7 @@
                     android:layout_width="28dp"
                     android:layout_height="28dp"
                     android:src="@drawable/ic_settings"
-                    app:tint="@color/colorPrimary"
+                    app:tint="@color/simple_mode_accent_light"
                     android:layout_marginEnd="12dp" />
 
                 <TextView
@@ -564,7 +565,7 @@
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -584,7 +585,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_tune"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="12dp" />
 
                         <TextView
@@ -625,15 +626,16 @@
                             android:id="@+id/display_mode_spinner"
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
-                            android:background="@drawable/spinner_background"
-                            android:padding="12dp" />
+                            android:background="@drawable/simple_mode_spinner_background"
+                            android:padding="12dp"
+                            style="@style/SimpleModeSpinner" />
                     </LinearLayout>
 
                     <!-- 分隔线 -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#E0E0E0"
+                        android:background="@color/simple_mode_divider_light"
                         android:layout_marginVertical="8dp" />
 
                     <!-- 主题模式 -->
@@ -664,8 +666,9 @@
                             android:id="@+id/theme_mode_spinner"
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
-                            android:background="@drawable/spinner_background"
-                            android:padding="12dp" />
+                            android:background="@drawable/simple_mode_spinner_background"
+                            android:padding="12dp"
+                            style="@style/SimpleModeSpinner" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -677,7 +680,7 @@
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -697,7 +700,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_extension"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="12dp" />
 
                         <TextView
@@ -744,14 +747,15 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/clipboard_monitor_switch"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            style="@style/SimpleModeSwitch" />
                     </LinearLayout>
 
                     <!-- 分隔线 -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#E0E0E0"
+                        android:background="@color/simple_mode_divider_light"
                         android:layout_marginVertical="8dp" />
 
                     <!-- 多标签页浏览器 -->
@@ -789,14 +793,15 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/multi_tab_browser_switch"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            style="@style/SimpleModeSwitch" />
                     </LinearLayout>
 
                     <!-- 分隔线 -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#E0E0E0"
+                        android:background="@color/simple_mode_divider_light"
                         android:layout_marginVertical="8dp" />
 
                     <!-- 自动粘贴 -->
@@ -834,14 +839,15 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/auto_paste_switch"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            style="@style/SimpleModeSwitch" />
                     </LinearLayout>
 
                     <!-- 分隔线 -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#E0E0E0"
+                        android:background="@color/simple_mode_divider_light"
                         android:layout_marginVertical="8dp" />
 
                     <!-- 左手模式 -->
@@ -878,7 +884,8 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/left_handed_switch"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            style="@style/SimpleModeSwitch" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -892,7 +899,7 @@
                 android:visibility="gone"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -912,7 +919,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_ai_ball"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="12dp" />
 
                         <TextView
@@ -959,14 +966,15 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/auto_hide_switch"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            style="@style/SimpleModeSwitch" />
                     </LinearLayout>
 
                     <!-- 分隔线 -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#E0E0E0"
+                        android:background="@color/simple_mode_divider_light"
                         android:layout_marginVertical="8dp" />
 
                     <!-- 悬浮球透明度 -->
@@ -1011,7 +1019,7 @@
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -1031,7 +1039,7 @@
                             android:layout_width="24dp"
                             android:layout_height="24dp"
                             android:src="@drawable/ic_ai_ball"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="12dp" />
 
                         <TextView
@@ -1079,14 +1087,15 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/ai_mode_switch"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            style="@style/SimpleModeSwitch" />
                     </LinearLayout>
 
                     <!-- 分隔线 -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#E0E0E0"
+                        android:background="@color/simple_mode_divider_light"
                         android:layout_marginVertical="8dp" />
 
                     <!-- AI API设置 -->
@@ -1106,7 +1115,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_settings"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1154,7 +1163,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_edit"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1194,7 +1203,7 @@
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -1214,7 +1223,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_search"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="12dp" />
 
                         <TextView
@@ -1255,15 +1264,16 @@
                             android:id="@+id/window_count_spinner"
                             android:layout_width="match_parent"
                             android:layout_height="48dp"
-                            android:background="@drawable/spinner_background"
-                            android:padding="12dp" />
+                            android:background="@drawable/simple_mode_spinner_background"
+                            android:padding="12dp"
+                            style="@style/SimpleModeSpinner" />
                     </LinearLayout>
 
                     <!-- 分隔线 -->
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#E0E0E0"
+                        android:background="@color/simple_mode_divider_light"
                         android:layout_marginVertical="8dp" />
 
                     <!-- 搜索引擎管理 -->
@@ -1283,7 +1293,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_language"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1332,7 +1342,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_ai_ball"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1380,7 +1390,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_apps"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1420,7 +1430,7 @@
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -1440,7 +1450,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_notifications"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="12dp" />
 
                         <TextView
@@ -1486,7 +1496,8 @@
                         <com.google.android.material.switchmaterial.SwitchMaterial
                             android:id="@+id/notification_listener_switch"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            style="@style/SimpleModeSwitch" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -1497,7 +1508,7 @@
                 android:layout_marginBottom="16dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="2dp"
-                app:cardBackgroundColor="@android:color/white">
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -1517,7 +1528,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_build"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="12dp" />
 
                         <TextView
@@ -1546,7 +1557,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_security"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1595,7 +1606,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_history"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1644,7 +1655,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_help"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1680,7 +1691,7 @@
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"
-                        android:background="#E0E0E0"
+                        android:background="@color/simple_mode_divider_light"
                         android:layout_marginVertical="8dp" />
 
                     <!-- 应用版本 -->
@@ -1696,7 +1707,7 @@
                             android:layout_width="20dp"
                             android:layout_height="20dp"
                             android:src="@drawable/ic_info"
-                            app:tint="@color/colorPrimary"
+                            app:tint="@color/simple_mode_accent_light"
                             android:layout_marginEnd="16dp" />
 
                         <LinearLayout
@@ -1834,12 +1845,17 @@
                     android:layout_weight="1">
 
                     <!-- 主页内容 -->
-                    <LinearLayout
-                        android:id="@+id/browser_home_content"
+                    <ScrollView
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:orientation="vertical"
-                        android:padding="16dp">
+                        android:fillViewport="true">
+
+                        <LinearLayout
+                            android:id="@+id/browser_home_content"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="16dp">
 
                         <!-- 欢迎文本 -->
                         <TextView
@@ -1888,6 +1904,8 @@
                                 android:text="新建卡片"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
+                                android:textColor="@color/simple_mode_button_text_light"
+                                android:backgroundTint="@color/simple_mode_accent_light"
                                 app:icon="@drawable/ic_add"
                                 app:iconGravity="start"
                                 app:iconSize="18dp"
@@ -1905,6 +1923,8 @@
                                 android:text="卡片预览"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
+                                android:textColor="@color/simple_mode_accent_light"
+                                app:strokeColor="@color/simple_mode_accent_light"
                                 app:icon="@drawable/ic_view_module"
                                 app:iconGravity="start"
                                 app:iconSize="18dp"
@@ -1921,6 +1941,8 @@
                                 android:text="手势指南"
                                 android:textSize="14sp"
                                 android:textStyle="bold"
+                                android:textColor="@color/simple_mode_text_primary_light"
+                                android:backgroundTint="@color/simple_mode_input_background_light"
                                 app:icon="@drawable/ic_hand"
                                 app:iconGravity="start"
                                 app:iconSize="18dp"
@@ -1929,16 +1951,25 @@
 
                         </LinearLayout>
 
+                        <!-- 多平台内容订阅卡片 -->
+                        <com.example.aifloatingball.views.MultiPlatformContentView
+                            android:id="@+id/multi_platform_content_view"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp" />
+
                         <!-- 快捷方式网格 -->
                         <androidx.recyclerview.widget.RecyclerView
                             android:id="@+id/browser_shortcuts_grid"
                             android:layout_width="match_parent"
-                            android:layout_height="0dp"
-                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
                             android:clipToPadding="false"
                             android:padding="8dp" />
 
-                    </LinearLayout>
+                        </LinearLayout>
+
+                    </ScrollView>
 
                     <!-- 加载进度条 -->
                     <ProgressBar
@@ -1966,7 +1997,7 @@
                             android:layout_gravity="center"
                             app:cardCornerRadius="16dp"
                             app:cardElevation="8dp"
-                            app:cardBackgroundColor="@android:color/white">
+                            app:cardBackgroundColor="@color/simple_mode_card_background_light">
 
                             <LinearLayout
                                 android:layout_width="match_parent"
@@ -2132,7 +2163,7 @@
             android:layout_width="280dp"
             android:layout_height="match_parent"
             android:layout_gravity="start"
-            android:background="@android:color/white"
+            android:background="@color/simple_mode_surface_light"
             android:orientation="horizontal">
 
             <!-- 搜索引擎列表容器 -->
@@ -2178,13 +2209,15 @@
                     android:padding="8dp"
                     android:gravity="center">
 
-                    <Button
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/browser_exit_button"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="关闭"
-                        android:textColor="@color/simple_mode_text_primary_light"
-                        style="@style/Widget.AppCompat.Button.Colored" />
+                        android:textColor="@color/simple_mode_button_text_light"
+                        android:backgroundTint="@color/simple_mode_accent_light"
+                        app:cornerRadius="8dp"
+                        style="@style/Widget.Material3.Button" />
 
                 </LinearLayout>
             </LinearLayout>

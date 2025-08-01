@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/context_menu_background"
+    android:padding="8dp"
+    android:elevation="8dp">
+
+    <!-- 链接相关选项 -->
+    <LinearLayout
+        android:id="@+id/link_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_open_link"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="打开链接"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_web"
+            app:iconGravity="start" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_open_link_new_tab"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="在新卡片中打开"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_add"
+            app:iconGravity="start" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_open_link_background"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="在后台打开"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_add"
+            app:iconGravity="start" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_copy_link"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="复制链接"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_copy"
+            app:iconGravity="start" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginVertical="4dp" />
+
+    </LinearLayout>
+
+    <!-- 图片相关选项 -->
+    <LinearLayout
+        android:id="@+id/image_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_view_image"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="查看图片"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_image"
+            app:iconGravity="start" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_save_image"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="保存图片"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_save"
+            app:iconGravity="start" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_copy_image_url"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="复制图片地址"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_copy"
+            app:iconGravity="start" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginVertical="4dp" />
+
+    </LinearLayout>
+
+    <!-- 通用选项 -->
+    <LinearLayout
+        android:id="@+id/general_options"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="刷新页面"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_refresh"
+            app:iconGravity="start" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_share"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="分享页面"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_share"
+            app:iconGravity="start" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/menu_copy_url"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="复制页面地址"
+            android:textSize="14sp"
+            android:gravity="start|center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            style="@style/Widget.Material3.Button.TextButton"
+            app:icon="@drawable/ic_copy"
+            app:iconGravity="start" />
+
+    </LinearLayout>
+
+</LinearLayout>

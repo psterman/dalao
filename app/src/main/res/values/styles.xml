@@ -30,8 +30,8 @@
     <!-- 简易模式开关样式 -->
     <style name="SimpleModeSwitch" parent="Widget.MaterialComponents.CompoundButton.Switch">
         <item name="android:textColor">@color/simple_mode_text_secondary_light</item>
-        <item name="thumbTint">@color/simple_mode_button_primary_light</item>
-        <item name="trackTint">@color/simple_mode_divider_light</item>
+        <item name="thumbTint">@color/simple_mode_switch_thumb</item>
+        <item name="trackTint">@color/simple_mode_switch_track</item>
     </style>
     
     <!-- 简易模式Spinner样式 -->

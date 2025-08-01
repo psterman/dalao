@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- 平台信息栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <ImageView
+            android:id="@+id/platform_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_bilibili" />
+
+        <TextView
+            android:id="@+id/platform_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="哔哩哔哩"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/simple_mode_text_primary_light" />
+
+        <ImageButton
+            android:id="@+id/btn_refresh"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_refresh"
+            android:tint="@color/simple_mode_text_secondary_light"
+            android:contentDescription="刷新" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_add_creator"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="添加"
+            android:textSize="12sp"
+            android:textColor="@color/simple_mode_button_text_light"
+            android:backgroundTint="@color/simple_mode_accent_light"
+            app:cornerRadius="16dp"
+            android:minWidth="0dp"
+            android:paddingHorizontal="12dp"
+            style="@style/Widget.Material3.Button" />
+
+    </LinearLayout>
+
+    <!-- 内容列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rv_contents"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:nestedScrollingEnabled="false"
+        android:overScrollMode="never"
+        tools:listitem="@layout/item_content" />
+
+    <!-- 空状态 -->
+    <LinearLayout
+        android:id="@+id/layout_empty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_person_add"
+            android:tint="@color/simple_mode_text_secondary_light"
+            android:alpha="0.5" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="暂无订阅的创作者"
+            android:textSize="14sp"
+            android:textColor="@color/simple_mode_text_secondary_light" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="点击添加按钮开始订阅"
+            android:textSize="12sp"
+            android:textColor="@color/simple_mode_text_secondary_light" />
+
+    </LinearLayout>
+
+    <!-- 加载状态 -->
+    <LinearLayout
+        android:id="@+id/layout_loading"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="正在更新内容..."
+            android:textSize="14sp"
+            android:textColor="@color/simple_mode_text_secondary_light" />
+
+    </LinearLayout>
+
+</LinearLayout>
