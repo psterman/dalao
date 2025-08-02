@@ -91,7 +91,7 @@ class BilibiliDynamicManager private constructor(private val context: Context) {
             
             val user = userResult.getOrNull()!!
             val subscribedUser = SubscribedUser(
-                uid = user.mid,
+                uid = user. mid,
                 name = user.name,
                 avatar = user.face,
                 signature = user.sign,

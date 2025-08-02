@@ -6,6 +6,10 @@ import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
+import androidx.appcompat.app.AlertDialog
+import com.example.aifloatingball.voice.VoiceInputManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -57,13 +61,6 @@ import com.example.aifloatingball.views.WebViewTabBar
 import com.example.aifloatingball.views.MaterialSearchEngineSelector
 import com.example.aifloatingball.views.CardPreviewOverlay
 import com.example.aifloatingball.views.QuarterArcOperationBar
-import com.example.aifloatingball.views.MultiPlatformContentView
-import com.example.aifloatingball.manager.ContentSubscriptionManager
-import com.example.aifloatingball.service.ContentServiceFactory
-import com.example.aifloatingball.service.BilibiliContentService
-import com.example.aifloatingball.model.*
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
@@ -80,6 +77,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val KEY_VOICE_INTERACTION_MODE = "voice_interaction_mode"
         // 用于保存当前界面状态的键
         private const val KEY_CURRENT_STATE = "current_state"
+        // 系统语音输入请求码
+        private const val SYSTEM_VOICE_REQUEST_CODE = 1002
     }
 
     /**
@@ -174,6 +173,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var voiceSearchButton: MaterialButton
     private lateinit var voiceInteractionModeSwitch: com.google.android.material.switchmaterial.SwitchMaterial
 
+    // 需要根据语音支持情况控制显示的UI元素
+    private var voiceHintText: TextView? = null
+    private var voiceSettingsCard: MaterialCardView? = null
+
     // 浏览器页面组件 - 多页面WebView版本
     private lateinit var browserWebViewContainer: FrameLayout
     private lateinit var browserHomeContent: LinearLayout
@@ -216,9 +219,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserGestureDetector: GestureDetectorCompat
     private var currentSearchEngine: com.example.aifloatingball.model.SearchEngine? = null
 
-    // 多平台内容相关
-    private lateinit var multiPlatformContentView: MultiPlatformContentView
-    private lateinit var contentSubscriptionManager: ContentSubscriptionManager
+
 
     // 隐藏的组件用于兼容性
     private lateinit var browserViewPager: androidx.viewpager2.widget.ViewPager2
@@ -239,6 +240,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
     private var recognizedText = ""
+    private lateinit var voiceInputManager: VoiceInputManager
+    private var voiceSupportInfo: VoiceInputManager.VoiceSupportInfo? = null
     private val handler = Handler(Looper.getMainLooper())
     
     // 语音提示分支管理器
@@ -763,6 +766,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         prevStepButton = findViewById(R.id.prev_step_button)
         skipStepButton = findViewById(R.id.skip_step_button)
         nextStepButton = findViewById(R.id.next_step_button)
+
+        // 验证按钮是否正确初始化
+        Log.d(TAG, "步骤按钮初始化完成:")
+        Log.d(TAG, "  上一步按钮: ${if (::prevStepButton.isInitialized) "已初始化" else "未初始化"}")
+        Log.d(TAG, "  下一步按钮: ${if (::nextStepButton.isInitialized) "已初始化" else "未初始化"}")
+        Log.d(TAG, "  跳过按钮: ${if (::skipStepButton.isInitialized) "已初始化" else "未初始化"}")
         
         // Prompt预览页面
         finalPromptText = findViewById(R.id.final_prompt_text)
@@ -779,6 +788,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceClearButton = findViewById(R.id.voice_clear_button)
         voiceSearchButton = findViewById(R.id.voice_search_button)
         voiceInteractionModeSwitch = findViewById(R.id.voice_interaction_mode_switch)
+
+        // 查找需要根据语音支持情况控制的UI元素
+        voiceHintText = findViewById(R.id.voice_hint_text)
+        voiceSettingsCard = findViewById(R.id.voice_settings_card)
 
         // 浏览器页面 - 多页面WebView版本组件初始化
         browserWebViewContainer = findViewById(R.id.browser_webview_container)
@@ -820,8 +833,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserAutoHideSwitch = androidx.appcompat.widget.SwitchCompat(this)
         browserClipboardSwitch = androidx.appcompat.widget.SwitchCompat(this)
 
-        // 多平台内容视图
-        multiPlatformContentView = findViewById(R.id.multi_platform_content_view)
+
 
         // 设置页面 - 扩展所有设置选项
         displayModeSpinner = findViewById(R.id.display_mode_spinner)
@@ -868,9 +880,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置浏览器
         setupBrowserWebView()
-
-        // 初始化多平台内容订阅
-        setupMultiPlatformContent()
 
         // 初始化UI颜色
         updateUIColors()
@@ -1180,6 +1189,121 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             e.printStackTrace()
             appVersionText.text = "版本: N/A"
         }
+
+        // 初始化语音输入管理器
+        voiceInputManager = VoiceInputManager(this)
+        voiceInputManager.setCallback(object : VoiceInputManager.VoiceInputCallback {
+            override fun onVoiceInputResult(text: String) {
+                runOnUiThread {
+                    // 将识别结果添加到现有文本中
+                    val currentText = voiceTextInput.text.toString()
+                    val newText = if (currentText.isEmpty()) text else "$currentText $text"
+
+                    voiceTextInput.setText(newText)
+                    voiceTextInput.setSelection(newText.length)
+                    voiceStatusText.text = "识别完成，可以继续语音输入或开始搜索"
+                    voiceSearchButton.isEnabled = true
+
+                    // 重置监听状态
+                    isListening = false
+                    updateVoiceListeningState(false)
+                }
+            }
+
+            override fun onVoiceInputError(error: String) {
+                runOnUiThread {
+                    voiceStatusText.text = error
+                    isListening = false
+                    updateVoiceListeningState(false)
+                }
+            }
+
+            override fun onVoiceInputCancelled() {
+                runOnUiThread {
+                    voiceStatusText.text = "语音输入已取消"
+                    isListening = false
+                    updateVoiceListeningState(false)
+                }
+            }
+        })
+
+        // 检测语音支持情况并更新UI
+        detectAndUpdateVoiceSupport()
+    }
+
+    /**
+     * 检测语音支持情况并更新UI
+     */
+    private fun detectAndUpdateVoiceSupport() {
+        try {
+            voiceSupportInfo = voiceInputManager.detectVoiceSupport()
+            updateVoiceButtonState(voiceSupportInfo!!)
+            Log.d(TAG, "语音支持检测完成: ${voiceSupportInfo!!.statusMessage}")
+
+            // 如果不支持语音输入，显示提示
+            if (voiceSupportInfo!!.supportLevel == VoiceInputManager.SupportLevel.NO_SUPPORT) {
+                showNoVoiceSupportHint()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "语音支持检测失败", e)
+            // 如果检测失败，默认为不支持状态
+            voiceSupportInfo = VoiceInputManager.VoiceSupportInfo(
+                isSupported = false,
+                supportLevel = VoiceInputManager.SupportLevel.NO_SUPPORT,
+                availableMethods = listOf("手动输入"),
+                recommendedMethod = "手动输入",
+                statusMessage = "语音功能检测失败"
+            )
+            updateVoiceButtonState(voiceSupportInfo!!)
+            showNoVoiceSupportHint()
+        }
+    }
+
+    /**
+     * 显示不支持语音输入的提示
+     */
+    private fun showNoVoiceSupportHint() {
+        // 延迟显示提示，让UI先更新
+        handler.postDelayed({
+            Toast.makeText(this, "检测到设备不支持语音输入，已自动切换到文本输入模式", Toast.LENGTH_LONG).show()
+        }, 500)
+    }
+
+    /**
+     * 根据语音支持情况更新语音按钮状态
+     */
+    private fun updateVoiceButtonState(supportInfo: VoiceInputManager.VoiceSupportInfo) {
+        runOnUiThread {
+            if (supportInfo.isSupported) {
+                // 支持SpeechRecognizer：显示语音相关UI
+                voiceMicContainer.visibility = View.VISIBLE
+                voiceMicContainer.isEnabled = true
+                voiceStatusText.text = "点击麦克风开始语音输入"
+                voiceStatusText.setTextColor(ContextCompat.getColor(this, R.color.simple_mode_text_primary_light))
+
+                // 显示语音提示文本和设置
+                voiceHintText?.visibility = View.VISIBLE
+                voiceSettingsCard?.visibility = View.VISIBLE
+
+                Log.d(TAG, "显示语音UI：SpeechRecognizer可用")
+            } else {
+                // 不支持SpeechRecognizer：隐藏语音相关UI，自动显示输入法
+                voiceMicContainer.visibility = View.GONE
+                voiceStatusText.text = "请直接输入文本"
+                voiceStatusText.setTextColor(ContextCompat.getColor(this, R.color.simple_mode_text_secondary_light))
+
+                // 隐藏语音提示文本和设置
+                voiceHintText?.visibility = View.GONE
+                voiceSettingsCard?.visibility = View.GONE
+
+                // 自动聚焦到文本输入框并显示输入法
+                voiceTextInput.requestFocus()
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(voiceTextInput, InputMethodManager.SHOW_IMPLICIT)
+
+                Log.d(TAG, "隐藏语音UI：SpeechRecognizer不可用，自动显示输入法")
+            }
+        }
     }
 
     /**
@@ -1319,174 +1443,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
-    /**
-     * 初始化多平台内容订阅功能
-     */
-    private fun setupMultiPlatformContent() {
-        try {
-            // 初始化内容订阅管理器
-            contentSubscriptionManager = ContentSubscriptionManager.getInstance(this)
 
-            // 注册B站内容服务
-            val bilibiliService = BilibiliContentService.getInstance(this)
-            ContentServiceFactory.registerService(ContentPlatform.BILIBILI, bilibiliService)
 
-            // 设置支持的平台
-            val supportedPlatforms = ContentServiceFactory.getSupportedPlatforms()
-            multiPlatformContentView.setSupportedPlatforms(supportedPlatforms)
 
-            // 设置事件监听器
-            multiPlatformContentView.setOnActionListener(object : MultiPlatformContentView.OnActionListener {
-                override fun onPlatformSelected(platform: ContentPlatform) {
-                    Log.d(TAG, "Selected platform: ${platform.displayName}")
-                }
 
-                override fun onManagePlatformsClick() {
-                    showPlatformManagementDialog()
-                }
 
-                override fun onAddCreatorClick(platform: ContentPlatform) {
-                    showAddCreatorDialog(platform)
-                }
 
-                override fun onRefreshClick(platform: ContentPlatform) {
-                    refreshPlatformContent(platform)
-                }
 
-                override fun onContentClick(content: Content) {
-                    openContentInBrowser(content)
-                }
 
-                override fun onCreatorClick(creator: Creator) {
-                    openCreatorProfile(creator)
-                }
-            })
 
-            // 添加内容更新监听器
-            contentSubscriptionManager.addContentUpdateListener { platform, contents ->
-                runOnUiThread {
-                    multiPlatformContentView.updatePlatformContents(platform, contents)
-                }
-            }
 
-            // 添加订阅变化监听器
-            contentSubscriptionManager.addSubscriptionChangeListener { platform, creators ->
-                runOnUiThread {
-                    multiPlatformContentView.updatePlatformCreators(platform, creators)
-                }
-            }
 
-            // 初始加载所有平台内容
-            loadInitialPlatformContents()
-
-            Log.d(TAG, "多平台内容订阅功能初始化完成")
-        } catch (e: Exception) {
-            Log.e(TAG, "初始化多平台内容订阅功能失败", e)
-        }
-    }
-
-    /**
-     * 加载初始平台内容
-     */
-    private fun loadInitialPlatformContents() {
-        val supportedPlatforms = ContentServiceFactory.getSupportedPlatforms()
-
-        supportedPlatforms.forEach { platform ->
-            // 加载缓存的内容
-            val cachedContents = contentSubscriptionManager.getPlatformContents(platform)
-            multiPlatformContentView.updatePlatformContents(platform, cachedContents)
-
-            // 加载订阅的创作者
-            val creators = contentSubscriptionManager.getSubscribedCreators(platform)
-            multiPlatformContentView.updatePlatformCreators(platform, creators)
-
-            // 如果需要更新，则在后台更新
-            if (contentSubscriptionManager.shouldUpdate(platform)) {
-                refreshPlatformContent(platform)
-            }
-        }
-    }
-
-    /**
-     * 刷新指定平台内容
-     */
-    private fun refreshPlatformContent(platform: ContentPlatform) {
-        multiPlatformContentView.showPlatformLoading(platform)
-
-        lifecycleScope.launch {
-            try {
-                val result = contentSubscriptionManager.updatePlatformContents(platform)
-                if (result.isSuccess) {
-                    runOnUiThread {
-                        Toast.makeText(this@SimpleModeActivity, "${platform.displayName}内容更新完成", Toast.LENGTH_SHORT).show()
-                    }
-                } else {
-                    runOnUiThread {
-                        Toast.makeText(this@SimpleModeActivity, "${platform.displayName}内容更新失败", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "刷新${platform.displayName}内容失败", e)
-                runOnUiThread {
-                    Toast.makeText(this@SimpleModeActivity, "${platform.displayName}内容更新出错", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    /**
-     * 显示平台管理对话框
-     */
-    private fun showPlatformManagementDialog() {
-        // TODO: 实现平台管理对话框
-        Toast.makeText(this, "平台管理功能开发中", Toast.LENGTH_SHORT).show()
-    }
-
-    /**
-     * 显示添加创作者对话框
-     */
-    private fun showAddCreatorDialog(platform: ContentPlatform) {
-        // TODO: 实现添加创作者对话框
-        Toast.makeText(this, "添加${platform.displayName}创作者功能开发中", Toast.LENGTH_SHORT).show()
-    }
-
-    /**
-     * 在浏览器中打开内容
-     */
-    private fun openContentInBrowser(content: Content) {
-        val url = if (content.contentUrl.isNotEmpty()) {
-            content.contentUrl
-        } else {
-            content.platform.baseUrl
-        }
-        openUrlInBrowser(url)
-    }
-
-    /**
-     * 打开创作者主页
-     */
-    private fun openCreatorProfile(creator: Creator) {
-        val url = if (creator.profileUrl.isNotEmpty()) {
-            creator.profileUrl
-        } else {
-            ContentServiceFactory.getService(creator.platform)?.getCreatorUrl(creator.uid) ?: creator.platform.baseUrl
-        }
-        openUrlInBrowser(url)
-    }
-
-    /**
-     * 在浏览器中打开URL
-     */
-    private fun openUrlInBrowser(url: String) {
-        try {
-            // 在当前浏览器中打开URL
-            browserSearchInput.setText(url)
-            performBrowserSearch()
-        } catch (e: Exception) {
-            Log.e(TAG, "打开URL失败: $url", e)
-            Toast.makeText(this, "打开链接失败", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     /**
      * 更新设置页面布局以适应左手模式
@@ -1891,24 +1858,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun setupCurrentStep() {
         val template = currentTemplate ?: return
         val fields = template.fields
-        
+
+        Log.d(TAG, "设置当前步骤: $currentStepIndex, 总步骤数: ${fields.size}")
+
         if (currentStepIndex >= fields.size) {
             // 所有步骤完成，显示预览
+            Log.d(TAG, "所有步骤完成，显示预览")
             showPromptPreview()
             return
         }
-        
+
         val currentField = fields[currentStepIndex]
-        
+
         // 更新标题和问题
         stepTitleText.text = "${template.intentName} - 步骤 ${currentStepIndex + 1}/${fields.size}"
         stepQuestionText.text = currentField.question
-        
+
         // 隐藏所有输入组件
         stepInputLayout.visibility = View.GONE
         stepChoiceGroup.visibility = View.GONE
         stepMultiChoiceLayout.visibility = View.GONE
-        
+
         // 根据字段类型显示对应的输入组件
         when (currentField.type) {
             FieldType.TEXT_INPUT -> {
@@ -1924,11 +1894,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 setupMultipleChoice(currentField)
             }
         }
-        
+
         // 设置按钮状态
-        prevStepButton.isEnabled = currentStepIndex > 0
+        val canGoPrev = currentStepIndex > 0
+        prevStepButton.isEnabled = true  // 总是启用，因为第一步时可以返回首页
+        prevStepButton.text = if (canGoPrev) "上一步" else "返回首页"
         skipStepButton.visibility = if (currentField.isOptional) View.VISIBLE else View.GONE
-        
+
+        Log.d(TAG, "上一步按钮状态: enabled=true, text=${prevStepButton.text}")
+
         // 设置按钮点击事件
         setupStepButtons(currentField)
     }
@@ -1959,24 +1933,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     private fun setupStepButtons(field: PromptField) {
+        // 清除之前的监听器，避免重复设置
+        nextStepButton.setOnClickListener(null)
+        prevStepButton.setOnClickListener(null)
+        skipStepButton.setOnClickListener(null)
+
         nextStepButton.setOnClickListener {
+            Log.d(TAG, "下一步按钮被点击，当前步骤: $currentStepIndex")
             if (collectCurrentStepData(field)) {
                 currentStepIndex++
                 setupCurrentStep()
             }
         }
-        
+
         prevStepButton.setOnClickListener {
+            Log.d(TAG, "上一步按钮被点击，当前步骤: $currentStepIndex")
             if (currentStepIndex > 0) {
                 currentStepIndex--
+                Log.d(TAG, "返回到步骤: $currentStepIndex")
                 setupCurrentStep()
             } else {
                 // 如果是第一步，返回首页
+                Log.d(TAG, "已是第一步，返回任务选择页面")
                 showTaskSelection()
             }
         }
-        
+
         skipStepButton.setOnClickListener {
+            Log.d(TAG, "跳过按钮被点击，当前步骤: $currentStepIndex")
             if (field.isOptional) {
                 currentStepIndex++
                 setupCurrentStep()
@@ -2134,6 +2118,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             return
         }
 
+        // 如果在步骤引导页面，处理返回逻辑
+        if (currentState == UIState.STEP_GUIDANCE) {
+            if (currentStepIndex > 0) {
+                // 返回上一步
+                currentStepIndex--
+                setupCurrentStep()
+            } else {
+                // 如果是第一步，返回任务选择页面
+                showTaskSelection()
+            }
+            return
+        }
+
+        // 如果在提示预览页面，返回步骤引导
+        if (currentState == UIState.PROMPT_PREVIEW) {
+            showStepGuidance()
+            return
+        }
+
         // 否则，执行Activity的默认返回逻辑
         super.onBackPressed()
     }
@@ -2202,44 +2205,67 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     private fun resetVoiceUI() {
-        voiceStatusText.text = "点击麦克风开始语音输入"
         voiceTextInput.setText("")
         recognizedText = ""
         isListening = false
-        voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, R.color.colorPrimary))
         voiceSearchButton.isEnabled = false
+
+        // 根据当前语音支持情况设置UI状态
+        val supportInfo = voiceSupportInfo
+        if (supportInfo != null) {
+            updateVoiceButtonState(supportInfo)
+        } else {
+            // 如果还没有检测结果，显示默认状态
+            voiceStatusText.text = "正在检测语音功能..."
+            voiceMicContainer.visibility = View.VISIBLE
+        }
+
+        // 恢复默认背景色
+        voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, R.color.simple_mode_accent_light))
     }
     
     private fun toggleVoiceRecognition() {
+        // 检查语音支持情况
+        val supportInfo = voiceSupportInfo
+        if (supportInfo == null) {
+            voiceStatusText.text = "语音功能检测中，请稍后重试"
+            return
+        }
+
         if (isListening) {
             stopVoiceRecognition()
-        } else {
+            return
+        }
+
+        // 如果按钮可见，说明支持SpeechRecognizer，直接启动
+        if (supportInfo.isSupported) {
             startVoiceRecognition()
+        } else {
+            // 这种情况不应该发生，因为按钮已经隐藏了
+            Log.w(TAG, "语音按钮被点击但不支持SpeechRecognizer")
+            voiceStatusText.text = "语音功能不可用"
         }
     }
+
+
     
     private fun startVoiceRecognition() {
         // 检查权限
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, 
+            ActivityCompat.requestPermissions(this,
                 arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
             return
         }
-        
-        // 检查语音识别可用性
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            voiceStatusText.text = "设备不支持语音识别"
-            return
-        }
-        
+
+        // 直接使用SpeechRecognizer（因为按钮只在支持时才显示）
         // 释放之前的识别器
         releaseSpeechRecognizer()
-        
+
         // 创建新的语音识别器
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
         speechRecognizer?.setRecognitionListener(createVoiceRecognitionListener())
-        
+
         // 创建识别意图
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -2247,15 +2273,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
-        
+
         try {
             isListening = true
             updateVoiceListeningState(true)
             speechRecognizer?.startListening(intent)
         } catch (e: Exception) {
-            Log.e(TAG, "语音识别启动失败", e)
+            Log.e(TAG, "SpeechRecognizer启动失败", e)
             voiceStatusText.text = "语音识别启动失败"
             isListening = false
+            updateVoiceListeningState(false)
         }
     }
     
@@ -2369,18 +2396,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             SpeechRecognizer.ERROR_NETWORK -> "网络错误"
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "没有录音权限"
             SpeechRecognizer.ERROR_NO_MATCH -> "未识别到语音"
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别服务忙"
+            SpeechRecognizer.ERROR_SERVER -> "服务器错误"
             else -> "识别错误"
         }
-        
+
         // 对于非致命错误，自动重试
-        if (error == SpeechRecognizer.ERROR_NO_MATCH || 
-            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT ||
+            error == SpeechRecognizer.ERROR_CLIENT) {
             voiceStatusText.text = "请再说一遍"
             handler.postDelayed({
                 if (isListening) {
                     startVoiceRecognition()
                 }
             }, 500)
+        } else if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ||
+                   error == SpeechRecognizer.ERROR_SERVER ||
+                   error == SpeechRecognizer.ERROR_NETWORK) {
+            // 对于服务相关错误，尝试系统语音输入
+            Log.w(TAG, "SpeechRecognizer服务错误，尝试系统语音输入: $errorMessage")
+            isListening = false
+            updateVoiceListeningState(false)
+            trySystemVoiceInput()
         } else {
             voiceStatusText.text = errorMessage
             isListening = false
@@ -2392,6 +2430,63 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceTextInput.setText("")
         recognizedText = ""
         voiceSearchButton.isEnabled = false
+    }
+
+    /**
+     * 尝试使用系统语音输入
+     */
+    private fun trySystemVoiceInput() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "请说话...")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+
+        try {
+            // 检查是否有应用能处理语音识别Intent
+            val activities = packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+
+            if (activities.isNotEmpty()) {
+                // 有可用的语音识别应用，启动系统语音输入
+                voiceStatusText.text = "启动系统语音输入..."
+                startActivityForResult(intent, SYSTEM_VOICE_REQUEST_CODE)
+            } else {
+                // 没有可用的语音识别应用
+                showVoiceRecognitionNotAvailableDialog()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动系统语音输入失败: ${e.message}")
+            showVoiceRecognitionNotAvailableDialog()
+        }
+    }
+
+    /**
+     * 显示语音识别不可用对话框
+     */
+    private fun showVoiceRecognitionNotAvailableDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("语音服务不可用")
+            .setMessage("您的设备没有可用的语音识别服务。您可以：\n\n1. 安装或启用语音输入应用（如搜狗输入法、百度输入法等）\n2. 安装Google应用\n3. 检查系统设置中的语音输入选项")
+            .setPositiveButton("手动输入") { dialog, _ ->
+                // 允许用户手动输入文本
+                voiceStatusText.text = "请在下方输入文本，然后点击搜索"
+                voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+                voiceTextInput.requestFocus()
+
+                // 显示键盘
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(voiceTextInput, InputMethodManager.SHOW_IMPLICIT)
+
+                // 确保搜索按钮可用
+                voiceSearchButton.isEnabled = true
+                Log.d(TAG, "切换到手动输入模式")
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
     }
     
     private fun executeVoiceSearch() {
@@ -4402,6 +4497,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         return super.dispatchTouchEvent(ev)
+    }
+
+    /**
+     * 处理Activity结果
+     */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        // 由于简化了逻辑，这里暂时不需要处理特殊的Activity结果
+    }
+
+    /**
+     * 处理权限请求结果
+     */
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            1001 -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    // 权限授予后重新检测语音支持情况
+                    detectAndUpdateVoiceSupport()
+                    startVoiceRecognition()
+                } else {
+                    voiceStatusText.text = "需要录音权限才能使用语音识别"
+                    // 权限被拒绝后也重新检测，可能有其他不需要权限的方案
+                    detectAndUpdateVoiceSupport()
+                }
+            }
+        }
     }
 
     /**

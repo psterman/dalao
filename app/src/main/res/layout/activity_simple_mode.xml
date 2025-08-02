@@ -310,6 +310,7 @@
                     android:layout_marginBottom="8dp" />
 
                 <TextView
+                    android:id="@+id/voice_hint_text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="点击麦克风开始语音输入，或直接编辑文本"
@@ -405,6 +406,7 @@
 
             <!-- 功能选项区域 -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/voice_settings_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
@@ -1951,12 +1953,7 @@
 
                         </LinearLayout>
 
-                        <!-- 多平台内容订阅卡片 -->
-                        <com.example.aifloatingball.views.MultiPlatformContentView
-                            android:id="@+id/multi_platform_content_view"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp" />
+
 
                         <!-- 快捷方式网格 -->
                         <androidx.recyclerview.widget.RecyclerView
