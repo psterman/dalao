@@ -1253,25 +1253,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val drawerContent = findViewById<LinearLayout>(R.id.browser_nav_drawer)
 
         if (drawerLayout != null && drawerContent != null) {
-            val layoutParams = drawerContent.layoutParams as? androidx.drawerlayout.widget.DrawerLayout.LayoutParams
-            layoutParams?.let { params ->
-                // 左手模式：抽屉在左边，右手模式：抽屉在右边
-                params.gravity = if (isLeftHanded) {
-                    androidx.core.view.GravityCompat.START
-                } else {
-                    androidx.core.view.GravityCompat.END
-                }
-                drawerContent.layoutParams = params
-            }
+            // 抽屉在布局文件中固定为START位置，不需要动态修改
+            // 只需要确保抽屉是解锁状态
+            drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED, androidx.core.view.GravityCompat.START)
+            drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED, androidx.core.view.GravityCompat.END)
 
-            // 更新抽屉锁定模式
-            if (isLeftHanded) {
-                drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED, androidx.core.view.GravityCompat.START)
-                drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED, androidx.core.view.GravityCompat.END)
-            } else {
-                drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED, androidx.core.view.GravityCompat.END)
-                drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED, androidx.core.view.GravityCompat.START)
-            }
+            Log.d(TAG, "抽屉锁定模式已更新，START: ${drawerLayout.getDrawerLockMode(androidx.core.view.GravityCompat.START)}")
         }
 
         // 更新标题栏按钮位置
@@ -1301,21 +1288,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             menuButton.setOnClickListener {
                 val drawerLayout = findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.browser_layout)
                 if (drawerLayout != null) {
-                    if (isLeftHanded) {
-                        // 左手模式：打开左侧抽屉
-                        if (drawerLayout.isDrawerOpen(androidx.core.view.GravityCompat.START)) {
-                            drawerLayout.closeDrawer(androidx.core.view.GravityCompat.START)
-                        } else {
-                            drawerLayout.openDrawer(androidx.core.view.GravityCompat.START)
-                        }
+                    // 抽屉在布局中固定为START位置，所以统一使用START
+                    if (drawerLayout.isDrawerOpen(androidx.core.view.GravityCompat.START)) {
+                        Log.d(TAG, "关闭抽屉")
+                        drawerLayout.closeDrawer(androidx.core.view.GravityCompat.START)
                     } else {
-                        // 右手模式：打开右侧抽屉
-                        if (drawerLayout.isDrawerOpen(androidx.core.view.GravityCompat.END)) {
-                            drawerLayout.closeDrawer(androidx.core.view.GravityCompat.END)
-                        } else {
-                            drawerLayout.openDrawer(androidx.core.view.GravityCompat.END)
-                        }
+                        Log.d(TAG, "打开抽屉")
+                        drawerLayout.openDrawer(androidx.core.view.GravityCompat.START)
                     }
+                } else {
+                    Log.e(TAG, "找不到浏览器抽屉布局")
                 }
             }
         }
@@ -2944,6 +2926,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 为WebView容器设置手势监听
         browserWebViewContainer.setOnTouchListener { _, event ->
+            // 如果抽屉已经打开，不处理手势，让抽屉优先处理触摸事件
+            if (browserLayout.isDrawerOpen(GravityCompat.START) || browserLayout.isDrawerOpen(GravityCompat.END)) {
+                return@setOnTouchListener false
+            }
             browserGestureDetector.onTouchEvent(event)
             false
         }
@@ -3029,9 +3015,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 菜单按钮 - 打开搜索引擎侧边栏
         browserBtnMenu.setOnClickListener {
+            Log.d(TAG, "菜单按钮被点击")
             if (browserLayout.isDrawerOpen(GravityCompat.START)) {
+                Log.d(TAG, "关闭抽屉")
                 browserLayout.closeDrawer(GravityCompat.START)
             } else {
+                Log.d(TAG, "打开抽屉")
                 browserLayout.openDrawer(GravityCompat.START)
             }
         }
@@ -3129,25 +3118,37 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
                 // 更新透明度和动画
                 drawerView.alpha = 0.3f + (0.7f * slideOffset)
+                Log.d(TAG, "抽屉滑动，偏移量: $slideOffset")
             }
 
             override fun onDrawerOpened(drawerView: View) {
                 drawerView.alpha = 1.0f
+                Log.d(TAG, "抽屉已打开")
                 // 打开抽屉时更新搜索引擎列表
                 updateBrowserEngineList('#')
             }
 
             override fun onDrawerClosed(drawerView: View) {
-                // 抽屉关闭
+                Log.d(TAG, "抽屉已关闭")
             }
 
-            override fun onDrawerStateChanged(newState: Int) {}
+            override fun onDrawerStateChanged(newState: Int) {
+                Log.d(TAG, "抽屉状态改变: $newState")
+            }
         })
 
         // 设置退出按钮点击监听器
         browserExitButton.setOnClickListener {
             browserLayout.closeDrawer(GravityCompat.START)
         }
+
+        // 确保抽屉可以被触摸和滑动
+        browserLayout.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED)
+
+        // 启用抽屉边缘滑动手势
+        browserLayout.setScrimColor(0x99000000.toInt()) // 设置半透明遮罩
+
+        Log.d(TAG, "浏览器抽屉设置完成，锁定模式: ${browserLayout.getDrawerLockMode(GravityCompat.START)}")
 
         // 设置字母索引栏
         setupBrowserLetterIndexBar()
@@ -4151,6 +4152,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserLetterIndexBar.engines = allEngines
         browserLetterIndexBar.onLetterSelectedListener = object : com.example.aifloatingball.view.LetterIndexBar.OnLetterSelectedListener {
             override fun onLetterSelected(view: View, letter: Char) {
+                Log.d(TAG, "字母索引栏被点击，选择字母: $letter")
                 updateBrowserEngineList(letter)
             }
         }
@@ -4384,6 +4386,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             showBrowserHome()
             Log.d(TAG, "切换到主页模式")
         }
+    }
+
+    /**
+     * 重写触摸事件分发，确保抽屉打开时优先处理抽屉的触摸事件
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev == null) return super.dispatchTouchEvent(ev)
+
+        // 如果浏览器抽屉已经打开，优先让抽屉处理触摸事件
+        if (::browserLayout.isInitialized &&
+            (browserLayout.isDrawerOpen(GravityCompat.START) || browserLayout.isDrawerOpen(GravityCompat.END))) {
+            Log.d(TAG, "抽屉已打开，传递触摸事件给抽屉处理")
+            return super.dispatchTouchEvent(ev)
+        }
+
+        return super.dispatchTouchEvent(ev)
     }
 
     /**

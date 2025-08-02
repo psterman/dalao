@@ -453,6 +453,11 @@ class SearchActivity : AppCompatActivity() {
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
         if (ev == null) return super.dispatchTouchEvent(ev)
 
+        // 如果抽屉已经打开，优先让抽屉处理触摸事件
+        if (drawerLayout.isDrawerOpen(GravityCompat.START) || drawerLayout.isDrawerOpen(GravityCompat.END)) {
+            return super.dispatchTouchEvent(ev)
+        }
+
         // 处理缩放手势
         scaleGestureDetector.onTouchEvent(ev)
 
@@ -469,7 +474,7 @@ class SearchActivity : AppCompatActivity() {
                 }
             }
             MotionEvent.ACTION_UP -> {
-                if (isTwoFingerTap && 
+                if (isTwoFingerTap &&
                     System.currentTimeMillis() - lastTapTime < DOUBLE_TAP_TIMEOUT &&
                     !isScaling) {
                     // 双指轻点刷新
@@ -485,10 +490,12 @@ class SearchActivity : AppCompatActivity() {
             return true
         }
 
-        // 处理单指手势（滑动导航等）
-        gestureDetector.onTouchEvent(ev)
+        // 只有在抽屉关闭时才处理单指手势（滑动导航等）
+        if (!drawerLayout.isDrawerOpen(GravityCompat.START) && !drawerLayout.isDrawerOpen(GravityCompat.END)) {
+            gestureDetector.onTouchEvent(ev)
+        }
 
-        // 对于单指操作，传递给 WebView 处理滚动和点击
+        // 对于单指操作，传递给父类处理
         return super.dispatchTouchEvent(ev)
     }
 
