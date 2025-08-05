@@ -34,6 +34,7 @@ import androidx.viewpager2.widget.ViewPager2
 import androidx.core.view.GravityCompat
 import androidx.core.view.GestureDetectorCompat
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.button.MaterialButton
@@ -117,11 +118,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     // 界面状态
     private enum class UIState {
+        CHAT,              // 对话页面
+        BROWSER,           // 搜索页面
         TASK_SELECTION,    // 任务选择页面
         STEP_GUIDANCE,     // 步骤引导页面
-        PROMPT_PREVIEW,    // Prompt预览页面
+        PROMPT_PREVIEW,    // 提示预览页面
         VOICE,             // 语音页面
-        BROWSER,           // 浏览器页面
         SETTINGS           // 设置页面
     }
     
@@ -132,6 +134,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var settingsManager: SettingsManager
 
     // UI组件
+    private lateinit var chatLayout: LinearLayout
     private lateinit var taskSelectionLayout: LinearLayout
     private lateinit var stepGuidanceLayout: LinearLayout
     private lateinit var promptPreviewLayout: LinearLayout
@@ -323,6 +326,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         initializeViews()
         setupTaskSelection()
+        setupChat()
 
         // 检查是否需要恢复之前的状态
         val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
@@ -330,8 +334,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "Restoring saved state: $savedState")
             restoreState(savedState)
         } else {
-            Log.d(TAG, "No saved state, showing task selection")
-            showTaskSelection()
+            Log.d(TAG, "No saved state, showing chat")
+            showChat()
         }
 
         // 处理从其他地方传入的搜索内容
@@ -363,6 +367,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "Restoring to state: $state")
 
             when (state) {
+                UIState.CHAT -> showChat()
                 UIState.TASK_SELECTION -> showTaskSelection()
                 UIState.STEP_GUIDANCE -> {
                     // 如果有保存的任务数据，恢复到步骤引导页面
@@ -389,7 +394,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "Error restoring state: $stateName", e)
             // 如果恢复失败，回到默认状态
-            showTaskSelection()
+            showChat()
         }
     }
     
@@ -720,10 +725,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 由于底部导航栏始终保持LTR方向，tab顺序在左右手模式下都是一致的
             // 所以可以使用固定的索引映射
             val isSelected = when (i) {
-                0 -> currentState == UIState.TASK_SELECTION  // 首页
+                0 -> currentState == UIState.CHAT            // 对话
                 1 -> currentState == UIState.BROWSER         // 搜索
-                2 -> currentState == UIState.VOICE           // 语音
-                3 -> currentState == UIState.SETTINGS        // 设置
+                2 -> currentState == UIState.TASK_SELECTION  // 任务
+                3 -> currentState == UIState.VOICE           // 语音
+                4 -> currentState == UIState.SETTINGS        // 设置
                 else -> false
             }
 
@@ -743,6 +749,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     private fun initializeViews() {
         // 主要布局
+        chatLayout = findViewById(R.id.chat_layout)
         taskSelectionLayout = findViewById(R.id.task_selection_layout)
         stepGuidanceLayout = findViewById(R.id.step_guidance_layout)
         promptPreviewLayout = findViewById(R.id.prompt_preview_layout)
@@ -1603,6 +1610,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     private fun showVoice() {
         currentState = UIState.VOICE
+        chatLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -1622,6 +1630,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     private fun showSettings() {
         currentState = UIState.SETTINGS
+        chatLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -1658,6 +1667,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     private fun showBrowser() {
         currentState = UIState.BROWSER
+        chatLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -1677,18 +1687,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     private fun setupBottomNavigation() {
-        findViewById<LinearLayout>(R.id.tab_home)?.setOnClickListener {
-            showTaskSelection()
+        // 对话tab (最左边)
+        findViewById<LinearLayout>(R.id.tab_chat)?.setOnClickListener {
+            showChat()
         }
 
+        // 搜索tab (第二位)
         findViewById<LinearLayout>(R.id.tab_search)?.setOnClickListener {
             showBrowser()
         }
 
+        // 任务tab (第三位，原首页)
+        findViewById<LinearLayout>(R.id.tab_home)?.setOnClickListener {
+            showTaskSelection()
+        }
+
+        // 语音tab (第四位)
         findViewById<LinearLayout>(R.id.tab_voice)?.setOnClickListener {
             showVoice()
         }
 
+        // 设置tab (最右边)
         findViewById<LinearLayout>(R.id.tab_settings)?.setOnClickListener {
             showSettings()
         }
@@ -1814,8 +1833,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         showStepGuidance()
     }
     
+    private fun showChat() {
+        currentState = UIState.CHAT
+        chatLayout.visibility = View.VISIBLE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
+        
+        // 更新Tab颜色状态
+        updateTabColors()
+    }
+    
     private fun showTaskSelection() {
         currentState = UIState.TASK_SELECTION
+        chatLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.VISIBLE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -1829,6 +1863,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     private fun showStepGuidance() {
         currentState = UIState.STEP_GUIDANCE
+        chatLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.VISIBLE
         promptPreviewLayout.visibility = View.GONE
@@ -1843,6 +1878,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     private fun showPromptPreview() {
         currentState = UIState.PROMPT_PREVIEW
+        chatLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.VISIBLE
@@ -4532,5 +4568,88 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun Int.dpToPx(): Int {
         return (this * resources.displayMetrics.density).toInt()
+    }
+
+    /**
+     * 设置对话功能
+     */
+    private fun setupChat() {
+        try {
+            // 初始化对话相关的UI组件
+            val chatSearchInput = findViewById<EditText>(R.id.chat_search_input)
+            val chatAddContactButton = findViewById<MaterialButton>(R.id.chat_add_contact_button)
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            val chatContactsRecyclerView = findViewById<RecyclerView>(R.id.chat_contacts_recycler_view)
+
+            // 设置搜索功能
+            chatSearchInput?.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    // 实现搜索逻辑
+                    performChatSearch(s?.toString() ?: "")
+                }
+            })
+
+            // 设置添加联系人按钮
+            chatAddContactButton?.setOnClickListener {
+                // 打开添加联系人界面
+                openAddContactDialog()
+            }
+
+            // 设置TabLayout
+            chatTabLayout?.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
+                override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                    when (tab?.position) {
+                        0 -> showAIContacts()
+                        1 -> showRSSContacts()
+                    }
+                }
+
+                override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+                override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+            })
+
+            // 设置RecyclerView
+            chatContactsRecyclerView?.layoutManager = LinearLayoutManager(this)
+            // TODO: 设置联系人适配器
+
+            Log.d(TAG, "对话功能初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置对话功能失败", e)
+        }
+    }
+
+    /**
+     * 执行对话搜索
+     */
+    private fun performChatSearch(query: String) {
+        // TODO: 实现搜索逻辑
+        Log.d(TAG, "执行对话搜索: $query")
+    }
+
+    /**
+     * 显示AI联系人
+     */
+    private fun showAIContacts() {
+        // TODO: 显示AI联系人列表
+        Log.d(TAG, "显示AI联系人")
+    }
+
+    /**
+     * 显示RSS联系人
+     */
+    private fun showRSSContacts() {
+        // TODO: 显示RSS联系人列表
+        Log.d(TAG, "显示RSS联系人")
+    }
+
+    /**
+     * 打开添加联系人对话框
+     */
+    private fun openAddContactDialog() {
+        // TODO: 实现添加联系人对话框
+        Log.d(TAG, "打开添加联系人对话框")
+        Toast.makeText(this, "添加联系人功能开发中...", Toast.LENGTH_SHORT).show()
     }
 }

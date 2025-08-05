@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/chat_layout"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="vertical"
+    android:background="@color/simple_mode_background_light"
+    android:visibility="gone">
+
+    <!-- 搜索框和添加按钮 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:background="@color/simple_mode_card_background_light"
+        android:elevation="2dp">
+
+        <!-- 搜索框 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/search_box_background"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_search"
+                android:contentDescription="搜索"
+                app:tint="@color/simple_mode_text_secondary_light" />
+
+            <EditText
+                android:id="@+id/chat_search_input"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:background="@android:color/transparent"
+                android:hint="搜索联系人..."
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:singleLine="true"
+                android:textColor="@color/simple_mode_text_primary_light"
+                android:textColorHint="@color/simple_mode_text_secondary_light"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- 添加联系人按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/chat_add_contact_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/circle_button_background"
+            android:src="@drawable/ic_add"
+            app:icon="@drawable/ic_add"
+            app:iconSize="20dp"
+            app:iconTint="@color/simple_mode_text_primary_light"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton" />
+    </LinearLayout>
+
+    <!-- 分类标签 -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/chat_tab_layout"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@color/simple_mode_card_background_light"
+        app:tabTextColor="@color/simple_mode_text_secondary_light"
+        app:tabSelectedTextColor="@color/simple_mode_accent_light"
+        app:tabIndicatorColor="@color/simple_mode_accent_light"
+        app:tabMode="fixed"
+        app:tabGravity="fill">
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI联系人" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="RSS联系人" />
+
+    </com.google.android.material.tabs.TabLayout>
+
+    <!-- 联系人列表 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/chat_contacts_recycler_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="8dp" />
+
+</LinearLayout> 

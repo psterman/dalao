@@ -9,6 +9,94 @@
 
 
 
+    <!-- 对话页面 -->
+    <LinearLayout
+        android:id="@+id/chat_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:visibility="gone"
+        android:background="@color/simple_mode_background_light">
+        
+        <!-- 对话页面标题 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="24dp">
+
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_chat"
+                app:tint="@color/simple_mode_accent_light"
+                android:layout_marginEnd="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AI对话"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="@color/simple_mode_text_primary_light" />
+        </LinearLayout>
+
+        <!-- 搜索框 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:layout_marginBottom="24dp"
+            android:background="@drawable/search_box_background"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="20dp">
+
+            <EditText
+                android:id="@+id/chat_search_input"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:hint="输入您的问题..."
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:singleLine="true"
+                android:textColor="@color/simple_mode_input_text_light"
+                android:textColorHint="@color/simple_mode_input_hint_light"
+                android:textSize="16sp"
+                android:gravity="center_vertical" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/chat_add_contact_button"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_add"
+                android:contentDescription="添加联系人"
+                android:scaleType="fitCenter"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+
+        <!-- Tab布局 -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/chat_tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:tabMode="fixed"
+            app:tabGravity="fill" />
+
+        <!-- 联系人列表 -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/chat_contacts_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
     <!-- 任务选择页面 -->
     <LinearLayout
         android:id="@+id/task_selection_layout"
@@ -2240,8 +2328,9 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
         
+        <!-- 对话tab (最左边) -->
         <LinearLayout
-            android:id="@+id/tab_home"
+            android:id="@+id/tab_chat"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
@@ -2254,18 +2343,19 @@
             <ImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:src="@drawable/ic_home"
+                android:src="@drawable/ic_chat"
                 app:tint="@color/simple_mode_tab_icon_normal_light" />
                 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="首页"
+                android:text="对话"
                 android:textColor="@color/simple_mode_tab_text_normal_light"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
         
+        <!-- 搜索tab (第二位) -->
         <LinearLayout
             android:id="@+id/tab_search"
             android:layout_width="0dp"
@@ -2293,6 +2383,34 @@
                 android:layout_marginTop="4dp" />
         </LinearLayout>
         
+        <!-- 任务tab (第三位，原首页) -->
+        <LinearLayout
+            android:id="@+id/tab_home"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+            
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_home"
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="任务"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+        
+        <!-- 语音tab (第四位) -->
         <LinearLayout
             android:id="@+id/tab_voice"
             android:layout_width="0dp"
@@ -2319,6 +2437,7 @@
                 android:layout_marginTop="4dp" />
         </LinearLayout>
         
+        <!-- 设置tab (最右边) -->
         <LinearLayout
             android:id="@+id/tab_settings"
             android:layout_width="0dp"
