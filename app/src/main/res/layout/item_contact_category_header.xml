@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="8dp"
+    android:gravity="center_vertical"
+    android:background="@color/chat_category_header_background_light">
+
+    <TextView
+        android:id="@+id/category_name_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="分类名称"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="@color/chat_category_name_text_light" />
+
+    <TextView
+        android:id="@+id/contact_count_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0个联系人"
+        android:textSize="12sp"
+        android:textColor="@color/chat_category_count_text_light" />
+
+</LinearLayout> 

@@ -219,4 +219,55 @@
     <color name="colorPrimary">#64B5F6</color>
     <color name="colorPrimaryDark">#42A5F5</color>
     <color name="colorAccent">#64B5F6</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== 聊天联系人界面颜色 - 暗色模式 ================= -->
+    <!-- =============================================================== -->
+
+    <!-- 💬 聊天联系人卡片颜色 -->
+    <color name="chat_contact_card_background_light">#1E1E1E</color>
+    <color name="chat_contact_avatar_tint_light">#07C160</color>
+    <color name="chat_contact_name_text_light">#FFFFFF</color>
+    <color name="chat_contact_description_text_light">#CCCCCC</color>
+    <color name="chat_contact_last_message_text_light">#999999</color>
+    <color name="chat_contact_time_text_light">#999999</color>
+    <color name="chat_contact_unread_text_light">#FFFFFF</color>
+    <color name="chat_contact_pinned_tint_light">#FF9500</color>
+    <color name="chat_contact_muted_tint_light">#666666</color>
+
+    <!-- 📂 分类标题颜色 -->
+    <color name="chat_category_header_background_light">#2A2A2A</color>
+    <color name="chat_category_name_text_light">#07C160</color>
+    <color name="chat_category_count_text_light">#999999</color>
+
+    <!-- 🎨 对话框颜色 -->
+    <color name="dialog_background_light">#1E1E1E</color>
+    <color name="dialog_title_text_light">#FFFFFF</color>
+    <color name="dialog_button_text_light">#07C160</color>
+    <color name="dialog_cancel_button_background_light">#2A2A2A</color>
+
+    <!-- ➕ 添加联系人选项颜色 -->
+    <color name="contact_option_card_background_light">#2A2A2A</color>
+    <color name="contact_option_title_text_light">#FFFFFF</color>
+    <color name="contact_option_description_text_light">#CCCCCC</color>
+    <color name="contact_option_arrow_tint_light">#999999</color>
+    <color name="ai_contact_icon_tint_light">#07C160</color>
+    <color name="rss_contact_icon_tint_light">#FF9500</color>
+
+    <!-- 🔴 在线状态指示器 -->
+    <color name="online_indicator_color">#07C160</color>
+
+    <!-- 🔴 未读消息数背景 -->
+    <color name="unread_count_background_color">#FA5151</color>
+
+    <!-- 📌 头像背景 -->
+    <color name="contact_avatar_background_color">#1A3D1A</color>
+    
+    <!-- 🎨 图标颜色 -->
+    <color name="pin_icon_color">#FFB74D</color>
+    <color name="mute_icon_color">#757575</color>
+    <color name="add_button_icon_color">#FFFFFF</color>
+    <color name="ai_icon_color">#64B5F6</color>
+    <color name="rss_icon_color">#FF8A65</color>
+
 </resources>

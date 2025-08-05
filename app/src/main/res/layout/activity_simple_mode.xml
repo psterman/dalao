@@ -36,12 +36,23 @@
                 android:layout_marginEnd="12dp" />
 
             <TextView
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:text="AI对话"
                 android:textSize="24sp"
                 android:textStyle="bold"
                 android:textColor="@color/simple_mode_text_primary_light" />
+
+            <ImageButton
+                android:id="@+id/chat_add_contact_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_add"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/simple_mode_accent_light"
+                android:contentDescription="添加联系人"
+                android:scaleType="fitCenter" />
         </LinearLayout>
 
         <!-- 搜索框 -->
@@ -56,9 +67,8 @@
 
             <EditText
                 android:id="@+id/chat_search_input"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_weight="1"
                 android:background="@android:color/transparent"
                 android:hint="输入您的问题..."
                 android:imeOptions="actionSearch"
@@ -68,16 +78,6 @@
                 android:textColorHint="@color/simple_mode_input_hint_light"
                 android:textSize="16sp"
                 android:gravity="center_vertical" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/chat_add_contact_button"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="@android:color/transparent"
-                android:src="@drawable/ic_add"
-                android:contentDescription="添加联系人"
-                android:scaleType="fitCenter"
-                android:layout_marginStart="8dp" />
         </LinearLayout>
 
         <!-- Tab布局 -->
@@ -85,7 +85,7 @@
             android:id="@+id/chat_tab_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="8dp"
             app:tabMode="fixed"
             app:tabGravity="fill" />
 

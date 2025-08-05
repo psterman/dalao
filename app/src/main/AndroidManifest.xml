@@ -98,6 +98,23 @@
             android:exported="false"
             android:label="AI搜索引擎设置"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+
+                    <!-- 添加联系人相关Activity -->
+            <activity
+                android:name=".AddAIContactActivity"
+                android:exported="false"
+                android:label="添加AI助手"
+                android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+            <activity
+                android:name=".AddRSSContactActivity"
+                android:exported="false"
+                android:label="添加RSS订阅"
+                android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+            <activity
+                android:name=".ChatActivity"
+                android:exported="false"
+                android:label="聊天"
+                android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity android:name=".SubSettingsActivity"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity

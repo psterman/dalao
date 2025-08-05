@@ -49,6 +49,10 @@ import com.example.aifloatingball.model.PromptTemplate
 import com.example.aifloatingball.model.PromptField
 import com.example.aifloatingball.model.FieldType
 import com.example.aifloatingball.model.UserPromptData
+import com.example.aifloatingball.model.ChatContact
+import com.example.aifloatingball.model.ContactType
+import com.example.aifloatingball.model.ContactCategory
+import com.example.aifloatingball.adapter.ChatContactAdapter
 
 import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
@@ -80,6 +84,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val KEY_CURRENT_STATE = "current_state"
         // 系统语音输入请求码
         private const val SYSTEM_VOICE_REQUEST_CODE = 1002
+        // 添加AI联系人请求码
+        private const val REQUEST_ADD_AI_CONTACT = 2001
+        // 添加RSS联系人请求码
+        private const val REQUEST_ADD_RSS_CONTACT = 2002
     }
 
     /**
@@ -193,6 +201,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 多页面WebView管理器
     private var multiPageWebViewManager: MultiPageWebViewManager? = null
+
+    // 聊天联系人相关
+    private var chatContactAdapter: ChatContactAdapter? = null
+    private var allContacts = mutableListOf<ContactCategory>()
+    private var currentFilteredContacts = mutableListOf<ContactCategory>()
 
     // 手势卡片式WebView管理器
     private var gestureCardWebViewManager: GestureCardWebViewManager? = null
@@ -369,7 +382,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             when (state) {
                 UIState.CHAT -> showChat()
                 UIState.TASK_SELECTION -> showTaskSelection()
-                UIState.STEP_GUIDANCE -> {
+                UIState. STEP_GUIDANCE -> {
                     // 如果有保存的任务数据，恢复到步骤引导页面
                     // 否则回到任务选择页面
                     if (::userPromptData.isInitialized) {
@@ -4535,13 +4548,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         return super.dispatchTouchEvent(ev)
     }
 
-    /**
-     * 处理Activity结果
-     */
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        // 由于简化了逻辑，这里暂时不需要处理特殊的Activity结果
-    }
+
 
     /**
      * 处理权限请求结果
@@ -4577,9 +4584,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             // 初始化对话相关的UI组件
             val chatSearchInput = findViewById<EditText>(R.id.chat_search_input)
-            val chatAddContactButton = findViewById<MaterialButton>(R.id.chat_add_contact_button)
+            val chatAddContactButton = findViewById<ImageButton>(R.id.chat_add_contact_button)
             val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
             val chatContactsRecyclerView = findViewById<RecyclerView>(R.id.chat_contacts_recycler_view)
+
+            // 初始化联系人适配器
+            val chatContactAdapter = ChatContactAdapter(
+                onContactClick = { contact ->
+                    // 处理联系人点击事件
+                    openChatWithContact(contact)
+                },
+                onContactLongClick = { contact ->
+                    // 处理联系人长按事件
+                    showContactOptionsDialog(contact)
+                    true
+                }
+            )
+
+            // 设置RecyclerView
+            chatContactsRecyclerView?.apply {
+                layoutManager = LinearLayoutManager(this@SimpleModeActivity)
+                adapter = chatContactAdapter
+            }
+
+            // 保存适配器引用
+            this.chatContactAdapter = chatContactAdapter
 
             // 设置搜索功能
             chatSearchInput?.addTextChangedListener(object : android.text.TextWatcher {
@@ -4598,21 +4627,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             // 设置TabLayout
-            chatTabLayout?.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
-                override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
-                    when (tab?.position) {
-                        0 -> showAIContacts()
-                        1 -> showRSSContacts()
+            chatTabLayout?.apply {
+                // 添加标签页
+                addTab(newTab().setText("全部"))
+                addTab(newTab().setText("AI助手"))
+                addTab(newTab().setText("RSS订阅"))
+                
+                addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
+                    override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                        when (tab?.position) {
+                            0 -> chatContactAdapter?.updateContacts(allContacts)
+                            1 -> showAIContacts()
+                            2 -> showRSSContacts()
+                        }
                     }
-                }
 
-                override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
-                override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
-            })
+                    override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+                    override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+                })
+            }
 
-            // 设置RecyclerView
-            chatContactsRecyclerView?.layoutManager = LinearLayoutManager(this)
-            // TODO: 设置联系人适配器
+            // 加载初始数据
+            loadInitialContacts()
 
             Log.d(TAG, "对话功能初始化完成")
         } catch (e: Exception) {
@@ -4624,32 +4660,509 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 执行对话搜索
      */
     private fun performChatSearch(query: String) {
-        // TODO: 实现搜索逻辑
-        Log.d(TAG, "执行对话搜索: $query")
+        try {
+            chatContactAdapter?.searchContacts(query)
+            Log.d(TAG, "执行对话搜索: $query")
+        } catch (e: Exception) {
+            Log.e(TAG, "搜索失败", e)
+        }
     }
 
     /**
      * 显示AI联系人
      */
     private fun showAIContacts() {
-        // TODO: 显示AI联系人列表
-        Log.d(TAG, "显示AI联系人")
+        try {
+            val aiContacts = allContacts.filter { it.name == "AI助手" }
+            chatContactAdapter?.updateContacts(aiContacts)
+            Log.d(TAG, "显示AI联系人")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI联系人失败", e)
+        }
     }
 
     /**
      * 显示RSS联系人
      */
     private fun showRSSContacts() {
-        // TODO: 显示RSS联系人列表
-        Log.d(TAG, "显示RSS联系人")
+        try {
+            val rssContacts = allContacts.filter { it.name == "RSS订阅" }
+            chatContactAdapter?.updateContacts(rssContacts)
+            Log.d(TAG, "显示RSS联系人")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示RSS联系人失败", e)
+        }
     }
 
     /**
      * 打开添加联系人对话框
      */
     private fun openAddContactDialog() {
-        // TODO: 实现添加联系人对话框
-        Log.d(TAG, "打开添加联系人对话框")
-        Toast.makeText(this, "添加联系人功能开发中...", Toast.LENGTH_SHORT).show()
+        try {
+            val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_contact, null)
+            val dialog = AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create()
+
+            // 设置AI助手选项点击事件
+            dialogView.findViewById<MaterialCardView>(R.id.ai_contact_option)?.setOnClickListener {
+                dialog.dismiss()
+                openAddAIContactDialog()
+            }
+
+            // 设置RSS订阅选项点击事件
+            dialogView.findViewById<MaterialCardView>(R.id.rss_contact_option)?.setOnClickListener {
+                dialog.dismiss()
+                openAddRSSContactDialog()
+            }
+
+            // 设置取消按钮点击事件
+            dialogView.findViewById<MaterialButton>(R.id.cancel_button)?.setOnClickListener {
+                dialog.dismiss()
+            }
+
+            dialog.show()
+            Log.d(TAG, "打开添加联系人对话框")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开添加联系人对话框失败", e)
+            Toast.makeText(this, "打开添加联系人对话框失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 加载初始联系人数据
+     */
+    private fun loadInitialContacts() {
+        try {
+            // 创建示例AI联系人
+            val aiContacts = listOf(
+                ChatContact(
+                    id = "ai_1",
+                    name = "ChatGPT",
+                    type = ContactType.AI,
+                    description = "OpenAI的AI助手",
+                    isOnline = true,
+                    lastMessage = "你好！我是ChatGPT，有什么可以帮助你的吗？",
+                    lastMessageTime = System.currentTimeMillis() - 3600000, // 1小时前
+                    unreadCount = 2,
+                    customData = mapOf("api_url" to "https://api.openai.com/v1/chat/completions")
+                ),
+                ChatContact(
+                    id = "ai_2",
+                    name = "Claude",
+                    type = ContactType.AI,
+                    description = "Anthropic的AI助手",
+                    isOnline = true,
+                    lastMessage = "我可以帮助你解决各种问题",
+                    lastMessageTime = System.currentTimeMillis() - 7200000, // 2小时前
+                    unreadCount = 0,
+                    customData = mapOf("api_url" to "https://api.anthropic.com/v1/messages")
+                ),
+                ChatContact(
+                    id = "ai_3",
+                    name = "Gemini",
+                    type = ContactType.AI,
+                    description = "Google的AI助手",
+                    isOnline = false,
+                    lastMessage = "正在处理您的请求...",
+                    lastMessageTime = System.currentTimeMillis() - 86400000, // 1天前
+                    unreadCount = 1,
+                    isPinned = true,
+                    customData = mapOf("api_url" to "https://generativelanguage.googleapis.com/v1beta/models")
+                ),
+                ChatContact(
+                    id = "ai_4",
+                    name = "文心一言",
+                    type = ContactType.AI,
+                    description = "百度的大语言模型",
+                    isOnline = true,
+                    lastMessage = "我是文心一言，中文AI助手。",
+                    lastMessageTime = System.currentTimeMillis() - 900000, // 15分钟前
+                    unreadCount = 1,
+                    customData = mapOf("api_url" to "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat")
+                ),
+                ChatContact(
+                    id = "ai_5",
+                    name = "通义千问",
+                    type = ContactType.AI,
+                    description = "阿里巴巴的大语言模型",
+                    isOnline = true,
+                    lastMessage = "我是通义千问，有什么可以帮助您的？",
+                    lastMessageTime = System.currentTimeMillis() - 1800000, // 30分钟前
+                    unreadCount = 0,
+                    customData = mapOf("api_url" to "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation")
+                )
+            )
+
+            // 创建示例RSS联系人
+            val rssContacts = listOf(
+                ChatContact(
+                    id = "rss_1",
+                    name = "科技新闻",
+                    type = ContactType.RSS,
+                    description = "最新科技资讯",
+                    isOnline = true,
+                    lastMessage = "新文章：人工智能发展最新趋势",
+                    lastMessageTime = System.currentTimeMillis() - 1800000, // 30分钟前
+                    unreadCount = 5,
+                    customData = mapOf("rss_url" to "https://www.cnbeta.com/backend.php")
+                ),
+                ChatContact(
+                    id = "rss_2",
+                    name = "阮一峰的网络日志",
+                    type = ContactType.RSS,
+                    description = "编程学习资源",
+                    isOnline = true,
+                    lastMessage = "新教程：Kotlin协程详解",
+                    lastMessageTime = System.currentTimeMillis() - 5400000, // 1.5小时前
+                    unreadCount = 3,
+                    isMuted = true,
+                    customData = mapOf("rss_url" to "https://www.ruanyifeng.com/blog/atom.xml")
+                ),
+                ChatContact(
+                    id = "rss_3",
+                    name = "36氪",
+                    type = ContactType.RSS,
+                    description = "创业公司新闻",
+                    isOnline = true,
+                    lastMessage = "新文章：2024年创业趋势预测",
+                    lastMessageTime = System.currentTimeMillis() - 2700000, // 45分钟前
+                    unreadCount = 3,
+                    customData = mapOf("rss_url" to "https://36kr.com/feed")
+                ),
+                ChatContact(
+                    id = "rss_4",
+                    name = "机器之心",
+                    type = ContactType.RSS,
+                    description = "AI技术发展",
+                    isOnline = true,
+                    lastMessage = "新文章：大语言模型技术突破",
+                    lastMessageTime = System.currentTimeMillis() - 900000, // 15分钟前
+                    unreadCount = 7,
+                    isPinned = true,
+                    customData = mapOf("rss_url" to "https://www.jiqizhixin.com/rss")
+                ),
+                ChatContact(
+                    id = "rss_5",
+                    name = "少数派",
+                    type = ContactType.RSS,
+                    description = "数字生活指南",
+                    isOnline = true,
+                    lastMessage = "新文章：效率工具推荐",
+                    lastMessageTime = System.currentTimeMillis() - 3600000, // 1小时前
+                    unreadCount = 2,
+                    customData = mapOf("rss_url" to "https://sspai.com/feed")
+                )
+            )
+
+            // 创建分类
+            allContacts = mutableListOf(
+                ContactCategory("AI助手", aiContacts),
+                ContactCategory("RSS订阅", rssContacts)
+            )
+
+            // 更新适配器
+            chatContactAdapter?.updateContacts(allContacts)
+            Log.d(TAG, "初始联系人数据加载完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "加载初始联系人数据失败", e)
+        }
+    }
+
+    /**
+     * 打开与联系人的聊天
+     */
+    private fun openChatWithContact(contact: ChatContact) {
+        try {
+            val intent = Intent(this, ChatActivity::class.java)
+            intent.putExtra(ChatActivity.EXTRA_CONTACT, contact)
+            startActivity(intent)
+            Log.d(TAG, "打开与联系人的聊天: ${contact.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开聊天失败", e)
+            Toast.makeText(this, "打开聊天失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示联系人选项对话框
+     */
+    private fun showContactOptionsDialog(contact: ChatContact) {
+        try {
+            val options = mutableListOf<String>()
+            
+            // 根据当前状态动态添加选项
+            if (contact.isPinned) {
+                options.add("取消置顶")
+            } else {
+                options.add("置顶")
+            }
+            
+            if (contact.isMuted) {
+                options.add("取消静音")
+            } else {
+                options.add("静音")
+            }
+            
+            options.add("删除")
+            
+            AlertDialog.Builder(this)
+                .setTitle("${contact.name} 选项")
+                .setItems(options.toTypedArray()) { _, which ->
+                    when (options[which]) {
+                        "置顶" -> toggleContactPin(contact, true)
+                        "取消置顶" -> toggleContactPin(contact, false)
+                        "静音" -> toggleContactMute(contact, true)
+                        "取消静音" -> toggleContactMute(contact, false)
+                        "删除" -> deleteContact(contact)
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示联系人选项对话框失败", e)
+        }
+    }
+
+    /**
+     * 切换联系人置顶状态
+     */
+    private fun toggleContactPin(contact: ChatContact, isPinned: Boolean) {
+        try {
+            // 找到联系人所在的分类和位置
+            val categoryIndex = allContacts.indexOfFirst { category ->
+                category.contacts.any { it.id == contact.id }
+            }
+
+            if (categoryIndex != -1) {
+                val category = allContacts[categoryIndex]
+                val contactIndex = category.contacts.indexOfFirst { it.id == contact.id }
+                
+                if (contactIndex != -1) {
+                    val updatedContacts = category.contacts.toMutableList()
+                    val updatedContact = contact.copy(isPinned = isPinned)
+                    updatedContacts[contactIndex] = updatedContact
+                    
+                    // 重新排序：置顶的联系人在前面
+                    val sortedContacts = if (isPinned) {
+                        updatedContacts.sortedWith(compareByDescending<ChatContact> { it.isPinned }
+                            .thenByDescending { it.lastMessageTime })
+                    } else {
+                        updatedContacts.sortedWith(compareByDescending<ChatContact> { it.isPinned }
+                            .thenByDescending { it.lastMessageTime })
+                    }
+                    
+                    allContacts[categoryIndex] = category.copy(contacts = sortedContacts)
+                    chatContactAdapter?.updateContacts(allContacts)
+                    
+                    val action = if (isPinned) "已置顶" else "已取消置顶"
+                    Toast.makeText(this, "${contact.name} $action", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "切换联系人置顶状态: ${contact.name} -> $isPinned")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换联系人置顶状态失败", e)
+        }
+    }
+
+    /**
+     * 切换联系人静音状态
+     */
+    private fun toggleContactMute(contact: ChatContact, isMuted: Boolean) {
+        try {
+            // 找到联系人所在的分类和位置
+            val categoryIndex = allContacts.indexOfFirst { category ->
+                category.contacts.any { it.id == contact.id }
+            }
+
+            if (categoryIndex != -1) {
+                val category = allContacts[categoryIndex]
+                val contactIndex = category.contacts.indexOfFirst { it.id == contact.id }
+                
+                if (contactIndex != -1) {
+                    val updatedContacts = category.contacts.toMutableList()
+                    val updatedContact = contact.copy(isMuted = isMuted)
+                    updatedContacts[contactIndex] = updatedContact
+                    
+                    allContacts[categoryIndex] = category.copy(contacts = updatedContacts)
+                    chatContactAdapter?.updateContacts(allContacts)
+                    
+                    val action = if (isMuted) "已静音" else "已取消静音"
+                    Toast.makeText(this, "${contact.name} $action", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "切换联系人静音状态: ${contact.name} -> $isMuted")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换联系人静音状态失败", e)
+        }
+    }
+
+    /**
+     * 切换分类展开状态
+     */
+    private fun toggleCategoryExpansion(category: ContactCategory) {
+        try {
+            val index = allContacts.indexOfFirst { it.name == category.name }
+            if (index != -1) {
+                allContacts[index] = category.copy(isExpanded = !category.isExpanded)
+                chatContactAdapter?.updateContacts(allContacts)
+            }
+            Log.d(TAG, "切换分类展开状态: ${category.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "切换分类展开状态失败", e)
+        }
+    }
+
+    /**
+     * 打开添加AI联系人对话框
+     */
+    private fun openAddAIContactDialog() {
+        try {
+            val intent = Intent(this, AddAIContactActivity::class.java)
+            startActivityForResult(intent, REQUEST_ADD_AI_CONTACT)
+            Log.d(TAG, "打开添加AI联系人界面")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开添加AI联系人界面失败", e)
+            Toast.makeText(this, "打开添加AI联系人界面失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 打开添加RSS联系人对话框
+     */
+    private fun openAddRSSContactDialog() {
+        try {
+            val intent = Intent(this, AddRSSContactActivity::class.java)
+            startActivityForResult(intent, REQUEST_ADD_RSS_CONTACT)
+            Log.d(TAG, "打开添加RSS联系人界面")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开添加RSS联系人界面失败", e)
+            Toast.makeText(this, "打开添加RSS联系人界面失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+
+    /**
+     * 删除联系人
+     */
+    private fun deleteContact(contact: ChatContact) {
+        try {
+            AlertDialog.Builder(this)
+                .setTitle("删除联系人")
+                .setMessage("确定要删除 ${contact.name} 吗？")
+                .setPositiveButton("删除") { _, _ ->
+                    // 从联系人列表中删除
+                    removeContactFromList(contact)
+                    Toast.makeText(this, "${contact.name} 已删除", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "删除联系人: ${contact.name}")
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "删除联系人失败", e)
+        }
+    }
+
+    /**
+     * 从联系人列表中删除联系人
+     */
+    private fun removeContactFromList(contact: ChatContact) {
+        try {
+            // 找到联系人所在的分类
+            val categoryIndex = allContacts.indexOfFirst { category ->
+                category.contacts.any { it.id == contact.id }
+            }
+
+            if (categoryIndex != -1) {
+                val category = allContacts[categoryIndex]
+                val updatedContacts = category.contacts.filter { it.id != contact.id }
+                
+                if (updatedContacts.isEmpty()) {
+                    // 如果分类中没有联系人了，删除整个分类
+                    allContacts.removeAt(categoryIndex)
+                } else {
+                    // 更新分类中的联系人列表
+                    allContacts[categoryIndex] = category.copy(contacts = updatedContacts)
+                }
+
+                // 更新适配器
+                chatContactAdapter?.updateContacts(allContacts)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "从列表中删除联系人失败", e)
+        }
+    }
+
+    /**
+     * 处理Activity结果
+     */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (resultCode == RESULT_OK && data != null) {
+            when (requestCode) {
+                REQUEST_ADD_AI_CONTACT -> {
+                    val contact = data.getParcelableExtra<ChatContact>(AddAIContactActivity.EXTRA_AI_CONTACT)
+                    contact?.let { addContactToList(it) }
+                }
+                REQUEST_ADD_RSS_CONTACT -> {
+                    val contact = data.getParcelableExtra<ChatContact>(AddRSSContactActivity.EXTRA_RSS_CONTACT)
+                    contact?.let { addContactToList(it) }
+                }
+            }
+        }
+    }
+
+    /**
+     * 添加联系人到列表
+     */
+    private fun addContactToList(contact: ChatContact) {
+        try {
+            val categoryName = when (contact.type) {
+                ContactType.AI -> "AI助手"
+                ContactType.RSS -> "RSS订阅"
+            }
+
+            // 查找或创建对应的分类
+            val categoryIndex = allContacts.indexOfFirst { it.name == categoryName }
+            
+            if (categoryIndex != -1) {
+                // 分类已存在，添加联系人到现有分类
+                val category = allContacts[categoryIndex]
+                val updatedContacts = category.contacts.toMutableList()
+                
+                // 检查是否已存在相同ID的联系人
+                val existingIndex = updatedContacts.indexOfFirst { it.id == contact.id }
+                if (existingIndex != -1) {
+                    // 如果已存在，更新联系人信息
+                    updatedContacts[existingIndex] = contact
+                } else {
+                    // 如果不存在，添加新联系人
+                    updatedContacts.add(contact)
+                }
+                
+                // 重新排序：置顶的联系人在前面，然后按最后消息时间排序
+                val sortedContacts = updatedContacts.sortedWith(
+                    compareByDescending<ChatContact> { it.isPinned }
+                        .thenByDescending { it.lastMessageTime }
+                )
+                
+                allContacts[categoryIndex] = category.copy(contacts = sortedContacts)
+            } else {
+                // 分类不存在，创建新分类
+                val newCategory = ContactCategory(categoryName, listOf(contact))
+                allContacts.add(newCategory)
+            }
+
+            // 更新适配器
+            chatContactAdapter?.updateContacts(allContacts)
+            
+            Toast.makeText(this, "已添加 ${contact.name}", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "添加联系人到列表: ${contact.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "添加联系人到列表失败", e)
+        }
     }
 }
