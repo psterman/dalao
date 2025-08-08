@@ -103,6 +103,8 @@
             android:exported="false"
             android:label="DeepSeek API诊断"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+            
+
 
                     <!-- 添加联系人相关Activity -->
             <activity

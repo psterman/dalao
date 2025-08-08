@@ -364,6 +364,8 @@
     <color name="simple_mode_button_text_light">#FFFFFF</color>      <!-- 主按钮文字 -->
     <color name="simple_mode_button_outline_light">#07C160</color>   <!-- 边框按钮 -->
     <color name="simple_mode_button_surface_light">#F5F5F5</color>   <!-- 表面按钮 -->
+    <color name="simple_mode_button_disabled_light">#BDBDBD</color>   <!-- 禁用按钮 -->
+    <color name="simple_mode_button_pressed_light">#05A050</color>   <!-- 按下按钮 -->
 
     <!-- 🎯 强调色系 - 亮色模式 -->
     <color name="simple_mode_accent_light">#07C160</color>           <!-- 强调色 -->

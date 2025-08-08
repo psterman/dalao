@@ -68,37 +68,62 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="16dp"
+        android:orientation="vertical"
         android:background="@color/simple_mode_surface_light"
         android:elevation="4dp">
 
-        <EditText
-            android:id="@+id/message_input"
-            android:layout_width="0dp"
+        <!-- AI助手档案列表 -->
+        <HorizontalScrollView
+            android:id="@+id/prompt_list_container"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/message_input_background"
-            android:hint="输入消息..."
             android:paddingHorizontal="16dp"
-            android:paddingVertical="12dp"
-            android:textColor="@color/simple_mode_input_text_light"
-            android:textColorHint="@color/simple_mode_input_hint_light"
-            android:textSize="16sp"
-            android:maxLines="4"
-            android:minHeight="48dp" />
+            android:paddingVertical="8dp"
+            android:visibility="gone">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/send_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:text="发送"
-            android:textSize="14sp"
-            android:textColor="@color/simple_mode_button_text_light"
-            android:backgroundTint="@color/simple_mode_button_primary_light"
-            app:cornerRadius="24dp"
-            android:enabled="false" />
+            <LinearLayout
+                android:id="@+id/prompt_list"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical" />
+
+        </HorizontalScrollView>
+
+        <!-- 输入和按钮区域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp">
+
+            <EditText
+                android:id="@+id/message_input"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/message_input_background"
+                android:hint="输入消息..."
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="12dp"
+                android:textColor="@color/simple_mode_input_text_light"
+                android:textColorHint="@color/simple_mode_input_hint_light"
+                android:textSize="16sp"
+                android:maxLines="4"
+                android:minHeight="48dp" />
+
+            <ImageButton
+                android:id="@+id/send_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_send"
+                android:background="@drawable/send_button_background"
+                android:tint="@color/simple_mode_button_text_light"
+                android:contentDescription="发送"
+                android:enabled="false" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

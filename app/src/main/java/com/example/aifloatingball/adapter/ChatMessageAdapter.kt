@@ -14,7 +14,9 @@ import java.util.*
  * 聊天消息适配器
  */
 class ChatMessageAdapter(
-    private var messages: List<ChatActivity.ChatMessage> = emptyList()
+    private var messages: List<ChatActivity.ChatMessage> = emptyList(),
+    private val onMessageLongClick: ((ChatActivity.ChatMessage, Int) -> Unit)? = null,
+    private val onRegenerateClick: ((ChatActivity.ChatMessage, Int) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -31,12 +33,12 @@ class ChatMessageAdapter(
             TYPE_USER_MESSAGE -> {
                 val view = LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_chat_message_user, parent, false)
-                UserMessageViewHolder(view)
+                UserMessageViewHolder(view, onMessageLongClick)
             }
             TYPE_AI_MESSAGE -> {
                 val view = LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_chat_message_ai, parent, false)
-                AIMessageViewHolder(view)
+                AIMessageViewHolder(view, onMessageLongClick, onRegenerateClick)
             }
             else -> throw IllegalArgumentException("Unknown view type: $viewType")
         }
@@ -45,8 +47,8 @@ class ChatMessageAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val message = messages[position]
         when (holder) {
-            is UserMessageViewHolder -> holder.bind(message)
-            is AIMessageViewHolder -> holder.bind(message)
+            is UserMessageViewHolder -> holder.bind(message, position)
+            is AIMessageViewHolder -> holder.bind(message, position)
         }
     }
 
@@ -77,13 +79,23 @@ class ChatMessageAdapter(
     /**
      * 用户消息ViewHolder
      */
-    class UserMessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    class UserMessageViewHolder(
+        itemView: View,
+        private val onMessageLongClick: ((ChatActivity.ChatMessage, Int) -> Unit)?
+    ) : RecyclerView.ViewHolder(itemView) {
         private val messageText: TextView = itemView.findViewById(R.id.message_text)
         private val timeText: TextView = itemView.findViewById(R.id.time_text)
+        private val messageCard: com.google.android.material.card.MaterialCardView = itemView.findViewById(R.id.message_card)
 
-        fun bind(message: ChatActivity.ChatMessage) {
+        fun bind(message: ChatActivity.ChatMessage, position: Int) {
             messageText.text = message.content
             timeText.text = formatTime(message.timestamp)
+            
+            // 设置长按事件
+            messageCard.setOnLongClickListener {
+                onMessageLongClick?.invoke(message, position)
+                true
+            }
         }
 
         private fun formatTime(timestamp: Long): String {
@@ -95,13 +107,33 @@ class ChatMessageAdapter(
     /**
      * AI消息ViewHolder
      */
-    class AIMessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    class AIMessageViewHolder(
+        itemView: View,
+        private val onMessageLongClick: ((ChatActivity.ChatMessage, Int) -> Unit)?,
+        private val onRegenerateClick: ((ChatActivity.ChatMessage, Int) -> Unit)?
+    ) : RecyclerView.ViewHolder(itemView) {
         private val messageText: TextView = itemView.findViewById(R.id.message_text)
         private val timeText: TextView = itemView.findViewById(R.id.time_text)
+        private val messageCard: com.google.android.material.card.MaterialCardView = itemView.findViewById(R.id.message_card)
+        private val regenerateButton: TextView = itemView.findViewById(R.id.regenerate_button)
 
-        fun bind(message: ChatActivity.ChatMessage) {
+        fun bind(message: ChatActivity.ChatMessage, position: Int) {
             messageText.text = message.content
             timeText.text = formatTime(message.timestamp)
+            
+            // 设置长按事件
+            messageCard.setOnLongClickListener {
+                onMessageLongClick?.invoke(message, position)
+                true
+            }
+            
+            // 设置重新生成按钮
+            regenerateButton.setOnClickListener {
+                onRegenerateClick?.invoke(message, position)
+            }
+            
+            // 只有AI消息且不是用户消息时才显示重新生成按钮
+            regenerateButton.visibility = if (!message.isFromUser && message.content.isNotEmpty()) View.VISIBLE else View.GONE
         }
 
         private fun formatTime(timestamp: Long): String {
