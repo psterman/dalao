@@ -26,8 +26,7 @@ data class ChatContact(
  * 联系人类型
  */
 enum class ContactType {
-    AI,     // AI助手
-    RSS     // RSS订阅
+    AI      // AI助手
 }
 
 /**

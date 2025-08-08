@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/simple_mode_background_light">
+
+    <!-- 工具栏 -->
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/simple_mode_toolbar_background_light"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light" />
+
+    <!-- 主内容区域 -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- 说明卡片 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="DeepSeek API诊断工具"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginBottom="8dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="此工具可以帮助您诊断DeepSeek API连接问题，特别是401认证错误。请输入您的API密钥开始诊断。"
+                        android:textSize="14sp"
+                        android:textColor="@color/simple_mode_text_secondary_light"
+                        android:lineSpacingExtra="2dp" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- API密钥输入卡片 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="API密钥"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginBottom="8dp" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/api_key_layout"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="输入DeepSeek API密钥"
+                        app:boxStrokeColor="@color/simple_mode_border_light"
+                        app:hintTextColor="@color/simple_mode_input_hint_light"
+                        app:errorTextColor="@color/error_color">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/api_key_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textPassword"
+                            android:textColor="@color/simple_mode_input_text_light"
+                            android:background="@color/simple_mode_input_background_light" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="提示：API密钥应该以'sk-'开头，长度至少20个字符"
+                        android:textSize="12sp"
+                        android:textColor="@color/simple_mode_text_hint_light"
+                        android:layout_marginTop="4dp" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 操作按钮卡片 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="诊断操作"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- 进度条 -->
+                    <ProgressBar
+                        android:id="@+id/progress_bar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- 诊断按钮 -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/diagnose_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="开始完整诊断"
+                        android:textSize="14sp"
+                        app:cornerRadius="8dp"
+                        android:layout_marginBottom="8dp"
+                        app:backgroundTint="@color/primary_color" />
+
+                    <!-- 测试连接按钮 -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/test_connection_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="测试连接"
+                        android:textSize="14sp"
+                        app:cornerRadius="8dp"
+                        android:layout_marginBottom="8dp"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:strokeColor="@color/simple_mode_border_light"
+                        android:textColor="@color/simple_mode_text_primary_light" />
+
+                    <!-- 测试模型按钮 -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/test_models_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="获取可用模型"
+                        android:textSize="14sp"
+                        app:cornerRadius="8dp"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:strokeColor="@color/simple_mode_border_light"
+                        android:textColor="@color/simple_mode_text_primary_light" />
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 结果显示卡片 -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/result_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/simple_mode_card_background_light">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="诊断结果"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- 结果文本 -->
+                    <ScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:maxHeight="400dp">
+
+                        <TextView
+                            android:id="@+id/result_text"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:textSize="12sp"
+                            android:textColor="@color/simple_mode_text_primary_light"
+                            android:fontFamily="monospace"
+                            android:lineSpacingExtra="2dp"
+                            android:background="@color/simple_mode_input_background_light"
+                            android:padding="12dp" />
+
+                    </ScrollView>
+
+                    <!-- 操作按钮 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="end">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/copy_button"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="复制"
+                            android:textSize="12sp"
+                            app:cornerRadius="6dp"
+                            android:layout_marginEnd="8dp"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            app:strokeColor="@color/simple_mode_border_light"
+                            android:textColor="@color/simple_mode_text_primary_light" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/share_button"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="分享"
+                            android:textSize="12sp"
+                            app:cornerRadius="6dp"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            app:strokeColor="@color/simple_mode_border_light"
+                            android:textColor="@color/simple_mode_text_primary_light" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+    </ScrollView>
+
+</LinearLayout>

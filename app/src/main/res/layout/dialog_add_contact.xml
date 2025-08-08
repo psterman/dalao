@@ -80,12 +80,12 @@
 
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- RSS订阅选项 -->
+    <!-- 填写API选项 -->
     <com.google.android.material.card.MaterialCardView
-        android:id="@+id/rss_contact_option"
+        android:id="@+id/api_contact_option"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
+        android:layout_marginBottom="12dp"
         app:cardCornerRadius="12dp"
         app:cardElevation="2dp"
         app:cardBackgroundColor="@color/contact_option_card_background_light"
@@ -103,8 +103,8 @@
             <ImageView
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:src="@drawable/ic_rss"
-                app:tint="@color/rss_contact_icon_tint_light"
+                android:src="@drawable/ic_ai_ball"
+                app:tint="@color/ai_contact_icon_tint_light"
                 android:layout_marginEnd="16dp" />
 
             <LinearLayout
@@ -116,7 +116,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="RSS订阅"
+                    android:text="填写API"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="@color/contact_option_title_text_light" />
@@ -124,7 +124,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="添加RSS订阅源"
+                    android:text="自定义AI助手API配置"
                     android:textSize="14sp"
                     android:textColor="@color/contact_option_description_text_light"
                     android:layout_marginTop="2dp" />
@@ -140,6 +140,8 @@
         </LinearLayout>
 
     </com.google.android.material.card.MaterialCardView>
+
+
 
     <!-- 取消按钮 -->
     <com.google.android.material.button.MaterialButton

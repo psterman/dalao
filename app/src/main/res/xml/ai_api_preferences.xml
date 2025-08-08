@@ -3,24 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <PreferenceCategory
-        app:key="deepseek_settings"
-        app:title="DeepSeek API设置">
-
-        <EditTextPreference
-            app:key="deepseek_api_key"
-            app:title="API密钥"
-            app:summary="设置DeepSeek API密钥"
-            app:dialogTitle="输入DeepSeek API密钥"
-            android:inputType="textPassword"/>
-
-        <Preference
-            app:key="deepseek_chat"
-            app:title="DeepSeek 对话"
-            app:summary="开启DeepSeek AI对话页面" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
         app:key="chatgpt_settings"
         app:title="ChatGPT API设置">
 
@@ -29,7 +11,169 @@
             app:title="API密钥"
             app:summary="设置ChatGPT API密钥"
             app:dialogTitle="输入ChatGPT API密钥"
-            android:inputType="textPassword"/>
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="chatgpt_api_url"
+            app:title="API地址"
+            app:summary="设置ChatGPT API地址"
+            app:dialogTitle="输入ChatGPT API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://api.openai.com/v1/chat/completions"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="claude_settings"
+        app:title="Claude API设置">
+
+        <EditTextPreference
+            app:key="claude_api_key"
+            app:title="API密钥"
+            app:summary="设置Claude API密钥"
+            app:dialogTitle="输入Claude API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="claude_api_url"
+            app:title="API地址"
+            app:summary="设置Claude API地址"
+            app:dialogTitle="输入Claude API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://api.anthropic.com/v1/messages"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="gemini_settings"
+        app:title="Gemini API设置">
+
+        <EditTextPreference
+            app:key="gemini_api_key"
+            app:title="API密钥"
+            app:summary="设置Gemini API密钥"
+            app:dialogTitle="输入Gemini API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="gemini_api_url"
+            app:title="API地址"
+            app:summary="设置Gemini API地址"
+            app:dialogTitle="输入Gemini API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="wenxin_settings"
+        app:title="文心一言 API设置">
+
+        <EditTextPreference
+            app:key="wenxin_api_key"
+            app:title="API密钥"
+            app:summary="设置文心一言 API密钥"
+            app:dialogTitle="输入文心一言 API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="wenxin_secret_key"
+            app:title="Secret密钥"
+            app:summary="设置文心一言 Secret密钥"
+            app:dialogTitle="输入文心一言 Secret密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="wenxin_api_url"
+            app:title="API地址"
+            app:summary="设置文心一言 API地址"
+            app:dialogTitle="输入文心一言 API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="deepseek_settings"
+        app:title="DeepSeek API设置">
+
+        <EditTextPreference
+            app:key="deepseek_api_key"
+            app:title="API密钥"
+            app:summary="设置DeepSeek API密钥"
+            app:dialogTitle="输入DeepSeek API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="deepseek_api_url"
+            app:title="API地址"
+            app:summary="设置DeepSeek API地址"
+            app:dialogTitle="输入DeepSeek API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://api.deepseek.com/v1/chat/completions"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="qianwen_settings"
+        app:title="通义千问 API设置">
+
+        <EditTextPreference
+            app:key="qianwen_api_key"
+            app:title="API密钥"
+            app:summary="设置通义千问 API密钥"
+            app:dialogTitle="输入通义千问 API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="qianwen_api_url"
+            app:title="API地址"
+            app:summary="设置通义千问 API地址"
+            app:dialogTitle="输入通义千问 API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="xinghuo_settings"
+        app:title="讯飞星火 API设置">
+
+        <EditTextPreference
+            app:key="xinghuo_api_key"
+            app:title="API密钥"
+            app:summary="设置讯飞星火 API密钥"
+            app:dialogTitle="输入讯飞星火 API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="xinghuo_api_url"
+            app:title="API地址"
+            app:summary="设置讯飞星火 API地址"
+            app:dialogTitle="输入讯飞星火 API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://spark-api.xf-yun.com/v3.1/chat"/>
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:key="kimi_settings"
+        app:title="Kimi API设置">
+
+        <EditTextPreference
+            app:key="kimi_api_key"
+            app:title="API密钥"
+            app:summary="设置Kimi API密钥"
+            app:dialogTitle="输入Kimi API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="kimi_api_url"
+            app:title="API地址"
+            app:summary="设置Kimi API地址"
+            app:dialogTitle="输入Kimi API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://kimi.moonshot.cn/api/chat-messages"/>
 
     </PreferenceCategory>
 

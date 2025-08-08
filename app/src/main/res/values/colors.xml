@@ -61,6 +61,7 @@
     <!-- 基础颜色 -->
     <color name="ic_launcher_background">#FFFFFF</color>
     <color name="primary">#2196F3</color>
+    <color name="primary_color">#2196F3</color>
     <color name="primary_dark">#1976D2</color>
     <color name="accent">#FF4081</color>
     <color name="white">#FFFFFF</color>
@@ -98,6 +99,9 @@
     <color name="letter_index_text_light">#99000000</color>
     <color name="letter_index_selected_background_dark">#1AFFFFFF</color>
     <color name="letter_index_selected_background_light">#1A000000</color>
+    
+    <!-- 错误颜色 -->
+    <color name="error_color">#F44336</color>
     <color name="letter_index_background_dark">#212121</color>
     <color name="letter_index_background_light">#FFFFFF</color>
 
@@ -252,6 +256,7 @@
 
     <!-- 简易模式专用颜色 -->
     <color name="simple_mode_background">#F8F9FA</color>
+    <color name="simple_mode_toolbar_background_light">#07C160</color>
     <color name="button_background">#E3F2FD</color>
     <color name="card_background">#FFFFFF</color>
     <color name="directory_background">#E3F2FD</color>

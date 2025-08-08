@@ -10,6 +10,7 @@ import com.example.aifloatingball.R
 import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactCategory
 import com.example.aifloatingball.model.ContactType
+import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.card.MaterialCardView
 import java.text.SimpleDateFormat
 import java.util.*
@@ -210,10 +211,14 @@ class ChatContactAdapter(
             // 设置头像
             when (contact.type) {
                 ContactType.AI -> {
-                    avatarImage.setImageResource(R.drawable.ic_ai_ball)
-                }
-                ContactType.RSS -> {
-                    avatarImage.setImageResource(R.drawable.ic_rss)
+                    // 使用FaviconLoader加载AI助手的头像
+                    val apiUrl = contact.customData["api_url"] ?: ""
+                    if (apiUrl.isNotEmpty()) {
+                        FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_ai_ball)
+                    } else {
+                        // 如果没有API URL，尝试根据AI名称加载图标
+                        FaviconLoader.loadAIEngineIcon(avatarImage, contact.name, R.drawable.ic_ai_ball)
+                    }
                 }
             }
             

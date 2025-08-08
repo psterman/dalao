@@ -28,6 +28,7 @@ import android.webkit.WebViewClient
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.widget.*
+import android.widget.ArrayAdapter
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.viewpager2.widget.ViewPager2
@@ -68,8 +69,8 @@ import com.example.aifloatingball.views.CardPreviewOverlay
 import com.example.aifloatingball.views.QuarterArcOperationBar
 
 import com.google.android.material.switchmaterial.SwitchMaterial
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
+import android.widget.EditText
+import android.widget.Button
 import androidx.appcompat.app.AppCompatDelegate
 import android.provider.Settings
 import android.os.Build
@@ -84,10 +85,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val KEY_CURRENT_STATE = "current_state"
         // 系统语音输入请求码
         private const val SYSTEM_VOICE_REQUEST_CODE = 1002
-        // 添加AI联系人请求码
-        private const val REQUEST_ADD_AI_CONTACT = 2001
-        // 添加RSS联系人请求码
-        private const val REQUEST_ADD_RSS_CONTACT = 2002
     }
 
     /**
@@ -160,8 +157,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 步骤引导页面组件
     private lateinit var stepTitleText: TextView
     private lateinit var stepQuestionText: TextView
-    private lateinit var stepInputLayout: TextInputLayout
-    private lateinit var stepInputText: TextInputEditText
+    private lateinit var stepInputLayout:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              LinearLayout
+    private lateinit var stepInputText: EditText
     private lateinit var stepChoiceGroup: RadioGroup
     private lateinit var stepMultiChoiceLayout: LinearLayout
     private lateinit var nextStepButton: MaterialButton
@@ -178,8 +175,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var voiceMicContainer: MaterialCardView
     private lateinit var voiceMicIcon: ImageView
     private lateinit var voiceStatusText: TextView
-    private lateinit var voiceTextInputLayout: TextInputLayout
-    private lateinit var voiceTextInput: TextInputEditText
+    private lateinit var voiceTextInputLayout: LinearLayout
+    private lateinit var voiceTextInput: EditText
     private lateinit var voiceClearButton: MaterialButton
     private lateinit var voiceSearchButton: MaterialButton
     private lateinit var voiceInteractionModeSwitch: com.google.android.material.switchmaterial.SwitchMaterial
@@ -826,7 +823,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserShortcutsGrid = findViewById(R.id.browser_shortcuts_grid)
 
         // 开始浏览按钮
-        val browserStartBrowsingButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_start_browsing_button)
+        val browserStartBrowsingButton = findViewById<MaterialButton>(R.id.browser_start_browsing_button)
         browserGestureHint = findViewById(R.id.browser_gesture_hint)
         browserNavDrawer = findViewById(R.id.browser_nav_drawer)
         browserLetterTitle = findViewById(R.id.browser_letter_title)
@@ -839,19 +836,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserGestureHintClose = findViewById(R.id.browser_gesture_hint_close)
 
         // 创建虚拟组件用于兼容性（这些组件在当前布局中不存在）
-        browserViewPager = androidx.viewpager2.widget.ViewPager2(this)
-        browserTabPreviewContainer = LinearLayout(this)
-        browserBtnAddTab = ImageButton(this)
-        browserAppbar = com.google.android.material.appbar.AppBarLayout(this)
-        browserVoiceSearch = ImageButton(this)
-        browserBottomBar = LinearLayout(this)
-        browserLeftButtons = LinearLayout(this)
-        browserRightButtons = LinearLayout(this)
-        browserBtnHistory = ImageButton(this)
-        browserBtnBookmarks = ImageButton(this)
-        browserBtnSettings = ImageButton(this)
-        browserAutoHideSwitch = androidx.appcompat.widget.SwitchCompat(this)
-        browserClipboardSwitch = androidx.appcompat.widget.SwitchCompat(this)
+        browserViewPager = androidx.viewpager2.widget.ViewPager2(this@SimpleModeActivity)
+        browserTabPreviewContainer = LinearLayout(this@SimpleModeActivity)
+        browserBtnAddTab = ImageButton(this@SimpleModeActivity)
+        browserAppbar = com.google.android.material.appbar.AppBarLayout(this@SimpleModeActivity)
+        browserVoiceSearch = ImageButton(this@SimpleModeActivity)
+        browserBottomBar = LinearLayout(this@SimpleModeActivity)
+        browserLeftButtons = LinearLayout(this@SimpleModeActivity)
+        browserRightButtons = LinearLayout(this@SimpleModeActivity)
+        browserBtnHistory = ImageButton(this@SimpleModeActivity)
+        browserBtnBookmarks = ImageButton(this@SimpleModeActivity)
+        browserBtnSettings = ImageButton(this@SimpleModeActivity)
+        browserAutoHideSwitch = androidx.appcompat.widget.SwitchCompat(this@SimpleModeActivity)
+        browserClipboardSwitch = androidx.appcompat.widget.SwitchCompat(this@SimpleModeActivity)
 
 
 
@@ -1947,7 +1944,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置按钮状态
         val canGoPrev = currentStepIndex > 0
         prevStepButton.isEnabled = true  // 总是启用，因为第一步时可以返回首页
-        prevStepButton.text = if (canGoPrev) "上一步" else "返回首页"
+        prevStepButton.text = if (canGoPrev) "上一步" as CharSequence else "返回首页" as CharSequence
         skipStepButton.visibility = if (currentField.isOptional) View.VISIBLE else View.GONE
 
         Log.d(TAG, "上一步按钮状态: enabled=true, text=${prevStepButton.text}")
@@ -2233,7 +2230,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     fun applyBackgroundBlur(blur: Boolean) {
         // 获取需要保持清晰的视图
-        val textInputLayout = findViewById<TextInputLayout>(R.id.voice_text_input_layout)
+        val textInputLayout = findViewById<LinearLayout>(R.id.voice_text_input_layout)
         
         if (blur) {
             // 应用模糊效果到整个布局
@@ -4631,14 +4628,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 添加标签页
                 addTab(newTab().setText("全部"))
                 addTab(newTab().setText("AI助手"))
-                addTab(newTab().setText("RSS订阅"))
                 
                 addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
                     override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
                         when (tab?.position) {
                             0 -> chatContactAdapter?.updateContacts(allContacts)
                             1 -> showAIContacts()
-                            2 -> showRSSContacts()
                         }
                     }
 
@@ -4681,18 +4676,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
-    /**
-     * 显示RSS联系人
-     */
-    private fun showRSSContacts() {
-        try {
-            val rssContacts = allContacts.filter { it.name == "RSS订阅" }
-            chatContactAdapter?.updateContacts(rssContacts)
-            Log.d(TAG, "显示RSS联系人")
-        } catch (e: Exception) {
-            Log.e(TAG, "显示RSS联系人失败", e)
-        }
-    }
+
 
     /**
      * 打开添加联系人对话框
@@ -4711,11 +4695,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 openAddAIContactDialog()
             }
 
-            // 设置RSS订阅选项点击事件
-            dialogView.findViewById<MaterialCardView>(R.id.rss_contact_option)?.setOnClickListener {
+            // 设置填写API选项点击事件
+            dialogView.findViewById<MaterialCardView>(R.id.api_contact_option)?.setOnClickListener {
                 dialog.dismiss()
-                openAddRSSContactDialog()
+                Log.d(TAG, "用户点击了填写API选项")
+                openAddAPIContactDialog()
             }
+
+
 
             // 设置取消按钮点击事件
             dialogView.findViewById<MaterialButton>(R.id.cancel_button)?.setOnClickListener {
@@ -4735,131 +4722,58 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun loadInitialContacts() {
         try {
-            // 创建示例AI联系人
-            val aiContacts = listOf(
-                ChatContact(
-                    id = "ai_1",
-                    name = "ChatGPT",
-                    type = ContactType.AI,
-                    description = "OpenAI的AI助手",
-                    isOnline = true,
-                    lastMessage = "你好！我是ChatGPT，有什么可以帮助你的吗？",
-                    lastMessageTime = System.currentTimeMillis() - 3600000, // 1小时前
-                    unreadCount = 2,
-                    customData = mapOf("api_url" to "https://api.openai.com/v1/chat/completions")
-                ),
-                ChatContact(
-                    id = "ai_2",
-                    name = "Claude",
-                    type = ContactType.AI,
-                    description = "Anthropic的AI助手",
-                    isOnline = true,
-                    lastMessage = "我可以帮助你解决各种问题",
-                    lastMessageTime = System.currentTimeMillis() - 7200000, // 2小时前
-                    unreadCount = 0,
-                    customData = mapOf("api_url" to "https://api.anthropic.com/v1/messages")
-                ),
-                ChatContact(
-                    id = "ai_3",
-                    name = "Gemini",
-                    type = ContactType.AI,
-                    description = "Google的AI助手",
-                    isOnline = false,
-                    lastMessage = "正在处理您的请求...",
-                    lastMessageTime = System.currentTimeMillis() - 86400000, // 1天前
-                    unreadCount = 1,
-                    isPinned = true,
-                    customData = mapOf("api_url" to "https://generativelanguage.googleapis.com/v1beta/models")
-                ),
-                ChatContact(
-                    id = "ai_4",
-                    name = "文心一言",
-                    type = ContactType.AI,
-                    description = "百度的大语言模型",
-                    isOnline = true,
-                    lastMessage = "我是文心一言，中文AI助手。",
-                    lastMessageTime = System.currentTimeMillis() - 900000, // 15分钟前
-                    unreadCount = 1,
-                    customData = mapOf("api_url" to "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat")
-                ),
-                ChatContact(
-                    id = "ai_5",
-                    name = "通义千问",
-                    type = ContactType.AI,
-                    description = "阿里巴巴的大语言模型",
-                    isOnline = true,
-                    lastMessage = "我是通义千问，有什么可以帮助您的？",
-                    lastMessageTime = System.currentTimeMillis() - 1800000, // 30分钟前
-                    unreadCount = 0,
-                    customData = mapOf("api_url" to "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation")
-                )
+            val settingsManager = SettingsManager.getInstance(this)
+            
+            // 定义所有可用的AI助手
+            val availableAIs = listOf(
+                "DeepSeek" to "DeepSeek的AI助手",
+                "ChatGPT" to "OpenAI的AI助手",
+                "Claude" to "Anthropic的AI助手",
+                "Gemini" to "Google的AI助手",
+                "文心一言" to "百度的大语言模型",
+                "通义千问" to "阿里巴巴的大语言模型",
+                "讯飞星火" to "科大讯飞的AI助手",
+                "Kimi" to "Moonshot的AI助手"
             )
-
-            // 创建示例RSS联系人
-            val rssContacts = listOf(
-                ChatContact(
-                    id = "rss_1",
-                    name = "科技新闻",
-                    type = ContactType.RSS,
-                    description = "最新科技资讯",
-                    isOnline = true,
-                    lastMessage = "新文章：人工智能发展最新趋势",
-                    lastMessageTime = System.currentTimeMillis() - 1800000, // 30分钟前
-                    unreadCount = 5,
-                    customData = mapOf("rss_url" to "https://www.cnbeta.com/backend.php")
-                ),
-                ChatContact(
-                    id = "rss_2",
-                    name = "阮一峰的网络日志",
-                    type = ContactType.RSS,
-                    description = "编程学习资源",
-                    isOnline = true,
-                    lastMessage = "新教程：Kotlin协程详解",
-                    lastMessageTime = System.currentTimeMillis() - 5400000, // 1.5小时前
-                    unreadCount = 3,
-                    isMuted = true,
-                    customData = mapOf("rss_url" to "https://www.ruanyifeng.com/blog/atom.xml")
-                ),
-                ChatContact(
-                    id = "rss_3",
-                    name = "36氪",
-                    type = ContactType.RSS,
-                    description = "创业公司新闻",
-                    isOnline = true,
-                    lastMessage = "新文章：2024年创业趋势预测",
-                    lastMessageTime = System.currentTimeMillis() - 2700000, // 45分钟前
-                    unreadCount = 3,
-                    customData = mapOf("rss_url" to "https://36kr.com/feed")
-                ),
-                ChatContact(
-                    id = "rss_4",
-                    name = "机器之心",
-                    type = ContactType.RSS,
-                    description = "AI技术发展",
-                    isOnline = true,
-                    lastMessage = "新文章：大语言模型技术突破",
-                    lastMessageTime = System.currentTimeMillis() - 900000, // 15分钟前
-                    unreadCount = 7,
-                    isPinned = true,
-                    customData = mapOf("rss_url" to "https://www.jiqizhixin.com/rss")
-                ),
-                ChatContact(
-                    id = "rss_5",
-                    name = "少数派",
-                    type = ContactType.RSS,
-                    description = "数字生活指南",
-                    isOnline = true,
-                    lastMessage = "新文章：效率工具推荐",
-                    lastMessageTime = System.currentTimeMillis() - 3600000, // 1小时前
-                    unreadCount = 2,
-                    customData = mapOf("rss_url" to "https://sspai.com/feed")
-                )
-            )
+            
+            val aiContacts = mutableListOf<ChatContact>()
+            
+            // 检查每个AI是否有有效的API密钥配置，只添加有配置的AI
+            availableAIs.forEach { (aiName, description) ->
+                val apiKey = getApiKeyForAI(aiName)
+                if (isValidApiKey(apiKey, aiName)) {
+                    // 有有效API密钥配置，添加到联系人列表
+                    val contact = ChatContact(
+                        id = "ai_${aiName.lowercase().replace(" ", "_")}",
+                        name = aiName,
+                        type = ContactType.AI,
+                        description = description,
+                        isOnline = true,
+                        lastMessage = "你好！我是$aiName，有什么可以帮助你的吗？",
+                        lastMessageTime = System.currentTimeMillis() - (Math.random() * 86400000).toLong(), // 随机时间
+                        unreadCount = 0,
+                        isPinned = true, // 有API配置的AI优先显示
+                        customData = mapOf(
+                            "api_url" to getDefaultApiUrl(aiName),
+                            "api_key" to apiKey,
+                            "model" to getDefaultModel(aiName)
+                        )
+                    )
+                    aiContacts.add(contact)
+                    Log.d(TAG, "添加AI助手: $aiName (API密钥已配置)")
+                } else {
+                    Log.d(TAG, "跳过AI助手: $aiName (API密钥未配置或无效)")
+                }
+            }
+            
+            // 如果没有配置任何AI，显示提示信息
+            if (aiContacts.isEmpty()) {
+                Log.d(TAG, "没有配置任何AI助手，显示空状态")
+            }
 
             // 创建分类
             allContacts = mutableListOf(
-                ContactCategory("AI助手", aiContacts),
-                ContactCategory("RSS订阅", rssContacts)
+                ContactCategory("AI助手", aiContacts)
             )
 
             // 更新适配器
@@ -5019,28 +4933,389 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun openAddAIContactDialog() {
         try {
-            val intent = Intent(this, AddAIContactActivity::class.java)
-            startActivityForResult(intent, REQUEST_ADD_AI_CONTACT)
-            Log.d(TAG, "打开添加AI联系人界面")
+            // 创建AI助手选择对话框
+            val aiOptions = listOf(
+                "DeepSeek" to "DeepSeek的AI助手",
+                "ChatGPT" to "OpenAI的AI助手", 
+                "Claude" to "Anthropic的AI助手",
+                "Gemini" to "Google的AI助手",
+                "文心一言" to "百度的大语言模型",
+                "通义千问" to "阿里巴巴的大语言模型",
+                "讯飞星火" to "科大讯飞的AI助手",
+                "Kimi" to "Moonshot的AI助手"
+            )
+            
+            val aiNames = aiOptions.map { it.first }.toTypedArray()
+            
+            AlertDialog.Builder(this)
+                .setTitle("选择AI助手")
+                .setItems(aiNames) { _, which ->
+                    val selectedAI = aiOptions[which]
+                    showApiKeyInputDialog(selectedAI.first, selectedAI.second)
+                }
+                .setNegativeButton("取消", null)
+                .show()
+                
+            Log.d(TAG, "打开AI助手选择对话框")
         } catch (e: Exception) {
-            Log.e(TAG, "打开添加AI联系人界面失败", e)
-            Toast.makeText(this, "打开添加AI联系人界面失败", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "打开AI助手选择对话框失败", e)
+            Toast.makeText(this, "打开AI助手选择对话框失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示API密钥输入对话框
+     */
+    private fun showApiKeyInputDialog(aiName: String, description: String) {
+        try {
+            // 创建API密钥输入对话框
+            val input = EditText(this).apply {
+                hint = "请输入${aiName}的API密钥"
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                setPadding(50, 30, 50, 30)
+            }
+            
+            AlertDialog.Builder(this)
+                .setTitle("配置${aiName}")
+                .setMessage("请填写${aiName}的API密钥以激活对话功能")
+                .setView(input)
+                .setPositiveButton("确定") { _, _ ->
+                    val apiKey = input.text.toString().trim()
+                    if (apiKey.isNotEmpty()) {
+                        // 验证API密钥格式
+                        if (isValidApiKey(apiKey, aiName)) {
+                            // 保存API密钥到设置
+                            saveApiKeyForAI(aiName, apiKey)
+                            // 添加AI助手到联系人列表
+                            addAIContactToCategory(aiName, description, apiKey)
+                            Toast.makeText(this, "${aiName}已激活，API密钥已保存", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // 显示格式错误提示
+                            val errorMsg = when (aiName.lowercase()) {
+                                "deepseek", "chatgpt" -> "API密钥应该以'sk-'开头且长度至少20个字符"
+                                "claude" -> "API密钥应该以'sk-ant-'开头且长度至少20个字符"
+                                else -> "API密钥格式不正确，请检查"
+                            }
+                            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show()
+                        }
+                    } else {
+                        Toast.makeText(this, "请输入API密钥", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+                
+            Log.d(TAG, "显示API密钥输入对话框: $aiName")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示API密钥输入对话框失败", e)
+            Toast.makeText(this, "显示API密钥输入对话框失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 验证API密钥是否有效
+     */
+    private fun isValidApiKey(apiKey: String, aiName: String): Boolean {
+        if (apiKey.isBlank()) {
+            return false
+        }
+        
+        // 根据不同的AI服务验证API密钥格式
+        return when (aiName.lowercase()) {
+            "deepseek" -> apiKey.startsWith("sk-") && apiKey.length >= 20
+            "chatgpt" -> apiKey.startsWith("sk-") && apiKey.length >= 20
+            "claude" -> apiKey.startsWith("sk-ant-") && apiKey.length >= 20
+            "gemini" -> apiKey.length >= 20 // Google API密钥没有固定前缀
+            "文心一言" -> apiKey.length >= 10 // 百度API密钥
+            "通义千问" -> apiKey.length >= 10 // 阿里云API密钥
+            "讯飞星火" -> apiKey.length >= 10 // 讯飞API密钥
+            "kimi" -> apiKey.length >= 10 // Kimi API密钥
+            else -> apiKey.length >= 10
+        }
+    }
+    
+    /**
+     * 获取AI的API密钥
+     */
+    private fun getApiKeyForAI(aiName: String): String {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val keyName = when (aiName.lowercase()) {
+                "deepseek" -> "deepseek_api_key"
+                "chatgpt" -> "chatgpt_api_key"
+                "claude" -> "claude_api_key"
+                "gemini" -> "gemini_api_key"
+                "文心一言" -> "wenxin_api_key"
+                "通义千问" -> "qianwen_api_key"
+                "讯飞星火" -> "xinghuo_api_key"
+                "kimi" -> "kimi_api_key"
+                else -> "${aiName.lowercase()}_api_key"
+            }
+            return settingsManager.getString(keyName, "") ?: ""
+        } catch (e: Exception) {
+            Log.e(TAG, "获取API密钥失败", e)
+            return ""
+        }
+    }
+    
+    /**
+     * 保存AI的API密钥到设置
+     */
+    private fun saveApiKeyForAI(aiName: String, apiKey: String) {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val keyName = when (aiName.lowercase()) {
+                "deepseek" -> "deepseek_api_key"
+                "chatgpt" -> "chatgpt_api_key"
+                "claude" -> "claude_api_key"
+                "gemini" -> "gemini_api_key"
+                "文心一言" -> "wenxin_api_key"
+                "通义千问" -> "qianwen_api_key"
+                "讯飞星火" -> "xinghuo_api_key"
+                "kimi" -> "kimi_api_key"
+                else -> "${aiName.lowercase()}_api_key"
+            }
+            settingsManager.putString(keyName, apiKey)
+            Log.d(TAG, "保存API密钥: $keyName")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存API密钥失败", e)
+        }
+    }
+    
+    /**
+     * 添加AI助手到分类
+     */
+    private fun addAIContactToCategory(name: String, description: String, apiKey: String = "") {
+        try {
+            // 检查是否已存在该AI助手
+            val existingContact = allContacts.flatMap { it.contacts }.find { it.name == name }
+            if (existingContact != null) {
+                Toast.makeText(this, "$name 已存在于联系人列表中", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 创建新的AI联系人
+            val newContact = ChatContact(
+                id = "ai_${name.lowercase().replace(" ", "_")}_${System.currentTimeMillis()}",
+                name = name,
+                type = ContactType.AI,
+                description = description,
+                isOnline = true,
+                lastMessage = "你好！我是$name，有什么可以帮助你的吗？",
+                lastMessageTime = System.currentTimeMillis(),
+                unreadCount = 0,
+                isPinned = true, // 新添加的AI助手优先显示
+                customData = mapOf(
+                    "api_url" to getDefaultApiUrl(name),
+                    "api_key" to apiKey,
+                    "model" to getDefaultModel(name)
+                )
+            )
+            
+            // 添加到联系人列表
+            addContactToList(newContact)
+            Toast.makeText(this, "已添加 $name", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "添加AI助手到分类: $name")
+        } catch (e: Exception) {
+            Log.e(TAG, "添加AI助手到分类失败", e)
+            Toast.makeText(this, "添加AI助手失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 获取默认API地址
+     */
+    private fun getDefaultApiUrl(aiName: String): String {
+        return when (aiName.lowercase()) {
+            "deepseek" -> "https://api.deepseek.com/v1/chat/completions"
+            "chatgpt" -> "https://api.openai.com/v1/chat/completions"
+            "claude" -> "https://api.anthropic.com/v1/messages"
+            "gemini" -> "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+            "文心一言" -> "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions"
+            "通义千问" -> "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+            "讯飞星火" -> "https://spark-api.xf-yun.com/v3.1/chat"
+            "kimi" -> "https://kimi.moonshot.cn/api/chat-messages"
+            else -> "https://api.openai.com/v1/chat/completions"
+        }
+    }
+    
+    /**
+     * 获取默认模型名称
+     */
+    private fun getDefaultModel(aiName: String): String {
+        return when (aiName.lowercase()) {
+            "deepseek" -> "deepseek-chat"
+            "chatgpt" -> "gpt-3.5-turbo"
+            "claude" -> "claude-3-sonnet-20240229"
+            "gemini" -> "gemini-pro"
+            "文心一言" -> "ernie-bot-4"
+            "通义千问" -> "qwen-turbo"
+            "讯飞星火" -> "spark-v3.1"
+            "kimi" -> "moonshot-v1-8k"
+            else -> "gpt-3.5-turbo"
         }
     }
 
     /**
-     * 打开添加RSS联系人对话框
+     * 打开添加API联系人对话框
      */
-    private fun openAddRSSContactDialog() {
+    private fun openAddAPIContactDialog() {
         try {
-            val intent = Intent(this, AddRSSContactActivity::class.java)
-            startActivityForResult(intent, REQUEST_ADD_RSS_CONTACT)
-            Log.d(TAG, "打开添加RSS联系人界面")
+            Log.d(TAG, "开始创建添加API联系人对话框")
+            showActualAPIDialog()
         } catch (e: Exception) {
-            Log.e(TAG, "打开添加RSS联系人界面失败", e)
-            Toast.makeText(this, "打开添加RSS联系人界面失败", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "打开添加API联系人对话框失败", e)
+            Toast.makeText(this, "打开添加API联系人对话框失败: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
+    
+    /**
+     * 显示实际的API配置对话框
+     */
+    private fun showActualAPIDialog() {
+        try {
+            Log.d(TAG, "开始创建实际的API配置对话框")
+            
+            // 检查布局文件是否存在
+            val layoutId = R.layout.dialog_add_api_contact
+            Log.d(TAG, "布局文件ID: $layoutId")
+            
+            val dialogView = LayoutInflater.from(this).inflate(layoutId, null)
+            Log.d(TAG, "布局文件加载成功")
+            
+            val dialog = AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(true)
+                .create()
+
+            // 获取视图组件
+            val aiModelSpinner = dialogView.findViewById<Spinner>(R.id.ai_model_spinner)
+            val nameInput = dialogView.findViewById<EditText>(R.id.name_input)
+            val apiUrlInput = dialogView.findViewById<EditText>(R.id.api_url_input)
+            val modelInput = dialogView.findViewById<EditText>(R.id.model_input)
+            val apiKeyInput = dialogView.findViewById<EditText>(R.id.api_key_input)
+            val confirmButton = dialogView.findViewById<Button>(R.id.confirm_button)
+            val cancelButton = dialogView.findViewById<Button>(R.id.cancel_button)
+
+            // 检查所有视图是否成功找到
+            if (aiModelSpinner == null || nameInput == null || apiUrlInput == null || 
+                modelInput == null || apiKeyInput == null || confirmButton == null || cancelButton == null) {
+                Log.e(TAG, "某些视图未找到")
+                Toast.makeText(this, "对话框布局加载失败", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            Log.d(TAG, "所有视图加载成功")
+
+            // 定义AI模型选项
+            val aiModels = listOf(
+                "DeepSeek" to "DeepSeek的AI助手",
+                "ChatGPT" to "OpenAI的AI助手",
+                "Claude" to "Anthropic的AI助手",
+                "Gemini" to "Google的AI助手",
+                "文心一言" to "百度的大语言模型",
+                "通义千问" to "阿里巴巴的大语言模型",
+                "讯飞星火" to "科大讯飞的AI助手",
+                "Kimi" to "Moonshot的AI助手"
+            )
+            
+            val modelNames = aiModels.map { it.first }.toTypedArray()
+            
+            // 设置Spinner适配器
+            val spinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, modelNames)
+            spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            aiModelSpinner.adapter = spinnerAdapter
+            
+            // 设置Spinner选择监听器
+            aiModelSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                    val selectedModel = aiModels[position]
+                    val modelName = selectedModel.first
+                    
+                    // 自动填充字段
+                    nameInput.setText(modelName)
+                    apiUrlInput.setText(getDefaultApiUrl(modelName))
+                    modelInput.setText(getDefaultModel(modelName))
+                    
+                    Log.d(TAG, "选择AI模型: $modelName")
+                }
+                
+                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {
+                    // 默认选择第一个
+                    if (aiModels.isNotEmpty()) {
+                        val defaultModel = aiModels[0]
+                        nameInput.setText(defaultModel.first)
+                        apiUrlInput.setText(getDefaultApiUrl(defaultModel.first))
+                        modelInput.setText(getDefaultModel(defaultModel.first))
+                    }
+                }
+            }
+
+            // 设置确认按钮点击事件
+            confirmButton.setOnClickListener {
+                try {
+                    val name = nameInput.text?.toString()?.trim() ?: ""
+                    val apiUrl = apiUrlInput.text?.toString()?.trim() ?: ""
+                    val model = modelInput.text?.toString()?.trim() ?: ""
+                    val apiKey = apiKeyInput.text?.toString()?.trim() ?: ""
+
+                    Log.d(TAG, "用户输入: name=$name, apiUrl=$apiUrl, model=$model, apiKey=${if (apiKey.isNotEmpty()) "已填写" else "未填写"}")
+
+                    if (name.isNotEmpty() && apiUrl.isNotEmpty() && apiKey.isNotEmpty()) {
+                        // 保存API密钥到SettingsManager
+                        saveApiKeyForAI(name, apiKey)
+                        
+                        // 创建新的AI联系人
+                        val newContact = ChatContact(
+                            id = "custom_ai_${System.currentTimeMillis()}",
+                            name = name,
+                            type = ContactType.AI,
+                            description = "自定义AI助手",
+                            isOnline = true,
+                            lastMessage = "你好！我是$name，有什么可以帮助你的吗？",
+                            lastMessageTime = System.currentTimeMillis(),
+                            unreadCount = 0,
+                            isPinned = true, // 自定义API的AI优先显示
+                            customData = mapOf(
+                                "api_url" to apiUrl,
+                                "api_key" to apiKey,
+                                "model" to model.ifEmpty { "default" }
+                            )
+                        )
+
+                        // 添加到联系人列表
+                        addContactToList(newContact)
+                        dialog.dismiss()
+                        Toast.makeText(this, "AI助手 $name 添加成功，API密钥已保存", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "添加自定义API AI联系人成功: $name")
+                    } else {
+                        val errorMsg = "请填写API密钥"
+                        Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "用户输入不完整: $errorMsg")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "处理确认按钮点击事件失败", e)
+                    Toast.makeText(this, "处理失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            // 设置取消按钮点击事件
+            cancelButton.setOnClickListener {
+                dialog.dismiss()
+                Log.d(TAG, "用户取消添加API联系人")
+            }
+
+            // 显示对话框
+            dialog.show()
+            Log.d(TAG, "添加API联系人对话框显示成功")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示实际API配置对话框失败", e)
+            Toast.makeText(this, "显示API配置对话框失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+
 
 
 
@@ -5100,19 +5375,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-
-        if (resultCode == RESULT_OK && data != null) {
-            when (requestCode) {
-                REQUEST_ADD_AI_CONTACT -> {
-                    val contact = data.getParcelableExtra<ChatContact>(AddAIContactActivity.EXTRA_AI_CONTACT)
-                    contact?.let { addContactToList(it) }
-                }
-                REQUEST_ADD_RSS_CONTACT -> {
-                    val contact = data.getParcelableExtra<ChatContact>(AddRSSContactActivity.EXTRA_RSS_CONTACT)
-                    contact?.let { addContactToList(it) }
-                }
-            }
-        }
+        // 目前没有需要处理的Activity结果
     }
 
     /**
@@ -5122,7 +5385,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             val categoryName = when (contact.type) {
                 ContactType.AI -> "AI助手"
-                ContactType.RSS -> "RSS订阅"
             }
 
             // 查找或创建对应的分类
