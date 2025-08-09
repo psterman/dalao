@@ -366,6 +366,12 @@
     <color name="simple_mode_button_surface_light">#F5F5F5</color>   <!-- 表面按钮 -->
     <color name="simple_mode_button_disabled_light">#BDBDBD</color>   <!-- 禁用按钮 -->
     <color name="simple_mode_button_pressed_light">#05A050</color>   <!-- 按下按钮 -->
+    
+    <!-- Material Design聊天界面颜色 -->
+    <color name="material_chat_toolbar_background">#2196F3</color>   <!-- 蓝色工具栏 -->
+    <color name="material_chat_toolbar_text">#FFFFFF</color>         <!-- 白色文字 -->
+    <color name="material_chat_toolbar_subtitle">#E3F2FD</color>     <!-- 浅蓝色副标题 -->
+    <color name="material_chat_toolbar_icon">#FFFFFF</color>         <!-- 白色图标 -->
 
     <!-- 🎯 强调色系 - 亮色模式 -->
     <color name="simple_mode_accent_light">#07C160</color>           <!-- 强调色 -->

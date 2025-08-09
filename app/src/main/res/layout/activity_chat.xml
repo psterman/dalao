@@ -7,52 +7,62 @@
     android:orientation="vertical"
     android:background="@color/simple_mode_background_light">
 
-    <!-- 标题栏 -->
-    <LinearLayout
+    <!-- Material Design标题栏 -->
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@color/simple_mode_header_background_light"
-        android:elevation="2dp"
-        android:paddingHorizontal="16dp">
-
-        <ImageButton
-            android:id="@+id/back_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:src="@drawable/ic_arrow_back"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:tint="@color/simple_mode_header_text_light"
-            android:contentDescription="返回" />
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/material_chat_toolbar_background"
+        android:elevation="4dp"
+        app:navigationIcon="@drawable/ic_arrow_back"
+        app:navigationIconTint="@color/material_chat_toolbar_icon"
+        app:titleTextColor="@color/material_chat_toolbar_text">
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical"
-            android:layout_marginStart="16dp">
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingEnd="16dp">
 
-            <TextView
-                android:id="@+id/contact_name"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="联系人名称"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/simple_mode_header_text_light" />
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="16dp">
 
-            <TextView
-                android:id="@+id/contact_status"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="在线"
-                android:textSize="12sp"
-                android:textColor="@color/simple_mode_text_secondary_light" />
+                <TextView
+                    android:id="@+id/contact_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="联系人名称"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/material_chat_toolbar_text" />
+
+                <TextView
+                    android:id="@+id/contact_status"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="在线"
+                    android:textSize="12sp"
+                    android:textColor="@color/material_chat_toolbar_subtitle" />
+
+            </LinearLayout>
+            
+            <ImageButton
+                android:id="@+id/search_button"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_search"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/material_chat_toolbar_icon"
+                android:contentDescription="搜索聊天记录" />
 
         </LinearLayout>
 
-    </LinearLayout>
+    </com.google.android.material.appbar.MaterialToolbar>
 
     <!-- 消息列表 -->
     <androidx.recyclerview.widget.RecyclerView
