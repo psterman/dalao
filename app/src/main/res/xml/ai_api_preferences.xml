@@ -177,4 +177,25 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        app:key="zhipu_ai_settings"
+        app:title="智谱AI API设置">
+
+        <EditTextPreference
+            app:key="zhipu_ai_api_key"
+            app:title="API密钥"
+            app:summary="设置智谱AI API密钥"
+            app:dialogTitle="输入智谱AI API密钥"
+            android:inputType="textVisiblePassword"/>
+
+        <EditTextPreference
+            app:key="zhipu_ai_api_url"
+            app:title="API地址"
+            app:summary="设置智谱AI API地址"
+            app:dialogTitle="输入智谱AI API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://api.zhipu.ai/v1/chat/completions"/>
+
+    </PreferenceCategory>
+
 </PreferenceScreen> 

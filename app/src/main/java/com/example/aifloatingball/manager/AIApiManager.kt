@@ -21,7 +21,8 @@ enum class AIServiceType {
     DEEPSEEK,
     QIANWEN,
     XINGHUO,
-    KIMI
+    KIMI,
+    ZHIPU_AI
 }
 
 /**
@@ -176,6 +177,19 @@ class AIApiManager(private val context: Context) {
                     )
                 } else null
             }
+            AIServiceType.ZHIPU_AI -> {
+                val apiKey = getStringSetting("zhipu_ai_api_key", "")
+                val apiUrl = getStringSetting("zhipu_ai_api_url", "https://api.zhipu.ai/v1/chat/completions")
+                if (apiKey.isNotBlank()) {
+                    AIServiceConfig(
+                        type = type,
+                        name = "智谱AI",
+                        apiUrl = apiUrl,
+                        apiKey = apiKey,
+                        model = "glm-4"
+                    )
+                } else null
+            }
         }
     }
     
@@ -205,6 +219,7 @@ class AIApiManager(private val context: Context) {
                     AIServiceType.QIANWEN -> sendToQianwen(config, message, conversationHistory, callback)
                     AIServiceType.XINGHUO -> sendToXinghuo(config, message, conversationHistory, callback)
                     AIServiceType.KIMI -> sendToKimi(config, message, conversationHistory, callback)
+                    AIServiceType.ZHIPU_AI -> sendToZhupu(config, message, conversationHistory, callback)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "发送消息失败", e)
@@ -716,6 +731,84 @@ class AIApiManager(private val context: Context) {
     ) {
         // Kimi API实现
         callback.onError("Kimi API暂未实现")
+    }
+
+    /**
+     * 发送到智谱AI
+     */
+    private suspend fun sendToZhupu(
+        config: AIServiceConfig,
+        message: String,
+        conversationHistory: List<Map<String, String>>,
+        callback: StreamingCallback
+    ) {
+        val url = URL(config.apiUrl)
+        val connection = url.openConnection() as HttpURLConnection
+
+        connection.apply {
+            requestMethod = "POST"
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Authorization", "Bearer ${config.apiKey}")
+            doOutput = true
+            doInput = true
+        }
+
+        val requestBody = JSONObject().apply {
+            put("model", config.model)
+            put("messages", JSONArray().apply {
+                // 添加历史对话
+                conversationHistory.forEach { msg ->
+                    put(JSONObject().apply {
+                        put("role", msg["role"])
+                        put("content", msg["content"])
+                    })
+                }
+                // 添加当前消息
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", message)
+                })
+            })
+            put("stream", true)
+            put("max_tokens", config.maxTokens)
+            put("temperature", config.temperature)
+        }
+
+        connection.outputStream.use { os ->
+            val input = requestBody.toString().toByteArray(StandardCharsets.UTF_8)
+            os.write(input, 0, input.size)
+        }
+
+        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+            val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+            var fullResponse = ""
+            var line: String?
+
+            while (reader.readLine().also { line = it } != null) {
+                if (line!!.startsWith("data: ")) {
+                    val jsonString = line!!.substring(6)
+                    if (jsonString.trim() == "[DONE]") {
+                        break
+                    }
+                    try {
+                        val jsonObject = JSONObject(jsonString)
+                        val delta = jsonObject.getJSONArray("choices").getJSONObject(0).getJSONObject("delta")
+                        if (delta.has("content")) {
+                            val contentChunk = delta.getString("content")
+                            fullResponse += contentChunk
+                            callback.onChunkReceived(contentChunk)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "解析流式响应时出错: ${e.message}")
+                    }
+                }
+            }
+            reader.close()
+            callback.onComplete(fullResponse)
+        } else {
+            val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+            callback.onError("API错误: ${connection.responseCode} - $errorBody")
+        }
     }
     
     /**

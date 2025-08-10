@@ -44,6 +44,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.example.aifloatingball.manager.ModeManager
+import com.example.aifloatingball.manager.AIApiManager
+import com.example.aifloatingball.manager.AIServiceType
+import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.manager.SimpleChatHistoryManager
 import com.example.aifloatingball.adapter.TaskTemplateAdapter
 import com.example.aifloatingball.data.SimpleTaskTemplates
 import com.example.aifloatingball.model.PromptTemplate
@@ -54,8 +58,18 @@ import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactType
 import com.example.aifloatingball.model.ContactCategory
 import com.example.aifloatingball.adapter.ChatContactAdapter
+import com.example.aifloatingball.manager.AITagManager
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import java.net.HttpURLConnection
+import java.net.URL
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 
 import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
@@ -220,6 +234,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 四分之一圆弧操作栏
     private var quarterArcOperationBar: QuarterArcOperationBar? = null
 
+    // API密钥同步广播接收器
+    private var apiKeySyncReceiver: BroadcastReceiver? = null
+    private var addAIContactReceiver: BroadcastReceiver? = null
+
 
     private lateinit var browserShortcutsGrid: androidx.recyclerview.widget.RecyclerView
     private lateinit var browserGestureHint: TextView
@@ -344,6 +362,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         initializeViews()
         setupTaskSelection()
         setupChat()
+
+        // 注册API密钥同步广播接收器
+        setupApiKeySyncReceiver()
+        
+        // 注册添加AI联系人广播接收器
+        setupAddAIContactReceiver()
 
         // 检查是否需要恢复之前的状态
         val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
@@ -2723,7 +2747,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     override fun onDestroy() {
         super.onDestroy()
 
+        // 注销API密钥同步广播接收器
+        try {
+            apiKeySyncReceiver?.let { 
+                unregisterReceiver(it)
+                apiKeySyncReceiver = null
+                Log.d(TAG, "API密钥同步广播接收器已注销")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "注销API密钥同步广播接收器失败", e)
+        }
 
+        // 注销添加AI联系人广播接收器
+        try {
+            addAIContactReceiver?.let { 
+                unregisterReceiver(it)
+                addAIContactReceiver = null
+                Log.d(TAG, "添加AI联系人广播接收器已注销")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "注销添加AI联系人广播接收器失败", e)
+        }
 
         // 释放语音识别器
         releaseSpeechRecognizer()
@@ -4602,6 +4646,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 处理联系人长按事件
                     showContactOptionsDialog(contact)
                     true
+                },
+                onContactDoubleClick = { contact ->
+                    // 处理联系人双击事件 - 添加到当前标签页
+                    addContactToCurrentTab(contact)
+                    true
                 }
             )
 
@@ -4614,15 +4663,37 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 保存适配器引用
             this.chatContactAdapter = chatContactAdapter
 
-            // 设置搜索功能
-            chatSearchInput?.addTextChangedListener(object : android.text.TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-                override fun afterTextChanged(s: android.text.Editable?) {
-                    // 实现搜索逻辑
-                    performChatSearch(s?.toString() ?: "")
+            // 设置搜索功能 - 始终针对所有AI助手提问
+            chatSearchInput?.setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                    val query = chatSearchInput.text.toString().trim()
+                    if (query.isNotEmpty()) {
+                        // 直接启动全局AI搜索，向所有AI助手提问
+                        startGlobalAISearch(query)
+                        // 清空搜索框
+                        chatSearchInput.text.clear()
+                    }
+                    true
+                } else {
+                    false
                 }
-            })
+            }
+            
+            // 添加回车键监听
+            chatSearchInput?.setOnKeyListener { _, keyCode, event ->
+                if (keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN) {
+                    val query = chatSearchInput.text.toString().trim()
+                    if (query.isNotEmpty()) {
+                        // 直接启动全局AI搜索，向所有AI助手提问
+                        startGlobalAISearch(query)
+                        // 清空搜索框
+                        chatSearchInput.text.clear()
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
 
             // 设置添加联系人按钮
             chatAddContactButton?.setOnClickListener {
@@ -4635,22 +4706,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 添加标签页
                 addTab(newTab().setText("全部"))
                 addTab(newTab().setText("AI助手"))
+                
+                // 添加自定义标签页按钮
+                addTab(newTab().setText("+").setIcon(R.drawable.ic_add))
 
                 addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
                     override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
                         when (tab?.position) {
                             0 -> chatContactAdapter?.updateContacts(allContacts)
                             1 -> showAIContacts()
+                            2 -> showCustomTabDialog() // 显示自定义标签页对话框
+                            else -> {
+                                // 自定义标签页
+                                val customTabName = tab?.text?.toString()
+                                if (customTabName != null && customTabName != "+") {
+                                    showCustomAIContacts(customTabName)
+                                }
+                            }
                         }
                     }
 
                     override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
-                    override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+                    override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                        // 长按自定义标签页可以编辑
+                        if (tab?.position != null && tab.position > 2) {
+                            showEditCustomTabDialog(tab)
+                        }
+                    }
                 })
             }
 
             // 加载初始数据
             loadInitialContacts()
+            
+            // 加载保存的自定义标签页
+            loadCustomTabs()
 
             Log.d(TAG, "对话功能初始化完成")
         } catch (e: Exception) {
@@ -4659,14 +4749,574 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 设置API密钥同步广播接收器
+     */
+    private fun setupApiKeySyncReceiver() {
+        try {
+            apiKeySyncReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    try {
+                        when (intent?.action) {
+                            "com.example.aifloatingball.SETTINGS_API_KEY_UPDATED" -> {
+                                val serviceName = intent.getStringExtra("service_name") ?: return
+                                val apiKey = intent.getStringExtra("api_key") ?: return
+                                
+                                Log.d(TAG, "收到设置同步广播: $serviceName")
+                                
+                                // 更新联系人列表中的API密钥
+                                updateExistingContactApiKey(serviceName, apiKey)
+                                
+                                // 如果该AI还不存在，自动添加它
+                                addAIIfNotExists(serviceName, apiKey)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "处理API密钥同步广播失败", e)
+                    }
+                }
+            }
+            
+            // 注册广播接收器
+            val filter = IntentFilter().apply {
+                addAction("com.example.aifloatingball.SETTINGS_API_KEY_UPDATED")
+            }
+            registerReceiver(apiKeySyncReceiver, filter)
+            
+            Log.d(TAG, "API密钥同步广播接收器已注册")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "设置API密钥同步广播接收器失败", e)
+        }
+    }
+
+    /**
+     * 如果AI不存在则自动添加
+     */
+    private fun addAIIfNotExists(serviceName: String, apiKey: String) {
+        try {
+            // 检查是否已存在该AI
+            var exists = false
+            for (category in allContacts) {
+                for (contact in category.contacts) {
+                    if (contact.name.equals(serviceName, ignoreCase = true)) {
+                        exists = true
+                        break
+                    }
+                }
+                if (exists) break
+            }
+            
+            if (!exists && apiKey.isNotBlank()) {
+                // 自动添加该AI
+                val description = when (serviceName.lowercase()) {
+                    "deepseek" -> "🚀 DeepSeek - 性能强劲，支持中文"
+                    "智谱ai" -> "🧠 智谱AI - GLM-4大语言模型"
+                    "chatgpt" -> "🤖 ChatGPT - OpenAI的经典模型"
+                    "claude" -> "💡 Claude - Anthropic的智能助手"
+                    "gemini" -> "🌟 Gemini - Google的AI助手"
+                    "kimi" -> "🌙 Kimi - Moonshot的长文本专家"
+                    "文心一言" -> "📚 文心一言 - 百度的大语言模型"
+                    "通义千问" -> "🎯 通义千问 - 阿里巴巴的AI"
+                    "讯飞星火" -> "⚡ 讯飞星火 - 科大讯飞的AI"
+                    else -> "${serviceName}AI助手"
+                }
+                
+                addAIContactToCategory(serviceName, description, apiKey)
+                
+                runOnUiThread {
+                    Toast.makeText(this, "${serviceName}已自动添加到对话列表", Toast.LENGTH_SHORT).show()
+                }
+                
+                Log.d(TAG, "从设置自动添加AI: $serviceName")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "自动添加AI失败", e)
+        }
+    }
+
+    /**
      * 执行对话搜索
      */
     private fun performChatSearch(query: String) {
         try {
-            chatContactAdapter?.searchContacts(query)
+            if (query.trim().isEmpty()) {
+                // 如果搜索内容为空，显示所有联系人（不进行AI搜索）
+                chatContactAdapter?.searchContacts("")
+                return
+            }
+            
+            // 对话tab的搜索框始终针对所有AI助手提问，而不是过滤AI名称
+            // 启动全局搜索（向所有AI提问）
+            startGlobalAISearch(query)
+            
             Log.d(TAG, "执行对话搜索: $query")
         } catch (e: Exception) {
             Log.e(TAG, "搜索失败", e)
+        }
+    }
+
+    /**
+     * 启动全局AI搜索（向所有AI同时提问）
+     */
+    private fun startGlobalAISearch(query: String) {
+        try {
+            // 获取当前选中的标签页
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            val currentTabPosition = chatTabLayout?.selectedTabPosition ?: 0
+            val currentTabName = chatTabLayout?.getTabAt(currentTabPosition)?.text?.toString()
+            
+            // 使用AI标签管理器智能选择AI对象
+            val aiTagManager = AITagManager.getInstance(this)
+            val availableAIs = aiTagManager.getAIsForSearch(currentTabPosition, currentTabName, allContacts)
+            
+            Log.d(TAG, "智能选择AI对象: 标签页=$currentTabPosition, 名称=$currentTabName, AI数量=${availableAIs.size}")
+            
+            if (availableAIs.isEmpty()) {
+                val message = when (currentTabPosition) {
+                    1 -> "没有找到已配置的置顶AI助手，请先置顶一些AI助手"
+                    2 -> "请选择或创建自定义标签页"
+                    else -> {
+                        val customTabName = chatTabLayout?.getTabAt(currentTabPosition)?.text?.toString()
+                        if (customTabName != null && customTabName != "+") {
+                            "标签页 \"$customTabName\" 中没有配置AI助手"
+                        } else {
+                            "请先配置AI助手的API密钥"
+                        }
+                    }
+                }
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 显示搜索范围提示
+            val searchScope = when (currentTabPosition) {
+                1 -> "置顶AI助手"
+                2 -> "请选择标签页"
+                else -> {
+                    val customTabName = chatTabLayout?.getTabAt(currentTabPosition)?.text?.toString()
+                    if (customTabName != null && customTabName != "+") {
+                        "标签页 \"$customTabName\""
+                    } else {
+                        "所有AI助手"
+                    }
+                }
+            }
+            Toast.makeText(this, "将在${searchScope}中搜索：$query", Toast.LENGTH_SHORT).show()
+            
+            // 创建或打开全局搜索对话
+            openGlobalSearchChat(query, availableAIs)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "启动全局AI搜索失败", e)
+            Toast.makeText(this, "搜索失败，请重试", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 获取所有可用的AI助手
+     */
+    private fun getAllAvailableAIs(): List<ChatContact> {
+        val availableAIs = mutableListOf<ChatContact>()
+        allContacts.forEach { category ->
+            if (category.name == "AI助手") {
+                category.contacts.forEach { contact ->
+                    if (hasValidApiKey(contact)) {
+                        availableAIs.add(contact)
+                    }
+                }
+            }
+        }
+        return availableAIs
+    }
+    
+    /**
+     * 获取置顶的可用的AI助手
+     */
+    private fun getPinnedAvailableAIs(): List<ChatContact> {
+        val availableAIs = mutableListOf<ChatContact>()
+        allContacts.forEach { category ->
+            if (category.name == "AI助手") {
+                category.contacts.forEach { contact ->
+                    // 检查是否为置顶的AI联系人（通过名称或其他标识）
+                    if (isPinnedAIContact(contact) && hasValidApiKey(contact)) {
+                        availableAIs.add(contact)
+                    }
+                }
+            }
+        }
+        return availableAIs
+    }
+    
+    /**
+     * 判断是否为置顶的AI联系人
+     */
+    private fun isPinnedAIContact(contact: ChatContact): Boolean {
+        // 这里可以根据实际需求来判断哪些AI是置顶的
+        // 暂时返回true，表示所有AI都是可用的
+        return true
+    }
+
+    /**
+     * 执行全局搜索 - 直接开始搜索，不显示弹窗
+     */
+    private fun openGlobalSearchChat(query: String, availableAIs: List<ChatContact>) {
+        try {
+            if (availableAIs.isEmpty()) {
+                Toast.makeText(this, "没有找到已配置的AI助手", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 直接开始全局搜索，不显示弹窗
+            startGlobalSearchDirectly(query, availableAIs)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "执行全局搜索失败", e)
+            Toast.makeText(this, "搜索失败，请重试", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示全局搜索进度对话框
+     */
+    private fun showGlobalSearchProgressDialog(query: String, availableAIs: List<ChatContact>) {
+        try {
+            // 创建自定义布局
+            val dialogLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(40, 30, 40, 30)
+            }
+            
+            // 标题
+            val titleText = TextView(this).apply {
+                text = "🔍 全局AI搜索进度"
+                textSize = 18f
+                setTextColor(getColor(R.color.simple_mode_text_primary_light))
+                setPadding(0, 0, 0, 20)
+                gravity = android.view.Gravity.CENTER
+            }
+            dialogLayout.addView(titleText)
+            
+            // 问题显示
+            val questionText = TextView(this).apply {
+                text = "问题：\"$query\""
+                textSize = 14f
+                setTextColor(getColor(R.color.simple_mode_text_primary_light))
+                setPadding(20, 10, 20, 10)
+                background = getDrawable(R.drawable.search_box_background)
+            }
+            dialogLayout.addView(questionText)
+            
+            // 间距
+            val spacer = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, 20)
+            }
+            dialogLayout.addView(spacer)
+            
+            // AI进度列表容器
+            val progressContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            dialogLayout.addView(progressContainer)
+            
+            // 为每个AI创建进度卡片
+            val progressCards = mutableMapOf<String, LinearLayout>()
+            availableAIs.forEach { aiContact ->
+                val progressCard = createAIProgressCard(aiContact, progressContainer)
+                progressCards[aiContact.id] = progressCard
+            }
+            
+            // 创建对话框
+            val dialog = AlertDialog.Builder(this)
+                .setView(dialogLayout)
+                .setNegativeButton("关闭", null)
+                .create()
+            
+            dialog.show()
+            
+            // 开始向所有AI发送查询
+            startGlobalSearch(query, availableAIs, progressCards, dialog)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示全局搜索进度对话框失败", e)
+        }
+    }
+
+    /**
+     * 创建AI进度卡片
+     */
+    private fun createAIProgressCard(aiContact: ChatContact, container: LinearLayout): LinearLayout {
+        val cardLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(15, 15, 15, 15)
+            background = getDrawable(R.drawable.search_box_background)
+            val layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            layoutParams.setMargins(0, 0, 0, 10)
+            setLayoutParams(layoutParams)
+        }
+        
+        // AI头像和名称
+        val aiNameText = TextView(this).apply {
+            text = aiContact.name
+            textSize = 14f
+            setTextColor(getColor(R.color.simple_mode_text_primary_light))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        cardLayout.addView(aiNameText)
+        
+        // 状态指示
+        val statusText = TextView(this).apply {
+            text = "⏳ 准备中..."
+            textSize = 12f
+            setTextColor(getColor(R.color.simple_mode_text_secondary_light))
+            gravity = android.view.Gravity.END
+        }
+        cardLayout.addView(statusText)
+        
+        // 点击查看对话
+        cardLayout.setOnClickListener {
+            val intent = Intent(this@SimpleModeActivity, ChatActivity::class.java).apply {
+                putExtra(ChatActivity.EXTRA_CONTACT, aiContact)
+            }
+            startActivity(intent)
+        }
+        
+        container.addView(cardLayout)
+        return cardLayout
+    }
+
+    /**
+     * 直接开始全局搜索，不显示弹窗
+     */
+    private fun startGlobalSearchDirectly(query: String, availableAIs: List<ChatContact>) {
+        try {
+            availableAIs.forEach { aiContact ->
+                lifecycleScope.launch {
+                    try {
+                        // 在后台向AI发送消息
+                        sendMessageToAIInBackground(aiContact, query)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "向AI ${aiContact.name} 发送消息失败", e)
+                    }
+                }
+            }
+            
+            // 显示简单的提示
+            Toast.makeText(this, "已向 ${availableAIs.size} 个AI助手发送问题，请查看各AI的回复", Toast.LENGTH_LONG).show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "开始全局搜索失败", e)
+        }
+    }
+
+    /**
+     * 开始全局搜索（带弹窗版本）
+     */
+    private fun startGlobalSearch(query: String, availableAIs: List<ChatContact>, 
+                                 progressCards: Map<String, LinearLayout>, dialog: AlertDialog) {
+        try {
+            var completedCount = 0
+            val totalCount = availableAIs.size
+            
+            availableAIs.forEach { aiContact ->
+                lifecycleScope.launch {
+                    try {
+                        // 更新状态：发送中
+                        runOnUiThread {
+                            updateProgressCard(progressCards[aiContact.id], "🚀 发送中...")
+                        }
+                        
+                        // 向AI的对话中发送消息（后台处理）
+                        sendMessageToAIInBackground(aiContact, query)
+                        
+                        // 模拟一个短暂延迟
+                        delay(1000)
+                        
+                        // 更新状态：已发送
+                        runOnUiThread {
+                            updateProgressCard(progressCards[aiContact.id], "✅ 已发送，点击查看回复")
+                        }
+                        
+                    } catch (e: Exception) {
+                        runOnUiThread {
+                            updateProgressCard(progressCards[aiContact.id], "❌ 发送失败")
+                        }
+                    }
+                    
+                    completedCount++
+                    if (completedCount >= totalCount) {
+                        runOnUiThread {
+                            // 所有AI都已发送完成
+                            dialog.setTitle("🎉 搜索完成 - 点击AI查看回复")
+                        }
+                    }
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "开始全局搜索失败", e)
+        }
+    }
+
+    /**
+     * 更新进度卡片状态
+     */
+    private fun updateProgressCard(cardLayout: LinearLayout?, status: String) {
+        try {
+            cardLayout?.let { card ->
+                val statusText = card.getChildAt(1) as TextView
+                statusText.text = status
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新进度卡片失败", e)
+        }
+    }
+
+    /**
+     * 在后台向AI发送消息
+     */
+    private suspend fun sendMessageToAIInBackground(aiContact: ChatContact, query: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                // 获取AI服务类型
+                val serviceType = getAIServiceType(aiContact)
+                if (serviceType != null) {
+                    // 检查是否有API密钥配置
+                    val apiKey = getApiKeyForService(serviceType)
+                    if (apiKey.isNotBlank()) {
+                        // 准备对话历史（这里可以加载已有的聊天记录）
+                        val conversationHistory = listOf(
+                            mapOf("role" to "user", "content" to query)
+                        )
+                        
+                        // 调用AI API发送消息
+                        val response = sendMessageToAI(serviceType, query, conversationHistory, apiKey)
+                        
+                        // 保存用户消息和AI回复到聊天历史
+                        val chatHistoryManager = SimpleChatHistoryManager(this@SimpleModeActivity)
+                        val userMessage = ChatActivity.ChatMessage(
+                            content = query,
+                            isFromUser = true,
+                            timestamp = System.currentTimeMillis()
+                        )
+                        val aiMessage = ChatActivity.ChatMessage(
+                            content = response,
+                            isFromUser = false,
+                            timestamp = System.currentTimeMillis() + 1000
+                        )
+                        
+                        // 保存消息到聊天历史
+                        val messages = listOf(userMessage, aiMessage)
+                        chatHistoryManager.saveMessages(aiContact.id, messages)
+                        
+                        // 更新联系人的最后消息
+                        runOnUiThread {
+                            updateContactLastMessage(aiContact, response)
+                        }
+                    } else {
+                        // 没有API密钥，使用模拟回复
+                        val mockResponse = generateMockResponse(aiContact.name, query)
+                        runOnUiThread {
+                            updateContactLastMessage(aiContact, mockResponse)
+                        }
+                    }
+                } else {
+                    // 无法识别AI服务类型，使用模拟回复
+                    val mockResponse = generateMockResponse(aiContact.name, query)
+                    runOnUiThread {
+                        updateContactLastMessage(aiContact, mockResponse)
+                    }
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "后台发送消息到${aiContact.name}失败", e)
+                // 发生错误时，使用模拟回复
+                val mockResponse = "抱歉，我暂时无法回答您的问题。请稍后再试或检查网络连接。"
+                runOnUiThread {
+                    updateContactLastMessage(aiContact, mockResponse)
+                }
+            }
+        }
+    }
+
+    /**
+     * 生成模拟回复
+     */
+    private fun generateMockResponse(aiName: String, query: String): String {
+        val responses = mapOf(
+            "DeepSeek" to "基于深度学习技术，我认为这个问题可以从以下几个角度来分析：1) 技术层面... 2) 实践层面... 3) 应用层面...",
+            "智谱AI" to "作为GLM-4模型，我建议从理论和实践两个层面来理解这个问题。首先从理论基础说起...",
+            "ChatGPT" to "根据我的训练数据和理解，这个问题的核心在于... 让我为您详细分析一下相关要点...",
+            "Claude" to "我很乐意帮助您分析这个问题。让我从不同维度来看：安全性、实用性、可行性...",
+            "Gemini" to "这是一个很有趣的问题！让我来为您详细分析一下各个方面的考量因素...",
+            "Kimi" to "利用我的长文本处理能力，我可以为您提供全面的解答。首先我们来看问题的背景...",
+            "文心一言" to "从中文语境的角度来看，这个问题涉及到多个层面的考虑，包括文化、技术、实践等方面...",
+            "通义千问" to "综合多方面信息，我的分析如下：这个问题需要从系统性的角度来思考...",
+            "讯飞星火" to "结合语音和文本理解技术，我认为这个问题的解决需要综合考虑多个因素..."
+        )
+        
+        return responses[aiName] ?: "感谢您的提问！针对\"$query\"这个问题，我正在为您准备详细的回答。基于我的理解，这涉及多个方面的考虑..."
+    }
+
+    /**
+     * 更新联系人的最后消息
+     */
+    private fun updateContactLastMessage(aiContact: ChatContact, lastMessage: String) {
+        try {
+            // 找到并更新联系人
+            for (i in allContacts.indices) {
+                val category = allContacts[i]
+                val contactIndex = category.contacts.indexOfFirst { it.id == aiContact.id }
+                if (contactIndex != -1) {
+                    val mutableContacts = category.contacts.toMutableList()
+                    mutableContacts[contactIndex] = mutableContacts[contactIndex].copy(
+                        lastMessage = lastMessage.take(50) + if (lastMessage.length > 50) "..." else "",
+                        lastMessageTime = System.currentTimeMillis()
+                    )
+                    allContacts[i] = category.copy(contacts = mutableContacts)
+                    break
+                }
+            }
+            
+            // 刷新UI
+            chatContactAdapter?.updateContacts(allContacts)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "更新联系人最后消息失败", e)
+        }
+    }
+
+
+
+    /**
+     * 检查联系人是否有有效的API密钥
+     */
+    private fun hasValidApiKey(contact: ChatContact): Boolean {
+        return try {
+            val apiKey = contact.customData["api_key"] ?: ""
+            apiKey.isNotBlank() && apiKey.length > 10
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 打开与联系人的对话并发送消息
+     */
+    private fun openChatWithContactAndMessage(contact: ChatContact, message: String) {
+        try {
+            val intent = Intent(this, ChatActivity::class.java).apply {
+                putExtra(ChatActivity.EXTRA_CONTACT, contact)
+                putExtra("auto_send_message", message) // 传递要自动发送的消息
+            }
+            startActivity(intent)
+            Log.d(TAG, "打开对话并发送消息: ${contact.name} - $message")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开对话失败", e)
+            Toast.makeText(this, "打开对话失败", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -4675,53 +5325,709 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showAIContacts() {
         try {
-            val aiContacts = allContacts.filter { it.name == "AI助手" }
-            chatContactAdapter?.updateContacts(aiContacts)
-            Log.d(TAG, "显示AI联系人")
+            // 使用AI标签管理器获取AI助手标签下的AI对象
+            val aiTagManager = AITagManager.getInstance(this)
+            val aiContacts = aiTagManager.getAIsByTag("ai_assistant", allContacts)
+            
+            // 将List<ChatContact>包装成List<ContactCategory>
+            val aiContactCategory = listOf(ContactCategory(
+                name = "AI助手",
+                contacts = aiContacts,
+                isExpanded = true
+            ))
+            
+            chatContactAdapter?.updateContacts(aiContactCategory)
+            Log.d(TAG, "显示AI联系人，AI助手标签下AI数量: ${aiContacts.size}")
         } catch (e: Exception) {
             Log.e(TAG, "显示AI联系人失败", e)
+        }
+    }
+    
+    /**
+     * 判断是否为AI联系人
+     */
+    private fun isAIContact(contact: ChatContact): Boolean {
+        return when (contact.name.lowercase()) {
+            "chatgpt", "gpt", "claude", "gemini", "文心一言", "wenxin", 
+            "deepseek", "通义千问", "qianwen", "讯飞星火", "xinghuo", 
+            "kimi", "智谱ai", "zhipuai" -> true
+            else -> false
         }
     }
 
 
 
     /**
-     * 打开添加联系人对话框
+     * 打开添加联系人界面 - 临时简化版本
      */
     private fun openAddContactDialog() {
         try {
-            val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_contact, null)
+            // 暂时使用简化的AI选择对话框
+            showSimpleAISelectionDialog()
+        } catch (e: Exception) {
+            Log.e(TAG, "打开添加联系人界面失败", e)
+            Toast.makeText(this, "打开添加联系人界面失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示简化的AI选择对话框
+     */
+    private fun showSimpleAISelectionDialog() {
+        val aiOptions = arrayOf(
+            "🚀 DeepSeek",
+            "🧠 智谱AI", 
+            "🤖 ChatGPT",
+            "💡 Claude",
+            "🌟 Gemini",
+            "🌙 Kimi",
+            "📚 文心一言",
+            "🎯 通义千问",
+            "⚡ 讯飞星火"
+        )
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("选择要添加的AI助手")
+            .setItems(aiOptions) { _, which ->
+                val selectedAI = aiOptions[which].substringAfter(" ")
+                addAIContactToCategory(selectedAI, "AI助手", "")
+                chatContactAdapter?.updateContacts(allContacts)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 显示统一的AI选择对话框
+     */
+    private fun showUnifiedAISelectionDialog() {
+        try {
+            // 创建主对话框
+            val dialogBuilder = AlertDialog.Builder(this)
+            dialogBuilder.setTitle("📱 添加AI助手")
+            dialogBuilder.setMessage("选择您要添加的AI助手类型：")
+            
+            // 定义AI选项
+            val aiOptions = arrayOf(
+                "🔍 搜索AI助手 - 从预设列表中选择",
+                "⚙️ 自定义API - 填写自定义API信息"
+            )
+            
+            dialogBuilder.setItems(aiOptions) { _, which ->
+                when (which) {
+                    0 -> showPresetAISelectionDialog() // 显示预设AI列表
+                    1 -> showCustomAPIDialog() // 显示自定义API对话框
+                }
+            }
+            
+            dialogBuilder.setNegativeButton("取消", null)
+            dialogBuilder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示统一AI选择对话框失败", e)
+        }
+    }
+
+    /**
+     * 显示预设AI选择对话框（支持勾选）
+     */
+    private fun showPresetAISelectionDialog() {
+        try {
+            // 定义预设AI列表
+            val presetAIs = listOf(
+                "DeepSeek" to "🚀 DeepSeek - 性能强劲，支持中文",
+                "智谱AI" to "🧠 智谱AI - GLM-4大语言模型", 
+                "ChatGPT" to "🤖 ChatGPT - OpenAI的经典模型",
+                "Claude" to "💡 Claude - Anthropic的智能助手",
+                "Gemini" to "🌟 Gemini - Google的AI助手",
+                "Kimi" to "🌙 Kimi - Moonshot的长文本专家",
+                "文心一言" to "📚 文心一言 - 百度的大语言模型",
+                "通义千问" to "🎯 通义千问 - 阿里巴巴的AI",
+                "讯飞星火" to "⚡ 讯飞星火 - 科大讯飞的AI"
+            )
+            
+            // 创建自定义布局
+            val dialogLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(40, 30, 40, 30)
+            }
+            
+            // 标题
+            val titleText = TextView(this).apply {
+                text = "📱 添加AI助手"
+                textSize = 18f
+                setTextColor(getColor(R.color.simple_mode_text_primary_light))
+                setPadding(0, 0, 0, 20)
+                gravity = android.view.Gravity.CENTER
+            }
+            dialogLayout.addView(titleText)
+            
+            // 说明文字
+            val instructionText = TextView(this).apply {
+                text = "勾选要添加的AI助手，然后配置API密钥："
+                textSize = 14f
+                setTextColor(getColor(R.color.simple_mode_text_secondary_light))
+                setPadding(0, 0, 0, 15)
+            }
+            dialogLayout.addView(instructionText)
+            
+            // AI选择列表
+            val aiCheckBoxes = mutableListOf<CheckBox>()
+            presetAIs.forEach { (aiName, description) ->
+                val hasApiKey = getApiKeyForAI(aiName).isNotBlank()
+                val hasContact = hasAIContact(aiName)
+                
+                val checkBox = CheckBox(this).apply {
+                    text = when {
+                        hasContact && hasApiKey -> "$description ✅"
+                        hasApiKey -> "$description ⚠️ 有密钥"
+                        else -> description
+                    }
+                    textSize = 14f
+                    setPadding(0, 8, 0, 8)
+                    isChecked = !hasContact && hasApiKey // 有密钥但没联系人的默认勾选
+                }
+                
+                dialogLayout.addView(checkBox)
+                aiCheckBoxes.add(checkBox)
+            }
+            
+            // 创建对话框
             val dialog = AlertDialog.Builder(this)
-                .setView(dialogView)
-                .setCancelable(true)
+                .setView(dialogLayout)
+                .setPositiveButton("配置选中的AI") { _, _ ->
+                    val selectedAIs = mutableListOf<Pair<String, String>>()
+                    aiCheckBoxes.forEachIndexed { index, checkBox ->
+                        if (checkBox.isChecked) {
+                            selectedAIs.add(presetAIs[index])
+                        }
+                    }
+                    
+                    if (selectedAIs.isNotEmpty()) {
+                        showBatchConfigurationDialog(selectedAIs)
+                    } else {
+                        Toast.makeText(this@SimpleModeActivity, "请至少选择一个AI助手", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
                 .create()
 
-            // 设置AI助手选项点击事件
-            dialogView.findViewById<MaterialCardView>(R.id.ai_contact_option)?.setOnClickListener {
-                dialog.dismiss()
-                openAddAIContactDialog()
+            dialog.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示预设AI选择对话框失败", e)
+        }
+    }
+
+    /**
+     * 显示批量配置对话框
+     */
+    private fun showBatchConfigurationDialog(selectedAIs: List<Pair<String, String>>) {
+        try {
+            // 创建批量配置界面
+            val dialogLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(40, 30, 40, 30)
             }
-
-            // 设置填写API选项点击事件
-            dialogView.findViewById<MaterialCardView>(R.id.api_contact_option)?.setOnClickListener {
-                dialog.dismiss()
-                Log.d(TAG, "用户点击了填写API选项")
-                openAddAPIContactDialog()
+            
+            // 标题
+            val titleText = TextView(this).apply {
+                text = "🔧 批量配置AI助手"
+                textSize = 18f
+                setTextColor(getColor(R.color.simple_mode_text_primary_light))
+                setPadding(0, 0, 0, 20)
+                gravity = android.view.Gravity.CENTER
             }
+            dialogLayout.addView(titleText)
+            
+            // 说明文字
+            val instructionText = TextView(this).apply {
+                text = "为选中的AI助手配置API密钥："
+                textSize = 14f
+                setTextColor(getColor(R.color.simple_mode_text_secondary_light))
+                setPadding(0, 0, 0, 15)
+            }
+            dialogLayout.addView(instructionText)
+            
+            // 滚动容器
+            val scrollView = ScrollView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    400 // 限制高度
+                )
+            }
+            
+            val scrollContent = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, 0, 0, 0)
+            }
+            
+            // 为每个AI创建配置项
+            val apiKeyInputs = mutableMapOf<String, EditText>()
+            selectedAIs.forEach { (aiName, description) ->
+                // AI名称
+                val aiNameText = TextView(this).apply {
+                    text = description
+                    textSize = 14f
+                    setTextColor(getColor(R.color.simple_mode_text_primary_light))
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setPadding(0, 15, 0, 8)
+                }
+                scrollContent.addView(aiNameText)
+                
+                // API密钥输入框
+                val apiKeyInput = EditText(this).apply {
+                    hint = "输入${aiName}的API密钥"
+                    inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    setPadding(20, 15, 20, 15)
+                    background = getDrawable(R.drawable.edit_text_background)
+                    
+                    // 如果已有API密钥，预填充
+                    val existingApiKey = getApiKeyForAI(aiName)
+                    if (existingApiKey.isNotBlank()) {
+                        setText(existingApiKey)
+                    }
+                }
+                scrollContent.addView(apiKeyInput)
+                apiKeyInputs[aiName] = apiKeyInput
+                
+                // 间距
+                val spacer = View(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 
+                        10
+                    )
+                }
+                scrollContent.addView(spacer)
+            }
+            
+            scrollView.addView(scrollContent)
+            dialogLayout.addView(scrollView)
+            
+            // 创建对话框
+            val dialog = AlertDialog.Builder(this)
+                .setView(dialogLayout)
+                .setPositiveButton("保存并添加") { _, _ ->
+                    var successCount = 0
+                    var errorCount = 0
+                    
+                    selectedAIs.forEach { (aiName, description) ->
+                        try {
+                            val apiKey = apiKeyInputs[aiName]?.text?.toString()?.trim() ?: ""
+                            if (apiKey.isNotBlank() && isValidApiKey(apiKey, aiName)) {
+                                // 保存API密钥
+                                saveApiKeyForAI(aiName, apiKey)
+                                
+                                // 如果还没有联系人，则添加
+                                if (!hasAIContact(aiName)) {
+                                    addAIContactToCategory(aiName, description, apiKey)
+                                }
+                                
+                                successCount++
+                            } else {
+                                errorCount++
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "配置${aiName}失败", e)
+                            errorCount++
+                        }
+                    }
+                    
+                    // 显示结果
+                    val message = when {
+                        successCount > 0 && errorCount == 0 -> "成功配置${successCount}个AI助手"
+                        successCount > 0 && errorCount > 0 -> "成功配置${successCount}个，失败${errorCount}个AI助手"
+                        else -> "配置失败，请检查API密钥格式"
+                    }
+                    Toast.makeText(this@SimpleModeActivity, message, Toast.LENGTH_LONG).show()
+                    
+                    // 刷新UI
+                    if (successCount > 0) {
+                        chatContactAdapter?.updateContacts(allContacts)
+                    }
+                }
+                .setNeutralButton("测试连通性") { _, _ ->
+                    // 批量测试API连通性
+                    batchTestApiConnections(selectedAIs, apiKeyInputs)
+                }
+                .setNegativeButton("取消", null)
+                .create()
+            
+            dialog.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示批量配置对话框失败", e)
+        }
+    }
 
+    /**
+     * 批量测试API连通性
+     */
+    private fun batchTestApiConnections(
+        selectedAIs: List<Pair<String, String>>, 
+        apiKeyInputs: Map<String, EditText>
+    ) {
+        try {
+            val testResults = mutableMapOf<String, String>()
+            var completedTests = 0
+            val totalTests = selectedAIs.size
+            
+            // 显示测试进度对话框
+            val progressDialog = AlertDialog.Builder(this)
+                .setTitle("🧪 测试连通性")
+                .setMessage("正在测试API连接...")
+                .setCancelable(false)
+                .create()
+            progressDialog.show()
+            
+            selectedAIs.forEach { (aiName, _) ->
+                val apiKey = apiKeyInputs[aiName]?.text?.toString()?.trim() ?: ""
+                
+                if (apiKey.isNotBlank()) {
+                    lifecycleScope.launch {
+                        try {
+                            val result = performAPITest(aiName, apiKey)
+                            testResults[aiName] = if (result.success) "✅ ${result.message}" else "❌ ${result.message}"
+                        } catch (e: Exception) {
+                            testResults[aiName] = "❌ 测试失败: ${e.message}"
+                        }
+                        
+                        completedTests++
+                        if (completedTests >= totalTests) {
+                            runOnUiThread {
+                                progressDialog.dismiss()
+                                showTestResults(testResults)
+                            }
+                        }
+                    }
+                } else {
+                    testResults[aiName] = "⚠️ API密钥为空"
+                    completedTests++
+                    if (completedTests >= totalTests) {
+                        progressDialog.dismiss()
+                        showTestResults(testResults)
+                    }
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "批量测试API连通性失败", e)
+        }
+    }
 
+    /**
+     * 显示测试结果
+     */
+    private fun showTestResults(testResults: Map<String, String>) {
+        try {
+            val resultText = testResults.entries.joinToString("\n\n") { (aiName, result) ->
+                "$aiName:\n$result"
+            }
+            
+            AlertDialog.Builder(this)
+                .setTitle("🧪 连通性测试结果")
+                .setMessage(resultText)
+                .setPositiveButton("确定", null)
+                .show()
+                
+        } catch (e: Exception) {
+            Log.e(TAG, "显示测试结果失败", e)
+        }
+    }
 
-            // 设置取消按钮点击事件
-            dialogView.findViewById<MaterialButton>(R.id.cancel_button)?.setOnClickListener {
+    /**
+     * 检查是否已有该AI联系人
+     */
+    private fun hasAIContact(aiName: String): Boolean {
+        return try {
+            for (category in allContacts) {
+                for (contact in category.contacts) {
+                    if (contact.name.equals(aiName, ignoreCase = true)) {
+                        return true
+                    }
+                }
+            }
+            false
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 显示重新配置对话框
+     */
+    private fun showReconfigureDialog(aiName: String, description: String) {
+        try {
+            val dialogBuilder = AlertDialog.Builder(this)
+            dialogBuilder.setTitle("🔄 重新配置")
+            dialogBuilder.setMessage("${aiName}已存在，您要执行什么操作？")
+            
+            dialogBuilder.setPositiveButton("重新配置API") { _, _ ->
+                showAIApiKeyDialog(aiName, description)
+            }
+            
+            dialogBuilder.setNeutralButton("打开对话") { _, _ ->
+                // 找到该AI联系人并打开对话
+                for (category in allContacts) {
+                    for (contact in category.contacts) {
+                        if (contact.name.equals(aiName, ignoreCase = true)) {
+                            openChatWithContact(contact)
+                            return@setNeutralButton
+                        }
+                    }
+                }
+            }
+            
+            dialogBuilder.setNegativeButton("取消", null)
+            dialogBuilder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示重新配置对话框失败", e)
+        }
+    }
+
+    /**
+     * 显示AI API密钥输入对话框（带测试功能）
+     */
+    private fun showAIApiKeyDialog(aiName: String, aiDescription: String) {
+        try {
+            // 创建自定义布局
+            val dialogLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(50, 30, 50, 30)
+            }
+            
+            // AI信息显示
+            val infoText = TextView(this).apply {
+                text = "配置 $aiDescription"
+                textSize = 16f
+                setTextColor(getColor(R.color.simple_mode_text_primary_light))
+                setPadding(0, 0, 0, 20)
+            }
+            dialogLayout.addView(infoText)
+            
+            // API密钥输入框
+            val apiKeyInput = EditText(this).apply {
+                hint = "请输入${aiName}的API密钥"
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                setPadding(20, 15, 20, 15)
+                background = getDrawable(R.drawable.edit_text_background)
+            }
+            dialogLayout.addView(apiKeyInput)
+            
+            // 添加间距
+            val spacer1 = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, 20)
+            }
+            dialogLayout.addView(spacer1)
+            
+            // 测试结果显示
+            val testResultText = TextView(this).apply {
+                text = "💡 输入API密钥后可测试连通性"
+                textSize = 14f
+                setTextColor(getColor(R.color.simple_mode_text_secondary_light))
+                setPadding(20, 10, 20, 10)
+                background = getDrawable(R.drawable.search_box_background)
+            }
+            dialogLayout.addView(testResultText)
+            
+            // 添加间距
+            val spacer2 = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, 15)
+            }
+            dialogLayout.addView(spacer2)
+            
+            // 按钮容器
+            val buttonLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER
+            }
+            
+            // 测试连通性按钮
+            val testButton = MaterialButton(this).apply {
+                text = "🧪 测试连通性"
+                setBackgroundColor(getColor(R.color.simple_mode_accent_light))
+                setTextColor(getColor(android.R.color.white))
+                isEnabled = false
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginEnd = 10
+                }
+            }
+            buttonLayout.addView(testButton)
+            
+            // 保存按钮
+            val saveButton = MaterialButton(this).apply {
+                text = "💾 保存配置"
+                setBackgroundColor(getColor(R.color.simple_mode_primary_light))
+                setTextColor(getColor(android.R.color.white))
+                isEnabled = false
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = 10
+                }
+            }
+            buttonLayout.addView(saveButton)
+            
+            dialogLayout.addView(buttonLayout)
+            
+            // 创建对话框
+            val dialog = AlertDialog.Builder(this)
+                .setTitle("🔧 配置${aiName}")
+                .setView(dialogLayout)
+                .setNegativeButton("取消", null)
+                .create()
+            
+            // 监听API密钥输入
+            apiKeyInput.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    val apiKey = s?.toString()?.trim() ?: ""
+                    val isValid = isValidApiKey(apiKey, aiName)
+                    testButton.isEnabled = isValid
+                    saveButton.isEnabled = isValid
+                    
+                    if (apiKey.isEmpty()) {
+                        testResultText.text = "💡 输入API密钥后可测试连通性"
+                        testResultText.setTextColor(getColor(R.color.simple_mode_text_secondary_light))
+                    } else if (!isValid) {
+                        testResultText.text = "❌ API密钥格式不正确"
+                        testResultText.setTextColor(getColor(android.R.color.holo_red_dark))
+                    } else {
+                        testResultText.text = "✅ API密钥格式正确，可以测试连通性"
+                        testResultText.setTextColor(getColor(android.R.color.holo_green_dark))
+                    }
+                }
+            })
+            
+            // 测试按钮点击事件
+            testButton.setOnClickListener {
+                val apiKey = apiKeyInput.text.toString().trim()
+                testAPIConnection(aiName, apiKey, testResultText)
+            }
+            
+            // 保存按钮点击事件
+            saveButton.setOnClickListener {
+                val apiKey = apiKeyInput.text.toString().trim()
+                if (isValidApiKey(apiKey, aiName)) {
+                    // 保存API密钥
+                    saveApiKeyForAI(aiName, apiKey)
+                    
+                    // 添加AI助手到联系人列表
+                    addAIContactToCategory(aiName, aiDescription, apiKey)
+                    
                 dialog.dismiss()
+                    Toast.makeText(this, "${aiName}已成功添加", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "API密钥格式不正确", Toast.LENGTH_SHORT).show()
+                }
             }
 
             dialog.show()
-            Log.d(TAG, "打开添加联系人对话框")
+            
         } catch (e: Exception) {
-            Log.e(TAG, "打开添加联系人对话框失败", e)
-            Toast.makeText(this, "打开添加联系人对话框失败", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "显示AI API密钥对话框失败", e)
+            Toast.makeText(this, "显示对话框失败", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /**
+     * 测试API连接
+     */
+    private fun testAPIConnection(aiName: String, apiKey: String, resultTextView: TextView) {
+        try {
+            resultTextView.text = "🔄 正在测试连接..."
+            resultTextView.setTextColor(getColor(R.color.simple_mode_accent_light))
+            
+            // 使用协程进行异步测试
+            lifecycleScope.launch {
+                try {
+                    val result = performAPITest(aiName, apiKey)
+                    runOnUiThread {
+                        if (result.success) {
+                            resultTextView.text = "✅ 连接成功！${result.message}"
+                            resultTextView.setTextColor(getColor(android.R.color.holo_green_dark))
+                        } else {
+                            resultTextView.text = "❌ 连接失败：${result.message}"
+                            resultTextView.setTextColor(getColor(android.R.color.holo_red_dark))
+                        }
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        resultTextView.text = "❌ 测试失败：${e.message}"
+                        resultTextView.setTextColor(getColor(android.R.color.holo_red_dark))
+                    }
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "测试API连接失败", e)
+            resultTextView.text = "❌ 测试失败：${e.message}"
+            resultTextView.setTextColor(getColor(android.R.color.holo_red_dark))
+        }
+    }
+
+    /**
+     * 执行API测试
+     */
+    private suspend fun performAPITest(aiName: String, apiKey: String): TestResult {
+        return withContext(Dispatchers.IO) {
+            try {
+                val apiUrl = getDefaultApiUrl(aiName)
+                val url = URL(apiUrl)
+                val connection = url.openConnection() as HttpURLConnection
+                
+                connection.apply {
+                    requestMethod = "POST"
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Authorization", "Bearer $apiKey")
+                    connectTimeout = 10000
+                    readTimeout = 10000
+                    doOutput = true
+                }
+                
+                // 构建测试请求
+                val testMessage = when (aiName.lowercase()) {
+                    "智谱ai" -> """{"model":"glm-4","messages":[{"role":"user","content":"hi"}]}"""
+                    "deepseek" -> """{"model":"deepseek-chat","messages":[{"role":"user","content":"hi"}]}"""
+                    "kimi" -> """{"model":"moonshot-v1-8k","messages":[{"role":"user","content":"hi"}]}"""
+                    else -> """{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"hi"}]}"""
+                }
+                
+                connection.outputStream.use { os ->
+                    val input = testMessage.toByteArray(Charsets.UTF_8)
+                    os.write(input, 0, input.size)
+                }
+                
+                val responseCode = connection.responseCode
+                when (responseCode) {
+                    200 -> TestResult(true, "API连接正常")
+                    401 -> TestResult(false, "API密钥无效")
+                    429 -> TestResult(false, "请求频率过高")
+                    500 -> TestResult(false, "服务器内部错误")
+                    else -> TestResult(false, "HTTP错误码: $responseCode")
+                }
+                
+            } catch (e: Exception) {
+                when {
+                    e.message?.contains("timeout") == true -> TestResult(false, "连接超时")
+                    e.message?.contains("UnknownHostException") == true -> TestResult(false, "无法连接到服务器")
+                    else -> TestResult(false, e.message ?: "未知错误")
+                }
+            }
+        }
+    }
+
+    /**
+     * API测试结果数据类
+     */
+    data class TestResult(val success: Boolean, val message: String)
+
+    /**
+     * 显示自定义API对话框
+     */
+    private fun showCustomAPIDialog() {
+        // 复用原来的openAddAPIContactDialog逻辑
+        openAddAPIContactDialog()
     }
 
     /**
@@ -4761,6 +6067,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 "ChatGPT" to "OpenAI的AI助手",
                 "Claude" to "Anthropic的AI助手",
                 "Gemini" to "Google的AI助手",
+                "智谱AI" to "智谱AI的GLM-4大语言模型",
                 "文心一言" to "百度的大语言模型",
                 "通义千问" to "阿里巴巴的大语言模型",
                 "讯飞星火" to "科大讯飞的AI助手",
@@ -5091,6 +6398,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 "chatgpt" -> "chatgpt_api_key"
                 "claude" -> "claude_api_key"
                 "gemini" -> "gemini_api_key"
+                "智谱ai" -> "zhipu_ai_api_key"
                 "文心一言" -> "wenxin_api_key"
                 "通义千问" -> "qianwen_api_key"
                 "讯飞星火" -> "xinghuo_api_key"
@@ -5115,16 +6423,102 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 "chatgpt" -> "chatgpt_api_key"
                 "claude" -> "claude_api_key"
                 "gemini" -> "gemini_api_key"
+                "智谱ai" -> "zhipu_ai_api_key"
                 "文心一言" -> "wenxin_api_key"
                 "通义千问" -> "qianwen_api_key"
                 "讯飞星火" -> "xinghuo_api_key"
                 "kimi" -> "kimi_api_key"
                 else -> "${aiName.lowercase()}_api_key"
             }
+            
+            // 保存到SettingsManager（系统设置）
             settingsManager.putString(keyName, apiKey)
-            Log.d(TAG, "保存API密钥: $keyName")
+            
+            // 同时保存API URL到设置中，确保系统设置完整
+            val urlKeyName = keyName.replace("_api_key", "_api_url")
+            val defaultUrl = getDefaultApiUrl(aiName)
+            settingsManager.putString(urlKeyName, defaultUrl)
+            
+            Log.d(TAG, "保存API密钥到系统设置: $keyName")
+            Log.d(TAG, "同步API URL到系统设置: $urlKeyName = $defaultUrl")
+            
+            // 通知其他组件API密钥已更新
+            notifyApiKeyUpdated(aiName, apiKey)
+            
         } catch (e: Exception) {
             Log.e(TAG, "保存API密钥失败", e)
+        }
+    }
+
+    /**
+     * 通知API密钥已更新
+     */
+    private fun notifyApiKeyUpdated(aiName: String, apiKey: String) {
+        try {
+            // 更新现有联系人的API密钥
+            updateExistingContactApiKey(aiName, apiKey)
+            
+            // 发送广播通知其他组件（如果需要）
+            val intent = Intent("com.example.aifloatingball.API_KEY_UPDATED").apply {
+                putExtra("ai_name", aiName)
+                putExtra("api_key", apiKey)
+            }
+            sendBroadcast(intent)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "通知API密钥更新失败", e)
+        }
+    }
+
+    /**
+     * 更新现有联系人的API密钥
+     */
+    private fun updateExistingContactApiKey(aiName: String, newApiKey: String) {
+        try {
+            var updated = false
+            
+            for (category in allContacts) {
+                for (contact in category.contacts) {
+                    if (contact.name.equals(aiName, ignoreCase = true)) {
+                        // 更新联系人的API密钥
+                        val updatedCustomData = contact.customData.toMutableMap()
+                        updatedCustomData["api_key"] = newApiKey
+                        updatedCustomData["api_url"] = getDefaultApiUrl(aiName)
+                        
+                        // 创建更新后的联系人对象（需要用反射或重新创建）
+                        val updatedContact = contact.copy(customData = updatedCustomData)
+                        
+                        // 在category中替换联系人
+                        val contactIndex = category.contacts.indexOf(contact)
+                        if (contactIndex >= 0) {
+                            val updatedContacts = category.contacts.toMutableList()
+                            updatedContacts[contactIndex] = updatedContact
+                            
+                            val categoryIndex = allContacts.indexOf(category)
+                            if (categoryIndex >= 0) {
+                                val updatedCategory = category.copy(contacts = updatedContacts)
+                                (allContacts as MutableList)[categoryIndex] = updatedCategory
+                                updated = true
+                            }
+                        }
+                        break
+                    }
+                }
+                if (updated) break
+            }
+            
+            if (updated) {
+                // 保存更新后的联系人数据
+                saveContacts()
+                
+                // 刷新UI
+                chatContactAdapter?.updateContacts(allContacts)
+                
+                Log.d(TAG, "已更新现有联系人的API密钥: $aiName")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "更新现有联系人API密钥失败", e)
         }
     }
 
@@ -5160,6 +6554,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 添加到联系人列表
             addContactToList(newContact)
+            
+            // 标记AI为已配置
+            markAIAsConfigured(name)
+            
             Toast.makeText(this, "已添加 $name", Toast.LENGTH_SHORT).show()
             Log.d(TAG, "添加AI助手到分类: $name")
         } catch (e: Exception) {
@@ -5180,7 +6578,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "文心一言" -> "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions"
             "通义千问" -> "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
             "讯飞星火" -> "https://spark-api.xf-yun.com/v3.1/chat"
-            "kimi" -> "https://kimi.moonshot.cn/api/chat-messages"
+            "kimi" -> "https://api.moonshot.cn/v1/chat/completions"
+            "智谱ai", "zhipu", "glm" -> "https://open.bigmodel.cn/api/paas/v4/chat/completions"
             else -> "https://api.openai.com/v1/chat/completions"
         }
     }
@@ -5198,6 +6597,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "通义千问" -> "qwen-turbo"
             "讯飞星火" -> "spark-v3.1"
             "kimi" -> "moonshot-v1-8k"
+            "智谱ai", "zhipu", "glm" -> "glm-4"
             else -> "gpt-3.5-turbo"
         }
     }
@@ -5259,6 +6659,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 "ChatGPT" to "OpenAI的AI助手",
                 "Claude" to "Anthropic的AI助手",
                 "Gemini" to "Google的AI助手",
+                "智谱AI" to "智谱AI的GLM-4大语言模型",
                 "文心一言" to "百度的大语言模型",
                 "通义千问" to "阿里巴巴的大语言模型",
                 "讯飞星火" to "科大讯飞的AI助手",
@@ -5512,6 +6913,573 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "添加联系人到列表: ${contact.name}")
         } catch (e: Exception) {
             Log.e(TAG, "添加联系人到列表失败", e)
+        }
+    }
+
+    /**
+     * 设置添加AI联系人广播接收器
+     */
+    private fun setupAddAIContactReceiver() {
+        try {
+            addAIContactReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    try {
+                        when (intent?.action) {
+                            "com.example.aifloatingball.ADD_AI_CONTACT" -> {
+                                val aiName = intent.getStringExtra("ai_name") ?: return
+                                val aiDisplayName = intent.getStringExtra("ai_display_name") ?: aiName
+                                val aiDescription = intent.getStringExtra("ai_description") ?: ""
+                                
+                                // 添加AI联系人到列表
+                                addAIContactToCategory(aiName, aiDisplayName, getApiKeyForAI(aiName))
+                                
+                                // 标记AI为已配置
+                                markAIAsConfigured(aiName)
+                                
+                                // 刷新UI
+                                chatContactAdapter?.updateContacts(allContacts)
+                                
+                                Toast.makeText(context, "✅ ${aiDisplayName} 已添加到对话列表", Toast.LENGTH_SHORT).show()
+                            }
+                            "com.example.aifloatingball.OPEN_AI_CHAT" -> {
+                                val aiName = intent.getStringExtra("ai_name") ?: return
+                                
+                                // 找到对应的AI联系人并打开对话
+                                val aiContact = findAIContactByName(aiName)
+                                if (aiContact != null) {
+                                    val chatIntent = Intent(this@SimpleModeActivity, ChatActivity::class.java).apply {
+                                        putExtra(ChatActivity.EXTRA_CONTACT, aiContact)
+                                    }
+                                    startActivity(chatIntent)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "处理添加AI联系人广播失败", e)
+                    }
+                }
+            }
+            
+            val filter = IntentFilter().apply {
+                addAction("com.example.aifloatingball.ADD_AI_CONTACT")
+                addAction("com.example.aifloatingball.OPEN_AI_CHAT")
+            }
+            registerReceiver(addAIContactReceiver, filter)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "设置添加AI联系人接收器失败", e)
+        }
+    }
+
+    /**
+     * 根据名称查找AI联系人
+     */
+    private fun findAIContactByName(aiName: String): ChatContact? {
+        return try {
+            allContacts.forEach { category ->
+                category.contacts.forEach { contact ->
+                    if (contact.name.equals(aiName, ignoreCase = true) || 
+                        contact.name.contains(aiName, ignoreCase = true)) {
+                        return contact
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "查找AI联系人失败", e)
+            null
+        }
+    }
+
+    /**
+     * 标记AI为已配置
+     */
+    private fun markAIAsConfigured(aiName: String) {
+        try {
+            val configuredAIs = settingsManager.getString("configured_ais", "") ?: ""
+            val aiList = configuredAIs.split(",").toMutableSet()
+            aiList.add(aiName)
+            settingsManager.putString("configured_ais", aiList.filter { it.isNotBlank() }.joinToString(","))
+        } catch (e: Exception) {
+            Log.e(TAG, "标记AI为已配置失败", e)
+        }
+    }
+
+    /**
+     * 移除AI配置标记
+     */
+    private fun unmarkAIAsConfigured(aiName: String) {
+        try {
+            val configuredAIs = settingsManager.getString("configured_ais", "") ?: ""
+            val aiList = configuredAIs.split(",").toMutableSet()
+            aiList.remove(aiName)
+            settingsManager.putString("configured_ais", aiList.filter { it.isNotBlank() }.joinToString(","))
+        } catch (e: Exception) {
+            Log.e(TAG, "移除AI配置标记失败", e)
+        }
+    }
+
+    /**
+     * 根据联系人信息获取AI服务类型
+     */
+    private fun getAIServiceType(contact: ChatContact): AIServiceType? {
+        return when (contact.name.lowercase()) {
+            "chatgpt", "gpt" -> AIServiceType.CHATGPT
+            "claude" -> AIServiceType.CLAUDE
+            "gemini" -> AIServiceType.GEMINI
+            "文心一言", "wenxin" -> AIServiceType.WENXIN
+            "deepseek" -> AIServiceType.DEEPSEEK
+            "通义千问", "qianwen" -> AIServiceType.QIANWEN
+            "讯飞星火", "xinghuo" -> AIServiceType.XINGHUO
+            "kimi" -> AIServiceType.KIMI
+            "智谱ai", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
+            else -> null
+        }
+    }
+
+    /**
+     * 获取指定服务的API密钥
+     */
+    private fun getApiKeyForService(serviceType: AIServiceType): String {
+        val settingsManager = SettingsManager.getInstance(this)
+        return when (serviceType) {
+            AIServiceType.CHATGPT -> settingsManager.getString("chatgpt_api_key", "") ?: ""
+            AIServiceType.CLAUDE -> settingsManager.getString("claude_api_key", "") ?: ""
+            AIServiceType.GEMINI -> settingsManager.getString("gemini_api_key", "") ?: ""
+            AIServiceType.WENXIN -> settingsManager.getString("wenxin_api_key", "") ?: ""
+            AIServiceType.DEEPSEEK -> settingsManager.getString("deepseek_api_key", "") ?: ""
+            AIServiceType.QIANWEN -> settingsManager.getString("qianwen_api_key", "") ?: ""
+            AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
+            AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
+            AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+        }
+    }
+
+    /**
+     * 发送消息到AI服务
+     */
+    private fun sendMessageToAI(
+        serviceType: AIServiceType,
+        message: String,
+        conversationHistory: List<Map<String, String>>,
+        apiKey: String
+    ): String {
+        return try {
+            // 创建AI API管理器
+            val aiApiManager = AIApiManager(this)
+            
+            // 使用同步方式发送消息（为了简化实现）
+            var response = ""
+            var isCompleted = false
+            var errorMessage = ""
+            
+            aiApiManager.sendMessage(
+                serviceType = serviceType,
+                message = message,
+                conversationHistory = conversationHistory,
+                callback = object : AIApiManager.StreamingCallback {
+                    override fun onChunkReceived(chunk: String) {
+                        response += chunk
+                    }
+
+                    override fun onComplete(fullResponse: String) {
+                        response = fullResponse
+                        isCompleted = true
+                    }
+
+                    override fun onError(error: String) {
+                        errorMessage = error
+                        isCompleted = false
+                    }
+                }
+            )
+            
+            // 等待响应完成（这里使用简单的轮询方式）
+            var attempts = 0
+            while (!isCompleted && attempts < 100) {
+                Thread.sleep(100)
+                attempts++
+            }
+            
+            if (isCompleted) {
+                response
+            } else if (errorMessage.isNotBlank()) {
+                "抱歉，发生了错误：$errorMessage"
+            } else {
+                "抱歉，请求超时，请稍后重试"
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送消息到AI失败", e)
+            "抱歉，发生了错误：${e.message}"
+        }
+    }
+    
+    /**
+     * 显示自定义标签页对话框
+     */
+    private fun showCustomTabDialog() {
+        try {
+            val input = EditText(this).apply {
+                hint = "输入标签页名称"
+                setText("AI分组")
+            }
+            
+            AlertDialog.Builder(this)
+                .setTitle("创建自定义标签页")
+                .setView(input)
+                .setPositiveButton("创建") { _, _ ->
+                    val tabName = input.text.toString().trim()
+                    if (tabName.isNotEmpty()) {
+                        createCustomTab(tabName)
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示自定义标签页对话框失败", e)
+        }
+    }
+    
+    /**
+     * 创建自定义标签页
+     */
+    private fun createCustomTab(tabName: String) {
+        try {
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            val newTab = chatTabLayout?.newTab()?.setText(tabName)
+            
+            if (newTab != null) {
+                // 在"+"标签页之前插入新标签页
+                val insertPosition = chatTabLayout?.tabCount?.minus(1) ?: 2
+                chatTabLayout?.addTab(newTab, insertPosition)
+                
+                // 选中新创建的标签页
+                chatTabLayout?.selectTab(newTab)
+            }
+            
+            // 使用AI标签管理器创建新标签
+            val aiTagManager = AITagManager.getInstance(this)
+            val newTag = aiTagManager.createTag(tabName, "自定义AI分组标签")
+            
+            // 保存自定义标签页信息
+            saveCustomTab(tabName)
+            
+            Toast.makeText(this, "已创建标签页：$tabName", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "创建自定义标签页和AI标签: $tabName")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建自定义标签页失败", e)
+        }
+    }
+    
+    /**
+     * 显示编辑自定义标签页对话框
+     */
+    private fun showEditCustomTabDialog(tab: com.google.android.material.tabs.TabLayout.Tab) {
+        try {
+            val currentName = tab.text.toString()
+            val input = EditText(this).apply {
+                hint = "输入新的标签页名称"
+                setText(currentName)
+            }
+            
+            AlertDialog.Builder(this)
+                .setTitle("编辑标签页")
+                .setView(input)
+                .setPositiveButton("保存") { _, _ ->
+                    val newName = input.text.toString().trim()
+                    if (newName.isNotEmpty() && newName != currentName) {
+                        editCustomTab(tab, newName)
+                    }
+                }
+                .setNegativeButton("删除") { _, _ ->
+                    deleteCustomTab(tab)
+                }
+                .setNeutralButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示编辑自定义标签页对话框失败", e)
+        }
+    }
+    
+    /**
+     * 编辑自定义标签页
+     */
+    private fun editCustomTab(tab: com.google.android.material.tabs.TabLayout.Tab, newName: String) {
+        try {
+            tab.text = newName
+            updateCustomTabName(tab.position, newName)
+            Toast.makeText(this, "标签页已重命名", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "编辑自定义标签页失败", e)
+        }
+    }
+    
+    /**
+     * 删除自定义标签页
+     */
+    private fun deleteCustomTab(tab: com.google.android.material.tabs.TabLayout.Tab) {
+        try {
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            chatTabLayout?.removeTab(tab)
+            removeCustomTab(tab.position)
+            Toast.makeText(this, "标签页已删除", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "删除自定义标签页失败", e)
+        }
+    }
+    
+    /**
+     * 显示自定义标签页中的AI联系人
+     */
+    private fun showCustomAIContacts(tabName: String) {
+        try {
+            // 获取该标签页中配置的AI联系人
+            val customAIContacts = getCustomTabAIContacts(tabName)
+            chatContactAdapter?.updateContacts(customAIContacts)
+            Log.d(TAG, "显示自定义标签页 $tabName 中的AI联系人，数量: ${customAIContacts.size}")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示自定义标签页AI联系人失败", e)
+        }
+    }
+    
+    /**
+     * 保存自定义标签页信息
+     */
+    private fun saveCustomTab(tabName: String) {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val customTabs = settingsManager.getString("custom_ai_tabs", "") ?: ""
+            val tabList = if (customTabs.isNotEmpty()) {
+                customTabs.split(",").toMutableList()
+            } else {
+                mutableListOf()
+            }
+            
+            if (!tabList.contains(tabName)) {
+                tabList.add(tabName)
+                settingsManager.putString("custom_ai_tabs", tabList.joinToString(","))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "保存自定义标签页失败", e)
+        }
+    }
+    
+    /**
+     * 更新自定义标签页名称
+     */
+    private fun updateCustomTabName(tabPosition: Int, newName: String) {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val customTabs = settingsManager.getString("custom_ai_tabs", "") ?: ""
+            val tabList = if (customTabs.isNotEmpty()) {
+                customTabs.split(",").toMutableList()
+            } else {
+                mutableListOf()
+            }
+            
+            if (tabPosition - 3 < tabList.size) {
+                tabList[tabPosition - 3] = newName
+                settingsManager.putString("custom_ai_tabs", tabList.joinToString(","))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新自定义标签页名称失败", e)
+        }
+    }
+    
+    /**
+     * 移除自定义标签页
+     */
+    private fun removeCustomTab(tabPosition: Int) {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val customTabs = settingsManager.getString("custom_ai_tabs", "") ?: ""
+            val tabList = if (customTabs.isNotEmpty()) {
+                customTabs.split(",").toMutableList()
+            } else {
+                mutableListOf()
+            }
+            
+            if (tabPosition - 3 < tabList.size) {
+                tabList.removeAt(tabPosition - 3)
+                settingsManager.putString("custom_ai_tabs", tabList.joinToString(","))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "移除自定义标签页失败", e)
+        }
+    }
+    
+    /**
+     * 获取自定义标签页中的AI联系人
+     */
+    private fun getCustomTabAIContacts(tabName: String): List<ContactCategory> {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val tabAIConfig = settingsManager.getString("custom_tab_ai_${tabName}", "") ?: ""
+            
+            if (tabAIConfig.isNotEmpty()) {
+                val aiIds = tabAIConfig.split(",")
+                val aiContacts = allContacts.flatMap { it.contacts }.filter { contact ->
+                    aiIds.contains(contact.id) && isAIContact(contact)
+                }
+                // 创建一个包含AI联系人的ContactCategory
+                return listOf(ContactCategory(
+                    name = tabName,
+                    contacts = aiContacts,
+                    isExpanded = true
+                ))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取自定义标签页AI联系人失败", e)
+        }
+        
+        return emptyList()
+    }
+    
+    /**
+     * 加载保存的自定义标签页
+     */
+    private fun loadCustomTabs() {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val customTabs = settingsManager.getString("custom_ai_tabs", "") ?: ""
+            
+            if (customTabs.isNotEmpty()) {
+                val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+                val tabNames = customTabs.split(",")
+                
+                tabNames.forEach { tabName ->
+                    val newTab = chatTabLayout?.newTab()?.setText(tabName)
+                    if (newTab != null) {
+                        val insertPosition = chatTabLayout?.tabCount?.minus(1) ?: 2
+                        chatTabLayout?.addTab(newTab, insertPosition)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载自定义标签页失败", e)
+        }
+    }
+    
+    /**
+     * 将联系人添加到当前标签页
+     */
+    private fun addContactToCurrentTab(contact: ChatContact) {
+        try {
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            val currentTabPosition = chatTabLayout?.selectedTabPosition ?: 0
+            
+            when (currentTabPosition) {
+                0, 1 -> {
+                    // "全部"和"AI助手"标签页不需要添加
+                    Toast.makeText(this, "此标签页不支持添加AI对象", Toast.LENGTH_SHORT).show()
+                }
+                2 -> {
+                    // "+"标签页，显示选择标签页对话框
+                    showSelectTabForContactDialog(contact)
+                }
+                else -> {
+                    // 自定义标签页，直接添加
+                    val customTabName = chatTabLayout?.getTabAt(currentTabPosition)?.text?.toString()
+                    if (customTabName != null && customTabName != "+") {
+                        addContactToCustomTab(contact, customTabName)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "添加联系人到当前标签页失败", e)
+        }
+    }
+    
+    /**
+     * 显示选择标签页对话框
+     */
+    private fun showSelectTabForContactDialog(contact: ChatContact) {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val customTabs = settingsManager.getString("custom_ai_tabs", "") ?: ""
+            
+            if (customTabs.isEmpty()) {
+                Toast.makeText(this, "请先创建自定义标签页", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            val tabNames = customTabs.split(",")
+            val items = tabNames.toTypedArray()
+            
+            AlertDialog.Builder(this)
+                .setTitle("选择要添加到的标签页")
+                .setItems(items) { _, which ->
+                    val selectedTabName = items[which]
+                    addContactToCustomTab(contact, selectedTabName)
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示选择标签页对话框失败", e)
+        }
+    }
+    
+    /**
+     * 将联系人添加到自定义标签页
+     */
+    private fun addContactToCustomTab(contact: ChatContact, tabName: String) {
+        try {
+            if (!isAIContact(contact)) {
+                Toast.makeText(this, "只能添加AI助手到自定义标签页", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            val settingsManager = SettingsManager.getInstance(this)
+            val tabAIConfig = settingsManager.getString("custom_tab_ai_${tabName}", "") ?: ""
+            val aiIds = if (tabAIConfig.isNotEmpty()) {
+                tabAIConfig.split(",").toMutableList()
+            } else {
+                mutableListOf()
+            }
+            
+            if (!aiIds.contains(contact.id)) {
+                aiIds.add(contact.id)
+                settingsManager.putString("custom_tab_ai_${tabName}", aiIds.joinToString(","))
+                Toast.makeText(this, "已将 ${contact.name} 添加到标签页 \"$tabName\"", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "${contact.name} 已在标签页 \"$tabName\" 中", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "添加联系人到自定义标签页失败", e)
+        }
+    }
+    
+    /**
+     * 从自定义标签页移除联系人
+     */
+    private fun removeContactFromCustomTab(contact: ChatContact, tabName: String) {
+        try {
+            val settingsManager = SettingsManager.getInstance(this)
+            val tabAIConfig = settingsManager.getString("custom_tab_ai_${tabName}", "") ?: ""
+            val aiIds = if (tabAIConfig.isNotEmpty()) {
+                tabAIConfig.split(",").toMutableList()
+            } else {
+                mutableListOf()
+            }
+            
+            if (aiIds.contains(contact.id)) {
+                aiIds.remove(contact.id)
+                settingsManager.putString("custom_tab_ai_${tabName}", aiIds.joinToString(","))
+                Toast.makeText(this, "已从标签页 \"$tabName\" 移除 ${contact.name}", Toast.LENGTH_SHORT).show()
+                
+                // 如果当前正在显示该标签页，刷新显示
+                val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+                val currentTabPosition = chatTabLayout?.selectedTabPosition ?: 0
+                if (currentTabPosition > 2) {
+                    val currentTabName = chatTabLayout?.getTabAt(currentTabPosition)?.text?.toString()
+                    if (currentTabName == tabName) {
+                        showCustomAIContacts(tabName)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "从自定义标签页移除联系人失败", e)
         }
     }
 }

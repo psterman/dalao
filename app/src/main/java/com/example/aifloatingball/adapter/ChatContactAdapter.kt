@@ -21,7 +21,8 @@ import java.util.*
 class ChatContactAdapter(
     private var contactCategories: List<ContactCategory> = emptyList(),
     private val onContactClick: (ChatContact) -> Unit = {},
-    private val onContactLongClick: (ChatContact) -> Boolean = { false }
+    private val onContactLongClick: (ChatContact) -> Boolean = { false },
+    private val onContactDoubleClick: (ChatContact) -> Boolean = { false }
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -96,7 +97,7 @@ class ChatContactAdapter(
             TYPE_CONTACT -> {
                 val view = LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_chat_contact, parent, false)
-                ContactViewHolder(view, onContactClick, onContactLongClick)
+                ContactViewHolder(view, onContactClick, onContactLongClick, onContactDoubleClick)
             }
             else -> throw IllegalArgumentException("Unknown view type: $viewType")
         }
@@ -175,7 +176,8 @@ class ChatContactAdapter(
     class ContactViewHolder(
         itemView: View,
         private val onContactClick: (ChatContact) -> Unit,
-        private val onContactLongClick: (ChatContact) -> Boolean
+        private val onContactLongClick: (ChatContact) -> Boolean,
+        private val onContactDoubleClick: (ChatContact) -> Boolean
     ) : RecyclerView.ViewHolder(itemView) {
         
         private val contactCard: MaterialCardView = itemView.findViewById(R.id.contact_card)
@@ -192,8 +194,19 @@ class ChatContactAdapter(
         private var currentContact: ChatContact? = null
 
         init {
+            var lastClickTime = 0L
+            val doubleClickTimeThreshold = 300L // 300毫秒内的两次点击视为双击
+            
             contactCard.setOnClickListener {
-                currentContact?.let { onContactClick(it) }
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastClickTime < doubleClickTimeThreshold) {
+                    // 双击事件
+                    currentContact?.let { onContactDoubleClick(it) }
+                } else {
+                    // 单击事件
+                    currentContact?.let { onContactClick(it) }
+                }
+                lastClickTime = currentTime
             }
             
             contactCard.setOnLongClickListener {

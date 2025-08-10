@@ -218,6 +218,7 @@ class AIApiSettingsActivity : AppCompatActivity() {
                 setupApiKeySummary("qianwen_api_key", "通义千问")
                 setupApiKeySummary("xinghuo_api_key", "讯飞星火")
                 setupApiKeySummary("kimi_api_key", "Kimi")
+                setupApiKeySummary("zhipu_ai_api_key", "智谱AI")
 
                 Log.d(TAG, "API密钥摘要设置完成")
             } catch (e: Exception) {

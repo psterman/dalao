@@ -314,6 +314,7 @@ class ChatActivity : AppCompatActivity() {
             "通义千问", "qianwen" -> AIServiceType.QIANWEN
             "讯飞星火", "xinghuo" -> AIServiceType.XINGHUO
             "kimi" -> AIServiceType.KIMI
+            "智谱ai", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
             else -> null
         }
     }
@@ -332,6 +333,7 @@ class ChatActivity : AppCompatActivity() {
             AIServiceType.QIANWEN -> settingsManager.getString("qianwen_api_key", "") ?: ""
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
+            AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
         }
     }
 

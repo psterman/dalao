@@ -104,6 +104,19 @@
             android:label="DeepSeek API诊断"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
             
+        <!-- AI标签管理Activity -->
+        <activity
+            android:name=".activity.AITagManagementActivity"
+            android:exported="false"
+            android:label="AI标签管理"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+            
+        <!-- 截图功能Activity -->
+        <activity
+            android:name=".ScreenshotActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
 
 
                     <!-- 添加联系人相关Activity -->
