@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/chat_input_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/material_chat_surface_light"
+    android:elevation="8dp">
+
+    <!-- 功能按钮区域 -->
+    <HorizontalScrollView
+        android:id="@+id/function_buttons_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
+        android:scrollbars="none"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:id="@+id/function_buttons_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- 语音输入按钮 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_voice_input"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:text="语音"
+                android:textSize="12sp"
+                app:icon="@drawable/ic_mic"
+                app:iconSize="16dp"
+                app:cornerRadius="20dp" />
+
+            <!-- 图片输入按钮 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_image_input"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:text="图片"
+                android:textSize="12sp"
+                app:icon="@drawable/ic_image"
+                app:iconSize="16dp"
+                app:cornerRadius="20dp" />
+
+            <!-- 文件输入按钮 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_file_input"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                android:text="文件"
+                android:textSize="12sp"
+                app:icon="@drawable/ic_attach_file"
+                app:iconSize="16dp"
+                app:cornerRadius="20dp" />
+
+        </LinearLayout>
+
+    </HorizontalScrollView>
+
+    <!-- 分隔线 -->
+    <View
+        android:id="@+id/function_divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/material_chat_divider_light"
+        android:layout_marginHorizontal="16dp"
+        android:visibility="gone" />
+
+    <!-- 输入区域容器 -->
+    <LinearLayout
+        android:id="@+id/input_area_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="bottom">
+
+        <!-- 左侧按钮容器（动态内容） -->
+        <FrameLayout
+            android:id="@+id/left_button_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp">
+
+            <!-- 功能切换按钮 -->
+            <ImageButton
+                android:id="@+id/btn_toggle_functions"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/circle_button_background"
+                android:src="@drawable/ic_add"
+                android:tint="@color/material_wechat_primary"
+                android:contentDescription="更多功能"
+                android:scaleType="fitCenter" />
+
+            <!-- 发送按钮（左手模式时显示） -->
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/btn_send_left"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_send"
+                app:fabSize="mini"
+                app:backgroundTint="@color/material_wechat_primary"
+                app:tint="@color/material_wechat_on_primary"
+                app:elevation="2dp"
+                app:pressedTranslationZ="4dp"
+                android:contentDescription="发送消息"
+                android:visibility="gone" />
+
+        </FrameLayout>
+
+        <!-- 输入框容器 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/input_card_container"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="12dp"
+            app:cardBackgroundColor="@color/material_chat_input_background_light"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="@color/material_chat_input_stroke_light">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="8dp">
+
+                <EditText
+                    android:id="@+id/message_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@null"
+                    android:hint="输入消息..."
+                    android:textColor="@color/material_chat_input_text_light"
+                    android:textColorHint="@color/material_chat_input_hint_light"
+                    android:textSize="16sp"
+                    android:fontFamily="sans-serif"
+                    android:maxLines="4"
+                    android:minHeight="32dp"
+                    android:gravity="center_vertical"
+                    android:inputType="textMultiLine|textCapSentences" />
+
+                <!-- 表情按钮 -->
+                <ImageButton
+                    android:id="@+id/btn_emoji"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@drawable/ic_emoji_emotions"
+                    android:tint="@color/material_chat_input_hint_light"
+                    android:contentDescription="表情"
+                    android:scaleType="fitCenter" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 右侧按钮容器（动态内容） -->
+        <FrameLayout
+            android:id="@+id/right_button_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <!-- 发送按钮（右手模式时显示） -->
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/btn_send_right"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_send"
+                app:fabSize="mini"
+                app:backgroundTint="@color/material_wechat_primary"
+                app:tint="@color/material_wechat_on_primary"
+                app:elevation="2dp"
+                app:pressedTranslationZ="4dp"
+                android:contentDescription="发送消息" />
+
+            <!-- 功能切换按钮（左手模式时显示） -->
+            <ImageButton
+                android:id="@+id/btn_toggle_functions_right"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/circle_button_background"
+                android:src="@drawable/ic_add"
+                android:tint="@color/material_wechat_primary"
+                android:contentDescription="更多功能"
+                android:scaleType="fitCenter"
+                android:visibility="gone" />
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

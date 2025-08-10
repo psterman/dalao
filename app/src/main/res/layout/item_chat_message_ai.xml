@@ -20,21 +20,23 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="start"
-            app:cardBackgroundColor="@color/simple_mode_card_background_light"
+            app:cardBackgroundColor="@color/material_chat_ai_bubble"
             app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/simple_mode_border_light"
+            app:cardElevation="1dp"
+            app:strokeColor="@color/material_border"
             app:strokeWidth="1dp">
 
-                    <TextView
-            android:id="@+id/message_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="12dp"
-            android:textColor="@color/simple_mode_text_primary_light"
-            android:textSize="16sp"
-            android:lineSpacingExtra="2dp" />
+            <TextView
+                android:id="@+id/message_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="12dp"
+                android:textColor="@color/material_chat_ai_text"
+                android:textSize="16sp"
+                android:lineSpacingExtra="4dp"
+                android:fontFamily="sans-serif"
+                android:letterSpacing="0.01" />
 
         </com.google.android.material.card.MaterialCardView>
 
@@ -51,8 +53,9 @@
                 android:id="@+id/time_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/simple_mode_text_hint_light"
-                android:textSize="12sp" />
+                android:textColor="@color/material_wechat_on_surface_variant"
+                android:textSize="12sp"
+                android:fontFamily="sans-serif" />
 
             <TextView
                 android:id="@+id/regenerate_button"
@@ -60,11 +63,12 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
                 android:text="重新生成"
-                android:textColor="@color/simple_mode_primary_light"
+                android:textColor="@color/material_wechat_primary"
                 android:textSize="12sp"
                 android:background="?attr/selectableItemBackground"
                 android:paddingHorizontal="8dp"
                 android:paddingVertical="4dp"
+                android:fontFamily="sans-serif"
                 android:visibility="gone" />
 
         </LinearLayout>

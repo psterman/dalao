@@ -20,9 +20,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="end"
-            app:cardBackgroundColor="@color/simple_mode_primary_light"
+            app:cardBackgroundColor="@color/material_chat_user_bubble"
             app:cardCornerRadius="16dp"
-            app:cardElevation="2dp">
+            app:cardElevation="1dp"
+            app:strokeWidth="0dp">
 
             <TextView
                 android:id="@+id/message_text"
@@ -30,9 +31,11 @@
                 android:layout_height="wrap_content"
                 android:paddingHorizontal="16dp"
                 android:paddingVertical="12dp"
-                android:textColor="@color/white"
+                android:textColor="@color/material_chat_user_text"
                 android:textSize="16sp"
-                android:lineSpacingExtra="2dp" />
+                android:lineSpacingExtra="4dp"
+                android:fontFamily="sans-serif"
+                android:letterSpacing="0.01" />
 
         </com.google.android.material.card.MaterialCardView>
 
@@ -42,8 +45,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:layout_marginEnd="8dp"
-            android:textColor="@color/simple_mode_text_hint_light"
-            android:textSize="12sp" />
+            android:textColor="@color/material_wechat_on_surface_variant"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif" />
 
     </LinearLayout>
 

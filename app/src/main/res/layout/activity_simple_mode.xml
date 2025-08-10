@@ -16,85 +16,76 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:padding="24dp"
         android:visibility="gone"
-        android:background="@color/simple_mode_background_light">
-        
-        <!-- 对话页面标题 -->
+        android:background="@color/chat_background_light">
+
+        <!-- 搜索栏 -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginBottom="24dp">
+            android:background="@color/chat_header_background_light"
+            android:paddingHorizontal="16dp"
+            android:gravity="center_vertical">
 
-            <ImageView
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/ic_chat"
-                app:tint="@color/simple_mode_accent_light"
-                android:layout_marginEnd="12dp" />
-
-            <TextView
+            <androidx.cardview.widget.CardView
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"
+                android:layout_height="36dp"
                 android:layout_weight="1"
-                android:text="AI对话"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                android:textColor="@color/simple_mode_text_primary_light" />
+                android:layout_marginEnd="12dp"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/chat_search_background_light">
+
+                <EditText
+                    android:id="@+id/chat_search_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@null"
+                    android:hint="搜索"
+                    android:textColorHint="@color/chat_search_hint_light"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:textSize="14sp"
+                    android:paddingHorizontal="16dp"
+                    android:singleLine="true"
+                    android:imeOptions="actionSearch" />
+
+            </androidx.cardview.widget.CardView>
 
             <ImageButton
                 android:id="@+id/chat_add_contact_button"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:src="@drawable/ic_add"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/simple_mode_accent_light"
-                android:contentDescription="添加联系人"
-                android:scaleType="fitCenter" />
+                android:src="@drawable/ic_add_circle"
+                app:tint="@color/chat_add_button_light" />
+
         </LinearLayout>
 
-        <!-- 搜索框 -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_marginBottom="24dp"
-            android:background="@drawable/search_box_background"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="20dp">
-
-            <EditText
-                android:id="@+id/chat_search_input"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@android:color/transparent"
-                android:hint="输入您的问题..."
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:singleLine="true"
-                android:textColor="@color/simple_mode_input_text_light"
-                android:textColorHint="@color/simple_mode_input_hint_light"
-                android:textSize="16sp"
-                android:gravity="center_vertical" />
-        </LinearLayout>
-
-        <!-- Tab布局 -->
+        <!-- 分类标签 -->
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/chat_tab_layout"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
+            android:layout_height="44dp"
+            android:background="@color/chat_tab_background_light"
+            app:tabTextColor="@color/chat_tab_unselected_light"
+            app:tabSelectedTextColor="@color/chat_tab_selected_light"
+            app:tabIndicatorColor="@color/chat_tab_selected_light"
+            app:tabIndicatorHeight="2dp"
             app:tabMode="fixed"
-            app:tabGravity="fill" />
+            app:tabGravity="fill"
+            app:tabTextAppearance="@style/ChatTabTextAppearance" />
 
         <!-- 联系人列表 -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/chat_contacts_recycler_view"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:background="@color/chat_background_light"
+            android:clipToPadding="false"
+            android:paddingTop="1dp" />
+
     </LinearLayout>
 
     <!-- 任务选择页面 -->
@@ -105,7 +96,7 @@
         android:layout_weight="1"
         android:orientation="vertical"
         android:padding="24dp">
-        
+
         <!-- 搜索框 -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -141,7 +132,7 @@
                 android:scaleType="fitCenter"
                 android:layout_marginStart="8dp" />
         </LinearLayout>
-        
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -151,7 +142,7 @@
             android:textStyle="bold"
             android:textColor="@color/simple_mode_text_primary_light"
             android:layout_marginBottom="8dp" />
-            
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -160,7 +151,7 @@
             android:textSize="16sp"
             android:textColor="@color/simple_mode_text_secondary_light"
             android:layout_marginBottom="32dp" />
-        
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/task_recycler_view"
             android:layout_width="match_parent"
@@ -178,7 +169,7 @@
         android:padding="24dp"
         android:visibility="gone"
         android:background="@color/simple_mode_background_light">
-        
+
         <TextView
             android:id="@+id/step_title_text"
             android:layout_width="wrap_content"
@@ -188,7 +179,7 @@
             android:textStyle="bold"
             android:textColor="@color/simple_mode_text_primary_light"
             android:layout_marginBottom="16dp" />
-            
+
         <TextView
             android:id="@+id/step_question_text"
             android:layout_width="match_parent"
@@ -197,7 +188,7 @@
             android:textSize="18sp"
             android:textColor="@color/simple_mode_text_primary_light"
             android:layout_marginBottom="24dp" />
-        
+
         <!-- 文本输入字段 -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/step_input_layout"
@@ -209,7 +200,7 @@
             android:textColorHint="@color/simple_mode_input_hint_light"
             app:boxStrokeColor="@color/simple_mode_border_light"
             app:hintTextColor="@color/simple_mode_input_hint_light">
-            
+
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/step_input_text"
                 android:layout_width="match_parent"
@@ -221,7 +212,7 @@
                 android:textColorHint="@color/simple_mode_input_hint_light"
                 android:background="@color/simple_mode_input_background_light" />
         </com.google.android.material.textfield.TextInputLayout>
-        
+
         <!-- 单选字段 -->
         <RadioGroup
             android:id="@+id/step_choice_group"
@@ -229,7 +220,7 @@
             android:layout_height="wrap_content"
             android:layout_marginBottom="24dp"
             android:visibility="gone" />
-        
+
         <!-- 多选字段 -->
         <LinearLayout
             android:id="@+id/step_multi_choice_layout"
@@ -238,19 +229,19 @@
             android:layout_marginBottom="24dp"
             android:orientation="vertical"
             android:visibility="gone" />
-        
+
         <View
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1" />
-        
+
         <!-- 步骤控制按钮 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center">
-            
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/prev_step_button"
                 android:layout_width="0dp"
@@ -260,7 +251,7 @@
                 android:text="上一步"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:textColor="@color/simple_mode_button_primary_light" />
-                
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/skip_step_button"
                 android:layout_width="wrap_content"
@@ -269,7 +260,7 @@
                 android:text="跳过"
                 style="@style/Widget.MaterialComponents.Button.TextButton"
                 android:textColor="@color/simple_mode_text_secondary_light" />
-            
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/next_step_button"
                 android:layout_width="0dp"
@@ -292,7 +283,7 @@
         android:padding="24dp"
         android:visibility="gone"
         android:background="@color/simple_mode_background_light">
-        
+
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -301,7 +292,7 @@
             android:textStyle="bold"
             android:textColor="@color/simple_mode_text_primary_light"
             android:layout_marginBottom="16dp" />
-        
+
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -310,12 +301,12 @@
             app:cardCornerRadius="8dp"
             app:cardElevation="4dp"
             app:cardBackgroundColor="@color/simple_mode_card_background_light">
-            
+
             <ScrollView
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:padding="16dp">
-                
+
                 <TextView
                     android:id="@+id/final_prompt_text"
                     android:layout_width="match_parent"
@@ -326,7 +317,7 @@
                     android:lineSpacingExtra="4dp" />
             </ScrollView>
         </androidx.cardview.widget.CardView>
-        
+
         <TextView
             android:id="@+id/recommended_engines_text"
             android:layout_width="match_parent"
@@ -335,13 +326,13 @@
             android:textSize="14sp"
             android:textColor="@color/simple_mode_text_secondary_light"
             android:layout_marginBottom="24dp" />
-        
+
         <!-- 执行按钮 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
-            
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/back_to_tasks_button"
                 android:layout_width="0dp"
@@ -351,7 +342,7 @@
                 android:text="重新选择任务"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                 android:textColor="@color/simple_mode_button_primary_light" />
-            
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/execute_search_button"
                 android:layout_width="0dp"
@@ -979,7 +970,7 @@
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-            
+
             <!-- 悬浮球设置 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/floating_ball_settings_container"
@@ -1100,7 +1091,7 @@
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-            
+
             <!-- AI助手中心 -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -2327,7 +2318,7 @@
         android:background="@color/simple_mode_tab_background_light"
         android:orientation="horizontal"
         android:gravity="center_vertical">
-        
+
         <!-- 对话tab (最左边) -->
         <LinearLayout
             android:id="@+id/tab_chat"
@@ -2339,13 +2330,13 @@
             android:background="?android:attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true">
-            
+
             <ImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_chat"
                 app:tint="@color/simple_mode_tab_icon_normal_light" />
-                
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -2354,7 +2345,7 @@
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
-        
+
         <!-- 搜索tab (第二位) -->
         <LinearLayout
             android:id="@+id/tab_search"
@@ -2366,14 +2357,14 @@
             android:background="?android:attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true">
-            
+
             <ImageView
                 android:id="@+id/search_tab_icon"
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_search"
                 app:tint="@color/simple_mode_tab_icon_normal_light" />
-                
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -2382,7 +2373,7 @@
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
-        
+
         <!-- 任务tab (第三位，原首页) -->
         <LinearLayout
             android:id="@+id/tab_home"
@@ -2394,13 +2385,13 @@
             android:background="?android:attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true">
-            
+
             <ImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_home"
                 app:tint="@color/simple_mode_tab_icon_normal_light" />
-                
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -2409,7 +2400,7 @@
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
-        
+
         <!-- 语音tab (第四位) -->
         <LinearLayout
             android:id="@+id/tab_voice"
@@ -2421,13 +2412,13 @@
             android:background="?android:attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true">
-            
+
             <ImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_voice"
                 app:tint="@color/simple_mode_tab_icon_normal_light" />
-                
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -2436,7 +2427,7 @@
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
         </LinearLayout>
-        
+
         <!-- 设置tab (最右边) -->
         <LinearLayout
             android:id="@+id/tab_settings"
@@ -2448,13 +2439,13 @@
             android:background="?android:attr/selectableItemBackground"
             android:clickable="true"
             android:focusable="true">
-            
+
             <ImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_settings"
                 app:tint="@color/simple_mode_tab_icon_normal_light" />
-                
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -2465,4 +2456,4 @@
         </LinearLayout>
     </LinearLayout>
 
-</LinearLayout> 
+</LinearLayout>

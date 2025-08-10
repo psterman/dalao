@@ -69,13 +69,13 @@
         <!-- 在这里定义悬浮窗特有的样式 -->
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsFloating">true</item>
-        
+
         <!-- 定义功能性图标颜色 -->
         <item name="functionalIconColor">#FF007AFF</item> <!-- 示例颜色: 蓝色 -->
-        
+
         <!-- 定义非功能性图标颜色 -->
         <item name="nonFunctionalIconColor">#FF8E8E93</item> <!-- 示例颜色: 灰色 -->
-        
+
         <!-- 定义悬浮窗背景色 -->
         <item name="floatingWindowBackground">#F2F2F7</item> <!-- 示例颜色: 浅灰色 -->
     </style>
@@ -116,7 +116,7 @@
         <item name="android:windowAnimationStyle">@style/DialogAnimation</item>
         <item name="android:windowMinWidthMajor">85%</item>
         <item name="android:windowMinWidthMinor">85%</item>
-        
+
         <!-- Material Design 3 主题设置 -->
         <item name="materialButtonStyle">@style/Widget.Material3.Button.TonalButton</item>
         <item name="materialButtonOutlinedStyle">@style/Widget.Material3.Button.TextButton</item>
@@ -124,7 +124,7 @@
         <item name="textAppearanceHeadline6">@style/TextAppearance.Material3.HeadlineMedium</item>
         <item name="textAppearanceBody1">@style/TextAppearance.Material3.BodyLarge</item>
         <item name="textAppearanceBody2">@style/TextAppearance.Material3.BodyMedium</item>
-        
+
         <!-- 颜色设置 -->
         <item name="colorPrimary">@color/md_theme_light_primary</item>
         <item name="colorOnPrimary">@color/md_theme_light_onPrimary</item>
@@ -174,6 +174,164 @@
         <item name="colorOnPrimary">@color/md_theme_light_onPrimary</item>
         <item name="colorSurface">@color/md_theme_light_surface</item>
         <item name="colorOnSurface">@color/md_theme_light_onSurface</item>
+    </style>
+
+    <!-- =============================================================== -->
+    <!-- =============== Material微信风格主题 V5.0 ==================== -->
+    <!-- =============================================================== -->
+
+    <!-- Material微信风格主题 - 亮色模式 -->
+    <style name="Theme.MaterialWechat" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- 主色调 -->
+        <item name="colorPrimary">@color/material_wechat_primary</item>
+        <item name="colorOnPrimary">@color/material_wechat_on_primary</item>
+        <item name="colorPrimaryContainer">@color/material_wechat_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/material_wechat_on_primary_container</item>
+
+        <!-- 次要色调 -->
+        <item name="colorSecondary">@color/material_wechat_secondary</item>
+        <item name="colorOnSecondary">@color/material_wechat_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/material_wechat_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/material_wechat_on_secondary_container</item>
+
+        <!-- 第三色调 -->
+        <item name="colorTertiary">@color/material_wechat_tertiary</item>
+        <item name="colorOnTertiary">@color/material_wechat_on_tertiary</item>
+        <item name="colorTertiaryContainer">@color/material_wechat_tertiary_container</item>
+        <item name="colorOnTertiaryContainer">@color/material_wechat_on_tertiary_container</item>
+
+        <!-- 错误色 -->
+        <item name="colorError">@color/material_wechat_error</item>
+        <item name="colorOnError">@color/material_wechat_on_error</item>
+        <item name="colorErrorContainer">@color/material_wechat_error_container</item>
+        <item name="colorOnErrorContainer">@color/material_wechat_on_error_container</item>
+
+        <!-- 背景色 -->
+        <item name="android:colorBackground">@color/material_wechat_background</item>
+        <item name="colorOnBackground">@color/material_wechat_on_background</item>
+        <item name="colorSurface">@color/material_wechat_surface</item>
+        <item name="colorOnSurface">@color/material_wechat_on_surface</item>
+        <item name="colorSurfaceVariant">@color/material_wechat_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/material_wechat_on_surface_variant</item>
+
+        <!-- 轮廓色 -->
+        <item name="colorOutline">@color/material_wechat_outline</item>
+        <item name="colorOutlineVariant">@color/material_wechat_outline_variant</item>
+
+        <!-- 反色 -->
+        <item name="colorSurfaceInverse">@color/material_wechat_inverse_surface</item>
+        <item name="colorOnSurfaceInverse">@color/material_wechat_inverse_on_surface</item>
+        <item name="colorPrimaryInverse">@color/material_wechat_inverse_primary</item>
+
+        <!-- 状态栏和导航栏 -->
+        <item name="android:statusBarColor">@color/material_wechat_primary</item>
+        <item name="android:navigationBarColor">@color/material_wechat_surface</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+
+    <!-- Material微信风格对话主题 -->
+    <style name="Theme.MaterialWechat.Chat" parent="Theme.MaterialWechat">
+        <item name="android:colorBackground">@color/material_chat_background</item>
+        <item name="colorSurface">@color/material_chat_surface</item>
+        <item name="android:statusBarColor">@color/material_chat_toolbar_background</item>
+    </style>
+
+    <!-- Material微信风格弹窗主题 -->
+    <style name="Theme.MaterialWechat.Dialog" parent="Theme.Material3.DayNight.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/material_dialog_background</item>
+        <item name="colorPrimary">@color/material_wechat_primary</item>
+        <item name="colorOnPrimary">@color/material_wechat_on_primary</item>
+        <item name="colorSurface">@color/material_dialog_background</item>
+        <item name="colorOnSurface">@color/material_dialog_title</item>
+        <item name="android:textColorPrimary">@color/material_dialog_title</item>
+        <item name="android:textColorSecondary">@color/material_dialog_text</item>
+        <item name="materialButtonStyle">@style/Widget.MaterialWechat.Button</item>
+    </style>
+
+    <!-- Material微信风格按钮样式 -->
+    <style name="Widget.MaterialWechat.Button" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/material_dialog_button</item>
+        <item name="android:textColor">@color/material_dialog_button_text</item>
+        <item name="cornerRadius">8dp</item>
+    </style>
+
+    <!-- Material微信风格输入框样式 -->
+    <style name="Widget.MaterialWechat.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/material_chat_input_background</item>
+        <item name="boxStrokeColor">@color/material_chat_input_stroke</item>
+
+        <item name="android:textColorHint">@color/material_chat_input_hint</item>
+        <item name="hintTextColor">@color/material_chat_input_hint</item>
+    </style>
+
+    <!-- =============================================================== -->
+    <!-- =============== Material Design 3.0 对话框样式 ================ -->
+    <!-- =============================================================== -->
+
+    <!-- 统一的Material Design对话框主题 -->
+    <style name="Theme.MaterialDialog" parent="Theme.Material3.DayNight.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/material_dialog_background_v2</item>
+        <item name="colorPrimary">@color/material_wechat_primary</item>
+        <item name="colorOnPrimary">@color/material_wechat_on_primary</item>
+        <item name="colorSurface">@color/material_dialog_surface</item>
+        <item name="colorOnSurface">@color/material_dialog_on_surface</item>
+        <item name="colorSurfaceVariant">@color/material_dialog_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/material_dialog_on_surface_variant</item>
+        <item name="android:textColorPrimary">@color/material_dialog_text_primary</item>
+        <item name="android:textColorSecondary">@color/material_dialog_text_secondary</item>
+        <item name="materialButtonStyle">@style/Widget.MaterialDialog.Button</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.MaterialDialog.Button.Outlined</item>
+        <item name="checkboxStyle">@style/Widget.MaterialDialog.CheckBox</item>
+        <item name="android:windowAnimationStyle">@style/MaterialDialogAnimation</item>
+    </style>
+
+    <!-- Material对话框按钮样式 -->
+    <style name="Widget.MaterialDialog.Button" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/material_dialog_button_tonal</item>
+        <item name="android:textColor">@color/material_dialog_button_text_tonal</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingHorizontal">24dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="rippleColor">@color/material_dialog_button_ripple</item>
+    </style>
+
+    <!-- Material对话框轮廓按钮样式 -->
+    <style name="Widget.MaterialDialog.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/material_dialog_button_outline</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/material_dialog_button_text_outlined</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingHorizontal">24dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="rippleColor">@color/material_dialog_button_ripple</item>
+    </style>
+
+    <!-- Material对话框复选框样式 -->
+    <style name="Widget.MaterialDialog.CheckBox" parent="Widget.Material3.CompoundButton.CheckBox">
+        <item name="buttonTint">@color/material_dialog_checkbox_tint</item>
+        <item name="android:textColor">@color/material_dialog_text_primary</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <!-- Material对话框动画 -->
+    <style name="MaterialDialogAnimation">
+        <item name="android:windowEnterAnimation">@anim/dialog_enter</item>
+        <item name="android:windowExitAnimation">@anim/dialog_exit</item>
+    </style>
+
+    <!-- Tab文本样式 -->
+    <style name="TabTextAppearance" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.01</item>
     </style>
 
 </resources>

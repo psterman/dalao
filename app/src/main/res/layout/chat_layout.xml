@@ -9,79 +9,94 @@
     android:background="@color/simple_mode_background_light"
     android:visibility="gone">
 
-    <!-- 搜索框和添加按钮 -->
-    <LinearLayout
+    <!-- Material Design搜索框和添加按钮 -->
+    <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="16dp"
-        android:background="@color/simple_mode_card_background_light"
-        android:elevation="2dp">
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        app:cardBackgroundColor="@color/material_chat_surface"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="2dp"
+        app:strokeWidth="1dp"
+        app:strokeColor="@color/material_dialog_border">
 
-        <!-- 搜索框 -->
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="12dp"
-            android:background="@drawable/search_box_background"
-            android:gravity="center_vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:paddingHorizontal="12dp">
+            android:gravity="center_vertical"
+            android:padding="16dp">
 
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@drawable/ic_search"
-                android:contentDescription="搜索"
-                app:tint="@color/simple_mode_text_secondary_light" />
-
-            <EditText
-                android:id="@+id/chat_search_input"
+            <!-- Material搜索框 -->
+            <com.google.android.material.textfield.TextInputLayout
                 android:layout_width="0dp"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:background="@android:color/transparent"
-                android:hint="搜索联系人..."
-                android:imeOptions="actionSearch"
-                android:inputType="text"
-                android:singleLine="true"
-                android:textColor="@color/simple_mode_text_primary_light"
-                android:textColorHint="@color/simple_mode_text_secondary_light"
-                android:textSize="14sp" />
+                android:layout_marginEnd="12dp"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+                app:boxBackgroundColor="@color/material_dialog_input_background"
+                app:boxStrokeColor="@color/material_dialog_input_stroke"
+
+                app:startIconDrawable="@drawable/ic_search"
+                app:startIconTint="@color/material_wechat_primary"
+                app:hintTextColor="@color/material_dialog_text_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/chat_search_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="搜索或向所有AI提问..."
+                    android:textColor="@color/material_dialog_text_primary"
+                    android:textSize="14sp"
+                    android:maxLines="1"
+                    android:imeOptions="actionSearch"
+                    android:inputType="text" />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <!-- Material添加按钮 -->
+            <com.google.android.material.floatingactionbutton.FloatingActionButton
+                android:id="@+id/chat_add_contact_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/ic_add"
+                app:fabSize="mini"
+                app:backgroundTint="@color/material_wechat_primary"
+                app:tint="@color/material_wechat_on_primary"
+                app:elevation="2dp"
+                android:contentDescription="添加联系人" />
+
         </LinearLayout>
 
-        <!-- 添加联系人按钮 -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/chat_add_contact_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="@drawable/circle_button_background"
-            android:src="@drawable/ic_add"
-            app:icon="@drawable/ic_add"
-            app:iconSize="20dp"
-            app:iconTint="@color/simple_mode_text_primary_light"
-            style="@style/Widget.MaterialComponents.Button.UnelevatedButton" />
-    </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
-    <!-- 分类标签 -->
+    <!-- Material Design分类标签 -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/chat_tab_layout"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:background="@color/simple_mode_card_background_light"
-        app:tabTextColor="@color/simple_mode_text_secondary_light"
-        app:tabSelectedTextColor="@color/simple_mode_accent_light"
-        app:tabIndicatorColor="@color/simple_mode_accent_light"
-        app:tabMode="fixed"
-        app:tabGravity="fill">
+        android:layout_height="56dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/tab_layout_background"
+        app:tabTextColor="@color/material_dialog_text_secondary"
+        app:tabSelectedTextColor="@color/material_wechat_primary"
+        app:tabIndicatorColor="@color/material_wechat_primary"
+        app:tabIndicatorHeight="3dp"
+        app:tabIndicatorFullWidth="false"
+        app:tabMode="scrollable"
+        app:tabGravity="start"
+        app:tabRippleColor="@color/material_dialog_button_ripple"
+        app:tabTextAppearance="@style/TabTextAppearance">
 
         <com.google.android.material.tabs.TabItem
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="AI对话" />
+            android:text="全部" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI助手" />
 
     </com.google.android.material.tabs.TabLayout>
 

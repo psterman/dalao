@@ -104,17 +104,17 @@
     <color name="api_status_connected">#4CAF50</color>
     <color name="api_status_error">#F44336</color>
     <color name="api_status_loading">#2196F3</color>
-    
+
     <!-- 强调色 -->
     <color name="accent_color">#2196F3</color>
-    
+
     <!-- 状态颜色 -->
     <color name="success_text_color">#4CAF50</color>
     <color name="warning_text_color">#FF9800</color>
     <color name="online_color">#4CAF50</color>
     <color name="offline_color">#9E9E9E</color>
     <color name="letter_index_selected_background_light">#1A000000</color>
-    
+
     <!-- 错误颜色 -->
     <color name="error_color">#F44336</color>
     <color name="letter_index_background_dark">#212121</color>
@@ -175,11 +175,11 @@
     <color name="drawer_background_dark">#1A1A1A</color>
     <color name="drawer_text_light">#212121</color>
     <color name="drawer_text_dark">#FFFFFF</color>
-    
+
     <!-- 分隔线颜色 -->
     <color name="divider_color">#1F000000</color>
     <color name="divider_color_dark">#1FFFFFFF</color>
-    
+
     <!-- 搜索引擎列表相关颜色 -->
     <color name="engine_list_background_light">#FFFFFF</color>
     <color name="engine_list_background_dark">#1A1A1A</color>
@@ -222,7 +222,7 @@
     <color name="icon_tint_color_def">#DE000000</color>
 
     <!-- Theme-aware colors -->
-    <color name="themed_primary_light">#2196F3</color> 
+    <color name="themed_primary_light">#2196F3</color>
 
     <color name="paste_button_bg_light">#E0E0E0</color>
     <color name="paste_button_text_light">#333333</color>
@@ -238,7 +238,7 @@
     <color name="icon_tint_light_theme">#FF616161</color>
     <color name="dialog_background_dark">#2C2C2E</color>
     <color name="ripple_dark">#40FFFFFF</color>
-    
+
     <!-- Dark Theme Colors (Consolidated) -->
     <color name="dark_primary">#FFBB86FC</color>
     <color name="dark_primary_variant">#FF3700B3</color>
@@ -381,12 +381,8 @@
     <color name="simple_mode_button_surface_light">#F5F5F5</color>   <!-- 表面按钮 -->
     <color name="simple_mode_button_disabled_light">#BDBDBD</color>   <!-- 禁用按钮 -->
     <color name="simple_mode_button_pressed_light">#05A050</color>   <!-- 按下按钮 -->
-    
-    <!-- Material Design聊天界面颜色 -->
-    <color name="material_chat_toolbar_background">#2196F3</color>   <!-- 蓝色工具栏 -->
-    <color name="material_chat_toolbar_text">#FFFFFF</color>         <!-- 白色文字 -->
-    <color name="material_chat_toolbar_subtitle">#E3F2FD</color>     <!-- 浅蓝色副标题 -->
-    <color name="material_chat_toolbar_icon">#FFFFFF</color>         <!-- 白色图标 -->
+
+
 
     <!-- 🎯 强调色系 - 亮色模式 -->
     <color name="simple_mode_accent_light">#07C160</color>           <!-- 强调色 -->
@@ -475,12 +471,172 @@
 
     <!-- 📌 头像背景 -->
     <color name="contact_avatar_background_color">#E8F5E8</color>
-    
+
     <!-- 🎨 图标颜色 -->
     <color name="pin_icon_color">#FF9800</color>
     <color name="mute_icon_color">#9E9E9E</color>
     <color name="add_button_icon_color">#FFFFFF</color>
     <color name="ai_icon_color">#2196F3</color>
     <color name="rss_icon_color">#FF5722</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== 微信风格对话页面色系 - 亮色模式 ================= -->
+    <!-- =============================================================== -->
+    <color name="chat_background_light">#EDEDED</color>
+    <color name="chat_header_background_light">#F7F7F7</color>
+    <color name="chat_search_background_light">#FFFFFF</color>
+    <color name="chat_search_hint_light">#999999</color>
+    <color name="chat_item_background_light">#FFFFFF</color>
+    <color name="chat_item_pressed_light">#EBEBEB</color>
+    <color name="chat_divider_light">#E5E5E5</color>
+    <color name="chat_tab_background_light">#F7F7F7</color>
+    <color name="chat_tab_selected_light">#07C160</color>
+    <color name="chat_tab_unselected_light">#999999</color>
+    <color name="chat_add_button_light">#07C160</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== Material微信风格主题 V5.0 ==================== -->
+    <!-- =============================================================== -->
+
+    <!-- 🎨 Material Design 3 微信风格颜色系统 -->
+
+    <!-- 主色调 - 微信绿色系 -->
+    <color name="material_wechat_primary">#07C160</color>
+    <color name="material_wechat_on_primary">#FFFFFF</color>
+    <color name="material_wechat_primary_container">#E8F5E8</color>
+    <color name="material_wechat_on_primary_container">#002106</color>
+
+    <!-- 次要色调 -->
+    <color name="material_wechat_secondary">#526350</color>
+    <color name="material_wechat_on_secondary">#FFFFFF</color>
+    <color name="material_wechat_secondary_container">#D4E8D0</color>
+    <color name="material_wechat_on_secondary_container">#101F10</color>
+
+    <!-- 第三色调 -->
+    <color name="material_wechat_tertiary">#39656B</color>
+    <color name="material_wechat_on_tertiary">#FFFFFF</color>
+    <color name="material_wechat_tertiary_container">#BCE9F1</color>
+    <color name="material_wechat_on_tertiary_container">#001F23</color>
+
+    <!-- 错误色 -->
+    <color name="material_wechat_error">#BA1A1A</color>
+    <color name="material_wechat_on_error">#FFFFFF</color>
+    <color name="material_wechat_error_container">#FFDAD6</color>
+    <color name="material_wechat_on_error_container">#410002</color>
+
+    <!-- 背景色 -->
+    <color name="material_wechat_background">#F7F7F7</color>
+    <color name="material_wechat_on_background">#1A1C18</color>
+    <color name="material_wechat_surface">#FFFFFF</color>
+    <color name="material_wechat_on_surface">#1A1C18</color>
+    <color name="material_wechat_surface_variant">#DFE4D7</color>
+    <color name="material_wechat_on_surface_variant">#43483E</color>
+
+    <!-- 轮廓色 -->
+    <color name="material_wechat_outline">#73796E</color>
+    <color name="material_wechat_outline_variant">#C3C8BB</color>
+
+    <!-- 反色 -->
+    <color name="material_wechat_inverse_surface">#2F312D</color>
+    <color name="material_wechat_inverse_on_surface">#F1F1EA</color>
+    <color name="material_wechat_inverse_primary">#9DD49A</color>
+
+
+
+    <!-- 对话界面专用颜色 -->
+    <color name="material_chat_background">#F7F7F7</color>
+    <color name="material_chat_surface">#FFFFFF</color>
+    <color name="material_chat_toolbar_background">#07C160</color>
+
+    <!-- 消息气泡颜色 -->
+    <color name="material_chat_user_bubble">#07C160</color>
+    <color name="material_chat_user_text">#FFFFFF</color>
+    <color name="material_chat_ai_bubble">#FFFFFF</color>
+    <color name="material_chat_ai_text">#1A1C18</color>
+
+    <!-- 弹窗颜色 -->
+    <color name="material_dialog_background">#FFFFFF</color>
+    <color name="material_dialog_title">#1A1C18</color>
+    <color name="material_dialog_text">#43483E</color>
+    <color name="material_dialog_button">#07C160</color>
+    <color name="material_dialog_button_text">#FFFFFF</color>
+
+    <!-- 工具栏颜色 -->
+    <color name="material_chat_toolbar_text">#FFFFFF</color>
+    <color name="material_chat_toolbar_subtitle">#E3F2FD</color>
+    <color name="material_chat_toolbar_icon">#FFFFFF</color>
+
+    <!-- 分割线和边框 -->
+    <color name="material_border">#E0E0E0</color>
+    <color name="material_divider">#E0E0E0</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== Material Design 3.0 对话框颜色 ================ -->
+    <!-- =============================================================== -->
+
+    <!-- 对话框表面颜色 -->
+    <color name="material_dialog_surface">#FFFFFF</color>
+    <color name="material_dialog_on_surface">#1C1B1F</color>
+    <color name="material_dialog_surface_variant">#F3F0F4</color>
+    <color name="material_dialog_on_surface_variant">#49454F</color>
+    <color name="material_dialog_border">#E6E1E5</color>
+
+    <!-- 对话框文本颜色 -->
+    <color name="material_dialog_text_primary">#1C1B1F</color>
+    <color name="material_dialog_text_secondary">#49454F</color>
+    <color name="material_dialog_text_hint">#79747E</color>
+
+    <!-- 对话框按钮颜色 -->
+    <color name="material_dialog_button_tonal">#E8DEF8</color>
+    <color name="material_dialog_button_text_tonal">#6750A4</color>
+    <color name="material_dialog_button_outline">#79747E</color>
+    <color name="material_dialog_button_text_outlined">#6750A4</color>
+    <color name="material_dialog_button_ripple">#1F6750A4</color>
+
+    <!-- 对话框复选框颜色 -->
+    <color name="material_dialog_checkbox_tint">#6750A4</color>
+
+    <!-- 对话框输入框颜色 -->
+    <color name="material_dialog_input_background">#F7F2FA</color>
+    <color name="material_dialog_input_stroke">#79747E</color>
+    <color name="material_dialog_input_stroke_focused">#6750A4</color>
+
+    <!-- =============================================================== -->
+    <!-- =============== 对话界面专用颜色 - 亮色模式 ==================== -->
+    <!-- =============================================================== -->
+
+    <!-- 对话界面背景颜色 -->
+    <color name="material_chat_background_light">#F7F7F7</color>
+    <color name="material_chat_surface_light">#FFFFFF</color>
+    <color name="material_chat_toolbar_background_light">#07C160</color>
+
+    <!-- 消息气泡颜色 - 亮色模式 -->
+    <color name="material_chat_user_bubble_light">#07C160</color>
+    <color name="material_chat_user_text_light">#FFFFFF</color>
+    <color name="material_chat_ai_bubble_light">#FFFFFF</color>
+    <color name="material_chat_ai_text_light">#1A1C18</color>
+
+    <!-- 输入区域颜色 - 亮色模式 -->
+    <color name="material_chat_input_background_light">#F5F5F5</color>
+    <color name="material_chat_input_stroke_light">#E0E0E0</color>
+    <color name="material_chat_input_text_light">#1A1C18</color>
+    <color name="material_chat_input_hint_light">#79747E</color>
+
+    <!-- 时间戳和辅助文本颜色 - 亮色模式 -->
+    <color name="material_chat_timestamp_light">#79747E</color>
+    <color name="material_chat_secondary_text_light">#49454F</color>
+
+    <!-- 分割线和边框颜色 - 亮色模式 -->
+    <color name="material_chat_divider_light">#E6E1E5</color>
+    <color name="material_chat_border_light">#E6E1E5</color>
+
+    <!-- 输入框颜色 -->
+    <color name="material_chat_input_background">#F5F5F5</color>
+    <color name="material_chat_input_text">#1A1C18</color>
+    <color name="material_chat_input_hint">#73796E</color>
+    <color name="material_chat_input_stroke">#C3C8BB</color>
+    <color name="material_chat_input_stroke_focused">#07C160</color>
+
+
 
 </resources>
