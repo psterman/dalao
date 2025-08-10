@@ -98,6 +98,21 @@
     <color name="letter_index_text_dark">#99FFFFFF</color>
     <color name="letter_index_text_light">#99000000</color>
     <color name="letter_index_selected_background_dark">#1AFFFFFF</color>
+
+    <!-- API状态指示器颜色 -->
+    <color name="api_status_unknown">#FF9800</color>
+    <color name="api_status_connected">#4CAF50</color>
+    <color name="api_status_error">#F44336</color>
+    <color name="api_status_loading">#2196F3</color>
+    
+    <!-- 强调色 -->
+    <color name="accent_color">#2196F3</color>
+    
+    <!-- 状态颜色 -->
+    <color name="success_text_color">#4CAF50</color>
+    <color name="warning_text_color">#FF9800</color>
+    <color name="online_color">#4CAF50</color>
+    <color name="offline_color">#9E9E9E</color>
     <color name="letter_index_selected_background_light">#1A000000</color>
     
     <!-- 错误颜色 -->

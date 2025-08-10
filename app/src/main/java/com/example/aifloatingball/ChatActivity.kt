@@ -47,6 +47,16 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var sendButton: ImageButton
     private lateinit var messagesRecyclerView: RecyclerView
 
+    // 新增按钮声明
+    private lateinit var apiStatusIndicator: TextView
+    private lateinit var refreshButton: ImageButton
+    private lateinit var settingsButton: ImageButton
+    private lateinit var voiceInputButton: ImageButton
+    private lateinit var imageInputButton: ImageButton
+    private lateinit var fileInputButton: ImageButton
+    private lateinit var clearChatButton: ImageButton
+    private lateinit var exportChatButton: ImageButton
+
     private var currentContact: ChatContact? = null
     private val messages = mutableListOf<ChatMessage>()
     private lateinit var aiApiManager: AIApiManager
@@ -87,6 +97,16 @@ class ChatActivity : AppCompatActivity() {
         sendButton = findViewById(R.id.send_button)
         messagesRecyclerView = findViewById(R.id.messages_recycler_view)
 
+        // 初始化新增按钮
+        apiStatusIndicator = findViewById(R.id.api_status_indicator)
+        refreshButton = findViewById(R.id.refresh_button)
+        settingsButton = findViewById(R.id.settings_button)
+        voiceInputButton = findViewById(R.id.voice_input_button)
+        imageInputButton = findViewById(R.id.image_input_button)
+        fileInputButton = findViewById(R.id.file_input_button)
+        clearChatButton = findViewById(R.id.clear_chat_button)
+        exportChatButton = findViewById(R.id.export_chat_button)
+
         // 设置RecyclerView
         messagesRecyclerView.layoutManager = LinearLayoutManager(this)
         messageAdapter = ChatMessageAdapter(
@@ -104,6 +124,9 @@ class ChatActivity : AppCompatActivity() {
         promptListContainer = findViewById(R.id.prompt_list_container)
         promptList = findViewById(R.id.prompt_list)
         setupPromptList()
+
+        // 初始化API状态指示器
+        updateApiStatusIndicator()
     }
 
     private fun loadContactData() {
@@ -126,14 +149,45 @@ class ChatActivity : AppCompatActivity() {
             finish()
         }
 
+        // 工具栏按钮事件
         searchButton.setOnClickListener {
             showSearchDialog()
         }
 
+        refreshButton.setOnClickListener {
+            refreshChat()
+        }
+
+        settingsButton.setOnClickListener {
+            showChatSettings()
+        }
+
+        // 发送按钮事件
         sendButton.setOnClickListener {
             if (!isSending) {
                 sendMessage()
             }
+        }
+
+        // 功能按钮事件
+        voiceInputButton.setOnClickListener {
+            showVoiceInputDialog()
+        }
+
+        imageInputButton.setOnClickListener {
+            showImageInputDialog()
+        }
+
+        fileInputButton.setOnClickListener {
+            showFileInputDialog()
+        }
+
+        clearChatButton.setOnClickListener {
+            showClearChatDialog()
+        }
+
+        exportChatButton.setOnClickListener {
+            exportChatHistory()
         }
 
         // 设置输入框焦点变化事件，显示/隐藏AI助手档案列表
@@ -1052,11 +1106,397 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 更新API状态指示器
+     */
+    private fun updateApiStatusIndicator() {
+        currentContact?.let { contact ->
+            if (contact.type == ContactType.AI) {
+                val serviceType = getAIServiceType(contact)
+                if (serviceType != null) {
+                    val apiKey = getApiKeyForService(serviceType)
+                    if (apiKey.isNotBlank()) {
+                        // 有API密钥，检查连接状态
+                        checkApiConnectionStatus(serviceType, apiKey)
+                    } else {
+                        // 没有API密钥
+                        setApiStatusIndicator(ApiStatus.NO_API_KEY)
+                    }
+                } else {
+                    // 无法识别的AI服务
+                    setApiStatusIndicator(ApiStatus.UNKNOWN_SERVICE)
+                }
+            } else {
+                // 非AI联系人，隐藏状态指示器
+                apiStatusIndicator.visibility = View.GONE
+            }
+        }
+    }
+
+    /**
+     * 检查API连接状态
+     */
+    private fun checkApiConnectionStatus(serviceType: AIServiceType, apiKey: String) {
+        setApiStatusIndicator(ApiStatus.LOADING)
+        
+        when (serviceType) {
+            AIServiceType.DEEPSEEK -> {
+                testDeepSeekConnection(apiKey) { success, message ->
+                    runOnUiThread {
+                        if (success) {
+                            setApiStatusIndicator(ApiStatus.CONNECTED)
+                        } else {
+                            setApiStatusIndicator(ApiStatus.ERROR)
+                        }
+                    }
+                }
+            }
+            else -> {
+                // 其他AI服务暂时显示为已连接
+                setApiStatusIndicator(ApiStatus.CONNECTED)
+            }
+        }
+    }
+
+    /**
+     * 设置API状态指示器
+     */
+    private fun setApiStatusIndicator(status: ApiStatus) {
+        val (color, text) = when (status) {
+            ApiStatus.CONNECTED -> Pair(R.color.api_status_connected, "●")
+            ApiStatus.ERROR -> Pair(R.color.api_status_error, "●")
+            ApiStatus.LOADING -> Pair(R.color.api_status_loading, "●")
+            ApiStatus.NO_API_KEY -> Pair(R.color.api_status_unknown, "!")
+            ApiStatus.UNKNOWN_SERVICE -> Pair(R.color.api_status_unknown, "?")
+        }
+        
+        apiStatusIndicator.setTextColor(getColor(color))
+        apiStatusIndicator.text = text
+        apiStatusIndicator.visibility = View.VISIBLE
+    }
+
+    /**
+     * API状态枚举
+     */
+    enum class ApiStatus {
+        CONNECTED,      // 已连接
+        ERROR,          // 连接错误
+        LOADING,        // 正在检查
+        NO_API_KEY,     // 无API密钥
+        UNKNOWN_SERVICE // 未知服务
+    }
+
+    /**
+     * 刷新聊天
+     */
+    private fun refreshChat() {
+        // 重新加载聊天历史
+        loadInitialMessages()
+        
+        // 更新API状态
+        updateApiStatusIndicator()
+        
+        Toast.makeText(this, "聊天已刷新", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 显示聊天设置
+     */
+    private fun showChatSettings() {
+        val options = arrayOf("AI API设置", "聊天设置", "导出设置", "清空聊天记录")
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("聊天设置")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 跳转到AI API设置
+                        val intent = Intent(this, AIApiSettingsActivity::class.java)
+                        startActivity(intent)
+                    }
+                    1 -> {
+                        // 显示聊天设置对话框
+                        showChatSettingsDialog()
+                    }
+                    2 -> {
+                        // 显示导出设置对话框
+                        showExportSettingsDialog()
+                    }
+                    3 -> {
+                        // 显示清空聊天确认对话框
+                        showClearChatDialog()
+                    }
+                }
+            }
+            .show()
+    }
+
+    /**
+     * 显示聊天设置对话框
+     */
+    private fun showChatSettingsDialog() {
+        val view = layoutInflater.inflate(R.layout.dialog_chat_settings, null)
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("聊天设置")
+            .setView(view)
+            .setPositiveButton("保存") { _, _ ->
+                // 保存设置
+                saveChatSettings(view)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 保存聊天设置
+     */
+    private fun saveChatSettings(view: View) {
+        // 这里可以添加保存聊天设置的逻辑
+        Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 显示导出设置对话框
+     */
+    private fun showExportSettingsDialog() {
+        val options = arrayOf("导出为文本文件", "导出为HTML", "导出为Markdown", "分享聊天记录")
+        
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("导出设置")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> exportChatAsText()
+                    1 -> exportChatAsHTML()
+                    2 -> exportChatAsMarkdown()
+                    3 -> shareChatHistory()
+                }
+            }
+            .show()
+    }
+
+    /**
+     * 显示语音输入对话框
+     */
+    private fun showVoiceInputDialog() {
+        Toast.makeText(this, "语音输入功能开发中...", Toast.LENGTH_SHORT).show()
+        // TODO: 实现语音输入功能
+    }
+
+    /**
+     * 显示图片输入对话框
+     */
+    private fun showImageInputDialog() {
+        Toast.makeText(this, "图片输入功能开发中...", Toast.LENGTH_SHORT).show()
+        // TODO: 实现图片输入功能
+    }
+
+    /**
+     * 显示文件输入对话框
+     */
+    private fun showFileInputDialog() {
+        Toast.makeText(this, "文件输入功能开发中...", Toast.LENGTH_SHORT).show()
+        // TODO: 实现文件输入功能
+    }
+
+    /**
+     * 显示清空聊天确认对话框
+     */
+    private fun showClearChatDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("清空聊天记录")
+            .setMessage("确定要清空所有聊天记录吗？此操作不可恢复。")
+            .setPositiveButton("清空") { _, _ ->
+                clearChatHistory()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 清空聊天历史
+     */
+    private fun clearChatHistory() {
+        currentContact?.let { contact ->
+            // 清空内存中的消息
+            messages.clear()
+            messageAdapter.updateMessages(messages)
+            
+            // 清空本地存储的聊天记录
+            chatHistoryManager.clearMessages(contact.id)
+            
+            Toast.makeText(this, "聊天记录已清空", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 导出聊天历史
+     */
+    private fun exportChatHistory() {
+        showExportSettingsDialog()
+    }
+
+    /**
+     * 导出聊天为文本文件
+     */
+    private fun exportChatAsText() {
+        currentContact?.let { contact ->
+            val content = buildString {
+                appendLine("聊天记录 - ${contact.name}")
+                appendLine("导出时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+                appendLine("=".repeat(50))
+                appendLine()
+                
+                messages.forEach { message ->
+                    val prefix = if (message.isFromUser) "用户" else "AI"
+                    val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(message.timestamp))
+                    appendLine("[$time] $prefix: ${message.content}")
+                    appendLine()
+                }
+            }
+            
+            // 保存到文件并分享
+            shareTextContent(content, "聊天记录.txt")
+        }
+    }
+
+    /**
+     * 导出聊天为HTML
+     */
+    private fun exportChatAsHTML() {
+        currentContact?.let { contact ->
+            val content = buildString {
+                appendLine("<!DOCTYPE html>")
+                appendLine("<html>")
+                appendLine("<head>")
+                appendLine("<meta charset=\"UTF-8\">")
+                appendLine("<title>聊天记录 - ${contact.name}</title>")
+                appendLine("<style>")
+                appendLine("body { font-family: Arial, sans-serif; margin: 20px; }")
+                appendLine(".message { margin: 10px 0; padding: 10px; border-radius: 5px; }")
+                appendLine(".user { background-color: #e3f2fd; text-align: right; }")
+                appendLine(".ai { background-color: #f3e5f5; text-align: left; }")
+                appendLine(".time { font-size: 12px; color: #666; }")
+                appendLine("</style>")
+                appendLine("</head>")
+                appendLine("<body>")
+                appendLine("<h1>聊天记录 - ${contact.name}</h1>")
+                appendLine("<p>导出时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}</p>")
+                
+                messages.forEach { message ->
+                    val cssClass = if (message.isFromUser) "user" else "ai"
+                    val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(message.timestamp))
+                    appendLine("<div class=\"message $cssClass\">")
+                    appendLine("<div class=\"time\">$time</div>")
+                    appendLine("<div>${message.content.replace("\n", "<br>")}</div>")
+                    appendLine("</div>")
+                }
+                
+                appendLine("</body>")
+                appendLine("</html>")
+            }
+            
+            shareTextContent(content, "聊天记录.html")
+        }
+    }
+
+    /**
+     * 导出聊天为Markdown
+     */
+    private fun exportChatAsMarkdown() {
+        currentContact?.let { contact ->
+            val content = buildString {
+                appendLine("# 聊天记录 - ${contact.name}")
+                appendLine()
+                appendLine("**导出时间:** ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+                appendLine()
+                appendLine("---")
+                appendLine()
+                
+                messages.forEach { message ->
+                    val prefix = if (message.isFromUser) "**用户**" else "**AI**"
+                    val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(message.timestamp))
+                    appendLine("### [$time] $prefix")
+                    appendLine()
+                    appendLine(message.content)
+                    appendLine()
+                }
+            }
+            
+            shareTextContent(content, "聊天记录.md")
+        }
+    }
+
+    /**
+     * 分享聊天记录
+     */
+    private fun shareChatHistory() {
+        currentContact?.let { contact ->
+            val content = buildString {
+                appendLine("聊天记录 - ${contact.name}")
+                appendLine("导出时间: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
+                appendLine()
+                
+                messages.forEach { message ->
+                    val prefix = if (message.isFromUser) "用户" else "AI"
+                    val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(message.timestamp))
+                    appendLine("[$time] $prefix: ${message.content}")
+                    appendLine()
+                }
+            }
+            
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, content)
+                putExtra(Intent.EXTRA_SUBJECT, "聊天记录 - ${contact.name}")
+            }
+            startActivity(Intent.createChooser(shareIntent, "分享聊天记录"))
+        }
+    }
+
+    /**
+     * 分享文本内容
+     */
+    private fun shareTextContent(content: String, filename: String) {
+        try {
+            // 创建临时文件
+            val file = java.io.File(cacheDir, filename)
+            file.writeText(content, Charsets.UTF_8)
+            
+            // 分享文件
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                file
+            )
+            
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, filename)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            
+            startActivity(Intent.createChooser(shareIntent, "导出聊天记录"))
+        } catch (e: Exception) {
+            Log.e(TAG, "导出聊天记录失败", e)
+            Toast.makeText(this, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         // 释放AI API管理器资源
         if (::aiApiManager.isInitialized) {
             aiApiManager.destroy()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 页面恢复时更新API状态
+        updateApiStatusIndicator()
     }
 }

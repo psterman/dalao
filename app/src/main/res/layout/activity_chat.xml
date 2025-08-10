@@ -51,14 +51,59 @@
 
             </LinearLayout>
             
-            <ImageButton
-                android:id="@+id/search_button"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:src="@drawable/ic_search"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/material_chat_toolbar_icon"
-                android:contentDescription="搜索聊天记录" />
+            <!-- 工具栏按钮组 -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- API状态指示器 -->
+                <TextView
+                    android:id="@+id/api_status_indicator"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/api_status_indicator"
+                    android:gravity="center"
+                    android:text="●"
+                    android:textColor="@color/api_status_unknown"
+                    android:textSize="12sp"
+                    android:contentDescription="API状态" />
+
+                <!-- 刷新按钮 -->
+                <ImageButton
+                    android:id="@+id/refresh_button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="8dp"
+                    android:src="@drawable/ic_refresh"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/material_chat_toolbar_icon"
+                    android:contentDescription="刷新聊天" />
+
+                <!-- 设置按钮 -->
+                <ImageButton
+                    android:id="@+id/settings_button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="8dp"
+                    android:src="@drawable/ic_settings"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/material_chat_toolbar_icon"
+                    android:contentDescription="聊天设置" />
+
+                <!-- 搜索按钮 -->
+                <ImageButton
+                    android:id="@+id/search_button"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_search"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@color/material_chat_toolbar_icon"
+                    android:contentDescription="搜索聊天记录" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
@@ -99,6 +144,72 @@
                 android:gravity="center_vertical" />
 
         </HorizontalScrollView>
+
+        <!-- 功能按钮区域 -->
+        <LinearLayout
+            android:id="@+id/function_buttons_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:gravity="center_vertical">
+
+            <!-- 语音输入按钮 -->
+            <ImageButton
+                android:id="@+id/voice_input_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="12dp"
+                android:src="@drawable/ic_mic"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/simple_mode_primary_light"
+                android:contentDescription="语音输入" />
+
+            <!-- 图片输入按钮 -->
+            <ImageButton
+                android:id="@+id/image_input_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="12dp"
+                android:src="@drawable/ic_image"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/simple_mode_primary_light"
+                android:contentDescription="图片输入" />
+
+            <!-- 文件输入按钮 -->
+            <ImageButton
+                android:id="@+id/file_input_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="12dp"
+                android:src="@drawable/ic_attach_file"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/simple_mode_primary_light"
+                android:contentDescription="文件输入" />
+
+            <!-- 清空聊天按钮 -->
+            <ImageButton
+                android:id="@+id/clear_chat_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="12dp"
+                android:src="@drawable/ic_clear_all"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/simple_mode_primary_light"
+                android:contentDescription="清空聊天" />
+
+            <!-- 导出聊天按钮 -->
+            <ImageButton
+                android:id="@+id/export_chat_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/ic_export"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@color/simple_mode_primary_light"
+                android:contentDescription="导出聊天" />
+
+        </LinearLayout>
 
         <!-- 输入和按钮区域 -->
         <LinearLayout

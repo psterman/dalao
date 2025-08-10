@@ -79,6 +79,25 @@
         <item>right</item>
     </string-array>
 
+    <!-- 聊天主题选项 -->
+    <string-array name="chat_themes">
+        <item>默认主题</item>
+        <item>深色主题</item>
+        <item>浅色主题</item>
+        <item>蓝色主题</item>
+        <item>绿色主题</item>
+        <item>紫色主题</item>
+    </string-array>
+    
+    <string-array name="chat_theme_values">
+        <item>default</item>
+        <item>dark</item>
+        <item>light</item>
+        <item>blue</item>
+        <item>green</item>
+        <item>purple</item>
+    </string-array>
+
     <!-- 搜索引擎选项 -->
     <string-array name="search_engine_entries">
         <item>百度</item>
