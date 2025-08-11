@@ -221,16 +221,19 @@ class ChatContactAdapter(
             nameText.text = contact.name
             descriptionText.text = contact.description ?: ""
             
-            // 设置头像
+            // 设置头像 - 目前只支持AI类型
             when (contact.type) {
                 ContactType.AI -> {
+                    // 清除tint以显示真实图标颜色
+                    avatarImage.clearColorFilter()
+
                     // 使用FaviconLoader加载AI助手的头像
                     val apiUrl = contact.customData["api_url"] ?: ""
                     if (apiUrl.isNotEmpty()) {
-                        FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_ai_ball)
+                        FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_smart_toy)
                     } else {
                         // 如果没有API URL，尝试根据AI名称加载图标
-                        FaviconLoader.loadAIEngineIcon(avatarImage, contact.name, R.drawable.ic_ai_ball)
+                        FaviconLoader.loadAIEngineIcon(avatarImage, contact.name, R.drawable.ic_smart_toy)
                     }
                 }
             }

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    android:checkable="true"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="1dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="@color/material_dialog_border"
+    app:cardBackgroundColor="@color/material_dialog_surface">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- AI基本信息 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="12dp">
+
+            <!-- AI头像 -->
+            <ImageView
+                android:id="@+id/ai_icon"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/ic_smart_toy"
+                android:background="@drawable/ai_icon_background"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp" />
+
+            <!-- AI名称 -->
+            <TextView
+                android:id="@+id/ai_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="DeepSeek"
+                android:textSize="16sp"
+                android:textColor="@color/material_dialog_text_primary"
+                android:fontFamily="sans-serif-medium" />
+
+            <!-- 选择开关 -->
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/ai_switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+        </LinearLayout>
+
+        <!-- API密钥输入区域 -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/api_key_input_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+            app:boxBackgroundColor="@color/material_dialog_input_background"
+            app:boxStrokeColor="@color/material_dialog_input_stroke"
+            app:startIconDrawable="@drawable/ic_key"
+            app:startIconTint="@color/material_wechat_primary"
+            app:endIconMode="password_toggle"
+            app:hintTextColor="@color/material_dialog_text_hint"
+            android:visibility="gone">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/api_key_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="API密钥"
+                android:inputType="textPassword"
+                android:textColor="@color/material_dialog_text_primary"
+                android:textSize="14sp" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- 状态指示 -->
+        <LinearLayout
+            android:id="@+id/status_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/status_icon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_check_circle"
+                android:tint="@color/material_wechat_primary"
+                android:layout_marginEnd="8dp" />
+
+            <TextView
+                android:id="@+id/status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="已配置"
+                android:textSize="12sp"
+                android:textColor="@color/material_wechat_primary" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

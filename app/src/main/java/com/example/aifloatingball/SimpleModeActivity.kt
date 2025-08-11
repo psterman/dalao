@@ -4,6 +4,7 @@ import android.Manifest
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.Context
@@ -59,6 +60,7 @@ import com.example.aifloatingball.model.ContactType
 import com.example.aifloatingball.model.ContactCategory
 import com.example.aifloatingball.adapter.ChatContactAdapter
 import com.example.aifloatingball.manager.AITagManager
+import com.example.aifloatingball.utils.FaviconLoader
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import androidx.lifecycle.lifecycleScope
@@ -104,6 +106,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 联系人数据持久化相关
         private const val CONTACTS_PREFS_NAME = "chat_contacts"
         private const val KEY_SAVED_CONTACTS = "saved_contacts"
+        // Activity请求码
+        private const val REQUEST_CODE_ADD_AI_CONTACT = 1101
     }
 
     /**
@@ -4732,10 +4736,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
-            // 设置添加联系人按钮
+            // 设置添加联系人按钮（右上角+号）
             chatAddContactButton?.setOnClickListener {
-                // 打开添加联系人界面
-                openAddContactDialog()
+                // 打开AI联系人列表界面
+                openAIContactListActivity()
             }
 
             // 设置TabLayout
@@ -4752,7 +4756,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         when (tab?.position) {
                             0 -> chatContactAdapter?.updateContacts(allContacts)
                             1 -> showAIContacts()
-                            2 -> showCustomTabDialog() // 显示自定义标签页对话框
+                            2 -> {
+                                // +号按钮 - 创建新的分组标签页
+                                showCreateCustomTabDialog()
+                                // 选择回到"AI助手"标签页
+                                chatTabLayout?.getTabAt(1)?.select()
+                            }
                             else -> {
                                 // 自定义标签页
                                 val customTabName = tab?.text?.toString()
@@ -5395,41 +5404,51 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
 
     /**
-     * 打开添加联系人界面 - 临时简化版本
+     * 打开AI联系人列表界面
      */
-    private fun openAddContactDialog() {
+    private fun openAIContactListActivity() {
         try {
-            // 暂时使用简化的AI选择对话框
-            showSimpleAISelectionDialog()
+            val intent = Intent(this, AIContactListActivity::class.java)
+            startActivityForResult(intent, REQUEST_CODE_ADD_AI_CONTACT)
+            Log.d(TAG, "打开AI联系人列表界面")
         } catch (e: Exception) {
-            Log.e(TAG, "打开添加联系人界面失败", e)
-            Toast.makeText(this, "打开添加联系人界面失败", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "打开AI联系人列表界面失败", e)
+            Toast.makeText(this, "打开AI联系人列表界面失败", Toast.LENGTH_SHORT).show()
         }
     }
 
     /**
-     * 显示Material Design风格的AI选择对话框
+     * 显示创建自定义标签页对话框
      */
-    private fun showSimpleAISelectionDialog() {
+    private fun showCreateCustomTabDialog() {
         try {
-            // 定义AI助手数据
-            val aiList = listOf(
-                AISelectionItem("DeepSeek", "🚀 性能强劲，支持中文", R.drawable.ic_smart_toy, "#FF6B35"),
-                AISelectionItem("智谱AI", "🧠 GLM-4大语言模型", R.drawable.ic_psychology, "#4CAF50"),
-                AISelectionItem("ChatGPT", "🤖 OpenAI的经典模型", R.drawable.ic_chat, "#00BCD4"),
-                AISelectionItem("Claude", "💡 Anthropic的智能助手", R.drawable.ic_lightbulb, "#9C27B0"),
-                AISelectionItem("Gemini", "🌟 Google的AI助手", R.drawable.ic_auto_awesome, "#FF9800"),
-                AISelectionItem("Kimi", "🌙 Moonshot的长文本专家", R.drawable.ic_nights_stay, "#3F51B5"),
-                AISelectionItem("文心一言", "📚 百度的大语言模型", R.drawable.ic_menu_book, "#E91E63"),
-                AISelectionItem("通义千问", "🎯 阿里巴巴的AI", R.drawable.ic_target, "#607D8B"),
-                AISelectionItem("讯飞星火", "⚡ 科大讯飞的AI", R.drawable.ic_flash_on, "#FFC107")
-            )
+            val input = android.widget.EditText(this).apply {
+                hint = "输入标签页名称"
+                setPadding(50, 30, 50, 30)
+            }
 
-            showMaterialAISelectionDialog(aiList)
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("创建新标签页")
+                .setMessage("为AI助手创建新的分组标签页")
+                .setView(input)
+                .setPositiveButton("创建") { _, _ ->
+                    val tabName = input.text.toString().trim()
+                    if (tabName.isNotEmpty()) {
+                        createCustomTab(tabName)
+                        Toast.makeText(this, "已创建标签页: $tabName", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "标签页名称不能为空", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
         } catch (e: Exception) {
-            Log.e(TAG, "显示AI选择对话框失败", e)
+            Log.e(TAG, "显示创建自定义标签页对话框失败", e)
+            Toast.makeText(this, "创建标签页失败", Toast.LENGTH_SHORT).show()
         }
     }
+
+
 
     /**
      * AI选择项数据类
@@ -5442,12 +5461,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     )
 
     /**
-     * 显示Material Design风格的AI选择对话框
+     * 显示简化的AI选择对话框
      */
     private fun showMaterialAISelectionDialog(aiList: List<AISelectionItem>) {
         try {
             // 创建对话框布局
-            val dialogView = layoutInflater.inflate(R.layout.dialog_ai_selection_material, null)
+            val dialogView = layoutInflater.inflate(R.layout.dialog_ai_add_simple, null)
             val container = dialogView.findViewById<LinearLayout>(R.id.ai_selection_container)
             val btnCancel = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_cancel)
             val btnConfirm = dialogView.findViewById<com.google.android.material.button.MaterialButton>(R.id.btn_confirm)
@@ -5457,66 +5476,60 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 动态创建AI选择项
             aiList.forEach { aiItem ->
-                val itemView = layoutInflater.inflate(R.layout.item_ai_selection_material, container, false)
+                val itemView = layoutInflater.inflate(R.layout.item_ai_selection_simple, container, false)
 
                 val aiIcon = itemView.findViewById<ImageView>(R.id.ai_icon)
                 val aiName = itemView.findViewById<TextView>(R.id.ai_name)
-                val aiDescription = itemView.findViewById<TextView>(R.id.ai_description)
+                val aiSwitch = itemView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.ai_switch)
+                val apiKeyInputLayout = itemView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.api_key_input_layout)
+                val apiKeyInput = itemView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.api_key_input)
+                val statusContainer = itemView.findViewById<LinearLayout>(R.id.status_container)
                 val statusIcon = itemView.findViewById<ImageView>(R.id.status_icon)
                 val statusText = itemView.findViewById<TextView>(R.id.status_text)
-                val checkbox = itemView.findViewById<CheckBox>(R.id.ai_checkbox)
-                val cardView = itemView as com.google.android.material.card.MaterialCardView
 
                 // 设置AI信息
                 aiName.text = aiItem.name
-                aiDescription.text = aiItem.description
-                aiIcon.setImageResource(aiItem.iconRes)
+
+                // 使用FaviconLoader加载AI图标
+                FaviconLoader.loadAIEngineIcon(aiIcon, aiItem.name, R.drawable.ic_smart_toy)
 
                 // 检查API密钥和联系人状态
                 val hasApiKey = getApiKeyForAI(aiItem.name).isNotBlank()
                 val hasContact = hasAIContact(aiItem.name)
 
-                when {
-                    hasContact && hasApiKey -> {
-                        statusIcon.visibility = android.view.View.VISIBLE
-                        statusText.visibility = android.view.View.VISIBLE
-                        statusText.text = "已添加"
-                        statusIcon.setImageResource(R.drawable.ic_check_circle)
-                        checkbox.isEnabled = false
-                        cardView.alpha = 0.6f
+                if (hasContact && hasApiKey) {
+                    // 已添加状态
+                    statusContainer.visibility = android.view.View.VISIBLE
+                    statusText.text = "已添加"
+                    statusIcon.setImageResource(R.drawable.ic_check_circle)
+                    aiSwitch.isEnabled = false
+                    itemView.alpha = 0.6f
+                } else {
+                    // 设置API密钥
+                    if (hasApiKey) {
+                        apiKeyInput.setText(getApiKeyForAI(aiItem.name))
+                        aiSwitch.isChecked = true
                     }
-                    hasApiKey -> {
-                        statusIcon.visibility = android.view.View.VISIBLE
-                        statusText.visibility = android.view.View.VISIBLE
-                        statusText.text = "有密钥"
-                        statusIcon.setImageResource(R.drawable.ic_key)
-                        checkbox.isChecked = true
-                    }
-                    else -> {
-                        statusIcon.visibility = android.view.View.GONE
-                        statusText.visibility = android.view.View.GONE
-                    }
-                }
 
-                // 设置点击事件
-                itemView.setOnClickListener {
-                    if (checkbox.isEnabled) {
-                        checkbox.isChecked = !checkbox.isChecked
-                        cardView.isChecked = checkbox.isChecked
+                    // 开关状态变化监听
+                    aiSwitch.setOnCheckedChangeListener { _, isChecked ->
+                        if (isChecked) {
+                            apiKeyInputLayout.visibility = android.view.View.VISIBLE
+                            if (!selectedAIs.contains(aiItem)) {
+                                selectedAIs.add(aiItem)
+                            }
+                        } else {
+                            apiKeyInputLayout.visibility = android.view.View.GONE
+                            selectedAIs.remove(aiItem)
+                        }
+                        btnConfirm.isEnabled = selectedAIs.isNotEmpty()
                     }
-                }
 
-                checkbox.setOnCheckedChangeListener { _, isChecked ->
-                    cardView.isChecked = isChecked
-                    if (isChecked) {
+                    // 如果已选中，显示API密钥输入框
+                    if (aiSwitch.isChecked) {
+                        apiKeyInputLayout.visibility = android.view.View.VISIBLE
                         selectedAIs.add(aiItem)
-                    } else {
-                        selectedAIs.remove(aiItem)
                     }
-
-                    // 更新确认按钮状态
-                    btnConfirm.isEnabled = selectedAIs.isNotEmpty()
-                    btnConfirm.text = if (selectedAIs.isEmpty()) "添加选中的AI" else "添加 ${selectedAIs.size} 个AI"
                 }
 
                 container.addView(itemView)
@@ -5532,9 +5545,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             btnCancel.setOnClickListener { dialog.dismiss() }
 
             btnConfirm.setOnClickListener {
+                // 处理选中的AI
                 selectedAIs.forEach { aiItem ->
-                    addAIContactToCategory(aiItem.name, "AI助手", "")
+                    // 查找对应的输入框并保存API密钥
+                    for (i in 0 until container.childCount) {
+                        val childView = container.getChildAt(i)
+                        val nameView = childView.findViewById<TextView>(R.id.ai_name)
+                        if (nameView.text.toString() == aiItem.name) {
+                            val apiKeyInput = childView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.api_key_input)
+                            val apiKey = apiKeyInput.text.toString().trim()
+
+                            if (apiKey.isNotEmpty()) {
+                                // 保存API密钥
+                                saveApiKeyForAI(aiItem.name, apiKey)
+                            }
+
+                            // 添加AI联系人
+                            addAIContactToCategory(aiItem.name, "AI助手", "")
+                            break
+                        }
+                    }
                 }
+
                 chatContactAdapter?.updateContacts(allContacts)
                 dialog.dismiss()
 
@@ -6303,6 +6335,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             val options = mutableListOf<String>()
 
+            // 为AI联系人添加分组选项
+            if (contact.type == ContactType.AI) {
+                options.add("移动到分组")
+            }
+
             // 根据当前状态动态添加选项
             if (contact.isPinned) {
                 options.add("取消置顶")
@@ -6318,10 +6355,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             options.add("删除")
 
-            AlertDialog.Builder(this)
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
                 .setTitle("${contact.name} 选项")
                 .setItems(options.toTypedArray()) { _, which ->
                     when (options[which]) {
+                        "移动到分组" -> showAIGroupSelectionDialog(contact)
                         "置顶" -> toggleContactPin(contact, true)
                         "取消置顶" -> toggleContactPin(contact, false)
                         "静音" -> toggleContactMute(contact, true)
@@ -6333,6 +6371,132 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 .show()
         } catch (e: Exception) {
             Log.e(TAG, "显示联系人选项对话框失败", e)
+        }
+    }
+
+    /**
+     * 显示AI分组选择对话框（纵向小标签分组）
+     */
+    private fun showAIGroupSelectionDialog(contact: ChatContact) {
+        try {
+            // 获取所有可用的分组（纵向小标签分组，不是横向大标签）
+            val availableGroups = mutableListOf<String>()
+
+            // 添加默认的"AI助手"分组
+            availableGroups.add("AI助手")
+
+            // 添加现有的自定义分组（从ContactCategory中获取，不是从TabLayout）
+            allContacts.forEach { category ->
+                if (category.name != "AI助手" && !availableGroups.contains(category.name)) {
+                    availableGroups.add(category.name)
+                }
+            }
+
+            // 添加"创建新分组"选项
+            availableGroups.add("+ 创建新分组")
+
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("移动到分组")
+                .setMessage("选择要移动到的纵向分组标签")
+                .setItems(availableGroups.toTypedArray()) { _, which ->
+                    val selectedGroup = availableGroups[which]
+                    if (selectedGroup == "+ 创建新分组") {
+                        showCreateNewGroupDialog(contact)
+                    } else {
+                        moveContactToGroup(contact, selectedGroup)
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI分组选择对话框失败", e)
+        }
+    }
+
+    /**
+     * 显示创建新分组对话框
+     */
+    private fun showCreateNewGroupDialog(contact: ChatContact) {
+        try {
+            val input = android.widget.EditText(this).apply {
+                hint = "输入新分组名称"
+                setPadding(50, 30, 50, 30)
+            }
+
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("创建新分组")
+                .setView(input)
+                .setPositiveButton("创建") { _, _ ->
+                    val groupName = input.text.toString().trim()
+                    if (groupName.isNotEmpty()) {
+                        moveContactToGroup(contact, groupName)
+                    } else {
+                        Toast.makeText(this, "分组名称不能为空", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示创建新分组对话框失败", e)
+        }
+    }
+
+    /**
+     * 将联系人移动到指定分组
+     */
+    private fun moveContactToGroup(contact: ChatContact, targetGroupName: String) {
+        try {
+            // 从原分组中移除联系人
+            var sourceCategory: ContactCategory? = null
+            var sourceCategoryIndex = -1
+
+            for (i in allContacts.indices) {
+                val category = allContacts[i]
+                val contactIndex = category.contacts.indexOfFirst { it.id == contact.id }
+                if (contactIndex != -1) {
+                    sourceCategory = category
+                    sourceCategoryIndex = i
+
+                    // 从原分组移除
+                    val updatedContacts = category.contacts.toMutableList()
+                    updatedContacts.removeAt(contactIndex)
+                    allContacts[i] = category.copy(contacts = updatedContacts)
+                    break
+                }
+            }
+
+            // 添加到目标分组
+            val targetCategoryIndex = allContacts.indexOfFirst { it.name == targetGroupName }
+            if (targetCategoryIndex != -1) {
+                // 目标分组已存在，添加联系人
+                val targetCategory = allContacts[targetCategoryIndex]
+                val updatedContacts = targetCategory.contacts.toMutableList()
+                updatedContacts.add(contact)
+                allContacts[targetCategoryIndex] = targetCategory.copy(contacts = updatedContacts)
+            } else {
+                // 目标分组不存在，创建新分组
+                val newCategory = ContactCategory(
+                    name = targetGroupName,
+                    contacts = listOf(contact),
+                    isExpanded = true
+                )
+                allContacts.add(newCategory)
+            }
+
+            // 保存更新后的联系人数据
+            saveContacts()
+
+            // 刷新UI
+            chatContactAdapter?.updateContacts(allContacts)
+
+            Toast.makeText(this, "${contact.name} 已移动到 $targetGroupName", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "联系人移动成功: ${contact.name} -> $targetGroupName")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "移动联系人到分组失败", e)
+            Toast.makeText(this, "移动失败", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -6981,7 +7145,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        // 目前没有需要处理的Activity结果
+
+        when (requestCode) {
+            REQUEST_CODE_ADD_AI_CONTACT -> {
+                // 从AI联系人列表界面返回
+                if (resultCode == Activity.RESULT_OK) {
+                    // 刷新联系人列表
+                    Toast.makeText(this, "AI联系人已更新", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     /**
@@ -7351,36 +7524,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
-    /**
-     * 创建自定义标签页
-     */
-    private fun createCustomTab(tabName: String) {
-        try {
-            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
-            val newTab = chatTabLayout?.newTab()?.setText(tabName)
 
-            if (newTab != null) {
-                // 在"+"标签页之前插入新标签页
-                val insertPosition = chatTabLayout?.tabCount?.minus(1) ?: 2
-                chatTabLayout?.addTab(newTab, insertPosition)
-
-                // 选中新创建的标签页
-                chatTabLayout?.selectTab(newTab)
-            }
-
-            // 使用AI标签管理器创建新标签
-            val aiTagManager = AITagManager.getInstance(this)
-            val newTag = aiTagManager.createTag(tabName, "自定义AI分组标签")
-
-            // 保存自定义标签页信息
-            saveCustomTab(tabName)
-
-            Toast.makeText(this, "已创建标签页：$tabName", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "创建自定义标签页和AI标签: $tabName")
-        } catch (e: Exception) {
-            Log.e(TAG, "创建自定义标签页失败", e)
-        }
-    }
 
     /**
      * 显示编辑自定义标签页对话框
@@ -7692,4 +7836,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "从自定义标签页移除联系人失败", e)
         }
     }
+
+    /**
+     * 创建自定义标签页
+     */
+    private fun createCustomTab(tabName: String) {
+        try {
+            val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
+            val existingTabs = prefs.getString("custom_ai_tabs", "") ?: ""
+
+            val tabList = if (existingTabs.isNotEmpty()) {
+                existingTabs.split(",").toMutableList()
+            } else {
+                mutableListOf()
+            }
+
+            if (!tabList.contains(tabName)) {
+                tabList.add(tabName)
+                prefs.edit().putString("custom_ai_tabs", tabList.joinToString(",")).apply()
+
+                // 标签页已创建
+                Log.d(TAG, "自定义标签页已保存")
+
+                Log.d(TAG, "创建自定义标签页: $tabName")
+            } else {
+                Toast.makeText(this, "标签页 \"$tabName\" 已存在", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "创建自定义标签页失败", e)
+            Toast.makeText(this, "创建标签页失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
 }

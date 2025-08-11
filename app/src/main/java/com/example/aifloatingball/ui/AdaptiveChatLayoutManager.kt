@@ -167,19 +167,19 @@ class AdaptiveChatLayoutManager(private val context: Context) {
         // 根据view的类型应用颜色，而不是依赖特定的ID
         when (view::class.java.simpleName) {
             "RecyclerView" -> {
-                view.setBackgroundColor(ContextCompat.getColor(context, R.color.material_chat_background_dark))
+                view.setBackgroundColor(ContextCompat.getColor(context, R.color.material_chat_background))
             }
             "MaterialCardView" -> {
                 // 检查是否是消息气泡
                 if (view.tag == "user_bubble") {
-                    view.setBackgroundColor(ContextCompat.getColor(context, R.color.material_chat_user_bubble_dark))
+                    view.setBackgroundColor(ContextCompat.getColor(context, R.color.material_chat_user_bubble))
                 } else if (view.tag == "ai_bubble") {
-                    view.setBackgroundColor(ContextCompat.getColor(context, R.color.material_chat_ai_bubble_dark))
+                    view.setBackgroundColor(ContextCompat.getColor(context, R.color.material_chat_ai_bubble))
                 }
             }
             "LinearLayout" -> {
                 // 输入区域背景
-                view.setBackgroundColor(ContextCompat.getColor(context, R.color.material_chat_input_background_dark))
+                view.setBackgroundColor(ContextCompat.getColor(context, R.color.material_chat_input_background))
             }
         }
     }

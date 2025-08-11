@@ -155,59 +155,39 @@
             android:paddingVertical="8dp"
             android:gravity="center_vertical">
 
-            <!-- 语音输入按钮 -->
-            <ImageButton
-                android:id="@+id/voice_input_button"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginEnd="12dp"
-                android:src="@drawable/ic_mic"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/simple_mode_primary_light"
-                android:contentDescription="语音输入" />
+            <!-- 功能按钮组 - 平行显示 -->
 
-            <!-- 图片输入按钮 -->
-            <ImageButton
-                android:id="@+id/image_input_button"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginEnd="12dp"
-                android:src="@drawable/ic_image"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/simple_mode_primary_light"
-                android:contentDescription="图片输入" />
+            <!-- 加载默认画像按钮 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/load_profile_button"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                app:icon="@drawable/ic_smart_toy"
+                app:iconTint="@color/material_wechat_primary"
+                android:contentDescription="加载默认画像" />
 
-            <!-- 文件输入按钮 -->
-            <ImageButton
-                android:id="@+id/file_input_button"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginEnd="12dp"
-                android:src="@drawable/ic_attach_file"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/simple_mode_primary_light"
-                android:contentDescription="文件输入" />
-
-            <!-- 清空聊天按钮 -->
-            <ImageButton
+            <!-- 清空对话按钮 -->
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/clear_chat_button"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginEnd="12dp"
-                android:src="@drawable/ic_clear_all"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/simple_mode_primary_light"
-                android:contentDescription="清空聊天" />
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="8dp"
+                app:icon="@drawable/ic_clear_all"
+                app:iconTint="@color/material_wechat_primary"
+                android:contentDescription="清空对话" />
 
-            <!-- 导出聊天按钮 -->
-            <ImageButton
+            <!-- 导出对话按钮 -->
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/export_chat_button"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:src="@drawable/ic_export"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="@color/simple_mode_primary_light"
-                android:contentDescription="导出聊天" />
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                app:icon="@drawable/ic_export"
+                app:iconTint="@color/material_wechat_primary"
+                android:contentDescription="导出对话" />
 
         </LinearLayout>
 

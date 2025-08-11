@@ -103,7 +103,14 @@
             android:exported="false"
             android:label="DeepSeek API诊断"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
-            
+
+        <!-- AI联系人列表Activity -->
+        <activity
+            android:name=".AIContactListActivity"
+            android:exported="false"
+            android:label="AI联系人列表"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+
         <!-- AI标签管理Activity -->
         <activity
             android:name=".activity.AITagManagementActivity"

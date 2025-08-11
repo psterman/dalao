@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.ui.AdaptiveChatLayoutManager
+import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.card.MaterialCardView
 import java.text.SimpleDateFormat
 import java.util.*
@@ -163,6 +164,10 @@ class AdaptiveChatMessageAdapter(
             aiText.text = message.content
             aiTime.text = timeFormat.format(message.timestamp)
             aiName.text = message.aiName ?: "AI助手"
+
+            // 设置AI头像
+            aiAvatar.clearColorFilter()
+            FaviconLoader.loadAIEngineIcon(aiAvatar, message.aiName ?: "AI助手", R.drawable.ic_smart_toy)
             
             // 根据左右手模式调整布局
             when (layoutMode) {

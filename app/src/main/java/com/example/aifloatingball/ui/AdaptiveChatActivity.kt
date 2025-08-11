@@ -11,6 +11,7 @@ import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.adapter.AdaptiveChatMessageAdapter
 import com.example.aifloatingball.adapter.ChatMessage
+import com.example.aifloatingball.manager.SimpleChatHistoryManager
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import java.util.*
 
@@ -24,7 +25,12 @@ class AdaptiveChatActivity : AppCompatActivity() {
     private lateinit var layoutManager: AdaptiveChatLayoutManager
     private lateinit var animationManager: ChatLayoutAnimationManager
     private lateinit var messageAdapter: AdaptiveChatMessageAdapter
-    
+    private lateinit var chatHistoryManager: SimpleChatHistoryManager
+
+    // 当前对话的联系人ID（用于历史记录）
+    private val currentContactId = "adaptive_chat_demo"
+    private val messages = mutableListOf<ChatMessage>()
+
     // UI组件
     private lateinit var recyclerView: RecyclerView
     private lateinit var inputArea: View
@@ -44,15 +50,21 @@ class AdaptiveChatActivity : AppCompatActivity() {
         setupRecyclerView()
         setupInputArea()
         applyCurrentLayout()
-        
-        // 添加示例消息
-        addSampleMessages()
+
+        // 加载历史记录
+        loadHistoryMessages()
+
+        // 如果没有历史记录，添加示例消息
+        if (messages.isEmpty()) {
+            addSampleMessages()
+        }
     }
     
     private fun initializeComponents() {
         settingsManager = SettingsManager.getInstance(this)
         layoutManager = AdaptiveChatLayoutManager(this)
         animationManager = ChatLayoutAnimationManager(this)
+        chatHistoryManager = SimpleChatHistoryManager(this)
         
         // 初始化UI组件
         recyclerView = findViewById(R.id.chat_recycler_view)
@@ -133,21 +145,25 @@ class AdaptiveChatActivity : AppCompatActivity() {
     private fun sendMessage() {
         val content = messageInput.text.toString().trim()
         if (content.isEmpty()) return
-        
+
         // 添加用户消息
         val userMessage = ChatMessage(
             content = content,
             isUser = true,
             timestamp = Date()
         )
+        messages.add(userMessage)
         messageAdapter.addMessage(userMessage)
-        
+
+        // 保存历史记录
+        saveMessagesToHistory()
+
         // 清空输入框
         messageInput.text.clear()
-        
+
         // 滚动到底部
         recyclerView.scrollToPosition(messageAdapter.itemCount - 1)
-        
+
         // 模拟AI回复
         simulateAIResponse(content)
     }
@@ -161,11 +177,59 @@ class AdaptiveChatActivity : AppCompatActivity() {
                 timestamp = Date(),
                 aiName = "AI助手"
             )
+            messages.add(aiResponse)
             messageAdapter.addMessage(aiResponse)
+
+            // 保存历史记录
+            saveMessagesToHistory()
+
             recyclerView.scrollToPosition(messageAdapter.itemCount - 1)
         }, 1000)
     }
-    
+
+    /**
+     * 保存消息到历史记录
+     */
+    private fun saveMessagesToHistory() {
+        try {
+            // 将ChatMessage转换为ChatActivity.ChatMessage格式
+            val historyMessages = messages.map { message ->
+                com.example.aifloatingball.ChatActivity.ChatMessage(
+                    content = message.content,
+                    isFromUser = message.isUser,
+                    timestamp = message.timestamp.time
+                )
+            }
+            chatHistoryManager.saveMessages(currentContactId, historyMessages)
+        } catch (e: Exception) {
+            android.util.Log.e("AdaptiveChatActivity", "保存历史记录失败", e)
+        }
+    }
+
+    /**
+     * 加载历史记录
+     */
+    private fun loadHistoryMessages() {
+        try {
+            val historyMessages = chatHistoryManager.loadMessages(currentContactId)
+            historyMessages.forEach { historyMessage ->
+                val message = ChatMessage(
+                    content = historyMessage.content,
+                    isUser = historyMessage.isFromUser,
+                    timestamp = Date(historyMessage.timestamp),
+                    aiName = if (historyMessage.isFromUser) null else "AI助手"
+                )
+                messages.add(message)
+                messageAdapter.addMessage(message)
+            }
+            if (messages.isNotEmpty()) {
+                recyclerView.scrollToPosition(messageAdapter.itemCount - 1)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AdaptiveChatActivity", "加载历史记录失败", e)
+        }
+    }
+
     private fun toggleFunctionButtons() {
         isFunctionButtonsVisible = !isFunctionButtonsVisible
         
@@ -210,9 +274,13 @@ class AdaptiveChatActivity : AppCompatActivity() {
         )
         
         sampleMessages.forEach { message ->
+            messages.add(message)
             messageAdapter.addMessage(message)
         }
-        
+
+        // 保存示例消息到历史记录
+        saveMessagesToHistory()
+
         recyclerView.scrollToPosition(messageAdapter.itemCount - 1)
     }
     

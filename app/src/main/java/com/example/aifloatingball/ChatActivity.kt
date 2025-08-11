@@ -51,11 +51,9 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var apiStatusIndicator: TextView
     private lateinit var refreshButton: ImageButton
     private lateinit var settingsButton: ImageButton
-    private lateinit var voiceInputButton: ImageButton
-    private lateinit var imageInputButton: ImageButton
-    private lateinit var fileInputButton: ImageButton
-    private lateinit var clearChatButton: ImageButton
-    private lateinit var exportChatButton: ImageButton
+    private lateinit var loadProfileButton: com.google.android.material.button.MaterialButton
+    private lateinit var clearChatButton: com.google.android.material.button.MaterialButton
+    private lateinit var exportChatButton: com.google.android.material.button.MaterialButton
 
     private var currentContact: ChatContact? = null
     private val messages = mutableListOf<ChatMessage>()
@@ -101,9 +99,7 @@ class ChatActivity : AppCompatActivity() {
         apiStatusIndicator = findViewById(R.id.api_status_indicator)
         refreshButton = findViewById(R.id.refresh_button)
         settingsButton = findViewById(R.id.settings_button)
-        voiceInputButton = findViewById(R.id.voice_input_button)
-        imageInputButton = findViewById(R.id.image_input_button)
-        fileInputButton = findViewById(R.id.file_input_button)
+        loadProfileButton = findViewById(R.id.load_profile_button)
         clearChatButton = findViewById(R.id.clear_chat_button)
         exportChatButton = findViewById(R.id.export_chat_button)
 
@@ -170,16 +166,8 @@ class ChatActivity : AppCompatActivity() {
         }
 
         // 功能按钮事件
-        voiceInputButton.setOnClickListener {
-            showVoiceInputDialog()
-        }
-
-        imageInputButton.setOnClickListener {
-            showImageInputDialog()
-        }
-
-        fileInputButton.setOnClickListener {
-            showFileInputDialog()
+        loadProfileButton.setOnClickListener {
+            loadDefaultProfile()
         }
 
         clearChatButton.setOnClickListener {
@@ -707,6 +695,9 @@ class ChatActivity : AppCompatActivity() {
     private fun cleanAndFormatAIResponse(content: String): String {
         var cleanedContent = content
 
+        // 清理HTML标签（特别针对智谱AI的回复）
+        cleanedContent = cleanHtmlTags(cleanedContent)
+
         // 去掉表情符号
         cleanedContent = cleanedContent.replace("[\uD83C-\uDBFF\uDC00-\uDFFF]+".toRegex(), "")
 
@@ -747,6 +738,97 @@ class ChatActivity : AppCompatActivity() {
         cleanedContent = cleanedContent.replace("\\n{3,}".toRegex(), "\n\n")
 
         return cleanedContent
+    }
+
+    /**
+     * 清理HTML标签，保留自然语言内容
+     */
+    private fun cleanHtmlTags(content: String): String {
+        var cleanedContent = content
+
+        // 处理常见的HTML标签，保留内容
+        // 处理段落标签
+        cleanedContent = cleanedContent.replace("<p[^>]*>".toRegex(), "")
+        cleanedContent = cleanedContent.replace("</p>".toRegex(), "\n\n")
+
+        // 处理换行标签
+        cleanedContent = cleanedContent.replace("<br[^>]*>".toRegex(), "\n")
+
+        // 处理强调标签
+        cleanedContent = cleanedContent.replace("<strong[^>]*>(.*?)</strong>".toRegex(), "【$1】")
+        cleanedContent = cleanedContent.replace("<b[^>]*>(.*?)</b>".toRegex(), "【$1】")
+
+        // 处理斜体标签
+        cleanedContent = cleanedContent.replace("<em[^>]*>(.*?)</em>".toRegex(), "$1")
+        cleanedContent = cleanedContent.replace("<i[^>]*>(.*?)</i>".toRegex(), "$1")
+
+        // 处理代码标签
+        cleanedContent = cleanedContent.replace("<code[^>]*>(.*?)</code>".toRegex(), "「$1」")
+        cleanedContent = cleanedContent.replace("<pre[^>]*>(.*?)</pre>".toRegex(RegexOption.DOT_MATCHES_ALL), "\n「$1」\n")
+
+        // 处理标题标签
+        cleanedContent = cleanedContent.replace("<h[1-6][^>]*>(.*?)</h[1-6]>".toRegex(), "\n■ $1\n")
+
+        // 处理列表标签
+        cleanedContent = cleanedContent.replace("<ul[^>]*>".toRegex(), "")
+        cleanedContent = cleanedContent.replace("</ul>".toRegex(), "\n")
+        cleanedContent = cleanedContent.replace("<ol[^>]*>".toRegex(), "")
+        cleanedContent = cleanedContent.replace("</ol>".toRegex(), "\n")
+        cleanedContent = cleanedContent.replace("<li[^>]*>(.*?)</li>".toRegex(), "• $1\n")
+
+        // 处理链接标签，保留链接文本
+        cleanedContent = cleanedContent.replace("<a[^>]*>(.*?)</a>".toRegex(), "$1")
+
+        // 处理div和span标签
+        cleanedContent = cleanedContent.replace("<div[^>]*>".toRegex(), "")
+        cleanedContent = cleanedContent.replace("</div>".toRegex(), "\n")
+        cleanedContent = cleanedContent.replace("<span[^>]*>(.*?)</span>".toRegex(), "$1")
+
+        // 清理剩余的HTML标签
+        cleanedContent = cleanedContent.replace("<[^>]+>".toRegex(), "")
+
+        // 解码HTML实体
+        cleanedContent = cleanedContent.replace("&amp;".toRegex(), "&")
+        cleanedContent = cleanedContent.replace("&lt;".toRegex(), "<")
+        cleanedContent = cleanedContent.replace("&gt;".toRegex(), ">")
+        cleanedContent = cleanedContent.replace("&quot;".toRegex(), "\"")
+        cleanedContent = cleanedContent.replace("&#39;".toRegex(), "'")
+        cleanedContent = cleanedContent.replace("&nbsp;".toRegex(), " ")
+
+        // 清理多余的空白和换行
+        cleanedContent = cleanedContent.replace("\\n\\s*\\n\\s*\\n+".toRegex(), "\n\n")
+        cleanedContent = cleanedContent.trim()
+
+        return cleanedContent
+    }
+
+    /**
+     * 加载默认画像
+     */
+    private fun loadDefaultProfile() {
+        try {
+            // 获取默认的AI助手画像
+            val defaultProfiles = listOf(
+                "专业助手：我是一个专业的AI助手，可以帮助您解决各种问题。",
+                "创意伙伴：我是您的创意伙伴，擅长头脑风暴和创意思考。",
+                "学习导师：我是您的学习导师，可以帮助您理解复杂的概念。",
+                "技术专家：我是技术专家，专注于编程和技术问题的解决。"
+            )
+
+            androidx.appcompat.app.AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("选择默认画像")
+                .setItems(defaultProfiles.toTypedArray()) { _, which ->
+                    val selectedProfile = defaultProfiles[which]
+                    messageInput.setText(selectedProfile)
+                    Toast.makeText(this, "已加载默认画像", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "加载默认画像失败", e)
+            Toast.makeText(this, "加载失败", Toast.LENGTH_SHORT).show()
+        }
     }
 
     /**
@@ -1275,35 +1357,13 @@ class ChatActivity : AppCompatActivity() {
             .show()
     }
 
-    /**
-     * 显示语音输入对话框
-     */
-    private fun showVoiceInputDialog() {
-        Toast.makeText(this, "语音输入功能开发中...", Toast.LENGTH_SHORT).show()
-        // TODO: 实现语音输入功能
-    }
 
-    /**
-     * 显示图片输入对话框
-     */
-    private fun showImageInputDialog() {
-        Toast.makeText(this, "图片输入功能开发中...", Toast.LENGTH_SHORT).show()
-        // TODO: 实现图片输入功能
-    }
-
-    /**
-     * 显示文件输入对话框
-     */
-    private fun showFileInputDialog() {
-        Toast.makeText(this, "文件输入功能开发中...", Toast.LENGTH_SHORT).show()
-        // TODO: 实现文件输入功能
-    }
 
     /**
      * 显示清空聊天确认对话框
      */
     private fun showClearChatDialog() {
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        androidx.appcompat.app.AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
             .setTitle("清空聊天记录")
             .setMessage("确定要清空所有聊天记录吗？此操作不可恢复。")
             .setPositiveButton("清空") { _, _ ->

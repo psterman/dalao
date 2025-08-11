@@ -546,13 +546,20 @@
     <!-- 对话界面专用颜色 -->
     <color name="material_chat_background">#F7F7F7</color>
     <color name="material_chat_surface">#FFFFFF</color>
-    <color name="material_chat_toolbar_background">#07C160</color>
+    <color name="material_chat_toolbar_background">#FFFFFF</color>
 
-    <!-- 消息气泡颜色 -->
-    <color name="material_chat_user_bubble">#07C160</color>
-    <color name="material_chat_user_text">#FFFFFF</color>
+    <!-- 消息气泡颜色 - 淡雅微信风格 -->
+    <color name="material_chat_user_bubble">#DCF8C6</color>
+    <color name="material_chat_user_text">#1A1C18</color>
     <color name="material_chat_ai_bubble">#FFFFFF</color>
     <color name="material_chat_ai_text">#1A1C18</color>
+
+    <!-- 输入框和界面颜色 -->
+    <color name="material_chat_input_background">#FFFFFF</color>
+    <color name="material_chat_input_text">#1A1C18</color>
+    <color name="material_chat_input_hint">#8E8E93</color>
+    <color name="material_chat_border">#E5E5E5</color>
+    <color name="material_chat_divider">#F0F0F0</color>
 
     <!-- 弹窗颜色 -->
     <color name="material_dialog_background">#FFFFFF</color>
@@ -562,9 +569,9 @@
     <color name="material_dialog_button_text">#FFFFFF</color>
 
     <!-- 工具栏颜色 -->
-    <color name="material_chat_toolbar_text">#FFFFFF</color>
-    <color name="material_chat_toolbar_subtitle">#E3F2FD</color>
-    <color name="material_chat_toolbar_icon">#FFFFFF</color>
+    <color name="material_chat_toolbar_text">#1A1C18</color>
+    <color name="material_chat_toolbar_subtitle">#8E8E93</color>
+    <color name="material_chat_toolbar_icon">#1A1C18</color>
 
     <!-- 分割线和边框 -->
     <color name="material_border">#E0E0E0</color>
@@ -630,11 +637,7 @@
     <color name="material_chat_divider_light">#E6E1E5</color>
     <color name="material_chat_border_light">#E6E1E5</color>
 
-    <!-- 输入框颜色 -->
-    <color name="material_chat_input_background">#F5F5F5</color>
-    <color name="material_chat_input_text">#1A1C18</color>
-    <color name="material_chat_input_hint">#73796E</color>
-    <color name="material_chat_input_stroke">#C3C8BB</color>
+
     <color name="material_chat_input_stroke_focused">#07C160</color>
 
 
