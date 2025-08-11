@@ -214,7 +214,7 @@ class ChatActivity : AppCompatActivity() {
             if (historyMessages.isNotEmpty()) {
                 messages.clear()
                 messages.addAll(historyMessages)
-                messageAdapter.updateMessages(messages)
+                messageAdapter.updateMessages(messages.toList())
 
                 // 滚动到底部
                 messagesRecyclerView.post {
@@ -232,7 +232,7 @@ class ChatActivity : AppCompatActivity() {
             // 添加用户消息
             val userMessage = ChatMessage(messageText, true, System.currentTimeMillis())
             messages.add(userMessage)
-            messageAdapter.addMessage(userMessage)
+            messageAdapter.updateMessages(messages.toList())
 
             // 保存聊天记录
             currentContact?.let { contact ->
@@ -263,7 +263,7 @@ class ChatActivity : AppCompatActivity() {
                                 val errorMessage = "请先在设置中配置${contact.name}的API密钥"
                                 val errorMsg = ChatMessage(errorMessage, false, System.currentTimeMillis())
                                 messages.add(errorMsg)
-                                messageAdapter.addMessage(errorMsg)
+                                messageAdapter.updateMessages(messages.toList())
 
                                 // 滚动到底部
                                 messagesRecyclerView.post {
@@ -282,7 +282,7 @@ class ChatActivity : AppCompatActivity() {
                             // 添加AI回复占位符
                             val aiMessage = ChatMessage("正在思考中...", false, System.currentTimeMillis())
                             messages.add(aiMessage)
-                            messageAdapter.addMessage(aiMessage)
+                            messageAdapter.updateMessages(messages.toList())
 
                             // 滚动到底部
                             messagesRecyclerView.post {
@@ -321,7 +321,7 @@ class ChatActivity : AppCompatActivity() {
                             messageInput.postDelayed({
                                 val aiResponse = ChatMessage(response, false, System.currentTimeMillis())
                                 messages.add(aiResponse)
-                                messageAdapter.addMessage(aiResponse)
+                                messageAdapter.updateMessages(messages.toList())
 
                                 // 保存聊天记录
                                 currentContact?.let { contact ->
@@ -481,11 +481,60 @@ class ChatActivity : AppCompatActivity() {
 
                 override fun onError(error: String) {
                     runOnUiThread {
-                        aiMessage.content = "抱歉，发生了错误：$error"
+                        // 根据AI服务类型和错误内容提供更具体的错误信息
+                        val errorMessage = when {
+                            serviceType == AIServiceType.DEEPSEEK -> {
+                                when {
+                                    error.contains("401") -> {
+                                        "DeepSeek API认证失败，请检查API密钥是否正确。\n\n💡 建议：\n• 确认API密钥格式正确\n• 检查账户余额是否充足\n• 使用诊断工具进行详细检查"
+                                    }
+                                    error.contains("403") -> {
+                                        "DeepSeek API权限不足，请检查API密钥权限设置。"
+                                    }
+                                    error.contains("429") -> {
+                                        "DeepSeek API请求频率过高，请稍后重试。"
+                                    }
+                                    error.contains("500") -> {
+                                        "DeepSeek服务器暂时不可用，请稍后重试。"
+                                    }
+                                    error.contains("网络") || error.contains("连接") -> {
+                                        "网络连接失败，请检查网络连接后重试。"
+                                    }
+                                    else -> {
+                                        "DeepSeek API调用失败：$error\n\n如果问题持续存在，建议使用诊断工具检查配置。"
+                                    }
+                                }
+                            }
+                            serviceType == AIServiceType.CHATGPT -> {
+                                when {
+                                    error.contains("401") -> "ChatGPT API认证失败，请检查API密钥。"
+                                    error.contains("429") -> "ChatGPT API请求频率过高，请稍后重试。"
+                                    else -> "ChatGPT API调用失败：$error"
+                                }
+                            }
+                            serviceType == AIServiceType.CLAUDE -> {
+                                when {
+                                    error.contains("401") -> "Claude API认证失败，请检查API密钥。"
+                                    error.contains("429") -> "Claude API请求频率过高，请稍后重试。"
+                                    else -> "Claude API调用失败：$error"
+                                }
+                            }
+                            else -> {
+                                "AI服务调用失败：$error"
+                            }
+                        }
+
+                        aiMessage.content = errorMessage
                         messageAdapter.updateLastMessage(aiMessage.content)
                         isSending = false // 重置发送状态
                         sendButton.isEnabled = true // 重新启用发送按钮
-                        Toast.makeText(this@ChatActivity, "发送失败：$error", Toast.LENGTH_LONG).show()
+
+                        // 对于DeepSeek的特定错误，显示诊断选项
+                        if (serviceType == AIServiceType.DEEPSEEK && (error.contains("401") || error.contains("403"))) {
+                            showDeepSeekErrorDialog(error)
+                        } else {
+                            Toast.makeText(this@ChatActivity, "发送失败", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             }
@@ -587,7 +636,7 @@ class ChatActivity : AppCompatActivity() {
                         messagesToRemove.add(messages[i])
                     }
                     messages.removeAll(messagesToRemove)
-                    messageAdapter.updateMessages(messages)
+                    messageAdapter.updateMessages(messages.toList())
 
                     // 重新发送消息到AI
                     resendMessageToAI(newContent)
@@ -618,7 +667,7 @@ class ChatActivity : AppCompatActivity() {
                             val errorMessage = "请先在设置中配置${contact.name}的API密钥"
                             val errorMsg = ChatMessage(errorMessage, false, System.currentTimeMillis())
                             messages.add(errorMsg)
-                            messageAdapter.addMessage(errorMsg)
+                            messageAdapter.updateMessages(messages.toList())
 
                             // 滚动到底部
                             messagesRecyclerView.post {
@@ -637,7 +686,7 @@ class ChatActivity : AppCompatActivity() {
                         // 添加AI回复占位符
                         val aiMessage = ChatMessage("正在思考中...", false, System.currentTimeMillis())
                         messages.add(aiMessage)
-                        messageAdapter.addMessage(aiMessage)
+                        messageAdapter.updateMessages(messages.toList())
 
                         // 滚动到底部
                         messagesRecyclerView.post {
@@ -990,7 +1039,7 @@ class ChatActivity : AppCompatActivity() {
 
             // 删除AI回复
             messages.removeAt(position)
-            messageAdapter.updateMessages(messages)
+            messageAdapter.updateMessages(messages.toList())
 
             // 重新发送用户消息
             sendMessageToAI(userMessage.content)
@@ -1026,7 +1075,7 @@ class ChatActivity : AppCompatActivity() {
                             val errorMessage = "请先在设置中配置${contact.name}的API密钥"
                             val errorMsg = ChatMessage(errorMessage, false, System.currentTimeMillis())
                             messages.add(errorMsg)
-                            messageAdapter.addMessage(errorMsg)
+                            messageAdapter.updateMessages(messages.toList())
 
                             // 滚动到底部
                             messagesRecyclerView.post {
@@ -1045,7 +1094,7 @@ class ChatActivity : AppCompatActivity() {
                         // 添加AI回复占位符
                         val aiMessage = ChatMessage("正在重新生成...", false, System.currentTimeMillis())
                         messages.add(aiMessage)
-                        messageAdapter.addMessage(aiMessage)
+                        messageAdapter.updateMessages(messages.toList())
 
                         // 滚动到底部
                         messagesRecyclerView.post {
@@ -1104,7 +1153,7 @@ class ChatActivity : AppCompatActivity() {
                         messageInput.postDelayed({
                             val aiMessage = ChatMessage(response, false, System.currentTimeMillis())
                             messages.add(aiMessage)
-                            messageAdapter.addMessage(aiMessage)
+                            messageAdapter.updateMessages(messages.toList())
 
                             // 保存聊天记录
                             currentContact?.let { contact ->
@@ -1143,7 +1192,7 @@ class ChatActivity : AppCompatActivity() {
                 //     }
                 // }
                 messages.removeAt(position)
-                messageAdapter.updateMessages(messages)
+                messageAdapter.updateMessages(messages.toList())
                 Toast.makeText(this@ChatActivity, "消息已删除", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("取消", null)
@@ -1380,7 +1429,7 @@ class ChatActivity : AppCompatActivity() {
         currentContact?.let { contact ->
             // 清空内存中的消息
             messages.clear()
-            messageAdapter.updateMessages(messages)
+            messageAdapter.updateMessages(messages.toList())
             
             // 清空本地存储的聊天记录
             chatHistoryManager.clearMessages(contact.id)

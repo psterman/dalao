@@ -22,7 +22,9 @@ class ChatContactAdapter(
     private var contactCategories: List<ContactCategory> = emptyList(),
     private val onContactClick: (ChatContact) -> Unit = {},
     private val onContactLongClick: (ChatContact) -> Boolean = { false },
-    private val onContactDoubleClick: (ChatContact) -> Boolean = { false }
+    private val onContactDoubleClick: (ChatContact) -> Boolean = { false },
+    private val onCategoryLongClick: (ContactCategory) -> Boolean = { false },
+    private val getContactGroup: (ChatContact) -> String? = { null }
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
@@ -92,12 +94,12 @@ class ChatContactAdapter(
             TYPE_CATEGORY_HEADER -> {
                 val view = LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_contact_category_header, parent, false)
-                CategoryHeaderViewHolder(view)
+                CategoryHeaderViewHolder(view, onCategoryLongClick)
             }
             TYPE_CONTACT -> {
                 val view = LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_chat_contact, parent, false)
-                ContactViewHolder(view, onContactClick, onContactLongClick, onContactDoubleClick)
+                ContactViewHolder(view, onContactClick, onContactLongClick, onContactDoubleClick, getContactGroup)
             }
             else -> throw IllegalArgumentException("Unknown view type: $viewType")
         }
@@ -160,13 +162,30 @@ class ChatContactAdapter(
     /**
      * 分类标题ViewHolder
      */
-    class CategoryHeaderViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+    class CategoryHeaderViewHolder(
+        itemView: View,
+        private val onCategoryLongClick: (ContactCategory) -> Boolean
+    ) : RecyclerView.ViewHolder(itemView) {
         private val categoryNameText: TextView = itemView.findViewById(R.id.category_name_text)
         private val contactCountText: TextView = itemView.findViewById(R.id.contact_count_text)
+        private var currentCategory: ContactCategory? = null
+
+        init {
+            // 设置长按监听
+            itemView.setOnLongClickListener {
+                currentCategory?.let { onCategoryLongClick(it) } ?: false
+            }
+        }
 
         fun bind(category: ContactCategory) {
+            currentCategory = category
             categoryNameText.text = category.name
-            contactCountText.text = "${category.contacts.size}个联系人"
+
+            if (category.contacts.isEmpty()) {
+                contactCountText.text = "分组为空，长按其他分组中的AI移动到此分组"
+            } else {
+                contactCountText.text = "${category.contacts.size}个联系人"
+            }
         }
     }
 
@@ -177,13 +196,15 @@ class ChatContactAdapter(
         itemView: View,
         private val onContactClick: (ChatContact) -> Unit,
         private val onContactLongClick: (ChatContact) -> Boolean,
-        private val onContactDoubleClick: (ChatContact) -> Boolean
+        private val onContactDoubleClick: (ChatContact) -> Boolean,
+        private val getContactGroup: (ChatContact) -> String?
     ) : RecyclerView.ViewHolder(itemView) {
         
         private val contactCard: MaterialCardView = itemView.findViewById(R.id.contact_card)
         private val avatarImage: ImageView = itemView.findViewById(R.id.contact_avatar)
         private val nameText: TextView = itemView.findViewById(R.id.contact_name)
         private val descriptionText: TextView = itemView.findViewById(R.id.contact_description)
+        private val groupTagText: TextView = itemView.findViewById(R.id.contact_group_tag)
         private val lastMessageText: TextView = itemView.findViewById(R.id.contact_last_message)
         private val timeText: TextView = itemView.findViewById(R.id.contact_time)
         private val unreadCountText: TextView = itemView.findViewById(R.id.contact_unread_count)
@@ -210,7 +231,10 @@ class ChatContactAdapter(
             }
             
             contactCard.setOnLongClickListener {
-                currentContact?.let { onContactLongClick(it) } ?: false
+                currentContact?.let { contact ->
+                    android.util.Log.d("ChatContactAdapter", "长按联系人: ${contact.name}")
+                    onContactLongClick(contact)
+                } ?: false
             }
         }
 
@@ -220,6 +244,15 @@ class ChatContactAdapter(
             // 设置基本信息
             nameText.text = contact.name
             descriptionText.text = contact.description ?: ""
+
+            // 设置分组标签（只在"全部"标签页显示）
+            val groupName = getContactGroup(contact)
+            if (groupName != null && groupName != "未分组") {
+                groupTagText.text = groupName
+                groupTagText.visibility = View.VISIBLE
+            } else {
+                groupTagText.visibility = View.GONE
+            }
             
             // 设置头像 - 目前只支持AI类型
             when (contact.type) {

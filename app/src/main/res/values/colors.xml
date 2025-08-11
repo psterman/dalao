@@ -640,6 +640,14 @@
 
     <color name="material_chat_input_stroke_focused">#07C160</color>
 
+    <!-- 分组标签颜色 -->
+    <color name="chat_contact_group_tag_text_light">#2196F3</color>
+    <color name="chat_contact_group_tag_text_dark">#64B5F6</color>
 
+    <color name="chat_contact_group_tag_background_light">#E3F2FD</color>
+    <color name="chat_contact_group_tag_background_dark">#1E3A5F</color>
+
+    <color name="chat_contact_group_tag_border_light">#BBDEFB</color>
+    <color name="chat_contact_group_tag_border_dark">#42A5F5</color>
 
 </resources>

@@ -35,5 +35,6 @@ enum class ContactType {
 data class ContactCategory(
     val name: String,
     val contacts: List<ChatContact>,
-    val isExpanded: Boolean = true
-) 
+    val isExpanded: Boolean = true,
+    val isPinned: Boolean = false
+)

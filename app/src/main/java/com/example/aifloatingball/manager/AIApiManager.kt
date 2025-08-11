@@ -625,20 +625,94 @@ class AIApiManager(private val context: Context) {
                 
                 Log.e(TAG, "DeepSeek API错误: $responseCode - $errorBody")
                 
-                // 根据错误码提供更具体的错误信息
+                // 根据错误码提供更具体的错误信息和解决建议
                 val errorMessage = when (responseCode) {
-                    401 -> "API密钥无效或已过期，请检查您的DeepSeek API密钥"
-                    403 -> "API密钥权限不足，请检查您的账户权限"
-                    429 -> "请求频率过高，请稍后重试"
-                    500 -> "DeepSeek服务器内部错误，请稍后重试"
-                    else -> "DeepSeek API错误: $responseCode - $errorBody"
+                    400 -> {
+                        // 解析错误详情
+                        val detailMessage = try {
+                            val jsonObject = JSONObject(errorBody)
+                            val error = jsonObject.optJSONObject("error")
+                            error?.optString("message") ?: "请求参数错误"
+                        } catch (e: Exception) {
+                            "请求参数错误"
+                        }
+                        "请求参数错误：$detailMessage"
+                    }
+                    401 -> {
+                        // 解析具体的认证错误
+                        val detailMessage = try {
+                            val jsonObject = JSONObject(errorBody)
+                            val error = jsonObject.optJSONObject("error")
+                            error?.optString("message") ?: "API密钥无效"
+                        } catch (e: Exception) {
+                            "API密钥无效"
+                        }
+                        "认证失败：$detailMessage"
+                    }
+                    403 -> {
+                        val detailMessage = try {
+                            val jsonObject = JSONObject(errorBody)
+                            val error = jsonObject.optJSONObject("error")
+                            error?.optString("message") ?: "权限不足"
+                        } catch (e: Exception) {
+                            "权限不足"
+                        }
+                        "权限不足：$detailMessage"
+                    }
+                    429 -> {
+                        val detailMessage = try {
+                            val jsonObject = JSONObject(errorBody)
+                            val error = jsonObject.optJSONObject("error")
+                            error?.optString("message") ?: "请求频率过高"
+                        } catch (e: Exception) {
+                            "请求频率过高"
+                        }
+                        "请求频率限制：$detailMessage"
+                    }
+                    500, 502, 503, 504 -> {
+                        "DeepSeek服务器暂时不可用（错误码：$responseCode），请稍后重试"
+                    }
+                    else -> {
+                        // 尝试解析其他错误
+                        val detailMessage = try {
+                            val jsonObject = JSONObject(errorBody)
+                            val error = jsonObject.optJSONObject("error")
+                            error?.optString("message") ?: errorBody
+                        } catch (e: Exception) {
+                            errorBody
+                        }
+                        "DeepSeek API错误（$responseCode）：$detailMessage"
+                    }
                 }
-                
+
                 callback.onError(errorMessage)
             }
         } catch (e: Exception) {
             Log.e(TAG, "DeepSeek请求异常", e)
-            callback.onError("DeepSeek请求失败: ${e.message}")
+
+            // 根据异常类型提供更具体的错误信息
+            val errorMessage = when {
+                e is java.net.UnknownHostException -> {
+                    "网络连接失败，请检查网络连接或DNS设置"
+                }
+                e is java.net.SocketTimeoutException -> {
+                    "请求超时，请检查网络连接或稍后重试"
+                }
+                e is java.net.ConnectException -> {
+                    "无法连接到DeepSeek服务器，请检查网络连接"
+                }
+                e is javax.net.ssl.SSLException -> {
+                    "SSL连接失败，请检查网络安全设置"
+                }
+                e.message?.contains("JSON") == true -> {
+                    "服务器响应格式错误，请稍后重试"
+                }
+                else -> {
+                    "DeepSeek请求失败：${e.message ?: "未知错误"}"
+                }
+            }
+
+            callback.onError(errorMessage)
         }
     }
     

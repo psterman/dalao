@@ -153,7 +153,7 @@ class AdaptiveChatActivity : AppCompatActivity() {
             timestamp = Date()
         )
         messages.add(userMessage)
-        messageAdapter.addMessage(userMessage)
+        messageAdapter.updateMessages(messages)
 
         // 保存历史记录
         saveMessagesToHistory()
@@ -178,7 +178,7 @@ class AdaptiveChatActivity : AppCompatActivity() {
                 aiName = "AI助手"
             )
             messages.add(aiResponse)
-            messageAdapter.addMessage(aiResponse)
+            messageAdapter.updateMessages(messages)
 
             // 保存历史记录
             saveMessagesToHistory()
@@ -220,7 +220,7 @@ class AdaptiveChatActivity : AppCompatActivity() {
                     aiName = if (historyMessage.isFromUser) null else "AI助手"
                 )
                 messages.add(message)
-                messageAdapter.addMessage(message)
+                messageAdapter.updateMessages(messages)
             }
             if (messages.isNotEmpty()) {
                 recyclerView.scrollToPosition(messageAdapter.itemCount - 1)
@@ -275,8 +275,8 @@ class AdaptiveChatActivity : AppCompatActivity() {
         
         sampleMessages.forEach { message ->
             messages.add(message)
-            messageAdapter.addMessage(message)
         }
+        messageAdapter.updateMessages(messages)
 
         // 保存示例消息到历史记录
         saveMessagesToHistory()

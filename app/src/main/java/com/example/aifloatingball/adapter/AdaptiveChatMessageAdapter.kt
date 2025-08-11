@@ -64,6 +64,15 @@ class AdaptiveChatMessageAdapter(
     }
 
     /**
+     * 更新消息列表
+     */
+    fun updateMessages(newMessages: MutableList<ChatMessage>) {
+        messages.clear()
+        messages.addAll(newMessages)
+        notifyDataSetChanged()
+    }
+
+    /**
      * 更新消息
      */
     fun updateMessage(position: Int, message: ChatMessage) {
