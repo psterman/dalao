@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/floating_back_button_background">
+
+    <ImageButton
+        android:id="@+id/floating_back_button"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="@drawable/floating_back_button_background"
+        android:src="@drawable/ic_arrow_back"
+        android:contentDescription="返回"
+        android:scaleType="centerInside"
+        android:padding="12dp"
+        android:tint="@android:color/white" />
+
+</FrameLayout>

@@ -25,6 +25,9 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
+        <!-- 状态栏样式 -->
+        <item name="android:statusBarColor">@color/simple_mode_status_bar_light</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <!-- 简易模式开关样式 -->
@@ -41,6 +44,30 @@
         <item name="android:popupBackground">@color/simple_mode_card_background_light</item>
     </style>
 
+    <!-- Material Design 分类按钮样式 -->
+    <style name="MaterialCategoryButton" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textColor">@color/simple_mode_text_primary_light</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="strokeWidth">0dp</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="iconTint">@color/simple_mode_accent_light</item>
+        <item name="iconGravity">start</item>
+        <item name="iconPadding">8dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+        <item name="rippleColor">@color/simple_mode_green_100_light</item>
+    </style>
+
+    <!-- Material Design 分类按钮选中状态 -->
+    <style name="MaterialCategoryButtonSelected" parent="MaterialCategoryButton">
+        <item name="backgroundTint">@color/simple_mode_green_100_light</item>
+        <item name="android:textColor">@color/simple_mode_accent_light</item>
+        <item name="strokeColor">@color/simple_mode_accent_light</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+
     <!-- 对话Tab文字样式 -->
     <style name="ChatTabTextAppearance" parent="TextAppearance.Design.Tab">
         <item name="android:textSize">14sp</item>
@@ -54,6 +81,14 @@
         <item name="android:paddingHorizontal">16dp</item>
         <item name="android:paddingVertical">12dp</item>
         <item name="android:minHeight">64dp</item>
+    </style>
+
+    <!-- 简易模式专用主题 -->
+    <style name="AppTheme.SimpleMode" parent="AppTheme">
+        <item name="android:statusBarColor">@color/simple_mode_header_background_light</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
     <style name="AppTheme.Rtl" parent="AppTheme">

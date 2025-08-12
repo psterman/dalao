@@ -60,6 +60,10 @@ import com.example.aifloatingball.model.ContactType
 import com.example.aifloatingball.model.ContactCategory
 import com.example.aifloatingball.adapter.ChatContactAdapter
 import com.example.aifloatingball.manager.AITagManager
+import com.example.aifloatingball.model.AppSearchConfig
+import com.example.aifloatingball.model.AppCategory
+import com.example.aifloatingball.model.AppSearchSettings
+import com.example.aifloatingball.adapter.AppSearchGridAdapter
 import com.example.aifloatingball.utils.FaviconLoader
 import com.example.aifloatingball.ui.TabSwitchAnimationManager
 import com.google.gson.Gson
@@ -153,6 +157,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         STEP_GUIDANCE,     // 步骤引导页面
         PROMPT_PREVIEW,    // 提示预览页面
         VOICE,             // 语音页面
+        APP_SEARCH,        // 应用搜索页面
         SETTINGS           // 设置页面
     }
 
@@ -168,6 +173,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var stepGuidanceLayout: LinearLayout
     private lateinit var promptPreviewLayout: LinearLayout
     private lateinit var voiceLayout: ScrollView
+    private lateinit var appSearchLayout: androidx.coordinatorlayout.widget.CoordinatorLayout
     private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
     private lateinit var settingsLayout: ScrollView
     // private lateinit var modeSwitchWidget: ModeSwitchWidget  // 暂时禁用
@@ -208,6 +214,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 需要根据语音支持情况控制显示的UI元素
     private var voiceHintText: TextView? = null
     private var voiceSettingsCard: MaterialCardView? = null
+
+    // 应用搜索页面组件
+    private lateinit var appCategorySidebar: LinearLayout
+    private lateinit var appSearchInput: EditText
+    private lateinit var appSearchHint: TextView
+    private lateinit var appSearchGrid: RecyclerView
+    private lateinit var appSearchAdapter: AppSearchGridAdapter
+    private var currentAppCategory = AppCategory.ALL
+    private var currentAppConfigs = mutableListOf<AppSearchConfig>()
+    private lateinit var appSearchSettings: AppSearchSettings
 
     // 浏览器页面组件 - 多页面WebView版本
     private lateinit var browserWebViewContainer: FrameLayout
@@ -439,6 +455,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
                 UIState.VOICE -> showVoice()
                 UIState.BROWSER -> showBrowser()
+                UIState.APP_SEARCH -> showAppSearch()
                 UIState.SETTINGS -> showSettings()
             }
         } catch (e: Exception) {
@@ -449,8 +466,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun checkOverlayPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val hasPermission = Settings.canDrawOverlays(this)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val hasPermission = android.provider.Settings.canDrawOverlays(this)
             Log.d(TAG, "Overlay permission status: $hasPermission")
             // 移除权限提醒，只记录日志
             if (!hasPermission) {
@@ -776,13 +793,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val textView = tabView.getChildAt(1) as? TextView ?: continue
 
             // 由于底部导航栏始终保持LTR方向，tab顺序在左右手模式下都是一致的
-            // 所以可以使用固定的索引映射
-            val isSelected = when (i) {
-                0 -> currentState == UIState.CHAT            // 对话
-                1 -> currentState == UIState.BROWSER         // 搜索
-                2 -> currentState == UIState.TASK_SELECTION  // 任务
-                3 -> currentState == UIState.VOICE           // 语音
-                4 -> currentState == UIState.SETTINGS        // 设置
+            // 动态处理语音tab的隐藏情况
+            val isSelected = when (tabView.id) {
+                R.id.tab_chat -> currentState == UIState.CHAT
+                R.id.tab_search -> currentState == UIState.BROWSER
+                R.id.tab_home -> currentState == UIState.TASK_SELECTION
+                R.id.tab_voice -> currentState == UIState.VOICE
+                R.id.tab_app_search -> currentState == UIState.APP_SEARCH
+                R.id.tab_settings -> currentState == UIState.SETTINGS
                 else -> false
             }
 
@@ -841,6 +859,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout = findViewById(R.id.step_guidance_layout)
         promptPreviewLayout = findViewById(R.id.prompt_preview_layout)
         voiceLayout = findViewById(R.id.voice_layout)
+        appSearchLayout = findViewById(R.id.app_search_layout)
         browserLayout = findViewById(R.id.browser_layout)
         settingsLayout = findViewById(R.id.settings_layout)
         // modeSwitchWidget = findViewById(R.id.mode_switch_widget)  // 暂时禁用
@@ -886,6 +905,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 查找需要根据语音支持情况控制的UI元素
         voiceHintText = findViewById(R.id.voice_hint_text)
         voiceSettingsCard = findViewById(R.id.voice_settings_card)
+
+        // 应用搜索页面组件初始化
+        appCategorySidebar = findViewById(R.id.app_category_sidebar)
+        appSearchInput = findViewById(R.id.app_search_input)
+        appSearchHint = findViewById(R.id.app_search_hint)
+        appSearchGrid = findViewById(R.id.app_search_grid)
+        appSearchSettings = AppSearchSettings.getInstance(this)
 
         // 浏览器页面 - 多页面WebView版本组件初始化
         browserWebViewContainer = findViewById(R.id.browser_webview_container)
@@ -1702,6 +1728,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.VISIBLE
+        appSearchLayout.visibility = View.GONE
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
 
@@ -1715,6 +1742,388 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         updateTabColors()
     }
 
+    private fun showAppSearch() {
+        currentState = UIState.APP_SEARCH
+        chatLayout.visibility = View.GONE
+        taskSelectionLayout.visibility = View.GONE
+        stepGuidanceLayout.visibility = View.GONE
+        promptPreviewLayout.visibility = View.GONE
+        voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.VISIBLE
+        browserLayout.visibility = View.GONE
+        settingsLayout.visibility = View.GONE
+
+        // 初始化应用搜索页面
+        setupAppSearchPage()
+
+        updateTabColors()
+    }
+
+    /**
+     * 设置应用搜索页面
+     */
+    private fun setupAppSearchPage() {
+        // 初始化应用搜索适配器
+        if (!::appSearchAdapter.isInitialized) {
+            appSearchAdapter = AppSearchGridAdapter(this, currentAppConfigs,
+                onAppClick = { appConfig, query ->
+                    handleAppSearch(appConfig, query)
+                },
+                onAppSelected = { appConfig ->
+                    updateSearchInputIcon(appConfig)
+                },
+                getCurrentQuery = {
+                    appSearchInput.text.toString()
+                }
+            )
+
+            // 设置网格布局 - 采用launcher风格的4列布局
+            val gridLayoutManager = GridLayoutManager(this, 4) // 4列网格，类似标准launcher
+            appSearchGrid.layoutManager = gridLayoutManager
+            appSearchGrid.adapter = appSearchAdapter
+
+            // 设置分类点击事件
+            setupCategoryClickListeners()
+
+            // 设置搜索输入框
+            setupAppSearchInput()
+
+            // 加载默认分类的应用
+            loadAppsByCategory(AppCategory.ALL)
+        }
+    }
+
+    /**
+     * 设置分类点击事件
+     */
+    private fun setupCategoryClickListeners() {
+        // 获取所有分类按钮
+        val categoryButtons = mapOf(
+            AppCategory.CUSTOM to findViewById<LinearLayout>(R.id.category_custom),
+            AppCategory.ALL to findViewById<LinearLayout>(R.id.category_all),
+            AppCategory.SHOPPING to findViewById<LinearLayout>(R.id.category_shopping),
+            AppCategory.SOCIAL to findViewById<LinearLayout>(R.id.category_social),
+            AppCategory.VIDEO to findViewById<LinearLayout>(R.id.category_video),
+            AppCategory.MUSIC to findViewById<LinearLayout>(R.id.category_music),
+            AppCategory.LIFESTYLE to findViewById<LinearLayout>(R.id.category_lifestyle),
+            AppCategory.MAPS to findViewById<LinearLayout>(R.id.category_maps),
+            AppCategory.BROWSER to findViewById<LinearLayout>(R.id.category_browser),
+            AppCategory.FINANCE to findViewById<LinearLayout>(R.id.category_finance),
+            AppCategory.TRAVEL to findViewById<LinearLayout>(R.id.category_travel),
+            AppCategory.JOBS to findViewById<LinearLayout>(R.id.category_jobs),
+            AppCategory.EDUCATION to findViewById<LinearLayout>(R.id.category_education),
+            AppCategory.NEWS to findViewById<LinearLayout>(R.id.category_news)
+        )
+
+        // 设置分类按钮的图标和文字
+        setupCategoryButtonContent(categoryButtons)
+
+        // 设置点击事件
+        categoryButtons.forEach { (category, button) ->
+            button?.setOnClickListener {
+                selectAppCategory(category, categoryButtons)
+            }
+        }
+
+        // 默认选中"全部"分类
+        selectAppCategory(AppCategory.ALL, categoryButtons)
+    }
+
+    /**
+     * 设置分类按钮的图标和文字内容
+     */
+    private fun setupCategoryButtonContent(categoryButtons: Map<AppCategory, LinearLayout?>) {
+        val categoryData = mapOf(
+            AppCategory.CUSTOM to Pair(R.drawable.ic_star, "自定义"),
+            AppCategory.ALL to Pair(R.drawable.ic_apps, "全部"),
+            AppCategory.SHOPPING to Pair(R.drawable.ic_shopping, "购物"),
+            AppCategory.SOCIAL to Pair(R.drawable.ic_people, "社交"),
+            AppCategory.VIDEO to Pair(R.drawable.ic_video, "视频"),
+            AppCategory.MUSIC to Pair(R.drawable.ic_music, "音乐"),
+            AppCategory.LIFESTYLE to Pair(R.drawable.ic_home, "生活"),
+            AppCategory.MAPS to Pair(R.drawable.ic_map, "地图"),
+            AppCategory.BROWSER to Pair(R.drawable.ic_web, "浏览器"),
+            AppCategory.FINANCE to Pair(R.drawable.ic_payment, "金融"),
+            AppCategory.TRAVEL to Pair(R.drawable.ic_directions_car, "出行"),
+            AppCategory.JOBS to Pair(R.drawable.ic_work, "招聘"),
+            AppCategory.EDUCATION to Pair(R.drawable.ic_school, "教育"),
+            AppCategory.NEWS to Pair(R.drawable.ic_article, "新闻")
+        )
+
+        categoryButtons.forEach { (category, button) ->
+            button?.let { layout ->
+                val data = categoryData[category]
+                if (data != null) {
+                    val iconView = layout.findViewById<ImageView>(R.id.category_icon)
+                    val textView = layout.findViewById<TextView>(R.id.category_text)
+
+                    iconView?.setImageResource(data.first)
+                    textView?.text = data.second
+                }
+            }
+        }
+    }
+
+    /**
+     * 选择应用分类
+     */
+    private fun selectAppCategory(category: AppCategory, categoryButtons: Map<AppCategory, LinearLayout?>) {
+        currentAppCategory = category
+
+        // 更新分类按钮的选中状态
+        categoryButtons.forEach { (cat, button) ->
+            button?.let { layout ->
+                if (cat == category) {
+                    // 选中状态：使用Material Design选中样式
+                    layout.setBackgroundResource(R.drawable.material_category_button_selected)
+
+                    // 更新图标和文字颜色为选中状态
+                    val iconView = layout.findViewById<ImageView>(R.id.category_icon)
+                    val textView = layout.findViewById<TextView>(R.id.category_text)
+
+                    iconView?.setColorFilter(ContextCompat.getColor(this, R.color.simple_mode_accent_light))
+                    textView?.setTextColor(ContextCompat.getColor(this, R.color.simple_mode_accent_light))
+                } else {
+                    // 未选中状态：透明背景
+                    layout.setBackgroundResource(R.drawable.material_category_button_background)
+
+                    // 更新图标和文字颜色为未选中状态
+                    val iconView = layout.findViewById<ImageView>(R.id.category_icon)
+                    val textView = layout.findViewById<TextView>(R.id.category_text)
+
+                    iconView?.setColorFilter(ContextCompat.getColor(this, R.color.simple_mode_accent_light))
+                    textView?.setTextColor(ContextCompat.getColor(this, R.color.simple_mode_text_primary_light))
+                }
+            }
+        }
+
+        // 加载对应分类的应用
+        loadAppsByCategory(category)
+    }
+
+    /**
+     * 根据分类加载应用
+     */
+    private fun loadAppsByCategory(category: AppCategory) {
+        currentAppConfigs.clear()
+        currentAppConfigs.addAll(appSearchSettings.getAppConfigsByCategory(category))
+        appSearchAdapter.updateAppConfigs(currentAppConfigs)
+
+        // 重置搜索框图标为默认状态
+        resetSearchInputIcon()
+    }
+
+    /**
+     * 设置应用搜索输入框
+     */
+    private fun setupAppSearchInput() {
+        val textInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+
+        // 设置搜索动作监听
+        appSearchInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                val query = appSearchInput.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    appSearchAdapter.updateSearchQuery(query)
+                    appSearchHint.text = "输入关键词：$query，点击应用图标进行搜索"
+                    // 显示清空按钮
+                    updateInputLayoutEndIcon(true)
+                } else {
+                    appSearchAdapter.updateSearchQuery("")
+                    appSearchHint.text = "选择${currentAppCategory.displayName}应用进行搜索"
+                    // 显示历史按钮
+                    updateInputLayoutEndIcon(false)
+                }
+                true
+            } else {
+                false
+            }
+        }
+
+        // 设置文本变化监听
+        appSearchInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val hasText = !s.isNullOrEmpty()
+                updateInputLayoutEndIcon(hasText)
+            }
+        })
+
+        // 设置结束图标点击监听
+        textInputLayout?.setEndIconOnClickListener {
+            val query = appSearchInput.text.toString().trim()
+            if (query.isNotEmpty()) {
+                // 清空输入框
+                appSearchInput.text?.clear()
+                appSearchAdapter.updateSearchQuery("")
+                resetSearchInputIcon()
+            } else {
+                // 显示搜索历史
+                showSearchHistory()
+            }
+        }
+    }
+
+    /**
+     * 更新搜索输入框图标
+     */
+    private fun updateSearchInputIcon(appConfig: AppSearchConfig) {
+        try {
+            val textInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+
+            if (textInputLayout != null) {
+                // 获取应用图标
+                val appIcon = try {
+                    if (isAppInstalled(appConfig.packageName)) {
+                        packageManager.getApplicationIcon(appConfig.packageName)
+                    } else {
+                        ContextCompat.getDrawable(this, appConfig.category.iconResId)
+                    }
+                } catch (e: Exception) {
+                    ContextCompat.getDrawable(this, R.drawable.ic_search)
+                }
+
+                // 调整图标大小以匹配输入框高度（使用更小的尺寸）
+                appIcon?.let { drawable ->
+                    val size = resources.getDimensionPixelSize(R.dimen.search_input_icon_size_small) // 20dp
+                    drawable.setBounds(0, 0, size, size)
+                }
+
+                // 设置图标
+                textInputLayout.startIconDrawable = appIcon
+
+                // 更新提示文本
+                appSearchHint.text = "已选择 ${appConfig.appName}，输入关键词进行搜索"
+            }
+        } catch (e: Exception) {
+            Log.e("SimpleModeActivity", "更新搜索框图标失败", e)
+        }
+    }
+
+    /**
+     * 重置搜索输入框图标为默认状态
+     */
+    private fun resetSearchInputIcon() {
+        try {
+            val textInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+
+            if (textInputLayout != null) {
+                // 重置为默认搜索图标
+                textInputLayout.startIconDrawable = ContextCompat.getDrawable(this, R.drawable.ic_search)
+
+                // 重置提示文本
+                appSearchHint.text = "选择${currentAppCategory.displayName}应用进行搜索"
+            }
+        } catch (e: Exception) {
+            Log.e("SimpleModeActivity", "重置搜索框图标失败", e)
+        }
+    }
+
+    /**
+     * 更新输入框结束图标
+     */
+    private fun updateInputLayoutEndIcon(hasText: Boolean) {
+        try {
+            val textInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+
+            if (textInputLayout != null) {
+                if (hasText) {
+                    // 显示清空图标
+                    textInputLayout.endIconDrawable = ContextCompat.getDrawable(this, R.drawable.ic_clear)
+                } else {
+                    // 显示历史图标
+                    textInputLayout.endIconDrawable = ContextCompat.getDrawable(this, R.drawable.ic_history)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SimpleModeActivity", "更新输入框结束图标失败", e)
+        }
+    }
+
+    /**
+     * 显示搜索历史
+     */
+    private fun showSearchHistory() {
+        try {
+            // 这里可以实现搜索历史功能
+            // 暂时显示一个简单的提示
+            Toast.makeText(this, "搜索历史功能待实现", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("SimpleModeActivity", "显示搜索历史失败", e)
+        }
+    }
+
+    /**
+     * 检查应用是否已安装
+     */
+    private fun isAppInstalled(packageName: String): Boolean {
+        return try {
+            packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+
+        // 实时更新搜索关键词
+        appSearchInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                val query = s?.toString()?.trim() ?: ""
+                appSearchAdapter.updateSearchQuery(query)
+                if (query.isNotEmpty()) {
+                    appSearchHint.text = "输入关键词：$query，点击应用图标进行搜索"
+                } else {
+                    appSearchHint.text = "选择${currentAppCategory.displayName}应用进行搜索"
+                }
+            }
+        })
+    }
+
+    /**
+     * 处理应用搜索
+     */
+    private fun handleAppSearch(appConfig: AppSearchConfig, query: String) {
+        try {
+            val searchUrl = appConfig.getSearchUrl(query)
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                setPackage(appConfig.packageName)
+            }
+
+            startActivity(intent)
+            Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
+
+            // 显示悬浮返回按钮
+            showFloatingBackButton()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "启动应用搜索失败: ${e.message}")
+            Toast.makeText(this, "启动${appConfig.appName}失败，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示悬浮返回按钮
+     */
+    private fun showFloatingBackButton() {
+        try {
+            // 检查悬浮窗权限
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
+                Log.w(TAG, "没有悬浮窗权限，无法显示返回按钮")
+                return
+            }
+
+            // 启动悬浮返回按钮服务
+            val intent = Intent(this, FloatingBackButtonService::class.java)
+            startService(intent)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示悬浮返回按钮失败", e)
+        }
+    }
+
     private fun showSettings() {
         currentState = UIState.SETTINGS
         chatLayout.visibility = View.GONE
@@ -1722,6 +2131,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.VISIBLE
 
@@ -1759,6 +2169,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
         browserLayout.visibility = View.VISIBLE
 
@@ -1794,6 +2205,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             showVoice()
         }
 
+        // 软件tab (第五位)
+        findViewById<LinearLayout>(R.id.tab_app_search)?.setOnClickListener {
+            showAppSearch()
+        }
+
         // 设置tab (最右边)
         findViewById<LinearLayout>(R.id.tab_settings)?.setOnClickListener {
             showSettings()
@@ -1801,6 +2217,74 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 初始化搜索tab图标
         updateSearchTabIcon()
+
+        // 检测语音支持情况并隐藏语音tab（如果不支持）
+        updateVoiceTabVisibility()
+    }
+
+    /**
+     * 更新语音tab的可见性
+     */
+    private fun updateVoiceTabVisibility() {
+        try {
+            // 检测语音支持情况
+            val supportInfo = voiceInputManager.detectVoiceSupport()
+            val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
+
+            if (supportInfo.isSupported) {
+                // 支持语音输入，显示语音tab
+                voiceTab?.visibility = View.VISIBLE
+                Log.d(TAG, "设备支持语音输入，显示语音tab")
+            } else {
+                // 不支持语音输入，隐藏语音tab
+                voiceTab?.visibility = View.GONE
+                Log.d(TAG, "设备不支持语音输入，隐藏语音tab")
+
+                // 如果当前正在语音页面，切换到任务页面
+                if (currentState == UIState.VOICE) {
+                    showTaskSelection()
+                }
+            }
+
+            // 更新tab的权重分配
+            updateTabWeights()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "更新语音tab可见性失败", e)
+            // 出错时默认隐藏语音tab
+            findViewById<LinearLayout>(R.id.tab_voice)?.visibility = View.GONE
+        }
+    }
+
+    /**
+     * 更新tab的权重分配
+     */
+    private fun updateTabWeights() {
+        val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation) ?: return
+        val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
+
+        // 计算可见tab的数量
+        var visibleTabCount = 0
+        for (i in 0 until bottomNav.childCount) {
+            val tabView = bottomNav.getChildAt(i)
+            if (tabView.visibility == View.VISIBLE) {
+                visibleTabCount++
+            }
+        }
+
+        // 重新分配权重
+        for (i in 0 until bottomNav.childCount) {
+            val tabView = bottomNav.getChildAt(i) as? LinearLayout ?: continue
+            val layoutParams = tabView.layoutParams as LinearLayout.LayoutParams
+
+            if (tabView.visibility == View.VISIBLE) {
+                layoutParams.weight = 1f
+            } else {
+                layoutParams.weight = 0f
+            }
+
+            tabView.layoutParams = layoutParams
+        }
     }
 
     /**
@@ -1927,6 +2411,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
 
@@ -1941,6 +2426,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
 
@@ -1955,6 +2441,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.VISIBLE
         promptPreviewLayout.visibility = View.GONE
         voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
 
@@ -1970,6 +2457,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.VISIBLE
         voiceLayout.visibility = View.GONE
+        appSearchLayout.visibility = View.GONE
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
 
@@ -2639,7 +3127,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     private fun minimizeToService() {
         // 简化权限检查，如果没有权限就直接关闭应用
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
             Log.w(TAG, "No overlay permission, closing app instead of minimizing")
             finish()
             return
@@ -2681,7 +3169,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             // 检查悬浮窗权限
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
                 // 启动悬浮球服务
                 val serviceIntent = Intent(this, FloatingWindowService::class.java)
                 startService(serviceIntent)
@@ -2718,7 +3206,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             // 检查悬浮窗权限
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
                 // 启动灵动岛服务
                 val serviceIntent = Intent(this, DynamicIslandService::class.java)
                 startService(serviceIntent)
@@ -2760,7 +3248,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "Changed display mode to floating_ball to prevent auto-restart")
 
             // 4. 启动悬浮球服务，确保用户仍然可以访问应用功能
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
                 Log.d(TAG, "Starting FloatingWindowService")
                 val serviceIntent = Intent(this, FloatingWindowService::class.java)
                 serviceIntent.putExtra("closing_from_simple_mode", true)

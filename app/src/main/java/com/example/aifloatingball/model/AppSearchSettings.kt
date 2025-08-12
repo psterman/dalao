@@ -6,6 +6,26 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.example.aifloatingball.R
 
+/**
+ * 应用分类枚举
+ */
+enum class AppCategory(val displayName: String, val iconResId: Int) {
+    CUSTOM("自定义", android.R.drawable.ic_menu_preferences),
+    ALL("全部", android.R.drawable.ic_menu_view),
+    SHOPPING("购物", android.R.drawable.ic_menu_gallery),
+    SOCIAL("社交", android.R.drawable.ic_menu_share),
+    VIDEO("视频", android.R.drawable.ic_media_play),
+    MUSIC("音乐", android.R.drawable.ic_media_play),
+    LIFESTYLE("生活", android.R.drawable.ic_menu_mylocation),
+    MAPS("地图", android.R.drawable.ic_dialog_map),
+    BROWSER("浏览器", android.R.drawable.ic_menu_search),
+    FINANCE("金融", android.R.drawable.ic_menu_manage),
+    TRAVEL("出行", android.R.drawable.ic_menu_directions),
+    JOBS("招聘", android.R.drawable.ic_menu_agenda),
+    EDUCATION("教育", android.R.drawable.ic_menu_info_details),
+    NEWS("新闻", android.R.drawable.ic_menu_recent_history)
+}
+
 data class AppSearchConfig(
     val appId: String,          // 应用标识符
     val appName: String,        // 应用名称
@@ -13,8 +33,17 @@ data class AppSearchConfig(
     var isEnabled: Boolean,     // 是否启用
     var order: Int,            // 排序顺序
     val iconResId: Int,         // 图标资源ID
-    val searchUrl: String       // 搜索URL模板
-)
+    val searchUrl: String,      // 搜索URL模板
+    val category: AppCategory = AppCategory.ALL, // 应用分类
+    val description: String = "" // 应用描述
+) {
+    /**
+     * 获取搜索URL
+     */
+    fun getSearchUrl(query: String): String {
+        return searchUrl.replace("{q}", query)
+    }
+}
 
 class AppSearchSettings(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("app_search_settings", Context.MODE_PRIVATE)
@@ -77,7 +106,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 1,
                 iconResId = R.drawable.ic_web_default,
-                searchUrl = "weixin://" // 微信没有直接的搜索Scheme，只能启动应用
+                searchUrl = "weixin://", // 微信没有直接的搜索Scheme，只能启动应用
+                category = AppCategory.SOCIAL,
+                description = "微信搜索"
             ),
             AppSearchConfig(
                 appId = "taobao",
@@ -86,7 +117,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 2,
                 iconResId = R.drawable.ic_web_default,
-                searchUrl = "taobao://s.taobao.com/search?q={q}"
+                searchUrl = "taobao://s.taobao.com/search?q={q}",
+                category = AppCategory.SHOPPING,
+                description = "淘宝购物搜索"
             ),
             AppSearchConfig(
                 appId = "pdd",
@@ -95,7 +128,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 3,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key={q}"
+                searchUrl = "pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key={q}",
+                category = AppCategory.SHOPPING,
+                description = "拼多多购物搜索"
             ),
             AppSearchConfig(
                 appId = "douyin",
@@ -104,7 +139,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 4,
                 iconResId = R.drawable.ic_douyin,
-                searchUrl = "snssdk1128://search/tabs?keyword={q}"
+                searchUrl = "snssdk1128://search/tabs?keyword={q}",
+                category = AppCategory.VIDEO,
+                description = "抖音视频搜索"
             ),
             AppSearchConfig(
                 appId = "xiaohongshu",
@@ -113,7 +150,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 5,
                 iconResId = R.drawable.ic_xiaohongshu,
-                searchUrl = "xhsdiscover://search/result?keyword={q}"
+                searchUrl = "xhsdiscover://search/result?keyword={q}",
+                category = AppCategory.SOCIAL,
+                description = "小红书搜索"
             ),
             AppSearchConfig(
                 appId = "meituan",
@@ -122,7 +161,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = true,
                 order = 6,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "imeituan://www.meituan.com/search?q={q}"
+                searchUrl = "imeituan://www.meituan.com/search?q={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "美团生活服务搜索"
             ),
             AppSearchConfig(
                 appId = "douban",
@@ -131,7 +172,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 7,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "douban:///search?q={q}"
+                searchUrl = "douban:///search?q={q}",
+                category = AppCategory.SOCIAL,
+                description = "豆瓣搜索"
             ),
             AppSearchConfig(
                 appId = "weibo",
@@ -140,7 +183,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 8,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "sinaweibo://searchall?q={q}"
+                searchUrl = "sinaweibo://searchall?q={q}",
+                category = AppCategory.SOCIAL,
+                description = "微博搜索"
             ),
             AppSearchConfig(
                 appId = "tiktok",
@@ -149,7 +194,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 9,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "snssdk1128://search/tabs?keyword={q}" // 与抖音相同
+                searchUrl = "snssdk1128://search/tabs?keyword={q}", // 与抖音相同
+                category = AppCategory.VIDEO,
+                description = "TikTok视频搜索"
             ),
             AppSearchConfig(
                 appId = "twitter",
@@ -158,7 +205,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 10,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "twitter://search?query={q}"
+                searchUrl = "twitter://search?query={q}",
+                category = AppCategory.SOCIAL,
+                description = "Twitter搜索"
             ),
             AppSearchConfig(
                 appId = "zhihu",
@@ -167,7 +216,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 11,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "zhihu://search?q={q}"
+                searchUrl = "zhihu://search?q={q}",
+                category = AppCategory.SOCIAL,
+                description = "知乎搜索"
             ),
             AppSearchConfig(
                 appId = "bilibili",
@@ -176,7 +227,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 12,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "bilibili://search?keyword={q}"
+                searchUrl = "bilibili://search?keyword={q}",
+                category = AppCategory.VIDEO,
+                description = "B站视频搜索"
             ),
             AppSearchConfig(
                 appId = "youtube",
@@ -185,7 +238,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 13,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "youtube://results?search_query={q}"
+                searchUrl = "youtube://results?search_query={q}",
+                category = AppCategory.VIDEO,
+                description = "YouTube视频搜索"
             ),
             AppSearchConfig(
                 appId = "spotify",
@@ -194,7 +249,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 14,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "spotify:search:{q}"
+                searchUrl = "spotify:search:{q}",
+                category = AppCategory.MUSIC,
+                description = "Spotify音乐搜索"
             ),
             AppSearchConfig(
                 appId = "tmall",
@@ -203,7 +260,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 15,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "tmall://page.tm/search?q={q}"
+                searchUrl = "tmall://page.tm/search?q={q}",
+                category = AppCategory.SHOPPING,
+                description = "天猫购物搜索"
             ),
             AppSearchConfig(
                 appId = "jd",
@@ -212,7 +271,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 16,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "openjd://virtual?params={\"des\":\"productList\",\"keyWord\":\"{q}\"}"
+                searchUrl = "openjd://virtual?params={\"des\":\"productList\",\"keyWord\":\"{q}\"}",
+                category = AppCategory.SHOPPING,
+                description = "京东购物搜索"
             ),
             AppSearchConfig(
                 appId = "xianyu",
@@ -221,7 +282,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 17,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "fleamarket://x_search_items" // 闲鱼不支持直接带关键词
+                searchUrl = "fleamarket://x_search_items", // 闲鱼不支持直接带关键词
+                category = AppCategory.SHOPPING,
+                description = "闲鱼二手交易"
             ),
             AppSearchConfig(
                 appId = "dianping",
@@ -230,7 +293,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 18,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "dianping://searchshoplist?keyword={q}"
+                searchUrl = "dianping://searchshoplist?keyword={q}",
+                category = AppCategory.LIFESTYLE,
+                description = "大众点评搜索"
             ),
             AppSearchConfig(
                 appId = "chrome",
@@ -239,7 +304,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 19,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "googlechrome://www.google.com/search?q={q}"
+                searchUrl = "googlechrome://www.google.com/search?q={q}",
+                category = AppCategory.BROWSER,
+                description = "Chrome浏览器搜索"
             ),
             AppSearchConfig(
                 appId = "eudic",
@@ -248,7 +315,9 @@ class AppSearchSettings(context: Context) {
                 isEnabled = false,
                 order = 20,
                 iconResId = android.R.drawable.ic_menu_search,
-                searchUrl = "eudic://dict/{q}"
+                searchUrl = "eudic://dict/{q}",
+                category = AppCategory.EDUCATION,
+                description = "欧路词典查词"
             )
         )
     }
@@ -284,4 +353,18 @@ class AppSearchSettings(context: Context) {
             .filter { it.isEnabled }
             .sortedBy { it.order }
     }
-} 
+
+    // 根据分类获取应用配置
+    fun getAppConfigsByCategory(category: AppCategory): List<AppSearchConfig> {
+        return if (category == AppCategory.ALL) {
+            getAppConfigs()
+        } else {
+            getAppConfigs().filter { it.category == category }
+        }
+    }
+
+    // 获取所有分类
+    fun getAllCategories(): List<AppCategory> {
+        return AppCategory.values().toList()
+    }
+}

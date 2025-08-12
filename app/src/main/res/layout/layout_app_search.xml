@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/simple_mode_background_light">
+
+    <!-- 主要内容区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- 顶部搜索区域 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="@android:color/white">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <!-- 搜索输入框 -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/app_search_input_layout"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:boxStrokeColor="@color/simple_mode_accent_light"
+                    app:hintTextColor="@color/simple_mode_text_secondary_light"
+                    app:startIconDrawable="@drawable/ic_search"
+                    app:startIconTint="@color/simple_mode_text_secondary_light"
+                    app:endIconMode="custom"
+                    app:endIconDrawable="@drawable/ic_history"
+                    app:endIconTint="@color/simple_mode_text_secondary_light"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/app_search_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="输入搜索关键词"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:textColorHint="@color/simple_mode_text_secondary_light"
+                        android:textSize="16sp"
+                        android:maxLines="1"
+                        android:imeOptions="actionSearch"
+                        android:inputType="text" />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- 提示文本 -->
+                <TextView
+                    android:id="@+id/app_search_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="选择全部应用进行搜索"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:textSize="14sp"
+                    android:gravity="center"
+                    android:alpha="0.8" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 分类和应用内容区域 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp">
+
+            <!-- 左侧分类标签栏 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="80dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="8dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scrollbars="none">
+
+                    <LinearLayout
+                        android:id="@+id/app_category_sidebar"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingTop="8dp"
+                        android:paddingBottom="8dp"
+                        android:paddingStart="2dp"
+                        android:paddingEnd="2dp">
+
+                        <!-- 自定义分类 -->
+                        <LinearLayout
+                            android:id="@+id/category_custom"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginBottom="6dp"
+                            android:background="@drawable/material_category_button_background"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_star"
+                                android:layout_marginBottom="4dp"
+                                app:tint="@color/simple_mode_accent_light" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="自定义"
+                                android:textSize="10sp"
+                                android:textColor="@color/simple_mode_text_primary_light"
+                                android:fontFamily="sans-serif-medium"
+                                android:gravity="center" />
+
+                        </LinearLayout>
+
+                        <!-- 全部分类 -->
+                        <LinearLayout
+                            android:id="@+id/category_all"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginBottom="6dp"
+                            android:background="@drawable/material_category_button_background"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_apps"
+                                android:layout_marginBottom="4dp"
+                                app:tint="@color/simple_mode_accent_light" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="全部"
+                                android:textSize="10sp"
+                                android:textColor="@color/simple_mode_text_primary_light"
+                                android:fontFamily="sans-serif-medium"
+                                android:gravity="center" />
+
+                        </LinearLayout>
+
+                        <!-- 购物分类 -->
+                        <LinearLayout
+                            android:id="@+id/category_shopping"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginBottom="6dp"
+                            android:background="@drawable/material_category_button_background"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_shopping"
+                                android:layout_marginBottom="4dp"
+                                app:tint="@color/simple_mode_accent_light" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="购物"
+                                android:textSize="10sp"
+                                android:textColor="@color/simple_mode_text_primary_light"
+                                android:fontFamily="sans-serif-medium"
+                                android:gravity="center" />
+
+                        </LinearLayout>
+
+                        <!-- 社交分类 -->
+                        <LinearLayout
+                            android:id="@+id/category_social"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:padding="8dp"
+                            android:layout_marginBottom="6dp"
+                            android:background="@drawable/material_category_button_background"
+                            android:clickable="true"
+                            android:focusable="true">
+
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_people"
+                                android:layout_marginBottom="4dp"
+                                app:tint="@color/simple_mode_accent_light" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="社交"
+                                android:textSize="10sp"
+                                android:textColor="@color/simple_mode_text_primary_light"
+                                android:fontFamily="sans-serif-medium"
+                                android:gravity="center" />
+
+                        </LinearLayout>
+
+                        <!-- 视频分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_video" />
+
+                        <!-- 音乐分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_music" />
+
+                        <!-- 生活分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_lifestyle" />
+
+                        <!-- 地图分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_maps" />
+
+                        <!-- 浏览器分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_browser" />
+
+                        <!-- 金融分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_finance" />
+
+                        <!-- 出行分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_travel" />
+
+                        <!-- 招聘分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_jobs" />
+
+                        <!-- 教育分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_education" />
+
+                        <!-- 新闻分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_news" />
+
+                    </LinearLayout>
+
+                </ScrollView>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 右侧应用网格区域 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/app_search_grid"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:padding="8dp"
+                    android:scrollbars="none"
+                    android:overScrollMode="never" />
+
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

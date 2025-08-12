@@ -28,6 +28,15 @@
     <dimen name="toolbar_group_spacing">8dp</dimen>
     <dimen name="activity_horizontal_margin">16dp</dimen>
     <dimen name="activity_vertical_margin">16dp</dimen>
+
+    <!-- Material Design 按钮尺寸 -->
+    <dimen name="material_button_stroke_width">1dp</dimen>
+    <dimen name="material_button_corner_radius">12dp</dimen>
+    <dimen name="material_button_min_height">52dp</dimen>
+    <dimen name="material_button_padding_horizontal">16dp</dimen>
+    <dimen name="material_button_padding_vertical">12dp</dimen>
+    <dimen name="material_button_icon_size">20dp</dimen>
+    <dimen name="material_button_icon_padding">8dp</dimen>
     <dimen name="floating_webview_collapsed_height">200dp</dimen>
     <dimen name="floating_webview_min_width">200dp</dimen>
     <dimen name="floating_webview_min_height">150dp</dimen>
@@ -97,4 +106,8 @@
     <!-- Material Design 风格的圆角和阴影 -->
     <dimen name="mtrl_card_corner_radius_large">12dp</dimen>
     <dimen name="mtrl_card_elevation_large">6dp</dimen>
-</resources> 
+
+    <!-- 搜索输入框图标尺寸 -->
+    <dimen name="search_input_icon_size">24dp</dimen>
+    <dimen name="search_input_icon_size_small">20dp</dimen>
+</resources>

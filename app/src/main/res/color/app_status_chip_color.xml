@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 已安装状态 -->
+    <item android:state_selected="true">
+        <color android:color="@color/simple_mode_success_light" />
+    </item>
+    <!-- 未安装状态 -->
+    <item>
+        <color android:color="@color/simple_mode_text_secondary_light" />
+    </item>
+</selector>

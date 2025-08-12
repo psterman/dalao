@@ -202,7 +202,7 @@
             android:name=".SimpleModeActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.MaterialComponents.DayNight.NoActionBar" />
+            android:theme="@style/AppTheme.SimpleMode" />
 
         <service
             android:name=".service.FloatingWindowService"
@@ -246,7 +246,12 @@
             android:name=".service.WebViewToolbarService"
             android:enabled="true"
             android:exported="false" />
-            
+
+        <service
+            android:name=".FloatingBackButtonService"
+            android:enabled="true"
+            android:exported="false" />
+
         <service
             android:name=".service.MyAccessibilityService"
             android:exported="false"

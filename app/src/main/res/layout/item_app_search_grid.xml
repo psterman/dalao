@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="8dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:background="?attr/selectableItemBackgroundBorderless"
+    android:minHeight="70dp">
+
+    <!-- 应用图标容器 -->
+    <FrameLayout
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginBottom="6dp">
+
+        <!-- 应用图标 -->
+        <ImageView
+            android:id="@+id/app_icon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_apps"
+            android:background="@drawable/launcher_icon_background"
+            android:contentDescription="应用图标" />
+
+    </FrameLayout>
+
+    <!-- 应用名称和状态指示器容器 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingHorizontal="1dp">
+
+        <!-- 应用名称 -->
+        <TextView
+            android:id="@+id/app_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="应用名称"
+            android:textSize="10sp"
+            android:textColor="@color/simple_mode_text_primary_light"
+            android:fontFamily="sans-serif"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:singleLine="true" />
+
+        <!-- 安装状态指示器 -->
+        <View
+            android:id="@+id/app_status_indicator"
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:layout_marginStart="2dp"
+            android:background="@drawable/status_indicator"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+</LinearLayout>

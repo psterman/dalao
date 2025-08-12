@@ -1821,6 +1821,15 @@
 
     </ScrollView>
 
+    <!-- 应用搜索页面 -->
+    <include
+        android:id="@+id/app_search_layout"
+        layout="@layout/layout_app_search"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone" />
+
     <!-- 浏览器页面 - 完整功能版本 -->
     <androidx.drawerlayout.widget.DrawerLayout
         android:id="@+id/browser_layout"
@@ -2423,6 +2432,33 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="语音"
+                android:textColor="@color/simple_mode_tab_text_normal_light"
+                android:textSize="12sp"
+                android:layout_marginTop="4dp" />
+        </LinearLayout>
+
+        <!-- 软件tab (第五位) -->
+        <LinearLayout
+            android:id="@+id/tab_app_search"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="?android:attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_apps"
+                app:tint="@color/simple_mode_tab_icon_normal_light" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="软件"
                 android:textColor="@color/simple_mode_tab_text_normal_light"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
