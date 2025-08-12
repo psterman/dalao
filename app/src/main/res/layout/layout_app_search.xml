@@ -26,34 +26,66 @@
                 android:orientation="vertical"
                 android:padding="20dp">
 
-                <!-- 搜索输入框 -->
-                <com.google.android.material.textfield.TextInputLayout
-                    android:id="@+id/app_search_input_layout"
+                <!-- 搜索输入框容器 -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    app:boxStrokeColor="@color/simple_mode_accent_light"
-                    app:hintTextColor="@color/simple_mode_text_secondary_light"
-                    app:startIconDrawable="@drawable/ic_search"
-                    app:startIconTint="@color/simple_mode_text_secondary_light"
-                    app:endIconMode="custom"
-                    app:endIconDrawable="@drawable/ic_history"
-                    app:endIconTint="@color/simple_mode_text_secondary_light"
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/app_search_input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:hint="输入搜索关键词"
-                        android:textColor="@color/simple_mode_text_primary_light"
-                        android:textColorHint="@color/simple_mode_text_secondary_light"
-                        android:textSize="16sp"
-                        android:maxLines="1"
-                        android:imeOptions="actionSearch"
-                        android:inputType="text" />
+                    <!-- 选中应用图标显示 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/selected_app_icon_container"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="8dp"
+                        app:cardCornerRadius="8dp"
+                        app:cardElevation="2dp"
+                        app:strokeWidth="1dp"
+                        app:strokeColor="@color/simple_mode_accent_light"
+                        android:visibility="gone">
 
-                </com.google.android.material.textfield.TextInputLayout>
+                        <ImageView
+                            android:id="@+id/selected_app_icon"
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:layout_gravity="center"
+                            android:scaleType="centerInside"
+                            android:src="@drawable/ic_search" />
+
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- 搜索输入框 -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/app_search_input_layout"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_weight="1"
+                        app:boxStrokeColor="@color/simple_mode_accent_light"
+                        app:hintTextColor="@color/simple_mode_text_secondary_light"
+                        app:startIconDrawable="@drawable/ic_search"
+                        app:startIconTint="@color/simple_mode_text_secondary_light"
+                        app:endIconMode="custom"
+                        app:endIconDrawable="@drawable/ic_history"
+                        app:endIconTint="@color/simple_mode_text_secondary_light"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/app_search_input"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="输入搜索关键词"
+                            android:textColor="@color/simple_mode_text_primary_light"
+                            android:textColorHint="@color/simple_mode_text_secondary_light"
+                            android:textSize="16sp"
+                            android:maxLines="1"
+                            android:imeOptions="actionSearch"
+                            android:inputType="text" />
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
 
                 <!-- 提示文本 -->
                 <TextView

@@ -11,6 +11,7 @@ import android.content.Context
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.voice.VoiceInputManager
+import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -224,6 +225,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var currentAppCategory = AppCategory.ALL
     private var currentAppConfigs = mutableListOf<AppSearchConfig>()
     private lateinit var appSearchSettings: AppSearchSettings
+    private lateinit var searchHistoryManager: SearchHistoryManager
+    private lateinit var categoryDragHelper: CategoryDragHelper
+    private lateinit var appSelectionHistoryManager: AppSelectionHistoryManager
+
+    // 新的应用图标显示组件
+    private lateinit var selectedAppIconContainer: com.google.android.material.card.MaterialCardView
+    private lateinit var selectedAppIcon: ImageView
 
     // 浏览器页面组件 - 多页面WebView版本
     private lateinit var browserWebViewContainer: FrameLayout
@@ -853,32 +861,49 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun initializeViews() {
-        // 主要布局
-        chatLayout = findViewById(R.id.chat_layout)
-        taskSelectionLayout = findViewById(R.id.task_selection_layout)
-        stepGuidanceLayout = findViewById(R.id.step_guidance_layout)
-        promptPreviewLayout = findViewById(R.id.prompt_preview_layout)
-        voiceLayout = findViewById(R.id.voice_layout)
-        appSearchLayout = findViewById(R.id.app_search_layout)
-        browserLayout = findViewById(R.id.browser_layout)
-        settingsLayout = findViewById(R.id.settings_layout)
+        try {
+            // 主要布局 - 使用安全的findViewById
+            chatLayout = findViewById<LinearLayout>(R.id.chat_layout)
+            taskSelectionLayout = findViewById<LinearLayout>(R.id.task_selection_layout)
+            stepGuidanceLayout = findViewById<LinearLayout>(R.id.step_guidance_layout)
+            promptPreviewLayout = findViewById<LinearLayout>(R.id.prompt_preview_layout)
+            voiceLayout = findViewById<ScrollView>(R.id.voice_layout)
+            appSearchLayout = findViewById<androidx.coordinatorlayout.widget.CoordinatorLayout>(R.id.app_search_layout)
+            browserLayout = findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.browser_layout)
+            settingsLayout = findViewById<ScrollView>(R.id.settings_layout)
+
+            Log.d(TAG, "主要布局初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化主要布局失败", e)
+            throw e
+        }
         // modeSwitchWidget = findViewById(R.id.mode_switch_widget)  // 暂时禁用
 
         // 任务选择页面
-        taskRecyclerView = findViewById(R.id.task_recycler_view)
-        directSearchInput = findViewById(R.id.direct_search_input)
-        directSearchButton = findViewById(R.id.direct_search_button)
+        try {
+            taskRecyclerView = findViewById<RecyclerView>(R.id.task_recycler_view)
+            directSearchInput = findViewById<EditText>(R.id.direct_search_input)
+            directSearchButton = findViewById<ImageButton>(R.id.direct_search_button)
+            Log.d(TAG, "任务选择页面组件初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化任务选择页面组件失败", e)
+        }
 
         // 步骤引导页面
-        stepTitleText = findViewById(R.id.step_title_text)
-        stepQuestionText = findViewById(R.id.step_question_text)
-        stepInputLayout = findViewById(R.id.step_input_layout)
-        stepInputText = findViewById(R.id.step_input_text)
-        stepChoiceGroup = findViewById(R.id.step_choice_group)
-        stepMultiChoiceLayout = findViewById(R.id.step_multi_choice_layout)
-        prevStepButton = findViewById(R.id.prev_step_button)
-        skipStepButton = findViewById(R.id.skip_step_button)
-        nextStepButton = findViewById(R.id.next_step_button)
+        try {
+            stepTitleText = findViewById<TextView>(R.id.step_title_text)
+            stepQuestionText = findViewById<TextView>(R.id.step_question_text)
+            stepInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.step_input_layout)
+            stepInputText = findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.step_input_text)
+            stepChoiceGroup = findViewById<RadioGroup>(R.id.step_choice_group)
+            stepMultiChoiceLayout = findViewById<LinearLayout>(R.id.step_multi_choice_layout)
+            prevStepButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.prev_step_button)
+            skipStepButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.skip_step_button)
+            nextStepButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.next_step_button)
+            Log.d(TAG, "步骤引导页面组件初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化步骤引导页面组件失败", e)
+        }
 
         // 验证按钮是否正确初始化
         Log.d(TAG, "步骤按钮初始化完成:")
@@ -907,11 +932,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceSettingsCard = findViewById(R.id.voice_settings_card)
 
         // 应用搜索页面组件初始化
-        appCategorySidebar = findViewById(R.id.app_category_sidebar)
-        appSearchInput = findViewById(R.id.app_search_input)
-        appSearchHint = findViewById(R.id.app_search_hint)
-        appSearchGrid = findViewById(R.id.app_search_grid)
-        appSearchSettings = AppSearchSettings.getInstance(this)
+        try {
+            appCategorySidebar = findViewById<LinearLayout>(R.id.app_category_sidebar)
+            appSearchInput = findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.app_search_input)
+            appSearchHint = findViewById<TextView>(R.id.app_search_hint)
+            appSearchGrid = findViewById<RecyclerView>(R.id.app_search_grid)
+            selectedAppIconContainer = findViewById<com.google.android.material.card.MaterialCardView>(R.id.selected_app_icon_container)
+            selectedAppIcon = findViewById<ImageView>(R.id.selected_app_icon)
+            appSearchSettings = AppSearchSettings.getInstance(this)
+            searchHistoryManager = SearchHistoryManager.getInstance(this)
+            categoryDragHelper = CategoryDragHelper(this)
+            appSelectionHistoryManager = AppSelectionHistoryManager.getInstance(this)
+            Log.d(TAG, "应用搜索页面组件初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化应用搜索页面组件失败", e)
+        }
 
         // 浏览器页面 - 多页面WebView版本组件初始化
         browserWebViewContainer = findViewById(R.id.browser_webview_container)
@@ -1770,7 +1805,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     handleAppSearch(appConfig, query)
                 },
                 onAppSelected = { appConfig ->
-                    updateSearchInputIcon(appConfig)
+                    updateSelectedAppDisplay(appConfig)
                 },
                 getCurrentQuery = {
                     appSearchInput.text.toString()
@@ -1818,11 +1853,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置分类按钮的图标和文字
         setupCategoryButtonContent(categoryButtons)
 
+        // 根据保存的排序重新排列按钮
+        val categoryOrder = categoryDragHelper.getCategoryOrder()
+        categoryDragHelper.reorderCategoryButtons(appCategorySidebar, categoryButtons, categoryOrder)
+
         // 设置点击事件
         categoryButtons.forEach { (category, button) ->
             button?.setOnClickListener {
                 selectAppCategory(category, categoryButtons)
             }
+        }
+
+        // 设置拖拽功能
+        categoryDragHelper.setupDragListeners(appCategorySidebar, categoryButtons) { newOrder ->
+            // 拖拽排序改变后的回调
+            Toast.makeText(this, "分类排序已更新", Toast.LENGTH_SHORT).show()
         }
 
         // 默认选中"全部"分类
@@ -1963,41 +2008,182 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showSearchHistory()
             }
         }
+
+        // 设置开始图标点击监听（放大镜图标）
+        textInputLayout?.setStartIconOnClickListener {
+            showAppSelectionHistory()
+        }
     }
 
     /**
-     * 更新搜索输入框图标
+     * 更新选中应用显示
      */
-    private fun updateSearchInputIcon(appConfig: AppSearchConfig) {
+    private fun updateSelectedAppDisplay(appConfig: AppSearchConfig) {
         try {
-            val textInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
+            Log.d(TAG, "开始更新选中应用显示: ${appConfig.appName}, 包名: ${appConfig.packageName}")
 
-            if (textInputLayout != null) {
-                // 获取应用图标
-                val appIcon = try {
-                    if (isAppInstalled(appConfig.packageName)) {
-                        packageManager.getApplicationIcon(appConfig.packageName)
+            // 在主线程中执行UI更新
+            runOnUiThread {
+                try {
+                    // 获取应用图标
+                    val drawable = getAppIconDrawable(appConfig)
+
+                    if (drawable != null) {
+                        // 设置应用图标
+                        selectedAppIcon.setImageDrawable(drawable)
+
+                        // 显示图标容器
+                        selectedAppIconContainer.visibility = View.VISIBLE
+
+                        // 添加点击事件，点击图标可以快速搜索
+                        selectedAppIconContainer.setOnClickListener {
+                            val query = appSearchInput.text.toString().trim()
+                            if (query.isNotEmpty()) {
+                                handleAppSearch(appConfig, query)
+                            } else {
+                                Toast.makeText(this@SimpleModeActivity, "请输入搜索关键词", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
+                        Log.d(TAG, "成功设置选中应用图标")
+
+                        // 保存到选择历史
+                        appSelectionHistoryManager.addAppSelection(appConfig)
+
+                        // 更新提示文本
+                        appSearchHint.text = "已选择 ${appConfig.appName}，输入关键词进行搜索"
                     } else {
-                        ContextCompat.getDrawable(this, appConfig.category.iconResId)
+                        Log.w(TAG, "无法获取应用图标")
+                        hideSelectedAppDisplay()
                     }
                 } catch (e: Exception) {
-                    ContextCompat.getDrawable(this, R.drawable.ic_search)
+                    Log.e(TAG, "在UI线程中更新选中应用显示失败", e)
                 }
-
-                // 调整图标大小以匹配输入框高度（使用更小的尺寸）
-                appIcon?.let { drawable ->
-                    val size = resources.getDimensionPixelSize(R.dimen.search_input_icon_size_small) // 20dp
-                    drawable.setBounds(0, 0, size, size)
-                }
-
-                // 设置图标
-                textInputLayout.startIconDrawable = appIcon
-
-                // 更新提示文本
-                appSearchHint.text = "已选择 ${appConfig.appName}，输入关键词进行搜索"
             }
         } catch (e: Exception) {
-            Log.e("SimpleModeActivity", "更新搜索框图标失败", e)
+            Log.e(TAG, "更新选中应用显示失败", e)
+        }
+    }
+
+    /**
+     * 隐藏选中应用显示
+     */
+    private fun hideSelectedAppDisplay() {
+        selectedAppIconContainer.visibility = View.GONE
+        appSearchHint.text = "选择全部应用进行搜索"
+    }
+
+    /**
+     * 显示应用选择历史
+     */
+    private fun showAppSelectionHistory() {
+        try {
+            val recentApps = appSelectionHistoryManager.getRecentApps()
+
+            if (recentApps.isEmpty()) {
+                Toast.makeText(this, "暂无应用选择历史", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // 创建自定义对话框显示应用图标网格
+            showAppSelectionDialog(recentApps)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示应用选择历史失败", e)
+            Toast.makeText(this, "加载历史记录失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示应用选择对话框
+     */
+    private fun showAppSelectionDialog(recentApps: List<AppSelectionHistoryManager.AppSelectionItem>) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_app_selection, null)
+        val gridView = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.app_selection_grid)
+
+        // 设置网格布局
+        gridView.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, 4)
+
+        // 创建适配器
+        val adapter = AppSelectionDialogAdapter(this, recentApps) { selectionItem: AppSelectionHistoryManager.AppSelectionItem ->
+            // 点击应用时的回调
+            selectAppFromHistory(selectionItem)
+        }
+        gridView.adapter = adapter
+
+        // 创建对话框
+        AlertDialog.Builder(this)
+            .setTitle("最近选择的应用")
+            .setView(dialogView)
+            .setNegativeButton("清空历史") { _, _ ->
+                AlertDialog.Builder(this)
+                    .setTitle("确认清空")
+                    .setMessage("确定要清空应用选择历史吗？")
+                    .setPositiveButton("确定") { _, _ ->
+                        appSelectionHistoryManager.clearSelectionHistory()
+                        Toast.makeText(this, "历史记录已清空", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+            .setNeutralButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 从历史记录中选择应用
+     */
+    private fun selectAppFromHistory(selectionItem: AppSelectionHistoryManager.AppSelectionItem) {
+        // 找到对应的应用配置
+        val appConfig = currentAppConfigs.find { it.packageName == selectionItem.packageName }
+
+        if (appConfig != null) {
+            // 更新选中应用显示
+            updateSelectedAppDisplay(appConfig)
+            Toast.makeText(this, "已选择 ${appConfig.appName}", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "应用 ${selectionItem.appName} 不可用", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 获取应用图标Drawable
+     */
+    private fun getAppIconDrawable(appConfig: AppSearchConfig): android.graphics.drawable.Drawable? {
+        return try {
+            if (isAppInstalled(appConfig.packageName)) {
+                Log.d(TAG, "应用已安装，获取真实图标")
+                packageManager.getApplicationIcon(appConfig.packageName)
+            } else {
+                Log.d(TAG, "应用未安装，使用分类图标: ${appConfig.category.iconResId}")
+                ContextCompat.getDrawable(this, appConfig.category.iconResId)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取应用图标失败", e)
+            ContextCompat.getDrawable(this, R.drawable.ic_search)
+        }
+    }
+
+    /**
+     * 创建缩放后的图标
+     */
+    private fun createScaledIcon(originalDrawable: android.graphics.drawable.Drawable): android.graphics.drawable.Drawable {
+        return try {
+            val size = resources.getDimensionPixelSize(R.dimen.search_input_icon_size_small) // 20dp
+
+            // 创建bitmap
+            val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+
+            // 设置drawable的边界并绘制
+            originalDrawable.setBounds(0, 0, size, size)
+            originalDrawable.draw(canvas)
+
+            // 创建BitmapDrawable
+            android.graphics.drawable.BitmapDrawable(resources, bitmap)
+        } catch (e: Exception) {
+            Log.e(TAG, "创建缩放图标失败，返回原图标", e)
+            originalDrawable
         }
     }
 
@@ -2005,19 +2191,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 重置搜索输入框图标为默认状态
      */
     private fun resetSearchInputIcon() {
-        try {
-            val textInputLayout = findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)
-
-            if (textInputLayout != null) {
-                // 重置为默认搜索图标
-                textInputLayout.startIconDrawable = ContextCompat.getDrawable(this, R.drawable.ic_search)
-
-                // 重置提示文本
-                appSearchHint.text = "选择${currentAppCategory.displayName}应用进行搜索"
-            }
-        } catch (e: Exception) {
-            Log.e("SimpleModeActivity", "重置搜索框图标失败", e)
-        }
+        hideSelectedAppDisplay()
+        appSearchHint.text = "选择${currentAppCategory.displayName}应用进行搜索"
     }
 
     /**
@@ -2046,12 +2221,212 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showSearchHistory() {
         try {
-            // 这里可以实现搜索历史功能
-            // 暂时显示一个简单的提示
-            Toast.makeText(this, "搜索历史功能待实现", Toast.LENGTH_SHORT).show()
+            val historyList = searchHistoryManager.getSearchHistory()
+            if (historyList.isEmpty()) {
+                Toast.makeText(this, "暂无搜索历史", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val historyItems = historyList.map { "${it.query} (${it.appName})" }.toTypedArray()
+
+            AlertDialog.Builder(this)
+                .setTitle("搜索历史")
+                .setItems(historyItems) { _, which ->
+                    val selectedHistory = historyList[which]
+                    // 填充到输入框
+                    appSearchInput.setText(selectedHistory.query)
+                    appSearchInput.setSelection(selectedHistory.query.length)
+
+                    // 更新搜索查询
+                    appSearchAdapter.updateSearchQuery(selectedHistory.query)
+                    appSearchHint.text = "输入关键词：${selectedHistory.query}，点击应用图标进行搜索"
+                    updateInputLayoutEndIcon(true)
+                }
+                .setNegativeButton("清空历史") { _, _ ->
+                    AlertDialog.Builder(this)
+                        .setTitle("确认清空")
+                        .setMessage("确定要清空所有搜索历史吗？")
+                        .setPositiveButton("确定") { _, _ ->
+                            searchHistoryManager.clearSearchHistory()
+                            Toast.makeText(this, "搜索历史已清空", Toast.LENGTH_SHORT).show()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
+                .setNeutralButton("取消", null)
+                .show()
+
         } catch (e: Exception) {
             Log.e("SimpleModeActivity", "显示搜索历史失败", e)
         }
+    }
+
+    /**
+     * 显示搜索历史并支持设置默认选项
+     */
+    private fun showSearchHistoryWithDefault() {
+        try {
+            val historyList = searchHistoryManager.getSearchHistory()
+            val defaultSearch = searchHistoryManager.getDefaultSearch()
+
+            if (historyList.isEmpty() && defaultSearch == null) {
+                Toast.makeText(this, "暂无搜索历史", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val items = mutableListOf<String>()
+            val actions = mutableListOf<() -> Unit>()
+
+            // 添加默认搜索选项
+            defaultSearch?.let { (appName, _) ->
+                items.add("🌟 默认搜索：$appName")
+                actions.add {
+                    // 执行默认搜索
+                    executeDefaultSearch()
+                }
+            }
+
+            // 添加历史记录
+            historyList.forEach { history ->
+                val isDefault = defaultSearch?.second == history.packageName
+                val prefix = if (isDefault) "⭐ " else ""
+                items.add("$prefix${history.query} (${history.appName})")
+                actions.add {
+                    // 填充到输入框
+                    appSearchInput.setText(history.query)
+                    appSearchInput.setSelection(history.query.length)
+
+                    // 更新搜索查询
+                    appSearchAdapter.updateSearchQuery(history.query)
+                    appSearchHint.text = "输入关键词：${history.query}，点击应用图标进行搜索"
+                    updateInputLayoutEndIcon(true)
+                }
+            }
+
+            AlertDialog.Builder(this)
+                .setTitle("搜索选项")
+                .setItems(items.toTypedArray()) { _, which ->
+                    actions[which].invoke()
+                }
+                .setNegativeButton("管理") { _, _ ->
+                    showSearchManagement()
+                }
+                .setNeutralButton("取消", null)
+                .show()
+
+        } catch (e: Exception) {
+            Log.e("SimpleModeActivity", "显示搜索选项失败", e)
+        }
+    }
+
+    /**
+     * 执行默认搜索
+     */
+    private fun executeDefaultSearch() {
+        val defaultSearch = searchHistoryManager.getDefaultSearch() ?: return
+        val (appName, packageName) = defaultSearch
+
+        // 找到对应的应用配置
+        val appConfig = currentAppConfigs.find { it.packageName == packageName }
+        if (appConfig != null) {
+            val query = appSearchInput.text.toString().trim()
+            if (query.isNotEmpty()) {
+                handleAppSearch(appConfig, query)
+            } else {
+                // 更新选中应用显示
+                updateSelectedAppDisplay(appConfig)
+                Toast.makeText(this, "已选择默认搜索：$appName", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "默认搜索应用不可用", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示搜索管理界面
+     */
+    private fun showSearchManagement() {
+        val historyList = searchHistoryManager.getSearchHistory()
+        val defaultSearch = searchHistoryManager.getDefaultSearch()
+
+        if (historyList.isEmpty()) {
+            Toast.makeText(this, "暂无搜索历史", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val items = historyList.map { history ->
+            val isDefault = defaultSearch?.second == history.packageName
+            val prefix = if (isDefault) "⭐ " else ""
+            "$prefix${history.query} (${history.appName})"
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("搜索管理")
+            .setItems(items) { _, which ->
+                val selectedHistory = historyList[which]
+                showHistoryItemMenu(selectedHistory)
+            }
+            .setNegativeButton("清空所有") { _, _ ->
+                AlertDialog.Builder(this)
+                    .setTitle("确认清空")
+                    .setMessage("确定要清空所有搜索历史吗？")
+                    .setPositiveButton("确定") { _, _ ->
+                        searchHistoryManager.clearSearchHistory()
+                        searchHistoryManager.clearDefaultSearch()
+                        Toast.makeText(this, "搜索历史已清空", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+            .setNeutralButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 显示历史项目菜单
+     */
+    private fun showHistoryItemMenu(historyItem: SearchHistoryManager.SearchHistoryItem) {
+        val defaultSearch = searchHistoryManager.getDefaultSearch()
+        val isDefault = defaultSearch?.second == historyItem.packageName
+
+        val options = if (isDefault) {
+            arrayOf("使用此搜索", "取消默认设置", "删除此项")
+        } else {
+            arrayOf("使用此搜索", "设为默认", "删除此项")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("${historyItem.query} (${historyItem.appName})")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 使用此搜索
+                        appSearchInput.setText(historyItem.query)
+                        appSearchInput.setSelection(historyItem.query.length)
+                        appSearchAdapter.updateSearchQuery(historyItem.query)
+                        appSearchHint.text = "输入关键词：${historyItem.query}，点击应用图标进行搜索"
+                        updateInputLayoutEndIcon(true)
+                    }
+                    1 -> {
+                        if (isDefault) {
+                            // 取消默认设置
+                            searchHistoryManager.clearDefaultSearch()
+                            Toast.makeText(this, "已取消默认设置", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // 设为默认
+                            searchHistoryManager.setDefaultSearch(historyItem.appName, historyItem.packageName)
+                            Toast.makeText(this, "已设为默认搜索", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    2 -> {
+                        // 删除此项
+                        searchHistoryManager.removeSearchHistory(historyItem.query, historyItem.packageName)
+                        Toast.makeText(this, "已删除", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     /**
@@ -2094,6 +2469,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             startActivity(intent)
             Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
+
+            // 保存搜索历史
+            searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
 
             // 显示悬浮返回按钮
             showFloatingBackButton()

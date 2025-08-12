@@ -258,32 +258,49 @@ class AppSearchGridAdapter(
      * 显示安装提示弹窗
      */
     private fun showInstallDialog(appConfig: AppSearchConfig) {
-        AlertDialog.Builder(context)
-            .setTitle("应用未安装")
-            .setMessage("${appConfig.appName} 尚未安装，是否前往应用商店安装？")
-            .setPositiveButton("去安装") { _, _ ->
-                try {
-                    // 尝试打开应用商店
-                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                        data = Uri.parse("market://details?id=${appConfig.packageName}")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(intent)
-                } catch (e: Exception) {
+        try {
+            // 确保context是Activity类型
+            val activityContext = when (context) {
+                is android.app.Activity -> context
+                is androidx.appcompat.app.AppCompatActivity -> context
+                else -> {
+                    // 如果不是Activity context，直接显示Toast
+                    Toast.makeText(context, "${appConfig.appName} 尚未安装", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            }
+
+            AlertDialog.Builder(activityContext)
+                .setTitle("应用未安装")
+                .setMessage("${appConfig.appName} 尚未安装，是否前往应用商店安装？")
+                .setPositiveButton("去安装") { _, _ ->
                     try {
-                        // 如果应用商店不可用，尝试打开浏览器
+                        // 尝试打开应用商店
                         val intent = Intent(Intent.ACTION_VIEW).apply {
-                            data = Uri.parse("https://play.google.com/store/apps/details?id=${appConfig.packageName}")
+                            data = Uri.parse("market://details?id=${appConfig.packageName}")
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         }
                         context.startActivity(intent)
-                    } catch (e2: Exception) {
-                        Toast.makeText(context, "无法打开应用商店", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        try {
+                            // 如果应用商店不可用，尝试打开浏览器
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                data = Uri.parse("https://play.google.com/store/apps/details?id=${appConfig.packageName}")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (e2: Exception) {
+                            Toast.makeText(context, "无法打开应用商店", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
-            }
-            .setNegativeButton("取消", null)
-            .show()
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            // 如果对话框创建失败，显示简单的Toast
+            Toast.makeText(context, "${appConfig.appName} 尚未安装，请手动安装", Toast.LENGTH_LONG).show()
+            android.util.Log.e("AppSearchGridAdapter", "显示安装对话框失败", e)
+        }
     }
 
     /**
