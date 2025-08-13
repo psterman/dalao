@@ -943,6 +943,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             searchHistoryManager = SearchHistoryManager.getInstance(this)
             categoryDragHelper = CategoryDragHelper(this)
             appSelectionHistoryManager = AppSelectionHistoryManager.getInstance(this)
+
+            // 临时：强制更新到最新配置以显示新增的应用
+            // 这将确保用户能看到所有新增的应用
+            Log.d(TAG, "强制更新应用配置到最新版本")
+            appSearchSettings.forceResetToLatestConfig()
+
+            // 启动图标预加载
+            startIconPreloading()
             Log.d(TAG, "应用搜索页面组件初始化完成")
         } catch (e: Exception) {
             Log.e(TAG, "初始化应用搜索页面组件失败", e)
@@ -3697,9 +3705,47 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 取消标签切换动画
         tabSwitchAnimationManager.cancelCurrentAnimation()
 
+        // 清理应用搜索适配器资源
+        try {
+            if (::appSearchAdapter.isInitialized) {
+                appSearchAdapter.onDestroy()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "清理应用搜索适配器资源失败", e)
+        }
+
         // 移除所有延迟任务
         handler.removeCallbacksAndMessages(null)
         longPressHandler.removeCallbacksAndMessages(null)
+    }
+
+    /**
+     * 启动图标预加载
+     */
+    private fun startIconPreloading() {
+        lifecycleScope.launch {
+            try {
+                val iconPreloader = com.example.aifloatingball.manager.IconPreloader.getInstance(this@SimpleModeActivity)
+
+                // 获取所有应用配置
+                val allApps = appSearchSettings.getAppConfigs().filter { it.isEnabled }
+
+                Log.d(TAG, "开始预加载${allApps.size}个应用图标")
+
+                // 智能预加载 - 优先加载热门应用
+                iconPreloader.preloadPopularApps(allApps) { progress, total ->
+                    Log.d(TAG, "图标预加载进度: $progress/$total")
+
+                    // 可以在这里更新UI显示预加载进度
+                    // 例如在状态栏显示进度
+                }
+
+                Log.d(TAG, "图标预加载完成")
+
+            } catch (e: Exception) {
+                Log.e(TAG, "图标预加载失败", e)
+            }
+        }
     }
 
     override fun onPause() {

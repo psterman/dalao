@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    
+    <!-- UC浏览器橙色背景圆形 -->
+    <path
+        android:fillColor="#FF6600"
+        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z"/>
+    
+    <!-- 浏览器图标 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,6C8.69,6 6,8.69 6,12S8.69,18 12,18S18,15.31 18,12S15.31,6 12,6M12,8C14.21,8 16,9.79 16,12S14.21,16 12,16S8,14.21 8,12S9.79,8 12,8Z"/>
+    
+    <!-- UC字母 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9,10V14H11V10H9M13,10V14H15V10H13Z"/>
+    
+    <!-- 装饰线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M8,15H16V16H8V15Z"
+        android:fillAlpha="0.7"/>
+</vector>

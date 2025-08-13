@@ -3,7 +3,11 @@ package com.example.aifloatingball.adapter
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.*
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import java.io.File
+import java.io.FileOutputStream
 import android.net.Uri
 import android.view.LayoutInflater
 import android.view.View
@@ -18,6 +22,10 @@ import com.example.aifloatingball.R
 import com.example.aifloatingball.model.AppSearchConfig
 import com.example.aifloatingball.model.AppCategory
 import com.example.aifloatingball.model.AppSearchSettings
+import com.example.aifloatingball.manager.AppIconManager
+import com.example.aifloatingball.manager.IconPreloader
+import com.example.aifloatingball.utils.IconProcessor
+import kotlinx.coroutines.*
 
 /**
  * 应用搜索网格适配器
@@ -31,6 +39,10 @@ class AppSearchGridAdapter(
 ) : RecyclerView.Adapter<AppSearchGridAdapter.AppViewHolder>() {
 
     private var searchQuery: String = ""
+    private val iconManager = AppIconManager.getInstance(context)
+    private val iconPreloader = IconPreloader.getInstance(context)
+    private val iconProcessor = IconProcessor(context)
+    private val adapterScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     class AppViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val appIcon: ImageView = itemView.findViewById(R.id.app_icon)
@@ -52,21 +64,8 @@ class AppSearchGridAdapter(
         // 检查应用是否已安装
         val isInstalled = isAppInstalled(appConfig.packageName)
         
-        // 设置应用图标
-        val appIcon = getAppIcon(appConfig)
-        if (appIcon != null) {
-            holder.appIcon.setImageDrawable(appIcon)
-            // 确保图标正确显示
-            holder.appIcon.scaleType = ImageView.ScaleType.CENTER_CROP
-            // 清除背景，显示真实图标
-            holder.appIcon.background = null
-        } else {
-            // 使用默认图标
-            holder.appIcon.setImageResource(appConfig.category.iconResId)
-            holder.appIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
-            // 恢复背景
-            holder.appIcon.setBackgroundResource(R.drawable.launcher_icon_background)
-        }
+        // 设置应用图标 - 使用异步加载
+        loadAppIconAsync(appConfig, holder, isInstalled)
         
         // 设置安装状态 - 绿点表示已安装，红点表示未安装
         holder.appStatusIndicator.visibility = View.VISIBLE
@@ -125,6 +124,13 @@ class AppSearchGridAdapter(
     }
 
     /**
+     * 清理资源
+     */
+    fun onDestroy() {
+        adapterScope.cancel()
+    }
+
+    /**
      * 检查应用是否已安装
      */
     private fun isAppInstalled(packageName: String): Boolean {
@@ -137,17 +143,466 @@ class AppSearchGridAdapter(
     }
 
     /**
-     * 获取应用图标
+     * 异步加载应用图标 - 增强版
      */
-    private fun getAppIcon(appConfig: AppSearchConfig): Drawable? {
-        return try {
-            if (isAppInstalled(appConfig.packageName)) {
-                // 如果应用已安装，获取真实图标
-                context.packageManager.getApplicationIcon(appConfig.packageName)
+    private fun loadAppIconAsync(appConfig: AppSearchConfig, holder: AppViewHolder, isInstalled: Boolean) {
+        // 1. 优先使用已安装应用的真实图标
+        if (isInstalled) {
+            try {
+                val realIcon = context.packageManager.getApplicationIcon(appConfig.packageName)
+                val processedIcon = iconProcessor.processIcon(realIcon, IconProcessor.IconStyle.ROUNDED_SQUARE)
+                setAppIcon(holder, processedIcon ?: realIcon, true)
+                return
+            } catch (e: Exception) {
+                // 继续尝试其他方法
+            }
+        }
+
+        // 2. 检查预加载缓存
+        val preloadedIcon = iconPreloader.getPreloadedIcon(appConfig.packageName, appConfig.appName)
+        if (preloadedIcon != null) {
+            setAppIcon(holder, preloadedIcon, false)
+            return
+        }
+
+        // 3. 尝试使用预设的高质量图标资源
+        val iconResId = getCustomIconResourceId(appConfig.appId)
+        if (iconResId != 0) {
+            try {
+                val customIcon = ContextCompat.getDrawable(context, iconResId)
+                if (customIcon != null) {
+                    val processedIcon = iconProcessor.processIcon(customIcon, IconProcessor.IconStyle.ROUNDED_SQUARE)
+                    setAppIcon(holder, processedIcon ?: customIcon, false)
+                    return
+                }
+            } catch (e: Exception) {
+                // 继续尝试其他方法
+            }
+        }
+
+        // 4. 显示字母图标作为占位符
+        val letterIcon = generateLetterIcon(appConfig)
+        val processedLetterIcon = iconProcessor.processIcon(letterIcon, IconProcessor.IconStyle.ROUNDED_SQUARE)
+        setAppIcon(holder, processedLetterIcon ?: letterIcon, false)
+
+        // 5. 异步加载在线图标 (如果未预加载)
+        if (!isInstalled && !iconPreloader.isIconPreloaded(appConfig.packageName, appConfig.appName)) {
+            adapterScope.launch {
+                iconManager.getAppIconAsync(
+                    packageName = appConfig.packageName,
+                    appName = appConfig.appName
+                ) { downloadedIcon ->
+                    if (downloadedIcon != null) {
+                        // 处理并更新图标
+                        val processedIcon = iconProcessor.processIcon(
+                            downloadedIcon,
+                            IconProcessor.IconStyle.ROUNDED_SQUARE
+                        )
+                        setAppIcon(holder, processedIcon ?: downloadedIcon, false)
+                    }
+                    // 如果下载失败，保持字母图标
+                }
+            }
+        }
+    }
+
+    /**
+     * 设置应用图标到ImageView
+     */
+    private fun setAppIcon(holder: AppViewHolder, icon: Drawable?, isRealIcon: Boolean) {
+        if (icon != null) {
+            holder.appIcon.setImageDrawable(icon)
+            if (isRealIcon) {
+                // 真实图标使用CENTER_CROP，清除背景
+                holder.appIcon.scaleType = ImageView.ScaleType.CENTER_CROP
+                holder.appIcon.background = null
             } else {
-                // 如果应用未安装，使用默认图标
+                // 自定义图标使用CENTER_INSIDE
+                holder.appIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
+                holder.appIcon.background = null
+            }
+        } else {
+            // 使用默认分类图标
+            holder.appIcon.setImageResource(android.R.drawable.ic_menu_gallery)
+            holder.appIcon.scaleType = ImageView.ScaleType.CENTER_INSIDE
+            holder.appIcon.setBackgroundResource(R.drawable.launcher_icon_background)
+        }
+    }
+
+    /**
+     * 获取自定义应用图标
+     */
+    private fun getCustomAppIcon(appConfig: AppSearchConfig): Drawable? {
+        // 1. 尝试从本地缓存获取图标
+        val cachedIcon = getCachedAppIcon(appConfig.packageName)
+        if (cachedIcon != null) {
+            return cachedIcon
+        }
+
+        // 2. 尝试从预设的高质量图标资源获取
+        val iconResId = getCustomIconResourceId(appConfig.appId)
+        if (iconResId != 0) {
+            try {
+                return ContextCompat.getDrawable(context, iconResId)
+            } catch (e: Exception) {
+                // 继续尝试其他方法
+            }
+        }
+
+        // 3. 尝试从在线图标库获取
+        val onlineIcon = getOnlineAppIcon(appConfig)
+        if (onlineIcon != null) {
+            // 缓存下载的图标
+            cacheAppIcon(appConfig.packageName, onlineIcon)
+            return onlineIcon
+        }
+
+        // 4. 尝试从APK文件提取图标
+        val apkIcon = getIconFromAPK(appConfig.packageName)
+        if (apkIcon != null) {
+            cacheAppIcon(appConfig.packageName, apkIcon)
+            return apkIcon
+        }
+
+        // 5. 最后使用字母图标
+        return generateLetterIcon(appConfig)
+    }
+
+    /**
+     * 根据应用ID获取自定义图标资源ID
+     */
+    private fun getCustomIconResourceId(appId: String): Int {
+        return when (appId) {
+            "qqmusic" -> R.drawable.ic_qqmusic
+            "netease_music" -> R.drawable.ic_netease_music
+            "eleme" -> R.drawable.ic_eleme
+            "douban" -> R.drawable.ic_douban
+            "gaode_map" -> R.drawable.ic_gaode_map
+            "baidu_map" -> R.drawable.ic_baidu_map
+            "quark" -> R.drawable.ic_quark
+            "uc_browser" -> R.drawable.ic_uc_browser
+            "alipay" -> R.drawable.ic_alipay
+            // 对于没有专用图标的应用，返回0，将使用字母图标
+            else -> 0
+        }
+    }
+
+    /**
+     * 生成字母图标
+     */
+    private fun generateLetterIcon(appConfig: AppSearchConfig): Drawable? {
+        return try {
+            val letter = appConfig.appName.firstOrNull()?.toString()?.uppercase() ?: "A"
+            val color = getAppBrandColor(appConfig.appId)
+
+            // 创建bitmap
+            val size = 96 // 48dp * 2 for better quality
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+
+            // 绘制圆形背景
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+            paint.color = color
+            canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+
+            // 绘制字母
+            paint.color = Color.WHITE
+            paint.textSize = size * 0.5f
+            paint.textAlign = Paint.Align.CENTER
+            paint.typeface = Typeface.DEFAULT_BOLD
+
+            val textBounds = Rect()
+            paint.getTextBounds(letter, 0, letter.length, textBounds)
+            val textY = size / 2f + textBounds.height() / 2f
+
+            canvas.drawText(letter, size / 2f, textY, paint)
+
+            BitmapDrawable(context.resources, bitmap)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 获取应用品牌色彩
+     */
+    private fun getAppBrandColor(appId: String): Int {
+        return when (appId) {
+            "qqmusic" -> Color.parseColor("#31C27C")
+            "netease_music" -> Color.parseColor("#D33A31")
+            "eleme" -> Color.parseColor("#0099FF")
+            "douban" -> Color.parseColor("#00B51D")
+            "gaode_map" -> Color.parseColor("#00A6FB")
+            "baidu_map" -> Color.parseColor("#2932E1")
+            "quark" -> Color.parseColor("#4A90E2")
+            "uc_browser" -> Color.parseColor("#FF6600")
+            "alipay" -> Color.parseColor("#00A0E9")
+            "wechat_pay" -> Color.parseColor("#07C160")
+            "cmb" -> Color.parseColor("#D32F2F")
+            "antfortune" -> Color.parseColor("#1976D2")
+            "didi" -> Color.parseColor("#FF6600")
+            "railway12306" -> Color.parseColor("#1976D2")
+            "ctrip" -> Color.parseColor("#0099FF")
+            "qunar" -> Color.parseColor("#00C853")
+            "hellobike" -> Color.parseColor("#00BCD4")
+            "boss" -> Color.parseColor("#00C853")
+            "liepin" -> Color.parseColor("#FF6600")
+            "zhaopin" -> Color.parseColor("#1976D2")
+            "youdao_dict" -> Color.parseColor("#D32F2F")
+            "baicizhan" -> Color.parseColor("#00C853")
+            "zuoyebang" -> Color.parseColor("#0099FF")
+            "yuansouti" -> Color.parseColor("#FF6600")
+            "netease_news" -> Color.parseColor("#D33A31")
+            else -> Color.parseColor("#757575") // 默认灰色
+        }
+    }
+
+    /**
+     * 从本地缓存获取应用图标
+     */
+    private fun getCachedAppIcon(packageName: String): Drawable? {
+        return try {
+            val cacheDir = File(context.cacheDir, "app_icons")
+            val iconFile = File(cacheDir, "$packageName.png")
+            if (iconFile.exists()) {
+                val bitmap = BitmapFactory.decodeFile(iconFile.absolutePath)
+                if (bitmap != null) {
+                    BitmapDrawable(context.resources, bitmap)
+                } else null
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 缓存应用图标到本地
+     */
+    private fun cacheAppIcon(packageName: String, drawable: Drawable) {
+        try {
+            val cacheDir = File(context.cacheDir, "app_icons")
+            if (!cacheDir.exists()) {
+                cacheDir.mkdirs()
+            }
+
+            val iconFile = File(cacheDir, "$packageName.png")
+            val bitmap = drawableToBitmap(drawable)
+
+            FileOutputStream(iconFile).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 90, out)
+            }
+        } catch (e: Exception) {
+            // 缓存失败不影响主要功能
+        }
+    }
+
+    /**
+     * 将Drawable转换为Bitmap
+     */
+    private fun drawableToBitmap(drawable: Drawable): Bitmap {
+        if (drawable is BitmapDrawable) {
+            return drawable.bitmap
+        }
+
+        val bitmap = Bitmap.createBitmap(
+            drawable.intrinsicWidth.takeIf { it > 0 } ?: 96,
+            drawable.intrinsicHeight.takeIf { it > 0 } ?: 96,
+            Bitmap.Config.ARGB_8888
+        )
+
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        return bitmap
+    }
+
+    /**
+     * 从在线图标库获取应用图标
+     */
+    private fun getOnlineAppIcon(appConfig: AppSearchConfig): Drawable? {
+        return try {
+            // 方法1: 从Google Play Store获取图标
+            val playStoreIcon = getIconFromPlayStore(appConfig.packageName)
+            if (playStoreIcon != null) return playStoreIcon
+
+            // 方法2: 从应用市场API获取图标
+            val marketIcon = getIconFromAppMarket(appConfig.packageName)
+            if (marketIcon != null) return marketIcon
+
+            // 方法3: 从图标数据库获取图标
+            val dbIcon = getIconFromIconDatabase(appConfig.appName, appConfig.packageName)
+            if (dbIcon != null) return dbIcon
+
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 从Google Play Store获取应用图标
+     */
+    private fun getIconFromPlayStore(packageName: String): Drawable? {
+        return try {
+            // 构建Google Play Store图标URL
+            val iconUrl = "https://play-lh.googleusercontent.com/apps/$packageName/icon"
+            downloadImageFromUrl(iconUrl)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 从应用市场API获取图标
+     */
+    private fun getIconFromAppMarket(packageName: String): Drawable? {
+        return try {
+            // 可以使用多个应用市场的API
+            val urls = listOf(
+                "https://api.appstore.com/v1/apps/$packageName/icon",
+                "https://api.apkpure.com/v1/apps/$packageName/icon",
+                "https://api.coolapk.com/v6/apk/$packageName/icon"
+            )
+
+            for (url in urls) {
+                val icon = downloadImageFromUrl(url)
+                if (icon != null) return icon
+            }
+
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 从图标数据库获取图标
+     */
+    private fun getIconFromIconDatabase(appName: String, packageName: String): Drawable? {
+        return try {
+            // 使用预定义的图标映射数据库
+            val iconMapping = getIconMappingDatabase()
+            val iconUrl = iconMapping[packageName] ?: iconMapping[appName.lowercase()]
+
+            if (iconUrl != null) {
+                downloadImageFromUrl(iconUrl)
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 获取图标映射数据库
+     */
+    private fun getIconMappingDatabase(): Map<String, String> {
+        return mapOf(
+            // 音乐类
+            "com.tencent.qqmusic" to "https://cdn.jsdelivr.net/gh/appicons/icons/qqmusic.png",
+            "com.netease.cloudmusic" to "https://cdn.jsdelivr.net/gh/appicons/icons/netease-music.png",
+
+            // 生活服务类
+            "me.ele" to "https://cdn.jsdelivr.net/gh/appicons/icons/eleme.png",
+            "com.douban.frodo" to "https://cdn.jsdelivr.net/gh/appicons/icons/douban.png",
+
+            // 地图导航类
+            "com.autonavi.minimap" to "https://cdn.jsdelivr.net/gh/appicons/icons/gaode-map.png",
+            "com.baidu.BaiduMap" to "https://cdn.jsdelivr.net/gh/appicons/icons/baidu-map.png",
+
+            // 浏览器类
+            "com.quark.browser" to "https://cdn.jsdelivr.net/gh/appicons/icons/quark.png",
+            "com.UCMobile" to "https://cdn.jsdelivr.net/gh/appicons/icons/uc-browser.png",
+
+            // 金融类
+            "com.eg.android.AlipayGphone" to "https://cdn.jsdelivr.net/gh/appicons/icons/alipay.png",
+            "com.tencent.mm" to "https://cdn.jsdelivr.net/gh/appicons/icons/wechat.png",
+
+            // 出行类
+            "com.sdu.didi.psnger" to "https://cdn.jsdelivr.net/gh/appicons/icons/didi.png",
+            "com.MobileTicket" to "https://cdn.jsdelivr.net/gh/appicons/icons/12306.png",
+
+            // 招聘类
+            "com.hpbr.bosszhipin" to "https://cdn.jsdelivr.net/gh/appicons/icons/boss.png",
+            "com.liepin.android" to "https://cdn.jsdelivr.net/gh/appicons/icons/liepin.png",
+
+            // 教育类
+            "com.youdao.dict" to "https://cdn.jsdelivr.net/gh/appicons/icons/youdao.png",
+            "com.baidu.homework" to "https://cdn.jsdelivr.net/gh/appicons/icons/zuoyebang.png"
+        )
+    }
+
+    /**
+     * 从APK文件提取图标
+     */
+    private fun getIconFromAPK(packageName: String): Drawable? {
+        return try {
+            // 尝试从系统中获取未安装应用的信息
+            val pm = context.packageManager
+            val appInfo = pm.getApplicationInfo(packageName, PackageManager.GET_UNINSTALLED_PACKAGES)
+            pm.getApplicationIcon(appInfo)
+        } catch (e: Exception) {
+            // 如果无法直接获取，尝试其他方法
+            try {
+                // 尝试从APK文件路径获取
+                val apkPath = getAPKPath(packageName)
+                if (apkPath != null) {
+                    extractIconFromAPK(apkPath)
+                } else null
+            } catch (e2: Exception) {
                 null
             }
+        }
+    }
+
+    /**
+     * 获取APK文件路径
+     */
+    private fun getAPKPath(packageName: String): String? {
+        return try {
+            val pm = context.packageManager
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            appInfo.sourceDir
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 从APK文件提取图标
+     */
+    private fun extractIconFromAPK(apkPath: String): Drawable? {
+        return try {
+            val pm = context.packageManager
+            val packageInfo = pm.getPackageArchiveInfo(apkPath, PackageManager.GET_ACTIVITIES)
+            packageInfo?.applicationInfo?.let { appInfo ->
+                appInfo.sourceDir = apkPath
+                appInfo.publicSourceDir = apkPath
+                pm.getApplicationIcon(appInfo)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 从URL下载图片
+     */
+    private fun downloadImageFromUrl(url: String): Drawable? {
+        return try {
+            // 注意：这里应该在后台线程中执行
+            // 为了演示，这里使用同步方式，实际应用中应该使用异步
+            val connection = java.net.URL(url).openConnection()
+            connection.connectTimeout = 5000
+            connection.readTimeout = 10000
+            connection.connect()
+
+            val inputStream = connection.getInputStream()
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream.close()
+
+            if (bitmap != null) {
+                BitmapDrawable(context.resources, bitmap)
+            } else null
         } catch (e: Exception) {
             null
         }
