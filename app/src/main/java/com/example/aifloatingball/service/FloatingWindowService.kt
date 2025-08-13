@@ -43,6 +43,7 @@ import androidx.core.app.NotificationCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsActivity
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.SimpleModeActivity
 import com.example.aifloatingball.VoiceRecognitionActivity
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.AppSearchConfig
@@ -785,8 +786,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     }
 
     private fun openSettings() {
-        val intent = Intent(this, SettingsActivity::class.java).apply {
+        val intent = Intent(this, SimpleModeActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("open_settings", true)
         }
         startActivity(intent)
         hideSearchInterface()

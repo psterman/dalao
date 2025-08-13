@@ -1234,25 +1234,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val displayModeAdapter = ArrayAdapter.createFromResource(
             this,
             R.array.display_mode_entries,
-            R.layout.dropdown_item
+            R.layout.spinner_item
         ).apply {
             setDropDownViewResource(R.layout.dropdown_item)
         }
         displayModeSpinner.adapter = displayModeAdapter
+        Log.d(TAG, "显示模式Spinner适配器已设置，项目数量: ${displayModeAdapter.count}")
 
         val themeAdapter = ArrayAdapter.createFromResource(
             this,
             R.array.theme_mode_entries,
-            R.layout.dropdown_item
+            R.layout.spinner_item
         ).apply {
             setDropDownViewResource(R.layout.dropdown_item)
         }
         themeModeSpinner.adapter = themeAdapter
+        Log.d(TAG, "主题模式Spinner适配器已设置，项目数量: ${themeAdapter.count}")
 
         val windowCountAdapter = ArrayAdapter.createFromResource(
             this,
             R.array.window_count_entries,
-            R.layout.dropdown_item
+            R.layout.spinner_item
         ).apply {
             setDropDownViewResource(R.layout.dropdown_item)
         }
@@ -1284,6 +1286,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             "simple_mode" -> {
                                 // 已经在简易模式，无需切换，但需要更新设置可见性
                                 Log.d(TAG, "Already in simple mode")
+                                // 恢复悬浮球默认点击行为
+                                settingsManager.putString("action_ball_click", "floating_menu")
                                 updateFloatingBallSettingsVisibility()
                             }
                         }
@@ -1485,8 +1489,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 检测语音支持情况并更新UI
         detectAndUpdateVoiceSupport()
 
-        // 在设置完所有适配器和监听器后，加载当前设置
-        loadSettings()
+        // 在设置完所有适配器和监听器后，延迟加载当前设置以确保UI完全初始化
+        Handler(Looper.getMainLooper()).post {
+            loadSettings()
+        }
     }
 
     /**
@@ -1805,14 +1811,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 加载显示模式
             val currentDisplayMode = settingsManager.getDisplayMode()
             val displayModeValues = resources.getStringArray(R.array.display_mode_values)
+            val displayModeEntries = resources.getStringArray(R.array.display_mode_entries)
             val displayModeIndex = displayModeValues.indexOf(currentDisplayMode)
+
+            Log.d(TAG, "当前显示模式: $currentDisplayMode")
+            Log.d(TAG, "显示模式值数组: ${displayModeValues.joinToString(", ")}")
+            Log.d(TAG, "显示模式条目数组: ${displayModeEntries.joinToString(", ")}")
+            Log.d(TAG, "显示模式索引: $displayModeIndex")
+
             if (displayModeIndex != -1) {
                 displayModeSpinner.setSelection(displayModeIndex, false)
+                Log.d(TAG, "设置显示模式Spinner选择: $displayModeIndex (${displayModeEntries.getOrNull(displayModeIndex)})")
+
+                // 验证设置是否成功，如果失败则强制刷新
+                displayModeSpinner.post {
+                    val actualSelection = displayModeSpinner.selectedItemPosition
+                    Log.d(TAG, "显示模式Spinner实际选择: $actualSelection")
+                    if (actualSelection != displayModeIndex) {
+                        Log.w(TAG, "显示模式Spinner选择失败，尝试强制设置")
+                        displayModeSpinner.setSelection(displayModeIndex, true)
+                    }
+                }
+            } else {
+                // 数据被旧版本写坏或缺失时，回退到第一个选项并写回
+                displayModeSpinner.setSelection(0, false)
+                if (displayModeValues.isNotEmpty()) {
+                    settingsManager.setDisplayMode(displayModeValues[0])
+                }
+                Log.d(TAG, "显示模式索引无效，回退到第一个选项")
             }
 
             // 加载主题设置
             val themeMode = settingsManager.getThemeMode()
-            Log.d(TAG, "Loading theme mode: $themeMode")
+            val themeEntries = resources.getStringArray(R.array.theme_mode_entries)
+            Log.d(TAG, "当前主题模式: $themeMode")
+            Log.d(TAG, "主题模式条目数组: ${themeEntries.joinToString(", ")}")
 
             // 修复主题模式加载映射：
             // 常量值 → 数组索引：
@@ -1826,8 +1859,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 else -> 0 // 默认跟随系统
             }
 
-            Log.d(TAG, "Setting theme spinner to index: $themeIndex")
+            Log.d(TAG, "设置主题模式Spinner选择: $themeIndex (${themeEntries.getOrNull(themeIndex)})")
             themeModeSpinner.setSelection(themeIndex, false)
+
+            // 验证设置是否成功，如果失败则强制刷新
+            themeModeSpinner.post {
+                val actualSelection = themeModeSpinner.selectedItemPosition
+                Log.d(TAG, "主题模式Spinner实际选择: $actualSelection")
+                if (actualSelection != themeIndex) {
+                    Log.w(TAG, "主题模式Spinner选择失败，尝试强制设置")
+                    themeModeSpinner.setSelection(themeIndex, true)
+                }
+            }
 
             // 加载开关状态
             clipboardMonitorSwitch.isChecked = settingsManager.isClipboardListenerEnabled()
@@ -1844,7 +1887,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
 
             // 加载窗口数量设置
-            val windowCount = settingsManager.getDefaultWindowCount()
+            val windowCount = settingsManager.getDefaultWindowCount().coerceIn(1, resources.getStringArray(R.array.window_count_entries).size)
             windowCountSpinner.setSelection(windowCount - 1) // 转换为0-based索引
 
             // 立即应用左手模式
@@ -3640,6 +3683,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 stopService(Intent(this, SimpleModeService::class.java))
             }
 
+            // 设置悬浮球点击行为为打开设置页面
+            settingsManager.putString("action_ball_click", "settings")
+            Log.d(TAG, "设置悬浮球点击行为为打开设置页面")
+
             // 检查悬浮窗权限
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
                 // 启动悬浮球服务
@@ -3676,6 +3723,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (SimpleModeService.isRunning(this)) {
                 stopService(Intent(this, SimpleModeService::class.java))
             }
+
+            // 恢复悬浮球默认点击行为（以防之前设置过）
+            settingsManager.putString("action_ball_click", "floating_menu")
 
             // 检查悬浮窗权限
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
@@ -8820,7 +8870,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val modelNames = aiModels.map { it.first }.toTypedArray()
 
             // 设置Spinner适配器 - 使用自定义布局支持暗色模式
-            val spinnerAdapter = ArrayAdapter(this, R.layout.dropdown_item, modelNames)
+            val spinnerAdapter = ArrayAdapter(this, R.layout.spinner_item, modelNames)
             spinnerAdapter.setDropDownViewResource(R.layout.dropdown_item)
             aiModelSpinner.adapter = spinnerAdapter
 
@@ -11685,6 +11735,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun handleWidgetIntent(intent: Intent?) {
         intent?.let {
             try {
+                // 检查是否需要直接跳转到设置页面
+                val openSettings = it.getBooleanExtra("open_settings", false)
+                if (openSettings) {
+                    Log.d(TAG, "收到打开设置页面的请求")
+                    Handler(Looper.getMainLooper()).post {
+                        showSettings()
+                    }
+                    return
+                }
+
                 val source = it.getStringExtra("source")
                 if (source?.contains("桌面小组件") == true) {
                     Log.d(TAG, "收到来自桌面小组件的请求: source=$source")
