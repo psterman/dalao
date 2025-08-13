@@ -211,7 +211,6 @@
 
     <string name="title_activity_settings">设置</string>
     <string name="title_activity_sub_settings">子设置</string>
-    <string name="search_widget_description">在主屏幕上快速搜索</string>
     <string name="nav_header_subtitle">android.studio@android.com</string>
     <string name="nav_header_desc">Navigation header</string>
     <string name="action_settings">设置</string>
@@ -228,5 +227,20 @@
     <string name="personalization_title">个性化设置</string>
     <string name="personalization_summary">配置您的个人信息，帮助AI更好地理解您的需求</string>
     <string name="prompt_education_summary">您的最高学历</string>
+
+    <!-- 小组件相关字符串 -->
+    <string name="search_widget_description">AI悬浮球搜索小组件</string>
+    <string name="enhanced_search_widget_description">AI悬浮球增强搜索小组件 - 支持AI对话、应用搜索、网络搜索</string>
+    <string name="widget_ai_chat">AI对话</string>
+    <string name="widget_app_search">应用搜索</string>
+    <string name="widget_web_search">网络搜索</string>
+    <string name="widget_input_hint">点击输入搜索内容</string>
+    <string name="widget_brand_text">AI悬浮球搜索助手</string>
+
+    <!-- 独立小组件描述 -->
+    <string name="ai_chat_widget_description">AI对话小组件 - 快速启动智能助手对话</string>
+    <string name="app_search_widget_description">应用搜索小组件 - 快速查找手机应用</string>
+    <string name="web_search_widget_description">网络搜索小组件 - 快速进行在线搜索</string>
+    <string name="customizable_widget_description">智能定制小组件 - 可自定义AI助手、应用和搜索引擎</string>
 
 </resources>

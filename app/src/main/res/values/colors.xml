@@ -48,6 +48,41 @@
 
     <!-- Material Theme -->
     <color name="material_background_light">#F5F5F5</color>
+
+    <!-- =============================================================== -->
+    <!-- =================== WIDGET COLORS ========================== -->
+    <!-- =============================================================== -->
+
+    <!-- Widget Background Colors -->
+    <color name="widget_background_color">#F8F9FA</color>
+    <color name="widget_border_color">#E1E5E9</color>
+
+    <!-- Widget Input Colors -->
+    <color name="widget_input_background_color">#FFFFFF</color>
+    <color name="widget_input_border_color">#D1D5DB</color>
+    <color name="widget_hint_color">#6B7280</color>
+
+    <!-- Widget Button Colors -->
+    <color name="widget_button_normal_color">#FFFFFF</color>
+    <color name="widget_button_pressed_color">#F3F4F6</color>
+    <color name="widget_button_border_color">#E5E7EB</color>
+
+    <!-- Widget Icon Colors -->
+    <color name="widget_icon_color">#6B7280</color>
+    <color name="widget_ai_color">#8B5CF6</color>
+    <color name="widget_app_color">#10B981</color>
+    <color name="widget_web_color">#3B82F6</color>
+
+    <!-- Widget Text Colors -->
+    <color name="widget_text_color">#374151</color>
+    <color name="widget_brand_color">#6366F1</color>
+    <color name="widget_text_primary">#1F2937</color>
+    <color name="widget_text_secondary">#6B7280</color>
+
+    <!-- Widget Interaction Colors -->
+    <color name="widget_icon_background">#FFFFFF</color>
+    <color name="widget_accent_color">#6366F1</color>
+    <color name="widget_ripple_color">#226366F1</color>
     <color name="material_background_dark">#212121</color>
     <color name="material_text_light">#212121</color>
     <color name="material_text_dark">#FFFFFF</color>
@@ -74,6 +109,7 @@
     <color name="teal_700">#FF018786</color>
     <color name="divider">#BDBDBD</color>
     <color name="background">#FFFFFF</color>
+    <color name="background_primary">#F5F5F5</color>
     <color name="text_primary">#212121</color>
     <color name="text_secondary">#757575</color>
 

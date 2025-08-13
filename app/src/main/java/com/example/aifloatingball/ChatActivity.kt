@@ -2,6 +2,7 @@ package com.example.aifloatingball
 
 import android.content.Context
 import android.content.Intent
+import android.view.inputmethod.InputMethodManager
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -84,6 +85,9 @@ class ChatActivity : AppCompatActivity() {
         loadContactData()
         setupListeners()
         loadInitialMessages()
+
+        // 处理从小组件传入的自动发送消息
+        handleAutoSendMessage()
     }
 
     private fun initializeViews() {
@@ -1607,5 +1611,51 @@ class ChatActivity : AppCompatActivity() {
         super.onResume()
         // 页面恢复时更新API状态
         updateApiStatusIndicator()
+    }
+
+    /**
+     * 处理从小组件传入的自动发送消息
+     */
+    private fun handleAutoSendMessage() {
+        try {
+            val autoSendMessage = intent.getStringExtra("auto_send_message")
+            val activateInputOnly = intent.getBooleanExtra("activate_input_only", false)
+            val source = intent.getStringExtra("source")
+
+            if (!autoSendMessage.isNullOrEmpty()) {
+                Log.d(TAG, "收到自动发送消息请求: message='$autoSendMessage', source='$source'")
+
+                // 延迟一下确保界面完全加载
+                messageInput.postDelayed({
+                    // 设置消息到输入框
+                    messageInput.setText(autoSendMessage)
+
+                    // 自动发送消息
+                    sendMessage()
+
+                    // 显示提示
+                    if (source?.contains("桌面小组件") == true) {
+                        Toast.makeText(this, "来自桌面小组件的搜索", Toast.LENGTH_SHORT).show()
+                    }
+                }, 500)
+            } else if (activateInputOnly) {
+                Log.d(TAG, "收到激活输入状态请求: source='$source'")
+
+                // 延迟一下确保界面完全加载，然后激活输入状态
+                messageInput.postDelayed({
+                    // 请求焦点并显示键盘
+                    messageInput.requestFocus()
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+
+                    // 显示提示
+                    if (source?.contains("桌面小组件") == true) {
+                        Toast.makeText(this, "请输入您的问题", Toast.LENGTH_SHORT).show()
+                    }
+                }, 500)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理自动发送消息失败", e)
+        }
     }
 }

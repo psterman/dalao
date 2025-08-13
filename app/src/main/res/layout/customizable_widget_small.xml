@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@drawable/widget_background"
+    android:padding="8dp">
+
+    <!-- 搜索框 -->
+    <LinearLayout
+        android:id="@+id/widget_search_box"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:background="@drawable/search_box_background"
+        android:gravity="center_vertical"
+        android:paddingLeft="12dp"
+        android:paddingRight="8dp"
+        android:layout_marginRight="8dp">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_search"
+            android:tint="@color/text_secondary" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="搜索..."
+            android:textSize="14sp"
+            android:textColor="@color/text_secondary"
+            android:layout_marginLeft="8dp"
+            android:singleLine="true" />
+
+    </LinearLayout>
+
+    <!-- 应用图标区域 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <!-- AI引擎图标 -->
+        <ImageView
+            android:id="@+id/ai_icon_1"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginRight="4dp"
+            android:background="@drawable/icon_background"
+            android:padding="6dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_zhipu" />
+
+        <ImageView
+            android:id="@+id/ai_icon_2"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginRight="4dp"
+            android:background="@drawable/icon_background"
+            android:padding="6dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_deepseek" />
+
+        <!-- 应用图标 -->
+        <ImageView
+            android:id="@+id/app_icon_1"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginRight="4dp"
+            android:background="@drawable/icon_background"
+            android:padding="6dp"
+            android:scaleType="centerInside"
+            android:visibility="gone" />
+
+        <!-- 搜索引擎图标 -->
+        <ImageView
+            android:id="@+id/search_icon_1"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/icon_background"
+            android:padding="6dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_baidu" />
+
+    </LinearLayout>
+
+</LinearLayout>

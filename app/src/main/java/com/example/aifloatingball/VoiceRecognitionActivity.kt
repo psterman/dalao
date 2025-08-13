@@ -388,45 +388,21 @@ class VoiceRecognitionActivity : Activity() {
     }
 
     private fun showVoiceRecognitionNotAvailableDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("语音服务不可用")
-            .setMessage("您的设备没有可用的语音识别服务。您可以：\n\n1. 安装或启用语音输入应用（如搜狗输入法、百度输入法等）\n2. 安装Google应用\n3. 检查系统设置中的语音输入选项")
-            .setPositiveButton("手动输入") { dialog, _ ->
-                // 允许用户手动输入文本
-                listeningText.text = "请在下方输入文本，然后点击'说完了'"
-                micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
-                recognizedTextView.requestFocus()
-                
-                // 显示键盘
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(recognizedTextView, InputMethodManager.SHOW_IMPLICIT)
-                
-                // 确保"说完了"按钮可用
-                doneButton.isEnabled = true
-                Log.d(TAG, "切换到手动输入模式")
-            }
-            .setNegativeButton("前往商店") { dialog, _ ->
-                try {
-                    // 优先尝试打开应用商店搜索语音输入应用
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=语音输入"))
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(intent)
-                } catch (e: ActivityNotFoundException) {
-                    try {
-                        // 如果没有应用商店，尝试Google Play商店
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=语音输入"))
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(intent)
-                    } catch (e2: Exception) {
-                        Toast.makeText(this, "无法打开应用商店", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                finish()
-            }
-            .setOnCancelListener {
-                finish()
-            }
-            .show()
+        // 不再显示弹窗，直接切换到手动输入模式
+        Log.d(TAG, "语音识别不可用，自动切换到手动输入模式")
+
+        // 允许用户手动输入文本
+        listeningText.text = "请在下方输入文本，然后点击'说完了'"
+        micContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+        recognizedTextView.requestFocus()
+
+        // 显示键盘
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(recognizedTextView, InputMethodManager.SHOW_IMPLICIT)
+
+        // 确保"说完了"按钮可用
+        doneButton.isEnabled = true
+        Log.d(TAG, "已切换到手动输入模式")
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

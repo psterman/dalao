@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:background="@drawable/widget_background">
+
+    <!-- 搜索输入区域 -->
+    <LinearLayout
+        android:id="@+id/search_widget_input_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/search_input_background"
+        android:padding="8dp"
+        android:gravity="center_vertical">
+        
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_search"
+            android:tint="@color/widget_icon_color"
+            android:layout_marginEnd="8dp" />
+        
+        <TextView
+            android:id="@+id/search_widget_input_hint"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="点击输入搜索内容"
+            android:textSize="14sp"
+            android:textColor="@color/widget_hint_color"
+            android:maxLines="1"
+            android:ellipsize="end" />
+            
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_keyboard"
+            android:tint="@color/widget_icon_color"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
+    <!-- 功能按钮区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp"
+        android:gravity="center">
+        
+        <!-- AI对话按钮 -->
+        <LinearLayout
+            android:id="@+id/ai_chat_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="@drawable/widget_button_background"
+            android:layout_marginEnd="4dp">
+            
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_ai_chat"
+                android:tint="@color/widget_ai_color" />
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AI对话"
+                android:textSize="11sp"
+                android:textColor="@color/widget_text_color"
+                android:layout_marginTop="4dp"
+                android:textStyle="bold" />
+        </LinearLayout>
+        
+        <!-- 应用搜索按钮 -->
+        <LinearLayout
+            android:id="@+id/app_search_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="@drawable/widget_button_background"
+            android:layout_marginStart="2dp"
+            android:layout_marginEnd="2dp">
+            
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_app_search"
+                android:tint="@color/widget_app_color" />
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="应用搜索"
+                android:textSize="11sp"
+                android:textColor="@color/widget_text_color"
+                android:layout_marginTop="4dp"
+                android:textStyle="bold" />
+        </LinearLayout>
+        
+        <!-- 网络搜索按钮 -->
+        <LinearLayout
+            android:id="@+id/web_search_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="12dp"
+            android:background="@drawable/widget_button_background"
+            android:layout_marginStart="4dp">
+            
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_web_search"
+                android:tint="@color/widget_web_color" />
+                
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="网络搜索"
+                android:textSize="11sp"
+                android:textColor="@color/widget_text_color"
+                android:layout_marginTop="4dp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 小组件标识 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="AI悬浮球搜索助手"
+        android:textSize="9sp"
+        android:textColor="@color/widget_brand_color"
+        android:gravity="center"
+        android:layout_marginTop="4dp"
+        android:alpha="0.7" />
+
+</LinearLayout>

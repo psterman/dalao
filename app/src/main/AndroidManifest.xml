@@ -15,6 +15,43 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_CLIPBOARD" />
     <uses-permission android:name="android.permission.WRITE_CLIPBOARD" />
+
+    <!-- 小组件相关权限 -->
+    <uses-permission android:name="android.permission.BIND_APPWIDGET" />
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
+
+    <!-- 小米MIUI权限 -->
+    <uses-permission android:name="miui.permission.USE_INTERNAL_GENERAL_API" />
+    <uses-permission android:name="com.miui.home.launcher.permission.WRITE_SETTINGS" />
+
+    <!-- vivo权限 -->
+    <uses-permission android:name="com.vivo.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.bbk.launcher2.permission.WRITE_SETTINGS" />
+
+    <!-- OPPO/OnePlus权限 -->
+    <uses-permission android:name="com.oneplus.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.coloros.launcher.permission.WRITE_SETTINGS" />
+
+    <!-- 华为/荣耀权限 -->
+    <uses-permission android:name="com.huawei.android.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.hihonor.android.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.huawei.launcher3.permission.WRITE_SETTINGS" />
+
+    <!-- 魅族权限 -->
+    <uses-permission android:name="com.meizu.flyme.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.meizu.launcher.permission.WRITE_SETTINGS" />
+
+    <!-- 三星权限 -->
+    <uses-permission android:name="com.sec.android.app.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.samsung.android.app.launcher.permission.WRITE_SETTINGS" />
+
+    <!-- realme权限 -->
+    <uses-permission android:name="com.realme.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.oppo.launcher.permission.WRITE_SETTINGS" />
+
+    <!-- 通用启动器权限 -->
+    <uses-permission android:name="com.android.launcher.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="com.google.android.launcher.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     
     <application
@@ -201,7 +238,7 @@
         <activity
             android:name=".SimpleModeActivity"
             android:exported="true"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
             android:theme="@style/AppTheme.SimpleMode" />
 
         <service
@@ -276,15 +313,112 @@
         </service>
 
         <receiver android:name=".widget.SearchWidgetProvider"
-            android:exported="false">
+            android:exported="true"
+            android:enabled="true"
+            android:label="@string/enhanced_search_widget_description">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_DISABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED" />
+                <!-- 自定义Action -->
+                <action android:name="com.example.aifloatingball.WIDGET_AI_CHAT" />
+                <action android:name="com.example.aifloatingball.WIDGET_APP_SEARCH" />
+                <action android:name="com.example.aifloatingball.WIDGET_WEB_SEARCH" />
+                <action android:name="com.example.aifloatingball.WIDGET_INPUT_CLICK" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/search_widget_info" />
         </receiver>
-        
+
+        <!-- AI Chat Widget Provider -->
+        <receiver android:name=".widget.AiChatWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/ai_chat_widget_info" />
+        </receiver>
+
+        <!-- App Search Widget Provider -->
+        <receiver android:name=".widget.AppSearchWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/app_search_widget_info" />
+        </receiver>
+
+        <!-- Web Search Widget Provider -->
+        <receiver android:name=".widget.WebSearchWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/web_search_widget_info" />
+        </receiver>
+
+        <!-- 可定制小组件 -->
+        <receiver android:name="com.example.dalao.widget.CustomizableWidgetProvider"
+            android:exported="true"
+            android:enabled="true"
+            android:label="智能定制小组件">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_DISABLED" />
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED" />
+                <!-- 自定义Action -->
+                <action android:name="com.example.aifloatingball.WIDGET_CLICK" />
+                <action android:name="com.example.aifloatingball.WIDGET_SEARCH_CLICK" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/customizable_widget_info" />
+        </receiver>
+
+        <!-- 可定制小组件配置Activity -->
+        <activity
+            android:name="com.example.dalao.widget.WidgetConfigActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Light"
+            android:label="小组件配置">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- 小组件演示Activity -->
+        <activity
+            android:name="com.example.dalao.widget.WidgetDemoActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Light"
+            android:label="小组件演示" />
+
+        <!-- 小组件配置Activity -->
+        <activity
+            android:name=".widget.WidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Light.Dialog"
+            android:label="配置搜索小组件">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- 小组件帮助Activity -->
+        <activity
+            android:name=".widget.WidgetHelpActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Light"
+            android:label="小组件使用帮助" />
+
         <!-- 测试活动 - 移除启动器注册，避免在桌面显示 -->
         <activity
             android:name=".TestMinimizeActivity"

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="150dp"
+    android:viewportWidth="200"
+    android:viewportHeight="150">
+
+    <!-- 手机轮廓 -->
+    <path
+        android:fillColor="@color/widget_border_color"
+        android:pathData="M50,20 L150,20 Q160,20 160,30 L160,120 Q160,130 150,130 L50,130 Q40,130 40,120 L40,30 Q40,20 50,20 Z" />
+
+    <!-- 屏幕 -->
+    <path
+        android:fillColor="@color/widget_background_color"
+        android:pathData="M45,25 L155,25 L155,125 L45,125 Z" />
+
+    <!-- 小组件示意 -->
+    <path
+        android:fillColor="@color/widget_ai_color"
+        android:pathData="M60,60 L140,60 Q148,60 148,68 L148,82 Q148,90 140,90 L60,90 Q52,90 52,82 L52,68 Q52,60 60,60 Z" />
+
+    <!-- 手指点击示意 -->
+    <path
+        android:fillColor="@color/widget_brand_color"
+        android:pathData="M170,35 Q185,35 185,50 Q185,65 170,65 Q155,65 155,50 Q155,35 170,35 Z" />
+
+    <!-- 箭头 -->
+    <path
+        android:fillColor="@color/widget_brand_color"
+        android:pathData="M160,45 L165,50 L160,55 L155,50 Z" />
+
+</vector>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="150dp"
+    android:viewportWidth="200"
+    android:viewportHeight="150">
+    
+    <!-- vivo风格背景 -->
+    <path
+        android:fillColor="#4285F4"
+        android:pathData="M0,0 L200,0 L200,150 L0,150 Z" />
+
+    <!-- 手机轮廓 -->
+    <path
+        android:fillColor="@color/widget_border_color"
+        android:pathData="M50,20 L150,20 Q160,20 160,30 L160,120 Q160,130 150,130 L50,130 Q40,130 40,120 L40,30 Q40,20 50,20 Z" />
+
+    <!-- 屏幕 -->
+    <path
+        android:fillColor="@color/widget_background_color"
+        android:pathData="M45,25 L155,25 L155,125 L45,125 Z" />
+
+    <!-- 原子组件区域 -->
+    <path
+        android:fillColor="#4285F4"
+        android:pathData="M55,55 L145,55 Q157,55 157,67 L157,78 Q157,90 145,90 L55,90 Q43,90 43,78 L43,67 Q43,55 55,55 Z" />
+
+    <!-- 原子图标 - 外圆 -->
+    <path
+        android:fillColor="#4285F4"
+        android:pathData="M75,66 Q81,66 81,72 Q81,78 75,78 Q69,78 69,72 Q69,66 75,66 Z" />
+
+    <!-- 原子图标 - 内圆 -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M75,69 Q78,69 78,72 Q78,75 75,75 Q72,75 72,72 Q72,69 75,69 Z" />
+
+    <!-- 文字提示 -->
+    <path
+        android:fillColor="@color/widget_text_color"
+        android:pathData="M90,70 L135,70 Q137,70 137,72 L137,72 Q137,74 135,74 L90,74 Q88,74 88,72 L88,72 Q88,70 90,70 Z" />
+    
+</vector>

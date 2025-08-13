@@ -8,6 +8,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.Context
+import android.content.res.ColorStateList
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.voice.VoiceInputManager
@@ -20,6 +21,7 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.text.TextWatcher
 import android.util.Log
+import android.widget.Toast
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -82,6 +84,7 @@ import android.content.IntentFilter
 import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
+import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.voice.VoicePromptBranchManager
 import com.example.aifloatingball.webview.MultiPageWebViewManager
 import com.example.aifloatingball.webview.CardWebViewManager
@@ -399,6 +402,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 注册API密钥同步广播接收器
         setupApiKeySyncReceiver()
 
+        // 处理从小组件传入的参数
+        handleWidgetIntent(intent)
+
         // 注册添加AI联系人广播接收器
         setupAddAIContactReceiver()
 
@@ -423,6 +429,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         super.onConfigurationChanged(newConfig)
         // 配置变化时重新应用颜色
         updateUIColors()
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        Log.d(TAG, "onNewIntent called")
+
+        // 更新当前Intent
+        setIntent(intent)
+
+        // 处理新的小组件Intent
+        handleWidgetIntent(intent)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -549,6 +566,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新对话页面颜色
             updateChatPageColors()
 
+            // 更新软件tab页面颜色
+            updateAppSearchPageColors()
+
             // 更新标题栏颜色
             updateHeaderColors()
 
@@ -622,6 +642,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<ScrollView>(R.id.voice_layout)?.setBackgroundColor(backgroundColor)
         findViewById<ScrollView>(R.id.settings_layout)?.setBackgroundColor(backgroundColor)
         findViewById<LinearLayout>(R.id.browser_layout)?.setBackgroundColor(backgroundColor)
+        findViewById<View>(R.id.app_search_layout)?.setBackgroundColor(backgroundColor)
     }
 
     /**
@@ -857,6 +878,80 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 androidx.core.content.ContextCompat.getColor(this@SimpleModeActivity, R.color.chat_tab_selected_light)
             )
             setSelectedTabIndicatorColor(androidx.core.content.ContextCompat.getColor(this@SimpleModeActivity, R.color.chat_tab_selected_light))
+        }
+    }
+
+    /**
+     * 更新软件tab页面颜色
+     */
+    private fun updateAppSearchPageColors() {
+        try {
+            val textColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_primary_light)
+            val secondaryTextColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_text_secondary_light)
+            val accentColor = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_accent_light)
+            val cardBackground = androidx.core.content.ContextCompat.getColor(this, R.color.simple_mode_card_background_light)
+
+            // 更新左侧分类导航按钮
+            val categorySidebar = findViewById<LinearLayout>(R.id.app_category_sidebar)
+            categorySidebar?.let { sidebar ->
+                updateCategorySidebarColors(sidebar, textColor, accentColor)
+            }
+
+            // 更新搜索框提示文字
+            findViewById<TextView>(R.id.app_search_hint)?.setTextColor(secondaryTextColor)
+
+            // 更新搜索输入框颜色
+            findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.app_search_input_layout)?.apply {
+                boxStrokeColor = accentColor
+                hintTextColor = ColorStateList.valueOf(secondaryTextColor)
+                setStartIconTintList(ColorStateList.valueOf(secondaryTextColor))
+                setEndIconTintList(ColorStateList.valueOf(secondaryTextColor))
+            }
+
+            // 更新搜索输入框文字颜色
+            findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.app_search_input)?.setTextColor(textColor)
+
+            // 更新卡片背景色
+            updateAppSearchCardBackgrounds(cardBackground)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "更新软件tab页面颜色失败", e)
+        }
+    }
+
+    /**
+     * 更新分类侧边栏颜色
+     */
+    private fun updateCategorySidebarColors(sidebar: LinearLayout, textColor: Int, accentColor: Int) {
+        try {
+            for (i in 0 until sidebar.childCount) {
+                val categoryView = sidebar.getChildAt(i) as? LinearLayout ?: continue
+
+                // 更新分类图标颜色
+                val iconView = categoryView.getChildAt(0) as? ImageView
+                iconView?.setColorFilter(accentColor)
+
+                // 更新分类文字颜色
+                val textView = categoryView.getChildAt(1) as? TextView
+                textView?.setTextColor(textColor)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新分类侧边栏颜色失败", e)
+        }
+    }
+
+    /**
+     * 更新软件tab页面的卡片背景色
+     */
+    private fun updateAppSearchCardBackgrounds(cardBackground: Int) {
+        try {
+            // 更新搜索框卡片背景
+            val appSearchLayout = findViewById<View>(R.id.app_search_layout)
+            appSearchLayout?.let { layout ->
+                updateCardBackgroundsRecursively(layout, cardBackground)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新软件tab卡片背景失败", e)
         }
     }
 
@@ -1135,34 +1230,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置模式切换组件 (暂时禁用)
         // setupModeSwitchWidget()
 
-        // 加载当前设置
-        loadSettings()
-
-        // 设置下拉菜单适配器
+        // 先设置下拉菜单适配器 - 使用自定义布局支持暗色模式
         val displayModeAdapter = ArrayAdapter.createFromResource(
             this,
             R.array.display_mode_entries,
-            android.R.layout.simple_spinner_item
+            R.layout.dropdown_item
         ).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            setDropDownViewResource(R.layout.dropdown_item)
         }
         displayModeSpinner.adapter = displayModeAdapter
 
         val themeAdapter = ArrayAdapter.createFromResource(
             this,
             R.array.theme_mode_entries,
-            android.R.layout.simple_spinner_item
+            R.layout.dropdown_item
         ).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            setDropDownViewResource(R.layout.dropdown_item)
         }
         themeModeSpinner.adapter = themeAdapter
 
         val windowCountAdapter = ArrayAdapter.createFromResource(
             this,
             R.array.window_count_entries,
-            android.R.layout.simple_spinner_item
+            R.layout.dropdown_item
         ).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            setDropDownViewResource(R.layout.dropdown_item)
         }
         windowCountSpinner.adapter = windowCountAdapter
 
@@ -1392,6 +1484,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 检测语音支持情况并更新UI
         detectAndUpdateVoiceSupport()
+
+        // 在设置完所有适配器和监听器后，加载当前设置
+        loadSettings()
     }
 
     /**
@@ -1423,13 +1518,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 显示不支持语音输入的提示
+     * 显示不支持语音输入的提示 - 已修改为静默处理
      */
     private fun showNoVoiceSupportHint() {
-        // 延迟显示提示，让UI先更新
-        handler.postDelayed({
-            Toast.makeText(this, "检测到设备不支持语音输入，已自动切换到文本输入模式", Toast.LENGTH_LONG).show()
-        }, 500)
+        // 不再显示Toast提示，静默切换到文本输入模式
+        Log.d(TAG, "检测到设备不支持语音输入，已自动切换到文本输入模式")
     }
 
     /**
@@ -3459,31 +3552,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 显示语音识别不可用对话框
+     * 显示语音识别不可用对话框 - 已修改为自动切换到手动输入
      */
     private fun showVoiceRecognitionNotAvailableDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("语音服务不可用")
-            .setMessage("您的设备没有可用的语音识别服务。您可以：\n\n1. 安装或启用语音输入应用（如搜狗输入法、百度输入法等）\n2. 安装Google应用\n3. 检查系统设置中的语音输入选项")
-            .setPositiveButton("手动输入") { dialog, _ ->
-                // 允许用户手动输入文本
-                voiceStatusText.text = "请在下方输入文本，然后点击搜索"
-                voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
-                voiceTextInput.requestFocus()
+        // 不再显示弹窗，直接切换到手动输入模式
+        Log.d(TAG, "语音识别不可用，自动切换到手动输入模式")
 
-                // 显示键盘
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(voiceTextInput, InputMethodManager.SHOW_IMPLICIT)
+        // 允许用户手动输入文本
+        voiceStatusText.text = "请在下方输入文本，然后点击搜索"
+        voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+        voiceTextInput.requestFocus()
 
-                // 确保搜索按钮可用
-                voiceSearchButton.isEnabled = true
-                Log.d(TAG, "切换到手动输入模式")
-                dialog.dismiss()
-            }
-            .setNegativeButton("取消") { dialog, _ ->
-                dialog.dismiss()
-            }
-            .show()
+        // 显示键盘
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(voiceTextInput, InputMethodManager.SHOW_IMPLICIT)
+
+        // 确保搜索按钮可用
+        voiceSearchButton.isEnabled = true
+        Log.d(TAG, "已切换到手动输入模式")
     }
 
     private fun executeVoiceSearch() {
@@ -5720,8 +5806,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                             when {
                                 tabPosition == 0 -> {
-                                    // "全部"标签 - 显示管理选项
-                                    showAllTabManagement()
+                                    // "全部"标签 - 不显示管理选项，避免弹窗干扰
+                                    // showAllTabManagement() // 已移除
                                 }
                                 tabPosition == 1 -> {
                                     // "AI助手"标签 - 可以重命名和删除
@@ -7832,63 +7918,84 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             availableGroups.add("AI助手")
         }
 
-        // 4. 添加所有现有的自定义分组
-        allContacts.forEach { category ->
-            if (category.name != "AI助手" &&
-                category.name != currentGroup &&
-                category.name != "未分组" &&
-                !availableGroups.contains(category.name)) {
-                availableGroups.add(category.name)
+        // 4. 只添加实际存在且有效的分组
+        val validGroups = getValidExistingGroups()
+        validGroups.forEach { groupName ->
+            if (groupName != "AI助手" &&
+                groupName != currentGroup &&
+                groupName != "未分组" &&
+                groupName != "全部" &&
+                !availableGroups.contains(groupName)) {
+                availableGroups.add(groupName)
             }
         }
 
-        // 5. 从标签页获取额外的分组
-        addGroupsFromTabs(availableGroups, currentGroup)
-
-        // 6. 如果分组太少，添加一些预设分组
+        // 5. 如果分组太少，添加一些预设分组
         if (availableGroups.size <= 1) {
             addDefaultGroups(availableGroups, currentGroup)
         }
 
-        // 7. 总是添加"创建新分组"选项
+        // 6. 总是添加"创建新分组"选项
         availableGroups.add("+ 创建新分组")
 
         return availableGroups
     }
 
     /**
-     * 确保AI助手分组存在
+     * 获取实际存在的有效分组列表
      */
-    private fun ensureAIAssistantGroupExists() {
-        val aiAssistantCategory = allContacts.find { it.name == "AI助手" }
-        if (aiAssistantCategory == null) {
-            val newAIAssistantCategory = ContactCategory(
-                name = "AI助手",
-                contacts = emptyList(),
-                isExpanded = true
-            )
-            allContacts.add(newAIAssistantCategory)
-            saveContacts()
-            Log.d(TAG, "创建了缺失的AI助手分组")
+    private fun getValidExistingGroups(): List<String> {
+        val validGroups = mutableListOf<String>()
+
+        // 从TabLayout获取当前显示的标签页（这些是实际存在的分组）
+        val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+        chatTabLayout?.let { tabLayout ->
+            for (i in 0 until tabLayout.tabCount) {
+                val tab = tabLayout.getTabAt(i)
+                val tabText = tab?.text?.toString()
+                if (tabText != null &&
+                    tabText != "+" &&
+                    tabText != "全部" &&
+                    tabText != "未分组" &&
+                    !validGroups.contains(tabText)) {
+                    validGroups.add(tabText)
+                }
+            }
         }
+
+        // 同时检查allContacts中确实存在对应的分组数据
+        val finalValidGroups = validGroups.filter { groupName ->
+            allContacts.any { it.name == groupName }
+        }
+
+        Log.d(TAG, "有效分组列表: ${finalValidGroups.joinToString(", ")}")
+        return finalValidGroups
     }
 
     /**
-     * 从标签页添加分组
+     * 确保AI助手分组存在（仅在用户未主动删除时）
      */
-    private fun addGroupsFromTabs(availableGroups: MutableList<String>, currentGroup: String?) {
-        val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
-        for (i in 2 until (chatTabLayout?.tabCount ?: 0)) {
-            val tab = chatTabLayout?.getTabAt(i)
-            val tabText = tab?.text?.toString()
-            if (tabText != null &&
-                tabText != "+" &&
-                tabText != currentGroup &&
-                !availableGroups.contains(tabText)) {
-                availableGroups.add(tabText)
+    private fun ensureAIAssistantGroupExists() {
+        // 检查用户是否主动删除了AI助手分组
+        val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
+        val isAIAssistantGroupDeleted = prefs.getBoolean("ai_assistant_group_deleted", false)
+
+        if (!isAIAssistantGroupDeleted) {
+            val aiAssistantCategory = allContacts.find { it.name == "AI助手" }
+            if (aiAssistantCategory == null) {
+                val newAIAssistantCategory = ContactCategory(
+                    name = "AI助手",
+                    contacts = emptyList(),
+                    isExpanded = true
+                )
+                allContacts.add(newAIAssistantCategory)
+                saveContacts()
+                Log.d(TAG, "创建了缺失的AI助手分组")
             }
         }
     }
+
+
 
     /**
      * 添加默认分组选项（仅在移动AI时使用，不会创建实际的空分组）
@@ -8712,9 +8819,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             val modelNames = aiModels.map { it.first }.toTypedArray()
 
-            // 设置Spinner适配器
-            val spinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, modelNames)
-            spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            // 设置Spinner适配器 - 使用自定义布局支持暗色模式
+            val spinnerAdapter = ArrayAdapter(this, R.layout.dropdown_item, modelNames)
+            spinnerAdapter.setDropDownViewResource(R.layout.dropdown_item)
             aiModelSpinner.adapter = spinnerAdapter
 
             // 设置Spinner选择监听器
@@ -9628,6 +9735,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
+            // 如果创建的是AI助手分组，清除删除标记
+            if (groupName == "AI助手") {
+                val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
+                prefs.edit().putBoolean("ai_assistant_group_deleted", false).apply()
+                Log.d(TAG, "重新创建AI助手分组，清除删除标记")
+            }
+
             // 创建新的分组
             val newCategory = ContactCategory(
                 name = groupName,
@@ -10090,103 +10204,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
-    /**
-     * 显示"全部"标签管理选项
-     */
-    private fun showAllTabManagement() {
-        try {
-            val options = arrayOf(
-                "📊 查看统计信息",
-                "🔔 设为未读"
-            )
+    // 已移除showAllTabManagement()方法 - 不再显示管理全部标签弹窗
 
-            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
-                .setTitle("管理全部标签")
-                .setItems(options) { _, which ->
-                    when (which) {
-                        0 -> showAllAIStatistics()
-                        1 -> markAllAIsAsUnread()
-                    }
-                }
-                .setNegativeButton("取消", null)
-                .show()
-        } catch (e: Exception) {
-            Log.e(TAG, "显示全部标签管理失败", e)
-        }
-    }
+    // 已移除showAllAIStatistics()方法 - 不再显示统计信息弹窗
 
-    /**
-     * 显示所有AI统计信息
-     */
-    private fun showAllAIStatistics() {
-        try {
-            val totalAIs = allContacts.sumOf { it.contacts.count { contact -> contact.type == ContactType.AI } }
-            val configuredAIs = allContacts.sumOf { category ->
-                category.contacts.count { contact ->
-                    contact.type == ContactType.AI && contact.isOnline
-                }
-            }
-            val groupCount = allContacts.size
-
-            val message = """
-                📊 AI助手统计信息
-
-                总AI数量: $totalAIs
-                已配置: $configuredAIs
-                未配置: ${totalAIs - configuredAIs}
-                分组数量: $groupCount
-
-                💡 提示：
-                • 点击右上角+号添加新AI
-                • 长按AI可移动到不同分组
-                • 双击分组标签可管理分组
-            """.trimIndent()
-
-            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
-                .setTitle("全部AI助手")
-                .setMessage(message)
-                .setPositiveButton("确定", null)
-                .show()
-        } catch (e: Exception) {
-            Log.e(TAG, "显示AI统计信息失败", e)
-        }
-    }
-
-    /**
-     * 将所有AI标记为未读
-     */
-    private fun markAllAIsAsUnread() {
-        try {
-            var totalMarked = 0
-
-            // 遍历所有分组，将AI标记为未读
-            for (i in allContacts.indices) {
-                val category = allContacts[i]
-                val updatedContacts = category.contacts.map { contact ->
-                    if (contact.type == ContactType.AI) {
-                        totalMarked++
-                        contact.copy(unreadCount = contact.unreadCount + 1)
-                    } else {
-                        contact
-                    }
-                }
-                allContacts[i] = category.copy(contacts = updatedContacts)
-            }
-
-            // 保存更改
-            saveContacts()
-
-            // 刷新显示
-            refreshCurrentTabDisplay()
-
-            Toast.makeText(this, "已将 $totalMarked 个AI助手标记为未读", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "标记所有AI为未读: $totalMarked 个")
-
-        } catch (e: Exception) {
-            Log.e(TAG, "标记所有AI为未读失败", e)
-            Toast.makeText(this, "操作失败", Toast.LENGTH_SHORT).show()
-        }
-    }
+    // 已移除markAllAIsAsUnread()方法 - 不再提供批量标记未读功能
 
     /**
      * 显示AI助手分组管理
@@ -10292,9 +10314,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 saveContacts()
             }
 
+            // 记录用户主动删除了AI助手分组
+            val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
+            prefs.edit().putBoolean("ai_assistant_group_deleted", true).apply()
+
             // 从TabLayout中移除标签
             val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
             chatTabLayout?.removeTab(tab)
+
+            // 从SharedPreferences中移除AI助手标签页配置
+            removeCustomTabFromPreferences("AI助手")
 
             // 切换到"全部"标签页
             chatTabLayout?.getTabAt(0)?.select()
@@ -10545,13 +10574,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun removeCustomTabFromPreferences(groupName: String) {
         try {
             val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
-            val customTabs = prefs.getString("custom_ai_tabs", "") ?: ""
+            val editor = prefs.edit()
 
+            // 1. 从custom_ai_tabs中移除
+            val customTabs = prefs.getString("custom_ai_tabs", "") ?: ""
             if (customTabs.isNotEmpty()) {
                 val tabNames = customTabs.split(",").toMutableList()
                 tabNames.remove(groupName)
-                prefs.edit().putString("custom_ai_tabs", tabNames.joinToString(",")).apply()
+                editor.putString("custom_ai_tabs", tabNames.joinToString(","))
             }
+
+            // 2. 从all_tab_order中移除
+            val allTabOrder = prefs.getString("all_tab_order", "") ?: ""
+            if (allTabOrder.isNotEmpty()) {
+                val allTabs = allTabOrder.split(",").toMutableList()
+                allTabs.remove(groupName)
+                editor.putString("all_tab_order", allTabs.joinToString(","))
+            }
+
+            editor.apply()
+            Log.d(TAG, "从SharedPreferences中移除标签页: $groupName")
+
         } catch (e: Exception) {
             Log.e(TAG, "从SharedPreferences中移除自定义标签页失败", e)
         }
@@ -10705,8 +10748,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 根据分组类型显示不同的管理选项
             val options = when (groupName) {
                 "全部" -> {
-                    // "全部"标签不可管理
-                    arrayOf("📊 查看统计信息")
+                    // "全部"标签只能查看信息，不可管理
+                    arrayOf("📊 查看分组信息")
                 }
                 "AI助手" -> {
                     // "AI助手"分组可以重命名、删除、置顶、标为未读
@@ -10738,7 +10781,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 .setTitle("管理分组: $groupName")
                 .setItems(options) { _, which ->
                     when (options[which]) {
-                        "📊 查看统计信息" -> showAllAIStatistics()
                         "📊 查看分组信息" -> showCategoryInfo(category)
                         "✏️ 重命名分组" -> showRenameCategoryDialog(category)
                         "📌 置顶分组" -> toggleCategoryPin(category, true)
@@ -11452,7 +11494,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
                 chatTabLayout?.apply {
                     addTab(newTab().setText("全部"))      // 显示所有用户添加的AI助手
-                    addTab(newTab().setText("AI助手"))    // 预设分组，用户可自定义移动AI到此分组
+
+                    // 只有在用户未删除AI助手分组时才添加
+                    val isAIAssistantGroupDeleted = prefs.getBoolean("ai_assistant_group_deleted", false)
+                    if (!isAIAssistantGroupDeleted) {
+                        addTab(newTab().setText("AI助手"))    // 预设分组，用户可自定义移动AI到此分组
+                    }
 
                     // 加载已保存的自定义分组标签页
                     loadCustomTabs()
@@ -11462,8 +11509,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val tabOrder = savedOrder.split(",")
                 val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
 
+                val isAIAssistantGroupDeleted = prefs.getBoolean("ai_assistant_group_deleted", false)
+
                 tabOrder.forEach { tabName ->
                     if (tabName.isNotEmpty()) {
+                        // 如果是AI助手分组且用户已删除，则跳过
+                        if (tabName == "AI助手" && isAIAssistantGroupDeleted) {
+                            return@forEach
+                        }
+
                         val newTab = chatTabLayout?.newTab()?.setText(tabName)
                         if (newTab != null) {
                             chatTabLayout.addTab(newTab)
@@ -11482,7 +11536,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                 }
 
-                if (!hasAI) {
+                // 只有在用户未删除AI助手分组时才添加
+                if (!hasAI && !isAIAssistantGroupDeleted) {
                     val aiTab = chatTabLayout?.newTab()?.setText("AI助手")
                     if (aiTab != null) {
                         val insertPosition = if (hasAll) 1 else 0
@@ -11622,6 +11677,689 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "同步AI联系人状态失败", e)
         }
+    }
+
+    /**
+     * 处理从小组件传入的Intent
+     */
+    private fun handleWidgetIntent(intent: Intent?) {
+        intent?.let {
+            try {
+                val source = it.getStringExtra("source")
+                if (source?.contains("桌面小组件") == true) {
+                    Log.d(TAG, "收到来自桌面小组件的请求: source=$source")
+
+                    val searchQuery = it.getStringExtra("search_query")
+                    val searchMode = it.getStringExtra("search_mode")
+                    val autoSwitchToAppSearch = it.getBooleanExtra("auto_switch_to_app_search", false)
+                    val showInputDialog = it.getBooleanExtra("show_input_dialog", false)
+
+                    // 新增的小组件图标点击参数
+                    val autoStartAIChat = it.getBooleanExtra("auto_start_ai_chat", false)
+                    val autoStartWebSearch = it.getBooleanExtra("auto_start_web_search", false)
+                    val useClipboardIfNoSearchBox = it.getBooleanExtra("use_clipboard_if_no_search_box", false)
+                    val showSearchBox = it.getBooleanExtra("show_search_box", true)
+                    val defaultAIQuery = it.getStringExtra("default_ai_query")
+                    val defaultSearchQuery = it.getStringExtra("default_search_query")
+                    val aiEngine = it.getStringExtra("ai_engine")
+                    val aiName = it.getStringExtra("ai_name")
+                    val searchEngine = it.getStringExtra("search_engine")
+                    val searchEngineName = it.getStringExtra("search_engine_name")
+                    val appPackage = it.getStringExtra("app_package")
+                    val appName = it.getStringExtra("app_name")
+
+                    when {
+                        showInputDialog -> {
+                            // 显示输入对话框
+                            Log.d(TAG, "准备显示小组件输入对话框")
+                            // 延迟显示对话框，确保Activity完全加载
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                showWidgetInputDialog()
+                            }, 200)
+                        }
+                        autoStartAIChat -> {
+                            // 自动启动AI对话
+                            Log.d(TAG, "自动启动AI对话: $aiName, 显示搜索框: $showSearchBox")
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                startAIChatFromWidget(aiEngine, aiName, showSearchBox, useClipboardIfNoSearchBox)
+                            }, 300)
+                        }
+                        autoStartWebSearch -> {
+                            // 自动启动网络搜索
+                            Log.d(TAG, "自动启动网络搜索: $searchEngineName, 显示搜索框: $showSearchBox")
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                startWebSearchFromWidget(searchEngine, searchEngineName, showSearchBox, useClipboardIfNoSearchBox)
+                            }, 300)
+                        }
+                        autoSwitchToAppSearch -> {
+                            // 自动切换到应用搜索页面
+                            Log.d(TAG, "自动切换到应用搜索: $appName, 显示搜索框: $showSearchBox")
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                startAppSearchFromWidget(appPackage, appName, showSearchBox, useClipboardIfNoSearchBox)
+                            }, 300)
+                        }
+                        searchMode == "ai_chat" -> {
+                            // 处理AI对话模式（这种情况下应该已经启动了ChatActivity）
+                            Log.d(TAG, "AI对话模式，query: $searchQuery")
+                        }
+                        searchMode == "app_search" -> {
+                            // 切换到应用搜索页面
+                            switchToAppSearchWithQuery(searchQuery)
+                        }
+                        searchMode == "web_search" -> {
+                            // 网络搜索模式（这种情况下应该已经启动了DualFloatingWebViewService）
+                            Log.d(TAG, "网络搜索模式，query: $searchQuery")
+                        }
+                        searchQuery != null -> {
+                            // 有搜索查询但没有指定模式，显示选择对话框
+                            showSearchModeSelectionDialog(searchQuery)
+                        }
+                        else -> {
+                            // 默认情况，记录日志
+                            Log.d(TAG, "收到小组件请求但没有匹配的处理逻辑")
+                        }
+                    }
+                } else {
+                    // 不是来自小组件的请求，记录日志
+                    Log.d(TAG, "收到非小组件请求: source=$source")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "处理小组件Intent失败", e)
+            }
+        }
+    }
+
+    /**
+     * 显示小组件输入对话框
+     */
+    private fun showWidgetInputDialog() {
+        Log.d(TAG, "显示小组件输入对话框")
+
+        val input = EditText(this).apply {
+            hint = "请输入搜索内容"
+            setPadding(50, 30, 50, 30)
+            // 自动获取焦点并显示键盘
+            requestFocus()
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("搜索内容")
+            .setMessage("请输入您要搜索的内容：")
+            .setView(input)
+            .setPositiveButton("AI对话") { _, _ ->
+                val query = input.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    startAIChatWithQuery(query)
+                } else {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNeutralButton("应用搜索") { _, _ ->
+                val query = input.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    switchToAppSearchWithQuery(query)
+                } else {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("网络搜索") { _, _ ->
+                val query = input.text.toString().trim()
+                if (query.isNotEmpty()) {
+                    startWebSearchWithQuery(query)
+                } else {
+                    Toast.makeText(this, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setCancelable(true)
+            .create()
+
+        dialog.show()
+
+        // 延迟显示键盘，确保对话框完全显示后再显示键盘
+        Handler(Looper.getMainLooper()).postDelayed({
+            input.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+        }, 100)
+    }
+
+    /**
+     * 显示搜索模式选择对话框
+     */
+    private fun showSearchModeSelectionDialog(query: String) {
+        val options = arrayOf("AI对话", "应用搜索", "网络搜索")
+
+        AlertDialog.Builder(this)
+            .setTitle("选择搜索方式")
+            .setMessage("搜索内容：$query")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> startAIChatWithQuery(query)
+                    1 -> switchToAppSearchWithQuery(query)
+                    2 -> startWebSearchWithQuery(query)
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 启动AI对话
+     */
+    private fun startAIChatWithQuery(query: String?) {
+        try {
+            // 找到第一个可用的AI联系人
+            val aiContact = findFirstAvailableAIContact()
+            if (aiContact != null) {
+                if (query != null) {
+                    openChatWithContactAndMessage(aiContact, query)
+                } else {
+                    // 只跳转到对话界面，不发送消息，激活输入状态
+                    openChatWithContactOnly(aiContact)
+                }
+            } else {
+                // 没有AI联系人，提示用户添加
+                showAddAIContactDialog(query ?: "")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动AI对话失败", e)
+            Toast.makeText(this, "启动AI对话失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 切换到应用搜索页面并设置查询
+     */
+    private fun switchToAppSearchWithQuery(query: String?) {
+        try {
+            // 切换到应用搜索页面
+            currentState = UIState.APP_SEARCH
+            showAppSearch()
+
+            // 如果有查询内容，设置到输入框
+            query?.let {
+                appSearchInput.setText(it)
+                appSearchInput.setSelection(it.length)
+                // 更新搜索查询
+                if (::appSearchAdapter.isInitialized) {
+                    appSearchAdapter.updateSearchQuery(it)
+                }
+                // 更新提示文本
+                appSearchHint.text = "输入关键词：$it，点击应用图标进行搜索"
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换到应用搜索失败", e)
+            Toast.makeText(this, "切换到应用搜索失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 启动网络搜索
+     */
+    private fun startWebSearchWithQuery(query: String) {
+        try {
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", query)
+                putExtra("engine_key", "baidu")
+                putExtra("search_source", "简易模式小组件")
+            }
+            startService(intent)
+            Toast.makeText(this, "正在启动网络搜索...", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "启动网络搜索失败", e)
+            Toast.makeText(this, "启动网络搜索失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 找到第一个可用的AI联系人
+     */
+    private fun findFirstAvailableAIContact(): ChatContact? {
+        return try {
+            allContacts.flatMap { it.contacts }
+                .firstOrNull { contact ->
+                    isAIContact(contact) && hasValidApiKey(contact)
+                }
+        } catch (e: Exception) {
+            Log.e(TAG, "查找AI联系人失败", e)
+            null
+        }
+    }
+
+    /**
+     * 显示添加AI联系人对话框（带查询参数）
+     */
+    private fun showAddAIContactDialog(query: String) {
+        AlertDialog.Builder(this)
+            .setTitle("需要添加AI助手")
+            .setMessage("要使用AI对话功能，请先添加AI助手。\n\n搜索内容：$query")
+            .setPositiveButton("添加AI助手") { _, _ ->
+                openAddAIContactDialog()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 只打开AI对话界面，不发送消息，激活输入状态
+     */
+    private fun openChatWithContactOnly(contact: ChatContact) {
+        try {
+            val intent = Intent(this, ChatActivity::class.java).apply {
+                putExtra(ChatActivity.EXTRA_CONTACT, contact)
+                putExtra("activate_input_only", true) // 只激活输入状态
+                putExtra("source", "桌面小组件")
+            }
+            startActivity(intent)
+            Log.d(TAG, "打开AI对话界面: ${contact.name}, 只激活输入状态")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开AI对话界面失败", e)
+            Toast.makeText(this, "打开对话界面失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 从小组件启动AI对话
+     */
+    private fun startAIChatFromWidget(aiEngine: String?, aiName: String?, showSearchBox: Boolean, useClipboard: Boolean) {
+        Log.d(TAG, "从小组件启动AI对话: $aiName, 显示搜索框: $showSearchBox, 使用剪贴板: $useClipboard")
+
+        // 确定要使用的查询内容和是否自动发送
+        val (queryToUse, shouldAutoSend) = if (!showSearchBox && useClipboard) {
+                // 没有搜索框时，尝试使用剪贴板内容
+                val clipboardText = com.example.dalao.widget.ClipboardHelper.getClipboardText(this)
+                if (com.example.dalao.widget.ClipboardHelper.isValidSearchQuery(clipboardText)) {
+                    val cleanedText = com.example.dalao.widget.ClipboardHelper.cleanTextForSearch(clipboardText)
+                    Log.d(TAG, "使用剪贴板内容作为AI查询: $cleanedText")
+                    Pair(cleanedText, true) // 有剪贴板内容时自动发送
+                } else {
+                    Log.d(TAG, "剪贴板内容无效或为空，只跳转到对话界面")
+                    Pair(null, false) // 无有效剪贴板内容时不自动发送
+                }
+            } else {
+                // 有搜索框时也不自动发送消息，只激活输入状态
+                Pair(null, false)
+            }
+
+        try {
+            if (aiEngine.isNullOrEmpty() || aiName.isNullOrEmpty()) {
+                Log.w(TAG, "AI引擎信息不完整，使用默认查询")
+                if (shouldAutoSend && queryToUse != null) {
+                    startAIChatWithQuery(queryToUse)
+                } else {
+                    // 只跳转到对话界面，不发送消息
+                    startAIChatWithQuery(null)
+                }
+                return
+            }
+
+            // 创建AI联系人，包含必要的API配置
+            val apiKey = getApiKeyForAI(aiName)
+
+            // 检查API密钥是否配置
+            if (apiKey.isBlank()) {
+                Log.w(TAG, "AI助手 $aiName 的API密钥未配置")
+                // 显示配置提示
+                Handler(Looper.getMainLooper()).post {
+                    showAIConfigurationDialog(aiName, queryToUse ?: "")
+                }
+                return
+            }
+
+            val aiContact = ChatContact(
+                id = "widget_$aiEngine",
+                name = aiName,
+                type = ContactType.AI,
+                lastMessage = "",
+                lastMessageTime = System.currentTimeMillis(),
+                customData = mutableMapOf(
+                    "engine" to aiEngine,
+                    "api_url" to getDefaultApiUrl(aiName),
+                    "api_key" to apiKey,
+                    "model" to getDefaultModel(aiName)
+                )
+            )
+
+            // 启动ChatActivity
+            val intent = Intent(this, ChatActivity::class.java).apply {
+                putExtra(ChatActivity.EXTRA_CONTACT, aiContact)
+                if (shouldAutoSend && queryToUse != null) {
+                    putExtra("auto_send_message", queryToUse)
+                    Log.d(TAG, "将自动发送消息: $queryToUse")
+                } else {
+                    // 不自动发送消息，只激活输入状态
+                    putExtra("activate_input_only", true)
+                    Log.d(TAG, "只激活输入状态，不自动发送消息")
+                }
+                putExtra("source", "桌面小组件")
+            }
+
+            startActivity(intent)
+            Log.d(TAG, "AI对话启动成功: $aiName, 自动发送: $shouldAutoSend")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "从小组件启动AI对话失败", e)
+            // 回退到简单的AI对话启动
+            if (shouldAutoSend && queryToUse != null) {
+                startAIChatWithQuery(queryToUse)
+            } else {
+                startAIChatWithQuery(null) // 只跳转，不发送消息
+            }
+        }
+    }
+
+    /**
+     * 从小组件启动网络搜索
+     */
+    private fun startWebSearchFromWidget(searchEngine: String?, searchEngineName: String?, showSearchBox: Boolean, useClipboard: Boolean) {
+        try {
+            Log.d(TAG, "从小组件启动网络搜索: $searchEngineName, 显示搜索框: $showSearchBox, 使用剪贴板: $useClipboard")
+
+            // 确定要使用的搜索内容 - 始终尝试使用剪贴板内容
+            val clipboardText = com.example.dalao.widget.ClipboardHelper.getClipboardText(this)
+            val queryToUse = if (com.example.dalao.widget.ClipboardHelper.isValidSearchQuery(clipboardText)) {
+                val cleanedText = com.example.dalao.widget.ClipboardHelper.cleanTextForSearch(clipboardText)
+                Log.d(TAG, "使用剪贴板内容进行网络搜索: $cleanedText")
+                cleanedText
+            } else {
+                Log.d(TAG, "剪贴板内容无效或为空，直接打开搜索引擎首页")
+                null // 返回null表示直接打开首页
+            }
+
+            // 切换到浏览器界面
+            showBrowser()
+
+            // 根据搜索引擎参数设置正确的搜索引擎
+            setCurrentSearchEngineByName(searchEngine, searchEngineName)
+
+            if (queryToUse != null) {
+                // 有搜索内容时执行搜索
+                browserSearchInput.setText(queryToUse)
+                performBrowserSearch()
+                Log.d(TAG, "网络搜索启动成功: $queryToUse")
+            } else {
+                // 没有搜索内容时，根据搜索引擎打开首页
+                val homepageUrl = getSearchEngineHomepage(searchEngine, searchEngineName)
+                if (homepageUrl != null) {
+                    // 直接加载首页URL
+                    loadBrowserContent(homepageUrl)
+                    Log.d(TAG, "打开搜索引擎首页: $homepageUrl")
+                } else {
+                    // 如果无法确定首页，直接打开浏览器空白页
+                    showBrowser()
+                    Log.d(TAG, "打开浏览器空白页")
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "从小组件启动网络搜索失败", e)
+            // 回退：直接打开浏览器空白页
+            showBrowser()
+            Log.d(TAG, "回退：打开浏览器空白页")
+        }
+    }
+
+    /**
+     * 从小组件启动应用搜索
+     */
+    private fun startAppSearchFromWidget(appPackage: String?, appName: String?, showSearchBox: Boolean, useClipboard: Boolean) {
+        try {
+            Log.d(TAG, "从小组件启动应用搜索: $appName, 显示搜索框: $showSearchBox, 使用剪贴板: $useClipboard")
+
+            // 确定要使用的搜索内容 - 始终尝试使用剪贴板内容
+            val clipboardText = com.example.dalao.widget.ClipboardHelper.getClipboardText(this)
+            val queryToUse = if (com.example.dalao.widget.ClipboardHelper.isValidSearchQuery(clipboardText)) {
+                val cleanedText = com.example.dalao.widget.ClipboardHelper.cleanTextForSearch(clipboardText)
+                Log.d(TAG, "使用剪贴板内容进行应用搜索: $cleanedText")
+                cleanedText
+            } else {
+                Log.d(TAG, "剪贴板内容无效或为空，直接打开应用")
+                null // 返回null表示直接打开应用
+            }
+
+            if (queryToUse != null && !appPackage.isNullOrEmpty()) {
+                // 有搜索内容时，尝试直接在目标应用中搜索
+                val success = launchAppWithSearch(appPackage, appName, queryToUse)
+                if (!success) {
+                    // 如果直接搜索失败，尝试直接打开应用
+                    Log.w(TAG, "直接应用搜索失败，尝试直接打开应用")
+                    val launchIntent = packageManager.getLaunchIntentForPackage(appPackage)
+                    if (launchIntent != null) {
+                        startActivity(launchIntent)
+                        Log.d(TAG, "直接启动应用: $appName")
+                    } else {
+                        Log.w(TAG, "无法启动应用: $appName, 应用可能未安装")
+                        Toast.makeText(this, "应用 $appName 未安装", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else {
+                // 没有搜索内容时，直接打开应用
+                if (!appPackage.isNullOrEmpty()) {
+                    val launchIntent = packageManager.getLaunchIntentForPackage(appPackage)
+                    if (launchIntent != null) {
+                        startActivity(launchIntent)
+                        Log.d(TAG, "直接启动应用: $appName")
+                    } else {
+                        Log.w(TAG, "无法启动应用: $appName, 应用可能未安装")
+                        Toast.makeText(this, "应用 $appName 未安装", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Log.w(TAG, "应用包名为空，无法启动应用")
+                    Toast.makeText(this, "应用信息不完整", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "从小组件启动应用搜索失败", e)
+            // 回退：尝试直接打开应用
+            if (!appPackage.isNullOrEmpty()) {
+                try {
+                    val launchIntent = packageManager.getLaunchIntentForPackage(appPackage)
+                    if (launchIntent != null) {
+                        startActivity(launchIntent)
+                        Log.d(TAG, "回退启动应用成功: $appName")
+                    } else {
+                        Toast.makeText(this, "应用 $appName 未安装", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e2: Exception) {
+                    Log.e(TAG, "回退启动应用也失败", e2)
+                    Toast.makeText(this, "启动应用失败", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(this, "应用信息不完整", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * 在指定应用中启动搜索
+     */
+    private fun launchAppWithSearch(packageName: String, appName: String?, query: String): Boolean {
+        try {
+            Log.d(TAG, "尝试在应用 $appName 中搜索: $query")
+
+            // 根据不同应用使用不同的搜索Intent
+            val searchIntent = when (packageName) {
+                "com.tencent.mm" -> {
+                    // 微信搜索
+                    Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        data = android.net.Uri.parse("weixin://")
+                        setPackage(packageName)
+                    }
+                }
+                "com.taobao.taobao" -> {
+                    // 淘宝搜索
+                    Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        data = android.net.Uri.parse("taobao://s.taobao.com/search?q=${android.net.Uri.encode(query)}")
+                        setPackage(packageName)
+                    }
+                }
+                "com.jingdong.app.mall" -> {
+                    // 京东搜索
+                    Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        data = android.net.Uri.parse("openjd://virtual?params={\"des\":\"productList\",\"keyWord\":\"${query}\"}")
+                        setPackage(packageName)
+                    }
+                }
+                "com.ss.android.ugc.aweme" -> {
+                    // 抖音搜索
+                    Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        data = android.net.Uri.parse("snssdk1128://search/tabs?keyword=${android.net.Uri.encode(query)}")
+                        setPackage(packageName)
+                    }
+                }
+                "com.xingin.xhs" -> {
+                    // 小红书搜索
+                    Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        data = android.net.Uri.parse("xhsdiscover://search/result?keyword=${android.net.Uri.encode(query)}")
+                        setPackage(packageName)
+                    }
+                }
+                "com.sankuai.meituan" -> {
+                    // 美团搜索
+                    Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        data = android.net.Uri.parse("imeituan://www.meituan.com/search?q=${android.net.Uri.encode(query)}")
+                        setPackage(packageName)
+                    }
+                }
+                "me.ele" -> {
+                    // 饿了么搜索
+                    Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        data = android.net.Uri.parse("eleme://search?keyword=${android.net.Uri.encode(query)}")
+                        setPackage(packageName)
+                    }
+                }
+                "com.android.chrome" -> {
+                    // Chrome浏览器搜索
+                    Intent().apply {
+                        action = Intent.ACTION_VIEW
+                        data = android.net.Uri.parse("googlechrome://www.google.com/search?q=${android.net.Uri.encode(query)}")
+                        setPackage(packageName)
+                    }
+                }
+                else -> {
+                    // 通用搜索Intent，尝试使用ACTION_WEB_SEARCH
+                    Intent().apply {
+                        action = Intent.ACTION_WEB_SEARCH
+                        putExtra("query", query)
+                        setPackage(packageName)
+                    }
+                }
+            }
+
+            // 尝试启动搜索Intent
+            startActivity(searchIntent)
+            Log.d(TAG, "成功在应用 $appName 中启动搜索: $query")
+            Toast.makeText(this, "在 $appName 中搜索: $query", Toast.LENGTH_SHORT).show()
+            return true
+
+        } catch (e: Exception) {
+            Log.e(TAG, "在应用 $appName 中搜索失败", e)
+            return false
+        }
+    }
+
+    /**
+     * 根据搜索引擎名称设置当前搜索引擎
+     */
+    private fun setCurrentSearchEngineByName(searchEngine: String?, searchEngineName: String?) {
+        try {
+            Log.d(TAG, "设置搜索引擎: searchEngine='$searchEngine', searchEngineName='$searchEngineName'")
+
+            // 获取所有可用的搜索引擎
+            val allEngines = com.example.aifloatingball.model.SearchEngine.DEFAULT_ENGINES
+
+            // 根据搜索引擎参数查找匹配的搜索引擎
+            val targetEngine = allEngines.find { engine ->
+                when {
+                    // 优先匹配 searchEngine 参数
+                    !searchEngine.isNullOrEmpty() -> {
+                        engine.name.equals(searchEngine, ignoreCase = true) ||
+                        engine.displayName.equals(searchEngine, ignoreCase = true)
+                    }
+                    // 其次匹配 searchEngineName 参数
+                    !searchEngineName.isNullOrEmpty() -> {
+                        engine.name.equals(searchEngineName, ignoreCase = true) ||
+                        engine.displayName.equals(searchEngineName, ignoreCase = true)
+                    }
+                    else -> false
+                }
+            }
+
+            if (targetEngine != null) {
+                currentSearchEngine = targetEngine
+                Log.d(TAG, "成功设置搜索引擎: ${targetEngine.displayName} (${targetEngine.name})")
+            } else {
+                Log.w(TAG, "未找到匹配的搜索引擎，使用默认搜索引擎")
+                // 保持当前搜索引擎不变，或使用默认的Google
+                if (currentSearchEngine == null) {
+                    currentSearchEngine = allEngines.find { it.name == "google" } ?: allEngines.firstOrNull()
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "设置搜索引擎失败", e)
+        }
+    }
+
+    /**
+     * 获取搜索引擎首页URL
+     */
+    private fun getSearchEngineHomepage(searchEngine: String?, searchEngineName: String?): String? {
+        Log.d(TAG, "获取搜索引擎首页: searchEngine='$searchEngine', searchEngineName='$searchEngineName'")
+
+        return when (searchEngine?.lowercase()) {
+            "baidu", "百度" -> "https://www.baidu.com"
+            "google", "谷歌" -> "https://www.google.com"
+            "bing", "必应" -> "https://www.bing.com"
+            "sogou", "搜狗" -> "https://www.sogou.com"
+            "360", "360搜索", "so360" -> "https://www.so.com"
+            "yandex" -> "https://www.yandex.com"
+            "duckduckgo" -> "https://duckduckgo.com"
+            "quark" -> "https://quark.sm.cn"
+            else -> {
+                // 根据搜索引擎名称推测
+                when (searchEngineName?.lowercase()) {
+                    "百度" -> "https://www.baidu.com"
+                    "google", "谷歌" -> "https://www.google.com"
+                    "bing", "必应" -> "https://www.bing.com"
+                    "搜狗" -> "https://www.sogou.com"
+                    "360搜索" -> "https://www.so.com"
+                    "夸克" -> "https://quark.sm.cn"
+                    "duckduckgo" -> "https://duckduckgo.com"
+                    else -> {
+                        Log.w(TAG, "未知的搜索引擎: $searchEngine / $searchEngineName")
+                        null
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 显示AI配置对话框
+     */
+    private fun showAIConfigurationDialog(aiName: String, queryToUse: String) {
+        AlertDialog.Builder(this)
+            .setTitle("配置AI助手")
+            .setMessage("要使用 $aiName，请先配置API密钥。\n\n搜索内容：$queryToUse")
+            .setPositiveButton("去配置") { _, _ ->
+                // 打开AI联系人列表界面进行配置
+                openAIContactListActivity()
+            }
+            .setNegativeButton("使用默认AI") { _, _ ->
+                // 使用默认的AI对话启动
+                startAIChatWithQuery(queryToUse)
+            }
+            .setNeutralButton("取消", null)
+            .show()
     }
 
 }

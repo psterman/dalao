@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="150dp"
+    android:viewportWidth="200"
+    android:viewportHeight="150">
+    
+    <!-- MIUI风格背景 -->
+    <path
+        android:fillColor="#FF6900"
+        android:pathData="M0,0 L200,0 L200,150 L0,150 Z" />
+    
+    <!-- 手机轮廓 -->
+    <path
+        android:fillColor="@color/widget_border_color"
+        android:pathData="M50,20 L150,20 Q160,20 160,30 L160,120 Q160,130 150,130 L50,130 Q40,130 40,120 L40,30 Q40,20 50,20 Z" />
+    
+    <!-- 屏幕 -->
+    <path
+        android:fillColor="@color/widget_background_color"
+        android:pathData="M45,25 L155,25 Q155,25 155,25 L155,125 Q155,125 155,125 L45,125 Q45,125 45,125 L45,25 Q45,25 45,25 Z" />
+    
+    <!-- MIUI小组件区域 -->
+    <path
+        android:fillColor="#FF6900"
+        android:pathData="M55,55 L145,55 Q155,55 155,65 L155,80 Q155,90 145,90 L55,90 Q45,90 45,80 L45,65 Q45,55 55,55 Z" />
+
+    <!-- 小米logo简化 -->
+    <path
+        android:fillColor="#FF6900"
+        android:pathData="M70,65 L78,65 Q80,65 80,67 L80,71 Q80,73 78,73 L70,73 Q68,73 68,71 L68,67 Q68,65 70,65 Z" />
+
+    <!-- 文字提示 -->
+    <path
+        android:fillColor="@color/widget_text_color"
+        android:pathData="M85,67 L125,67 Q127,67 127,69 L127,69 Q127,71 125,71 L85,71 Q83,71 83,69 L83,69 Q83,67 85,67 Z" />
+    
+</vector>

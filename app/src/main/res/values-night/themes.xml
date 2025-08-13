@@ -66,4 +66,63 @@
         <item name="android:textColorPrimary">@color/md_theme_dark_onSurface</item>
         <item name="android:textColorSecondary">@color/md_theme_dark_onSurfaceVariant</item>
     </style>
-</resources> 
+
+    <!-- 统一的Material Design对话框主题 - 暗色模式 -->
+    <style name="Theme.MaterialDialog" parent="Theme.Material3.DayNight.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/material_dialog_background_v2</item>
+        <item name="colorPrimary">@color/material_wechat_primary</item>
+        <item name="colorOnPrimary">@color/material_wechat_on_primary</item>
+        <item name="colorSurface">@color/material_dialog_surface</item>
+        <item name="colorOnSurface">@color/material_dialog_on_surface</item>
+        <item name="colorSurfaceVariant">@color/material_dialog_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/material_dialog_on_surface_variant</item>
+        <item name="android:textColorPrimary">@color/material_dialog_text_primary</item>
+        <item name="android:textColorSecondary">@color/material_dialog_text_secondary</item>
+        <item name="materialButtonStyle">@style/Widget.MaterialDialog.Button</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.MaterialDialog.Button.Outlined</item>
+        <item name="checkboxStyle">@style/Widget.MaterialDialog.CheckBox</item>
+        <item name="android:windowAnimationStyle">@style/MaterialDialogAnimation</item>
+    </style>
+
+    <!-- Material对话框按钮样式 - 暗色模式 -->
+    <style name="Widget.MaterialDialog.Button" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/material_dialog_button_tonal</item>
+        <item name="android:textColor">@color/material_dialog_button_text_tonal</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingHorizontal">24dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="rippleColor">@color/material_dialog_button_ripple</item>
+    </style>
+
+    <!-- Material对话框轮廓按钮样式 - 暗色模式 -->
+    <style name="Widget.MaterialDialog.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/material_dialog_button_outline</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/material_dialog_button_text_outlined</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:paddingHorizontal">24dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="rippleColor">@color/material_dialog_button_ripple</item>
+    </style>
+
+    <!-- Material对话框复选框样式 - 暗色模式 -->
+    <style name="Widget.MaterialDialog.CheckBox" parent="Widget.Material3.CompoundButton.CheckBox">
+        <item name="buttonTint">@color/material_dialog_checkbox_tint</item>
+        <item name="android:textColor">@color/material_dialog_text_primary</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:paddingStart">12dp</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:gravity">center_vertical</item>
+    </style>
+
+    <!-- Material对话框动画 - 暗色模式 -->
+    <style name="MaterialDialogAnimation">
+        <item name="android:windowEnterAnimation">@anim/dialog_enter</item>
+        <item name="android:windowExitAnimation">@anim/dialog_exit</item>
+    </style>
+
+</resources>

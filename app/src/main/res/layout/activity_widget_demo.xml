@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/background_primary">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="可定制小组件演示"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_primary"
+        android:gravity="center"
+        android:layout_marginBottom="24dp" />
+
+    <!-- 状态显示区域 -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@drawable/card_background"
+        android:padding="16dp"
+        android:layout_marginBottom="24dp">
+
+        <TextView
+            android:id="@+id/status_text_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="正在加载状态信息..."
+            android:textSize="14sp"
+            android:textColor="@color/text_primary"
+            android:lineSpacingExtra="4dp" />
+
+    </ScrollView>
+
+    <!-- 操作按钮区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <Button
+            android:id="@+id/add_widget_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="添加小组件到桌面"
+            android:textSize="16sp"
+            android:background="@drawable/button_primary_background"
+            android:textColor="@android:color/white"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/refresh_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="刷新所有小组件"
+            android:textSize="16sp"
+            android:background="@drawable/button_secondary_background"
+            android:textColor="@color/text_primary"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/config_test_button"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="测试小组件配置"
+            android:textSize="16sp"
+            android:background="@drawable/button_secondary_background"
+            android:textColor="@color/text_primary" />
+
+    </LinearLayout>
+
+    <!-- 使用说明 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="使用说明:\n1. 点击添加小组件到桌面按钮\n2. 在桌面上放置小组件\n3. 配置小组件内容\n4. 享受个性化的桌面体验"
+        android:textSize="12sp"
+        android:textColor="@color/text_secondary"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/card_background"
+        android:padding="12dp" />
+
+</LinearLayout>
