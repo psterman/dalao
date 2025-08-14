@@ -122,29 +122,87 @@ class AIPageConfigManager(private val context: Context) {
      */
     private fun getOtherAIConfigs(): List<AISearchEngine> {
         return listOf(
-            // ChatGPT配置
+            // ChatGPT自定义HTML版本
             AISearchEngine(
-                name = "ChatGPT Plus",
-                url = CHATGPT_WEB_URL,
+                name = "ChatGPT (Custom)",
+                url = "file:///android_asset/chatgpt_chat.html",
                 iconResId = R.drawable.ic_chatgpt,
-                description = "ChatGPT Plus版本",
-                searchUrl = CHATGPT_WEB_URL,
+                description = "自定义ChatGPT对话界面",
+                searchUrl = "file:///android_asset/chatgpt_chat.html",
+                isChatMode = true,
                 customParams = mapOf(
+                    "api_url" to getChatGPTApiUrl(),
+                    "api_key" to getChatGPTApiKey(),
                     "model" to "gpt-4",
-                    "temperature" to "0.7"
+                    "use_custom_html" to "true"
                 )
             ),
-            
-            // Claude配置
+
+            // ChatGPT网页版本
             AISearchEngine(
-                name = "Claude Pro",
+                name = "ChatGPT (Web)",
+                url = CHATGPT_WEB_URL,
+                iconResId = R.drawable.ic_chatgpt,
+                description = "ChatGPT官方网页版",
+                searchUrl = CHATGPT_WEB_URL,
+                isChatMode = false
+            ),
+
+            // Claude自定义HTML版本
+            AISearchEngine(
+                name = "Claude (Custom)",
+                url = "file:///android_asset/claude_chat.html",
+                iconResId = R.drawable.ic_claude,
+                description = "自定义Claude对话界面",
+                searchUrl = "file:///android_asset/claude_chat.html",
+                isChatMode = true,
+                customParams = mapOf(
+                    "api_url" to getClaudeApiUrl(),
+                    "api_key" to getClaudeApiKey(),
+                    "model" to "claude-3-opus",
+                    "use_custom_html" to "true"
+                )
+            ),
+
+            // Claude网页版本
+            AISearchEngine(
+                name = "Claude (Web)",
                 url = CLAUDE_WEB_URL,
                 iconResId = R.drawable.ic_claude,
-                description = "Claude Pro版本",
+                description = "Claude官方网页版",
                 searchUrl = CLAUDE_WEB_URL,
+                isChatMode = false
+            ),
+
+            // 通义千问自定义HTML版本
+            AISearchEngine(
+                name = "通义千问 (Custom)",
+                url = "file:///android_asset/qianwen_chat.html",
+                iconResId = R.drawable.ic_qianwen,
+                description = "自定义通义千问对话界面",
+                searchUrl = "file:///android_asset/qianwen_chat.html",
+                isChatMode = true,
                 customParams = mapOf(
-                    "model" to "claude-3-opus",
-                    "temperature" to "0.7"
+                    "api_url" to getQianwenApiUrl(),
+                    "api_key" to getQianwenApiKey(),
+                    "model" to "qwen-turbo",
+                    "use_custom_html" to "true"
+                )
+            ),
+
+            // 智谱AI自定义HTML版本
+            AISearchEngine(
+                name = "智谱AI (Custom)",
+                url = "file:///android_asset/zhipu_chat.html",
+                iconResId = R.drawable.ic_zhipu,
+                description = "自定义智谱AI对话界面",
+                searchUrl = "file:///android_asset/zhipu_chat.html",
+                isChatMode = true,
+                customParams = mapOf(
+                    "api_url" to getZhipuApiUrl(),
+                    "api_key" to getZhipuApiKey(),
+                    "model" to "glm-4",
+                    "use_custom_html" to "true"
                 )
             )
         )
@@ -170,7 +228,9 @@ class AIPageConfigManager(private val context: Context) {
         // 如果没找到，在默认AI引擎中查找并检查是否需要特殊处理
         Log.d(TAG, "在默认AI引擎中查找...")
         val defaultEngine = AISearchEngine.DEFAULT_AI_ENGINES.find {
-            it.name.lowercase() == engineKey.lowercase()
+            it.name.lowercase() == engineKey.lowercase() ||
+            it.name.lowercase().replace(" ", "_") == engineKey.lowercase() ||
+            it.name.lowercase().replace("(", "").replace(")", "").replace(" ", "_") == engineKey.lowercase()
         }
 
         if (defaultEngine != null) {
@@ -213,6 +273,78 @@ class AIPageConfigManager(private val context: Context) {
                         )
                     )
                 }
+                "ChatGPT (Custom)" -> {
+                    // 为ChatGPT (Custom)添加自定义HTML配置
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getChatGPTApiUrl(),
+                            "api_key" to getChatGPTApiKey(),
+                            "model" to "gpt-4",
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "Claude (Custom)" -> {
+                    // 为Claude (Custom)添加自定义HTML配置
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getClaudeApiUrl(),
+                            "api_key" to getClaudeApiKey(),
+                            "model" to "claude-3-opus",
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "通义千问 (Custom)" -> {
+                    // 为通义千问 (Custom)添加自定义HTML配置
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getQianwenApiUrl(),
+                            "api_key" to getQianwenApiKey(),
+                            "model" to "qwen-turbo",
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
+                "智谱AI (Custom)" -> {
+                    // 为智谱AI (Custom)添加自定义HTML配置
+                    AISearchEngine(
+                        name = defaultEngine.name,
+                        url = defaultEngine.url,
+                        iconResId = defaultEngine.iconResId,
+                        description = defaultEngine.description,
+                        searchUrl = defaultEngine.searchUrl,
+                        isChatMode = defaultEngine.isChatMode,
+                        isEnabled = defaultEngine.isEnabled,
+                        customParams = mapOf<String, String>(
+                            "api_url" to getZhipuApiUrl(),
+                            "api_key" to getZhipuApiKey(),
+                            "model" to "glm-4",
+                            "use_custom_html" to "true"
+                        )
+                    )
+                }
                 else -> {
                     Log.d(TAG, "使用默认引擎配置: ${defaultEngine.name}")
                     defaultEngine
@@ -222,6 +354,42 @@ class AIPageConfigManager(private val context: Context) {
 
         Log.d(TAG, "未找到匹配的引擎配置: '$engineKey'")
         return null
+    }
+
+    /**
+     * 测试所有自定义AI引擎是否正确配置
+     */
+    fun testAllCustomAIEngines(): Map<String, Boolean> {
+        val results = mutableMapOf<String, Boolean>()
+
+        val customEngines = listOf(
+            "DeepSeek (API)",
+            "ChatGPT (Custom)",
+            "Claude (Custom)",
+            "通义千问 (Custom)",
+            "智谱AI (Custom)"
+        )
+
+        customEngines.forEach { engineName ->
+            val config = getConfigByKey(engineName.lowercase().replace(" ", "_"))
+            val isConfigured = config != null &&
+                               config.customParams["use_custom_html"] == "true" &&
+                               config.url.startsWith("file:///android_asset/")
+
+            results[engineName] = isConfigured
+            Log.d(TAG, "测试 $engineName: ${if (isConfigured) "✅ 配置正确" else "❌ 配置错误"}")
+        }
+
+        return results
+    }
+
+    /**
+     * 获取所有可用的自定义AI引擎名称
+     */
+    fun getAvailableCustomAIEngineNames(): List<String> {
+        return AISearchEngine.DEFAULT_AI_ENGINES
+            .filter { it.isChatMode && it.url.startsWith("file:///android_asset/") }
+            .map { it.name }
     }
     
     /**
@@ -237,7 +405,41 @@ class AIPageConfigManager(private val context: Context) {
     private fun getDeepSeekApiKey(): String {
         return settingsManager.getString("deepseek_api_key", "") ?: ""
     }
-    
+
+
+
+    private fun getChatGPTApiKey(): String {
+        return settingsManager.getString("chatgpt_api_key", "") ?: ""
+    }
+
+    private fun getChatGPTApiUrl(): String {
+        return settingsManager.getString("chatgpt_api_url", "https://api.openai.com/v1/chat/completions") ?: "https://api.openai.com/v1/chat/completions"
+    }
+
+    private fun getClaudeApiKey(): String {
+        return settingsManager.getString("claude_api_key", "") ?: ""
+    }
+
+    private fun getClaudeApiUrl(): String {
+        return settingsManager.getString("claude_api_url", "https://api.anthropic.com/v1/messages") ?: "https://api.anthropic.com/v1/messages"
+    }
+
+    private fun getQianwenApiKey(): String {
+        return settingsManager.getString("qianwen_api_key", "") ?: ""
+    }
+
+    private fun getQianwenApiUrl(): String {
+        return settingsManager.getString("qianwen_api_url", "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation") ?: "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+    }
+
+    private fun getZhipuApiKey(): String {
+        return settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+    }
+
+    private fun getZhipuApiUrl(): String {
+        return settingsManager.getString("zhipu_ai_api_url", "https://api.zhipu.ai/v1/chat/completions") ?: "https://api.zhipu.ai/v1/chat/completions"
+    }
+
     /**
      * 构建带参数的URL
      */

@@ -32,7 +32,7 @@ class SettingsManager private constructor(context: Context) {
         private const val DEFAULT_PAGE = "home"
         private const val KEY_SEARCH_HISTORY = "search_history"
         private const val KEY_DISPLAY_MODE = "display_mode"
-        private const val DEFAULT_DISPLAY_MODE = "floating_ball"
+        private const val DEFAULT_DISPLAY_MODE = "simple_mode"
         private const val KEY_SEARCH_ENGINE_GROUPS = "search_engine_groups"
         private const val KEY_CUSTOM_SEARCH_ENGINES = "custom_search_engines"
         private const val KEY_PROMPT_PROFILES = "prompt_profiles"
@@ -336,7 +336,32 @@ class SettingsManager private constructor(context: Context) {
     
     // 获取已启用的AI搜索引擎
     fun getEnabledAIEngines(): Set<String> {
-        return prefs.getStringSet("enabled_ai_engines", emptySet()) ?: emptySet()
+        val enabledEngines = prefs.getStringSet("enabled_ai_engines", null)
+
+        // 如果是第一次运行，初始化默认启用的AI引擎
+        if (enabledEngines == null) {
+            val defaultEnabledEngines = getDefaultEnabledAIEngines()
+            saveEnabledAIEngines(defaultEnabledEngines)
+            return defaultEnabledEngines
+        }
+
+        return enabledEngines
+    }
+
+    /**
+     * 获取默认启用的AI引擎列表
+     */
+    private fun getDefaultEnabledAIEngines(): Set<String> {
+        return setOf(
+            "DeepSeek (API)",
+            "ChatGPT (Custom)",
+            "Claude (Custom)",
+            "通义千问 (Custom)",
+            "智谱AI (Custom)",
+            "ChatGPT",
+            "Claude",
+            "Gemini"
+        )
     }
     
     // 保存已启用的AI搜索引擎

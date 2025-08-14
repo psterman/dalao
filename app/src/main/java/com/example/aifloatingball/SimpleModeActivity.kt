@@ -3690,12 +3690,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val serviceIntent = Intent(this, FloatingWindowService::class.java)
                 startService(serviceIntent)
 
-                // 启动HomeActivity
-                val homeIntent = Intent(this, HomeActivity::class.java)
-                homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                startActivity(homeIntent)
-
-                // 关闭当前Activity
+                // 悬浮球模式下不需要启动HomeActivity，直接关闭当前Activity
+                Log.d(TAG, "Floating ball service started, closing SimpleModeActivity")
                 finish()
             } else {
                 // 没有权限，提示用户
@@ -3729,12 +3725,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val serviceIntent = Intent(this, DynamicIslandService::class.java)
                 startService(serviceIntent)
 
-                // 启动HomeActivity
-                val homeIntent = Intent(this, HomeActivity::class.java)
-                homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                startActivity(homeIntent)
-
-                // 关闭当前Activity
+                // 灵动岛模式下不需要启动HomeActivity，直接关闭当前Activity
+                Log.d(TAG, "Dynamic island service started, closing SimpleModeActivity")
                 finish()
             } else {
                 // 没有权限，提示用户
@@ -3761,9 +3753,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             // 3. 告诉 SettingsManager 我们要退出简易模式
-            // 这样 HomeActivity 的 onResume 就不会再自动启动 SimpleModeActivity
+            // 切换到悬浮球模式
             settingsManager.setDisplayMode("floating_ball")
-            Log.d(TAG, "Changed display mode to floating_ball to prevent auto-restart")
+            Log.d(TAG, "Changed display mode to floating_ball")
 
             // 4. 启动悬浮球服务，确保用户仍然可以访问应用功能
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
@@ -3772,11 +3764,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 serviceIntent.putExtra("closing_from_simple_mode", true)
                 startService(serviceIntent)
 
-                // 启动HomeActivity但告诉它不要再启动SimpleModeActivity
-                val homeIntent = Intent(this, HomeActivity::class.java)
-                homeIntent.putExtra("closing_from_simple_mode", true)
-                homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(homeIntent)
+                Log.d(TAG, "FloatingWindowService started, not launching HomeActivity")
+            } else {
+                Log.w(TAG, "No overlay permission, cannot start floating ball service")
+                Toast.makeText(this, "需要悬浮窗权限才能使用悬浮球模式", Toast.LENGTH_SHORT).show()
             }
 
             // 5. 使用 finishAndRemoveTask() 彻底关闭活动和任务

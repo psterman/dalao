@@ -185,6 +185,38 @@ data class AISearchEngine(
                 searchUrl = "file:///android_asset/deepseek_chat.html",
                 isChatMode = true
             ),
+            AISearchEngine(
+                name = "ChatGPT (Custom)",
+                url = "file:///android_asset/chatgpt_chat.html",
+                iconResId = R.drawable.ic_chatgpt,
+                description = "自定义ChatGPT对话界面",
+                searchUrl = "file:///android_asset/chatgpt_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "Claude (Custom)",
+                url = "file:///android_asset/claude_chat.html",
+                iconResId = R.drawable.ic_claude,
+                description = "自定义Claude对话界面",
+                searchUrl = "file:///android_asset/claude_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "通义千问 (Custom)",
+                url = "file:///android_asset/qianwen_chat.html",
+                iconResId = R.drawable.ic_ai_search, // 使用通用AI图标，如果没有专用图标
+                description = "自定义通义千问对话界面",
+                searchUrl = "file:///android_asset/qianwen_chat.html",
+                isChatMode = true
+            ),
+            AISearchEngine(
+                name = "智谱AI (Custom)",
+                url = "file:///android_asset/zhipu_chat.html",
+                iconResId = R.drawable.ic_chatglm, // 使用ChatGLM图标
+                description = "自定义智谱AI对话界面",
+                searchUrl = "file:///android_asset/zhipu_chat.html",
+                isChatMode = true
+            ),
             // New Engines Added
             AISearchEngine(
                 name = "Kimi",

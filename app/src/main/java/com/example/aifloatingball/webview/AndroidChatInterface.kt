@@ -19,13 +19,15 @@ import org.json.JSONObject
 import java.util.*
 
 /**
- * Android与DeepSeek HTML页面的JavaScript接口
+ * Android与AI HTML页面的JavaScript接口
+ * 支持多个AI引擎
  */
 class AndroidChatInterface(
     private val context: Context,
-    private val webViewCallback: WebViewCallback? = null
+    private val webViewCallback: WebViewCallback? = null,
+    private val aiServiceType: AIServiceType = AIServiceType.DEEPSEEK
 ) {
-    
+
     companion object {
         private const val TAG = "AndroidChatInterface"
     }
@@ -41,13 +43,35 @@ class AndroidChatInterface(
     private val aiApiManager = AIApiManager(context)
     private val chatDataManager = ChatDataManager.getInstance(context)
     private val scope = CoroutineScope(Dispatchers.Main)
+
+    /**
+     * 获取AI服务的显示名称
+     */
+    private fun getAIServiceDisplayName(serviceType: AIServiceType): String {
+        return when (serviceType) {
+            AIServiceType.DEEPSEEK -> "DeepSeek"
+            AIServiceType.CHATGPT -> "ChatGPT"
+            AIServiceType.CLAUDE -> "Claude"
+            AIServiceType.QIANWEN -> "通义千问"
+            AIServiceType.ZHIPU_AI -> "智谱AI"
+            else -> serviceType.name
+        }
+    }
     
     @JavascriptInterface
     fun sendMessage(message: String) {
-        Log.d(TAG, "收到消息: $message")
+        Log.d(TAG, "收到消息: $message, AI引擎: $aiServiceType")
 
         // 检查API配置
-        val apiKey = settingsManager.getDeepSeekApiKey()
+        val apiKey = when (aiServiceType) {
+            AIServiceType.DEEPSEEK -> settingsManager.getDeepSeekApiKey()
+            AIServiceType.CHATGPT -> settingsManager.getString("chatgpt_api_key", "") ?: ""
+            AIServiceType.CLAUDE -> settingsManager.getString("claude_api_key", "") ?: ""
+            AIServiceType.QIANWEN -> settingsManager.getString("qianwen_api_key", "") ?: ""
+            AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+            else -> ""
+        }
+
         if (apiKey.isBlank()) {
             // API未配置，显示友好的配置引导
             showApiConfigurationGuide()
@@ -55,21 +79,21 @@ class AndroidChatInterface(
         }
 
         // 确保有当前会话
-        var currentSessionId = chatDataManager.getCurrentSessionId()
+        var currentSessionId = chatDataManager.getCurrentSessionId(aiServiceType)
         if (currentSessionId == null) {
             currentSessionId = startNewChat()
         }
 
         // 添加用户消息到会话
-        chatDataManager.addMessage(currentSessionId, "user", message)
+        chatDataManager.addMessage(currentSessionId, "user", message, aiServiceType)
 
-        // 调用DeepSeek API
+        // 调用对应的AI API
         scope.launch {
             try {
-                val conversationHistory = chatDataManager.getMessages(currentSessionId)
+                val conversationHistory = chatDataManager.getMessages(currentSessionId, aiServiceType)
 
                 aiApiManager.sendMessage(
-                    AIServiceType.DEEPSEEK,
+                    aiServiceType,
                     message,
                     conversationHistory.map {
                         mapOf("role" to it.role, "content" to it.content)
@@ -82,7 +106,7 @@ class AndroidChatInterface(
 
                         override fun onComplete(fullResponse: String) {
                             // 添加AI回复到会话
-                            chatDataManager.addMessage(currentSessionId, "assistant", fullResponse)
+                            chatDataManager.addMessage(currentSessionId, "assistant", fullResponse, aiServiceType)
                             // 通知WebView响应完成
                             webViewCallback?.onMessageCompleted(fullResponse)
                         }
@@ -103,15 +127,15 @@ class AndroidChatInterface(
     
     @JavascriptInterface
     fun startNewChat(): String {
-        val sessionId = chatDataManager.startNewChat()
-        Log.d(TAG, "开始新对话: $sessionId")
+        val sessionId = chatDataManager.startNewChat(aiServiceType)
+        Log.d(TAG, "开始新对话 (${aiServiceType.name}): $sessionId")
         webViewCallback?.onNewChatStarted()
         return sessionId
     }
     
     @JavascriptInterface
     fun getMessages(sessionId: String): String {
-        val messages = chatDataManager.getMessages(sessionId)
+        val messages = chatDataManager.getMessages(sessionId, aiServiceType)
         val jsonArray = JSONArray()
 
         messages.forEach { message ->
@@ -126,7 +150,12 @@ class AndroidChatInterface(
 
         return jsonArray.toString()
     }
-    
+
+    @JavascriptInterface
+    fun getCurrentSessionId(): String? {
+        return chatDataManager.getCurrentSessionId(aiServiceType)
+    }
+
     @JavascriptInterface
     fun getSessions(): String {
         val sessions = chatDataManager.getAllSessions()
@@ -155,12 +184,12 @@ class AndroidChatInterface(
     
     @JavascriptInterface
     fun getInitialSession(): String? {
-        var currentSessionId = chatDataManager.getCurrentSessionId()
+        var currentSessionId = chatDataManager.getCurrentSessionId(aiServiceType)
         if (currentSessionId == null) {
             currentSessionId = startNewChat()
         }
 
-        val messages = chatDataManager.getMessages(currentSessionId)
+        val messages = chatDataManager.getMessages(currentSessionId, aiServiceType)
         val sessionJson = JSONObject().apply {
             put("id", currentSessionId)
             put("messages", JSONArray().apply {
@@ -264,10 +293,11 @@ class AndroidChatInterface(
      * 显示API配置引导
      */
     private fun showApiConfigurationGuide() {
+        val aiServiceName = getAIServiceDisplayName(aiServiceType)
         val guideMessage = """
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin: 10px 0; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                <h3 style="margin: 0 0 15px 0; font-size: 18px;">🔧 需要配置 DeepSeek API</h3>
-                <p style="margin: 0 0 15px 0; line-height: 1.6;">要使用 DeepSeek AI 对话功能，您需要先配置 API 密钥。</p>
+                <h3 style="margin: 0 0 15px 0; font-size: 18px;">🔧 需要配置 $aiServiceName API</h3>
+                <p style="margin: 0 0 15px 0; line-height: 1.6;">要使用 $aiServiceName AI 对话功能，您需要先配置 API 密钥。</p>
 
                 <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
                     <h4 style="margin: 0 0 10px 0; font-size: 16px;">📋 配置步骤：</h4>

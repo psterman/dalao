@@ -106,6 +106,19 @@ class FloatingWindowManager(
     private var lastDragY: Float = 0f
     private var lastActiveWebViewIndex = 0 // 追踪当前活动的WebView
 
+    // 分层焦点管理系统
+    enum class FocusLayer {
+        BACKGROUND,      // 下方界面可交互，悬浮窗不获取焦点
+        FLOATING_PASSIVE, // 悬浮窗可见但不主动获取焦点，允许WebView交互
+        FLOATING_ACTIVE,  // 悬浮窗主动获取焦点，用于输入框交互
+        FLOATING_MODAL   // 悬浮窗模态状态，阻止下方界面交互
+    }
+
+    private var currentFocusLayer = FocusLayer.BACKGROUND
+    private var focusTransitionInProgress = false
+    private val focusTransitionHandler = Handler(Looper.getMainLooper())
+    private var pendingFocusTransition: Runnable? = null
+
     private var originalWindowHeight: Int = 0
     private var originalWindowY: Int = 0
     private var isKeyboardShowing: Boolean = false
@@ -285,13 +298,18 @@ class FloatingWindowManager(
             } else {
                 WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
             },
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            // 初始状态：不可获取焦点，避免启动时输入法闪现
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             x = savedX
             y = savedY
-            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            // 初始状态：隐藏输入法，不调整窗口大小
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
             // 确保DualFloatingWebViewService显示在最上层
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -359,33 +377,21 @@ class FloatingWindowManager(
             }
         }
 
-        // 添加焦点变化监听器，确保输入框焦点管理正确
+        // 使用分层焦点管理的焦点变化监听器
         searchInput?.setOnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
-                // 获得焦点时，确保窗口可获取焦点
-                updateWindowFocusability(true)
-                
-                // 临时禁用WebView的焦点能力，防止抢夺焦点
-                val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
-                webViews.forEach { webView ->
-                    webView.isFocusable = false
-                    webView.isFocusableInTouchMode = false
-                }
-                
-                // 延迟恢复WebView焦点能力
-                Handler(Looper.getMainLooper()).postDelayed({
-                    webViews.forEach { webView ->
-                        webView.isFocusable = true
-                        webView.isFocusableInTouchMode = true
+            Log.d(TAG, "SearchInput focus changed: $hasFocus, current layer: $currentFocusLayer")
+            if (!hasFocus) {
+                // 输入框失去焦点，决定下一个焦点层级
+                val targetLayer = decideFocusLayerForUserAction("input_focus_lost", null)
+
+                // 延迟切换，避免快速焦点变化时的闪现
+                pendingFocusTransition?.let { focusTransitionHandler.removeCallbacks(it) }
+                pendingFocusTransition = Runnable {
+                    if (searchInput?.isFocused != true) {
+                        transitionToFocusLayer(targetLayer, "input_focus_lost")
                     }
-                }, 500) // 延长到500ms，给输入法更多时间稳定
-                
-                Log.d(TAG, "SearchInput gained focus, window made focusable, WebView focus temporarily disabled")
-            } else {
-                // 失去焦点时，隐藏键盘并恢复窗口焦点设置
-                hideKeyboard()
-                updateWindowFocusability(false)
-                Log.d(TAG, "SearchInput lost focus, keyboard hidden, window made non-focusable")
+                }
+                focusTransitionHandler.postDelayed(pendingFocusTransition!!, 200)
             }
         }
 
@@ -394,32 +400,23 @@ class FloatingWindowManager(
             true
         }
 
-        // 添加点击监听器，作为焦点获取的额外保障
+        // 简化的点击监听器，避免重复焦点操作
         searchInput?.setOnClickListener { view ->
-            Log.d(TAG, "SearchInput clicked, trying immediate focus")
-            
-            // 立即获取焦点
-            view.isFocusable = true
-            view.isFocusableInTouchMode = true
-            view.requestFocus()
-            view.requestFocusFromTouch()
-            
-            // 确保窗口可获取焦点
-            updateWindowFocusability(true)
-            
-            // 立即显示键盘
-            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
-            
-            // 检查焦点是否成功获取，如果失败则使用超强力模式
-            Handler(Looper.getMainLooper()).postDelayed({
-                if (!view.isFocused) {
-                    Log.w(TAG, "Normal focus failed, switching to super aggressive mode")
-                    forceInputFocusActivation()
-                } else {
-                    Log.d(TAG, "Normal focus succeeded")
-                }
-            }, 200)
+            Log.d(TAG, "SearchInput clicked")
+
+            // 只在必要时更新窗口焦点能力
+            if (!view.isFocused) {
+                updateWindowFocusabilityForInput(true)
+                view.requestFocus()
+
+                // 延迟显示键盘，避免与焦点变化冲突
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (view.isFocused) {
+                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+                    }
+                }, 50)
+            }
         }
 
         saveEnginesButton?.setOnClickListener {
@@ -498,7 +495,8 @@ class FloatingWindowManager(
 
         setupKeyboardManagement()
         setupWebViewFocusManagementOnScroll()
-        
+        setupOutsideTouchHandling()
+
         try {
             windowManager?.addView(_floatingView, params)
         } catch (e: Exception) {
@@ -862,74 +860,56 @@ class FloatingWindowManager(
         var lastClickedArea: String = "none"
         var lastClickTime: Long = 0
         
-        // 添加输入框触摸监听器，记录用户点击意图
+        // 使用分层焦点管理的输入框触摸监听器
         searchInput?.setOnTouchListener { view, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 lastClickedArea = "search_input"
                 lastClickTime = System.currentTimeMillis()
-                Log.d(TAG, "User clicked on search input - priority focus area")
-                
-                // 通知WebView暂时不允许页面焦点
-                sendFocusControlToWebViews(false, "search_input_clicked")
-                
-                // 用户明确点击了搜索输入框，立即获取焦点
+                Log.d(TAG, "User clicked on search input - transitioning to active layer")
+
+                // 切换到主动焦点层级
+                val targetLayer = decideFocusLayerForUserAction("search_input_clicked", view)
+                transitionToFocusLayer(targetLayer, "user_clicked_search_input")
+
+                // 确保输入框可以获取焦点
                 view.isFocusable = true
                 view.isFocusableInTouchMode = true
                 view.requestFocus()
-                view.requestFocusFromTouch()
-                
-                // 确保窗口可获取焦点
-                updateWindowFocusability(true)
-                
-                // 立即显示键盘
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
-                
-                // 延迟检查并加强焦点保护
+
+                // 延迟显示键盘，等待焦点层级切换完成
                 Handler(Looper.getMainLooper()).postDelayed({
-                    if (lastClickedArea == "search_input" && 
-                        System.currentTimeMillis() - lastClickTime < 1000) {
-                        // 用户最近点击的是搜索框，强制保持焦点
-                        if (!view.isFocused) {
-                            Log.d(TAG, "Enforcing search input focus based on user intent")
-                            view.requestFocus()
-                            imm.showSoftInput(view, InputMethodManager.SHOW_FORCED)
-                        }
+                    if (view.isFocused && currentFocusLayer == FocusLayer.FLOATING_ACTIVE) {
+                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+                        Log.d(TAG, "Keyboard shown after focus layer transition")
                     }
-                }, 100)
+                }, 150)
             }
             false // 不消费事件，让正常的输入处理继续
         }
 
-        // WebView触摸监听器 - 基于用户点击意图
+        // 使用分层焦点管理的WebView触摸监听器
         val webViewTouchListener = View.OnTouchListener { view, event ->
             if (event.action == MotionEvent.ACTION_DOWN) {
                 lastClickedArea = "webview"
                 lastClickTime = System.currentTimeMillis()
-                Log.d(TAG, "User clicked on WebView - allowing page focus")
-                
-                // 通知WebView现在允许页面焦点
-                sendFocusControlToWebViews(true, "webview_clicked")
-                
-                // 用户点击了WebView区域，说明想与页面交互
-                // 只有当用户之前焦点在搜索框时才清除搜索框焦点
-                if (searchInput?.isFocused == true) {
-                    Log.d(TAG, "User switched from search input to WebView interaction")
-                    searchInput?.clearFocus()
-                    updateWindowFocusability(false)
-                }
+                Log.d(TAG, "User clicked on WebView - transitioning to passive layer")
 
-                    // 记录哪个WebView被触摸了
-                    val touchedIndex = webViews.indexOf(view)
-                    if (touchedIndex != -1) {
-                        lastActiveWebViewIndex = touchedIndex
+                // 记录哪个WebView被触摸了
+                val touchedIndex = webViews.indexOf(view)
+                if (touchedIndex != -1) {
+                    lastActiveWebViewIndex = touchedIndex
                     Log.d(TAG, "Active WebView set to index: $lastActiveWebViewIndex")
                 }
-                
-                // 确保WebView可以获取焦点进行正常交互
-                webViews.forEach { webView ->
-                    webView.isFocusable = true
-                    webView.isFocusableInTouchMode = true
+
+                // 切换到被动焦点层级，允许WebView交互
+                val targetLayer = decideFocusLayerForUserAction("webview_clicked", view)
+                transitionToFocusLayer(targetLayer, "user_clicked_webview")
+
+                // 如果搜索框之前有焦点，清除它
+                if (searchInput?.isFocused == true) {
+                    Log.d(TAG, "Clearing search input focus for WebView interaction")
+                    searchInput?.clearFocus()
                 }
             }
             false // 不消费事件，允许WebView正常处理
@@ -1248,14 +1228,132 @@ class FloatingWindowManager(
     }
 
     /**
-     * 隐藏软键盘
+     * 专门用于输入框的窗口焦点管理，避免输入法闪现
+     */
+    private fun updateWindowFocusabilityForInput(needsFocus: Boolean) {
+        try {
+            params?.let { layoutParams ->
+                val oldFlags = layoutParams.flags
+                val oldSoftInputMode = layoutParams.softInputMode
+
+                if (needsFocus) {
+                    // 需要焦点时，移除FLAG_NOT_FOCUSABLE标志，设置合适的输入法模式
+                    layoutParams.flags = layoutParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                    layoutParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                } else {
+                    // 不需要焦点时，添加FLAG_NOT_FOCUSABLE标志，隐藏输入法
+                    layoutParams.flags = layoutParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    layoutParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                }
+
+                // 只在参数真正改变时才更新布局，避免不必要的更新
+                if (oldFlags != layoutParams.flags || oldSoftInputMode != layoutParams.softInputMode) {
+                    _floatingView?.let { view ->
+                        windowManager?.updateViewLayout(view, layoutParams)
+                    }
+                    Log.d("FloatingWindowManager", "Input window focusability updated: needsFocus=$needsFocus")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "Error updating input window focusability", e)
+        }
+    }
+
+    /**
+     * 分层焦点管理系统 - 核心方法
+     * 根据用户交互意图智能切换焦点层级
+     */
+    private fun transitionToFocusLayer(targetLayer: FocusLayer, reason: String) {
+        if (focusTransitionInProgress || currentFocusLayer == targetLayer) {
+            Log.d("FloatingWindowManager", "Focus transition skipped: inProgress=$focusTransitionInProgress, same=$currentFocusLayer")
+            return
+        }
+
+        Log.d("FloatingWindowManager", "Focus layer transition: $currentFocusLayer -> $targetLayer (reason: $reason)")
+
+        // 取消待处理的焦点转换
+        pendingFocusTransition?.let { focusTransitionHandler.removeCallbacks(it) }
+
+        focusTransitionInProgress = true
+        val previousLayer = currentFocusLayer
+        currentFocusLayer = targetLayer
+
+        try {
+            params?.let { layoutParams ->
+                when (targetLayer) {
+                    FocusLayer.BACKGROUND -> {
+                        // 悬浮窗完全不获取焦点，下方界面可正常交互
+                        layoutParams.flags = (layoutParams.flags or
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                        layoutParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN or
+                            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+
+                        // 清除输入框焦点
+                        searchInput?.clearFocus()
+                        hideKeyboard()
+                    }
+
+                    FocusLayer.FLOATING_PASSIVE -> {
+                        // 悬浮窗可交互但不主动获取焦点，允许WebView正常工作
+                        layoutParams.flags = (layoutParams.flags or
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                        layoutParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN or
+                            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+
+                        // 确保WebView可以交互
+                        enableWebViewInteraction()
+                    }
+
+                    FocusLayer.FLOATING_ACTIVE -> {
+                        // 悬浮窗主动获取焦点，用于输入框交互
+                        layoutParams.flags = (layoutParams.flags and
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()) or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        layoutParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or
+                            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+
+                        // 限制WebView焦点，优先保证输入框
+                        restrictWebViewFocus()
+                    }
+
+                    FocusLayer.FLOATING_MODAL -> {
+                        // 悬浮窗模态状态，阻止下方界面交互
+                        layoutParams.flags = (layoutParams.flags and
+                            (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL).inv())
+                        layoutParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or
+                            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                    }
+                }
+
+                _floatingView?.let { view ->
+                    windowManager?.updateViewLayout(view, layoutParams)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("FloatingWindowManager", "Error in focus layer transition", e)
+            // 回滚到之前的状态
+            currentFocusLayer = previousLayer
+        } finally {
+            // 延迟重置转换标志，避免快速连续调用
+            focusTransitionHandler.postDelayed({
+                focusTransitionInProgress = false
+            }, 100)
+        }
+    }
+
+    /**
+     * 温和地隐藏软键盘，避免闪现
      */
     private fun hideKeyboard() {
         try {
             val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             searchInput?.let { input ->
-                imm.hideSoftInputFromWindow(input.windowToken, 0)
-                Log.d("FloatingWindowManager", "Keyboard hidden")
+                // 使用更温和的隐藏方式
+                imm.hideSoftInputFromWindow(input.windowToken, InputMethodManager.HIDE_NOT_ALWAYS)
+                Log.d("FloatingWindowManager", "Keyboard hidden gently")
             }
         } catch (e: Exception) {
             Log.e("FloatingWindowManager", "Error hiding keyboard", e)
@@ -1263,61 +1361,153 @@ class FloatingWindowManager(
     }
 
     /**
-     * 强制确保输入框焦点稳定
+     * 启用WebView交互，用于FLOATING_PASSIVE层级
+     */
+    private fun enableWebViewInteraction() {
+        val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+        webViews.forEach { webView ->
+            webView.isFocusable = true
+            webView.isFocusableInTouchMode = true
+        }
+
+        // 通知WebView可以正常获取焦点
+        sendFocusControlToWebViews(true, "passive_layer_enabled")
+        Log.d("FloatingWindowManager", "WebView interaction enabled for passive layer")
+    }
+
+    /**
+     * 限制WebView焦点，用于FLOATING_ACTIVE层级
+     */
+    private fun restrictWebViewFocus() {
+        val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+        webViews.forEach { webView ->
+            webView.isFocusable = false
+            webView.isFocusableInTouchMode = false
+        }
+
+        // 通知WebView限制焦点获取
+        sendFocusControlToWebViews(false, "active_layer_input_priority")
+        Log.d("FloatingWindowManager", "WebView focus restricted for active layer")
+    }
+
+    /**
+     * 智能焦点层级决策
+     * 根据用户交互上下文决定应该使用哪个焦点层级
+     */
+    private fun decideFocusLayerForUserAction(action: String, targetView: View?): FocusLayer {
+        return when (action) {
+            "search_input_clicked" -> {
+                // 用户点击搜索框，需要主动获取焦点
+                FocusLayer.FLOATING_ACTIVE
+            }
+            "webview_clicked" -> {
+                // 用户点击WebView，允许WebView交互但不阻止下方界面
+                FocusLayer.FLOATING_PASSIVE
+            }
+            "container_scroll" -> {
+                // 用户滚动容器，保持被动交互
+                FocusLayer.FLOATING_PASSIVE
+            }
+            "outside_touch" -> {
+                // 用户点击悬浮窗外部，回到后台层级
+                FocusLayer.BACKGROUND
+            }
+            "input_focus_lost" -> {
+                // 输入框失去焦点，根据是否有WebView交互决定
+                if (hasActiveWebViewInteraction()) FocusLayer.FLOATING_PASSIVE else FocusLayer.BACKGROUND
+            }
+            else -> {
+                // 默认保持当前层级
+                currentFocusLayer
+            }
+        }
+    }
+
+    /**
+     * 检查是否有活跃的WebView交互
+     */
+    private fun hasActiveWebViewInteraction(): Boolean {
+        val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+        return webViews.any { webView ->
+            webView.isShown && (webView.progress < 100 || webView.canGoBack())
+        }
+    }
+
+    /**
+     * 设置外部触摸处理，监听用户点击悬浮窗外部的行为
+     */
+    private fun setupOutsideTouchHandling() {
+        // 为悬浮窗添加外部触摸监听
+        _floatingView?.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_OUTSIDE -> {
+                    Log.d("FloatingWindowManager", "User touched outside floating window")
+
+                    // 用户点击了悬浮窗外部，切换到后台层级
+                    val targetLayer = decideFocusLayerForUserAction("outside_touch", null)
+                    transitionToFocusLayer(targetLayer, "user_touched_outside")
+
+                    // 清除输入框焦点
+                    searchInput?.clearFocus()
+
+                    true // 消费事件
+                }
+                else -> false
+            }
+        }
+
+        // 确保窗口可以接收外部触摸事件
+        params?.flags = params?.flags?.or(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
+    }
+
+    /**
+     * 公共方法：手动切换焦点层级
+     * 供外部调用，用于特殊情况下的焦点管理
+     */
+    fun switchToFocusLayer(layer: FocusLayer, reason: String = "manual_switch") {
+        transitionToFocusLayer(layer, reason)
+    }
+
+    /**
+     * 公共方法：获取当前焦点层级
+     */
+    fun getCurrentFocusLayer(): FocusLayer {
+        return currentFocusLayer
+    }
+
+    /**
+     * 公共方法：检查是否正在进行焦点转换
+     */
+    fun isFocusTransitionInProgress(): Boolean {
+        return focusTransitionInProgress
+    }
+
+    /**
+     * 简化的输入框焦点确保方法，减少输入法闪现
      */
     fun ensureInputFocus() {
         try {
             searchInput?.let { input ->
-                Log.d("FloatingWindowManager", "强制确保输入框焦点")
-                
-                // 1. 先禁用所有WebView的焦点能力
-                val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
-                webViews.forEach { webView ->
-                    webView.clearFocus()
-                    webView.isFocusable = false
-                    webView.isFocusableInTouchMode = false
-                    
-                    // 强制移除WebView内部可能的焦点
-                    webView.evaluateJavascript("document.activeElement && document.activeElement.blur();", null)
+                Log.d("FloatingWindowManager", "确保输入框焦点")
+
+                // 如果输入框已经有焦点，不做任何操作
+                if (input.isFocused) {
+                    Log.d("FloatingWindowManager", "输入框已有焦点，无需操作")
+                    return
                 }
-                
-                // 2. 确保输入框可获取焦点
-                input.isFocusable = true
-                input.isFocusableInTouchMode = true
-                
-                // 3. 确保窗口可获取焦点
-                updateWindowFocusability(true)
-                
-                // 4. 强制请求焦点
+
+                // 简单的焦点获取
+                updateWindowFocusabilityForInput(true)
                 input.requestFocus()
-                input.requestFocusFromTouch()
-                
-                // 5. 延迟显示键盘，确保焦点已经设置
+
+                // 延迟显示键盘，避免与窗口更新冲突
                 Handler(Looper.getMainLooper()).postDelayed({
-                    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    
-                    // 如果焦点仍未获取，再次尝试
-                    if (!input.isFocused) {
-                        input.requestFocus()
-                        input.requestFocusFromTouch()
-                        Log.w("FloatingWindowManager", "Input focus retry needed")
+                    if (input.isFocused) {
+                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                        Log.d("FloatingWindowManager", "输入框焦点确保完成")
                     }
-                    
-                    // 强制显示键盘
-                    imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
-                    
-                    // 延迟恢复WebView焦点能力
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        webViews.forEach { webView ->
-                            webView.isFocusable = true
-                            webView.isFocusableInTouchMode = true
-                        }
-                        Log.d("FloatingWindowManager", "WebView focus ability restored")
-                    }, 800) // 延长到800ms
-                    
-                }, 150)
-                
-                Log.d("FloatingWindowManager", "Input focus ensured with WebView protection")
+                }, 100)
             }
         } catch (e: Exception) {
             Log.e("FloatingWindowManager", "Error ensuring input focus", e)
@@ -1341,60 +1531,45 @@ class FloatingWindowManager(
     }
 
     /**
-     * 智能输入框焦点激活 - 基于用户意图的焦点管理
+     * 简化的强制输入框焦点激活方法，减少输入法闪现
      */
     fun forceInputFocusActivation() {
         try {
             searchInput?.let { input ->
-                Log.d("FloatingWindowManager", "启动智能输入框焦点激活")
-                
-                // 1. 通知WebView进入焦点保护模式
-                sendFocusControlToWebViews(false, "force_input_focus_start")
-                
-                // 2. 确保窗口可获取焦点
-                updateWindowFocusability(true)
-                
-                // 3. 强制获取输入框焦点
-                input.isFocusable = true
-                input.isFocusableInTouchMode = true
+                Log.d("FloatingWindowManager", "启动简化的输入框焦点激活")
+
+                // 如果输入框已经有焦点，不做任何操作
+                if (input.isFocused) {
+                    Log.d("FloatingWindowManager", "输入框已有焦点，无需强制激活")
+                    return
+                }
+
+                // 简单的强制焦点获取，避免复杂的WebView操作
+                updateWindowFocusabilityForInput(true)
                 input.requestFocus()
-                input.requestFocusFromTouch()
-                
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
-                
-                // 4. 延迟检查焦点获取是否成功
+
+                // 延迟显示键盘，避免与窗口更新冲突
                 Handler(Looper.getMainLooper()).postDelayed({
-                    if (!input.isFocused) {
-                        // 再次尝试
-                        input.requestFocus()
-                        imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
-                        Log.d("FloatingWindowManager", "二次焦点获取尝试")
-                        
-                        // 如果仍然失败，通知WebView执行更强的焦点清理
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            if (!input.isFocused) {
-                                sendFocusControlToWebViews(false, "emergency_focus_clear")
-                                input.requestFocus()
-                                imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
-                                Log.d("FloatingWindowManager", "紧急焦点清理和第三次尝试")
-                            }
-                        }, 200)
+                    if (input.isFocused) {
+                        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT)
+                        Log.d("FloatingWindowManager", "强制焦点激活成功")
                     } else {
-                        Log.d("FloatingWindowManager", "输入框焦点获取成功")
+                        // 如果仍然失败，再尝试一次
+                        input.requestFocus()
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            if (input.isFocused) {
+                                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                                imm.showSoftInput(input, InputMethodManager.SHOW_FORCED)
+                            }
+                        }, 100)
                     }
-                }, 200)
-                
-                // 5. 延迟恢复正常焦点模式，但保持智能保护
-                Handler(Looper.getMainLooper()).postDelayed({
-                    sendFocusControlToWebViews(true, "smart_protection_active")
-                    Log.d("FloatingWindowManager", "恢复智能焦点保护模式")
-                }, 2000)
-                
-                Log.d("FloatingWindowManager", "智能输入框焦点激活完成")
+                }, 150)
+
+                Log.d("FloatingWindowManager", "简化焦点激活完成")
             }
         } catch (e: Exception) {
-            Log.e("FloatingWindowManager", "智能焦点激活错误", e)
+            Log.e("FloatingWindowManager", "简化焦点激活错误", e)
         }
     }
 

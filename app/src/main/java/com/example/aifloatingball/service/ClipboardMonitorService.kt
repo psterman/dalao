@@ -28,6 +28,16 @@ class ClipboardMonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        // 暂时禁用剪贴板监听功能
+        // 直接返回，不设置任何监听器
+        android.util.Log.d("ClipboardMonitorService", "ClipboardMonitorService disabled - not setting up listeners")
+
+        // 停止服务
+        stopSelf()
+        return
+
+        // 以下代码被暂时禁用
+        /*
         settingsManager = SettingsManager.getInstance(this)
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         debounceHandler = Handler(Looper.getMainLooper())
@@ -52,6 +62,7 @@ class ClipboardMonitorService : Service() {
             // 延迟执行
             debounceHandler?.postDelayed(debounceRunnable!!, DEBOUNCE_DELAY)
         }
+        */
     }
 
     private fun handleClipboardChange(clipText: String) {

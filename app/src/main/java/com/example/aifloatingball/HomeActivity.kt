@@ -213,10 +213,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         // 设置字母索引栏
         setupLetterIndexBar()
 
-        // 在Activity完全初始化后检查剪贴板
-        window.decorView.post {
-            checkClipboard()
-        }
+        // 暂时禁用剪贴板自动弹窗功能
+        // window.decorView.post {
+        //     checkClipboard()
+        // }
 
         // 尝试查找开关
         autoHideSwitch = findViewById(R.id.auto_hide_switch)
@@ -229,29 +229,64 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
 
         // 应用启动时，根据当前设置启动正确的服务
         val displayMode = settingsManager.getDisplayMode()
-        
-        // 如果是简易模式，先检查服务是否已在运行（即是否已最小化）
-        if (displayMode == "simple_mode" && SimpleModeService.isRunning(this)) {
-            // 如果服务正在运行，说明是从最小化状态恢复，但用户打开了主活动
-            // 此时应该直接关闭主活动，保持最小化状态
-            finish()
-            return
-        }
-        
-        if (displayMode == "floating_ball") {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-                startService(Intent(this, FloatingWindowService::class.java))
+        Log.d(TAG, "HomeActivity onCreate - current display mode: $displayMode")
+
+        // 检查是否应该启动对应的模式
+        // 只有在没有对应服务运行时才启动，避免重复启动
+        when (displayMode) {
+            "floating_ball" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                    if (!FloatingWindowService.isRunning(this)) {
+                        Log.d(TAG, "Starting FloatingWindowService")
+                        startService(Intent(this, FloatingWindowService::class.java))
+                    } else {
+                        Log.d(TAG, "FloatingWindowService already running")
+                    }
+                    // 悬浮球模式下，关闭HomeActivity
+                    finish()
+                } else {
+                    Log.w(TAG, "No overlay permission for floating ball mode, fallback to simple mode")
+                    settingsManager.setDisplayMode("simple_mode")
+                    startActivity(Intent(this, SimpleModeActivity::class.java))
+                    finish()
+                }
             }
-        } else if (displayMode == "dynamic_island") {
-             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-                startService(Intent(this, DynamicIslandService::class.java))
+            "dynamic_island" -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                    if (!DynamicIslandService.isRunning(this)) {
+                        Log.d(TAG, "Starting DynamicIslandService")
+                        startService(Intent(this, DynamicIslandService::class.java))
+                    } else {
+                        Log.d(TAG, "DynamicIslandService already running")
+                    }
+                    // 灵动岛模式下，关闭HomeActivity
+                    finish()
+                } else {
+                    Log.w(TAG, "No overlay permission for dynamic island mode, fallback to simple mode")
+                    settingsManager.setDisplayMode("simple_mode")
+                    startActivity(Intent(this, SimpleModeActivity::class.java))
+                    finish()
+                }
             }
-        } else if (displayMode == "simple_mode") {
-            // 简易模式启动Activity
-            startActivity(Intent(this, SimpleModeActivity::class.java))
-        } else {
-            // 默认启动简易模式Activity
-            startActivity(Intent(this, SimpleModeActivity::class.java))
+            "simple_mode" -> {
+                // 如果SimpleModeService正在运行，说明是从最小化状态恢复
+                if (SimpleModeService.isRunning(this)) {
+                    Log.d(TAG, "SimpleModeService is running, closing HomeActivity to maintain minimized state")
+                    finish()
+                    return
+                }
+                // 否则启动简易模式Activity
+                Log.d(TAG, "Starting SimpleModeActivity")
+                startActivity(Intent(this, SimpleModeActivity::class.java))
+                finish()
+            }
+            else -> {
+                // 默认启动简易模式Activity
+                Log.d(TAG, "Unknown display mode, starting SimpleModeActivity as default")
+                settingsManager.setDisplayMode("simple_mode")
+                startActivity(Intent(this, SimpleModeActivity::class.java))
+                finish()
+            }
         }
     }
 

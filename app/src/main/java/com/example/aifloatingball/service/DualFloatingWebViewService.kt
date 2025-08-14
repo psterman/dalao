@@ -20,6 +20,8 @@ import androidx.core.app.NotificationCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.manager.AIPageConfigManager
+import com.example.aifloatingball.manager.AIServiceType
+import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.webview.AndroidChatInterface
 import com.example.aifloatingball.ui.floating.FloatingWindowManager
 import com.example.aifloatingball.ui.floating.WindowStateCallback
@@ -59,6 +61,25 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private lateinit var settingsManager: SettingsManager
     private lateinit var aiPageConfigManager: AIPageConfigManager
     private var androidChatInterface: AndroidChatInterface? = null
+
+    /**
+     * 根据配置获取AI服务类型
+     */
+    private fun getAIServiceTypeFromConfig(config: AISearchEngine): AIServiceType {
+        return when {
+            config.name.contains("DeepSeek", ignoreCase = true) -> AIServiceType.DEEPSEEK
+            config.name.contains("ChatGPT", ignoreCase = true) -> AIServiceType.CHATGPT
+            config.name.contains("Claude", ignoreCase = true) -> AIServiceType.CLAUDE
+            config.name.contains("通义千问", ignoreCase = true) -> AIServiceType.QIANWEN
+            config.name.contains("智谱", ignoreCase = true) -> AIServiceType.ZHIPU_AI
+            config.url.contains("deepseek_chat.html") -> AIServiceType.DEEPSEEK
+            config.url.contains("chatgpt_chat.html") -> AIServiceType.CHATGPT
+            config.url.contains("claude_chat.html") -> AIServiceType.CLAUDE
+            config.url.contains("qianwen_chat.html") -> AIServiceType.QIANWEN
+            config.url.contains("zhipu_chat.html") -> AIServiceType.ZHIPU_AI
+            else -> AIServiceType.DEEPSEEK // 默认
+        }
+    }
     
     // 浮动窗口管理器
     private var floatingWindowManager: FloatingWindowManager? = null
@@ -337,14 +358,17 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     }
 
     /**
-     * 设置自定义DeepSeek页面
+     * 设置自定义AI页面
      */
     private fun setupCustomDeepSeekPage(query: String, config: com.example.aifloatingball.model.AISearchEngine) {
-        Log.d(TAG, "设置自定义DeepSeek页面")
+        Log.d(TAG, "设置自定义AI页面: ${config.name}")
 
         webViewManager?.let { manager ->
             val webView = manager.getFirstWebView()
             if (webView != null) {
+                // 根据配置确定AI服务类型
+                val aiServiceType = getAIServiceTypeFromConfig(config)
+
                 // 创建AndroidChatInterface
                 androidChatInterface = AndroidChatInterface(
                     this,
@@ -381,7 +405,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                         override fun onSessionDeleted(sessionId: String) {
                             Log.d(TAG, "会话已删除: $sessionId")
                         }
-                    }
+                    },
+                    aiServiceType
                 )
 
                 // 添加JavaScript接口
@@ -445,11 +470,12 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     private fun isAIEngine(engineKey: String): Boolean {
         val aiEngineKeys = listOf(
-            "chatgpt", "chatgpt_chat", "claude", "gemini", "wenxin", "chatglm",
-            "qianwen", "xinghuo", "perplexity", "phind", "poe", "deepseek", "deepseek_chat",
-            "kimi", "tiangong", "metaso", "quark", "360ai", "baiduai", "you", "brave",
-            "wolfram", "wanzhi", "baixiaoying", "yuewen", "doubao", "cici", "hailuo",
-            "groq", "yuanbao"
+            "chatgpt", "chatgpt_chat", "chatgpt (custom)", "claude", "claude (custom)",
+            "gemini", "wenxin", "chatglm", "qianwen", "通义千问 (custom)", "xinghuo",
+            "perplexity", "phind", "poe", "deepseek", "deepseek_chat", "deepseek (api)",
+            "智谱ai (custom)", "zhipu", "kimi", "tiangong", "metaso", "quark",
+            "360ai", "baiduai", "you", "brave", "wolfram", "wanzhi", "baixiaoying",
+            "yuewen", "doubao", "cici", "hailuo", "groq", "yuanbao"
         )
         return aiEngineKeys.any { it.equals(engineKey, ignoreCase = true) }
     }
@@ -547,6 +573,9 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     private fun setupCustomDeepSeekPageInWebView(webView: com.example.aifloatingball.ui.webview.CustomWebView, query: String, config: com.example.aifloatingball.model.AISearchEngine) {
         Log.d(TAG, "在WebView中设置自定义DeepSeek页面")
 
+        // 根据配置确定AI服务类型
+        val aiServiceType = getAIServiceTypeFromConfig(config)
+
         // 创建AndroidChatInterface
         androidChatInterface = AndroidChatInterface(
             this,
@@ -606,7 +635,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
                 override fun onSessionDeleted(sessionId: String) {
                     Log.d(TAG, "会话已删除: $sessionId")
                 }
-            }
+            },
+            aiServiceType
         )
 
         // 添加JavaScript接口
