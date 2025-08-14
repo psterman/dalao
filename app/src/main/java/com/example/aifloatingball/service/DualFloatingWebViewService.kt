@@ -19,6 +19,8 @@ import android.view.WindowManager
 import androidx.core.app.NotificationCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.manager.AIPageConfigManager
+import com.example.aifloatingball.webview.AndroidChatInterface
 import com.example.aifloatingball.ui.floating.FloatingWindowManager
 import com.example.aifloatingball.ui.floating.WindowStateCallback
 import com.example.aifloatingball.ui.text.TextSelectionManager
@@ -55,6 +57,8 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
     // 状态变量
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var settingsManager: SettingsManager
+    private lateinit var aiPageConfigManager: AIPageConfigManager
+    private var androidChatInterface: AndroidChatInterface? = null
     
     // 浮动窗口管理器
     private var floatingWindowManager: FloatingWindowManager? = null
@@ -98,6 +102,10 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
 
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
+        aiPageConfigManager = AIPageConfigManager(this)
+
+        // 调试：打印所有AI配置
+        aiPageConfigManager.debugPrintAllConfigs()
 
         // 创建通知渠道和启动前台服务
         createNotificationChannel()
@@ -286,7 +294,115 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      * 执行搜索
      */
     private fun performSearch(query: String, engineKey: String) {
-        webViewManager?.performSearch(query, engineKey)
+        // 检查是否是定制AI配置
+        val customConfig = aiPageConfigManager.getConfigByKey(engineKey)
+        if (customConfig != null) {
+            performCustomAISearch(query, customConfig)
+        } else {
+            webViewManager?.performSearch(query, engineKey)
+        }
+    }
+
+    /**
+     * 执行定制AI搜索
+     */
+    private fun performCustomAISearch(query: String, config: com.example.aifloatingball.model.AISearchEngine) {
+        Log.d(TAG, "执行定制AI搜索: ${config.name}, query: $query")
+
+        // 验证API配置（如果需要）
+        if (config.isChatMode && !aiPageConfigManager.validateApiConfig(config.name)) {
+            Log.w(TAG, "AI配置验证失败: ${config.name}")
+        }
+
+        // 检查是否使用自定义HTML页面
+        val useCustomHtml = config.customParams["use_custom_html"] == "true"
+
+        if (useCustomHtml && config.url.startsWith("file:///android_asset/")) {
+            // 使用自定义HTML页面
+            setupCustomDeepSeekPage(query, config)
+        } else {
+            // 使用常规URL加载
+            val finalUrl = if (config.customParams.isNotEmpty()) {
+                aiPageConfigManager.buildUrlWithParams(config.searchUrl, config.customParams)
+            } else {
+                config.getSearchUrl(query)
+            }
+
+            Log.d(TAG, "最终AI搜索URL: $finalUrl")
+
+            webViewManager?.let { manager ->
+                manager.getFirstWebView()?.loadUrl(finalUrl)
+            }
+        }
+    }
+
+    /**
+     * 设置自定义DeepSeek页面
+     */
+    private fun setupCustomDeepSeekPage(query: String, config: com.example.aifloatingball.model.AISearchEngine) {
+        Log.d(TAG, "设置自定义DeepSeek页面")
+
+        webViewManager?.let { manager ->
+            val webView = manager.getFirstWebView()
+            if (webView != null) {
+                // 创建AndroidChatInterface
+                androidChatInterface = AndroidChatInterface(
+                    this,
+                    object : AndroidChatInterface.WebViewCallback {
+                        override fun onMessageReceived(message: String) {
+                            // 将AI回复发送到HTML页面
+                            handler.post {
+                                val jsCode = """
+                                    if (typeof window.receiveMessage === 'function') {
+                                        window.receiveMessage('$message');
+                                    }
+                                """.trimIndent()
+                                webView.evaluateJavascript(jsCode, null)
+                            }
+                        }
+
+                        override fun onMessageCompleted(fullMessage: String) {
+                            // 消息完成时的处理
+                            handler.post {
+                                val jsCode = """
+                                    if (typeof window.onMessageCompleted === 'function') {
+                                        window.onMessageCompleted('$fullMessage');
+                                    }
+                                """.trimIndent()
+                                webView.evaluateJavascript(jsCode, null)
+                            }
+                            Log.d(TAG, "消息完成: $fullMessage")
+                        }
+
+                        override fun onNewChatStarted() {
+                            Log.d(TAG, "新对话开始")
+                        }
+
+                        override fun onSessionDeleted(sessionId: String) {
+                            Log.d(TAG, "会话已删除: $sessionId")
+                        }
+                    }
+                )
+
+                // 添加JavaScript接口
+                webView.addJavascriptInterface(androidChatInterface!!, "AndroidChatInterface")
+
+                // 加载自定义HTML页面
+                webView.loadUrl(config.url)
+
+                // 如果有查询，延迟发送到页面
+                if (query.isNotBlank()) {
+                    handler.postDelayed({
+                        val jsCode = """
+                            if (typeof window.setInitialQuery === 'function') {
+                                window.setInitialQuery('$query');
+                            }
+                        """.trimIndent()
+                        webView.evaluateJavascript(jsCode, null)
+                    }, 1000) // 等待页面加载完成
+                }
+            }
+        }
     }
 
     /**
@@ -374,7 +490,146 @@ class DualFloatingWebViewService : FloatingServiceBase(), WindowStateCallback {
      */
     fun performSearchInWebView(webViewIndex: Int, query: String, engineKey: String) {
         Log.d(TAG, "performSearchInWebView: index=$webViewIndex, query='$query', engineKey='$engineKey'")
-        webViewManager?.performSearchInWebView(webViewIndex, query, engineKey)
+
+        // 检查是否是定制AI配置
+        val customConfig = aiPageConfigManager.getConfigByKey(engineKey)
+        if (customConfig != null) {
+            Log.d(TAG, "找到定制AI配置: ${customConfig.name}, isChatMode=${customConfig.isChatMode}, url=${customConfig.url}")
+            Log.d(TAG, "自定义参数: ${customConfig.customParams}")
+            performCustomAISearchInWebView(webViewIndex, query, customConfig)
+        } else {
+            Log.d(TAG, "未找到定制AI配置，使用标准搜索")
+            // 使用标准搜索
+            webViewManager?.performSearchInWebView(webViewIndex, query, engineKey)
+        }
+    }
+
+    /**
+     * 在指定WebView中执行定制AI搜索
+     */
+    private fun performCustomAISearchInWebView(webViewIndex: Int, query: String, config: com.example.aifloatingball.model.AISearchEngine) {
+        Log.d(TAG, "在WebView $webViewIndex 中执行定制AI搜索: ${config.name}")
+
+        webViewManager?.let { manager ->
+            val webView = manager.getAllWebViews().getOrNull(webViewIndex)
+            if (webView != null) {
+                // 验证API配置（如果需要）
+                if (config.isChatMode && !aiPageConfigManager.validateApiConfig(config.name)) {
+                    Log.w(TAG, "AI配置验证失败: ${config.name}")
+                }
+
+                // 检查是否使用自定义HTML页面
+                val useCustomHtml = config.customParams["use_custom_html"] == "true"
+
+                if (useCustomHtml && config.url.startsWith("file:///android_asset/")) {
+                    // 使用自定义HTML页面
+                    setupCustomDeepSeekPageInWebView(webView, query, config)
+                } else {
+                    // 使用常规URL加载
+                    val finalUrl = if (config.customParams.isNotEmpty()) {
+                        aiPageConfigManager.buildUrlWithParams(config.searchUrl, config.customParams)
+                    } else {
+                        config.getSearchUrl(query)
+                    }
+
+                    Log.d(TAG, "在WebView $webViewIndex 中加载URL: $finalUrl")
+                    webView.loadUrl(finalUrl)
+                }
+            } else {
+                Log.e(TAG, "找不到索引为 $webViewIndex 的WebView")
+            }
+        }
+    }
+
+    /**
+     * 在指定WebView中设置自定义DeepSeek页面
+     */
+    private fun setupCustomDeepSeekPageInWebView(webView: com.example.aifloatingball.ui.webview.CustomWebView, query: String, config: com.example.aifloatingball.model.AISearchEngine) {
+        Log.d(TAG, "在WebView中设置自定义DeepSeek页面")
+
+        // 创建AndroidChatInterface
+        androidChatInterface = AndroidChatInterface(
+            this,
+            object : AndroidChatInterface.WebViewCallback {
+                private var isFirstChunk = true
+
+                override fun onMessageReceived(message: String) {
+                    // 将AI回复发送到HTML页面
+                    handler.post {
+                        val escapedMessage = message.replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+
+                        if (isFirstChunk) {
+                            // 第一个chunk，开始新的回复
+                            val jsCode = """
+                                if (typeof showTypingIndicator === 'function') {
+                                    showTypingIndicator();
+                                }
+                                currentRawText = '';
+                                if (typeof appendToResponse === 'function') {
+                                    appendToResponse('$escapedMessage');
+                                }
+                            """.trimIndent()
+                            webView.evaluateJavascript(jsCode, null)
+                            isFirstChunk = false
+                        } else {
+                            // 后续chunk，追加到回复
+                            val jsCode = """
+                                if (typeof appendToResponse === 'function') {
+                                    appendToResponse('$escapedMessage');
+                                }
+                            """.trimIndent()
+                            webView.evaluateJavascript(jsCode, null)
+                        }
+                    }
+                }
+
+                override fun onMessageCompleted(fullMessage: String) {
+                    // 响应完成，调用completeResponse
+                    handler.post {
+                        val jsCode = """
+                            if (typeof completeResponse === 'function') {
+                                completeResponse();
+                            }
+                        """.trimIndent()
+                        webView.evaluateJavascript(jsCode, null)
+                        isFirstChunk = true // 重置为下次对话准备
+                    }
+                }
+
+                override fun onNewChatStarted() {
+                    Log.d(TAG, "新对话开始")
+                    handler.post {
+                        isFirstChunk = true
+                    }
+                }
+
+                override fun onSessionDeleted(sessionId: String) {
+                    Log.d(TAG, "会话已删除: $sessionId")
+                }
+            }
+        )
+
+        // 添加JavaScript接口
+        webView.addJavascriptInterface(androidChatInterface!!, "AndroidChatInterface")
+
+        // 加载自定义HTML页面
+        webView.loadUrl(config.url)
+
+        // 如果有查询，延迟发送到页面
+        if (query.isNotBlank()) {
+            handler.postDelayed({
+                val escapedQuery = query.replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+                val jsCode = """
+                    if (typeof messageInput !== 'undefined') {
+                        messageInput.textContent = '$escapedQuery';
+                        if (typeof updateSendButton === 'function') {
+                            updateSendButton();
+                        }
+                    }
+                """.trimIndent()
+                webView.evaluateJavascript(jsCode, null)
+            }, 1500) // 等待页面加载完成
+        }
     }
 
     /**

@@ -1286,8 +1286,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             "simple_mode" -> {
                                 // 已经在简易模式，无需切换，但需要更新设置可见性
                                 Log.d(TAG, "Already in simple mode")
-                                // 恢复悬浮球默认点击行为
-                                settingsManager.putString("action_ball_click", "floating_menu")
+
                                 updateFloatingBallSettingsVisibility()
                             }
                         }
@@ -3683,9 +3682,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 stopService(Intent(this, SimpleModeService::class.java))
             }
 
-            // 设置悬浮球点击行为为打开设置页面
-            settingsManager.putString("action_ball_click", "settings")
-            Log.d(TAG, "设置悬浮球点击行为为打开设置页面")
+
 
             // 检查悬浮窗权限
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
@@ -3724,8 +3721,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 stopService(Intent(this, SimpleModeService::class.java))
             }
 
-            // 恢复悬浮球默认点击行为（以防之前设置过）
-            settingsManager.putString("action_ball_click", "floating_menu")
+
 
             // 检查悬浮窗权限
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && android.provider.Settings.canDrawOverlays(this)) {
@@ -6325,22 +6321,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 调用AI API发送消息
                         val response = sendMessageToAI(serviceType, query, conversationHistory, apiKey)
 
-                        // 保存用户消息和AI回复到聊天历史
-                        val chatHistoryManager = SimpleChatHistoryManager(this@SimpleModeActivity)
-                        val userMessage = ChatActivity.ChatMessage(
-                            content = query,
-                            isFromUser = true,
-                            timestamp = System.currentTimeMillis()
-                        )
-                        val aiMessage = ChatActivity.ChatMessage(
-                            content = response,
-                            isFromUser = false,
-                            timestamp = System.currentTimeMillis() + 1000
-                        )
+                        // 使用统一的ChatDataManager保存聊天记录
+                        val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this@SimpleModeActivity)
 
-                        // 保存消息到聊天历史
-                        val messages = listOf(userMessage, aiMessage)
-                        chatHistoryManager.saveMessages(aiContact.id, messages)
+                        // 获取或创建会话ID（使用AI联系人ID作为会话标识）
+                        val sessionId = aiContact.id
+                        chatDataManager.setCurrentSessionId(sessionId)
+
+                        // 添加用户消息和AI回复
+                        chatDataManager.addMessage(sessionId, "user", query)
+                        chatDataManager.addMessage(sessionId, "assistant", response)
 
                         // 更新联系人的最后消息
                         runOnUiThread {

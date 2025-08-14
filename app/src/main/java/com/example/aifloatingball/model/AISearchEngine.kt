@@ -12,7 +12,8 @@ data class AISearchEngine(
     override val description: String = "",
     override val searchUrl: String = url,
     val isChatMode: Boolean = false,
-    var isEnabled: Boolean = false
+    var isEnabled: Boolean = false,
+    val customParams: Map<String, String> = emptyMap()
 ) : BaseSearchEngine, Parcelable {
     override val displayName: String
         get() = name
@@ -29,6 +30,11 @@ data class AISearchEngine(
         parcel.writeString(searchUrl)
         parcel.writeBoolean(isChatMode)
         parcel.writeBoolean(isEnabled)
+        parcel.writeInt(customParams.size)
+        customParams.forEach { (key, value) ->
+            parcel.writeString(key)
+            parcel.writeString(value)
+        }
     }
 
     override fun describeContents(): Int = 0
@@ -173,10 +179,10 @@ data class AISearchEngine(
             ),
             AISearchEngine(
                 name = "DeepSeek (API)",
-                url = "https://chat.deepseek.com",
+                url = "file:///android_asset/deepseek_chat.html",
                 iconResId = R.drawable.ic_deepseek,
                 description = "使用API进行DeepSeek对话",
-                searchUrl = "https://chat.deepseek.com",
+                searchUrl = "file:///android_asset/deepseek_chat.html",
                 isChatMode = true
             ),
             // New Engines Added
@@ -190,9 +196,24 @@ data class AISearchEngine(
             AISearchEngine(
                 name = "DeepSeek (Web)",
                 url = "https://chat.deepseek.com/",
-                iconResId = R.drawable.ic_web_default,
-                description = "DeepSeek大模型网页版",
+                iconResId = R.drawable.ic_deepseek,
+                description = "DeepSeek官方网页版",
                 searchUrl = "https://chat.deepseek.com/"
+            ),
+            AISearchEngine(
+                name = "DeepSeek Coder",
+                url = "https://coder.deepseek.com/",
+                iconResId = R.drawable.ic_deepseek,
+                description = "DeepSeek代码专用模型",
+                searchUrl = "https://coder.deepseek.com/"
+            ),
+            AISearchEngine(
+                name = "DeepSeek Math",
+                url = "https://chat.deepseek.com/",
+                iconResId = R.drawable.ic_deepseek,
+                description = "DeepSeek数学专用模型",
+                searchUrl = "https://chat.deepseek.com/",
+                customParams = mapOf("model" to "deepseek-math")
             ),
             AISearchEngine(
                 name = "万知",
@@ -354,6 +375,14 @@ data class AISearchEngine(
         @JvmField
         val CREATOR = object : Parcelable.Creator<AISearchEngine> {
             override fun createFromParcel(parcel: Parcel): AISearchEngine {
+                val customParamsSize = parcel.readInt()
+                val customParams = mutableMapOf<String, String>()
+                repeat(customParamsSize) {
+                    val key = parcel.readString()!!
+                    val value = parcel.readString()!!
+                    customParams[key] = value
+                }
+
                 return AISearchEngine(
                     name = parcel.readString()!!,
                     url = parcel.readString()!!,
@@ -361,7 +390,8 @@ data class AISearchEngine(
                     description = parcel.readString()!!,
                     searchUrl = parcel.readString()!!,
                     isChatMode = parcel.readBoolean(),
-                    isEnabled = parcel.readBoolean()
+                    isEnabled = parcel.readBoolean(),
+                    customParams = customParams
                 )
             }
 

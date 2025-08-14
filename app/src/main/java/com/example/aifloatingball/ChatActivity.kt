@@ -20,6 +20,7 @@ import com.example.aifloatingball.adapter.ChatMessageAdapter
 import com.example.aifloatingball.model.AIPrompt
 import com.example.aifloatingball.model.PromptProfile
 import com.example.aifloatingball.manager.SimpleChatHistoryManager
+import com.example.aifloatingball.data.ChatDataManager
 import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactType
@@ -66,6 +67,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var settingsManager: SettingsManager
     private var userProfiles: List<PromptProfile> = emptyList()
     private lateinit var chatHistoryManager: SimpleChatHistoryManager
+    private lateinit var chatDataManager: ChatDataManager
     private var isSending = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,6 +78,7 @@ class ChatActivity : AppCompatActivity() {
         aiApiManager = AIApiManager(this)
         deepSeekApiHelper = DeepSeekApiHelper(this)
         chatHistoryManager = SimpleChatHistoryManager(this)
+        chatDataManager = ChatDataManager.getInstance(this)
         settingsManager = SettingsManager.getInstance(this)
 
         // 加载用户档案
@@ -214,17 +217,55 @@ class ChatActivity : AppCompatActivity() {
     private fun loadInitialMessages() {
         // 加载聊天历史记录
         currentContact?.let { contact ->
-            val historyMessages = chatHistoryManager.loadMessages(contact.id)
-            if (historyMessages.isNotEmpty()) {
+            // 优先使用统一的ChatDataManager
+            val unifiedMessages = chatDataManager.getMessages(contact.id)
+            if (unifiedMessages.isNotEmpty()) {
                 messages.clear()
-                messages.addAll(historyMessages)
+                // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
+                unifiedMessages.forEach { unifiedMsg ->
+                    val chatMsg = ChatMessage(
+                        content = unifiedMsg.content,
+                        isFromUser = unifiedMsg.role == "user",
+                        timestamp = unifiedMsg.timestamp
+                    )
+                    messages.add(chatMsg)
+                }
                 messageAdapter.updateMessages(messages.toList())
+            } else {
+                // 如果统一存储中没有数据，尝试从旧的存储中加载并迁移
+                val historyMessages = chatHistoryManager.loadMessages(contact.id)
+                if (historyMessages.isNotEmpty()) {
+                    messages.clear()
+                    messages.addAll(historyMessages)
+                    messageAdapter.updateMessages(messages.toList())
 
-                // 滚动到底部
+                    // 迁移到统一存储
+                    migrateMessagesToUnifiedStorage(contact.id, historyMessages)
+                }
+            }
+
+            // 滚动到底部
+            if (messages.isNotEmpty()) {
                 messagesRecyclerView.post {
                     messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
                 }
             }
+        }
+    }
+
+    /**
+     * 迁移消息到统一存储
+     */
+    private fun migrateMessagesToUnifiedStorage(contactId: String, oldMessages: List<ChatMessage>) {
+        try {
+            chatDataManager.setCurrentSessionId(contactId)
+            oldMessages.forEach { oldMsg ->
+                val role = if (oldMsg.isFromUser) "user" else "assistant"
+                chatDataManager.addMessage(contactId, role, oldMsg.content)
+            }
+            Log.d(TAG, "成功迁移 ${oldMessages.size} 条消息到统一存储")
+        } catch (e: Exception) {
+            Log.e(TAG, "迁移消息到统一存储失败", e)
         }
     }
 
@@ -238,8 +279,12 @@ class ChatActivity : AppCompatActivity() {
             messages.add(userMessage)
             messageAdapter.updateMessages(messages.toList())
 
-            // 保存聊天记录
+            // 保存聊天记录到统一存储
             currentContact?.let { contact ->
+                chatDataManager.setCurrentSessionId(contact.id)
+                chatDataManager.addMessage(contact.id, "user", messageText)
+
+                // 同时保存到旧存储（向后兼容）
                 chatHistoryManager.saveMessages(contact.id, messages)
                 // 更新联系人的最后消息信息
                 updateContactLastMessage(contact, messageText)
@@ -470,8 +515,11 @@ class ChatActivity : AppCompatActivity() {
                         aiMessage.content = cleanAndFormatAIResponse(fullResponse)
                         messageAdapter.updateLastMessage(aiMessage.content)
 
-                        // 保存AI回复到历史记录
+                        // 保存AI回复到统一存储
                         currentContact?.let { contact ->
+                            chatDataManager.addMessage(contact.id, "assistant", aiMessage.content)
+
+                            // 同时保存到旧存储（向后兼容）
                             chatHistoryManager.saveMessages(contact.id, messages)
                             // 更新联系人的最后消息信息
                             updateContactLastMessage(contact, aiMessage.content)

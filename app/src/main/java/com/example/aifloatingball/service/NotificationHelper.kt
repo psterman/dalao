@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsActivity
+import com.example.aifloatingball.SimpleModeActivity
 
 object NotificationHelper {
     const val CHANNEL_ID = "FloatingWindowServiceChannel"
@@ -31,8 +32,9 @@ object NotificationHelper {
     }
 
     fun createNotification(context: Context): Notification {
-        val intent = Intent(context, SettingsActivity::class.java).apply {
+        val intent = Intent(context, SimpleModeActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("open_settings", true)
         }
         val pendingIntent = PendingIntent.getActivity(
             context, 0, intent,

@@ -1,6 +1,7 @@
 package com.example.aifloatingball.ui.floating
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
@@ -60,16 +61,33 @@ class FloatingWindowManager(
     private val windowStateCallback: WindowStateCallback,
     private val textSelectionManager: TextSelectionManager
 ) : KeyEventInterceptorView.BackPressListener {
+
+    companion object {
+        private const val TAG = "FloatingWindowManager"
+
+        // 控制条的高度 (根据布局文件定义)
+        private const val TOP_DRAG_HANDLE_HEIGHT_DP = 24
+        private const val BOTTOM_RESIZE_HANDLE_HEIGHT_DP = 16
+        private const val TOP_CONTROL_BAR_HEIGHT_DP = 56 // 估算的控制栏高度
+
+        // 安全边距，完全移除边距以最大化利用屏幕空间
+        private const val SAFE_MARGIN_DP = 0
+
+        // 最小窗口尺寸 (dp)
+        private const val MIN_WINDOW_WIDTH_DP = 300
+        private const val MIN_WINDOW_HEIGHT_DP = 200
+    }
+
     private var windowManager: WindowManager? = null
     private var _floatingView: View? = null
     val floatingView: View?
         get() = _floatingView
     var params: WindowManager.LayoutParams? = null
         private set  // 设置为私有set，只允许通过特定方法修改
-    
+
     private var webViewContainer: LinearLayout? = null
     private var webviewsScrollContainer: HorizontalScrollView? = null
-    
+
     private var firstWebView: CustomWebView? = null
     private var secondWebView: CustomWebView? = null
     private var thirdWebView: CustomWebView? = null
@@ -87,7 +105,7 @@ class FloatingWindowManager(
     private var lastDragX: Float = 0f
     private var lastDragY: Float = 0f
     private var lastActiveWebViewIndex = 0 // 追踪当前活动的WebView
-    
+
     private var originalWindowHeight: Int = 0
     private var originalWindowY: Int = 0
     private var isKeyboardShowing: Boolean = false
@@ -96,21 +114,6 @@ class FloatingWindowManager(
     private var currentOrientation: Int = Configuration.ORIENTATION_UNDEFINED
     private var lastScreenWidth: Int = 0
     private var lastScreenHeight: Int = 0
-
-    // 新增：窗口边界限制常量
-    companion object {
-        // 控制条的高度 (根据布局文件定义)
-        private const val TOP_DRAG_HANDLE_HEIGHT_DP = 24
-        private const val BOTTOM_RESIZE_HANDLE_HEIGHT_DP = 16
-        private const val TOP_CONTROL_BAR_HEIGHT_DP = 56 // 估算的控制栏高度
-        
-        // 安全边距，完全移除边距以最大化利用屏幕空间
-        private const val SAFE_MARGIN_DP = 0
-        
-        // 最小窗口尺寸 (dp)
-        private const val MIN_WINDOW_WIDTH_DP = 300
-        private const val MIN_WINDOW_HEIGHT_DP = 200
-    }
 
     private val sharedPreferences: SharedPreferences by lazy {
         context.getSharedPreferences(DualFloatingWebViewService.PREFS_NAME, Context.MODE_PRIVATE)
@@ -538,6 +541,12 @@ class FloatingWindowManager(
 
         for (engine in enabledAIEngines) {
             val iconView = createIconView(engine.name) {
+                // 检查是否需要API配置
+                if (needsApiConfiguration(engine.name)) {
+                    showApiConfigurationDialog(engine.name)
+                    return@createIconView
+                }
+
                 // 在当前活动的WebView中执行AI搜索
                 val query = searchInput?.text.toString()
                 val activeIndex = determineActiveWebViewIndex()
@@ -1726,4 +1735,84 @@ class FloatingWindowManager(
             windowManager?.updateViewLayout(floatingView, p)
         }
     }
-} 
+
+    /**
+     * 检查AI引擎是否需要API配置
+     */
+    private fun needsApiConfiguration(engineName: String): Boolean {
+        val settingsManager = SettingsManager.getInstance(context)
+        return when (engineName.lowercase()) {
+            "deepseek (api)", "deepseek (custom)" -> {
+                val apiKey = settingsManager.getDeepSeekApiKey()
+                apiKey.isBlank()
+            }
+            "chatgpt (api)" -> {
+                val apiKey = settingsManager.getChatGPTApiKey()
+                apiKey.isBlank()
+            }
+            else -> false
+        }
+    }
+
+    /**
+     * 显示API配置对话框
+     */
+    private fun showApiConfigurationDialog(engineName: String) {
+        try {
+            val builder = AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+
+            val engineDisplayName = when (engineName.lowercase()) {
+                "deepseek (api)", "deepseek (custom)" -> "DeepSeek"
+                "chatgpt (api)" -> "ChatGPT"
+                else -> engineName
+            }
+
+            builder.setTitle("配置 $engineDisplayName API")
+            builder.setMessage("要使用 $engineDisplayName AI 对话功能，需要先配置 API 密钥。\n\n配置完成后，您就可以开始使用 AI 对话功能了。")
+            builder.setCancelable(true)
+
+            // 设置按钮
+            builder.setPositiveButton("去配置") { _, _ ->
+                openApiSettings(engineName)
+            }
+
+            builder.setNegativeButton("取消") { dialog, _ ->
+                dialog.dismiss()
+            }
+
+            builder.setNeutralButton("稍后配置") { dialog, _ ->
+                // 直接进入页面，让用户在页面内看到配置引导
+                val query = searchInput?.text.toString()
+                val activeIndex = determineActiveWebViewIndex()
+                service.performSearchInWebView(activeIndex, query, engineName)
+                dialog.dismiss()
+            }
+
+            val dialog = builder.create()
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            dialog.show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示API配置对话框失败", e)
+            // 如果对话框显示失败，直接打开设置
+            openApiSettings(engineName)
+        }
+    }
+
+    /**
+     * 打开API设置页面
+     */
+    private fun openApiSettings(engineName: String) {
+        try {
+            val intent = Intent(context, com.example.aifloatingball.SettingsActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra("highlight_section", "ai_settings")
+                putExtra("highlight_engine", engineName)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "打开API设置失败", e)
+            Toast.makeText(context, "无法打开设置页面", Toast.LENGTH_SHORT).show()
+        }
+    }
+}

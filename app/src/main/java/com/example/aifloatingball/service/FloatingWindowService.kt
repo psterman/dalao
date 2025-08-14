@@ -1,5 +1,6 @@
 package com.example.aifloatingball.service
 
+import android.app.AlertDialog
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -636,7 +637,9 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
 
-        val notificationIntent = Intent(this, SettingsActivity::class.java)
+        val notificationIntent = Intent(this, SimpleModeActivity::class.java).apply {
+            putExtra("open_settings", true)
+        }
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -792,6 +795,91 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
         startActivity(intent)
         hideSearchInterface()
+    }
+
+    /**
+     * 检查AI引擎是否需要API配置
+     */
+    private fun needsApiConfiguration(engineName: String): Boolean {
+        return when (engineName.lowercase()) {
+            "deepseek (api)", "deepseek (custom)" -> {
+                val apiKey = settingsManager.getDeepSeekApiKey()
+                apiKey.isBlank()
+            }
+            "chatgpt (api)" -> {
+                val apiKey = settingsManager.getChatGPTApiKey()
+                apiKey.isBlank()
+            }
+            else -> false
+        }
+    }
+
+    /**
+     * 显示API配置对话框
+     */
+    private fun showApiConfigurationDialog(engineName: String, query: String) {
+        try {
+            val builder = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+
+            val engineDisplayName = when (engineName.lowercase()) {
+                "deepseek (api)", "deepseek (custom)" -> "DeepSeek"
+                "chatgpt (api)" -> "ChatGPT"
+                else -> engineName
+            }
+
+            builder.setTitle("配置 $engineDisplayName API")
+            builder.setMessage("要使用 $engineDisplayName AI 对话功能，需要先配置 API 密钥。\n\n配置完成后，您就可以开始使用 AI 对话功能了。")
+            builder.setCancelable(true)
+
+            // 设置按钮
+            builder.setPositiveButton("去配置") { _, _ ->
+                openApiSettings(engineName)
+            }
+
+            builder.setNegativeButton("取消") { dialog, _ ->
+                dialog.dismiss()
+            }
+
+            builder.setNeutralButton("稍后配置") { dialog, _ ->
+                // 直接进入页面，让用户在页面内看到配置引导
+                val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                    putExtra("search_query", query)
+                    putExtra("engine_key", engineName)
+                    putExtra("search_source", "悬浮窗")
+                    putExtra("startTime", System.currentTimeMillis())
+                }
+                startService(serviceIntent)
+                hideSearchInterface()
+                dialog.dismiss()
+            }
+
+            val dialog = builder.create()
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            dialog.show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示API配置对话框失败", e)
+            // 如果对话框显示失败，直接打开设置
+            openApiSettings(engineName)
+        }
+    }
+
+    /**
+     * 打开API设置页面
+     */
+    private fun openApiSettings(engineName: String) {
+        try {
+            val intent = Intent(this, SettingsActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra("highlight_section", "ai_settings")
+                putExtra("highlight_engine", engineName)
+            }
+            startActivity(intent)
+            hideSearchInterface()
+        } catch (e: Exception) {
+            Log.e(TAG, "打开API设置失败", e)
+            Toast.makeText(this, "无法打开设置页面", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun toggleSearchInterface() {
@@ -1093,6 +1181,12 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 val isAiEngine = engine is AISearchEngine
 
                 if (isAiEngine || query.isNotBlank()) {
+                    // 如果是AI引擎，检查API配置
+                    if (isAiEngine && needsApiConfiguration(engineName)) {
+                        showApiConfigurationDialog(engineName, query)
+                        return@setOnClickListener
+                    }
+
                     val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
                         putExtra("search_query", query)
                         putExtra("engine_key", engineName)

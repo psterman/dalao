@@ -15,13 +15,7 @@ import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
 import android.webkit.WebView.HitTestResult
 import com.example.aifloatingball.ui.text.TextSelectionManager
-
-/**
- * 链接长按监听器
- */
-interface LinkMenuListener {
-    fun onLinkLongPressed(url: String, x: Int, y: Int)
-}
+import com.example.aifloatingball.ui.webview.LinkMenuListener
 
 /**
  * 自定义WebView类

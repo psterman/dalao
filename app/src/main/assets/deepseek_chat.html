@@ -117,6 +117,17 @@
             font-size: 14px;
             cursor: pointer;
             white-space: nowrap;
+            /* 防止按钮抢夺焦点 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            outline: none;
+        }
+
+        .header-button:focus {
+            /* 当按钮获得焦点时，立即将焦点转移到输入框 */
+            outline: none;
         }
 
         #messageInput {
@@ -563,9 +574,9 @@
 <body>
     <div class="header">
         <div class="header-top-row">
-            <button class="header-button" id="new-chat-btn">新对话</button>
-            <button class="header-button" id="history-btn">历史</button>
-            <button class="header-button" id="favorites-btn">收藏</button>
+            <button class="header-button" id="new-chat-btn" tabindex="-1">新对话</button>
+            <button class="header-button" id="history-btn" tabindex="-1">历史</button>
+            <button class="header-button" id="favorites-btn" tabindex="-1">收藏</button>
         </div>
         <div class="input-area-container">
             <div id="messageInput" contenteditable="true" placeholder="输入你的消息..."></div>
@@ -636,7 +647,7 @@
             avatar.textContent = role === 'user' ? '你' : 'AI';
             if (role === 'assistant') {
                 const img = document.createElement('img');
-                img.src = 'file:///android_asset/deepseek_icon.png';
+                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMTMuMDkgOC4yNkwyMCA5TDEzLjA5IDE1Ljc0TDEyIDIyTDEwLjkxIDE1Ljc0TDQgOUwxMC45MSA4LjI2TDEyIDJaIiBmaWxsPSIjMDA3QUZGIi8+Cjwvc3ZnPgo=';
                 img.style.width = '24px';
                 img.style.height = '24px';
                 avatar.innerHTML = '';
@@ -937,13 +948,19 @@
         function updateSessionTitle(chatId, title) { const historyItem = chatHistoryPanel.querySelector(`.history-item[data-chat-id="${chatId}"] .history-title`); if (historyItem) { historyItem.textContent = title; } }
         function markdownToHtml(markdown) { if (!markdown) return ''; return marked.parse(markdown); }
         function escapeHtml(unsafe) { return unsafe.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
-        newChatBtn.addEventListener('click', () => {
+        newChatBtn.addEventListener('click', (e) => {
+            // 防止按钮获取焦点
+            e.preventDefault();
             currentChatId = null;
             messagesContainer.innerHTML = '';
             if (typeof AndroidChatInterface !== 'undefined') {
                 AndroidChatInterface.startNewChat();
             }
             showWelcomeMessage();
+            // 点击后立即将焦点返回到输入框
+            setTimeout(() => {
+                messageInput.focus();
+            }, 100);
         });
         historyBtn.addEventListener('click', () => {
             panelMode = 'history';
@@ -1064,9 +1081,44 @@
             showPasteButtonWithDelay();
         });
 
+        // 全局焦点管理 - 确保输入框优先级
+        function ensureInputFocus() {
+            if (document.activeElement !== messageInput) {
+                messageInput.focus();
+            }
+        }
+
+        // 监听所有按钮的焦点事件，自动转移到输入框
+        document.querySelectorAll('.header-button').forEach(button => {
+            button.addEventListener('focus', (e) => {
+                // 延迟转移焦点，避免与点击事件冲突
+                setTimeout(() => {
+                    messageInput.focus();
+                }, 50);
+            });
+
+            // 防止按钮通过键盘导航获取焦点
+            button.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    messageInput.focus();
+                }
+            });
+        });
+
         messageInput.addEventListener('input', () => {
             updateSendButton();
             hidePasteButton();
+        });
+
+        // 输入框点击事件 - 强制获取焦点
+        messageInput.addEventListener('click', () => {
+            messageInput.focus();
+        });
+
+        // 输入框触摸事件 - 移动设备支持
+        messageInput.addEventListener('touchstart', () => {
+            messageInput.focus();
         });
 
         function showPasteButtonWithDelay() {
@@ -1100,6 +1152,15 @@
         function pasteText(text) {
             messageInput.focus();
             document.execCommand('insertText', false, text);
+        }
+
+        // 打开API设置页面
+        function openApiSettings() {
+            if (typeof AndroidChatInterface !== 'undefined') {
+                AndroidChatInterface.openApiSettings();
+            } else {
+                alert('无法打开设置页面，请手动进入应用设置');
+            }
         }
 
         window.onload = function () {

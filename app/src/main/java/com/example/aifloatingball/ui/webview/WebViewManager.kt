@@ -37,6 +37,16 @@ class WebViewManager(
     private val searchEngineHandler = SearchEngineHandler(settingsManager)
     
     private val webViews: List<CustomWebView> = xmlDefinedWebViews.filterNotNull()
+
+    /**
+     * 获取第一个WebView（用于外部访问）
+     */
+    fun getFirstWebView(): CustomWebView? = webViews.firstOrNull()
+
+    /**
+     * 获取所有WebView（用于外部访问）
+     */
+    fun getAllWebViews(): List<CustomWebView> = webViews
     
     init {
         this.webViews.forEachIndexed { index, webView -> 
