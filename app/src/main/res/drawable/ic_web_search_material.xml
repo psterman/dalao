@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    
+    <!-- 地球背景 -->
+    <path
+        android:fillColor="@color/widget_web_primary"
+        android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" />
+    
+    <!-- 经纬线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.7"
+        android:pathData="M12,4c4.41,0 8,3.59 8,8s-3.59,8 -8,8 -8,-3.59 -8,-8 3.59,-8 8,-8M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2L12,2z" />
+    
+    <!-- 垂直经线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.5"
+        android:pathData="M12,4c-2.21,0 -4,3.58 -4,8s1.79,8 4,8 4,-3.58 4,-8 -1.79,-8 -4,-8z" />
+    
+    <!-- 水平纬线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.5"
+        android:pathData="M4,12c0,0.55 0.45,1 1,1h14c0.55,0 1,-0.45 1,-1s-0.45,-1 -1,-1H5c-0.55,0 -1,0.45 -1,1z" />
+    
+    <!-- 搜索图标 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M18.5,16.5l-1.8,-1.8c0.5,-0.9 0.8,-1.9 0.8,-3 0,-3.3 -2.7,-6 -6,-6s-6,2.7 -6,6 2.7,6 6,6c1.1,0 2.1,-0.3 3,-0.8l1.8,1.8c0.3,0.3 0.7,0.3 1,0l0.2,-0.2c0.3,-0.3 0.3,-0.7 0,-1zM11.5,16c-2.5,0 -4.5,-2 -4.5,-4.5s2,-4.5 4.5,-4.5 4.5,2 4.5,4.5 -2,4.5 -4.5,4.5z" />
+    
+</vector>

@@ -13,26 +13,30 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:background="@drawable/search_input_background"
-        android:padding="8dp"
-        android:gravity="center_vertical">
-        
+        android:padding="12dp"
+        android:gravity="center_vertical"
+        android:elevation="1dp">
+
         <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
             android:src="@drawable/ic_search"
-            android:tint="@color/widget_icon_color"
-            android:layout_marginEnd="8dp" />
-        
+            android:tint="@color/widget_on_surface_variant"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="搜索图标" />
+
         <TextView
             android:id="@+id/search_widget_input_hint"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="点击输入搜索内容"
-            android:textSize="14sp"
-            android:textColor="@color/widget_hint_color"
+            android:text="搜索应用、网页或与AI对话..."
+            android:textSize="15sp"
+            android:textColor="@color/widget_on_surface_variant"
+            android:fontFamily="sans-serif"
             android:maxLines="1"
-            android:ellipsize="end" />
+            android:ellipsize="end"
+            android:letterSpacing="0.01" />
             
         <ImageView
             android:layout_width="16dp"
@@ -58,24 +62,38 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="12dp"
+            android:padding="16dp"
             android:background="@drawable/widget_button_background"
-            android:layout_marginEnd="4dp">
-            
-            <ImageView
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/ic_ai_chat"
-                android:tint="@color/widget_ai_color" />
-                
+            android:layout_marginEnd="6dp"
+            android:elevation="1dp">
+
+            <!-- AI图标背景 -->
+            <FrameLayout
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginBottom="8dp">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/widget_icon_background_material" />
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_ai_chat"
+                    android:tint="@color/widget_ai_primary" />
+            </FrameLayout>
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="AI对话"
-                android:textSize="11sp"
-                android:textColor="@color/widget_text_color"
-                android:layout_marginTop="4dp"
-                android:textStyle="bold" />
+                android:textSize="12sp"
+                android:textColor="@color/widget_on_surface"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.02" />
         </LinearLayout>
         
         <!-- 应用搜索按钮 -->
@@ -86,25 +104,39 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="12dp"
+            android:padding="16dp"
             android:background="@drawable/widget_button_background"
-            android:layout_marginStart="2dp"
-            android:layout_marginEnd="2dp">
-            
-            <ImageView
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/ic_app_search"
-                android:tint="@color/widget_app_color" />
-                
+            android:layout_marginStart="3dp"
+            android:layout_marginEnd="3dp"
+            android:elevation="1dp">
+
+            <!-- 应用搜索图标背景 -->
+            <FrameLayout
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginBottom="8dp">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/widget_icon_background_material" />
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_app_search"
+                    android:tint="@color/widget_app_primary" />
+            </FrameLayout>
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="应用搜索"
-                android:textSize="11sp"
-                android:textColor="@color/widget_text_color"
-                android:layout_marginTop="4dp"
-                android:textStyle="bold" />
+                android:textSize="12sp"
+                android:textColor="@color/widget_on_surface"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.02" />
         </LinearLayout>
         
         <!-- 网络搜索按钮 -->
@@ -115,36 +147,65 @@
             android:layout_weight="1"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="12dp"
+            android:padding="16dp"
             android:background="@drawable/widget_button_background"
-            android:layout_marginStart="4dp">
-            
-            <ImageView
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:src="@drawable/ic_web_search"
-                android:tint="@color/widget_web_color" />
-                
+            android:layout_marginStart="6dp"
+            android:elevation="1dp">
+
+            <!-- 网络搜索图标背景 -->
+            <FrameLayout
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginBottom="8dp">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/widget_icon_background_material" />
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_web_search"
+                    android:tint="@color/widget_web_primary" />
+            </FrameLayout>
+
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="网络搜索"
-                android:textSize="11sp"
-                android:textColor="@color/widget_text_color"
-                android:layout_marginTop="4dp"
-                android:textStyle="bold" />
+                android:textSize="12sp"
+                android:textColor="@color/widget_on_surface"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.02" />
         </LinearLayout>
     </LinearLayout>
 
     <!-- 小组件标识 -->
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="AI悬浮球搜索助手"
-        android:textSize="9sp"
-        android:textColor="@color/widget_brand_color"
+        android:orientation="horizontal"
         android:gravity="center"
-        android:layout_marginTop="4dp"
-        android:alpha="0.7" />
+        android:layout_marginTop="8dp"
+        android:alpha="0.8">
+
+        <ImageView
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:src="@drawable/ic_ai_ball"
+            android:tint="@color/widget_primary"
+            android:layout_marginEnd="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="AI悬浮球搜索助手"
+            android:textSize="10sp"
+            android:textColor="@color/widget_on_surface_variant"
+            android:fontFamily="sans-serif"
+            android:letterSpacing="0.03" />
+    </LinearLayout>
 
 </LinearLayout>

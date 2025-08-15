@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-
+    
     <!-- 阴影层 -->
     <item android:top="2dp" android:left="1dp" android:right="1dp">
         <shape android:shape="rectangle">
@@ -8,23 +8,23 @@
             <corners android:radius="20dp" />
         </shape>
     </item>
-
+    
     <!-- 渐变背景层 -->
     <item android:bottom="2dp">
         <shape android:shape="rectangle">
             <gradient
-                android:startColor="@color/widget_web_container"
+                android:startColor="@color/widget_ai_container"
                 android:endColor="@color/widget_surface_container_low"
                 android:angle="135"
                 android:type="linear" />
             <corners android:radius="20dp" />
             <stroke
                 android:width="0.5dp"
-                android:color="@color/widget_web_primary"
+                android:color="@color/widget_ai_primary"
                 android:dashWidth="0dp" />
         </shape>
     </item>
-
+    
     <!-- 装饰性光泽层 -->
     <item android:bottom="2dp" android:top="0dp" android:left="0dp" android:right="40dp">
         <shape android:shape="rectangle">
@@ -36,5 +36,5 @@
             <corners android:radius="20dp" />
         </shape>
     </item>
-
+    
 </layer-list>
