@@ -92,8 +92,8 @@ class QuarterArcOperationBar @JvmOverloads constructor(
     private var initialY = 0f
     private var positionAdjustmentMode = false
 
-    // 显示状态控制
-    private var isMinimized = false
+    // 显示状态控制（最小化功能已移除）
+    // private var isMinimized = false
     private var minimizeAnimator: ValueAnimator? = null
     private var minimizedAlpha = 0.3f
 
@@ -412,19 +412,6 @@ class QuarterArcOperationBar @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // 如果是最小化状态，只绘制半透明的激活按钮
-        if (isMinimized) {
-            canvas.save()
-            canvas.scale(0.7f, 0.7f, activatorButtonX, activatorButtonY)
-            val originalAlpha = activatorButtonPaint.alpha
-            activatorButtonPaint.alpha = (originalAlpha * minimizedAlpha).toInt()
-            drawActivatorButton(canvas)
-            activatorButtonPaint.alpha = originalAlpha
-            canvas.restore()
-            return
-        }
-
-        // 正常状态下的绘制
         // 始终绘制激活按钮
         if (isActivatorVisible) {
             drawActivatorButton(canvas)
@@ -749,29 +736,7 @@ class QuarterArcOperationBar @JvmOverloads constructor(
         return false
     }
 
-    private fun handleMinimizedTouch(event: MotionEvent): Boolean {
-        val x = event.x
-        val y = event.y
 
-        // 检查是否在激活按钮区域内
-        val activatorDistance = sqrt((x - activatorButtonX).pow(2) + (y - activatorButtonY).pow(2))
-        val isInActivatorArea = activatorDistance <= activatorButtonSize / 2
-
-        if (!isInActivatorArea) {
-            // 不在激活按钮区域内，不处理触摸事件，让底层处理
-            return false
-        }
-
-        // 在激活按钮区域内，处理触摸事件
-        when (event.action) {
-            MotionEvent.ACTION_UP -> {
-                // 恢复到正常状态
-                toggleMinimized()
-                return true
-            }
-        }
-        return true
-    }
 
     private fun drawButtons(canvas: Canvas) {
         buttons.forEach { button ->
@@ -835,11 +800,6 @@ class QuarterArcOperationBar @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // 如果是最小化状态，只处理激活按钮区域的触摸
-        if (isMinimized) {
-            return handleMinimizedTouch(event)
-        }
-
         // 首先处理缩放手势
         scaleGestureDetector?.onTouchEvent(event)
 
@@ -879,7 +839,9 @@ class QuarterArcOperationBar @JvmOverloads constructor(
                         return true
                     }
                 }
-                return super.onTouchEvent(event)
+
+                // 如果没有点击到任何有效区域，不处理触摸事件
+                return false
             }
 
             MotionEvent.ACTION_UP -> {
@@ -894,20 +856,8 @@ class QuarterArcOperationBar @JvmOverloads constructor(
                 val activatorDistance = sqrt((x - activatorButtonX).pow(2) + (y - activatorButtonY).pow(2))
                 if (activatorDistance <= activatorButtonSize / 2) {
                     if (!showButtonHint) { // 如果没有显示提示，执行操作
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastClickTime < doubleClickThreshold) {
-                            // 双击：切换最小化状态
-                            toggleMinimized()
-                        } else {
-                            // 单击：切换展开状态
-                            if (!isMinimized) {
-                                toggleExpansion()
-                            } else {
-                                // 如果是最小化状态，单击恢复
-                                toggleMinimized()
-                            }
-                        }
-                        lastClickTime = currentTime
+                        // 单击：切换展开状态（移除最小化功能）
+                        toggleExpansion()
                     }
                     hideButtonHint()
                     return true
@@ -928,7 +878,9 @@ class QuarterArcOperationBar @JvmOverloads constructor(
                         return true
                     }
                 }
-                return super.onTouchEvent(event)
+
+                // 如果没有点击到任何有效区域，不处理触摸事件
+                return false
             }
 
             MotionEvent.ACTION_CANCEL -> {
@@ -945,24 +897,27 @@ class QuarterArcOperationBar @JvmOverloads constructor(
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        // 如果是最小化状态，只有激活按钮区域才分发触摸事件
-        if (isMinimized) {
-            val x = event.x
-            val y = event.y
-            val activatorDistance = sqrt((x - activatorButtonX).pow(2) + (y - activatorButtonY).pow(2))
-            val isInActivatorArea = activatorDistance <= activatorButtonSize / 2
+        // 只有在有效触摸区域内才分发事件
+        val x = event.x
+        val y = event.y
 
-            if (isInActivatorArea) {
-                // 在激活按钮区域内，正常分发事件
-                return super.dispatchTouchEvent(event)
-            } else {
-                // 不在激活按钮区域内，不分发事件
-                return false
-            }
+        // 检查是否在激活按钮区域内
+        val activatorDistance = sqrt((x - activatorButtonX).pow(2) + (y - activatorButtonY).pow(2))
+        val isInActivatorArea = activatorDistance <= activatorButtonSize / 2
+
+        // 检查是否在功能按钮区域内（如果已展开）
+        var isInFunctionButtonArea = false
+        if (isExpanded) {
+            isInFunctionButtonArea = findTouchedButton(x, y) != null
         }
 
-        // 正常状态下，正常分发事件
-        return super.dispatchTouchEvent(event)
+        // 只有在有效区域内才分发触摸事件
+        if (isInActivatorArea || isInFunctionButtonArea) {
+            return super.dispatchTouchEvent(event)
+        }
+
+        // 不在有效区域内，不分发触摸事件
+        return false
     }
 
     private fun findTouchedButton(x: Float, y: Float): ButtonData? {
@@ -1031,85 +986,29 @@ class QuarterArcOperationBar @JvmOverloads constructor(
         this.visibilityChangeListener = listener
     }
 
-    /**
-     * 切换最小化状态
-     */
-    private fun toggleMinimized() {
-        isMinimized = !isMinimized
 
-        // 如果最小化，先收起展开状态
-        if (isMinimized && isExpanded) {
-            collapse()
-        }
-
-        // 播放最小化动画
-        minimizeAnimator?.cancel()
-        minimizeAnimator = ValueAnimator.ofFloat(
-            if (isMinimized) 1f else minimizedAlpha,
-            if (isMinimized) minimizedAlpha else 1f
-        ).apply {
-            duration = ANIMATION_DURATION
-            addUpdateListener { animator ->
-                val alpha = animator.animatedValue as Float
-                if (!isMinimized) {
-                    // 恢复时更新透明度
-                    minimizedAlpha = alpha
-                }
-                invalidate()
-            }
-            start()
-        }
-
-        // 更新触摸区域
-        updateTouchableRegion()
-
-        // 通知状态变化
-        visibilityChangeListener?.onVisibilityChanged(isMinimized)
-
-        val statusText = if (isMinimized) "已最小化" else "已恢复"
-        showButtonHint(statusText)
-
-        Log.d(TAG, "切换最小化状态: $isMinimized")
-    }
 
     /**
-     * 更新可触摸区域
+     * 更新可触摸区域（最小化功能已移除）
      */
     private fun updateTouchableRegion() {
-        if (isMinimized) {
-            // 最小化状态下，只有激活按钮区域可触摸
-            val touchableSize = (activatorButtonSize * 1.2f).toInt() // 稍微放大触摸区域
-            val left = (activatorButtonX - touchableSize / 2).toInt()
-            val top = (activatorButtonY - touchableSize / 2).toInt()
-            val right = left + touchableSize
-            val bottom = top + touchableSize
-
-            // 设置触摸代理，限制触摸区域
-            val touchDelegate = android.view.TouchDelegate(
-                android.graphics.Rect(left, top, right, bottom),
-                this
-            )
-            (parent as? android.view.ViewGroup)?.touchDelegate = touchDelegate
-        } else {
-            // 正常状态下，移除触摸代理
-            (parent as? android.view.ViewGroup)?.touchDelegate = null
-        }
+        // 最小化功能已移除，移除触摸代理
+        (parent as? android.view.ViewGroup)?.touchDelegate = null
     }
 
     /**
-     * 获取是否最小化
+     * 获取是否最小化（最小化功能已移除）
      */
     fun isMinimized(): Boolean {
-        return isMinimized
+        return false // 最小化功能已移除，始终返回false
     }
 
     /**
-     * 设置最小化状态
+     * 设置最小化状态（已移除最小化功能）
      */
     fun setMinimized(minimized: Boolean) {
-        if (isMinimized != minimized) {
-            toggleMinimized()
-        }
+        // 最小化功能已移除，此方法保留以兼容现有代码
+        Log.d(TAG, "最小化功能已移除，忽略setMinimized调用")
     }
 
     fun expand() {

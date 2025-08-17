@@ -4,7 +4,60 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+
+    <!-- Gemini 官方多色星形背景 -->
     <path
-        android:fillColor="#8E8E8E"
-        android:pathData="M12,22C6.477,22 2,17.523 2,12S6.477,2 12,2s10,4.477 10,10S17.523,22 12,22zM8,17l8,-10l-3.2,10L8,17zM10.8,7l3.2,10l2,-10L10.8,7z"/>
-</vector> 
+        android:fillColor="#4285F4"
+        android:pathData="M12,2l3,9h9l-7.5,5.5L19,22l-7,-5l-7,5l2.5,-5.5L0,11h9L12,2z"/>
+
+    <!-- 蓝色部分 -->
+    <path
+        android:fillColor="#4285F4"
+        android:pathData="M12,2l3,9h4.5l-3.75,2.75L17,18.5l-5,-3.6V2z"/>
+
+    <!-- 红色部分 -->
+    <path
+        android:fillColor="#EA4335"
+        android:pathData="M12,2l-3,9H4.5l3.75,2.75L7,18.5l5,-3.6V2z"/>
+
+    <!-- 黄色部分 -->
+    <path
+        android:fillColor="#FBBC04"
+        android:pathData="M12,14.9l5,3.6l-2.5,-5.5L19,11h-4.5L12,14.9z"/>
+
+    <!-- 绿色部分 -->
+    <path
+        android:fillColor="#34A853"
+        android:pathData="M12,14.9l-5,3.6l2.5,-5.5L5,11h4.5L12,14.9z"/>
+
+    <!-- 中心白色星形 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,6l1.5,4.5h4.5l-3.5,2.5l1.5,4.5l-3.5,-2.5l-3.5,2.5l1.5,-4.5l-3.5,-2.5h4.5L12,6z"/>
+
+    <!-- 内部装饰 -->
+    <path
+        android:fillColor="#4285F4"
+        android:pathData="M12,8l1,3h3l-2.5,1.8L14.5,16L12,14l-2.5,2l1,-3.2L8,11h3L12,8z"/>
+
+    <!-- Gemini 字母暗示 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,10h1v4h-1V10zM13,10h1v4h-1V10z"/>
+
+    <!-- 连接线 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,11.5h4v1h-4V11.5z"/>
+
+    <!-- 装饰性光芒 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.7"
+        android:pathData="M12,4l0.3,0.9L13.2,5l-0.9,0.3L12,6.2l-0.3,-0.9L10.8,5l0.9,-0.3L12,4z"/>
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.7"
+        android:pathData="M12,17.8l0.3,0.9L13.2,19l-0.9,0.3L12,20.2l-0.3,-0.9L10.8,19l0.9,-0.3L12,17.8z"/>
+</vector>

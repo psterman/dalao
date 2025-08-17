@@ -34,6 +34,7 @@ data class SearchEngine(
             SearchEngine(name = "360", displayName = "360搜索", url = "https://www.so.com", iconResId = R.drawable.ic_360search, description = "奇虎360旗下，以\"安全\"为特色", searchUrl = "https://www.so.com/s?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "bing_cn", displayName = "必应", url = "https://cn.bing.com", iconResId = R.drawable.ic_bing, description = "微软旗下，提供高质量国际视野和学术搜索", searchUrl = "https://cn.bing.com/search?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "duckduckgo", displayName = "DuckDuckGo", url = "https://duckduckgo.com", iconResId = R.drawable.ic_duckduckgo, description = "注重隐私保护的搜索引擎", searchUrl = "https://duckduckgo.com/?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "quark", displayName = "夸克", url = "https://quark.sm.cn", iconResId = R.drawable.ic_search, description = "UC旗下，AI驱动的智能搜索引擎", searchUrl = "https://quark.sm.cn/s?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "shenma", displayName = "神马", url = "https://m.sm.cn", iconResId = R.drawable.ic_search, description = "阿里巴巴旗下，专注于移动端体验", searchUrl = "https://m.sm.cn/s?q={query}", category = SearchEngineCategory.GENERAL),
 
             // A2. 新闻与门户

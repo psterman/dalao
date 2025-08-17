@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -72,6 +73,11 @@ class GestureCardWebViewManager(
         fun onPageLoadingStateChanged(cardData: WebViewCardData, isLoading: Boolean)
         fun onGoHome()
         fun onPageRefresh()
+
+        // 横滑预览指示器相关方法
+        fun onSwipePreviewStarted(cards: List<WebViewCardData>, currentIndex: Int)
+        fun onSwipePreviewUpdated(position: Int, positionOffset: Float)
+        fun onSwipePreviewEnded()
     }
 
     init {
@@ -99,8 +105,35 @@ class GestureCardWebViewManager(
                 this@GestureCardWebViewManager.adapter = cardAdapter
             }
             
+            // 禁用ViewPager的横滑功能，改为在tab区域处理
+            isUserInputEnabled = false
+
             // 设置页面切换监听器
             registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+                override fun onPageScrollStateChanged(state: Int) {
+                    super.onPageScrollStateChanged(state)
+                    when (state) {
+                        ViewPager2.SCROLL_STATE_DRAGGING -> {
+                            // 开始拖拽时显示预览指示器
+                            if (webViewCards.size > 1) {
+                                showSwipePreviewIndicator()
+                            }
+                        }
+                        ViewPager2.SCROLL_STATE_IDLE -> {
+                            // 拖拽结束时隐藏预览指示器
+                            hideSwipePreviewIndicator()
+                        }
+                    }
+                }
+
+                override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {
+                    super.onPageScrolled(position, positionOffset, positionOffsetPixels)
+                    // 更新预览指示器的位置
+                    if (webViewCards.size > 1) {
+                        updateSwipePreviewIndicator(position, positionOffset)
+                    }
+                }
+
                 override fun onPageSelected(position: Int) {
                     super.onPageSelected(position)
                     if (position < webViewCards.size) {
@@ -219,7 +252,11 @@ class GestureCardWebViewManager(
                 displayZoomControls = false
                 cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
                 mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
+                // 使用移动版User-Agent，提供更好的移动端体验
+                userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+
+                // 优化缩放设置，减少手势冲突
+                minimumFontSize = 8 // 最小字体大小
 
                 // 暗色模式支持
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -247,6 +284,12 @@ class GestureCardWebViewManager(
             } else {
                 setBackgroundColor(androidx.core.content.ContextCompat.getColor(context, android.R.color.white))
             }
+
+            // 设置初始缩放比例
+            setInitialScale(100) // 100% 初始缩放
+
+            // 设置高级触摸处理
+            setupAdvancedTouchHandling(this)
         }
     }
 
@@ -260,6 +303,11 @@ class GestureCardWebViewManager(
                 cardData.url = url ?: "about:blank"
                 onPageChangeListener?.onPageLoadingStateChanged(cardData, true)
                 Log.d(TAG, "卡片开始加载: $url")
+
+                // 根据URL动态设置User-Agent
+                if (view != null && url != null) {
+                    setDynamicUserAgent(view, url)
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -272,11 +320,39 @@ class GestureCardWebViewManager(
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                // 简单的广告拦截
-                if (url?.contains("ads") == true || url?.contains("doubleclick") == true) {
-                    return true
+                if (url == null) return false
+
+                Log.d(TAG, "WebView URL loading: $url")
+
+                return when {
+                    // 处理移动应用URL scheme重定向
+                    url.startsWith("baiduboxapp://") -> {
+                        Log.d(TAG, "拦截百度App重定向，保持在WebView中")
+                        handleSearchEngineRedirect(view, url, "baidu")
+                        true
+                    }
+                    url.startsWith("mttbrowser://") -> {
+                        Log.d(TAG, "拦截搜狗浏览器重定向，保持在WebView中")
+                        handleSearchEngineRedirect(view, url, "sogou")
+                        true
+                    }
+                    url.startsWith("quark://") -> {
+                        Log.d(TAG, "拦截夸克浏览器重定向，保持在WebView中")
+                        handleSearchEngineRedirect(view, url, "quark")
+                        true
+                    }
+                    url.startsWith("ucbrowser://") -> {
+                        Log.d(TAG, "拦截UC浏览器重定向，保持在WebView中")
+                        handleSearchEngineRedirect(view, url, "uc")
+                        true
+                    }
+                    // 简单的广告拦截
+                    url.contains("ads") || url.contains("doubleclick") -> {
+                        Log.d(TAG, "拦截广告URL: $url")
+                        true
+                    }
+                    else -> false
                 }
-                return false
             }
         }
 
@@ -295,6 +371,109 @@ class GestureCardWebViewManager(
                 cardData.favicon = icon
                 Log.d(TAG, "接收到卡片图标")
             }
+        }
+    }
+
+    /**
+     * 处理搜索引擎重定向到移动应用的情况
+     */
+    private fun handleSearchEngineRedirect(view: WebView?, originalUrl: String, engineType: String) {
+        if (view == null) return
+
+        Log.d(TAG, "处理搜索引擎重定向: $engineType, 原始URL: $originalUrl")
+
+        try {
+            // 从URL scheme中提取搜索参数
+            val searchQuery = extractSearchQueryFromScheme(originalUrl, engineType)
+
+            if (searchQuery.isNotEmpty()) {
+                // 构建Web版本的搜索URL
+                val webSearchUrl = buildWebSearchUrl(engineType, searchQuery)
+                Log.d(TAG, "重定向到Web版本: $webSearchUrl")
+                view.loadUrl(webSearchUrl)
+            } else {
+                // 如果无法提取搜索词，重定向到搜索引擎首页
+                val homepageUrl = getSearchEngineHomepage(engineType)
+                Log.d(TAG, "无法提取搜索词，重定向到首页: $homepageUrl")
+                view.loadUrl(homepageUrl)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理搜索引擎重定向失败", e)
+            // 回退到搜索引擎首页
+            val homepageUrl = getSearchEngineHomepage(engineType)
+            view.loadUrl(homepageUrl)
+        }
+    }
+
+    /**
+     * 从URL scheme中提取搜索查询
+     */
+    private fun extractSearchQueryFromScheme(url: String, engineType: String): String {
+        return try {
+            when (engineType) {
+                "baidu" -> {
+                    // baiduboxapp://utils?action=sendIntent&minver=7.4&params=%7B...
+                    val uri = android.net.Uri.parse(url)
+                    val params = uri.getQueryParameter("params")
+                    // 暂时返回空，让它重定向到首页
+                    ""
+                }
+                "sogou" -> {
+                    // mttbrowser://url=https://m.sogou.com/?...
+                    val uri = android.net.Uri.parse(url)
+                    val redirectUrl = uri.getQueryParameter("url")
+                    if (!redirectUrl.isNullOrEmpty()) {
+                        val redirectUri = android.net.Uri.parse(redirectUrl)
+                        redirectUri.getQueryParameter("keyword") ?: redirectUri.getQueryParameter("query") ?: ""
+                    } else {
+                        ""
+                    }
+                }
+                "quark" -> {
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("q") ?: ""
+                }
+                "uc" -> {
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("keyword") ?: ""
+                }
+                else -> ""
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "提取搜索查询失败: $url", e)
+            ""
+        }
+    }
+
+    /**
+     * 构建Web版本的搜索URL
+     */
+    private fun buildWebSearchUrl(engineType: String, query: String): String {
+        val encodedQuery = try {
+            java.net.URLEncoder.encode(query, "UTF-8")
+        } catch (e: Exception) {
+            query
+        }
+
+        return when (engineType) {
+            "baidu" -> "https://www.baidu.com/s?wd=$encodedQuery"
+            "sogou" -> "https://www.sogou.com/web?query=$encodedQuery"
+            "quark" -> "https://quark.sm.cn/s?q=$encodedQuery"
+            "uc" -> "https://www.uc.cn/s?wd=$encodedQuery"
+            else -> "https://www.google.com/search?q=$encodedQuery"
+        }
+    }
+
+    /**
+     * 获取搜索引擎首页URL
+     */
+    private fun getSearchEngineHomepage(engineType: String): String {
+        return when (engineType) {
+            "baidu" -> "https://www.baidu.com"
+            "sogou" -> "https://www.sogou.com"
+            "quark" -> "https://quark.sm.cn"
+            "uc" -> "https://www.uc.cn"
+            else -> "https://www.google.com"
         }
     }
 
@@ -373,9 +552,20 @@ class GestureCardWebViewManager(
     }
 
     /**
-     * 切换预览模式
+     * 切换预览模式（公开方法）
      */
-    private fun togglePreviewMode() {
+    fun togglePreviewMode() {
+        if (isPreviewMode) {
+            exitPreviewMode()
+        } else {
+            enterPreviewMode()
+        }
+    }
+
+    /**
+     * 切换预览模式（私有方法）
+     */
+    private fun togglePreviewModeInternal() {
         if (isPreviewMode) {
             exitPreviewMode()
         } else {
@@ -435,4 +625,127 @@ class GestureCardWebViewManager(
 
         Log.d(TAG, "销毁手势卡片管理器")
     }
+
+    /**
+     * 根据URL动态设置User-Agent
+     */
+    private fun setDynamicUserAgent(view: WebView, url: String) {
+        val shouldUseDesktopUA = when {
+            // 搜索引擎使用桌面版User-Agent以避免重定向
+            url.contains("baidu.com") && url.contains("/s?") -> true
+            url.contains("sogou.com") && url.contains("/web?") -> true
+            url.contains("bing.com") && url.contains("/search?") -> true
+            url.contains("360.cn") && url.contains("/s?") -> true
+            url.contains("quark.sm.cn") && url.contains("/s?") -> true
+            url.contains("google.com") && url.contains("/search?") -> true
+            // 其他网站使用移动版User-Agent
+            else -> false
+        }
+
+        val targetUserAgent = if (shouldUseDesktopUA) {
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        } else {
+            "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+        }
+
+        val currentUserAgent = view.settings.userAgentString
+
+        if (currentUserAgent != targetUserAgent) {
+            Log.d(TAG, "切换User-Agent: ${if (shouldUseDesktopUA) "桌面版" else "移动版"} for $url")
+            view.settings.userAgentString = targetUserAgent
+        }
+    }
+
+    /**
+     * 显示横滑预览指示器
+     */
+    private fun showSwipePreviewIndicator() {
+        Log.d(TAG, "显示横滑预览指示器")
+        onPageChangeListener?.onSwipePreviewStarted(webViewCards, currentCardIndex)
+    }
+
+    /**
+     * 隐藏横滑预览指示器
+     */
+    private fun hideSwipePreviewIndicator() {
+        Log.d(TAG, "隐藏横滑预览指示器")
+        onPageChangeListener?.onSwipePreviewEnded()
+    }
+
+    /**
+     * 更新横滑预览指示器位置
+     */
+    private fun updateSwipePreviewIndicator(position: Int, positionOffset: Float) {
+        onPageChangeListener?.onSwipePreviewUpdated(position, positionOffset)
+    }
+
+    /**
+     * 设置高级触摸处理，严格区分单指和双指操作
+     */
+    private fun setupAdvancedTouchHandling(webView: WebView) {
+        var pointerCount = 0
+        var isZooming = false
+        var initialDistance = 0f
+
+        webView.setOnTouchListener { view, event ->
+            when (event.action and MotionEvent.ACTION_MASK) {
+                MotionEvent.ACTION_DOWN -> {
+                    pointerCount = 1
+                    isZooming = false
+                }
+
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    pointerCount = event.pointerCount
+                    if (pointerCount == 2) {
+                        isZooming = true
+                        initialDistance = getDistance(event)
+                        // 禁用ViewPager的触摸事件，避免与缩放冲突
+                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (pointerCount >= 2 && isZooming) {
+                        val currentDistance = getDistance(event)
+                        val deltaDistance = kotlin.math.abs(currentDistance - initialDistance)
+
+                        if (deltaDistance > 50) {
+                            view.parent?.requestDisallowInterceptTouchEvent(true)
+                        }
+                    } else if (pointerCount == 1 && !isZooming) {
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+
+                MotionEvent.ACTION_POINTER_UP -> {
+                    pointerCount = event.pointerCount - 1
+                    if (pointerCount < 2) {
+                        isZooming = false
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    pointerCount = 0
+                    isZooming = false
+                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                }
+            }
+            false
+        }
+    }
+
+    /**
+     * 计算两个触摸点之间的距离
+     */
+    private fun getDistance(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 0f
+        val x = event.getX(0) - event.getX(1)
+        val y = event.getY(0) - event.getY(1)
+        return kotlin.math.sqrt(x * x + y * y)
+    }
+
+
 }
+
+

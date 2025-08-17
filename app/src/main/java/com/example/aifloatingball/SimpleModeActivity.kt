@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.Context
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.voice.VoiceInputManager
@@ -22,11 +24,13 @@ import android.speech.SpeechRecognizer
 import android.text.TextWatcher
 import android.util.Log
 import android.widget.Toast
+import android.view.GestureDetector
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import kotlin.math.abs
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebChromeClient
@@ -292,6 +296,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 浏览器功能相关
     private lateinit var browserGestureDetector: GestureDetectorCompat
     private var currentSearchEngine: com.example.aifloatingball.model.SearchEngine? = null
+
+    // Material波浪追踪器
+    private var materialWaveTracker: com.example.aifloatingball.views.MaterialWaveTracker? = null
 
 
 
@@ -2706,34 +2713,46 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun setupBottomNavigation() {
+        // 创建webview卡片切换手势检测器
+        val webViewCardSwipeDetector = createWebViewCardSwipeDetector()
+
+        // 初始化Material波浪追踪器
+        setupMaterialWaveTracker()
+
         // 对话tab (最左边)
-        findViewById<LinearLayout>(R.id.tab_chat)?.setOnClickListener {
-            showChat()
+        findViewById<LinearLayout>(R.id.tab_chat)?.apply {
+            setOnClickListener { showChat() }
+            setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 搜索tab (第二位)
-        findViewById<LinearLayout>(R.id.tab_search)?.setOnClickListener {
-            showBrowser()
+        findViewById<LinearLayout>(R.id.tab_search)?.apply {
+            setOnClickListener { showBrowser() }
+            setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 任务tab (第三位，原首页)
-        findViewById<LinearLayout>(R.id.tab_home)?.setOnClickListener {
-            showTaskSelection()
+        findViewById<LinearLayout>(R.id.tab_home)?.apply {
+            setOnClickListener { showTaskSelection() }
+            setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 语音tab (第四位)
-        findViewById<LinearLayout>(R.id.tab_voice)?.setOnClickListener {
-            showVoice()
+        findViewById<LinearLayout>(R.id.tab_voice)?.apply {
+            setOnClickListener { showVoice() }
+            setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 软件tab (第五位)
-        findViewById<LinearLayout>(R.id.tab_app_search)?.setOnClickListener {
-            showAppSearch()
+        findViewById<LinearLayout>(R.id.tab_app_search)?.apply {
+            setOnClickListener { showAppSearch() }
+            setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 设置tab (最右边)
-        findViewById<LinearLayout>(R.id.tab_settings)?.setOnClickListener {
-            showSettings()
+        findViewById<LinearLayout>(R.id.tab_settings)?.apply {
+            setOnClickListener { showSettings() }
+            setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 初始化搜索tab图标
@@ -2741,6 +2760,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 检测语音支持情况并隐藏语音tab（如果不支持）
         updateVoiceTabVisibility()
+
+        // 设置底部tab区域的横滑手势
+        setupTabAreaSwipeGesture()
+
+        // 创建底部tab手势指示器
+        createTabSwipeGestureIndicator()
+
+        // 搜索tab横滑功能已集成到全局横滑手势中
+        // createSearchTabSwipeHotArea() // 已移除，避免冲突
     }
 
     /**
@@ -3940,6 +3968,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "卡片加载状态变化: ${cardData.title} - $isLoading")
             }
 
+
+
+            override fun onSwipePreviewStarted(cards: List<GestureCardWebViewManager.WebViewCardData>, currentIndex: Int) {
+                // 显示横滑预览指示器
+                showSwipePreviewIndicator(cards, currentIndex)
+                Log.d(TAG, "开始横滑预览，当前索引: $currentIndex，总卡片数: ${cards.size}")
+            }
+
+            override fun onSwipePreviewUpdated(position: Int, positionOffset: Float) {
+                // 更新横滑预览指示器位置
+                updateSwipePreviewIndicator(position, positionOffset)
+            }
+
+            override fun onSwipePreviewEnded() {
+                // 隐藏横滑预览指示器
+                hideSwipePreviewIndicator()
+                Log.d(TAG, "结束横滑预览")
+            }
+
             override fun onGoHome() {
                 // 返回简易模式搜索tab首页
                 showBrowser() // 显示浏览器界面
@@ -3975,6 +4022,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置按钮监听器
         setupBrowserButtons()
+
+        // 设置卡片预览按钮图标
+        setupCardPreviewButtonIcon()
 
         // 设置抽屉
         setupBrowserDrawer()
@@ -4200,12 +4250,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         })
 
-        // 为WebView容器设置手势监听
+        // 为WebView容器设置手势监听（仅处理原有的浏览器手势，不处理卡片切换）
         browserWebViewContainer.setOnTouchListener { _, event ->
             // 如果抽屉已经打开，不处理手势，让抽屉优先处理触摸事件
             if (browserLayout.isDrawerOpen(GravityCompat.START) || browserLayout.isDrawerOpen(GravityCompat.END)) {
                 return@setOnTouchListener false
             }
+
+            // 只处理原有的浏览器手势（双击等），不处理卡片切换
             browserGestureDetector.onTouchEvent(event)
             false
         }
@@ -4278,14 +4330,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置浏览器按钮监听器
      */
     private fun setupBrowserButtons() {
-        // 关闭按钮 - 智能返回逻辑（短按返回上一页，长按返回搜索tab首页）
+        // 卡片预览按钮 - 显示所有打开的页面卡片（原返回按钮）
         browserBtnClose.setOnClickListener {
-            handleBrowserBackButtonClick(false) // 短按
+            showCardPreviewDialog() // 短按显示卡片预览
         }
 
-        // 设置长按监听器
+        // 设置长按监听器 - 保留返回功能
         browserBtnClose.setOnLongClickListener {
-            handleBrowserBackButtonClick(true) // 长按
+            handleBrowserBackButtonClick(true) // 长按返回
             true
         }
 
@@ -4381,6 +4433,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             override fun onPageRefresh() {
                 // 页面刷新
                 Log.d(TAG, "页面刷新")
+            }
+
+            override fun onSwipePreviewStarted(cards: List<GestureCardWebViewManager.WebViewCardData>, currentIndex: Int) {
+                // 显示横滑预览指示器
+                showSwipePreviewIndicator(cards, currentIndex)
+                Log.d(TAG, "开始横滑预览，当前索引: $currentIndex，总卡片数: ${cards.size}")
+            }
+
+            override fun onSwipePreviewUpdated(position: Int, positionOffset: Float) {
+                // 更新横滑预览指示器位置
+                updateSwipePreviewIndicator(position, positionOffset)
+            }
+
+            override fun onSwipePreviewEnded() {
+                // 隐藏横滑预览指示器
+                hideSwipePreviewIndicator()
+                Log.d(TAG, "结束横滑预览")
             }
         })
     }
@@ -5766,6 +5835,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         startGlobalAISearch(query)
                         // 清空搜索框
                         chatSearchInput.text.clear()
+                        // 隐藏输入法
+                        hideKeyboard(chatSearchInput)
                     }
                     true
                 } else {
@@ -5773,8 +5844,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
+            // 设置输入框焦点监听，只在获得焦点时显示输入法
+            chatSearchInput?.setOnFocusChangeListener { view, hasFocus ->
+                if (hasFocus) {
+                    // 延迟显示输入法，确保焦点已经设置
+                    view.postDelayed({
+                        showKeyboard(view as EditText)
+                    }, 100)
+                } else {
+                    // 失去焦点时隐藏输入法
+                    hideKeyboard(view)
+                }
+            }
+
             // 添加回车键监听
-            chatSearchInput?.setOnKeyListener { _, keyCode, event ->
+            chatSearchInput?.setOnKeyListener { view, keyCode, event ->
                 if (keyCode == android.view.KeyEvent.KEYCODE_ENTER && event.action == android.view.KeyEvent.ACTION_DOWN) {
                     val query = chatSearchInput.text.toString().trim()
                     if (query.isNotEmpty()) {
@@ -5782,6 +5866,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         startGlobalAISearch(query)
                         // 清空搜索框
                         chatSearchInput.text.clear()
+                        // 隐藏输入法并清除焦点
+                        hideKeyboard(view)
+                        view.clearFocus()
                     }
                     true
                 } else {
@@ -8989,21 +9076,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun removeAIConfiguration(contact: ChatContact) {
         try {
+            // 获取当前分组
+            val currentGroup = findContactGroup(contact)
+
             // 清除API密钥
             val prefs = getSharedPreferences("ai_api_keys", MODE_PRIVATE)
             prefs.edit().remove(contact.name).apply()
 
             // 从所有分组中移除该AI
+            val groupsToCheck = mutableListOf<String>()
             for (categoryIndex in allContacts.indices) {
                 val category = allContacts[categoryIndex]
                 val updatedContacts = category.contacts.filter { it.id != contact.id }
                 if (updatedContacts.size != category.contacts.size) {
                     allContacts[categoryIndex] = category.copy(contacts = updatedContacts)
+
+                    // 检查是否需要移除空分组标签页
+                    if (updatedContacts.isEmpty() &&
+                        category.name != "AI助手" &&
+                        category.name != "全部" &&
+                        category.name != "未分组") {
+                        groupsToCheck.add(category.name)
+                    }
                 }
+            }
+
+            // 移除空分组的标签页
+            groupsToCheck.forEach { groupName ->
+                removeEmptyGroupTab(groupName)
             }
 
             // 保存更改
             saveContacts()
+
+            // 切换到"全部"标签页
+            switchToTabIfExists("全部")
 
             // 刷新显示
             refreshCurrentTabDisplay()
@@ -9012,7 +9119,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         } catch (e: Exception) {
             Log.e(TAG, "移除AI配置失败", e)
-            Toast.makeText(this, "移除配置失败", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "❌ 移除配置失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -9031,7 +9138,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val updatedContacts = category.contacts.filter { it.id != contact.id }
 
                 if (updatedContacts.isEmpty()) {
-                    // 如果分类中没有联系人了，删除整个分类
+                    // 如果分类中没有联系人了，检查是否需要删除分组标签页
+                    if (category.name != "AI助手" &&
+                        category.name != "全部" &&
+                        category.name != "未分组") {
+                        removeEmptyGroupTab(category.name)
+                    }
+                    // 删除整个分类
                     allContacts.removeAt(categoryIndex)
                 } else {
                     // 更新分类中的联系人列表
@@ -9040,6 +9153,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 保存更新后的联系人数据
                 saveContacts()
+
+                // 切换到"全部"标签页
+                switchToTabIfExists("全部")
+
+                // 刷新显示
+                refreshCurrentTabDisplay()
 
                 // 更新适配器
                 chatContactAdapter?.updateContacts(allContacts)
@@ -10050,7 +10169,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "当前分组: $currentGroup")
 
             // 2. 从当前分组中移除（如果存在）
-            if (currentGroup != null) {
+            if (currentGroup != null && currentGroup != "未分组") {
                 val currentCategory = allContacts.find { it.name == currentGroup }
                 if (currentCategory != null) {
                     val updatedContacts = currentCategory.contacts.filter { it.id != contact.id }
@@ -10058,11 +10177,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val index = allContacts.indexOf(currentCategory)
                     allContacts[index] = updatedCategory
                     Log.d(TAG, "从分组 $currentGroup 中移除了 ${contact.name}")
+
+                    // 如果分组变空且不是预设分组，考虑删除分组
+                    if (updatedContacts.isEmpty() &&
+                        currentGroup != "AI助手" &&
+                        currentGroup != "全部" &&
+                        currentGroup != "未分组") {
+                        Log.d(TAG, "分组 $currentGroup 已空，保留分组但移除对应标签页")
+                        removeEmptyGroupTab(currentGroup)
+                    }
                 } else {
                     Log.w(TAG, "当前分组 $currentGroup 在allContacts中不存在")
                 }
             } else {
-                Log.d(TAG, "联系人 ${contact.name} 当前不在任何分组中")
+                Log.d(TAG, "联系人 ${contact.name} 当前不在任何分组中或在未分组中")
             }
 
             // 3. 添加到目标分组
@@ -10089,10 +10217,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 )
                 allContacts.add(newCategory)
                 Log.d(TAG, "创建新分组 $targetGroupName 并添加 ${contact.name}")
+
+                // 如果是"AI助手"分组，清除删除标记
+                if (targetGroupName == "AI助手") {
+                    val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
+                    prefs.edit().putBoolean("ai_assistant_group_deleted", false).apply()
+                    Log.d(TAG, "重新创建AI助手分组，清除删除标记")
+                }
             }
 
             // 4. 确保目标分组有对应的标签页
             ensureTabForGroup(targetGroupName)
+
+            // 5. 如果是"AI助手"分组，确保标签页存在
+            if (targetGroupName == "AI助手") {
+                ensureAIAssistantTabExists()
+            }
 
             // 5. 保存更改
             saveContacts()
@@ -10106,17 +10246,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "刷新显示完成")
 
             // 8. 显示成功提示
-            val message = if (currentGroup != null) {
-                "已将 ${contact.name} 从 \"$currentGroup\" 移动到 \"$targetGroupName\""
+            val message = if (currentGroup != null && currentGroup != "未分组") {
+                "✅ 已将 ${contact.name} 从 \"$currentGroup\" 移动到 \"$targetGroupName\""
             } else {
-                "已将 ${contact.name} 移动到分组 \"$targetGroupName\""
+                "✅ 已将 ${contact.name} 移动到分组 \"$targetGroupName\""
             }
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             Log.d(TAG, "移动联系人成功: ${contact.name} 从 $currentGroup 到 $targetGroupName")
 
         } catch (e: Exception) {
             Log.e(TAG, "移动联系人到分组失败", e)
-            Toast.makeText(this, "移动失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "❌ 移动失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -10661,7 +10801,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             // 从当前分组中移除
             val currentGroup = findContactGroup(contact)
-            if (currentGroup != null) {
+            if (currentGroup != null && currentGroup != "未分组") {
                 val currentCategory = allContacts.find { it.name == currentGroup }
                 if (currentCategory != null) {
                     val updatedContacts = currentCategory.contacts.filter { it.id != contact.id }
@@ -10669,16 +10809,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val index = allContacts.indexOf(currentCategory)
                     allContacts[index] = updatedCategory
 
+                    // 如果分组变空且不是预设分组，移除对应标签页
+                    if (updatedContacts.isEmpty() &&
+                        currentGroup != "AI助手" &&
+                        currentGroup != "全部" &&
+                        currentGroup != "未分组") {
+                        Log.d(TAG, "分组 $currentGroup 已空，移除对应标签页")
+                        removeEmptyGroupTab(currentGroup)
+                    }
+
                     // 保存更改
                     saveContacts()
+
+                    // 切换到"全部"标签页
+                    switchToTabIfExists("全部")
 
                     // 刷新当前显示
                     refreshCurrentTabDisplay()
 
-                    Toast.makeText(this, "${contact.name} 已移除分组，现在在\"全部\"中", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "✅ ${contact.name} 已移除分组，现在在\"全部\"中", Toast.LENGTH_LONG).show()
                     Log.d(TAG, "移除联系人分组: ${contact.name} 从 $currentGroup")
                 } else {
-                    Toast.makeText(this, "未找到联系人所在的分组", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "❌ 未找到联系人所在的分组", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 Toast.makeText(this, "${contact.name} 已经在\"全部\"中", Toast.LENGTH_SHORT).show()
@@ -10686,7 +10838,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         } catch (e: Exception) {
             Log.e(TAG, "移除联系人分组失败", e)
-            Toast.makeText(this, "移除分组失败", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "❌ 移除分组失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 移除空分组的标签页
+     */
+    private fun removeEmptyGroupTab(groupName: String) {
+        try {
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+
+            // 查找并移除对应的标签页
+            for (i in 0 until (chatTabLayout?.tabCount ?: 0)) {
+                val tab = chatTabLayout?.getTabAt(i)
+                if (tab?.text?.toString() == groupName) {
+                    chatTabLayout?.removeTabAt(i)
+                    Log.d(TAG, "移除空分组标签页: $groupName")
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "移除空分组标签页失败", e)
         }
     }
 
@@ -12401,6 +12574,1263 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             .setNeutralButton("取消", null)
             .show()
+    }
+
+    // ==================== 横滑预览指示器相关方法 ====================
+
+    private var swipePreviewIndicator: View? = null
+    private var swipePreviewContainer: LinearLayout? = null
+    private var swipePreviewTitle: TextView? = null
+    private var swipePreviewDots: MutableList<View> = mutableListOf()
+
+    // 底部tab横滑手势相关
+    private var tabSwipeGestureIndicator: View? = null
+    private var lastSwipeTime = 0L
+    private val swipeDebounceDelay = 300L // 防抖延迟300ms
+
+    // 搜索tab横滑热区相关
+    private var searchTabSwipeHotArea: View? = null
+    private var searchTabSwipeIndicator: View? = null
+    private var lastSearchTabSwipeTime = 0L
+
+    /**
+     * 显示横滑预览指示器
+     */
+    private fun showSwipePreviewIndicator(cards: List<GestureCardWebViewManager.WebViewCardData>, currentIndex: Int) {
+        if (swipePreviewIndicator == null) {
+            createSwipePreviewIndicator()
+        }
+
+        // 更新指示器内容
+        updateSwipePreviewDots(cards.size, currentIndex)
+
+        // 更新当前页面标题（显示前两个字）
+        if (currentIndex < cards.size) {
+            val title = cards[currentIndex].title
+            val shortTitle = if (title.length >= 2) title.substring(0, 2) else title
+            swipePreviewTitle?.text = shortTitle
+        }
+
+        // 显示指示器 - 简化动画效果
+        swipePreviewIndicator?.apply {
+            visibility = View.VISIBLE
+            alpha = 0f
+
+            animate()
+                .alpha(1f)
+                .setDuration(150) // 减少动画时间
+                .start()
+        }
+    }
+
+    /**
+     * 创建横滑预览指示器
+     */
+    private fun createSwipePreviewIndicator() {
+        // 创建主容器 - 垂直布局，包含指示器和标题
+        val mainContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            setPadding(16, 8, 16, 8)
+        }
+
+        // 创建圆点指示器容器
+        swipePreviewContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, 4) // 圆点下方留空间给标题
+        }
+
+        // 创建标题显示
+        val titleText = TextView(this).apply {
+            textSize = 12f
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = android.view.Gravity.CENTER
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+
+        // 添加到主容器
+        mainContainer.addView(swipePreviewContainer)
+        mainContainer.addView(titleText)
+
+        // 创建指示器背景 - 去掉透明区域，只保留指示器
+        swipePreviewIndicator = FrameLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                bottomMargin = 100 // 距离底部100dp，避免遮挡tab区域
+            }
+
+            // 去掉背景，只保留内容
+            background = null
+            elevation = 0f
+
+            addView(mainContainer)
+            visibility = View.GONE
+        }
+
+        // 保存标题引用
+        swipePreviewTitle = titleText
+
+        // 添加到主布局
+        browserLayout.addView(swipePreviewIndicator)
+    }
+
+    /**
+     * 更新横滑预览指示器的点
+     */
+    private fun updateSwipePreviewDots(cardCount: Int, currentIndex: Int) {
+        swipePreviewContainer?.removeAllViews()
+        swipePreviewDots.clear()
+
+        for (i in 0 until cardCount) {
+            val dot = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(12, 12).apply { // 减小圆点尺寸
+                    setMargins(4, 0, 4, 0)
+                }
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    if (i == currentIndex) {
+                        setColor(android.graphics.Color.WHITE) // 当前页面白色
+                    } else {
+                        setColor(android.graphics.Color.parseColor("#80FFFFFF")) // 其他页面半透明白色
+                    }
+                }
+            }
+            swipePreviewDots.add(dot)
+            swipePreviewContainer?.addView(dot)
+        }
+    }
+
+    /**
+     * 更新横滑预览指示器位置
+     */
+    private fun updateSwipePreviewIndicator(position: Int, positionOffset: Float) {
+        // 更新当前活跃的点
+        swipePreviewDots.forEachIndexed { index, dot ->
+            val alpha = when {
+                index == position -> 1f - positionOffset
+                index == position + 1 -> positionOffset
+                else -> 0.5f
+            }
+            dot.alpha = alpha
+        }
+
+        // 更新标题显示
+        val cards = gestureCardWebViewManager?.getAllCards() ?: return
+        val currentIndex = if (positionOffset > 0.5f && position + 1 < cards.size) position + 1 else position
+        if (currentIndex < cards.size) {
+            val title = cards[currentIndex].title
+            val shortTitle = if (title.length >= 2) title.substring(0, 2) else title
+            swipePreviewTitle?.text = shortTitle
+        }
+    }
+
+    /**
+     * 隐藏横滑预览指示器
+     */
+    private fun hideSwipePreviewIndicator() {
+        swipePreviewIndicator?.animate()
+            ?.alpha(0f)
+            ?.setDuration(150) // 减少动画时间
+            ?.withEndAction {
+                swipePreviewIndicator?.visibility = View.GONE
+            }
+            ?.start()
+    }
+
+    // ==================== 底部tab区域横滑手势处理 ====================
+
+    /**
+     * 设置底部tab区域的横滑手势 - 专门用于切换webview卡片
+     * 注意：现在手势检测已经集成到setupBottomNavigation中的每个tab
+     */
+    private fun setupTabAreaSwipeGesture() {
+        Log.d(TAG, "✅ 底部tab区域webview卡片切换手势已集成到setupBottomNavigation中")
+
+        // 添加长按测试功能到整个底部导航栏
+        val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+        bottomNav?.setOnLongClickListener {
+            if (getCurrentTabIndex() == 1) {
+                testWebViewCardSwitching()
+            } else {
+                Toast.makeText(this@SimpleModeActivity, "请先切换到搜索tab再测试", Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
+    }
+
+    /**
+     * 创建webview卡片切换手势检测器
+     */
+    private fun createWebViewCardSwipeDetector(): GestureDetector {
+        return GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (e1 == null) return false
+
+                // 防抖处理
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastSwipeTime < swipeDebounceDelay) {
+                    Log.d(TAG, "🚫 手势防抖，忽略此次操作")
+                    return false
+                }
+
+                val deltaX = e2.x - e1.x
+                val deltaY = e2.y - e1.y
+
+                // 确保是水平滑动且滑动距离足够
+                if (abs(deltaX) > abs(deltaY) && abs(deltaX) > 80) { // 降低到80px
+                    lastSwipeTime = currentTime
+
+                    Log.d(TAG, "🎯 底部tab检测到横滑手势，deltaX: $deltaX, 当前tab: ${getCurrentTabIndex()}")
+
+                    // 只在搜索tab中切换webview卡片
+                    if (getCurrentTabIndex() == 1) { // 1 = BROWSER (搜索tab)
+                        if (deltaX > 0) {
+                            // 向右滑动，切换到上一个webview卡片
+                            switchToPreviousWebPage()
+                            showSearchTabSwipeIndicator("上一页")
+                            Log.d(TAG, "✅ 底部tab右滑成功 - 切换到上一个webview卡片")
+                        } else {
+                            // 向左滑动，切换到下一个webview卡片
+                            switchToNextWebPage()
+                            showSearchTabSwipeIndicator("下一页")
+                            Log.d(TAG, "✅ 底部tab左滑成功 - 切换到下一个webview卡片")
+                        }
+
+                        return true
+                    } else {
+                        // 静默处理，不显示提示
+                        Log.d(TAG, "⚠️ 不在搜索tab中，当前tab: ${getCurrentTabIndex()}")
+                    }
+                } else {
+                    Log.d(TAG, "🚫 手势不符合条件 - deltaX: $deltaX, deltaY: $deltaY")
+                }
+                return false
+            }
+
+            override fun onDown(e: MotionEvent): Boolean {
+                Log.d(TAG, "👆 底部tab区域按下，当前tab: ${getCurrentTabIndex()}")
+                return true
+            }
+        })
+    }
+
+    /**
+     * 设置Material波浪追踪器
+     */
+    private fun setupMaterialWaveTracker() {
+        try {
+            // 创建卡片预览波浪追踪器
+            materialWaveTracker = com.example.aifloatingball.views.MaterialWaveTracker(this).apply {
+                // 设置卡片颜色
+                setCardColor(android.graphics.Color.WHITE)
+
+                // 设置层级
+                elevation = 16f
+
+                // 设置卡片选择监听器
+                setOnCardSelectedListener { cardIndex ->
+                    // 切换到选中的卡片
+                    switchToWebViewCard(cardIndex)
+                }
+            }
+
+            // 将波浪追踪器添加为独立的覆盖层，不影响底部导航栏
+            // 获取Activity的根视图（DecorView），这样不会影响布局
+            val decorView = window.decorView as ViewGroup
+            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+
+            if (decorView != null && bottomNav != null) {
+                // 将波浪追踪器添加到DecorView作为覆盖层，完全不影响原有布局
+                materialWaveTracker?.apply {
+                    // 设置为全屏覆盖，但不影响布局
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+
+                    // 设置为完全不可交互，让触摸事件穿透到底层
+                    isClickable = false
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    isEnabled = false
+                    // 初始状态隐藏
+                    visibility = View.GONE
+
+                    // 确保不拦截触摸事件
+                    setOnTouchListener { _, _ -> false }
+                }
+
+                // 添加到DecorView作为最顶层的覆盖层，不影响原有布局
+                decorView.addView(materialWaveTracker)
+
+                // 初始化卡片数据
+                updateWaveTrackerCards()
+
+                Log.d(TAG, "✅ 卡片预览波浪追踪器已成功设置")
+            } else {
+                Log.e(TAG, "❌ 无法找到底部导航栏或根布局")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 设置Material波浪追踪器失败", e)
+        }
+    }
+
+    /**
+     * 更新波浪追踪器的卡片数据
+     */
+    private fun updateWaveTrackerCards() {
+        try {
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                val cardDataList = allCards.map { cardData ->
+                    com.example.aifloatingball.views.MaterialWaveTracker.WebViewCardData(
+                        title = cardData.title ?: "无标题",
+                        url = cardData.url ?: "",
+                        favicon = null, // 可以后续添加favicon支持
+                        screenshot = cardData.webView?.let { webView ->
+                            // 尝试获取WebView截图
+                            try {
+                                val bitmap = Bitmap.createBitmap(
+                                    webView.width,
+                                    webView.height,
+                                    Bitmap.Config.ARGB_8888
+                                )
+                                val canvas = Canvas(bitmap)
+                                webView.draw(canvas)
+                                bitmap
+                            } catch (e: Exception) {
+                                Log.w(TAG, "获取WebView截图失败", e)
+                                null
+                            }
+                        }
+                    )
+                }
+
+                materialWaveTracker?.updateWebViewCards(cardDataList)
+                Log.d(TAG, "✅ 更新了 ${cardDataList.size} 个卡片到波浪追踪器")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 更新波浪追踪器卡片数据失败", e)
+        }
+    }
+
+    /**
+     * 切换到指定的webview卡片
+     */
+    private fun switchToWebViewCard(cardIndex: Int) {
+        try {
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                if (cardIndex >= 0 && cardIndex < allCards.size) {
+                    manager.switchToCard(cardIndex)
+                    Log.d(TAG, "✅ 通过卡片预览切换到卡片: $cardIndex")
+
+                    // 更新卡片数据（可能有变化）
+                    updateWaveTrackerCards()
+                } else {
+                    Log.w(TAG, "⚠️ 无效的卡片索引: $cardIndex")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 切换到webview卡片失败", e)
+        }
+    }
+
+    /**
+     * 为单个tab设置手势检测
+     */
+    private fun setupTabGestureDetection(tabView: LinearLayout, gestureDetector: GestureDetector) {
+        tabView.setOnTouchListener { view, event ->
+            // 只在搜索tab中显示卡片预览波浪效果
+            if (getCurrentTabIndex() == 1) {
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        // 显示波浪追踪器，但确保不阻挡底部导航栏
+                        materialWaveTracker?.apply {
+                            visibility = View.VISIBLE
+                            // 强制设置为不可交互
+                            isClickable = false
+                            isFocusable = false
+                            isFocusableInTouchMode = false
+                            isEnabled = false
+                            // 确保触摸事件穿透
+                            setOnTouchListener { _, _ -> false }
+                        }
+
+                        // 将触摸坐标转换为波浪追踪器的坐标系
+                        val location = IntArray(2)
+                        view.getLocationOnScreen(location)
+                        val waveLocation = IntArray(2)
+                        materialWaveTracker?.getLocationOnScreen(waveLocation)
+
+                        val relativeX = location[0] - waveLocation[0] + event.x
+                        val relativeY = location[1] - waveLocation[1] + event.y
+
+                        // 更新手指位置，显示卡片预览
+                        materialWaveTracker?.updateFingerPosition(relativeX, relativeY)
+
+                        // 确保卡片数据是最新的
+                        updateWaveTrackerCards()
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        // 继续更新手指位置
+                        val location = IntArray(2)
+                        view.getLocationOnScreen(location)
+                        val waveLocation = IntArray(2)
+                        materialWaveTracker?.getLocationOnScreen(waveLocation)
+
+                        val relativeX = location[0] - waveLocation[0] + event.x
+                        val relativeY = location[1] - waveLocation[1] + event.y
+
+                        materialWaveTracker?.updateFingerPosition(relativeX, relativeY)
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        // 停止卡片预览效果并隐藏
+                        materialWaveTracker?.stopWave()
+                        materialWaveTracker?.visibility = View.GONE
+                    }
+                }
+            }
+
+            // 处理手势检测（横滑切换）
+            gestureDetector.onTouchEvent(event)
+
+            // 不消费事件，让点击事件继续传递
+            false
+        }
+    }
+
+
+
+    /**
+     * 测试webview卡片切换功能
+     */
+    private fun testWebViewCardSwitching() {
+        Log.d(TAG, "🧪 开始测试webview卡片切换功能")
+
+        gestureCardWebViewManager?.let { manager ->
+            val allCards = manager.getAllCards()
+            val totalPages = allCards.size
+
+            Log.d(TAG, "📊 测试结果 - 总页面数: $totalPages")
+            Log.d(TAG, "📋 所有卡片: ${allCards.map { it.title ?: "无标题" }}")
+
+            val message = "测试结果：共有 $totalPages 个页面"
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+
+            if (totalPages > 1) {
+                Log.d(TAG, "🔄 测试切换到下一页")
+                switchToNextWebPage()
+            } else if (totalPages == 1) {
+                Log.d(TAG, "⚠️ 只有一个页面，无法测试切换")
+                Toast.makeText(this, "只有一个页面，请先打开多个网页", Toast.LENGTH_LONG).show()
+            } else {
+                Log.d(TAG, "⚠️ 没有页面")
+                Toast.makeText(this, "没有打开的页面，请先搜索一些内容", Toast.LENGTH_LONG).show()
+            }
+        } ?: run {
+            Log.w(TAG, "❌ gestureCardWebViewManager为null")
+            Toast.makeText(this, "页面管理器未初始化", Toast.LENGTH_LONG).show()
+        }
+    }
+
+
+
+    /**
+     * 切换到上一个tab
+     */
+    private fun switchToPreviousTab() {
+        val currentTab = getCurrentTabIndex()
+        val visibleTabs = getVisibleTabs()
+        val currentIndex = visibleTabs.indexOf(currentTab)
+
+        if (currentIndex > 0) {
+            val previousTab = visibleTabs[currentIndex - 1]
+            switchToTab(previousTab)
+            Log.d(TAG, "横滑切换到上一个tab: $previousTab")
+        }
+    }
+
+    /**
+     * 切换到下一个tab
+     */
+    private fun switchToNextTab() {
+        val currentTab = getCurrentTabIndex()
+        val visibleTabs = getVisibleTabs()
+        val currentIndex = visibleTabs.indexOf(currentTab)
+
+        if (currentIndex < visibleTabs.size - 1) {
+            val nextTab = visibleTabs[currentIndex + 1]
+            switchToTab(nextTab)
+            Log.d(TAG, "横滑切换到下一个tab: $nextTab")
+        }
+    }
+
+    /**
+     * 获取当前tab索引
+     */
+    private fun getCurrentTabIndex(): Int {
+        return when (currentState) {
+            UIState.CHAT -> 0
+            UIState.BROWSER -> 1
+            UIState.TASK_SELECTION -> 2
+            UIState.VOICE -> 3
+            UIState.APP_SEARCH -> 4
+            UIState.SETTINGS -> 5
+            else -> 0
+        }
+    }
+
+    /**
+     * 获取可见的tab列表
+     */
+    private fun getVisibleTabs(): List<Int> {
+        val tabs = mutableListOf<Int>()
+        tabs.add(0) // 对话
+        tabs.add(1) // 搜索
+        tabs.add(2) // 任务
+
+        // 检查语音tab是否可见
+        val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
+        if (voiceTab?.visibility == View.VISIBLE) {
+            tabs.add(3) // 语音
+        }
+
+        tabs.add(4) // 软件
+        tabs.add(5) // 设置
+
+        return tabs
+    }
+
+    /**
+     * 切换到指定tab
+     */
+    private fun switchToTab(tabIndex: Int) {
+        when (tabIndex) {
+            0 -> showChat()
+            1 -> showBrowser()
+            2 -> showTaskSelection()
+            3 -> showVoice()
+            4 -> showAppSearch()
+            5 -> showSettings()
+        }
+    }
+
+    // ==================== 输入法控制方法 ====================
+
+    /**
+     * 显示软键盘
+     */
+    private fun showKeyboard(editText: EditText) {
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
+            Log.d(TAG, "显示软键盘")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示软键盘失败", e)
+        }
+    }
+
+    /**
+     * 隐藏软键盘
+     */
+    private fun hideKeyboard(view: View) {
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(view.windowToken, 0)
+            Log.d(TAG, "隐藏软键盘")
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏软键盘失败", e)
+        }
+    }
+
+    // ==================== 底部tab手势指示器 ====================
+
+    /**
+     * 创建底部tab区域的手势指示器
+     */
+    private fun createTabSwipeGestureIndicator() {
+        try {
+            // 创建手势指示器容器
+            val indicatorContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER
+                setPadding(16, 8, 16, 8)
+            }
+
+            // 创建左箭头
+            val leftArrow = TextView(this).apply {
+                text = "◀"
+                textSize = 16f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.7f
+            }
+
+            // 创建中间提示文字
+            val hintText = TextView(this).apply {
+                text = "左右滑动切换"
+                textSize = 12f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.8f
+                setPadding(16, 0, 16, 0)
+            }
+
+            // 创建右箭头
+            val rightArrow = TextView(this).apply {
+                text = "▶"
+                textSize = 16f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.7f
+            }
+
+            // 添加到容器
+            indicatorContainer.addView(leftArrow)
+            indicatorContainer.addView(hintText)
+            indicatorContainer.addView(rightArrow)
+
+            // 创建指示器背景
+            tabSwipeGestureIndicator = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = android.view.Gravity.BOTTOM or android.view.Gravity.CENTER_HORIZONTAL
+                    bottomMargin = 120 // 在底部tab上方显示
+                }
+
+                // 设置背景
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#80000000"))
+                    cornerRadius = 20f
+                }
+
+                addView(indicatorContainer)
+                visibility = View.GONE
+            }
+
+            // 添加到主布局
+            val rootLayout = findViewById<FrameLayout>(android.R.id.content)
+            rootLayout.addView(tabSwipeGestureIndicator)
+
+            Log.d(TAG, "底部tab手势指示器创建完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建底部tab手势指示器失败", e)
+        }
+    }
+
+    /**
+     * 显示底部tab手势指示器
+     */
+    private fun showTabSwipeGestureIndicator() {
+        tabSwipeGestureIndicator?.apply {
+            visibility = View.VISIBLE
+            alpha = 0f
+            scaleX = 0.8f
+            scaleY = 0.8f
+
+            animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(200)
+                .start()
+
+            // 2秒后自动隐藏
+            postDelayed({
+                hideTabSwipeGestureIndicator()
+            }, 2000)
+        }
+    }
+
+    /**
+     * 隐藏底部tab手势指示器
+     */
+    private fun hideTabSwipeGestureIndicator() {
+        tabSwipeGestureIndicator?.animate()
+            ?.alpha(0f)
+            ?.scaleX(0.8f)
+            ?.scaleY(0.8f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                tabSwipeGestureIndicator?.visibility = View.GONE
+            }
+            ?.start()
+    }
+
+    /**
+     * 确保AI助手标签页存在
+     */
+    private fun ensureAIAssistantTabExists() {
+        try {
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+
+            // 检查是否已存在"AI助手"标签页
+            var aiTabExists = false
+            for (i in 0 until (chatTabLayout?.tabCount ?: 0)) {
+                val tab = chatTabLayout?.getTabAt(i)
+                if (tab?.text?.toString() == "AI助手") {
+                    aiTabExists = true
+                    break
+                }
+            }
+
+            // 如果不存在，创建"AI助手"标签页
+            if (!aiTabExists) {
+                val aiTab = chatTabLayout?.newTab()?.setText("AI助手")
+                if (aiTab != null) {
+                    // 在"全部"标签页后面插入
+                    chatTabLayout?.addTab(aiTab, 1)
+                    Log.d(TAG, "创建AI助手标签页")
+
+                    // 清除删除标记
+                    val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
+                    prefs.edit().putBoolean("ai_assistant_group_deleted", false).apply()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "确保AI助手标签页存在失败", e)
+        }
+    }
+
+    // ==================== 搜索tab横滑热区 ====================
+
+    /**
+     * 创建搜索tab横滑热区
+     */
+    private fun createSearchTabSwipeHotArea() {
+        try {
+            // 使用浏览器WebView容器作为搜索tab容器
+            val searchTabContainer = findViewById<FrameLayout>(R.id.browser_webview_container)
+            if (searchTabContainer == null) {
+                Log.w(TAG, "搜索tab容器未找到，无法创建横滑热区")
+                return
+            }
+
+            // 创建横滑热区（透明覆盖层）
+            searchTabSwipeHotArea = View(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    200 // 热区高度200dp，覆盖搜索tab上方区域
+                ).apply {
+                    gravity = android.view.Gravity.TOP
+                    topMargin = 100 // 距离顶部100dp开始
+                }
+
+                // 设置透明背景
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+
+                // 设置触摸监听
+                setOnTouchListener(createSearchTabSwipeGestureListener())
+            }
+
+            // 添加到搜索tab容器
+            searchTabContainer.addView(searchTabSwipeHotArea)
+
+            // 创建横滑指示器
+            createSearchTabSwipeIndicator()
+
+            Log.d(TAG, "搜索tab横滑热区创建完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建搜索tab横滑热区失败", e)
+        }
+    }
+
+    /**
+     * 创建搜索tab横滑指示器
+     */
+    private fun createSearchTabSwipeIndicator() {
+        try {
+            // 创建指示器容器
+            val indicatorContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER
+                setPadding(20, 10, 20, 10)
+            }
+
+            // 创建左箭头
+            val leftArrow = TextView(this).apply {
+                text = "◀"
+                textSize = 18f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.8f
+            }
+
+            // 创建中间提示文字
+            val hintText = TextView(this).apply {
+                text = "左右滑动切换页面"
+                textSize = 14f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.9f
+                setPadding(20, 0, 20, 0)
+            }
+
+            // 创建右箭头
+            val rightArrow = TextView(this).apply {
+                text = "▶"
+                textSize = 18f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.8f
+            }
+
+            // 添加到容器
+            indicatorContainer.addView(leftArrow)
+            indicatorContainer.addView(hintText)
+            indicatorContainer.addView(rightArrow)
+
+            // 创建指示器背景
+            searchTabSwipeIndicator = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = android.view.Gravity.CENTER_HORIZONTAL or android.view.Gravity.TOP
+                    topMargin = 150 // 在热区中央显示
+                }
+
+                // 设置背景
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#CC000000"))
+                    cornerRadius = 25f
+                }
+
+                addView(indicatorContainer)
+                visibility = View.GONE
+            }
+
+            // 添加到主布局
+            val rootLayout = findViewById<FrameLayout>(android.R.id.content)
+            rootLayout.addView(searchTabSwipeIndicator)
+
+            Log.d(TAG, "搜索tab横滑指示器创建完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建搜索tab横滑指示器失败", e)
+        }
+    }
+
+    /**
+     * 创建搜索tab横滑手势监听器
+     */
+    private fun createSearchTabSwipeGestureListener(): View.OnTouchListener {
+        val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float
+            ): Boolean {
+                if (e1 == null) return false
+
+                // 防抖处理
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastSearchTabSwipeTime < swipeDebounceDelay) {
+                    Log.d(TAG, "搜索tab横滑手势防抖，忽略此次操作")
+                    return false
+                }
+
+                val deltaX = e2.x - e1.x
+                val deltaY = e2.y - e1.y
+
+                // 确保是水平滑动且滑动距离足够
+                if (abs(deltaX) > abs(deltaY) && abs(deltaX) > 120) {
+                    lastSearchTabSwipeTime = currentTime
+
+                    if (deltaX > 0) {
+                        // 向右滑动，切换到上一个页面
+                        switchToPreviousWebPage()
+                        showSearchTabSwipeIndicator("上一页")
+                    } else {
+                        // 向左滑动，切换到下一个页面
+                        switchToNextWebPage()
+                        showSearchTabSwipeIndicator("下一页")
+                    }
+                    return true
+                }
+                return false
+            }
+
+            override fun onDown(e: MotionEvent): Boolean {
+                // 显示手势提示
+                showSearchTabSwipeIndicator("滑动切换")
+                return true
+            }
+        })
+
+        return View.OnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+        }
+    }
+
+    /**
+     * 显示搜索tab横滑指示器
+     */
+    private fun showSearchTabSwipeIndicator(action: String = "滑动切换") {
+        searchTabSwipeIndicator?.apply {
+            // 更新提示文字 - 查找LinearLayout中的TextView
+            val frameLayout = this as FrameLayout
+            val container = frameLayout.getChildAt(0) as? LinearLayout
+            val hintText = container?.getChildAt(1) as? TextView // 中间的提示文字
+            hintText?.text = when (action) {
+                "上一页" -> "◀ 上一页"
+                "下一页" -> "下一页 ▶"
+                else -> "左右滑动切换页面"
+            }
+
+            visibility = View.VISIBLE
+            alpha = 0f
+            scaleX = 0.8f
+            scaleY = 0.8f
+
+            animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(200)
+                .start()
+
+            // 2秒后自动隐藏
+            postDelayed({
+                hideSearchTabSwipeIndicator()
+            }, 2000)
+        }
+    }
+
+    /**
+     * 隐藏搜索tab横滑指示器
+     */
+    private fun hideSearchTabSwipeIndicator() {
+        searchTabSwipeIndicator?.animate()
+            ?.alpha(0f)
+            ?.scaleX(0.8f)
+            ?.scaleY(0.8f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                searchTabSwipeIndicator?.visibility = View.GONE
+            }
+            ?.start()
+    }
+
+    /**
+     * 切换到上一个网页
+     */
+    private fun switchToPreviousWebPage() {
+        Log.d(TAG, "🔄 开始切换到上一个网页")
+        try {
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                val currentCard = manager.getCurrentCard()
+                val currentIndex = allCards.indexOf(currentCard)
+                val totalPages = allCards.size
+
+                Log.d(TAG, "📊 切换到上一个网页 - 当前索引: $currentIndex, 总页面数: $totalPages")
+                Log.d(TAG, "📋 所有卡片: ${allCards.map { it.title ?: "无标题" }}")
+
+                if (totalPages > 1) {
+                    val previousIndex = if (currentIndex > 0) currentIndex - 1 else totalPages - 1
+                    manager.switchToCard(previousIndex)
+
+                    Log.d(TAG, "✅ 成功切换到上一个网页: $previousIndex")
+
+                    // 显示页面切换动画
+                    showPageSwitchAnimation("上一页", previousIndex + 1, totalPages)
+
+                    // 静默切换，不显示提示
+                } else if (totalPages == 1) {
+                    Log.d(TAG, "⚠️ 只有一个页面，无法切换")
+                } else {
+                    Log.d(TAG, "⚠️ 没有页面")
+                }
+            } ?: run {
+                Log.w(TAG, "❌ gestureCardWebViewManager为null，无法切换页面")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 切换到上一个网页失败", e)
+        }
+    }
+
+    /**
+     * 切换到下一个网页
+     */
+    private fun switchToNextWebPage() {
+        Log.d(TAG, "🔄 开始切换到下一个网页")
+        try {
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                val currentCard = manager.getCurrentCard()
+                val currentIndex = allCards.indexOf(currentCard)
+                val totalPages = allCards.size
+
+                Log.d(TAG, "📊 切换到下一个网页 - 当前索引: $currentIndex, 总页面数: $totalPages")
+                Log.d(TAG, "📋 所有卡片: ${allCards.map { it.title ?: "无标题" }}")
+
+                if (totalPages > 1) {
+                    val nextIndex = if (currentIndex < totalPages - 1) currentIndex + 1 else 0
+                    manager.switchToCard(nextIndex)
+
+                    Log.d(TAG, "✅ 成功切换到下一个网页: $nextIndex")
+
+                    // 显示页面切换动画
+                    showPageSwitchAnimation("下一页", nextIndex + 1, totalPages)
+
+                    // 静默切换，不显示提示
+                } else if (totalPages == 1) {
+                    Log.d(TAG, "⚠️ 只有一个页面，无法切换")
+                } else {
+                    Log.d(TAG, "⚠️ 没有页面")
+                }
+            } ?: run {
+                Log.w(TAG, "❌ gestureCardWebViewManager为null，无法切换页面")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 切换到下一个网页失败", e)
+        }
+    }
+
+    /**
+     * 显示页面切换动画
+     */
+    private fun showPageSwitchAnimation(direction: String, currentPage: Int, totalPages: Int) {
+        try {
+            // 创建页面切换提示
+            val switchHint = TextView(this).apply {
+                text = "$direction ($currentPage/$totalPages)"
+                textSize = 16f
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding(30, 15, 30, 15)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#DD000000"))
+                    cornerRadius = 20f
+                }
+            }
+
+            val switchIndicator = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = android.view.Gravity.CENTER
+                }
+                addView(switchHint)
+            }
+
+            // 添加到主布局
+            val rootLayout = findViewById<FrameLayout>(android.R.id.content)
+            rootLayout.addView(switchIndicator)
+
+            // 显示动画
+            switchIndicator.alpha = 0f
+            switchIndicator.scaleX = 0.8f
+            switchIndicator.scaleY = 0.8f
+
+            switchIndicator.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(200)
+                .withEndAction {
+                    // 1.5秒后隐藏
+                    switchIndicator.postDelayed({
+                        switchIndicator.animate()
+                            .alpha(0f)
+                            .scaleX(0.8f)
+                            .scaleY(0.8f)
+                            .setDuration(200)
+                            .withEndAction {
+                                rootLayout.removeView(switchIndicator)
+                            }
+                            .start()
+                    }, 1500)
+                }
+                .start()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示页面切换动画失败", e)
+        }
+    }
+
+    // ==================== 卡片预览功能 ====================
+
+    /**
+     * 设置卡片预览按钮图标
+     */
+    private fun setupCardPreviewButtonIcon() {
+        try {
+            // 使用系统内置的网格视图图标作为卡片预览图标
+            browserBtnClose.setImageResource(android.R.drawable.ic_dialog_dialer)
+
+            // 设置按钮提示文字
+            browserBtnClose.contentDescription = "卡片预览"
+
+            Log.d(TAG, "卡片预览按钮图标设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置卡片预览按钮图标失败", e)
+            // 如果系统图标也不可用，使用默认图标
+            try {
+                browserBtnClose.setImageResource(android.R.drawable.ic_menu_view)
+            } catch (e2: Exception) {
+                Log.e(TAG, "设置备用图标也失败", e2)
+            }
+        }
+    }
+
+    /**
+     * 显示卡片预览对话框
+     */
+    private fun showCardPreviewDialog() {
+        Log.d(TAG, "showCardPreviewDialog 被调用")
+        try {
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                val totalPages = allCards.size
+
+                Log.d(TAG, "当前卡片数量: $totalPages")
+
+                if (totalPages == 0) {
+                    Toast.makeText(this, "没有打开的页面", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                // 激活搜索tab首页的卡片预览窗口
+                activateSearchTabCardPreview()
+
+                Log.d(TAG, "激活搜索tab卡片预览窗口，共 $totalPages 个页面")
+            } ?: run {
+                Log.w(TAG, "gestureCardWebViewManager 为 null")
+                Toast.makeText(this, "卡片管理器未初始化", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "激活搜索tab卡片预览窗口失败", e)
+            // 降级到简单预览
+            showSimpleCardPreviewDialog()
+        }
+    }
+
+    /**
+     * 激活搜索tab首页的卡片预览窗口
+     */
+    private fun activateSearchTabCardPreview() {
+        try {
+            Log.d(TAG, "激活搜索tab卡片预览窗口")
+            // 直接调用现有的showCardPreview方法
+            showCardPreview()
+        } catch (e: Exception) {
+            Log.e(TAG, "激活搜索tab卡片预览窗口失败", e)
+            // 如果预览模式不可用，显示简单对话框
+            showSimpleCardPreviewDialog()
+        }
+    }
+
+    /**
+     * 显示简单的卡片预览对话框（降级方案）
+     */
+    private fun showSimpleCardPreviewDialog(
+        manager: GestureCardWebViewManager? = gestureCardWebViewManager,
+        totalPages: Int = manager?.getAllCards()?.size ?: 0,
+        currentIndex: Int = manager?.getAllCards()?.indexOf(manager.getCurrentCard()) ?: 0
+    ) {
+        try {
+            if (manager == null || totalPages == 0) {
+                Toast.makeText(this, "没有打开的页面", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val allCards = manager.getAllCards()
+
+            // 获取所有页面信息
+            val pageItems = mutableListOf<String>()
+            for (i in allCards.indices) {
+                val card = allCards[i]
+                val title = card.webView.title ?: "页面 ${i + 1}"
+                val url = card.webView.url ?: "未知地址"
+                val status = if (i == currentIndex) " [当前]" else ""
+                pageItems.add("${i + 1}. $title$status\n$url")
+            }
+
+            // 创建选择对话框
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("页面卡片预览 ($totalPages 个页面)")
+                .setItems(pageItems.toTypedArray()) { _, which ->
+                    // 切换到选中的页面
+                    manager.switchToCard(which)
+                    showPageSwitchAnimation("切换到", which + 1, totalPages)
+                }
+                .setNegativeButton("关闭", null)
+                .show()
+
+            Log.d(TAG, "显示简单卡片预览对话框，共 $totalPages 个页面")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示简单卡片预览对话框失败", e)
+            Toast.makeText(this, "无法显示页面预览", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 卡片预览适配器（简化版，不再使用）
+     */
+    private inner class CardPreviewAdapter(
+        private val manager: GestureCardWebViewManager,
+        private val currentIndex: Int,
+        private val onItemClick: (Int) -> Unit
+    ) : androidx.recyclerview.widget.RecyclerView.Adapter<CardPreviewAdapter.ViewHolder>() {
+
+        inner class ViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
+            // 使用系统布局，不需要自定义字段
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            // 创建简单的卡片项布局
+            val view = LayoutInflater.from(parent.context).inflate(
+                android.R.layout.simple_list_item_2, parent, false
+            )
+            return ViewHolder(view)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            try {
+                val allCards = manager.getAllCards()
+                val card = allCards.getOrNull(position)
+                val title = card?.webView?.title ?: "页面 ${position + 1}"
+                val url = card?.webView?.url ?: "未知地址"
+
+                // 使用系统布局的文本视图
+                val text1 = holder.itemView.findViewById<TextView>(android.R.id.text1)
+                val text2 = holder.itemView.findViewById<TextView>(android.R.id.text2)
+
+                text1?.text = "${position + 1}. $title${if (position == currentIndex) " [当前]" else ""}"
+                text2?.text = url
+
+                // 设置当前页面的背景色
+                if (position == currentIndex) {
+                    holder.itemView.setBackgroundColor(
+                        ContextCompat.getColor(this@SimpleModeActivity, R.color.simple_mode_accent_light)
+                    )
+                    text1?.setTextColor(android.graphics.Color.WHITE)
+                    text2?.setTextColor(android.graphics.Color.WHITE)
+                } else {
+                    holder.itemView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                    text1?.setTextColor(ContextCompat.getColor(this@SimpleModeActivity, R.color.simple_mode_text_primary_light))
+                    text2?.setTextColor(ContextCompat.getColor(this@SimpleModeActivity, R.color.simple_mode_text_secondary_light))
+                }
+
+                // 设置点击监听
+                holder.itemView.setOnClickListener {
+                    onItemClick(position)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "绑定卡片预览项失败", e)
+            }
+        }
+
+        override fun getItemCount(): Int = manager.getAllCards().size
     }
 
 }

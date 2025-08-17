@@ -1,5 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android">
-    <solid android:color="#33FFFFFF" />
-    <corners android:radius="8dp" />
-</shape> 
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Material Design 图标背景阴影 -->
+    <item android:top="2dp" android:left="1dp" android:right="1dp">
+        <shape android:shape="oval">
+            <solid android:color="#10000000" />
+        </shape>
+    </item>
+
+    <!-- Material Design 图标主背景 -->
+    <item android:bottom="2dp">
+        <shape android:shape="oval">
+            <!-- 使用更深的背景色，增强对比度 -->
+            <solid android:color="@color/widget_surface_container_highest" />
+        </shape>
+    </item>
+
+    <!-- Material Design 图标内部高光 -->
+    <item android:bottom="2dp" android:top="1dp" android:left="1dp" android:right="1dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#15FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:angle="135" />
+        </shape>
+    </item>
+
+</layer-list>

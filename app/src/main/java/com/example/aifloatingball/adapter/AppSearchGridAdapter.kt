@@ -188,19 +188,59 @@ class AppSearchGridAdapter(
         // 5. 异步加载在线图标 (如果未预加载)
         if (!isInstalled && !iconPreloader.isIconPreloaded(appConfig.packageName, appConfig.appName)) {
             adapterScope.launch {
-                iconManager.getAppIconAsync(
-                    packageName = appConfig.packageName,
-                    appName = appConfig.appName
-                ) { downloadedIcon ->
-                    if (downloadedIcon != null) {
-                        // 处理并更新图标
-                        val processedIcon = iconProcessor.processIcon(
-                            downloadedIcon,
-                            IconProcessor.IconStyle.ROUNDED_SQUARE
-                        )
-                        setAppIcon(holder, processedIcon ?: downloadedIcon, false)
+                // 首先尝试从App Store获取高质量图标 (使用应用搜索网格配置)
+                val appStoreIconManager = com.example.aifloatingball.manager.AppStoreIconManager.getInstance(context)
+
+                // 使用suspend函数需要在协程中调用
+                try {
+                    appStoreIconManager.getAppStoreIcon(
+                        packageName = appConfig.packageName,
+                        appName = appConfig.appName,
+                        displayContext = com.example.aifloatingball.config.IconResolutionConfig.DisplayContext.APP_SEARCH_GRID
+                    ) { appStoreIcon ->
+                        if (appStoreIcon != null) {
+                            // 处理并更新App Store图标
+                            val processedIcon = iconProcessor.processIcon(
+                                appStoreIcon,
+                                IconProcessor.IconStyle.ROUNDED_SQUARE
+                            )
+                            setAppIcon(holder, processedIcon ?: appStoreIcon, false)
+                        } else {
+                            // 如果App Store没有找到，使用原有的图标管理器
+                            launch {
+                                iconManager.getAppIconAsync(
+                                    packageName = appConfig.packageName,
+                                    appName = appConfig.appName
+                                ) { downloadedIcon ->
+                                    if (downloadedIcon != null) {
+                                        // 处理并更新图标
+                                        val processedIcon = iconProcessor.processIcon(
+                                            downloadedIcon,
+                                            IconProcessor.IconStyle.ROUNDED_SQUARE
+                                        )
+                                        setAppIcon(holder, processedIcon ?: downloadedIcon, false)
+                                    }
+                                    // 如果下载失败，保持字母图标
+                                }
+                            }
+                        }
                     }
-                    // 如果下载失败，保持字母图标
+                } catch (e: Exception) {
+                    // 如果App Store获取失败，回退到原有的图标管理器
+                    iconManager.getAppIconAsync(
+                        packageName = appConfig.packageName,
+                        appName = appConfig.appName
+                    ) { downloadedIcon ->
+                        if (downloadedIcon != null) {
+                            // 处理并更新图标
+                            val processedIcon = iconProcessor.processIcon(
+                                downloadedIcon,
+                                IconProcessor.IconStyle.ROUNDED_SQUARE
+                            )
+                            setAppIcon(holder, processedIcon ?: downloadedIcon, false)
+                        }
+                        // 如果下载失败，保持字母图标
+                    }
                 }
             }
         }

@@ -4,7 +4,7 @@
     android:layout_height="match_parent"
     android:orientation="horizontal"
     android:background="@drawable/widget_background"
-    android:padding="8dp">
+    android:padding="12dp">
 
     <!-- 搜索框 -->
     <LinearLayout
@@ -20,20 +20,21 @@
         android:layout_marginRight="8dp">
 
         <ImageView
-            android:layout_width="16dp"
-            android:layout_height="16dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:src="@drawable/ic_search"
-            android:tint="@color/text_secondary" />
+            android:tint="@color/widget_on_surface_variant" />
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="搜索..."
+            android:text="搜索应用、AI助手或网页..."
             android:textSize="14sp"
-            android:textColor="@color/text_secondary"
-            android:layout_marginLeft="8dp"
-            android:singleLine="true" />
+            android:textColor="@color/widget_on_surface_variant"
+            android:layout_marginLeft="10dp"
+            android:singleLine="true"
+            android:ellipsize="end" />
 
     </LinearLayout>
 
@@ -47,44 +48,48 @@
         <!-- AI引擎图标 -->
         <ImageView
             android:id="@+id/ai_icon_1"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginRight="4dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginRight="6dp"
             android:background="@drawable/icon_background"
-            android:padding="6dp"
+            android:padding="8dp"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_zhipu" />
+            android:src="@drawable/ic_zhipu"
+            android:elevation="2dp" />
 
         <ImageView
             android:id="@+id/ai_icon_2"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginRight="4dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginRight="6dp"
             android:background="@drawable/icon_background"
-            android:padding="6dp"
+            android:padding="8dp"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_deepseek" />
+            android:src="@drawable/ic_deepseek"
+            android:elevation="2dp" />
 
         <!-- 应用图标 -->
         <ImageView
             android:id="@+id/app_icon_1"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginRight="4dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginRight="6dp"
             android:background="@drawable/icon_background"
-            android:padding="6dp"
+            android:padding="8dp"
             android:scaleType="centerInside"
-            android:visibility="gone" />
+            android:visibility="gone"
+            android:elevation="2dp" />
 
         <!-- 搜索引擎图标 -->
         <ImageView
             android:id="@+id/search_icon_1"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:background="@drawable/icon_background"
-            android:padding="6dp"
+            android:padding="8dp"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_baidu" />
+            android:src="@drawable/ic_baidu"
+            android:elevation="2dp" />
 
     </LinearLayout>
 

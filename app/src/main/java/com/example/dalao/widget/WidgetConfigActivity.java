@@ -97,15 +97,29 @@ public class WidgetConfigActivity extends AppCompatActivity {
     
     private void setRadioButtonForSize(WidgetSize size) {
         switch (size) {
-            case SMALL:
-                ((RadioButton) findViewById(R.id.size_small)).setChecked(true);
+            case SEARCH_SINGLE_ROW:
+                ((RadioButton) findViewById(R.id.size_search_single_row)).setChecked(true);
                 break;
-            case LARGE:
-                ((RadioButton) findViewById(R.id.size_large)).setChecked(true);
+            case SEARCH_DOUBLE_ROW:
+                ((RadioButton) findViewById(R.id.size_search_double_row)).setChecked(true);
                 break;
-            case MEDIUM:
+            case ICONS_SINGLE_ROW:
+                ((RadioButton) findViewById(R.id.size_icons_single_row)).setChecked(true);
+                break;
+            case ICONS_DOUBLE_ROW:
+                ((RadioButton) findViewById(R.id.size_icons_double_row)).setChecked(true);
+                break;
+            case SINGLE_ICON:
+                ((RadioButton) findViewById(R.id.size_single_icon)).setChecked(true);
+                break;
+            case QUAD_ICONS:
+                ((RadioButton) findViewById(R.id.size_quad_icons)).setChecked(true);
+                break;
+            case SEARCH_ONLY:
+                ((RadioButton) findViewById(R.id.size_search_only)).setChecked(true);
+                break;
             default:
-                ((RadioButton) findViewById(R.id.size_medium)).setChecked(true);
+                ((RadioButton) findViewById(R.id.size_search_single_row)).setChecked(true);
                 break;
         }
     }
@@ -133,14 +147,24 @@ public class WidgetConfigActivity extends AppCompatActivity {
         try {
             Log.d(TAG, "开始保存配置...");
 
-            // 获取尺寸设置
+            // 获取模板设置
             int checkedSizeId = sizeRadioGroup.getCheckedRadioButtonId();
-            if (checkedSizeId == R.id.size_small) {
-                config.size = WidgetSize.SMALL;
-            } else if (checkedSizeId == R.id.size_large) {
-                config.size = WidgetSize.LARGE;
+            if (checkedSizeId == R.id.size_search_single_row) {
+                config.size = WidgetSize.SEARCH_SINGLE_ROW;
+            } else if (checkedSizeId == R.id.size_search_double_row) {
+                config.size = WidgetSize.SEARCH_DOUBLE_ROW;
+            } else if (checkedSizeId == R.id.size_icons_single_row) {
+                config.size = WidgetSize.ICONS_SINGLE_ROW;
+            } else if (checkedSizeId == R.id.size_icons_double_row) {
+                config.size = WidgetSize.ICONS_DOUBLE_ROW;
+            } else if (checkedSizeId == R.id.size_single_icon) {
+                config.size = WidgetSize.SINGLE_ICON;
+            } else if (checkedSizeId == R.id.size_quad_icons) {
+                config.size = WidgetSize.QUAD_ICONS;
+            } else if (checkedSizeId == R.id.size_search_only) {
+                config.size = WidgetSize.SEARCH_ONLY;
             } else {
-                config.size = WidgetSize.MEDIUM;
+                config.size = WidgetSize.SEARCH_SINGLE_ROW;
             }
 
             // 获取搜索框设置

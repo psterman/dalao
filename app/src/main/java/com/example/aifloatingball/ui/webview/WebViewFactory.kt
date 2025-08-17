@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Log
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.view.textclassifier.TextClassifier
 import android.webkit.WebResourceError
@@ -24,8 +25,12 @@ class WebViewFactory(private val context: Context) {
     
     companion object {
         private const val TAG = "WebViewFactory"
-        // 一个通用的移动版Chrome User-Agent 字符串示例 (Android)
-        private const val COMMON_MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+        // 移动版Chrome User-Agent，适合移动端优化的网站
+        private const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+        // 桌面版Chrome User-Agent，用于避免搜索引擎重定向到移动应用
+        private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        // 智能User-Agent，默认使用移动端
+        private const val SMART_USER_AGENT = MOBILE_USER_AGENT
     }
     
     val textSelectionManager: TextSelectionManager by lazy {
@@ -49,9 +54,9 @@ class WebViewFactory(private val context: Context) {
                 builtInZoomControls = true
                 displayZoomControls = false
 
-                // 新增：设置一个更通用的User-Agent字符串
-                userAgentString = COMMON_MOBILE_USER_AGENT
-                Log.d(TAG, "Set User-Agent to: $COMMON_MOBILE_USER_AGENT")
+                // 设置智能User-Agent：搜索引擎使用移动端，其他网站使用桌面版
+                userAgentString = SMART_USER_AGENT
+                Log.d(TAG, "Set User-Agent to: $SMART_USER_AGENT")
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
@@ -70,20 +75,77 @@ class WebViewFactory(private val context: Context) {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val url = request?.url?.toString()
                     Log.d(TAG, "CustomWebViewClient shouldOverrideUrlLoading: $url")
-                    // 返回false以确保WebView自行处理URL加载
+
+                    if (url != null) {
+                        return when {
+                            // 处理移动应用URL scheme重定向
+                            url.startsWith("baiduboxapp://") -> {
+                                Log.d(TAG, "拦截百度App重定向，保持在WebView中")
+                                handleSearchEngineRedirect(view, url, "baidu")
+                                true
+                            }
+                            url.startsWith("mttbrowser://") -> {
+                                Log.d(TAG, "拦截搜狗浏览器重定向，保持在WebView中")
+                                handleSearchEngineRedirect(view, url, "sogou")
+                                true
+                            }
+                            url.startsWith("quark://") -> {
+                                Log.d(TAG, "拦截夸克浏览器重定向，保持在WebView中")
+                                handleSearchEngineRedirect(view, url, "quark")
+                                true
+                            }
+                            url.startsWith("ucbrowser://") -> {
+                                Log.d(TAG, "拦截UC浏览器重定向，保持在WebView中")
+                                handleSearchEngineRedirect(view, url, "uc")
+                                true
+                            }
+                            else -> false
+                        }
+                    }
                     return false
                 }
 
                 @Deprecated("Deprecated in Java")
                 override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                     Log.d(TAG, "CustomWebViewClient shouldOverrideUrlLoading (legacy): $url")
-                    // 返回false以确保WebView自行处理URL加载
+
+                    if (url != null) {
+                        return when {
+                            // 处理移动应用URL scheme重定向
+                            url.startsWith("baiduboxapp://") -> {
+                                Log.d(TAG, "拦截百度App重定向，保持在WebView中")
+                                handleSearchEngineRedirect(view, url, "baidu")
+                                true
+                            }
+                            url.startsWith("mttbrowser://") -> {
+                                Log.d(TAG, "拦截搜狗浏览器重定向，保持在WebView中")
+                                handleSearchEngineRedirect(view, url, "sogou")
+                                true
+                            }
+                            url.startsWith("quark://") -> {
+                                Log.d(TAG, "拦截夸克浏览器重定向，保持在WebView中")
+                                handleSearchEngineRedirect(view, url, "quark")
+                                true
+                            }
+                            url.startsWith("ucbrowser://") -> {
+                                Log.d(TAG, "拦截UC浏览器重定向，保持在WebView中")
+                                handleSearchEngineRedirect(view, url, "uc")
+                                true
+                            }
+                            else -> false
+                        }
+                    }
                     return false
                 }
 
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     Log.d(TAG, "CustomWebViewClient onPageStarted: $url")
+
+                    // 根据URL动态设置User-Agent
+                    if (view != null && url != null) {
+                        setDynamicUserAgent(view, url)
+                    }
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -259,8 +321,252 @@ class WebViewFactory(private val context: Context) {
             }
             
             setTextSelectionManager(textSelectionManager)
-            
+
             setOnLongClickListener { false }
+
+            // 应用缩放优化
+            optimizeWebViewZoom(this)
         }
     }
-} 
+
+    /**
+     * 处理搜索引擎重定向到移动应用的情况
+     */
+    private fun handleSearchEngineRedirect(view: WebView?, originalUrl: String, engineType: String) {
+        if (view == null) return
+
+        Log.d(TAG, "处理搜索引擎重定向: $engineType, 原始URL: $originalUrl")
+
+        try {
+            // 从URL scheme中提取搜索参数
+            val searchQuery = extractSearchQueryFromScheme(originalUrl, engineType)
+
+            if (searchQuery.isNotEmpty()) {
+                // 构建Web版本的搜索URL
+                val webSearchUrl = buildWebSearchUrl(engineType, searchQuery)
+                Log.d(TAG, "重定向到Web版本: $webSearchUrl")
+                view.loadUrl(webSearchUrl)
+            } else {
+                // 如果无法提取搜索词，重定向到搜索引擎首页
+                val homepageUrl = getSearchEngineHomepage(engineType)
+                Log.d(TAG, "无法提取搜索词，重定向到首页: $homepageUrl")
+                view.loadUrl(homepageUrl)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理搜索引擎重定向失败", e)
+            // 回退到搜索引擎首页
+            val homepageUrl = getSearchEngineHomepage(engineType)
+            view.loadUrl(homepageUrl)
+        }
+    }
+
+    /**
+     * 从URL scheme中提取搜索查询
+     */
+    private fun extractSearchQueryFromScheme(url: String, engineType: String): String {
+        return try {
+            when (engineType) {
+                "baidu" -> {
+                    // baiduboxapp://utils?action=sendIntent&minver=7.4&params=%7B...
+                    val uri = android.net.Uri.parse(url)
+                    val params = uri.getQueryParameter("params")
+                    // 暂时返回空，让它重定向到首页
+                    ""
+                }
+                "sogou" -> {
+                    // mttbrowser://url=https://m.sogou.com/?...
+                    val uri = android.net.Uri.parse(url)
+                    val redirectUrl = uri.getQueryParameter("url")
+                    if (!redirectUrl.isNullOrEmpty()) {
+                        val redirectUri = android.net.Uri.parse(redirectUrl)
+                        redirectUri.getQueryParameter("keyword") ?: redirectUri.getQueryParameter("query") ?: ""
+                    } else {
+                        ""
+                    }
+                }
+                "quark" -> {
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("q") ?: ""
+                }
+                "uc" -> {
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("keyword") ?: ""
+                }
+                else -> ""
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "提取搜索查询失败: $url", e)
+            ""
+        }
+    }
+
+    /**
+     * 构建Web版本的搜索URL
+     */
+    private fun buildWebSearchUrl(engineType: String, query: String): String {
+        val encodedQuery = try {
+            java.net.URLEncoder.encode(query, "UTF-8")
+        } catch (e: Exception) {
+            query
+        }
+
+        return when (engineType) {
+            "baidu" -> "https://www.baidu.com/s?wd=$encodedQuery"
+            "sogou" -> "https://www.sogou.com/web?query=$encodedQuery"
+            "quark" -> "https://quark.sm.cn/s?q=$encodedQuery"
+            "uc" -> "https://www.uc.cn/s?wd=$encodedQuery"
+            else -> "https://www.google.com/search?q=$encodedQuery"
+        }
+    }
+
+    /**
+     * 获取搜索引擎首页URL
+     */
+    private fun getSearchEngineHomepage(engineType: String): String {
+        return when (engineType) {
+            "baidu" -> "https://www.baidu.com"
+            "sogou" -> "https://www.sogou.com"
+            "quark" -> "https://quark.sm.cn"
+            "uc" -> "https://www.uc.cn"
+            else -> "https://www.google.com"
+        }
+    }
+
+    /**
+     * 根据URL动态设置User-Agent
+     */
+    private fun setDynamicUserAgent(view: WebView, url: String) {
+        val shouldUseDesktopUA = when {
+            // 搜索引擎使用桌面版User-Agent以避免重定向
+            url.contains("baidu.com") && url.contains("/s?") -> true
+            url.contains("sogou.com") && url.contains("/web?") -> true
+            url.contains("bing.com") && url.contains("/search?") -> true
+            url.contains("360.cn") && url.contains("/s?") -> true
+            url.contains("quark.sm.cn") && url.contains("/s?") -> true
+            url.contains("google.com") && url.contains("/search?") -> true
+            // 其他网站使用移动版User-Agent
+            else -> false
+        }
+
+        val targetUserAgent = if (shouldUseDesktopUA) DESKTOP_USER_AGENT else MOBILE_USER_AGENT
+        val currentUserAgent = view.settings.userAgentString
+
+        if (currentUserAgent != targetUserAgent) {
+            Log.d(TAG, "切换User-Agent: ${if (shouldUseDesktopUA) "桌面版" else "移动版"} for $url")
+            view.settings.userAgentString = targetUserAgent
+        }
+    }
+
+    /**
+     * 优化WebView缩放设置，减少手势冲突
+     */
+    private fun optimizeWebViewZoom(webView: CustomWebView) {
+        webView.settings.apply {
+            // 启用缩放但优化设置
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
+
+            // 设置合理的缩放范围
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+                // 最小缩放比例：50%
+                // 最大缩放比例：300%
+                // 这样可以减少意外缩放
+            }
+
+            // 优化视口设置
+            useWideViewPort = true
+            loadWithOverviewMode = true
+        }
+
+        // 设置初始缩放比例
+        webView.setInitialScale(100) // 100% 缩放
+
+        // 优化触摸处理，严格区分单指和双指操作
+        setupAdvancedTouchHandling(webView)
+    }
+
+    /**
+     * 设置高级触摸处理，严格区分单指和双指操作
+     */
+    private fun setupAdvancedTouchHandling(webView: CustomWebView) {
+        var lastTouchTime = 0L
+        var pointerCount = 0
+        var isZooming = false
+        var initialDistance = 0f
+
+        webView.setOnTouchListener { view, event ->
+            val currentTime = System.currentTimeMillis()
+
+            when (event.action and MotionEvent.ACTION_MASK) {
+                MotionEvent.ACTION_DOWN -> {
+                    pointerCount = 1
+                    isZooming = false
+                    lastTouchTime = currentTime
+                    Log.d(TAG, "单指按下")
+                }
+
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    pointerCount = event.pointerCount
+                    if (pointerCount == 2) {
+                        // 双指按下，准备缩放
+                        isZooming = true
+                        initialDistance = getDistance(event)
+                        Log.d(TAG, "双指按下，开始缩放模式")
+
+                        // 禁用ViewPager的触摸事件，避免与缩放冲突
+                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (pointerCount >= 2 && isZooming) {
+                        // 双指移动，处理缩放
+                        val currentDistance = getDistance(event)
+                        val deltaDistance = kotlin.math.abs(currentDistance - initialDistance)
+
+                        if (deltaDistance > 50) { // 缩放阈值
+                            // 确保是缩放操作，继续禁用ViewPager
+                            view.parent?.requestDisallowInterceptTouchEvent(true)
+                            Log.d(TAG, "双指缩放中，距离变化: $deltaDistance")
+                        }
+                    } else if (pointerCount == 1 && !isZooming) {
+                        // 单指移动，允许正常的页面滚动和ViewPager切换
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                    }
+                }
+
+                MotionEvent.ACTION_POINTER_UP -> {
+                    pointerCount = event.pointerCount - 1
+                    if (pointerCount < 2) {
+                        // 不再是双指操作，重新允许ViewPager
+                        isZooming = false
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        Log.d(TAG, "结束缩放模式")
+                    }
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    pointerCount = 0
+                    isZooming = false
+                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                    Log.d(TAG, "触摸结束")
+                }
+            }
+
+            // 让WebView处理触摸事件
+            false
+        }
+    }
+
+    /**
+     * 计算两个触摸点之间的距离
+     */
+    private fun getDistance(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 0f
+
+        val x = event.getX(0) - event.getX(1)
+        val y = event.getY(0) - event.getY(1)
+        return kotlin.math.sqrt(x * x + y * y)
+    }
+}

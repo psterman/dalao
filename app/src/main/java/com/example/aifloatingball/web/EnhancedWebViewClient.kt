@@ -125,21 +125,42 @@ class EnhancedWebViewClient(
         request: WebResourceRequest
     ): Boolean {
         val url = request.url.toString()
-        
+
         Log.d(TAG, "URL loading: $url")
-        
+
         return when {
-            // 处理特殊协议
-            url.startsWith("tel:") || 
-            url.startsWith("mailto:") || 
+            // 处理移动应用URL scheme重定向
+            url.startsWith("baiduboxapp://") -> {
+                Log.d(TAG, "拦截百度App重定向，保持在WebView中")
+                handleSearchEngineRedirect(view, url, "baidu")
+                true
+            }
+            url.startsWith("mttbrowser://") -> {
+                Log.d(TAG, "拦截搜狗浏览器重定向，保持在WebView中")
+                handleSearchEngineRedirect(view, url, "sogou")
+                true
+            }
+            url.startsWith("quark://") -> {
+                Log.d(TAG, "拦截夸克浏览器重定向，保持在WebView中")
+                handleSearchEngineRedirect(view, url, "quark")
+                true
+            }
+            url.startsWith("ucbrowser://") -> {
+                Log.d(TAG, "拦截UC浏览器重定向，保持在WebView中")
+                handleSearchEngineRedirect(view, url, "uc")
+                true
+            }
+            // 处理其他特殊协议
+            url.startsWith("tel:") ||
+            url.startsWith("mailto:") ||
             url.startsWith("sms:") -> {
                 // 由系统处理
                 true
             }
             // 处理文件下载
-            url.endsWith(".apk") || 
-            url.endsWith(".pdf") || 
-            url.endsWith(".zip") || 
+            url.endsWith(".apk") ||
+            url.endsWith(".pdf") ||
+            url.endsWith(".zip") ||
             url.endsWith(".rar") -> {
                 // 可以在这里添加下载处理逻辑
                 false
@@ -151,7 +172,117 @@ class EnhancedWebViewClient(
             }
         }
     }
-    
+
+    /**
+     * 处理搜索引擎重定向到移动应用的情况
+     */
+    private fun handleSearchEngineRedirect(view: WebView, originalUrl: String, engineType: String) {
+        Log.d(TAG, "处理搜索引擎重定向: $engineType, 原始URL: $originalUrl")
+
+        try {
+            // 从URL scheme中提取搜索参数
+            val searchQuery = extractSearchQueryFromScheme(originalUrl, engineType)
+
+            if (searchQuery.isNotEmpty()) {
+                // 构建Web版本的搜索URL
+                val webSearchUrl = buildWebSearchUrl(engineType, searchQuery)
+                Log.d(TAG, "重定向到Web版本: $webSearchUrl")
+                view.loadUrl(webSearchUrl)
+            } else {
+                // 如果无法提取搜索词，重定向到搜索引擎首页
+                val homepageUrl = getSearchEngineHomepage(engineType)
+                Log.d(TAG, "无法提取搜索词，重定向到首页: $homepageUrl")
+                view.loadUrl(homepageUrl)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理搜索引擎重定向失败", e)
+            // 回退到搜索引擎首页
+            val homepageUrl = getSearchEngineHomepage(engineType)
+            view.loadUrl(homepageUrl)
+        }
+    }
+
+    /**
+     * 从URL scheme中提取搜索查询
+     */
+    private fun extractSearchQueryFromScheme(url: String, engineType: String): String {
+        return try {
+            when (engineType) {
+                "baidu" -> {
+                    // baiduboxapp://utils?action=sendIntent&minver=7.4&params=%7B...
+                    // 尝试从params参数中解析
+                    val uri = android.net.Uri.parse(url)
+                    val params = uri.getQueryParameter("params")
+                    if (!params.isNullOrEmpty()) {
+                        // 这里可能需要进一步解析JSON参数
+                        // 暂时返回空，让它重定向到首页
+                        ""
+                    } else {
+                        ""
+                    }
+                }
+                "sogou" -> {
+                    // mttbrowser://url=https://m.sogou.com/?...
+                    val uri = android.net.Uri.parse(url)
+                    val redirectUrl = uri.getQueryParameter("url")
+                    if (!redirectUrl.isNullOrEmpty()) {
+                        // 从重定向URL中提取搜索词
+                        val redirectUri = android.net.Uri.parse(redirectUrl)
+                        redirectUri.getQueryParameter("keyword") ?: redirectUri.getQueryParameter("query") ?: ""
+                    } else {
+                        ""
+                    }
+                }
+                "quark" -> {
+                    // quark://search?q=搜索词
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("q") ?: ""
+                }
+                "uc" -> {
+                    // ucbrowser://search?keyword=搜索词
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("keyword") ?: ""
+                }
+                else -> ""
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "提取搜索查询失败: $url", e)
+            ""
+        }
+    }
+
+    /**
+     * 构建Web版本的搜索URL
+     */
+    private fun buildWebSearchUrl(engineType: String, query: String): String {
+        val encodedQuery = try {
+            java.net.URLEncoder.encode(query, "UTF-8")
+        } catch (e: Exception) {
+            query
+        }
+
+        return when (engineType) {
+            "baidu" -> "https://www.baidu.com/s?wd=$encodedQuery"
+            "sogou" -> "https://www.sogou.com/web?query=$encodedQuery"
+            "quark" -> "https://quark.sm.cn/s?q=$encodedQuery"
+            "uc" -> "https://www.uc.cn/s?wd=$encodedQuery"
+            else -> "https://www.google.com/search?q=$encodedQuery"
+        }
+    }
+
+    /**
+     * 获取搜索引擎首页URL
+     */
+    private fun getSearchEngineHomepage(engineType: String): String {
+        return when (engineType) {
+            "baidu" -> "https://www.baidu.com"
+            "sogou" -> "https://www.sogou.com"
+            "quark" -> "https://quark.sm.cn"
+            "uc" -> "https://www.uc.cn"
+            else -> "https://www.google.com"
+        }
+    }
+
     override fun onReceivedSslError(
         view: WebView?,
         handler: SslErrorHandler?,

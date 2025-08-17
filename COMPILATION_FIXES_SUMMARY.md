@@ -1,6 +1,38 @@
-# 🔧 编译错误修复总结
+# 🔧 编译错误修复总结 (最新版)
 
 ## 🎯 修复的编译错误
+
+### 最新修复 (图标分辨率优化相关)
+
+#### ❌ 错误1: Suspension functions can be called only within coroutine body
+**位置**: `AppSearchGridAdapter.kt:207:37`
+```kotlin
+// 问题：在协程外部调用suspend函数
+appStoreIconManager.getAppStoreIcon(...) { ... }
+```
+
+#### ✅ 修复1: 正确的协程调用
+```kotlin
+adapterScope.launch {
+    try {
+        appStoreIconManager.getAppStoreIcon(...) { ... }
+    } catch (e: Exception) {
+        // 错误处理和回退机制
+    }
+}
+```
+
+#### ❌ 错误2: Unresolved reference: displayContext
+**位置**: `AppStoreIconManager.kt:287:93`
+```kotlin
+// 问题：方法参数中缺少displayContext参数传递
+private fun parseIconUrls(response: String, targetAppName: String? = null, exactMatch: Boolean = false): List<String>
+```
+
+#### ✅ 修复2: 添加displayContext参数
+```kotlin
+private fun parseIconUrls(response: String, targetAppName: String? = null, exactMatch: Boolean = false, displayContext: IconResolutionConfig.DisplayContext = IconResolutionConfig.DisplayContext.APP_SEARCH_GRID): List<String>
+```
 
 ### 1. AppIconManager.kt 修复
 

@@ -454,7 +454,20 @@ public class WidgetIconLoader {
         // 6. F-Droid (开源应用)
         urls.add("https://f-droid.org/repo/icons-640/" + packageName + ".png");
 
-        // 7. 基于域名的Logo API
+        // 7. App Store 适中分辨率图标源 (优化版)
+        try {
+            String encodedName = URLEncoder.encode(appName, "UTF-8");
+            urls.add("https://itunes.apple.com/search?term=" + encodedName + "&media=software&entity=software&limit=1&country=us");
+            urls.add("https://itunes.apple.com/search?term=" + encodedName + "&media=software&entity=software&limit=1&country=cn");
+
+            // 适中分辨率App Store图标模板 (256x256 和 512x512)
+            urls.add("https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/*/AppIcon-0-0-1x_U007emarketing-0-0-0-7-0-0-sRGB-0-0-0-GLES2_U002c0-512MB-85-220-0-0.png/512x512bb.png");
+            urls.add("https://is2-ssl.mzstatic.com/image/thumb/Purple116/v4/*/AppIcon-0-0-1x_U007emarketing-0-0-0-7-0-0-sRGB-0-0-0-GLES2_U002c0-512MB-85-220-0-0.png/256x256bb.png");
+        } catch (Exception e) {
+            Log.w(TAG, "编码应用名称失败: " + appName);
+        }
+
+        // 8. 基于域名的Logo API
         String domain = extractDomainFromPackage(packageName);
         if (domain != null) {
             urls.add("https://logo.clearbit.com/" + domain);
@@ -596,8 +609,8 @@ public class WidgetIconLoader {
     }
 
     /**
-     * 应用Material Design风格的图标处理
-     * 包括圆角、阴影和适当的缩放
+     * 应用Material Design风格的图标处理 (优化版)
+     * 根据实际显示需求调整尺寸
      */
     private static Bitmap applyMaterialDesignStyle(Bitmap originalIcon) {
         if (originalIcon == null) {
@@ -605,8 +618,8 @@ public class WidgetIconLoader {
         }
 
         try {
-            // 目标尺寸 (48dp equivalent)
-            int targetSize = 144; // 48dp * 3 (for high density)
+            // 根据小组件实际需求调整目标尺寸
+            int targetSize = 96; // 32dp * 3 (适合小组件显示)
 
             // 创建缩放后的图标
             Bitmap scaledIcon = Bitmap.createScaledBitmap(originalIcon, targetSize, targetSize, true);
@@ -630,7 +643,7 @@ public class WidgetIconLoader {
             paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.SRC_ATOP));
 
             // 绘制图标，稍微缩小以留出边距
-            float margin = targetSize * 0.1f;
+            float margin = targetSize * 0.08f; // 减少边距以适应小尺寸
             RectF iconRect = new RectF(margin, margin, targetSize - margin, targetSize - margin);
             canvas.drawBitmap(scaledIcon, null, iconRect, paint);
 
@@ -638,7 +651,7 @@ public class WidgetIconLoader {
             paint.reset();
             paint.setAntiAlias(true);
             paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(1f);
+            paint.setStrokeWidth(0.5f); // 减少边框宽度
             paint.setColor(0x1A000000); // 10% 黑色透明度
             canvas.drawRoundRect(rect, cornerRadius, cornerRadius, paint);
 

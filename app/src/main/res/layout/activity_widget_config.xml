@@ -33,7 +33,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="小组件尺寸"
+                android:text="小组件模板"
                 android:textSize="18sp"
                 android:textStyle="bold"
                 android:textColor="@color/text_primary"
@@ -46,30 +46,66 @@
                 android:orientation="vertical">
 
                 <RadioButton
-                    android:id="@+id/size_small"
+                    android:id="@+id/size_search_single_row"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="小 (2×1) - 紧凑布局"
-                    android:textSize="16sp"
-                    android:textColor="@color/text_primary"
-                    android:layout_marginBottom="8dp" />
-
-                <RadioButton
-                    android:id="@+id/size_medium"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="中 (4×2) - 标准布局"
-                    android:textSize="16sp"
+                    android:text="🔍 搜索+1排图标 (3×2) - 搜索框+4个图标"
+                    android:textSize="15sp"
                     android:textColor="@color/text_primary"
                     android:layout_marginBottom="8dp"
                     android:checked="true" />
 
                 <RadioButton
-                    android:id="@+id/size_large"
+                    android:id="@+id/size_search_double_row"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="大 (4×3) - 完整布局"
-                    android:textSize="16sp"
+                    android:text="🔍 搜索+2排图标 (3×3) - 搜索框+8个图标"
+                    android:textSize="15sp"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <RadioButton
+                    android:id="@+id/size_icons_single_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📱 1排图标 (3×1) - 4个图标"
+                    android:textSize="15sp"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <RadioButton
+                    android:id="@+id/size_icons_double_row"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📱 2排图标 (3×2) - 8个图标"
+                    android:textSize="15sp"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <RadioButton
+                    android:id="@+id/size_single_icon"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="⭐ 单个图标 (1×1) - 1个图标"
+                    android:textSize="15sp"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <RadioButton
+                    android:id="@+id/size_quad_icons"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🔲 四个图标 (2×2) - 2×2排列"
+                    android:textSize="15sp"
+                    android:textColor="@color/text_primary"
+                    android:layout_marginBottom="8dp" />
+
+                <RadioButton
+                    android:id="@+id/size_search_only"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🔍 搜索图标 (1×1) - Material Design搜索"
+                    android:textSize="15sp"
                     android:textColor="@color/text_primary" />
 
             </RadioGroup>

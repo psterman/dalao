@@ -1,22 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 阴影层 -->
-    <item android:top="2dp" android:left="1dp" android:right="1dp">
+    <!-- Material Design 阴影层 -->
+    <item android:top="4dp" android:left="2dp" android:right="2dp">
         <shape android:shape="rectangle">
-            <solid android:color="#0A000000" />
-            <corners android:radius="20dp" />
+            <solid android:color="#12000000" />
+            <corners android:radius="28dp" />
         </shape>
     </item>
 
-    <!-- 主背景层 -->
-    <item android:bottom="2dp">
+    <!-- Material Design 主背景层 -->
+    <item android:bottom="4dp">
         <shape android:shape="rectangle">
-            <solid android:color="@color/widget_surface_container_low" />
-            <corners android:radius="20dp" />
+            <!-- 使用Material Design 3的Surface Container颜色 -->
+            <solid android:color="@color/widget_surface_container" />
+            <corners android:radius="28dp" />
+            <!-- Material Design 3的轮廓颜色 -->
             <stroke
-                android:width="0.5dp"
-                android:color="@color/widget_outline_variant" />
+                android:width="1dp"
+                android:color="@color/widget_outline" />
+        </shape>
+    </item>
+
+    <!-- Material Design 高光层 -->
+    <item android:bottom="4dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#08FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:angle="90" />
+            <corners android:radius="28dp" />
         </shape>
     </item>
 

@@ -81,7 +81,7 @@ public class WidgetUtils {
      */
     public static WidgetConfig getDefaultConfig() {
         WidgetConfig config = new WidgetConfig();
-        config.size = WidgetSize.MEDIUM;
+        config.size = WidgetSize.SEARCH_SINGLE_ROW;
         config.showSearchBox = true;
 
         // 默认显示智谱和DeepSeek
@@ -89,8 +89,8 @@ public class WidgetUtils {
         config.aiEngines.add(new AppItem("DeepSeek", "deepseek", "ic_deepseek"));
 
         // 默认显示常用应用
-        config.appSearchItems.add(new AppItem("微信", "com.tencent.mm", ""));
-        config.appSearchItems.add(new AppItem("QQ", "com.tencent.mobileqq", ""));
+        config.appSearchItems.add(new AppItem("微信", "com.tencent.mm", "ic_wechat"));
+        config.appSearchItems.add(new AppItem("QQ", "com.tencent.mobileqq", "ic_qq"));
 
         // 默认搜索引擎
         config.searchEngines.add(new AppItem("百度", "baidu", "ic_baidu"));

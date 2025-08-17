@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class WidgetConfig {
-    public WidgetSize size = WidgetSize.MEDIUM;
+    public WidgetSize size = WidgetSize.SEARCH_SINGLE_ROW;
     public boolean showSearchBox = true;
     public List<AppItem> aiEngines = new ArrayList<>();
     public List<AppItem> appSearchItems = new ArrayList<>();
@@ -47,7 +47,7 @@ public class WidgetConfig {
         JSONObject json = new JSONObject(jsonString);
         WidgetConfig config = new WidgetConfig();
         
-        config.size = WidgetSize.valueOf(json.optString("size", "MEDIUM"));
+        config.size = WidgetSize.valueOf(json.optString("size", "SEARCH_SINGLE_ROW"));
         config.showSearchBox = json.optBoolean("showSearchBox", true);
         
         // AI引擎
@@ -79,9 +79,61 @@ public class WidgetConfig {
 }
 
 enum WidgetSize {
-    SMALL,   // 2x1
-    MEDIUM,  // 4x2
-    LARGE    // 4x3
+    SEARCH_SINGLE_ROW("搜索+1排图标", 3, 2),
+    SEARCH_DOUBLE_ROW("搜索+2排图标", 3, 3),
+    ICONS_SINGLE_ROW("1排图标", 3, 1),
+    ICONS_DOUBLE_ROW("2排图标", 3, 2),
+    SINGLE_ICON("单个图标", 1, 1),
+    QUAD_ICONS("四个图标", 2, 2),
+    SEARCH_ONLY("搜索图标", 1, 1);
+
+    private final String displayName;
+    private final int width;
+    private final int height;
+
+    WidgetSize(String displayName, int width, int height) {
+        this.displayName = displayName;
+        this.width = width;
+        this.height = height;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public int getWidth() {
+        return width;
+    }
+
+    public int getHeight() {
+        return height;
+    }
+
+    public boolean hasSearchBox() {
+        return this == SEARCH_SINGLE_ROW || this == SEARCH_DOUBLE_ROW;
+    }
+
+    public boolean isSearchOnly() {
+        return this == SEARCH_ONLY;
+    }
+
+    public int getMaxIcons() {
+        switch (this) {
+            case SEARCH_SINGLE_ROW:
+            case ICONS_SINGLE_ROW:
+            case QUAD_ICONS:
+                return 4;
+            case SEARCH_DOUBLE_ROW:
+            case ICONS_DOUBLE_ROW:
+                return 8;
+            case SINGLE_ICON:
+                return 1;
+            case SEARCH_ONLY:
+                return 0;
+            default:
+                return 4;
+        }
+    }
 }
 
 class AppItem {

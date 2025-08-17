@@ -176,7 +176,49 @@ class AppIconManager private constructor(private val context: Context) {
         // 6. 小米应用商店
         sources.add("https://file.market.xiaomi.com/thumbnail/PNG/l114/${packageName}")
 
+        // 7. App Store 直接图标源 (新增)
+        sources.addAll(getAppStoreIconSources(packageName, appName))
+
         return sources
+    }
+
+    /**
+     * 获取App Store专用图标源
+     */
+    private fun getAppStoreIconSources(packageName: String, appName: String): List<String> {
+        val sources = mutableListOf<String>()
+
+        // 1. iTunes Artwork API (多种尺寸)
+        val encodedName = URLEncoder.encode(appName, "UTF-8")
+        sources.add("https://itunes.apple.com/search?term=$encodedName&media=software&entity=software&limit=1&country=us")
+        sources.add("https://itunes.apple.com/search?term=$encodedName&media=software&entity=software&limit=1&country=cn")
+
+        // 2. App Store Connect API (如果有Bundle ID映射)
+        val possibleBundleId = generatePossibleiOSBundleId(packageName)
+        if (possibleBundleId.isNotEmpty()) {
+            sources.add("https://itunes.apple.com/lookup?bundleId=$possibleBundleId")
+        }
+
+        // 3. 第三方App Store图标服务
+        sources.add("https://itunesartwork.bendodson.com/artwork.php?app=$encodedName&size=512")
+        sources.add("https://is1-ssl.mzstatic.com/image/thumb/Purple126/v4/*/AppIcon-0-0-1x_U007emarketing-0-0-0-7-0-0-sRGB-0-0-0-GLES2_U002c0-512MB-85-220-0-0.png/512x512bb.png")
+
+        return sources
+    }
+
+    /**
+     * 生成可能的iOS Bundle ID
+     */
+    private fun generatePossibleiOSBundleId(androidPackageName: String): String {
+        // 常见的Android到iOS包名映射规则
+        return when {
+            androidPackageName.startsWith("com.tencent") -> androidPackageName.replace("com.tencent", "com.tencent")
+            androidPackageName.startsWith("com.alibaba") -> androidPackageName.replace("com.alibaba", "com.taobao")
+            androidPackageName.startsWith("com.baidu") -> androidPackageName.replace("com.baidu", "com.baidu")
+            androidPackageName.startsWith("com.netease") -> androidPackageName.replace("com.netease", "com.netease")
+            androidPackageName.startsWith("com.sina") -> androidPackageName.replace("com.sina", "com.sina")
+            else -> androidPackageName
+        }
     }
 
     /**
@@ -486,7 +528,7 @@ class AppIconManager private constructor(private val context: Context) {
     }
 
     /**
-     * 从iTunes应用信息中提取图标URL
+     * 从iTunes应用信息中提取图标URL (增强版)
      */
     private fun extractIconUrls(app: JSONObject): List<String> {
         val icons = mutableListOf<String>()
@@ -504,18 +546,56 @@ class AppIconManager private constructor(private val context: Context) {
                 if (iconUrl.isNotEmpty()) {
                     icons.add(iconUrl)
 
-                    // 尝试获取更高分辨率版本
+                    // 尝试获取更高分辨率版本 (512x512)
                     val highResUrl = getHighResolutionIconUrl(iconUrl)
                     if (highResUrl != iconUrl) {
                         icons.add(highResUrl)
                     }
+
+                    // 尝试获取适中分辨率版本 (256x256) - 适合实际显示需求
+                    val mediumResUrl = getMediumResolutionIconUrl(iconUrl)
+                    if (mediumResUrl != iconUrl && mediumResUrl != highResUrl) {
+                        icons.add(mediumResUrl)
+                    }
                 }
             }
+
+            // 尝试从screenshotUrls中提取图标
+            val screenshotUrls = app.optJSONArray("screenshotUrls")
+            screenshotUrls?.let { screenshots ->
+                for (i in 0 until screenshots.length()) {
+                    val screenshotUrl = screenshots.optString(i)
+                    if (screenshotUrl.contains("icon") || screenshotUrl.contains("logo")) {
+                        icons.add(screenshotUrl)
+                    }
+                }
+            }
+
         } catch (e: Exception) {
             // 忽略解析错误
         }
 
         return icons
+    }
+
+    /**
+     * 获取适中分辨率图标URL (256x256) - 适合实际显示需求
+     */
+    private fun getMediumResolutionIconUrl(originalUrl: String): String {
+        return try {
+            originalUrl
+                .replace("512x512", "256x256")
+                .replace("100x100", "256x256")
+                .replace("60x60", "256x256")
+                .replace("/512/", "/256/")
+                .replace("/100/", "/256/")
+                .replace("/60/", "/256/")
+                .replace("512x512bb.png", "256x256bb.png")
+                .replace("100x100bb.png", "256x256bb.png")
+                .replace("60x60bb.png", "256x256bb.png")
+        } catch (e: Exception) {
+            originalUrl
+        }
     }
 
     /**
@@ -822,18 +902,32 @@ class AppIconManager private constructor(private val context: Context) {
     }
     
     /**
-     * 获取图标映射数据库
+     * 获取图标映射数据库 (增强版 - 包含AI应用和社交平台)
      */
     private fun getIconMappingDatabase(): Map<String, String> {
         return mapOf(
+            // AI应用类 - 高质量图标
+            "com.deepseek.chat" to "https://chat.deepseek.com/favicon.ico",
+            "com.moonshot.kimi" to "https://kimi.moonshot.cn/favicon.ico",
+            "com.google.android.apps.bard" to "https://bard.google.com/favicon.ico",
+            "com.zhipu.chatglm" to "https://chatglm.cn/favicon.ico",
+            "com.baidu.wenxin" to "https://yiyan.baidu.com/favicon.ico",
+            "com.alibaba.tongyi" to "https://tongyi.aliyun.com/favicon.ico",
+
+            // 社交平台类
+            "com.xingin.xhs" to "https://www.xiaohongshu.com/favicon.ico", // 小红书
+            "com.zhihu.android" to "https://www.zhihu.com/favicon.ico", // 知乎
+            "com.ss.android.ugc.aweme" to "https://www.douyin.com/favicon.ico", // 抖音
+            "com.sankuai.meituan" to "https://www.meituan.com/favicon.ico", // 美团
+
             // 音乐类 - 使用高质量CDN图标
             "com.tencent.qqmusic" to "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/QQMusic.png",
             "com.netease.cloudmusic" to "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Netease_Music.png",
-            
+
             // 生活服务类
             "me.ele" to "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Ele.png",
             "com.douban.frodo" to "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Douban.png",
-            
+
             // 地图导航类
             "com.autonavi.minimap" to "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/AutoNavi.png",
             "com.baidu.BaiduMap" to "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/Baidu_Map.png",
