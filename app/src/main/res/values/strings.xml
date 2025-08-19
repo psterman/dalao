@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AI悬浮球</string>
+    <string name="app_name">小脑</string>
     <string name="search_hint">输入搜索内容</string>
     <string name="voice_search">语音搜索</string>
     <string name="search">搜索</string>

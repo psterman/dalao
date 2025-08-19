@@ -5,80 +5,85 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
+    <!-- 背景圆形 -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M54,54m-54,0a54,54 0,1 1,108 0a54,54 0,1 1,-108 0"/>
+
     <!-- 大脑主体 -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M35,30 C30,25 25,30 23,35 C21,40 23,45 25,50 C23,55 25,60 30,63 C35,65 40,63 45,60 C50,63 55,65 60,63 C65,60 67,55 65,50 C67,45 69,40 67,35 C65,30 60,25 55,30 C50,25 45,27 40,30 C37,27 35,30 35,30 Z"/>
+        android:pathData="M30,25 C25,20 20,25 18,30 C16,35 18,40 20,45 C18,50 20,55 25,58 C30,60 35,58 40,55 C45,58 50,60 55,58 C60,55 62,50 60,45 C62,40 64,35 62,30 C60,25 55,20 50,25 C45,20 40,22 35,25 C32,22 30,25 30,25 Z"/>
 
     <!-- 大脑纹理线条 -->
     <path
         android:fillColor="#00000000"
         android:strokeWidth="2"
         android:strokeColor="#4CAF50"
-        android:pathData="M30,40 Q35,35 40,40 Q45,45 50,40 Q55,35 60,40"/>
+        android:pathData="M25,35 Q30,30 35,35 Q40,40 45,35 Q50,30 55,35"/>
 
     <path
         android:fillColor="#00000000"
         android:strokeWidth="2"
         android:strokeColor="#4CAF50"
-        android:pathData="M27,47 Q32,42 37,47 Q42,52 47,47 Q52,42 57,47"/>
+        android:pathData="M22,42 Q27,37 32,42 Q37,47 42,42 Q47,37 52,42"/>
 
     <path
         android:fillColor="#00000000"
         android:strokeWidth="2"
         android:strokeColor="#4CAF50"
-        android:pathData="M30,53 Q35,48 40,53 Q45,58 50,53 Q55,48 60,53"/>
+        android:pathData="M25,48 Q30,43 35,48 Q40,53 45,48 Q50,43 55,48"/>
 
     <!-- 中央分割线 -->
     <path
         android:fillColor="#00000000"
         android:strokeWidth="2.5"
         android:strokeColor="#4CAF50"
-        android:pathData="M45,30 L45,63"/>
+        android:pathData="M40,25 L40,58"/>
 
     <!-- 左侧人脸轮廓 -->
     <path
         android:fillColor="#00000000"
         android:strokeWidth="2"
-        android:strokeColor="#FFFFFF"
-        android:pathData="M25,65 Q20,70 20,75 Q20,80 25,83 Q30,80 30,75 Q30,70 25,65"/>
+        android:strokeColor="#4CAF50"
+        android:pathData="M20,60 Q15,65 15,70 Q15,75 20,78 Q25,75 25,70 Q25,65 20,60"/>
 
     <!-- 左侧眼睛 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M23,73 m-1.5,0 a1.5,1.5 0,1 1,3 0 a1.5,1.5 0,1 1,-3 0"/>
+        android:fillColor="#4CAF50"
+        android:pathData="M18,68 m-1.5,0 a1.5,1.5 0,1 1,3 0 a1.5,1.5 0,1 1,-3 0"/>
 
     <!-- 左侧嘴巴 -->
     <path
         android:fillColor="#00000000"
         android:strokeWidth="1.5"
-        android:strokeColor="#FFFFFF"
-        android:pathData="M21,77 Q23,79 25,77"/>
+        android:strokeColor="#4CAF50"
+        android:pathData="M16,72 Q18,74 20,72"/>
 
     <!-- 右侧人脸轮廓 -->
     <path
         android:fillColor="#00000000"
         android:strokeWidth="2"
-        android:strokeColor="#FFFFFF"
-        android:pathData="M63,65 Q68,70 68,75 Q68,80 63,83 Q58,80 58,75 Q58,70 63,65"/>
+        android:strokeColor="#4CAF50"
+        android:pathData="M58,60 Q63,65 63,70 Q63,75 58,78 Q53,75 53,70 Q53,65 58,60"/>
 
     <!-- 右侧眼睛（哭泣状） -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M65,71 L65,75 L63,73 Z"/>
+        android:fillColor="#4CAF50"
+        android:pathData="M60,66 L60,70 L58,68 Z"/>
 
     <!-- 右侧嘴巴（难过状） -->
     <path
         android:fillColor="#00000000"
         android:strokeWidth="1.5"
-        android:strokeColor="#FFFFFF"
-        android:pathData="M61,79 Q63,77 65,79"/>
+        android:strokeColor="#4CAF50"
+        android:pathData="M56,74 Q58,72 60,74"/>
 
     <!-- 连接线 -->
     <path
         android:fillColor="#00000000"
         android:strokeWidth="2"
-        android:strokeColor="#FFFFFF"
-        android:pathData="M30,83 L30,90 L58,90 L58,83"/>
+        android:strokeColor="#4CAF50"
+        android:pathData="M25,78 L25,85 L53,85 L53,78"/>
 
 </vector>
