@@ -1024,7 +1024,7 @@ class ChatActivity : AppCompatActivity() {
                 val combinedPrompt = buildPromptFromProfile(profile)
                 messageInput.setText(combinedPrompt)
                 promptListContainer.visibility = View.GONE
-                messageInput.requestFocus()
+                // 不再自动请求焦点，避免弹出键盘
             }
         }
     }
@@ -1689,18 +1689,10 @@ class ChatActivity : AppCompatActivity() {
             } else if (activateInputOnly) {
                 Log.d(TAG, "收到激活输入状态请求: source='$source'")
 
-                // 延迟一下确保界面完全加载，然后激活输入状态
-                messageInput.postDelayed({
-                    // 请求焦点并显示键盘
-                    messageInput.requestFocus()
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
-
-                    // 显示提示
-                    if (source?.contains("桌面小组件") == true) {
-                        Toast.makeText(this, "请输入您的问题", Toast.LENGTH_SHORT).show()
-                    }
-                }, 500)
+                // 不再自动激活输入法，只显示提示
+                if (source?.contains("桌面小组件") == true) {
+                    Toast.makeText(this, "请输入您的问题", Toast.LENGTH_SHORT).show()
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理自动发送消息失败", e)

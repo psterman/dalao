@@ -5844,16 +5844,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
-            // 设置输入框焦点监听，只在获得焦点时显示输入法
+            // 设置输入框点击监听，只在用户主动点击时才激活
+            chatSearchInput?.setOnClickListener { view ->
+                // 用户主动点击时，启用焦点并显示键盘
+                view.isFocusable = true
+                view.isFocusableInTouchMode = true
+                view.requestFocus()
+                showKeyboard(view as EditText)
+            }
+
+            // 设置输入框焦点监听
             chatSearchInput?.setOnFocusChangeListener { view, hasFocus ->
-                if (hasFocus) {
-                    // 延迟显示输入法，确保焦点已经设置
-                    view.postDelayed({
-                        showKeyboard(view as EditText)
-                    }, 100)
-                } else {
-                    // 失去焦点时隐藏输入法
+                if (!hasFocus) {
+                    // 失去焦点时隐藏输入法并禁用焦点
                     hideKeyboard(view)
+                    view.isFocusable = false
+                    view.isFocusableInTouchMode = false
                 }
             }
 

@@ -174,7 +174,8 @@
                 android:name=".ChatActivity"
                 android:exported="false"
                 android:label="聊天"
-                android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+                android:theme="@style/Theme.AIFloatingBall.NoActionBar"
+                android:windowSoftInputMode="adjustResize|stateHidden" />
         <activity android:name=".SubSettingsActivity"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
@@ -239,7 +240,8 @@
             android:name=".SimpleModeActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:theme="@style/AppTheme.SimpleMode" />
+            android:theme="@style/AppTheme.SimpleMode"
+            android:windowSoftInputMode="adjustResize|stateHidden" />
 
         <service
             android:name=".service.FloatingWindowService"
