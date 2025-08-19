@@ -28,11 +28,13 @@ class AIContactListActivity : AppCompatActivity() {
 
     private lateinit var backButton: ImageButton
     private lateinit var titleText: TextView
+    private lateinit var menuButton: ImageButton
     private lateinit var aiContactList: RecyclerView
     private lateinit var addCustomButton: MaterialButton
 
     private lateinit var aiContactAdapter: AIContactListAdapter
     private var allAIContacts = mutableListOf<ChatContact>()
+    private var showOnlyConfiguredAIs = true // 默认只显示配置了API的AI
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,10 +48,14 @@ class AIContactListActivity : AppCompatActivity() {
     private fun initializeViews() {
         backButton = findViewById(R.id.back_button)
         titleText = findViewById(R.id.title_text)
+        menuButton = findViewById(R.id.menu_button)
         aiContactList = findViewById(R.id.ai_contact_list)
         addCustomButton = findViewById(R.id.add_custom_button)
 
         titleText.text = "AI联系人列表"
+
+        // 设置标题栏菜单
+        setupTitleBarMenu()
     }
 
     private fun setupAIContacts() {
@@ -79,7 +85,7 @@ class AIContactListActivity : AppCompatActivity() {
         }
 
         // 更新适配器
-        aiContactAdapter.updateContacts(allAIContacts)
+        updateContactList()
     }
 
     private fun setupListeners() {
@@ -93,6 +99,57 @@ class AIContactListActivity : AppCompatActivity() {
     }
 
     /**
+     * 设置标题栏菜单
+     */
+    private fun setupTitleBarMenu() {
+        menuButton.setOnClickListener {
+            showDisplayModeDialog()
+        }
+    }
+
+    /**
+     * 显示显示模式选择对话框
+     */
+    private fun showDisplayModeDialog() {
+        val options = arrayOf(
+            if (showOnlyConfiguredAIs) "✓ 只显示已配置API的AI" else "只显示已配置API的AI",
+            if (!showOnlyConfiguredAIs) "✓ 显示所有AI" else "显示所有AI"
+        )
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("显示模式")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        showOnlyConfiguredAIs = true
+                        updateContactList()
+                    }
+                    1 -> {
+                        showOnlyConfiguredAIs = false
+                        updateContactList()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 更新联系人列表
+     */
+    private fun updateContactList() {
+        val filteredContacts = if (showOnlyConfiguredAIs) {
+            allAIContacts.filter { contact ->
+                contact.customData["is_configured"] == "true"
+            }
+        } else {
+            allAIContacts
+        }
+
+        aiContactAdapter.updateContacts(filteredContacts)
+    }
+
+    /**
      * 生成AI联系人列表
      */
     private fun generateAIContactsList(): MutableList<ChatContact> {
@@ -100,26 +157,26 @@ class AIContactListActivity : AppCompatActivity() {
         
         // 定义所有可用的AI助手
         val availableAIs = listOf(
-            "DeepSeek" to "🚀 DeepSeek - 性能强劲，支持中文",
-            "ChatGPT" to "🤖 ChatGPT - OpenAI的经典模型",
-            "Claude" to "💡 Claude - Anthropic的智能助手",
-            "Gemini" to "🌟 Gemini - Google的AI助手",
-            "智谱AI" to "🧠 智谱AI - GLM-4大语言模型",
-            "文心一言" to "📚 文心一言 - 百度的大语言模型",
-            "通义千问" to "🎯 通义千问 - 阿里巴巴的AI",
-            "讯飞星火" to "⚡ 讯飞星火 - 科大讯飞的AI",
-            "Kimi" to "🌙 Kimi - Moonshot的长文本专家"
+            "DeepSeek",
+            "ChatGPT",
+            "Claude",
+            "Gemini",
+            "智谱AI",
+            "文心一言",
+            "通义千问",
+            "讯飞星火",
+            "Kimi"
         )
 
-        availableAIs.forEach { (aiName, description) ->
+        availableAIs.forEach { aiName ->
             val apiKey = getApiKeyForAI(aiName)
             val isConfigured = apiKey.isNotEmpty()
-            
+
             val contact = ChatContact(
                 id = "ai_${aiName.lowercase().replace(" ", "_")}",
                 name = aiName,
                 type = ContactType.AI,
-                description = description,
+                description = null, // 不显示描述
                 isOnline = isConfigured,
                 lastMessage = if (isConfigured) "API已配置，可以开始对话" else "点击配置API密钥",
                 lastMessageTime = System.currentTimeMillis(),

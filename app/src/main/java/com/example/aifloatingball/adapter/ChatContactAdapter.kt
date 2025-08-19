@@ -182,9 +182,11 @@ class ChatContactAdapter(
             categoryNameText.text = category.name
 
             if (category.contacts.isEmpty()) {
-                contactCountText.text = "分组为空，长按其他分组中的AI移动到此分组"
+                contactCountText.text = "暂无联系人"
+                contactCountText.alpha = 0.6f
             } else {
                 contactCountText.text = "${category.contacts.size}个联系人"
+                contactCountText.alpha = 1.0f
             }
         }
     }

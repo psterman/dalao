@@ -182,6 +182,9 @@
     <color name="simple_mode_shadow_light">#40000000</color>         <!-- 阴影 -->
     <color name="simple_mode_overlay_light">#80000000</color>        <!-- 遮罩 -->
 
+    <!-- 🏷️ 标签颜色 - 暗色模式 -->
+    <color name="simple_mode_tag_background_color">#1A3A1A</color>   <!-- 标签背景 -->
+
     <!-- 🏠 标题栏色系 - 暗色模式 -->
     <color name="simple_mode_header_background_light">#0EBE68</color>    <!-- 标题栏背景 -->
     <color name="simple_mode_header_text_light">#FFFFFF</color>          <!-- 标题栏文字 -->

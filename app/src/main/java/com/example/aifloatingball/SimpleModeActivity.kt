@@ -263,6 +263,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private val tabSwitchAnimationManager = TabSwitchAnimationManager()
     private var currentTabPosition = 0
 
+    // 标签页拖拽状态标志
+    private var isDraggingTabs = false
+
+    // 标签页初始化完成标志
+    private var isTabsInitialized = false
+
 
 
     // 手势卡片式WebView管理器
@@ -2766,6 +2772,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 创建底部tab手势指示器
         createTabSwipeGestureIndicator()
+
+        // 创建对话tab横滑指示器
+        createChatTabSwipeIndicator()
 
         // 搜索tab横滑功能已集成到全局横滑手势中
         // createSearchTabSwipeHotArea() // 已移除，避免冲突
@@ -5807,8 +5816,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     true
                 },
                 onCategoryLongClick = { category ->
-                    // 处理分组长按事件
-                    showCategoryManagementDialog(category)
+                    // 只有在用户明确长按分组标题时才显示管理选项
+                    // 避免意外触发管理菜单
+                    if (category.name != "全部" && category.name != "提示") {
+                        showCategoryManagementDialog(category)
+                    } else {
+                        Log.d(TAG, "跳过系统分组的长按管理: ${category.name}")
+                    }
                     true
                 },
                 getContactGroup = { contact ->
@@ -5930,21 +5944,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
                     override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
                         try {
-                            // 双击标签页进行管理
-                            val tabPosition = tab?.position ?: return
-                            val tabText = tab.text?.toString() ?: return
+                            // 只有在标签页初始化完成且不是拖拽状态时才处理双击管理
+                            if (!isTabsInitialized || isDraggingTabs) {
+                                Log.d(TAG, "标签页未初始化完成或正在拖拽，跳过双击管理")
+                                return
+                            }
 
-                            when {
-                                tabPosition == 0 -> {
-                                    // "全部"标签 - 不显示管理选项，避免弹窗干扰
-                                    // showAllTabManagement() // 已移除
+                            // 双击标签页进行管理
+                            val tabText = tab?.text?.toString() ?: return
+
+                            when (tabText) {
+                                "全部" -> {
+                                    // "全部"标签 - 显示聚合视图的管理选项
+                                    showAllTabManagement()
                                 }
-                                tabPosition == 1 -> {
+                                "AI助手" -> {
                                     // "AI助手"标签 - 可以重命名和删除
                                     showAIAssistantGroupManagement(tab)
                                 }
-                                tabText == "+" -> {
+                                "+" -> {
                                     // +号按钮 - 不做任何操作
+                                    Log.d(TAG, "+号按钮被重新选择")
                                 }
                                 else -> {
                                     // 自定义分组 - 可以重命名、删除
@@ -5967,6 +5987,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 延迟一点时间确保数据加载完成后再显示
                 Handler(Looper.getMainLooper()).postDelayed({
                     showAllUserAIContacts()
+                    // 标记标签页初始化完成
+                    isTabsInitialized = true
+                    Log.d(TAG, "标签页初始化完成")
                 }, 100)
             }
 
@@ -6577,112 +6600,71 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 显示所有用户添加的AI助手（"全部"标签）
-     * 纵向分组与横向标签页同步显示
+     * 这是一个特殊的聚合视图，显示所有分组中的AI，不显示分组标题
      */
     private fun showAllUserAIContacts() {
         try {
-            val allUserAIs = mutableListOf<ContactCategory>()
+            // 收集所有分组中的AI（除了"全部"本身）
+            val allAIContacts = mutableListOf<ChatContact>()
 
-            // 获取横向标签页中的所有分组名称（除了"全部"和"+"）
-            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
-            val horizontalGroups = mutableListOf<String>()
-
-            // 收集横向标签页的分组名称
-            for (i in 1 until (chatTabLayout?.tabCount ?: 0)) {
-                val tab = chatTabLayout?.getTabAt(i)
-                val tabText = tab?.text?.toString()
-                if (tabText != null && tabText != "+") {
-                    horizontalGroups.add(tabText)
-                }
-            }
-
-            Log.d(TAG, "横向标签页分组: ${horizontalGroups.joinToString(", ")}")
-            Log.d(TAG, "allContacts分组: ${allContacts.map { it.name }.joinToString(", ")}")
-
-            // 1. 按照横向标签页的顺序显示分组
-            horizontalGroups.forEach { tabText ->
-                // 查找对应的分组数据
-                val category = allContacts.find { it.name == tabText }
-                if (category != null) {
-                    val aiContacts = category.contacts.filter { it.type == ContactType.AI }
-                    if (aiContacts.isNotEmpty()) {
-                        allUserAIs.add(ContactCategory(
-                            name = category.name,
-                            contacts = aiContacts,
-                            isExpanded = true,
-                            isPinned = category.isPinned
-                        ))
-                        Log.d(TAG, "添加分组到纵向显示: ${category.name}, AI数量: ${aiContacts.size}")
+            allContacts.forEach { category ->
+                if (category.name != "全部") {
+                    val aiContacts = category.contacts.filter { contact ->
+                        contact.type == ContactType.AI &&
+                        !contact.id.contains("hint") &&
+                        !contact.id.contains("empty") &&
+                        contact.name != "暂无AI助手" &&
+                        contact.name != "AI助手分组为空"
                     }
-                } else {
-                    Log.w(TAG, "未找到横向标签对应的分组数据: $tabText")
+                    allAIContacts.addAll(aiContacts)
                 }
             }
 
-            // 2. 收集所有已在分组中的AI ID
-            val groupedAIs = mutableSetOf<String>()
-            allUserAIs.forEach { category ->
-                category.contacts.forEach { groupedAIs.add(it.id) }
-            }
+            // 按置顶状态和最后消息时间排序
+            val sortedAIContacts = allAIContacts.distinctBy { it.id }.sortedWith(
+                compareByDescending<ChatContact> { it.isPinned }
+                    .thenByDescending { it.lastMessageTime }
+            )
 
-            // 3. 收集所有未分组的AI
-            val allAvailableAIs = getAllAvailableAIs()
-            val ungroupedAIs = allAvailableAIs.filter { ai ->
-                !groupedAIs.contains(ai.id)
-            }
+            Log.d(TAG, "全部标签页显示 ${sortedAIContacts.size} 个AI")
 
-            Log.d(TAG, "所有可用AI数量: ${allAvailableAIs.size}")
-            Log.d(TAG, "已分组AI数量: ${groupedAIs.size}")
-            Log.d(TAG, "未分组AI数量: ${ungroupedAIs.size}")
-
-            // 4. 如果有未分组的AI，添加到"未分组"类别（显示在最前面）
-            if (ungroupedAIs.isNotEmpty()) {
-                allUserAIs.add(0, ContactCategory(
-                    name = "未分组",
-                    contacts = ungroupedAIs,
-                    isExpanded = true
+            val displayCategories = if (sortedAIContacts.isNotEmpty()) {
+                // 在"全部"标签中，不显示分组标题，直接显示所有AI
+                listOf(ContactCategory(
+                    name = "全部",
+                    contacts = sortedAIContacts,
+                    isExpanded = true,
+                    isPinned = false
                 ))
-                Log.d(TAG, "添加未分组类别，包含${ungroupedAIs.size}个AI")
-            }
-
-            // 5. 如果完全没有AI（包括分组和未分组），显示提示
-            if (allUserAIs.isEmpty() && allAvailableAIs.isEmpty()) {
-                val emptyCategory = ContactCategory(
+            } else {
+                // 如果没有任何AI，显示空状态提示
+                listOf(ContactCategory(
                     name = "提示",
                     contacts = listOf(ChatContact(
                         id = "empty_hint",
                         name = "暂无AI助手",
-                        type = ContactType.AI,
+                        type = ContactType.AI, // 使用AI类型，但作为提示
                         description = "点击右上角+号添加AI助手",
                         isOnline = false,
-                        lastMessage = "开始添加您的第一个AI助手吧！",
+                        lastMessage = "点击右上角+号添加AI助手",
                         lastMessageTime = System.currentTimeMillis(),
-                        unreadCount = 0
+                        unreadCount = 0,
+                        avatar = "",
+                        isPinned = false,
+                        isMuted = false
                     )),
                     isExpanded = true
-                )
-                allUserAIs.add(emptyCategory)
-                Log.d(TAG, "添加空提示类别")
-            }
-
-            // 6. 如果有可用AI但没有显示任何分组，强制显示所有AI
-            if (allUserAIs.isEmpty() && allAvailableAIs.isNotEmpty()) {
-                allUserAIs.add(ContactCategory(
-                    name = "所有AI助手",
-                    contacts = allAvailableAIs,
-                    isExpanded = true
                 ))
-                Log.d(TAG, "强制显示所有AI助手，共${allAvailableAIs.size}个")
             }
 
-            // 7. 确保所有显示的AI都在allContacts中（用于长按菜单功能）
-            ensureAIsInAllContacts(allUserAIs)
+            // 确保所有显示的AI都在allContacts中（用于长按菜单功能）
+            ensureAIsInAllContacts(displayCategories)
 
-            // 8. 同步AI联系人状态（确保显示的AI与存储的AI状态一致）
-            syncAIContactStates(allUserAIs)
+            // 同步AI联系人状态（确保显示的AI与存储的AI状态一致）
+            syncAIContactStates(displayCategories)
 
-            chatContactAdapter?.updateContacts(allUserAIs)
-            Log.d(TAG, "显示全部用户AI助手，共${allUserAIs.size}个分组，与横向标签页同步")
+            chatContactAdapter?.updateContacts(displayCategories)
+            Log.d(TAG, "显示全部用户AI助手，共${sortedAIContacts.size}个AI")
         } catch (e: Exception) {
             Log.e(TAG, "显示全部用户AI助手失败", e)
         }
@@ -6712,19 +6694,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     isExpanded = true
                 ))
             } else {
-                // 如果AI助手分组为空，显示提示
+                // 如果AI助手分组为空，显示空分组（不添加虚假联系人）
                 listOf(ContactCategory(
                     name = "AI助手",
-                    contacts = listOf(ChatContact(
-                        id = "ai_assistant_hint",
-                        name = "AI助手分组为空",
-                        type = ContactType.AI,
-                        description = "这是您的专属AI助手分组",
-                        isOnline = false,
-                        lastMessage = "长按\"全部\"或其他分组中的AI，选择\"移动到分组\"将其添加到这里",
-                        lastMessageTime = System.currentTimeMillis(),
-                        unreadCount = 0
-                    )),
+                    contacts = emptyList(),
                     isExpanded = true
                 ))
             }
@@ -6738,32 +6711,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 执行标签内容切换（不使用动画）
+     * 基于标签名称而不是位置进行切换
      */
     private fun executeTabContentSwitch(position: Int, tab: com.google.android.material.tabs.TabLayout.Tab?) {
         try {
-            when (position) {
-                0 -> {
-                    // "全部"标签 - 显示所有用户添加的AI助手
+            val tabText = tab?.text?.toString() ?: return
+
+            when (tabText) {
+                "全部" -> {
+                    // "全部"标签 - 显示所有分组中的AI助手聚合视图
                     showAllUserAIContacts()
+                    Log.d(TAG, "切换到全部标签页")
                 }
-                1 -> {
+                "AI助手" -> {
                     // "AI助手"标签 - 显示预设分组中的AI
                     showAIAssistantGroup()
+                    Log.d(TAG, "切换到AI助手标签页")
+                }
+                "+" -> {
+                    // +号按钮 - 只有在用户主动点击时才创建新分组
+                    // 如果是拖拽导致的切换，不执行任何操作
+                    if (!isDraggingTabs) {
+                        showCreateCustomGroupDialog()
+                        // 选择回到上一个有效标签页
+                        val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+                        val previousTab = if (currentTabPosition > 0) currentTabPosition - 1 else 0
+                        chatTabLayout?.getTabAt(previousTab)?.select()
+                    } else {
+                        Log.d(TAG, "拖拽操作中，跳过+号按钮处理")
+                    }
+                    return
                 }
                 else -> {
-                    val tabText = tab?.text?.toString() ?: return
-
-                    if (tabText == "+") {
-                        // +号按钮 - 创建新的分组
-                        showCreateCustomGroupDialog()
-                        // 选择回到"AI助手"标签页
-                        val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
-                        chatTabLayout?.getTabAt(1)?.select()
-                        return
-                    } else {
-                        // 自定义分组标签页
-                        showCustomGroupContacts(tabText)
-                    }
+                    // 自定义分组标签页
+                    showCustomGroupContacts(tabText)
+                    Log.d(TAG, "切换到自定义分组标签页: $tabText")
                 }
             }
         } catch (e: Exception) {
@@ -7904,14 +7886,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 确认删除联系人
      */
     private fun confirmDeleteContact(contact: ChatContact) {
-        AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
-            .setTitle("确认删除")
-            .setMessage("确定要删除 ${contact.name} 吗？\n\n删除后将无法恢复，但可以重新添加。")
-            .setPositiveButton("删除") { _, _ ->
-                deleteContact(contact)
-            }
-            .setNegativeButton("取消", null)
-            .show()
+        if (contact.type == ContactType.AI) {
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("移除AI助手")
+                .setMessage("确定要移除 ${contact.name} 吗？\n\n这将清除该AI的API配置，但可以重新添加。")
+                .setPositiveButton("移除") { _, _ ->
+                    removeAIConfiguration(contact)
+                    Toast.makeText(this, "${contact.name} 配置已移除", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "移除AI配置: ${contact.name}")
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } else {
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("删除联系人")
+                .setMessage("确定要删除 ${contact.name} 吗？\n\n删除后将无法恢复。")
+                .setPositiveButton("删除") { _, _ ->
+                    removeContactFromList(contact)
+                    Toast.makeText(this, "${contact.name} 已删除", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "删除联系人: ${contact.name}")
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
     }
 
     /**
@@ -8042,21 +8039,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             availableGroups.add("AI助手")
         }
 
-        // 4. 只添加实际存在且有效的分组
+        // 4. 只添加实际存在且有效的分组（排除当前分组）
         val validGroups = getValidExistingGroups()
         validGroups.forEach { groupName ->
             if (groupName != "AI助手" &&
-                groupName != currentGroup &&
+                groupName != currentGroup && // 确保不添加当前分组
                 groupName != "未分组" &&
                 groupName != "全部" &&
                 !availableGroups.contains(groupName)) {
                 availableGroups.add(groupName)
+                Log.d(TAG, "添加有效分组选项: $groupName")
             }
         }
 
-        // 5. 如果分组太少，添加一些预设分组
+        // 5. 如果分组太少，添加一些预设分组（排除当前分组）
         if (availableGroups.size <= 1) {
             addDefaultGroups(availableGroups, currentGroup)
+            Log.d(TAG, "添加默认分组后，可用选项数: ${availableGroups.size}")
         }
 
         // 6. 总是添加"创建新分组"选项
@@ -8127,13 +8126,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun addDefaultGroups(availableGroups: MutableList<String>, currentGroup: String?) {
         // 只有在分组选项非常少的情况下才添加默认分组建议
         if (availableGroups.size <= 1) {
-            val defaultGroups = listOf("工作AI", "学习AI", "生活AI", "娱乐AI")
+            // 固定的5个默认分组建议
+            val defaultGroups = listOf("工作AI", "学习AI", "生活AI", "娱乐AI", "创作AI")
             defaultGroups.forEach { groupName ->
                 if (groupName != currentGroup && !availableGroups.contains(groupName)) {
                     availableGroups.add(groupName)
                 }
             }
-            Log.d(TAG, "添加了默认分组选项作为建议")
+            Log.d(TAG, "添加了 ${defaultGroups.size} 个默认分组选项作为建议")
         }
     }
 
@@ -8207,7 +8207,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     showCreateNewGroupForContactDialog(contact)
                 }
                 selectedGroup == currentGroup -> {
-                    Log.d(TAG, "AI已在目标分组中")
+                    Log.d(TAG, "AI已在目标分组中，不应该出现这种情况")
                     Toast.makeText(this, "${contact.name} 已在分组 \"$selectedGroup\" 中", Toast.LENGTH_SHORT).show()
                 }
                 else -> {
@@ -8450,8 +8450,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 保存更新后的联系人数据
                 saveContacts()
 
-                // 刷新显示
+                // 立即刷新显示
                 refreshCurrentTabDisplay()
+
+                // 更新适配器
+                chatContactAdapter?.updateContacts(allContacts)
 
                 val action = if (isPinned) "已置顶" else "已取消置顶"
                 Toast.makeText(this, "${contact.name} $action", Toast.LENGTH_SHORT).show()
@@ -8519,8 +8522,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 保存更新后的联系人数据
                 saveContacts()
 
-                // 刷新显示
+                // 立即刷新显示
                 refreshCurrentTabDisplay()
+
+                // 更新适配器
+                chatContactAdapter?.updateContacts(allContacts)
 
                 val action = if (isMuted) "已静音" else "已取消静音"
                 Toast.makeText(this, "${contact.name} $action", Toast.LENGTH_SHORT).show()
@@ -9042,34 +9048,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
 
     /**
-     * 删除联系人
+     * 删除联系人（内部方法，不再显示确认对话框）
      */
     private fun deleteContact(contact: ChatContact) {
         try {
-            // 对于AI联系人，不允许真正删除，而是移除其配置
             if (contact.type == ContactType.AI) {
-                AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
-                    .setTitle("移除AI助手")
-                    .setMessage("确定要移除 ${contact.name} 吗？\n\n注意：这将清除该AI的API配置，但不会删除AI本身。")
-                    .setPositiveButton("移除") { _, _ ->
-                        removeAIConfiguration(contact)
-                        Toast.makeText(this, "${contact.name} 配置已移除", Toast.LENGTH_SHORT).show()
-                        Log.d(TAG, "移除AI配置: ${contact.name}")
-                    }
-                    .setNegativeButton("取消", null)
-                    .show()
+                removeAIConfiguration(contact)
             } else {
-                // 对于普通联系人，正常删除
-                AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
-                    .setTitle("删除联系人")
-                    .setMessage("确定要删除 ${contact.name} 吗？")
-                    .setPositiveButton("删除") { _, _ ->
-                        removeContactFromList(contact)
-                        Toast.makeText(this, "${contact.name} 已删除", Toast.LENGTH_SHORT).show()
-                        Log.d(TAG, "删除联系人: ${contact.name}")
-                    }
-                    .setNegativeButton("取消", null)
-                    .show()
+                removeContactFromList(contact)
             }
         } catch (e: Exception) {
             Log.e(TAG, "删除联系人失败", e)
@@ -9120,6 +9106,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 刷新显示
             refreshCurrentTabDisplay()
+
+            // 更新适配器
+            chatContactAdapter?.updateContacts(allContacts)
 
             Log.d(TAG, "移除AI配置成功: ${contact.name}")
 
@@ -10224,11 +10213,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 allContacts.add(newCategory)
                 Log.d(TAG, "创建新分组 $targetGroupName 并添加 ${contact.name}")
 
-                // 如果是"AI助手"分组，清除删除标记
+                // 如果是"AI助手"分组，清除删除标记和旧数据
                 if (targetGroupName == "AI助手") {
                     val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
-                    prefs.edit().putBoolean("ai_assistant_group_deleted", false).apply()
-                    Log.d(TAG, "重新创建AI助手分组，清除删除标记")
+                    prefs.edit()
+                        .putBoolean("ai_assistant_group_deleted", false)
+                        .remove("ai_assistant_group_contacts") // 清理旧的联系人数据
+                        .apply()
+                    Log.d(TAG, "重新创建AI助手分组，清除删除标记和旧数据")
+
+                    // 确保AI助手标签页存在
+                    ensureAIAssistantTabExists()
                 }
             }
 
@@ -10240,18 +10235,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 ensureAIAssistantTabExists()
             }
 
-            // 5. 保存更改
+            // 5. 更新AI的分组信息（如果是AI联系人）
+            if (contact.type == ContactType.AI) {
+                updateAIGroupInfo(contact, targetGroupName)
+            }
+
+            // 6. 保存更改
             saveContacts()
             Log.d(TAG, "保存联系人数据完成")
 
-            // 6. 切换到目标标签页（如果存在）
+            // 7. 保存更改
+            saveContacts()
+
+            // 8. 确保目标分组有对应的标签页
+            ensureTabForGroup(targetGroupName)
+
+            // 9. 切换到目标标签页（如果存在）
             switchToTabIfExists(targetGroupName)
 
-            // 7. 刷新显示
-            refreshCurrentTabDisplay()
-            Log.d(TAG, "刷新显示完成")
+            // 10. 延迟刷新显示，确保标签页切换完成
+            Handler(Looper.getMainLooper()).postDelayed({
+                refreshCurrentTabDisplay()
+                Log.d(TAG, "切换到目标分组并刷新显示完成: $targetGroupName")
+            }, 200)
 
-            // 8. 显示成功提示
+            Log.d(TAG, "移动联系人完成: ${contact.name} -> $targetGroupName")
+
+            // 9. 显示成功提示
             val message = if (currentGroup != null && currentGroup != "未分组") {
                 "✅ 已将 ${contact.name} 从 \"$currentGroup\" 移动到 \"$targetGroupName\""
             } else {
@@ -10365,13 +10375,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 重新触发当前标签页的选择事件
             currentTab?.let { tab ->
-                when (tab.position) {
-                    0 -> showAllUserAIContacts()
-                    1 -> showAIAssistantGroup()
+                val tabText = tab.text?.toString()
+                when (tabText) {
+                    "全部" -> showAllUserAIContacts()
+                    "AI助手" -> showAIAssistantGroup()
+                    "+" -> {
+                        // +号按钮不需要刷新内容
+                        Log.d(TAG, "当前在+号按钮，不刷新内容")
+                    }
                     else -> {
-                        val tabText = tab.text?.toString()
-                        if (tabText != null && tabText != "+") {
+                        if (tabText != null) {
                             showCustomGroupContacts(tabText)
+                        } else {
+                            Log.w(TAG, "标签页文本为空，无法刷新内容")
                         }
                     }
                 }
@@ -10381,9 +10397,202 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
-    // 已移除showAllTabManagement()方法 - 不再显示管理全部标签弹窗
+    /**
+     * 显示全部标签页管理选项
+     */
+    private fun showAllTabManagement() {
+        try {
+            val allAICount = getAllAvailableAIs().size
+            val groupCount = allContacts.count { it.name != "全部" && it.contacts.any { contact -> contact.type == ContactType.AI } }
 
-    // 已移除showAllAIStatistics()方法 - 不再显示统计信息弹窗
+            val options = arrayOf(
+                "📊 查看统计信息 ($allAICount 个AI，$groupCount 个分组)",
+                "🔄 刷新所有分组",
+                "📋 导出分组配置",
+                "📥 导入分组配置"
+            )
+
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("全部 - 聚合视图管理")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> showAllAIStatistics()
+                        1 -> {
+                            refreshAllGroups()
+                            Toast.makeText(this, "已刷新所有分组", Toast.LENGTH_SHORT).show()
+                        }
+                        2 -> exportGroupConfiguration()
+                        3 -> importGroupConfiguration()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示全部标签页管理失败", e)
+        }
+    }
+
+    /**
+     * 显示所有AI统计信息
+     */
+    private fun showAllAIStatistics() {
+        try {
+            val allAIs = getAllAvailableAIs()
+            val groupedAIs = allAIs.groupBy { findContactGroup(it) ?: "未分组" }
+
+            val statisticsText = buildString {
+                appendLine("📊 AI助手统计信息")
+                appendLine("=".repeat(30))
+                appendLine("总计: ${allAIs.size} 个AI助手")
+                appendLine("分组数量: ${groupedAIs.size} 个")
+                appendLine()
+
+                groupedAIs.forEach { (groupName, ais) ->
+                    appendLine("📁 $groupName: ${ais.size} 个AI")
+                    ais.forEach { ai ->
+                        val status = if (ai.isOnline) "🟢" else "🔴"
+                        val pinned = if (ai.isPinned) "📌" else ""
+                        val muted = if (ai.isMuted) "🔇" else ""
+                        appendLine("  $status $pinned$muted ${ai.name}")
+                    }
+                    appendLine()
+                }
+            }
+
+            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                .setTitle("AI助手统计")
+                .setMessage(statisticsText)
+                .setPositiveButton("确定", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI统计信息失败", e)
+        }
+    }
+
+    /**
+     * 刷新所有分组
+     */
+    private fun refreshAllGroups() {
+        try {
+            loadInitialContacts()
+            refreshCurrentTabDisplay()
+            chatContactAdapter?.updateContacts(allContacts)
+            Log.d(TAG, "刷新所有分组完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新所有分组失败", e)
+        }
+    }
+
+    /**
+     * 导出分组配置
+     */
+    private fun exportGroupConfiguration() {
+        try {
+            Toast.makeText(this, "导出功能开发中...", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "导出分组配置失败", e)
+        }
+    }
+
+    /**
+     * 导入分组配置
+     */
+    private fun importGroupConfiguration() {
+        try {
+            Toast.makeText(this, "导入功能开发中...", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "导入分组配置失败", e)
+        }
+    }
+
+    /**
+     * 更新AI的分组信息
+     */
+    private fun updateAIGroupInfo(aiContact: ChatContact, groupName: String) {
+        try {
+            // 更新AI联系人的分组标签信息
+            // 这里可以扩展为更新AI的元数据或其他相关信息
+            Log.d(TAG, "更新AI ${aiContact.name} 的分组信息为: $groupName")
+
+            // 如果需要，可以在这里更新AI的其他属性
+            // 例如：aiContact.groupTag = groupName
+
+        } catch (e: Exception) {
+            Log.e(TAG, "更新AI分组信息失败", e)
+        }
+    }
+
+    /**
+     * 刷新所有标签页显示
+     */
+    private fun refreshAllTabDisplay() {
+        try {
+            // 刷新当前标签页显示
+            refreshCurrentTabDisplay()
+            // 更新适配器
+            chatContactAdapter?.updateContacts(allContacts)
+            Log.d(TAG, "刷新所有标签页显示完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新所有标签页显示失败", e)
+        }
+    }
+
+    /**
+     * 刷新所有标签页数据（重新加载和同步数据）
+     */
+    private fun refreshAllTabsData() {
+        try {
+            // 重新加载联系人数据
+            loadInitialContacts()
+
+            // 确保数据一致性
+            ensureDataConsistency()
+
+            Log.d(TAG, "刷新所有标签页数据完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新所有标签页数据失败", e)
+        }
+    }
+
+    /**
+     * 确保数据一致性
+     */
+    private fun ensureDataConsistency() {
+        try {
+            // 清理无效的AI联系人引用
+            allContacts.forEach { category ->
+                val validContacts = category.contacts.filter { contact ->
+                    // 保留有效的AI联系人
+                    contact.type == ContactType.AI &&
+                    !contact.id.contains("hint") &&
+                    !contact.id.contains("empty")
+                }
+
+                if (validContacts.size != category.contacts.size) {
+                    val updatedCategory = category.copy(contacts = validContacts)
+                    val index = allContacts.indexOf(category)
+                    allContacts[index] = updatedCategory
+                    Log.d(TAG, "清理分组 ${category.name} 中的无效联系人")
+                }
+            }
+
+            // 移除空的自定义分组（保留系统分组）
+            val categoriesToRemove = allContacts.filter { category ->
+                category.contacts.isEmpty() &&
+                category.name != "全部" &&
+                category.name != "AI助手" &&
+                category.name != "提示"
+            }
+
+            categoriesToRemove.forEach { category ->
+                allContacts.remove(category)
+                Log.d(TAG, "移除空分组: ${category.name}")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "确保数据一致性失败", e)
+        }
+    }
 
     // 已移除markAllAIsAsUnread()方法 - 不再提供批量标记未读功能
 
@@ -10484,16 +10693,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 找到AI助手分组
             val aiAssistantCategory = allContacts.find { it.name == "AI助手" }
             if (aiAssistantCategory != null) {
-                // 移除AI助手分组（AI会自动回到"全部"标签中）
+                // AI助手分组中的AI将保留在系统中，但不再属于任何特定分组
+                // 它们将在"全部"标签中显示
+                Log.d(TAG, "AI助手分组中有 ${aiAssistantCategory.contacts.size} 个AI将保留在全部标签中")
+
+                // 移除AI助手分组
                 allContacts.remove(aiAssistantCategory)
 
                 // 保存联系人数据
                 saveContacts()
             }
 
-            // 记录用户主动删除了AI助手分组
+            // 记录用户主动删除了AI助手分组，并清理相关数据
             val prefs = getSharedPreferences("custom_tabs", MODE_PRIVATE)
-            prefs.edit().putBoolean("ai_assistant_group_deleted", true).apply()
+            prefs.edit()
+                .putBoolean("ai_assistant_group_deleted", true)
+                .remove("ai_assistant_group_contacts") // 清理AI助手分组的联系人数据
+                .apply()
+
+            Log.d(TAG, "清理AI助手分组相关数据")
 
             // 从TabLayout中移除标签
             val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
@@ -10505,8 +10723,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 切换到"全部"标签页
             chatTabLayout?.getTabAt(0)?.select()
 
+            // 延迟刷新显示，避免立即触发弹窗
+            Handler(Looper.getMainLooper()).postDelayed({
+                showAllUserAIContacts() // 直接显示全部AI，避免触发管理弹窗
+                Log.d(TAG, "删除AI助手分组后刷新全部标签页显示完成")
+            }, 300)
+
             Toast.makeText(this, "AI助手分组已删除，AI已回到\"全部\"中", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "删除AI助手分组")
+            Log.d(TAG, "删除AI助手分组完成")
 
         } catch (e: Exception) {
             Log.e(TAG, "删除AI助手分组失败", e)
@@ -10694,7 +10918,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             contacts = categoryToDelete.contacts,
                             isExpanded = true
                         )
-                        allContacts.add(0, newAIAssistantCategory)
+                        allContacts.add(newAIAssistantCategory)
+
+                        // 确保AI助手标签页存在
+                        ensureAIAssistantTabExists()
                     }
                 }
 
@@ -10712,8 +10939,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 保存联系人数据
             saveContacts()
 
-            // 切换到"AI助手"标签页
-            chatTabLayout?.getTabAt(1)?.select()
+            // 切换到"全部"标签页
+            chatTabLayout?.getTabAt(0)?.select()
+
+            // 延迟刷新显示，避免立即触发弹窗
+            Handler(Looper.getMainLooper()).postDelayed({
+                showAllUserAIContacts() // 直接显示全部AI，避免触发管理弹窗
+                Log.d(TAG, "删除分组后刷新全部标签页显示完成")
+            }, 300)
 
             Toast.makeText(this, "分组 \"$groupName\" 已删除", Toast.LENGTH_SHORT).show()
             Log.d(TAG, "删除分组: $groupName")
@@ -10832,6 +11065,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                     // 刷新当前显示
                     refreshCurrentTabDisplay()
+
+                    // 更新适配器
+                    chatContactAdapter?.updateContacts(allContacts)
 
                     Toast.makeText(this, "✅ ${contact.name} 已移除分组，现在在\"全部\"中", Toast.LENGTH_LONG).show()
                     Log.d(TAG, "移除联系人分组: ${contact.name} 从 $currentGroup")
@@ -10955,32 +11191,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val groupName = category.name
             val aiCount = category.contacts.size
 
+            // 只有用户创建的分组和AI助手分组才显示管理选项
+            if (groupName == "全部" || groupName == "提示" || groupName == "未分组") {
+                Log.d(TAG, "系统分组不支持管理操作: $groupName")
+                return
+            }
+
             // 根据分组类型显示不同的管理选项
             val options = when (groupName) {
-                "全部" -> {
-                    // "全部"标签只能查看信息，不可管理
-                    arrayOf("📊 查看分组信息")
-                }
                 "AI助手" -> {
-                    // "AI助手"分组可以重命名、删除、置顶、标为未读
+                    // "AI助手"分组可以重命名、删除、标为未读
                     arrayOf(
-                        "📊 查看分组信息",
+                        "📊 查看分组信息 ($aiCount 个AI)",
                         "✏️ 重命名分组",
-                        "📌 置顶分组",
                         "🔔 标为未读",
                         "🗑️ 删除分组"
                     )
                 }
-                "未分组" -> {
-                    // "未分组"是系统生成的，不可管理
-                    arrayOf("📊 查看分组信息")
-                }
                 else -> {
-                    // 自定义分组可以重命名、删除、置顶、标为未读
+                    // 自定义分组可以重命名、删除、标为未读
                     arrayOf(
-                        "📊 查看分组信息",
+                        "📊 查看分组信息 ($aiCount 个AI)",
                         "✏️ 重命名分组",
-                        "📌 置顶分组",
                         "🔔 标为未读",
                         "🗑️ 删除分组"
                     )
@@ -11652,7 +11884,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 tabView?.setOnDragListener { view, event ->
                     when (event.action) {
                         android.view.DragEvent.ACTION_DRAG_STARTED -> {
-                            // 开始拖拽
+                            // 开始拖拽，设置拖拽状态标志
+                            isDraggingTabs = true
+                            Log.d(TAG, "开始拖拽标签页")
                             true
                         }
                         android.view.DragEvent.ACTION_DRAG_ENTERED -> {
@@ -11678,8 +11912,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             true
                         }
                         android.view.DragEvent.ACTION_DRAG_ENDED -> {
-                            // 拖拽结束
+                            // 拖拽结束，清除拖拽状态标志
                             view.alpha = 1.0f
+                            // 延迟清除拖拽状态，避免立即触发其他事件
+                            Handler(Looper.getMainLooper()).postDelayed({
+                                isDraggingTabs = false
+                                Log.d(TAG, "拖拽标签页结束")
+                            }, 200)
                             true
                         }
                         else -> false
@@ -12599,6 +12838,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var searchTabSwipeIndicator: View? = null
     private var lastSearchTabSwipeTime = 0L
 
+    // 对话tab横滑手势相关
+    private var chatTabSwipeGestureDetector: GestureDetectorCompat? = null
+    private var chatTabSwipeIndicator: View? = null
+    private var lastChatTabSwipeTime = 0L
+
     /**
      * 显示横滑预览指示器
      */
@@ -12798,24 +13042,40 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                     Log.d(TAG, "🎯 底部tab检测到横滑手势，deltaX: $deltaX, 当前tab: ${getCurrentTabIndex()}")
 
-                    // 只在搜索tab中切换webview卡片
-                    if (getCurrentTabIndex() == 1) { // 1 = BROWSER (搜索tab)
-                        if (deltaX > 0) {
-                            // 向右滑动，切换到上一个webview卡片
-                            switchToPreviousWebPage()
-                            showSearchTabSwipeIndicator("上一页")
-                            Log.d(TAG, "✅ 底部tab右滑成功 - 切换到上一个webview卡片")
-                        } else {
-                            // 向左滑动，切换到下一个webview卡片
-                            switchToNextWebPage()
-                            showSearchTabSwipeIndicator("下一页")
-                            Log.d(TAG, "✅ 底部tab左滑成功 - 切换到下一个webview卡片")
+                    // 根据当前tab执行不同的切换逻辑
+                    when (getCurrentTabIndex()) {
+                        0 -> { // 0 = CHAT (对话tab)
+                            if (deltaX > 0) {
+                                // 向右滑动，切换到下一个对话标签（右边的标签）
+                                switchToNextChatTab()
+                                showChatTabSwipeIndicator("下一个标签")
+                                Log.d(TAG, "✅ 底部tab右滑成功 - 切换到下一个对话标签")
+                            } else {
+                                // 向左滑动，切换到上一个对话标签（左边的标签）
+                                switchToPreviousChatTab()
+                                showChatTabSwipeIndicator("上一个标签")
+                                Log.d(TAG, "✅ 底部tab左滑成功 - 切换到上一个对话标签")
+                            }
+                            return true
                         }
-
-                        return true
-                    } else {
-                        // 静默处理，不显示提示
-                        Log.d(TAG, "⚠️ 不在搜索tab中，当前tab: ${getCurrentTabIndex()}")
+                        1 -> { // 1 = BROWSER (搜索tab)
+                            if (deltaX > 0) {
+                                // 向右滑动，切换到上一个webview卡片
+                                switchToPreviousWebPage()
+                                showSearchTabSwipeIndicator("上一页")
+                                Log.d(TAG, "✅ 底部tab右滑成功 - 切换到上一个webview卡片")
+                            } else {
+                                // 向左滑动，切换到下一个webview卡片
+                                switchToNextWebPage()
+                                showSearchTabSwipeIndicator("下一页")
+                                Log.d(TAG, "✅ 底部tab左滑成功 - 切换到下一个webview卡片")
+                            }
+                            return true
+                        }
+                        else -> {
+                            // 其他tab暂不支持横滑功能
+                            Log.d(TAG, "⚠️ 当前tab不支持横滑功能，当前tab: ${getCurrentTabIndex()}")
+                        }
                     }
                 } else {
                     Log.d(TAG, "🚫 手势不符合条件 - deltaX: $deltaX, deltaY: $deltaY")
@@ -12957,53 +13217,67 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun setupTabGestureDetection(tabView: LinearLayout, gestureDetector: GestureDetector) {
         tabView.setOnTouchListener { view, event ->
-            // 只在搜索tab中显示卡片预览波浪效果
-            if (getCurrentTabIndex() == 1) {
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        // 显示波浪追踪器，但确保不阻挡底部导航栏
-                        materialWaveTracker?.apply {
-                            visibility = View.VISIBLE
-                            // 强制设置为不可交互
-                            isClickable = false
-                            isFocusable = false
-                            isFocusableInTouchMode = false
-                            isEnabled = false
-                            // 确保触摸事件穿透
-                            setOnTouchListener { _, _ -> false }
+            // 根据当前tab显示不同的视觉效果
+            when (getCurrentTabIndex()) {
+                0 -> { // 对话tab - 显示简单的触摸反馈
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 对话tab按下时的视觉反馈（可选）
+                            Log.d(TAG, "对话tab区域按下，准备检测横滑手势")
                         }
-
-                        // 将触摸坐标转换为波浪追踪器的坐标系
-                        val location = IntArray(2)
-                        view.getLocationOnScreen(location)
-                        val waveLocation = IntArray(2)
-                        materialWaveTracker?.getLocationOnScreen(waveLocation)
-
-                        val relativeX = location[0] - waveLocation[0] + event.x
-                        val relativeY = location[1] - waveLocation[1] + event.y
-
-                        // 更新手指位置，显示卡片预览
-                        materialWaveTracker?.updateFingerPosition(relativeX, relativeY)
-
-                        // 确保卡片数据是最新的
-                        updateWaveTrackerCards()
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            // 对话tab松开时的处理（可选）
+                            Log.d(TAG, "对话tab区域松开")
+                        }
                     }
-                    MotionEvent.ACTION_MOVE -> {
-                        // 继续更新手指位置
-                        val location = IntArray(2)
-                        view.getLocationOnScreen(location)
-                        val waveLocation = IntArray(2)
-                        materialWaveTracker?.getLocationOnScreen(waveLocation)
+                }
+                1 -> { // 搜索tab - 显示卡片预览波浪效果
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            // 显示波浪追踪器，但确保不阻挡底部导航栏
+                            materialWaveTracker?.apply {
+                                visibility = View.VISIBLE
+                                // 强制设置为不可交互
+                                isClickable = false
+                                isFocusable = false
+                                isFocusableInTouchMode = false
+                                isEnabled = false
+                                // 确保触摸事件穿透
+                                setOnTouchListener { _, _ -> false }
+                            }
 
-                        val relativeX = location[0] - waveLocation[0] + event.x
-                        val relativeY = location[1] - waveLocation[1] + event.y
+                            // 将触摸坐标转换为波浪追踪器的坐标系
+                            val location = IntArray(2)
+                            view.getLocationOnScreen(location)
+                            val waveLocation = IntArray(2)
+                            materialWaveTracker?.getLocationOnScreen(waveLocation)
 
-                        materialWaveTracker?.updateFingerPosition(relativeX, relativeY)
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        // 停止卡片预览效果并隐藏
-                        materialWaveTracker?.stopWave()
-                        materialWaveTracker?.visibility = View.GONE
+                            val relativeX = location[0] - waveLocation[0] + event.x
+                            val relativeY = location[1] - waveLocation[1] + event.y
+
+                            // 更新手指位置，显示卡片预览
+                            materialWaveTracker?.updateFingerPosition(relativeX, relativeY)
+
+                            // 确保卡片数据是最新的
+                            updateWaveTrackerCards()
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            // 继续更新手指位置
+                            val location = IntArray(2)
+                            view.getLocationOnScreen(location)
+                            val waveLocation = IntArray(2)
+                            materialWaveTracker?.getLocationOnScreen(waveLocation)
+
+                            val relativeX = location[0] - waveLocation[0] + event.x
+                            val relativeY = location[1] - waveLocation[1] + event.y
+
+                            materialWaveTracker?.updateFingerPosition(relativeX, relativeY)
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            // 停止卡片预览效果并隐藏
+                            materialWaveTracker?.stopWave()
+                            materialWaveTracker?.visibility = View.GONE
+                        }
                     }
                 }
             }
@@ -13599,6 +13873,214 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "❌ 切换到下一个网页失败", e)
         }
+    }
+
+    // ==================== 对话tab横滑手势处理 ====================
+
+    /**
+     * 切换到上一个对话标签
+     */
+    private fun switchToPreviousChatTab() {
+        try {
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            if (chatTabLayout == null) {
+                Log.w(TAG, "对话TabLayout未找到")
+                return
+            }
+
+            val currentPosition = chatTabLayout.selectedTabPosition
+            val tabCount = chatTabLayout.tabCount
+
+            if (tabCount <= 1) {
+                Log.d(TAG, "只有一个标签，无法切换")
+                return
+            }
+
+            // 计算上一个标签位置（跳过"+"按钮）
+            var previousPosition = currentPosition - 1
+            if (previousPosition < 0) {
+                // 如果已经是第一个标签，切换到最后一个有效标签（排除"+"按钮）
+                previousPosition = tabCount - 2 // 倒数第二个（因为最后一个是"+"按钮）
+                if (previousPosition < 0) previousPosition = 0
+            }
+
+            // 检查目标标签是否是"+"按钮，如果是则再往前一个
+            val targetTab = chatTabLayout.getTabAt(previousPosition)
+            if (targetTab?.text?.toString() == "+") {
+                previousPosition = if (previousPosition > 0) previousPosition - 1 else tabCount - 2
+            }
+
+            // 切换到目标标签
+            if (previousPosition >= 0 && previousPosition < tabCount) {
+                chatTabLayout.getTabAt(previousPosition)?.select()
+                Log.d(TAG, "✅ 切换到上一个对话标签: $previousPosition")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 切换到上一个对话标签失败", e)
+        }
+    }
+
+    /**
+     * 切换到下一个对话标签
+     */
+    private fun switchToNextChatTab() {
+        try {
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            if (chatTabLayout == null) {
+                Log.w(TAG, "对话TabLayout未找到")
+                return
+            }
+
+            val currentPosition = chatTabLayout.selectedTabPosition
+            val tabCount = chatTabLayout.tabCount
+
+            if (tabCount <= 1) {
+                Log.d(TAG, "只有一个标签，无法切换")
+                return
+            }
+
+            // 计算下一个标签位置（跳过"+"按钮）
+            var nextPosition = currentPosition + 1
+
+            // 检查是否到达"+"按钮或超出范围
+            if (nextPosition >= tabCount - 1) { // 最后一个是"+"按钮
+                nextPosition = 0 // 回到第一个标签
+            }
+
+            // 再次检查目标标签是否是"+"按钮
+            val targetTab = chatTabLayout.getTabAt(nextPosition)
+            if (targetTab?.text?.toString() == "+") {
+                nextPosition = 0 // 如果遇到"+"按钮，回到第一个标签
+            }
+
+            // 切换到目标标签
+            if (nextPosition >= 0 && nextPosition < tabCount) {
+                chatTabLayout.getTabAt(nextPosition)?.select()
+                Log.d(TAG, "✅ 切换到下一个对话标签: $nextPosition")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 切换到下一个对话标签失败", e)
+        }
+    }
+
+    /**
+     * 创建对话tab横滑指示器
+     */
+    private fun createChatTabSwipeIndicator() {
+        try {
+            // 创建指示器容器
+            val indicatorContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER
+                setPadding(16, 8, 16, 8)
+            }
+
+            // 创建左箭头
+            val leftArrow = TextView(this).apply {
+                text = "◀"
+                textSize = 16f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.8f
+            }
+
+            // 创建中间提示文字
+            val hintText = TextView(this).apply {
+                text = "左右滑动切换标签"
+                textSize = 14f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.9f
+                setPadding(20, 0, 20, 0)
+            }
+
+            // 创建右箭头
+            val rightArrow = TextView(this).apply {
+                text = "▶"
+                textSize = 16f
+                setTextColor(android.graphics.Color.WHITE)
+                alpha = 0.8f
+            }
+
+            // 添加到容器
+            indicatorContainer.addView(leftArrow)
+            indicatorContainer.addView(hintText)
+            indicatorContainer.addView(rightArrow)
+
+            // 创建指示器背景
+            chatTabSwipeIndicator = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = android.view.Gravity.CENTER_HORIZONTAL or android.view.Gravity.TOP
+                    topMargin = 200 // 距离顶部200dp，显示在对话tab区域附近
+                }
+
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#CC000000"))
+                    cornerRadius = 24f
+                }
+
+                addView(indicatorContainer)
+                visibility = View.GONE
+            }
+
+            // 添加到主布局
+            val rootLayout = findViewById<FrameLayout>(android.R.id.content)
+            rootLayout.addView(chatTabSwipeIndicator)
+
+            Log.d(TAG, "对话tab横滑指示器创建完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建对话tab横滑指示器失败", e)
+        }
+    }
+
+    /**
+     * 显示对话tab横滑指示器
+     */
+    private fun showChatTabSwipeIndicator(action: String = "左右滑动切换标签") {
+        chatTabSwipeIndicator?.apply {
+            // 更新提示文字 - 查找LinearLayout中的TextView
+            val frameLayout = this as FrameLayout
+            val container = frameLayout.getChildAt(0) as? LinearLayout
+            val hintText = container?.getChildAt(1) as? TextView // 中间的提示文字
+            hintText?.text = when (action) {
+                "上一个标签" -> "◀ 上一个标签"
+                "下一个标签" -> "下一个标签 ▶"
+                else -> "左右滑动切换标签"
+            }
+
+            visibility = View.VISIBLE
+            alpha = 0f
+            scaleX = 0.8f
+            scaleY = 0.8f
+
+            animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(200)
+                .start()
+
+            // 2秒后自动隐藏
+            postDelayed({
+                hideChatTabSwipeIndicator()
+            }, 2000)
+        }
+    }
+
+    /**
+     * 隐藏对话tab横滑指示器
+     */
+    private fun hideChatTabSwipeIndicator() {
+        chatTabSwipeIndicator?.animate()
+            ?.alpha(0f)
+            ?.scaleX(0.8f)
+            ?.scaleY(0.8f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                chatTabSwipeIndicator?.visibility = View.GONE
+            }
+            ?.start()
     }
 
     /**
