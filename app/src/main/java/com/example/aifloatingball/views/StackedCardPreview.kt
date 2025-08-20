@@ -13,6 +13,7 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.VelocityTracker
+import android.view.animation.DecelerateInterpolator
 import kotlin.math.*
 
 /**
@@ -89,6 +90,10 @@ class StackedCardPreview @JvmOverloads constructor(
     private var isVerticalDragging = false
     private var centerCardOffsetY = 0f // 中心卡片的垂直偏移
     private var closeThreshold = 0f // 关闭阈值（旁边卡片高度的一半）
+
+    // 点击检测相关
+    private var isClick = false // 是否是点击操作
+    private var clickThreshold = 20f // 点击阈值（像素）
 
     // 动画参数
     private var cardAnimator: ValueAnimator? = null
@@ -261,6 +266,7 @@ class StackedCardPreview @JvmOverloads constructor(
                 isTracking = true
                 isLongPressSliding = false
                 isVerticalDragging = false
+                isClick = true // 初始假设是点击
                 slideStartX = event.x
                 slideStartY = event.y
                 touchX = event.x
@@ -278,6 +284,12 @@ class StackedCardPreview @JvmOverloads constructor(
                     val deltaY = event.y - slideStartY
                     val distance = sqrt(deltaX * deltaX + deltaY * deltaY)
                     val currentTime = System.currentTimeMillis()
+
+                    // 检查是否超过点击阈值
+                    if (isClick && distance > clickThreshold) {
+                        isClick = false // 不再是点击操作
+                        Log.d("StackedCardPreview", "移动距离超过阈值，不是点击操作")
+                    }
 
                     // 检查是否达到长按时间且还没有激活
                     if (!isLongPressActivated && (currentTime - longPressStartTime) >= longPressThreshold) {
@@ -326,27 +338,33 @@ class StackedCardPreview @JvmOverloads constructor(
 
                             if (abs(slideVelocity) > 1000f) {
                                 // 速度足够快，启动惯性滚动
-                                startInertiaScroll()
+                                startInertiaScrollWithoutOpen()
                             } else {
                                 // 速度较慢，直接对齐到最近的卡片
-                                snapToNearestCardAndOpen()
+                                snapToNearestCard()
                             }
                         } else if (isVerticalDragging) {
                             // 垂直滑动结束，检查是否需要关闭卡片
                             handleVerticalDragEnd()
                         } else {
-                            // 长按但没有滑动，直接打开当前中心卡片
-                            Log.d("StackedCardPreview", "长按无滑动，打开当前中心卡片")
-                            selectCurrentCard()
+                            // 长按但没有滑动，不自动打开，等待用户点击
+                            Log.d("StackedCardPreview", "长按无滑动，等待用户点击卡片")
+                            snapToNearestCard()
                         }
                     } else {
-                        // 没有达到长按时间，不做任何操作
-                        Log.d("StackedCardPreview", "未达到长按时间，忽略操作")
+                        // 没有达到长按时间，检查是否是点击操作
+                        if (isClick) {
+                            Log.d("StackedCardPreview", "检测到点击操作，打开当前中心卡片")
+                            selectCurrentCardWithFadeIn()
+                        } else {
+                            Log.d("StackedCardPreview", "未达到长按时间，忽略操作")
+                        }
                     }
 
                     // 重置所有状态
                     isLongPressSliding = false
                     isVerticalDragging = false
+                    isClick = false
                     return true
                 }
             }
@@ -553,6 +571,27 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
+     * 对齐到最近的卡片（不自动打开）
+     */
+    private fun snapToNearestCard() {
+        val targetOffset = currentCardIndex * cardSpacing
+
+        if (abs(scrollOffset - targetOffset) > 5f) {
+            // 使用动画平滑对齐
+            ValueAnimator.ofFloat(scrollOffset, targetOffset).apply {
+                duration = 200
+                addUpdateListener { animator ->
+                    scrollOffset = animator.animatedValue as Float
+                    invalidate()
+                }
+                start()
+            }
+        }
+
+        Log.d("StackedCardPreview", "对齐到卡片 $currentCardIndex，目标偏移: $targetOffset，等待用户点击")
+    }
+
+    /**
      * 选择当前中心卡片
      */
     private fun selectCurrentCard() {
@@ -567,6 +606,31 @@ class StackedCardPreview @JvmOverloads constructor(
 
             // 隐藏预览
             visibility = View.GONE
+        }
+    }
+
+    /**
+     * 选择当前中心卡片并使用淡入动画
+     */
+    private fun selectCurrentCardWithFadeIn() {
+        if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
+            Log.d("StackedCardPreview", "点击选择卡片: $currentCardIndex，使用淡入动画")
+
+            // 通知选择了卡片
+            onCardSelectedListener?.invoke(currentCardIndex)
+
+            // 重置激活状态
+            resetActivationState()
+
+            // 使用淡出动画隐藏预览
+            animate()
+                .alpha(0f)
+                .setDuration(200)
+                .withEndAction {
+                    visibility = View.GONE
+                    alpha = 1f // 重置透明度
+                }
+                .start()
         }
     }
 
@@ -631,6 +695,74 @@ class StackedCardPreview @JvmOverloads constructor(
             override fun onAnimationCancel(animation: android.animation.Animator) {
                 isInertiaScrolling = false
                 snapToNearestCardAndOpen()
+            }
+        })
+
+        animator.start()
+    }
+
+    /**
+     * 启动惯性滚动（不自动打开卡片）
+     */
+    private fun startInertiaScrollWithoutOpen() {
+        if (isInertiaScrolling) return
+
+        isInertiaScrolling = true
+        val initialVelocity = slideVelocity
+        val velocitySign = if (initialVelocity > 0) 1 else -1
+
+        Log.d("StackedCardPreview", "启动惯性滚动（不自动打开），初始速度: ${initialVelocity.toInt()}px/s")
+
+        val animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 2000 // 最大持续时间
+            interpolator = DecelerateInterpolator(2f)
+        }
+
+        var lastTime = System.currentTimeMillis()
+
+        animator.addUpdateListener { animation ->
+            val currentTime = System.currentTimeMillis()
+            val deltaTime = (currentTime - lastTime) / 1000f
+            lastTime = currentTime
+
+            // 计算当前速度（逐渐减速）
+            val progress = animation.animatedValue as Float
+            val currentVelocity = initialVelocity * (1f - progress)
+
+            // 如果速度变号或接近0，停止滚动
+            if (abs(currentVelocity) < 100f || (velocitySign > 0 && currentVelocity < 0) || (velocitySign < 0 && currentVelocity > 0)) {
+                animation.cancel()
+                return@addUpdateListener
+            }
+
+            // 更新滚动偏移
+            val deltaOffset = -currentVelocity * deltaTime
+            scrollOffset += deltaOffset
+
+            // 限制滚动范围
+            val maxOffset = (webViewCards.size - 1) * cardSpacing
+            scrollOffset = scrollOffset.coerceIn(0f, maxOffset)
+
+            // 更新当前卡片索引
+            val newCardIndex = (scrollOffset / cardSpacing + 0.5f).toInt()
+            if (newCardIndex != currentCardIndex && newCardIndex >= 0 && newCardIndex < webViewCards.size) {
+                currentCardIndex = newCardIndex
+                Log.d("StackedCardPreview", "惯性滚动切换到卡片: $currentCardIndex")
+            }
+
+            invalidate()
+        }
+
+        animator.addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                isInertiaScrolling = false
+                // 惯性滚动结束后，只对齐不自动打开
+                snapToNearestCard()
+            }
+
+            override fun onAnimationCancel(animation: android.animation.Animator) {
+                isInertiaScrolling = false
+                snapToNearestCard()
             }
         })
 
@@ -895,7 +1027,12 @@ class StackedCardPreview @JvmOverloads constructor(
     private fun drawCardPositionIndicator(canvas: Canvas, viewWidth: Float, viewHeight: Float) {
         if (webViewCards.isEmpty()) return
 
-        val indicatorY = viewHeight - 80f // 距离底部80px
+        // 计算卡片区域的顶部位置
+        val centerY = viewHeight / 2f
+        val cardTop = centerY - baseCardHeight / 2f + centerCardOffsetY
+
+        // 将指示器放在卡片上方，距离卡片顶部60px
+        val indicatorY = cardTop - 60f
         val indicatorCenterX = viewWidth / 2f
         val dotRadius = 8f
         val dotSpacing = 24f
@@ -932,16 +1069,19 @@ class StackedCardPreview @JvmOverloads constructor(
             canvas.drawCircle(dotX, indicatorY, radius, dotPaint)
         }
 
-        // 绘制卡片标题
+        // 绘制卡片标题（在指示器上方）
         if (currentCardIndex >= 0 && currentCardIndex < webViewCards.size) {
             val title = webViewCards[currentCardIndex].title
             val titlePaint = Paint().apply {
                 color = Color.WHITE
-                textSize = 32f
+                textSize = 36f
                 isAntiAlias = true
                 textAlign = Paint.Align.CENTER
+                // 添加阴影效果，提高可读性
+                setShadowLayer(4f, 0f, 2f, Color.parseColor("#80000000"))
             }
 
+            // 将标题放在指示器上方40px
             val titleY = indicatorY - 40f
             canvas.drawText(title, indicatorCenterX, titleY, titlePaint)
         }

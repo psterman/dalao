@@ -78,6 +78,9 @@ class GestureCardWebViewManager(
         fun onSwipePreviewStarted(cards: List<WebViewCardData>, currentIndex: Int)
         fun onSwipePreviewUpdated(position: Int, positionOffset: Float)
         fun onSwipePreviewEnded()
+
+        // 所有卡片关闭事件
+        fun onAllCardsRemoved()
     }
 
     init {
@@ -497,9 +500,11 @@ class GestureCardWebViewManager(
 
         onPageChangeListener?.onCardRemoved(cardData, index)
 
-        // 如果没有卡片了，创建一个新的
+        // 如果没有卡片了，不自动创建新卡片，让用户手动创建
         if (webViewCards.isEmpty()) {
-            addNewCard("about:blank")
+            Log.d(TAG, "所有卡片已关闭，等待用户手动创建新卡片")
+            // 通知监听器所有卡片已关闭
+            onPageChangeListener?.onAllCardsRemoved()
         } else {
             // 调整当前索引
             if (currentCardIndex >= webViewCards.size) {

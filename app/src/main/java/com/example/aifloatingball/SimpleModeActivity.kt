@@ -4021,6 +4021,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showAddressBarRefreshAnimation()
                 Log.d(TAG, "页面刷新")
             }
+
+            override fun onAllCardsRemoved() {
+                // 所有卡片都被关闭，显示浏览器首页
+                Log.d(TAG, "所有卡片已关闭，显示浏览器首页")
+                showBrowserHome()
+
+                // 隐藏悬浮卡片预览
+                stackedCardPreview?.visibility = View.GONE
+
+                // 显示提示信息
+                Toast.makeText(this@SimpleModeActivity, "所有标签页已关闭", Toast.LENGTH_SHORT).show()
+            }
         })
 
         // 卡片式浏览器不需要标签栏，移除相关监听器
@@ -4555,6 +4567,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 隐藏横滑预览指示器
                 hideSwipePreviewIndicator()
                 Log.d(TAG, "结束横滑预览")
+            }
+
+            override fun onAllCardsRemoved() {
+                // 所有卡片都被关闭，显示浏览器首页
+                Log.d(TAG, "所有卡片已关闭，显示浏览器首页")
+                showBrowserHome()
+
+                // 隐藏悬浮卡片预览
+                stackedCardPreview?.visibility = View.GONE
+
+                // 显示提示信息
+                Toast.makeText(this@SimpleModeActivity, "所有标签页已关闭", Toast.LENGTH_SHORT).show()
             }
         })
     }
@@ -13452,11 +13476,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 根据当前tab显示不同的视觉效果
             when (getCurrentTabIndex()) {
-                0 -> { // 对话tab - 显示简单的触摸反馈
+                0 -> { // 对话tab - 不激活悬浮卡片模式
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
                             // 对话tab按下时的视觉反馈（可选）
-                            Log.d(TAG, "对话tab区域按下，准备检测横滑手势")
+                            Log.d(TAG, "对话tab区域按下，不激活悬浮卡片模式")
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             // 对话tab松开时的处理（可选）
