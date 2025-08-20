@@ -2738,6 +2738,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.tab_search)?.apply {
             setOnClickListener { showBrowser() }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
+
+            // 添加长按手势检测
+            setOnLongClickListener {
+                activateStackedCardPreview()
+                true
+            }
         }
 
         // 任务tab (第三位，原首页)
@@ -4262,16 +4268,103 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         })
 
-        // 为WebView容器设置手势监听（仅处理原有的浏览器手势，不处理卡片切换）
+        // 为WebView容器设置手势监听
         browserWebViewContainer.setOnTouchListener { _, event ->
             // 如果抽屉已经打开，不处理手势，让抽屉优先处理触摸事件
             if (browserLayout.isDrawerOpen(GravityCompat.START) || browserLayout.isDrawerOpen(GravityCompat.END)) {
                 return@setOnTouchListener false
             }
 
-            // 只处理原有的浏览器手势（双击等），不处理卡片切换
-            browserGestureDetector.onTouchEvent(event)
-            false
+            // 检查是否有层叠卡片预览正在显示
+            val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+
+            if (isStackedPreviewVisible) {
+                // 悬浮卡片预览模式下，将触摸事件传递给StackedCardPreview处理
+                Log.d(TAG, "悬浮卡片预览可见，传递触摸事件给StackedCardPreview")
+
+                // 将触摸坐标转换为StackedCardPreview的坐标系
+                stackedCardPreview?.let { preview ->
+                    val location = IntArray(2)
+                    browserWebViewContainer.getLocationOnScreen(location)
+                    val previewLocation = IntArray(2)
+                    preview.getLocationOnScreen(previewLocation)
+
+                    val relativeX = location[0] - previewLocation[0] + event.x
+                    val relativeY = location[1] - previewLocation[1] + event.y
+
+                    // 创建相对坐标的触摸事件
+                    val relativeEvent = MotionEvent.obtain(
+                        event.downTime,
+                        event.eventTime,
+                        event.action,
+                        relativeX,
+                        relativeY,
+                        event.metaState
+                    )
+
+                    // 传递给StackedCardPreview处理长按滑动
+                    val handled = preview.dispatchTouchEvent(relativeEvent)
+                    relativeEvent.recycle()
+
+                    Log.d(TAG, "触摸事件传递结果: $handled, 动作: ${event.action}")
+                    handled
+                } ?: false
+            } else {
+                // 正常模式下，处理原有的浏览器手势（双击等）
+                browserGestureDetector.onTouchEvent(event)
+                false
+            }
+        }
+
+        // 设置全局触摸监听
+        setupGlobalTouchListener()
+    }
+
+    /**
+     * 设置全局触摸监听，确保悬浮卡片在任何地方都能响应触摸
+     */
+    private fun setupGlobalTouchListener() {
+        val mainLayout = findViewById<LinearLayout>(R.id.simple_mode_main_layout)
+        mainLayout?.setOnTouchListener { view, event ->
+            // 检查是否有悬浮卡片预览正在显示
+            val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+
+            if (isStackedPreviewVisible) {
+                // 悬浮卡片预览模式下，将触摸事件传递给StackedCardPreview处理
+                Log.d(TAG, "全局触摸，悬浮卡片预览可见，传递触摸事件给StackedCardPreview")
+
+                // 将触摸坐标转换为StackedCardPreview的坐标系
+                stackedCardPreview?.let { preview ->
+                    val location = IntArray(2)
+                    view.getLocationOnScreen(location)
+                    val previewLocation = IntArray(2)
+                    preview.getLocationOnScreen(previewLocation)
+
+                    val relativeX = location[0] - previewLocation[0] + event.x
+                    val relativeY = location[1] - previewLocation[1] + event.y
+
+                    // 创建相对坐标的触摸事件
+                    val relativeEvent = MotionEvent.obtain(
+                        event.downTime,
+                        event.eventTime,
+                        event.action,
+                        relativeX,
+                        relativeY,
+                        event.metaState
+                    )
+
+                    // 传递给StackedCardPreview处理长按滑动
+                    val handled = preview.dispatchTouchEvent(relativeEvent)
+                    relativeEvent.recycle()
+
+                    Log.d(TAG, "全局触摸事件传递结果: $handled, 动作: ${event.action}")
+                    // 如果悬浮卡片处理了事件，就消费掉，否则让其他组件处理
+                    handled
+                } ?: false
+            } else {
+                // 没有悬浮卡片时，不消费事件，让其他组件正常处理
+                false
+            }
         }
     }
 
@@ -13008,7 +13101,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
         bottomNav?.setOnLongClickListener {
             if (getCurrentTabIndex() == 1) {
-                testWebViewCardSwitching()
+                // 调试：强制显示层叠卡片预览
+                debugShowStackedCards()
             } else {
                 Toast.makeText(this@SimpleModeActivity, "请先切换到搜索tab再测试", Toast.LENGTH_SHORT).show()
             }
@@ -13108,6 +13202,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 切换到选中的卡片
                     switchToWebViewCard(cardIndex)
                 }
+
+                // 设置卡片关闭监听器
+                setOnCardCloseListener { cardIndex ->
+                    // 关闭指定的webview卡片
+                    closeWebViewCard(cardIndex)
+                }
             }
 
             // 保留原有的Material波浪追踪器作为备用
@@ -13139,7 +13239,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         ViewGroup.LayoutParams.MATCH_PARENT
                     )
 
-                    // 设置为完全不可交互，让触摸事件穿透到底层
+                    // 初始状态设置为不可交互，激活时会重新设置
                     isClickable = false
                     isFocusable = false
                     isFocusableInTouchMode = false
@@ -13147,8 +13247,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 初始状态隐藏
                     visibility = View.GONE
 
-                    // 确保不拦截触摸事件
-                    setOnTouchListener { _, _ -> false }
+                    // 不设置OnTouchListener，让StackedCardPreview自己处理触摸事件
                 }
 
                 // 将Material波浪追踪器添加到DecorView作为覆盖层（备用）
@@ -13278,10 +13377,79 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 关闭指定的webview卡片
+     */
+    private fun closeWebViewCard(cardIndex: Int) {
+        try {
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                if (cardIndex >= 0 && cardIndex < allCards.size) {
+                    val cardData = allCards[cardIndex]
+
+                    // 关闭webview
+                    cardData.webView?.destroy()
+
+                    // 从管理器中移除卡片
+                    manager.removeCard(cardIndex)
+
+                    Log.d(TAG, "✅ 关闭webview卡片: $cardIndex (${cardData.title})")
+
+                    // 更新卡片数据
+                    updateWaveTrackerCards()
+                } else {
+                    Log.w(TAG, "⚠️ 无效的卡片索引: $cardIndex")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 关闭webview卡片失败", e)
+        }
+    }
+
+
+
+
+
+    /**
      * 为单个tab设置手势检测
      */
     private fun setupTabGestureDetection(tabView: LinearLayout, gestureDetector: GestureDetector) {
         tabView.setOnTouchListener { view, event ->
+            // 检查是否有悬浮卡片预览正在显示
+            val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+
+            if (isStackedPreviewVisible) {
+                // 悬浮卡片预览模式下，将触摸事件传递给StackedCardPreview处理
+                Log.d(TAG, "tab区域触摸，悬浮卡片预览可见，传递触摸事件给StackedCardPreview")
+
+                // 将触摸坐标转换为StackedCardPreview的坐标系
+                stackedCardPreview?.let { preview ->
+                    val location = IntArray(2)
+                    view.getLocationOnScreen(location)
+                    val previewLocation = IntArray(2)
+                    preview.getLocationOnScreen(previewLocation)
+
+                    val relativeX = location[0] - previewLocation[0] + event.x
+                    val relativeY = location[1] - previewLocation[1] + event.y
+
+                    // 创建相对坐标的触摸事件
+                    val relativeEvent = MotionEvent.obtain(
+                        event.downTime,
+                        event.eventTime,
+                        event.action,
+                        relativeX,
+                        relativeY,
+                        event.metaState
+                    )
+
+                    // 传递给StackedCardPreview处理长按滑动
+                    val handled = preview.dispatchTouchEvent(relativeEvent)
+                    relativeEvent.recycle()
+
+                    Log.d(TAG, "tab触摸事件传递结果: $handled, 动作: ${event.action}")
+                    return@setOnTouchListener handled
+                } ?: false
+            }
+
             // 根据当前tab显示不同的视觉效果
             when (getCurrentTabIndex()) {
                 0 -> { // 对话tab - 显示简单的触摸反馈
@@ -13775,6 +13943,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             ): Boolean {
                 if (e1 == null) return false
 
+                // 检查是否有悬浮卡片预览正在显示
+                val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+                if (isStackedPreviewVisible) {
+                    // 悬浮卡片显示时，不处理页面切换手势
+                    Log.d(TAG, "悬浮卡片预览可见，不处理页面切换手势")
+                    return false
+                }
+
                 // 防抖处理
                 val currentTime = System.currentTimeMillis()
                 if (currentTime - lastSearchTabSwipeTime < swipeDebounceDelay) {
@@ -13804,14 +13980,55 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             override fun onDown(e: MotionEvent): Boolean {
-                // 显示手势提示
-                showSearchTabSwipeIndicator("滑动切换")
+                // 检查是否有悬浮卡片预览正在显示
+                val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+                if (!isStackedPreviewVisible) {
+                    // 只有在没有悬浮卡片时才显示手势提示
+                    showSearchTabSwipeIndicator("滑动切换")
+                }
                 return true
             }
         })
 
-        return View.OnTouchListener { _, event ->
-            gestureDetector.onTouchEvent(event)
+        return View.OnTouchListener { view, event ->
+            // 检查是否有悬浮卡片预览正在显示
+            val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
+
+            if (isStackedPreviewVisible) {
+                // 悬浮卡片预览模式下，将触摸事件传递给StackedCardPreview处理
+                Log.d(TAG, "搜索tab区域触摸，悬浮卡片预览可见，传递触摸事件给StackedCardPreview")
+
+                // 将触摸坐标转换为StackedCardPreview的坐标系
+                stackedCardPreview?.let { preview ->
+                    val location = IntArray(2)
+                    view.getLocationOnScreen(location)
+                    val previewLocation = IntArray(2)
+                    preview.getLocationOnScreen(previewLocation)
+
+                    val relativeX = location[0] - previewLocation[0] + event.x
+                    val relativeY = location[1] - previewLocation[1] + event.y
+
+                    // 创建相对坐标的触摸事件
+                    val relativeEvent = MotionEvent.obtain(
+                        event.downTime,
+                        event.eventTime,
+                        event.action,
+                        relativeX,
+                        relativeY,
+                        event.metaState
+                    )
+
+                    // 传递给StackedCardPreview处理长按滑动
+                    val handled = preview.dispatchTouchEvent(relativeEvent)
+                    relativeEvent.recycle()
+
+                    Log.d(TAG, "搜索tab触摸事件传递结果: $handled, 动作: ${event.action}")
+                    return@OnTouchListener handled
+                } ?: false
+            } else {
+                // 正常模式下，处理页面切换手势
+                gestureDetector.onTouchEvent(event)
+            }
         }
     }
 
@@ -14291,6 +14508,195 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "激活搜索tab卡片预览窗口失败", e)
             // 如果预览模式不可用，显示简单对话框
             showSimpleCardPreviewDialog()
+        }
+    }
+
+    /**
+     * 激活层叠卡片预览（长按搜索tab触发）
+     */
+    private fun activateStackedCardPreview() {
+        try {
+            Log.d(TAG, "长按搜索tab，激活层叠卡片预览")
+
+            // 检查是否有webview卡片
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                if (allCards.isEmpty()) {
+                    Toast.makeText(this, "没有打开的网页卡片", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                Log.d(TAG, "找到 ${allCards.size} 个webview卡片，显示层叠预览")
+
+                // 显示层叠卡片预览
+                stackedCardPreview?.apply {
+                    // 确保重置为层叠模式（不是悬浮模式）
+                    resetToStackedMode()
+
+                    // 更新卡片数据
+                    updateWaveTrackerCards()
+
+                    // 启用层叠预览模式的交互
+                    enableStackedInteraction()
+
+                    // 显示预览器
+                    visibility = View.VISIBLE
+
+                    Log.d(TAG, "层叠卡片预览已激活，显示 ${allCards.size} 张卡片，交互已启用")
+                }
+
+                // 给用户详细的操作提示
+                val message = """
+                    已显示 ${allCards.size} 张网页卡片
+
+                    操作说明：
+                    • 长按并左右滑动：切换卡片
+                    • 长按并向上滑动：关闭卡片
+                    • 长按后松开：打开当前卡片
+                    • 快速滑动：惯性滚动
+                """.trimIndent()
+
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+
+            } ?: run {
+                Log.w(TAG, "gestureCardWebViewManager 为 null")
+                Toast.makeText(this, "卡片管理器未初始化", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "激活层叠卡片预览失败", e)
+            Toast.makeText(this, "激活卡片预览失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 处理层叠卡片预览的触摸事件
+     */
+    private fun handleStackedCardPreviewTouch(event: MotionEvent) {
+        try {
+            stackedCardPreview?.let { preview ->
+                // 将触摸坐标转换为层叠卡片预览器的坐标系
+                val location = IntArray(2)
+                browserWebViewContainer.getLocationOnScreen(location)
+                val previewLocation = IntArray(2)
+                preview.getLocationOnScreen(previewLocation)
+
+                val relativeX = location[0] - previewLocation[0] + event.x
+                val relativeY = location[1] - previewLocation[1] + event.y
+
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        Log.d(TAG, "层叠预览 - 手指按下: ($relativeX, $relativeY)")
+                        // 更新手指位置，开始悬停检测
+                        preview.updateFingerPosition(relativeX, relativeY)
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        Log.d(TAG, "层叠预览 - 手指移动: ($relativeX, $relativeY)")
+                        // 继续更新手指位置，实时悬停检测
+                        preview.updateFingerPosition(relativeX, relativeY)
+                    }
+
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        Log.d(TAG, "层叠预览 - 手指抬起，进入悬浮模式")
+                        // 手指抬起，停止预览并进入悬浮模式
+                        preview.stopWave()
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理层叠卡片预览触摸事件失败", e)
+        }
+    }
+
+    /**
+     * 测试搜索tab长按激活层叠卡片功能
+     */
+    private fun testSearchTabLongPressStackedCards() {
+        try {
+            Log.d(TAG, "测试搜索tab长按激活层叠卡片功能")
+
+            // 检查是否在搜索tab
+            if (getCurrentTabIndex() != 1) {
+                Toast.makeText(this, "请先切换到搜索tab", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // 检查是否有webview卡片
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                if (allCards.isEmpty()) {
+                    Toast.makeText(this, "请先打开一些网页，然后再测试", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                Log.d(TAG, "找到 ${allCards.size} 个webview卡片")
+
+                // 模拟长按激活
+                activateStackedCardPreview()
+
+                Toast.makeText(this, "层叠卡片预览已激活，可以用手指移动来悬停卡片", Toast.LENGTH_LONG).show()
+
+            } ?: run {
+                Toast.makeText(this, "WebView管理器未初始化", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "测试搜索tab长按功能失败", e)
+            Toast.makeText(this, "测试失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 调试：强制显示层叠卡片预览
+     */
+    private fun debugShowStackedCards() {
+        try {
+            Log.d(TAG, "调试：强制显示层叠卡片预览")
+
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                Log.d(TAG, "调试：找到 ${allCards.size} 个webview卡片")
+
+                if (allCards.isEmpty()) {
+                    // 如果没有卡片，创建一些测试卡片
+                    Log.d(TAG, "调试：没有卡片，创建测试数据")
+                    val testCards = listOf(
+                        com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
+                            title = "测试卡片1",
+                            url = "https://www.baidu.com",
+                            favicon = null,
+                            screenshot = null
+                        ),
+                        com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
+                            title = "测试卡片2",
+                            url = "https://www.google.com",
+                            favicon = null,
+                            screenshot = null
+                        ),
+                        com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
+                            title = "测试卡片3",
+                            url = "https://www.github.com",
+                            favicon = null,
+                            screenshot = null
+                        )
+                    )
+
+                    stackedCardPreview?.apply {
+                        resetToStackedMode()
+                        setWebViewCards(testCards)
+                        enableStackedInteraction()
+                        visibility = View.VISIBLE
+                    }
+
+                    Toast.makeText(this, "调试：已显示3张测试卡片", Toast.LENGTH_LONG).show()
+                } else {
+                    // 使用真实卡片
+                    activateStackedCardPreview()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "调试显示层叠卡片失败", e)
+            Toast.makeText(this, "调试失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
