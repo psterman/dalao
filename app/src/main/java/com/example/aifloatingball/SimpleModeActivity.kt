@@ -303,8 +303,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserGestureDetector: GestureDetectorCompat
     private var currentSearchEngine: com.example.aifloatingball.model.SearchEngine? = null
 
-    // Material波浪追踪器
+    // Material波浪追踪器（已弃用）
     private var materialWaveTracker: com.example.aifloatingball.views.MaterialWaveTracker? = null
+
+    // 层叠卡片预览器
+    private var stackedCardPreview: com.example.aifloatingball.views.StackedCardPreview? = null
 
 
 
@@ -13047,14 +13050,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         0 -> { // 0 = CHAT (对话tab)
                             if (deltaX > 0) {
                                 // 向右滑动，切换到下一个对话标签（右边的标签）
-                                switchToNextChatTab()
-                                showChatTabSwipeIndicator("下一个标签")
-                                Log.d(TAG, "✅ 底部tab右滑成功 - 切换到下一个对话标签")
+                                val targetTabName = switchToNextChatTab()
+                                showChatTabSwipeIndicator(targetTabName ?: "下一个标签")
+                                Log.d(TAG, "✅ 底部tab右滑成功 - 切换到下一个对话标签: $targetTabName")
                             } else {
                                 // 向左滑动，切换到上一个对话标签（左边的标签）
-                                switchToPreviousChatTab()
-                                showChatTabSwipeIndicator("上一个标签")
-                                Log.d(TAG, "✅ 底部tab左滑成功 - 切换到上一个对话标签")
+                                val targetTabName = switchToPreviousChatTab()
+                                showChatTabSwipeIndicator(targetTabName ?: "上一个标签")
+                                Log.d(TAG, "✅ 底部tab左滑成功 - 切换到上一个对话标签: $targetTabName")
                             }
                             return true
                         }
@@ -13091,11 +13094,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 设置Material波浪追踪器
+     * 设置Material波浪追踪器和层叠卡片预览器
      */
     private fun setupMaterialWaveTracker() {
         try {
-            // 创建卡片预览波浪追踪器
+            // 创建层叠卡片预览器（新的主要预览方式）
+            stackedCardPreview = com.example.aifloatingball.views.StackedCardPreview(this).apply {
+                // 设置层级
+                elevation = 18f
+
+                // 设置卡片选择监听器
+                setOnCardSelectedListener { cardIndex ->
+                    // 切换到选中的卡片
+                    switchToWebViewCard(cardIndex)
+                }
+            }
+
+            // 保留原有的Material波浪追踪器作为备用
             materialWaveTracker = com.example.aifloatingball.views.MaterialWaveTracker(this).apply {
                 // 设置卡片颜色
                 setCardColor(android.graphics.Color.WHITE)
@@ -13110,13 +13125,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
             }
 
-            // 将波浪追踪器添加为独立的覆盖层，不影响底部导航栏
+            // 将预览器添加为独立的覆盖层，不影响底部导航栏
             // 获取Activity的根视图（DecorView），这样不会影响布局
             val decorView = window.decorView as ViewGroup
             val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
 
             if (decorView != null && bottomNav != null) {
-                // 将波浪追踪器添加到DecorView作为覆盖层，完全不影响原有布局
+                // 添加层叠卡片预览器（主要预览方式）
+                stackedCardPreview?.apply {
+                    // 设置为全屏覆盖，但不影响布局
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+
+                    // 设置为完全不可交互，让触摸事件穿透到底层
+                    isClickable = false
+                    isFocusable = false
+                    isFocusableInTouchMode = false
+                    isEnabled = false
+                    // 初始状态隐藏
+                    visibility = View.GONE
+
+                    // 确保不拦截触摸事件
+                    setOnTouchListener { _, _ -> false }
+                }
+
+                // 将Material波浪追踪器添加到DecorView作为覆盖层（备用）
                 materialWaveTracker?.apply {
                     // 设置为全屏覆盖，但不影响布局
                     layoutParams = ViewGroup.LayoutParams(
@@ -13137,6 +13172,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
 
                 // 添加到DecorView作为最顶层的覆盖层，不影响原有布局
+                decorView.addView(stackedCardPreview)
                 decorView.addView(materialWaveTracker)
 
                 // 初始化卡片数据
@@ -13152,13 +13188,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 更新波浪追踪器的卡片数据
+     * 更新卡片预览器的卡片数据
      */
     private fun updateWaveTrackerCards() {
         try {
             gestureCardWebViewManager?.let { manager ->
                 val allCards = manager.getAllCards()
-                val cardDataList = allCards.map { cardData ->
+
+                // 为MaterialWaveTracker准备数据
+                val waveTrackerCardDataList = allCards.map { cardData ->
                     com.example.aifloatingball.views.MaterialWaveTracker.WebViewCardData(
                         title = cardData.title ?: "无标题",
                         url = cardData.url ?: "",
@@ -13182,11 +13220,38 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     )
                 }
 
-                materialWaveTracker?.updateWebViewCards(cardDataList)
-                Log.d(TAG, "✅ 更新了 ${cardDataList.size} 个卡片到波浪追踪器")
+                // 为StackedCardPreview准备数据
+                val stackedCardDataList = allCards.map { cardData ->
+                    com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
+                        title = cardData.title ?: "无标题",
+                        url = cardData.url ?: "",
+                        favicon = null, // 可以后续添加favicon支持
+                        screenshot = cardData.webView?.let { webView ->
+                            // 尝试获取WebView截图
+                            try {
+                                val bitmap = Bitmap.createBitmap(
+                                    webView.width,
+                                    webView.height,
+                                    Bitmap.Config.ARGB_8888
+                                )
+                                val canvas = Canvas(bitmap)
+                                webView.draw(canvas)
+                                bitmap
+                            } catch (e: Exception) {
+                                Log.w(TAG, "获取WebView截图失败", e)
+                                null
+                            }
+                        }
+                    )
+                }
+
+                // 更新两个预览器
+                materialWaveTracker?.updateWebViewCards(waveTrackerCardDataList)
+                stackedCardPreview?.setWebViewCards(stackedCardDataList)
+                Log.d(TAG, "✅ 更新了 ${stackedCardDataList.size} 个卡片到预览器")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ 更新波浪追踪器卡片数据失败", e)
+            Log.e(TAG, "❌ 更新卡片预览器数据失败", e)
         }
     }
 
@@ -13231,11 +13296,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         }
                     }
                 }
-                1 -> { // 搜索tab - 显示卡片预览波浪效果
+                1 -> { // 搜索tab - 显示层叠卡片预览效果
                     when (event.action) {
                         MotionEvent.ACTION_DOWN -> {
-                            // 显示波浪追踪器，但确保不阻挡底部导航栏
-                            materialWaveTracker?.apply {
+                            // 显示层叠卡片预览器，但确保不阻挡底部导航栏
+                            stackedCardPreview?.apply {
                                 visibility = View.VISIBLE
                                 // 强制设置为不可交互
                                 isClickable = false
@@ -13246,17 +13311,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 setOnTouchListener { _, _ -> false }
                             }
 
-                            // 将触摸坐标转换为波浪追踪器的坐标系
+                            // 将触摸坐标转换为层叠卡片预览器的坐标系
                             val location = IntArray(2)
                             view.getLocationOnScreen(location)
-                            val waveLocation = IntArray(2)
-                            materialWaveTracker?.getLocationOnScreen(waveLocation)
+                            val stackedLocation = IntArray(2)
+                            stackedCardPreview?.getLocationOnScreen(stackedLocation)
 
-                            val relativeX = location[0] - waveLocation[0] + event.x
-                            val relativeY = location[1] - waveLocation[1] + event.y
+                            val relativeX = location[0] - stackedLocation[0] + event.x
+                            val relativeY = location[1] - stackedLocation[1] + event.y
 
                             // 更新手指位置，显示卡片预览
-                            materialWaveTracker?.updateFingerPosition(relativeX, relativeY)
+                            stackedCardPreview?.updateFingerPosition(relativeX, relativeY)
 
                             // 确保卡片数据是最新的
                             updateWaveTrackerCards()
@@ -13265,18 +13330,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             // 继续更新手指位置
                             val location = IntArray(2)
                             view.getLocationOnScreen(location)
-                            val waveLocation = IntArray(2)
-                            materialWaveTracker?.getLocationOnScreen(waveLocation)
+                            val stackedLocation = IntArray(2)
+                            stackedCardPreview?.getLocationOnScreen(stackedLocation)
 
-                            val relativeX = location[0] - waveLocation[0] + event.x
-                            val relativeY = location[1] - waveLocation[1] + event.y
+                            val relativeX = location[0] - stackedLocation[0] + event.x
+                            val relativeY = location[1] - stackedLocation[1] + event.y
 
-                            materialWaveTracker?.updateFingerPosition(relativeX, relativeY)
+                            stackedCardPreview?.updateFingerPosition(relativeX, relativeY)
                         }
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             // 停止卡片预览效果并隐藏
-                            materialWaveTracker?.stopWave()
-                            materialWaveTracker?.visibility = View.GONE
+                            stackedCardPreview?.stopWave()
+                            stackedCardPreview?.visibility = View.GONE
                         }
                     }
                 }
@@ -13879,13 +13944,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 切换到上一个对话标签
+     * @return 目标标签的名称
      */
-    private fun switchToPreviousChatTab() {
+    private fun switchToPreviousChatTab(): String? {
         try {
             val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
             if (chatTabLayout == null) {
                 Log.w(TAG, "对话TabLayout未找到")
-                return
+                return null
             }
 
             val currentPosition = chatTabLayout.selectedTabPosition
@@ -13893,7 +13959,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             if (tabCount <= 1) {
                 Log.d(TAG, "只有一个标签，无法切换")
-                return
+                return null
             }
 
             // 计算上一个标签位置（跳过"+"按钮）
@@ -13912,23 +13978,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 切换到目标标签
             if (previousPosition >= 0 && previousPosition < tabCount) {
-                chatTabLayout.getTabAt(previousPosition)?.select()
-                Log.d(TAG, "✅ 切换到上一个对话标签: $previousPosition")
+                val finalTargetTab = chatTabLayout.getTabAt(previousPosition)
+                finalTargetTab?.select()
+                val tabName = finalTargetTab?.text?.toString()
+                Log.d(TAG, "✅ 切换到上一个对话标签: $previousPosition ($tabName)")
+                return tabName
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 切换到上一个对话标签失败", e)
         }
+        return null
     }
 
     /**
      * 切换到下一个对话标签
+     * @return 目标标签的名称
      */
-    private fun switchToNextChatTab() {
+    private fun switchToNextChatTab(): String? {
         try {
             val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
             if (chatTabLayout == null) {
                 Log.w(TAG, "对话TabLayout未找到")
-                return
+                return null
             }
 
             val currentPosition = chatTabLayout.selectedTabPosition
@@ -13936,7 +14007,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             if (tabCount <= 1) {
                 Log.d(TAG, "只有一个标签，无法切换")
-                return
+                return null
             }
 
             // 计算下一个标签位置（跳过"+"按钮）
@@ -13955,12 +14026,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 切换到目标标签
             if (nextPosition >= 0 && nextPosition < tabCount) {
-                chatTabLayout.getTabAt(nextPosition)?.select()
-                Log.d(TAG, "✅ 切换到下一个对话标签: $nextPosition")
+                val finalTargetTab = chatTabLayout.getTabAt(nextPosition)
+                finalTargetTab?.select()
+                val tabName = finalTargetTab?.text?.toString()
+                Log.d(TAG, "✅ 切换到下一个对话标签: $nextPosition ($tabName)")
+                return tabName
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 切换到下一个对话标签失败", e)
         }
+        return null
     }
 
     /**
@@ -14037,16 +14112,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     /**
      * 显示对话tab横滑指示器
      */
-    private fun showChatTabSwipeIndicator(action: String = "左右滑动切换标签") {
+    private fun showChatTabSwipeIndicator(tabName: String = "左右滑动切换标签") {
         chatTabSwipeIndicator?.apply {
             // 更新提示文字 - 查找LinearLayout中的TextView
             val frameLayout = this as FrameLayout
             val container = frameLayout.getChildAt(0) as? LinearLayout
             val hintText = container?.getChildAt(1) as? TextView // 中间的提示文字
-            hintText?.text = when (action) {
-                "上一个标签" -> "◀ 上一个标签"
-                "下一个标签" -> "下一个标签 ▶"
-                else -> "左右滑动切换标签"
+
+            // 显示当前切换到的标签名称
+            hintText?.text = if (tabName == "左右滑动切换标签") {
+                tabName
+            } else {
+                "当前: $tabName"
             }
 
             visibility = View.VISIBLE
