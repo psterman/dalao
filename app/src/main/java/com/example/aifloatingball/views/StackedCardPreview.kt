@@ -82,10 +82,6 @@ class StackedCardPreview @JvmOverloads constructor(
     private var webViewCards = listOf<WebViewCardData>()
     private var currentCardIndex = 0 // 当前中心显示的卡片索引
 
-    // 长按激活相关
-    private var isLongPressActivated = false // 是否已通过长按激活
-    private var longPressStartTime = 0L // 长按开始时间
-    private val longPressThreshold = 500L // 长按阈值（毫秒）
 
     // 长按滑动相关
     private var isLongPressSliding = false // 是否在长按滑动状态
@@ -108,6 +104,9 @@ class StackedCardPreview @JvmOverloads constructor(
     // 点击检测相关
     private var isClick = false // 是否是点击操作
     private var clickThreshold = 20f // 点击阈值（像素）
+
+    private var longPressStartTime = 0L
+    private var isLongPressActivated = false
 
     // 动画参数
     private var cardAnimator: ValueAnimator? = null
@@ -307,34 +306,25 @@ class StackedCardPreview @JvmOverloads constructor(
                         Log.d("StackedCardPreview", "移动距离超过阈值，不是点击操作")
                     }
 
-                    // 检查是否达到长按时间且还没有激活
-                    if (!isLongPressActivated && (currentTime - longPressStartTime) >= longPressThreshold) {
-                        isLongPressActivated = true
-                        Log.d("StackedCardPreview", "长按激活成功！悬浮卡片已显示")
-                        // 这里不需要做什么，卡片已经在显示了
+                    // 直接处理滑动
+                    // 检测是否开始滑动
+                    if (!isLongPressSliding && !isVerticalDragging && distance > 30f) {
+                        // 判断是水平还是垂直滑动
+                        if (abs(deltaX) > abs(deltaY)) {
+                            isLongPressSliding = true
+                            Log.d("StackedCardPreview", "开始水平滑动")
+                        } else {
+                            isVerticalDragging = true
+                            Log.d("StackedCardPreview", "开始垂直拖拽（关闭卡片）")
+                        }
                     }
 
-                    // 只有在长按激活后才能进行滑动操作
-                    if (isLongPressActivated) {
-                        // 检测是否开始滑动
-                        if (!isLongPressSliding && !isVerticalDragging && distance > 30f) {
-                            // 判断是水平还是垂直滑动
-                            if (abs(deltaX) > abs(deltaY)) {
-                                isLongPressSliding = true
-                                Log.d("StackedCardPreview", "开始长按水平滑动")
-                            } else {
-                                isVerticalDragging = true
-                                Log.d("StackedCardPreview", "开始垂直拖拽（关闭卡片）")
-                            }
-                        }
-
-                        if (isLongPressSliding) {
-                            // 长按水平滑动控制卡片
-                            handleLongPressSlide(deltaX)
-                        } else if (isVerticalDragging) {
-                            // 垂直滑动关闭中心卡片
-                            handleVerticalDrag(deltaY)
-                        }
+                    if (isLongPressSliding) {
+                        // 水平滑动控制卡片
+                        handleLongPressSlide(deltaX)
+                    } else if (isVerticalDragging) {
+                        // 垂直滑动关闭中心卡片
+                        handleVerticalDrag(deltaY)
                     }
 
                     return true
@@ -342,40 +332,32 @@ class StackedCardPreview @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                Log.d("StackedCardPreview", "手指脱离屏幕，激活状态: $isLongPressActivated, 滑动状态: $isLongPressSliding")
+                Log.d("StackedCardPreview", "手指脱离屏幕，滑动状态: $isLongPressSliding")
 
                 if (isTracking) {
                     isTracking = false
 
-                    if (isLongPressActivated) {
-                        if (isLongPressSliding) {
-                            // 长按滑动结束，检查是否需要惯性滚动
-                            Log.d("StackedCardPreview", "长按滑动结束，速度: ${slideVelocity.toInt()}px/s")
+                    if (isLongPressSliding) {
+                        // 水平滑动结束，检查是否需要惯性滚动
+                        Log.d("StackedCardPreview", "水平滑动结束，速度: ${slideVelocity.toInt()}px/s")
 
-                            if (abs(slideVelocity) > 1000f) {
-                                // 速度足够快，启动惯性滚动
-                                startInertiaScrollWithoutOpen()
-                            } else {
-                                // 速度较慢，直接对齐到最近的卡片
-                                snapToNearestCard()
-                            }
-                        } else if (isVerticalDragging) {
-                            // 垂直滑动结束，检查是否需要关闭卡片
-                            handleVerticalDragEnd()
-                            vibrate(VibrationType.IMPORTANT) // 重要操作震动
+                        if (abs(slideVelocity) > 1000f) {
+                            // 速度足够快，启动惯性滚动
+                            startInertiaScrollWithoutOpen()
                         } else {
-                            // 长按但没有滑动，不自动打开，等待用户点击
-                            Log.d("StackedCardPreview", "长按无滑动，等待用户点击卡片")
+                            // 速度较慢，直接对齐到最近的卡片
                             snapToNearestCard()
                         }
+                    } else if (isVerticalDragging) {
+                        // 垂直滑动结束，检查是否需要关闭卡片
+                        handleVerticalDragEnd()
+                        vibrate(VibrationType.IMPORTANT) // 重要操作震动
                     } else {
-                        // 没有达到长按时间，检查是否是点击操作
+                        // 如果是点击操作，则立即打开卡片
                         if (isClick) {
-                            Log.d("StackedCardPreview", "检测到点击操作，打开当前中心卡片")
+                            Log.d("StackedCardPreview", "检测到点击操作，立即打开当前中心卡片")
                             selectCurrentCardWithFadeIn()
                             vibrate(VibrationType.BASIC) // 基本操作震动
-                        } else {
-                            Log.d("StackedCardPreview", "未达到长按时间，忽略操作")
                         }
                     }
 
@@ -400,7 +382,7 @@ class StackedCardPreview @JvmOverloads constructor(
             val effect = when (type) {
                 VibrationType.BASIC -> VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE) // 基本操作
                 VibrationType.IMPORTANT -> VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE) // 重要操作
-                VibrationType.LIGHT -> VibrationEffect.createWaveform(longArrayOf(0, 20, 20, 20), -1) // 浏览操作
+                VibrationType.BROWSING -> VibrationEffect.createWaveform(longArrayOf(0, 20, 20, 20), -1) // 浏览操作
             }
             vibrator.vibrate(effect)
         }
@@ -408,7 +390,28 @@ class StackedCardPreview @JvmOverloads constructor(
 
     // 震动类型枚举
     enum class VibrationType {
-        BASIC, IMPORTANT, LIGHT
+        BASIC, IMPORTANT, BROWSING
+    }
+
+    /**
+     * 重置激活状态
+     */
+    fun resetActivationState() {
+        isLongPressActivated = false
+        longPressStartTime = 0L
+        // Add any other state resets needed
+    }
+
+    /**
+     * 重置视图状态
+     */
+    fun reset() {
+        visibility = View.GONE
+        resetActivationState()
+        webViewCards = emptyList()
+        currentCardIndex = 0
+        scrollOffset = 0f
+        invalidate()
     }
 
     /**
@@ -438,20 +441,10 @@ class StackedCardPreview @JvmOverloads constructor(
         val newCardIndex = (scrollOffset / cardSpacing + 0.5f).toInt()
         if (newCardIndex != currentCardIndex && newCardIndex >= 0 && newCardIndex < webViewCards.size) {
             currentCardIndex = newCardIndex
-            Log.d("StackedCardPreview", "长按滑动切换到卡片: $currentCardIndex (${webViewCards[currentCardIndex].title}) 速度: ${slideVelocity.toInt()}px/s")
+            Log.d("StackedCardPreview", "滑动切换到卡片: $currentCardIndex (${webViewCards[currentCardIndex].title}) 速度: ${slideVelocity.toInt()}px/s")
 
-            // 提供触觉反馈
-            try {
-                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    vibrator?.vibrate(VibrationEffect.createOneShot(10, VibrationEffect.DEFAULT_AMPLITUDE))
-                } else {
-                    @Suppress("DEPRECATION")
-                    vibrator?.vibrate(10)
-                }
-            } catch (e: Exception) {
-                // 忽略振动错误
-            }
+            // 提供浏览操作的震动反馈
+            vibrate(VibrationType.BROWSING)
         }
 
         // 重新绘制
@@ -808,37 +801,29 @@ class StackedCardPreview @JvmOverloads constructor(
         animator.start()
     }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     /**
      * 重置激活状态
      */
-    private fun resetActivationState() {
-        isLongPressActivated = false
-        isLongPressSliding = false
-        isVerticalDragging = false
-        isTracking = false
-        centerCardOffsetY = 0f
-        lastSlideTime = 0L
-        slideVelocity = 0f
-        isInertiaScrolling = false
-        Log.d("StackedCardPreview", "重置激活状态")
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
     override fun onDraw(canvas: Canvas) {
@@ -885,8 +870,13 @@ class StackedCardPreview @JvmOverloads constructor(
         // 计算起始X位置，让当前卡片居中
         val startX = centerX - scrollOffset
 
-        // 绘制所有卡片
-        for (i in webViewCards.indices) {
+        // 性能优化：只绘制可见区域的卡片，避免遍历所有卡片
+        // 计算可见卡片的索引范围，增加一些余量
+        val firstVisibleIndex = ((scrollOffset - viewWidth / 2 - cardWidth) / cardSpacing).toInt().coerceAtLeast(0)
+        val lastVisibleIndex = ((scrollOffset + viewWidth / 2 + cardWidth) / cardSpacing).toInt().coerceAtMost(webViewCards.size - 1)
+
+        // 只绘制可见范围内的卡片
+        for (i in firstVisibleIndex..lastVisibleIndex) {
             val cardData = webViewCards[i]
 
             // 计算卡片位置
@@ -1143,7 +1133,6 @@ class StackedCardPreview @JvmOverloads constructor(
         // 重置所有状态
         isParallelMode = true
         currentCardIndex = 0
-        resetActivationState()
         scrollOffset = 0f
 
         // 设置为可交互（平行模式下需要处理触摸事件）

@@ -764,6 +764,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 隐藏悬浮卡片预览并重置其状态
+     */
+    private fun deactivateStackedCardPreview() {
+        stackedCardPreview?.let {
+            it.visibility = View.GONE
+            it.reset()
+            Log.d(TAG, "悬浮卡片预览已停用")
+        }
+    }
+
+    /**
      * 递归更新卡片背景
      */
     private fun updateCardBackgroundsRecursively(view: View, cardBackground: Int) {
@@ -824,6 +835,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 更新所有Tab的颜色
         updateTabColors()
+        // 切换tab时，停用悬浮卡片预览
+        deactivateStackedCardPreview()
     }
 
     /**
@@ -2730,7 +2743,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 对话tab (最左边)
         findViewById<LinearLayout>(R.id.tab_chat)?.apply {
-            setOnClickListener { showChat() }
+            setOnClickListener {
+                deactivateStackedCardPreview()
+                showChat()
+            }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
@@ -2738,35 +2754,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.tab_search)?.apply {
             setOnClickListener { showBrowser() }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
-
-            // 添加长按手势检测
-            setOnLongClickListener {
-                activateStackedCardPreview()
-                true
-            }
         }
 
         // 任务tab (第三位，原首页)
         findViewById<LinearLayout>(R.id.tab_home)?.apply {
-            setOnClickListener { showTaskSelection() }
+            setOnClickListener {
+                deactivateStackedCardPreview()
+                showTaskSelection()
+            }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 语音tab (第四位)
         findViewById<LinearLayout>(R.id.tab_voice)?.apply {
-            setOnClickListener { showVoice() }
+            setOnClickListener {
+                deactivateStackedCardPreview()
+                showVoice()
+            }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 软件tab (第五位)
         findViewById<LinearLayout>(R.id.tab_app_search)?.apply {
-            setOnClickListener { showAppSearch() }
+            setOnClickListener {
+                deactivateStackedCardPreview()
+                showAppSearch()
+            }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 设置tab (最右边)
         findViewById<LinearLayout>(R.id.tab_settings)?.apply {
-            setOnClickListener { showSettings() }
+            setOnClickListener {
+                deactivateStackedCardPreview()
+                showSettings()
+            }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 

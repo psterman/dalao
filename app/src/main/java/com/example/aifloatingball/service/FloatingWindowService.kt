@@ -664,19 +664,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isMoving = false
-                    isLongPress = false
-                    isClick = true // Assume it's a click until proven otherwise
-                    
-                    // Schedule a task to run after the long-press timeout
-                    longPressRunnable = Runnable {
-                        isLongPress = true
-                        isClick = false // A long press is not a click
-                        vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-                        val action = settingsManager.getActionBallLongPress()
-                        executeAction(action)
-                    }
-                    longPressHandler.postDelayed(longPressRunnable!!, ViewConfiguration.getLongPressTimeout().toLong())
-                    
                     true // Consume the event
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -687,9 +674,6 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     // If not already moving and movement exceeds touch slop, it's a drag
                     if (!isMoving && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
                         isMoving = true
-                        isClick = false // It's a drag, not a click
-                        // A drag action cancels the pending long press
-                        longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
                     }
 
                     // If in moving state, update the ball's position
@@ -707,26 +691,18 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                     true // Consume the event
                 }
                 MotionEvent.ACTION_UP -> {
-                    // Always cancel any pending long press when the touch is released
-                    longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
-
-                    if (isLongPress) {
-                        // It's a long press, do nothing here as it's handled by the long press runnable
-                    } else if (isClick) {
+                    if (!isMoving) {
                         // It's a click
                         val action = settingsManager.getActionBallClick()
                         executeAction(action)
-                    }
-                    // Reset flags
-                    isLongPress = false
-                    isClick = false
-                    
-                    if (isMoving) {
+                    } else {
                         // If it was a move, snap to the edge if enabled.
                         if (settingsManager.getAutoHide()) {
                             snapToEdge()
                         }
                     }
+                    // Reset the moving flag
+                    isMoving = false
                     true // Consume the event
                 }
                 else -> false
