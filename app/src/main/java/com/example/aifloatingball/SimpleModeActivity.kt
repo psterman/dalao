@@ -6038,6 +6038,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         val newPosition = tab?.position ?: return
                         val chatContactsRecyclerView = findViewById<RecyclerView>(R.id.chat_contacts_recycler_view)
 
+                        // 当切换tab时，隐藏悬浮卡片
+                        stackedCardPreview?.let {
+                            if (it.visibility == View.VISIBLE) {
+                                it.visibility = View.GONE
+                            }
+                        }
+
                         // 检查必要的组件是否存在
                         if (chatContactsRecyclerView == null || chatTabLayout == null) {
                             // 如果组件不存在，直接执行内容切换，不使用动画

@@ -59,10 +59,24 @@ class StackedCardPreview @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
 
+    // 进度指示器画笔
+    private val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 8f
+        color = Color.parseColor("#2196F3")
+    }
+
+    // 震动服务
+    private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+
     private var touchX = 0f
     private var touchY = 0f
     private var isTracking = false
     private var isParallelMode = true // 使用平行显示模式
+
+    // 是否显示进度指示器
+    private var isShowingProgress = false
+    private var progressAngle = 0f
 
     // 卡片数据
     private var webViewCards = listOf<WebViewCardData>()
@@ -264,6 +278,8 @@ class StackedCardPreview @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 Log.d("StackedCardPreview", "触摸按下: (${event.x}, ${event.y})")
                 isTracking = true
+                isShowingProgress = true // 开始时显示进度
+                progressAngle = 0f // 重置进度
                 isLongPressSliding = false
                 isVerticalDragging = false
                 isClick = true // 初始假设是点击
@@ -346,6 +362,7 @@ class StackedCardPreview @JvmOverloads constructor(
                         } else if (isVerticalDragging) {
                             // 垂直滑动结束，检查是否需要关闭卡片
                             handleVerticalDragEnd()
+                            vibrate(VibrationType.IMPORTANT) // 重要操作震动
                         } else {
                             // 长按但没有滑动，不自动打开，等待用户点击
                             Log.d("StackedCardPreview", "长按无滑动，等待用户点击卡片")
@@ -356,6 +373,7 @@ class StackedCardPreview @JvmOverloads constructor(
                         if (isClick) {
                             Log.d("StackedCardPreview", "检测到点击操作，打开当前中心卡片")
                             selectCurrentCardWithFadeIn()
+                            vibrate(VibrationType.BASIC) // 基本操作震动
                         } else {
                             Log.d("StackedCardPreview", "未达到长按时间，忽略操作")
                         }
@@ -365,11 +383,32 @@ class StackedCardPreview @JvmOverloads constructor(
                     isLongPressSliding = false
                     isVerticalDragging = false
                     isClick = false
+                    isShowingProgress = false // 停止显示进度
+                    invalidate()
                     return true
                 }
             }
         }
         return false
+    }
+
+    /**
+     * 根据震动类型触发不同的震动效果
+     */
+    private fun vibrate(type: VibrationType) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val effect = when (type) {
+                VibrationType.BASIC -> VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE) // 基本操作
+                VibrationType.IMPORTANT -> VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE) // 重要操作
+                VibrationType.LIGHT -> VibrationEffect.createWaveform(longArrayOf(0, 20, 20, 20), -1) // 浏览操作
+            }
+            vibrator.vibrate(effect)
+        }
+    }
+
+    // 震动类型枚举
+    enum class VibrationType {
+        BASIC, IMPORTANT, LIGHT
     }
 
     /**
@@ -819,6 +858,14 @@ class StackedCardPreview @JvmOverloads constructor(
 
         // 绘制半透明蒙版背景
         canvas.drawRect(0f, 0f, viewWidth, maskHeight, maskPaint)
+
+        // 如果正在显示进度，绘制圆形进度条
+        if (isShowingProgress) {
+            val progressRect = RectF(touchX - 40, touchY - 40, touchX + 40, touchY + 40)
+            canvas.drawArc(progressRect, -90f, progressAngle, false, progressPaint)
+            progressAngle += 10 // 更新进度角度
+            invalidate() // 持续重绘
+        }
 
         Log.d("StackedCardPreview", "onDraw: 平行模式, 卡片数=${webViewCards.size}, 当前中心卡片=$currentCardIndex")
 
