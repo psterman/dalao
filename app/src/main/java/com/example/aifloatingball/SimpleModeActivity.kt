@@ -80,6 +80,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 import java.net.HttpURLConnection
 import java.net.URL
 import android.content.BroadcastReceiver
@@ -2752,7 +2755,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 搜索tab (第二位)
         findViewById<LinearLayout>(R.id.tab_search)?.apply {
-            setOnClickListener { showBrowser() }
+            setOnClickListener { 
+                deactivateStackedCardPreview()
+                showBrowser() 
+            }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
@@ -9557,62 +9563,54 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 发送消息到AI服务
+     * 发送消息到AI服务（异步版本）
      */
-    private fun sendMessageToAI(
+    private suspend fun sendMessageToAI(
         serviceType: AIServiceType,
         message: String,
         conversationHistory: List<Map<String, String>>,
         apiKey: String
     ): String {
-        return try {
-            // 创建AI API管理器
-            val aiApiManager = AIApiManager(this)
+        return withContext(Dispatchers.IO) {
+            try {
+                // 创建AI API管理器
+                val aiApiManager = AIApiManager(this@SimpleModeActivity)
 
-            // 使用同步方式发送消息（为了简化实现）
-            var response = ""
-            var isCompleted = false
-            var errorMessage = ""
+                // 使用协程和CompletableDeferred来异步等待结果
+                val deferred = CompletableDeferred<String>()
 
-            aiApiManager.sendMessage(
-                serviceType = serviceType,
-                message = message,
-                conversationHistory = conversationHistory,
-                callback = object : AIApiManager.StreamingCallback {
-                    override fun onChunkReceived(chunk: String) {
-                        response += chunk
+                aiApiManager.sendMessage(
+                    serviceType = serviceType,
+                    message = message,
+                    conversationHistory = conversationHistory,
+                    callback = object : AIApiManager.StreamingCallback {
+                        override fun onChunkReceived(chunk: String) {
+                            // 流式响应处理
+                        }
+
+                        override fun onComplete(fullResponse: String) {
+                            deferred.complete(fullResponse)
+                        }
+
+                        override fun onError(error: String) {
+                            deferred.complete("抱歉，发生了错误：$error")
+                        }
                     }
+                )
 
-                    override fun onComplete(fullResponse: String) {
-                        response = fullResponse
-                        isCompleted = true
+                // 使用withTimeout来设置超时，避免无限等待
+                try {
+                    withTimeout(10000) { // 10秒超时
+                        deferred.await()
                     }
-
-                    override fun onError(error: String) {
-                        errorMessage = error
-                        isCompleted = false
-                    }
+                } catch (e: TimeoutCancellationException) {
+                    "抱歉，请求超时，请稍后重试"
                 }
-            )
 
-            // 等待响应完成（这里使用简单的轮询方式）
-            var attempts = 0
-            while (!isCompleted && attempts < 100) {
-                Thread.sleep(100)
-                attempts++
+            } catch (e: Exception) {
+                Log.e(TAG, "发送消息到AI失败", e)
+                "抱歉，发生了错误：${e.message}"
             }
-
-            if (isCompleted) {
-                response
-            } else if (errorMessage.isNotBlank()) {
-                "抱歉，发生了错误：$errorMessage"
-            } else {
-                "抱歉，请求超时，请稍后重试"
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "发送消息到AI失败", e)
-            "抱歉，发生了错误：${e.message}"
         }
     }
 
@@ -13503,67 +13501,57 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 } ?: false
             }
 
-            // 根据当前tab显示不同的视觉效果
-            when (getCurrentTabIndex()) {
-                0 -> { // 对话tab - 不激活悬浮卡片模式
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            // 对话tab按下时的视觉反馈（可选）
-                            Log.d(TAG, "对话tab区域按下，不激活悬浮卡片模式")
+            // 只有当前已经在搜索tab且点击的是搜索tab时，才显示层叠卡片预览效果
+            val isSearchTab = view.id == R.id.tab_search
+            val isCurrentlyInSearchTab = getCurrentTabIndex() == 1
+            
+            if (isSearchTab && isCurrentlyInSearchTab) {
+                // 搜索tab - 显示层叠卡片预览效果
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        // 显示层叠卡片预览器，但确保不阻挡底部导航栏
+                        stackedCardPreview?.apply {
+                            visibility = View.VISIBLE
+                            // 强制设置为不可交互
+                            isClickable = false
+                            isFocusable = false
+                            isFocusableInTouchMode = false
+                            isEnabled = false
+                            // 确保触摸事件穿透
+                            setOnTouchListener { _, _ -> false }
                         }
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            // 对话tab松开时的处理（可选）
-                            Log.d(TAG, "对话tab区域松开")
-                        }
+
+                        // 将触摸坐标转换为层叠卡片预览器的坐标系
+                        val location = IntArray(2)
+                        view.getLocationOnScreen(location)
+                        val stackedLocation = IntArray(2)
+                        stackedCardPreview?.getLocationOnScreen(stackedLocation)
+
+                        val relativeX = location[0] - stackedLocation[0] + event.x
+                        val relativeY = location[1] - stackedLocation[1] + event.y
+
+                        // 更新手指位置，显示卡片预览
+                        stackedCardPreview?.updateFingerPosition(relativeX, relativeY)
+
+                        // 确保卡片数据是最新的
+                        updateWaveTrackerCards()
                     }
-                }
-                1 -> { // 搜索tab - 显示层叠卡片预览效果
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            // 显示层叠卡片预览器，但确保不阻挡底部导航栏
-                            stackedCardPreview?.apply {
-                                visibility = View.VISIBLE
-                                // 强制设置为不可交互
-                                isClickable = false
-                                isFocusable = false
-                                isFocusableInTouchMode = false
-                                isEnabled = false
-                                // 确保触摸事件穿透
-                                setOnTouchListener { _, _ -> false }
-                            }
+                    MotionEvent.ACTION_MOVE -> {
+                        // 继续更新手指位置
+                        val location = IntArray(2)
+                        view.getLocationOnScreen(location)
+                        val stackedLocation = IntArray(2)
+                        stackedCardPreview?.getLocationOnScreen(stackedLocation)
 
-                            // 将触摸坐标转换为层叠卡片预览器的坐标系
-                            val location = IntArray(2)
-                            view.getLocationOnScreen(location)
-                            val stackedLocation = IntArray(2)
-                            stackedCardPreview?.getLocationOnScreen(stackedLocation)
+                        val relativeX = location[0] - stackedLocation[0] + event.x
+                        val relativeY = location[1] - stackedLocation[1] + event.y
 
-                            val relativeX = location[0] - stackedLocation[0] + event.x
-                            val relativeY = location[1] - stackedLocation[1] + event.y
-
-                            // 更新手指位置，显示卡片预览
-                            stackedCardPreview?.updateFingerPosition(relativeX, relativeY)
-
-                            // 确保卡片数据是最新的
-                            updateWaveTrackerCards()
-                        }
-                        MotionEvent.ACTION_MOVE -> {
-                            // 继续更新手指位置
-                            val location = IntArray(2)
-                            view.getLocationOnScreen(location)
-                            val stackedLocation = IntArray(2)
-                            stackedCardPreview?.getLocationOnScreen(stackedLocation)
-
-                            val relativeX = location[0] - stackedLocation[0] + event.x
-                            val relativeY = location[1] - stackedLocation[1] + event.y
-
-                            stackedCardPreview?.updateFingerPosition(relativeX, relativeY)
-                        }
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            // 停止卡片预览效果并隐藏
-                            stackedCardPreview?.stopWave()
-                            stackedCardPreview?.visibility = View.GONE
-                        }
+                        stackedCardPreview?.updateFingerPosition(relativeX, relativeY)
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        // 停止卡片预览效果并隐藏
+                        stackedCardPreview?.stopWave()
+                        stackedCardPreview?.visibility = View.GONE
                     }
                 }
             }

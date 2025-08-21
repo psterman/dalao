@@ -117,6 +117,7 @@ class IconPreloader private constructor(private val context: Context) {
         }
         
         preloadingJobs[cacheKey] = job
+        // 异步等待，不阻塞调用线程
         job.join()
     }
     

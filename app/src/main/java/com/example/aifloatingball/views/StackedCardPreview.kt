@@ -408,6 +408,13 @@ class StackedCardPreview @JvmOverloads constructor(
     fun reset() {
         visibility = View.GONE
         resetActivationState()
+        
+        // 重置交互状态，防止触摸失效
+        isClickable = false
+        isFocusable = false
+        isFocusableInTouchMode = false
+        isEnabled = false
+        
         webViewCards = emptyList()
         currentCardIndex = 0
         scrollOffset = 0f

@@ -56,13 +56,10 @@ class AppIconManager private constructor(private val context: Context) {
             return
         }
         
-        // 3. 如果正在下载，等待结果
+        // 3. 如果正在下载，直接返回，避免重复下载
         downloadingIcons[packageName]?.let { job ->
-            job.join()
-            iconCache[packageName]?.let { icon ->
-                onIconLoaded(icon)
-                return
-            }
+            // 不等待，直接返回，避免阻塞
+            return
         }
         
         // 4. 开始异步下载
