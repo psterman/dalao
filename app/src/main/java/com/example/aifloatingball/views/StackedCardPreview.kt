@@ -100,6 +100,7 @@ class StackedCardPreview @JvmOverloads constructor(
     private var isVerticalDragging = false
     private var centerCardOffsetY = 0f // 中心卡片的垂直偏移
     private var closeThreshold = 0f // 关闭阈值（旁边卡片高度的一半）
+    private var refreshAnimationProgress = 0f // 刷新动画进度
 
     // 点击检测相关
     private var isClick = false // 是否是点击操作
@@ -352,7 +353,6 @@ class StackedCardPreview @JvmOverloads constructor(
                     } else if (isVerticalDragging) {
                         // 垂直滑动结束，检查是否需要关闭卡片
                         handleVerticalDragEnd()
-                        vibrate(VibrationType.IMPORTANT) // 重要操作震动
                     } else {
                         // 如果是点击操作，则立即打开卡片
                         if (isClick) {
@@ -384,6 +384,8 @@ class StackedCardPreview @JvmOverloads constructor(
                 VibrationType.BASIC -> VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE) // 基本操作
                 VibrationType.IMPORTANT -> VibrationEffect.createOneShot(150, VibrationEffect.DEFAULT_AMPLITUDE) // 重要操作
                 VibrationType.BROWSING -> VibrationEffect.createWaveform(longArrayOf(0, 20, 20, 20), -1) // 浏览操作
+                VibrationType.LIGHT -> VibrationEffect.createOneShot(30, 50) // 轻震动，使用固定的低强度值
+                VibrationType.HEAVY -> VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE) // 重震动
             }
             vibrator.vibrate(effect)
         }
@@ -391,7 +393,7 @@ class StackedCardPreview @JvmOverloads constructor(
 
     // 震动类型枚举
     enum class VibrationType {
-        BASIC, IMPORTANT, BROWSING
+        BASIC, IMPORTANT, BROWSING, LIGHT, HEAVY
     }
 
     /**
@@ -466,6 +468,11 @@ class StackedCardPreview @JvmOverloads constructor(
      * 处理垂直拖拽（关闭卡片或刷新页面）
      */
     private fun handleVerticalDrag(deltaY: Float) {
+        // 如果是第一次开始拖拽，触发轻震动
+        if (centerCardOffsetY == 0f && deltaY != 0f) {
+            vibrate(VibrationType.LIGHT)
+        }
+        
         if (deltaY < 0) {
             // 向上拖拽：关闭卡片
             centerCardOffsetY = deltaY
@@ -528,10 +535,11 @@ class StackedCardPreview @JvmOverloads constructor(
 
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // 触发重震动
+                    vibrate(VibrationType.HEAVY)
                     // 通知关闭卡片
                     onCardCloseListener?.invoke(currentCardIndex)
-
-                    // 从列表中移除卡片
+                    // 移除卡片
                     removeCard(currentCardIndex)
                 }
             })
@@ -1096,22 +1104,48 @@ class StackedCardPreview @JvmOverloads constructor(
      * 卡片刷新动画
      */
     private fun animateCardRefresh() {
-        ValueAnimator.ofFloat(centerCardOffsetY, 0f).apply {
-            duration = 300
+        // 第一阶段：向下拉伸并缩放
+        val pullDownAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 200
             addUpdateListener { animator ->
-                centerCardOffsetY = animator.animatedValue as Float
+                val progress = animator.animatedValue as Float
+                centerCardOffsetY = centerCardOffsetY * (1f - progress * 0.3f)
+                refreshAnimationProgress = progress
                 invalidate()
             }
-
+        }
+        
+        // 第二阶段：回弹并完成刷新
+        val bounceBackAnimator = ValueAnimator.ofFloat(1f, 0f).apply {
+            duration = 300
+            addUpdateListener { animator ->
+                val progress = animator.animatedValue as Float
+                centerCardOffsetY = centerCardOffsetY * progress
+                refreshAnimationProgress = 1f - progress
+                invalidate()
+            }
+            
             addListener(object : android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // 触发重震动
+                    vibrate(VibrationType.HEAVY)
                     // 通知刷新卡片
                     onCardRefreshListener?.invoke(currentCardIndex)
                     centerCardOffsetY = 0f
+                    refreshAnimationProgress = 0f
                     invalidate()
                 }
             })
-        }.start()
+        }
+        
+        // 顺序播放动画
+        pullDownAnimator.addListener(object : android.animation.AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: android.animation.Animator) {
+                bounceBackAnimator.start()
+            }
+        })
+        
+        pullDownAnimator.start()
     }
 
 

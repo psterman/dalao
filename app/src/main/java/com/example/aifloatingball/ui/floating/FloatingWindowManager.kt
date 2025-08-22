@@ -169,6 +169,7 @@ class FloatingWindowManager(
     private fun calculateSafeWindowBounds(displayMetrics: android.util.DisplayMetrics, statusBarHeight: Int): WindowBounds {
         val screenWidth = displayMetrics.widthPixels
         val screenHeight = displayMetrics.heightPixels
+        val navigationBarHeight = getNavigationBarHeight()
         
         // 转换dp到px
         val topHandleHeight = dpToPx(TOP_DRAG_HANDLE_HEIGHT_DP)
@@ -178,7 +179,7 @@ class FloatingWindowManager(
         
         // 计算安全区域
         val minY = statusBarHeight + safeMargin // 顶部：状态栏 + 安全边距
-        val maxY = screenHeight - bottomHandleHeight - safeMargin // 底部：确保底部控制条可见
+        val maxY = screenHeight - navigationBarHeight - bottomHandleHeight - safeMargin // 底部：导航栏 + 底部控制条 + 安全边距
         
         // 最小和最大窗口尺寸
         val minWidth = dpToPx(MIN_WINDOW_WIDTH_DP)
@@ -216,6 +217,16 @@ class FloatingWindowManager(
     private fun getStatusBarHeight(): Int {
         var result = 0
         val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = context.resources.getDimensionPixelSize(resourceId)
+        }
+        return result
+    }
+    
+    // 获取导航栏高度
+    private fun getNavigationBarHeight(): Int {
+        var result = 0
+        val resourceId = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
         if (resourceId > 0) {
             result = context.resources.getDimensionPixelSize(resourceId)
         }
