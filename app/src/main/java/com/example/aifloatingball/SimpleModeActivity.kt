@@ -2752,12 +2752,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 检查保存的卡片状态并弹出加载提示
+     * 只在搜索tab中显示恢复提示对话框
      */
     private fun checkAndPromptForSavedCards() {
+        // 只在搜索tab（UIState.BROWSER）中显示恢复提示
+        if (currentState != UIState.BROWSER) {
+            Log.d(TAG, "checkAndPromptForSavedCards: 当前不在搜索tab，跳过恢复提示，当前状态: $currentState")
+            forceRefreshUIState()
+            return
+        }
+        
         val sharedPreferences = getSharedPreferences("gesture_cards_state", Context.MODE_PRIVATE)
         val savedUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet()) ?: emptySet()
         
-        Log.d(TAG, "checkAndPromptForSavedCards: 检查保存的卡片状态")
+        Log.d(TAG, "checkAndPromptForSavedCards: 在搜索tab中检查保存的卡片状态")
         Log.d(TAG, "checkAndPromptForSavedCards: savedUrls = $savedUrls")
         Log.d(TAG, "checkAndPromptForSavedCards: savedUrls.size = ${savedUrls.size}")
         
