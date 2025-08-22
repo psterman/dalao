@@ -177,6 +177,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var currentStepIndex = 0
     private lateinit var userPromptData: UserPromptData
     private lateinit var settingsManager: SettingsManager
+    
+    // 会话级别的恢复对话框标记，防止重复弹出
+    private var hasShownRestoreDialog = false
 
     // UI组件
     private lateinit var chatLayout: LinearLayout
@@ -2752,12 +2755,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     /**
      * 检查保存的卡片状态并弹出加载提示
-     * 只在搜索tab中显示恢复提示对话框
+     * 只在搜索tab中显示恢复提示对话框，且每个会话只显示一次
      */
     private fun checkAndPromptForSavedCards() {
         // 只在搜索tab（UIState.BROWSER）中显示恢复提示
         if (currentState != UIState.BROWSER) {
             Log.d(TAG, "checkAndPromptForSavedCards: 当前不在搜索tab，跳过恢复提示，当前状态: $currentState")
+            forceRefreshUIState()
+            return
+        }
+        
+        // 如果本次会话已经显示过恢复对话框，则不再显示
+        if (hasShownRestoreDialog) {
+            Log.d(TAG, "checkAndPromptForSavedCards: 本次会话已显示过恢复对话框，跳过")
             forceRefreshUIState()
             return
         }
@@ -2771,6 +2781,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         if (savedUrls.isNotEmpty()) {
             Log.d(TAG, "checkAndPromptForSavedCards: 发现保存的卡片，显示恢复对话框")
+            // 标记已显示恢复对话框
+            hasShownRestoreDialog = true
+            
             // 弹出对话框询问用户是否要恢复之前的页面
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("恢复未关闭的页面")
@@ -13339,6 +13352,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 关闭指定的webview卡片
                     closeWebViewCard(cardIndex)
                 }
+
+                // 设置卡片刷新监听器
+                setOnCardRefreshListener { cardIndex ->
+                    // 刷新指定的webview卡片
+                    refreshWebViewCard(cardIndex)
+                }
             }
 
             // 保留原有的Material波浪追踪器作为备用
@@ -13533,6 +13552,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 关闭webview卡片失败", e)
+        }
+    }
+
+    /**
+     * 刷新指定的webview卡片
+     */
+    private fun refreshWebViewCard(cardIndex: Int) {
+        try {
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                if (cardIndex >= 0 && cardIndex < allCards.size) {
+                    val cardData = allCards[cardIndex]
+
+                    // 刷新webview
+                    cardData.webView?.reload()
+
+                    Log.d(TAG, "✅ 刷新webview卡片: $cardIndex (${cardData.title})")
+
+                    // 显示刷新提示
+                    runOnUiThread {
+                        Toast.makeText(this@SimpleModeActivity, "页面已刷新", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Log.w(TAG, "⚠️ 无效的卡片索引: $cardIndex")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 刷新webview卡片失败", e)
         }
     }
 

@@ -126,6 +126,7 @@ class StackedCardPreview @JvmOverloads constructor(
     // 回调接口
     private var onCardSelectedListener: ((Int) -> Unit)? = null
     private var onCardCloseListener: ((Int) -> Unit)? = null
+    private var onCardRefreshListener: ((Int) -> Unit)? = null
 
     data class WebViewCardData(
         val title: String,
@@ -222,7 +223,7 @@ class StackedCardPreview @JvmOverloads constructor(
         baseCardHeight = cardHeight
 
         // 计算关闭阈值（卡片高度的一半）
-        closeThreshold = cardHeight * 0.5f
+        closeThreshold = cardHeight * 0.3f // 降低关闭阈值，提升用户体验
 
         Log.d("StackedCardPreview", "平行模式初始化: 卡片宽度=$cardWidth, 间距=$cardSpacing, 关闭阈值=$closeThreshold, 卡片数=${webViewCards.size}")
 
@@ -462,13 +463,18 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
-     * 处理垂直拖拽（关闭卡片）
+     * 处理垂直拖拽（关闭卡片或刷新页面）
      */
     private fun handleVerticalDrag(deltaY: Float) {
-        // 只有向上拖拽才有效果
         if (deltaY < 0) {
+            // 向上拖拽：关闭卡片
             centerCardOffsetY = deltaY
             Log.d("StackedCardPreview", "中心卡片向上偏移: $centerCardOffsetY, 关闭阈值: $closeThreshold")
+        } else if (deltaY > 0) {
+            // 向下拖拽：刷新页面（限制最大偏移量）
+            val maxRefreshOffset = closeThreshold * 0.8f // 刷新阈值为关闭阈值的80%
+            centerCardOffsetY = minOf(deltaY, maxRefreshOffset)
+            Log.d("StackedCardPreview", "中心卡片向下偏移: $centerCardOffsetY, 刷新阈值: $maxRefreshOffset")
         } else {
             centerCardOffsetY = 0f
         }
@@ -481,12 +487,18 @@ class StackedCardPreview @JvmOverloads constructor(
      * 处理垂直拖拽结束
      */
     private fun handleVerticalDragEnd() {
+        val maxRefreshOffset = closeThreshold * 0.8f
+        
         if (centerCardOffsetY < -closeThreshold) {
-            // 超过关闭阈值，关闭中心卡片
+            // 向上超过关闭阈值，关闭中心卡片
             Log.d("StackedCardPreview", "关闭中心卡片: $currentCardIndex")
             closeCurrentCard()
+        } else if (centerCardOffsetY > maxRefreshOffset) {
+            // 向下超过刷新阈值，刷新当前卡片
+            Log.d("StackedCardPreview", "刷新中心卡片: $currentCardIndex")
+            refreshCurrentCard()
         } else {
-            // 没有超过阈值，回弹到原位置
+            // 没有超过任何阈值，回弹到原位置
             animateCenterCardReturn()
         }
     }
@@ -1061,6 +1073,45 @@ class StackedCardPreview @JvmOverloads constructor(
      */
     fun setOnCardCloseListener(listener: (Int) -> Unit) {
         onCardCloseListener = listener
+    }
+
+    /**
+     * 设置卡片刷新监听器
+     */
+    fun setOnCardRefreshListener(listener: (Int) -> Unit) {
+        onCardRefreshListener = listener
+    }
+
+    /**
+     * 刷新当前中心卡片
+     */
+    private fun refreshCurrentCard() {
+        if (currentCardIndex < 0 || currentCardIndex >= webViewCards.size) return
+
+        // 播放刷新动画
+        animateCardRefresh()
+    }
+
+    /**
+     * 卡片刷新动画
+     */
+    private fun animateCardRefresh() {
+        ValueAnimator.ofFloat(centerCardOffsetY, 0f).apply {
+            duration = 300
+            addUpdateListener { animator ->
+                centerCardOffsetY = animator.animatedValue as Float
+                invalidate()
+            }
+
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // 通知刷新卡片
+                    onCardRefreshListener?.invoke(currentCardIndex)
+                    centerCardOffsetY = 0f
+                    invalidate()
+                }
+            })
+        }.start()
     }
 
 
