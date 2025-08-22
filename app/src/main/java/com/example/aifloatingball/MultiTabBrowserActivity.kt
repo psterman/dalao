@@ -140,7 +140,10 @@ class MultiTabBrowserActivity : AppCompatActivity() {
         
         // 创建第一个标签页
         if (tabManager.getTabCount() == 0) {
-            tabManager.addTab()
+            tabManager.restoreTabsState()
+            if (tabManager.getTabCount() == 0) {
+                tabManager.addTab()
+            }
         }
     }
     
@@ -326,6 +329,7 @@ class MultiTabBrowserActivity : AppCompatActivity() {
     }
     
     override fun onDestroy() {
+        tabManager.saveTabsState()
         super.onDestroy()
         tabManager.cleanup()
     }

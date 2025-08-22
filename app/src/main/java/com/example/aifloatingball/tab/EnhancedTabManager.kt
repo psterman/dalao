@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.adblock.AdBlockFilter
 import com.example.aifloatingball.web.EnhancedWebViewClient
+import android.content.Context.MODE_PRIVATE
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,10 @@ class EnhancedTabManager(
     private var tabLayout: TabLayout? = null
     private var tabRecyclerView: RecyclerView? = null
     private var currentPosition = 0
+    
+    private val sharedPreferences by lazy {
+        context.getSharedPreferences("tab_manager_state", MODE_PRIVATE)
+    }
     
     private lateinit var tabPagerAdapter: EnhancedTabPagerAdapter
     private lateinit var tabOverviewAdapter: EnhancedTabOverviewAdapter
@@ -336,6 +341,26 @@ class EnhancedTabManager(
             }
         }
         _tabs.value = emptyList()
+    }
+
+    fun saveTabsState() {
+        val urls = _tabs.value.mapNotNull { it.url }.toSet()
+        sharedPreferences.edit().putStringSet("open_tabs", urls).apply()
+        Log.d(TAG, "Saved tabs state with URLs: $urls")
+    }
+
+    fun restoreTabsState() {
+        val urls = sharedPreferences.getStringSet("open_tabs", emptySet()) ?: emptySet()
+        if (urls.isNotEmpty()) {
+            _tabs.value = emptyList() // 清除默认创建的空标签页
+            urls.forEach { url ->
+                addTab(url, loadInBackground = true)
+            }
+            if (_tabs.value.isNotEmpty()) {
+                switchTab(0)
+            }
+            Log.d(TAG, "Restored tabs state with URLs: $urls")
+        }
     }
 }
 

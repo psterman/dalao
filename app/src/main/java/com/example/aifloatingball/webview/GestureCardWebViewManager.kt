@@ -1,6 +1,7 @@
 package com.example.aifloatingball.webview
 
 import android.content.Context
+import android.content.Context.MODE_PRIVATE
 import android.graphics.Bitmap
 import android.util.Log
 import android.view.GestureDetector
@@ -49,6 +50,11 @@ class GestureCardWebViewManager(
     
     // 页面变化监听器
     private var onPageChangeListener: OnPageChangeListener? = null
+    
+    // SharedPreferences用于保存悬浮卡片状态
+    private val sharedPreferences by lazy {
+        context.getSharedPreferences("gesture_cards_state", MODE_PRIVATE)
+    }
 
     /**
      * WebView卡片数据
@@ -748,6 +754,66 @@ class GestureCardWebViewManager(
         val x = event.getX(0) - event.getX(1)
         val y = event.getY(0) - event.getY(1)
         return kotlin.math.sqrt(x * x + y * y)
+    }
+    
+    /**
+     * 保存悬浮卡片状态
+     */
+    fun saveCardsState() {
+        try {
+            Log.d(TAG, "saveCardsState: 开始保存悬浮卡片状态")
+            Log.d(TAG, "saveCardsState: webViewCards.size = ${webViewCards.size}")
+            
+            val urls = webViewCards.mapNotNull { card ->
+                Log.d(TAG, "saveCardsState: 检查卡片 - title: ${card.title}, url: ${card.url}")
+                if (card.url != "about:blank" && card.url.isNotEmpty()) {
+                    card.url
+                } else null
+            }.toSet()
+            
+            Log.d(TAG, "saveCardsState: 过滤后的URLs = $urls")
+            Log.d(TAG, "saveCardsState: 保存到SharedPreferences")
+            
+            sharedPreferences.edit().putStringSet("floating_card_urls", urls).apply()
+            Log.d(TAG, "保存悬浮卡片状态，URL数量: ${urls.size}")
+            
+            // 验证保存是否成功
+            val savedUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet())
+            Log.d(TAG, "saveCardsState: 验证保存结果 = $savedUrls")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存悬浮卡片状态失败", e)
+        }
+    }
+    
+    /**
+     * 恢复悬浮卡片状态
+     */
+    fun restoreCardsState() {
+        try {
+            val urls = sharedPreferences.getStringSet("floating_card_urls", emptySet()) ?: emptySet()
+            if (urls.isNotEmpty()) {
+                Log.d(TAG, "恢复悬浮卡片状态，URL数量: ${urls.size}")
+                
+                // 清除现有卡片
+                webViewCards.clear()
+                adapter?.notifyDataSetChanged()
+                
+                // 为每个URL创建新卡片
+                urls.forEach { url ->
+                    val cardData = addNewCard(url)
+                    Log.d(TAG, "恢复悬浮卡片: ${cardData.title} - $url")
+                }
+                
+                // 如果有卡片，切换到第一张
+                if (webViewCards.isNotEmpty()) {
+                    switchToCard(0)
+                }
+            } else {
+                Log.d(TAG, "没有保存的悬浮卡片状态")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复悬浮卡片状态失败", e)
+        }
     }
 
 

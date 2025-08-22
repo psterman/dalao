@@ -433,8 +433,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "Restoring saved state: $savedState")
             restoreState(savedState)
         } else {
-            Log.d(TAG, "No saved state, showing chat")
-            showChat()
+            // 检查是否有保存的悬浮卡片状态
+            val sharedPreferences = getSharedPreferences("gesture_cards_state", MODE_PRIVATE)
+            val savedCardUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet())
+            
+            Log.d(TAG, "onCreate: 检查保存的悬浮卡片状态")
+            Log.d(TAG, "onCreate: savedCardUrls = $savedCardUrls")
+            Log.d(TAG, "onCreate: savedCardUrls?.size = ${savedCardUrls?.size}")
+            
+            if (savedCardUrls?.isNotEmpty() == true) {
+                Log.d(TAG, "Found saved cards, showing browser")
+                showBrowser()
+            } else {
+                Log.d(TAG, "No saved state or cards, showing chat")
+                showChat()
+            }
         }
 
         // 处理从其他地方传入的搜索内容
@@ -2731,10 +2744,53 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setupBrowserWebView()
         }
 
-        // 强制刷新UI状态，确保所有组件都处于正确状态
-        forceRefreshUIState()
+        // 检查是否有保存的卡片状态并弹出提示
+        checkAndPromptForSavedCards()
 
         updateTabColors()
+    }
+
+    /**
+     * 检查保存的卡片状态并弹出加载提示
+     */
+    private fun checkAndPromptForSavedCards() {
+        val sharedPreferences = getSharedPreferences("gesture_cards_state", Context.MODE_PRIVATE)
+        val savedUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet()) ?: emptySet()
+        
+        Log.d(TAG, "checkAndPromptForSavedCards: 检查保存的卡片状态")
+        Log.d(TAG, "checkAndPromptForSavedCards: savedUrls = $savedUrls")
+        Log.d(TAG, "checkAndPromptForSavedCards: savedUrls.size = ${savedUrls.size}")
+        
+        if (savedUrls.isNotEmpty()) {
+            Log.d(TAG, "checkAndPromptForSavedCards: 发现保存的卡片，显示恢复对话框")
+            // 弹出对话框询问用户是否要恢复之前的页面
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("恢复未关闭的页面")
+                .setMessage("检测到您有 ${savedUrls.size} 个未关闭的页面，是否要恢复这些页面？")
+                .setPositiveButton("恢复") { _, _ ->
+                    // 恢复保存的卡片
+                    gestureCardWebViewManager?.restoreCardsState()
+                    // 延迟刷新UI状态，等待卡片恢复完成
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        forceRefreshUIState()
+                    }, 500)
+                }
+                .setNegativeButton("不恢复") { _, _ ->
+                    // 清除保存的状态
+                    sharedPreferences.edit().remove("floating_card_urls").apply()
+                    // 立即刷新UI状态
+                    forceRefreshUIState()
+                }
+                .setNeutralButton("稍后决定") { _, _ ->
+                    // 暂时不处理，保持当前状态
+                    forceRefreshUIState()
+                }
+                .setCancelable(false)
+                .show()
+        } else {
+            // 如果没有保存的卡片，立即刷新UI状态
+            forceRefreshUIState()
+        }
     }
 
     private fun setupBottomNavigation() {
@@ -3861,6 +3917,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         closeSimpleMode()
     }
 
+
+
     override fun onDestroy() {
         super.onDestroy()
 
@@ -3889,9 +3947,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 释放语音识别器
         releaseSpeechRecognizer()
 
+        // 保存悬浮卡片状态
+        gestureCardWebViewManager?.saveCardsState()
+        
         // 清理多页面WebView管理器
         multiPageWebViewManager?.destroy()
         multiPageWebViewManager = null
+        
+        // 清理手势卡片WebView管理器
+        gestureCardWebViewManager?.destroy()
+        gestureCardWebViewManager = null
 
         // 清理四分之一圆弧操作栏
         quarterArcOperationBar?.let { operationBar ->
@@ -3947,6 +4012,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     override fun onPause() {
         super.onPause()
+
+        // 在 onPause 中保存悬浮卡片状态，确保即使应用被系统杀死也能保存
+        gestureCardWebViewManager?.saveCardsState()
+        Log.d(TAG, "onPause: 已保存悬浮卡片状态")
 
         // 取消长按检测
         longPressRunnable?.let { longPressHandler.removeCallbacks(it) }
@@ -4098,6 +4167,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置卡片预览功能
         setupCardPreviewFeature()
+        
+        // 恢复悬浮卡片状态
+        gestureCardWebViewManager?.restoreCardsState()
 
         // 设置手势提示功能
         setupGestureHintFeature()
