@@ -6741,6 +6741,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun updateContactLastMessage(aiContact: ChatContact, lastMessage: String) {
         try {
+            var updated = false
             // 找到并更新联系人
             for (i in allContacts.indices) {
                 val category = allContacts[i]
@@ -6752,12 +6753,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         lastMessageTime = System.currentTimeMillis()
                     )
                     allContacts[i] = category.copy(contacts = mutableContacts)
+                    updated = true
                     break
                 }
             }
 
-            // 刷新UI
-            chatContactAdapter?.updateContacts(allContacts)
+            // 只有在成功更新联系人数据时才刷新UI，避免不必要的重新加载
+            if (updated) {
+                // 使用更轻量的方式通知适配器数据变化，而不是完全重新加载
+                chatContactAdapter?.notifyDataSetChanged()
+                Log.d(TAG, "已更新联系人 ${aiContact.name} 的最后消息")
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "更新联系人最后消息失败", e)
@@ -12078,7 +12084,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // "全部"标签 - 返回所有已配置的AI
                     allContacts.flatMap { category ->
                         category.contacts.filter { contact ->
-                            contact.type == ContactType.AI && contact.isOnline
+                            contact.type == ContactType.AI && contact.isOnline && hasValidApiKey(contact)
                         }
                     }
                 }
@@ -12086,7 +12092,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // "AI助手"标签 - 返回AI助手分组中的AI
                     val aiAssistantCategory = allContacts.find { it.name == "AI助手" }
                     aiAssistantCategory?.contacts?.filter { contact ->
-                        contact.type == ContactType.AI && contact.isOnline
+                        contact.type == ContactType.AI && contact.isOnline && hasValidApiKey(contact)
                     } ?: emptyList()
                 }
                 else -> {
@@ -12094,7 +12100,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     if (tabName != null && tabName != "+") {
                         val customCategory = allContacts.find { it.name == tabName }
                         customCategory?.contacts?.filter { contact ->
-                            contact.type == ContactType.AI && contact.isOnline
+                            contact.type == ContactType.AI && contact.isOnline && hasValidApiKey(contact)
                         } ?: emptyList()
                     } else {
                         emptyList()
