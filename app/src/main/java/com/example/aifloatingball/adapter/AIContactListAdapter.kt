@@ -47,16 +47,16 @@ class AIContactListAdapter(
         fun bind(contact: ChatContact) {
             nameText.text = contact.name
 
-            // 设置真实的AI图标
+            // 设置AI头像
             when (contact.name.lowercase()) {
-                "deepseek" -> avatarImage.setImageResource(R.drawable.ic_deepseek)
                 "chatgpt" -> avatarImage.setImageResource(R.drawable.ic_chatgpt)
                 "claude" -> avatarImage.setImageResource(R.drawable.ic_claude)
-                "gemini" -> avatarImage.setImageResource(R.drawable.ic_gemini)
-                "智谱ai" -> avatarImage.setImageResource(R.drawable.ic_zhipu)
+                "deepseek" -> avatarImage.setImageResource(R.drawable.ic_deepseek)
                 "文心一言" -> avatarImage.setImageResource(R.drawable.ic_wenxin)
+                "智谱ai", "智谱AI".lowercase() -> avatarImage.setImageResource(R.drawable.ic_zhipu)
                 "通义千问" -> avatarImage.setImageResource(R.drawable.ic_qianwen)
                 "讯飞星火" -> avatarImage.setImageResource(R.drawable.ic_xinghuo)
+                "gemini" -> avatarImage.setImageResource(R.drawable.ic_gemini)
                 "kimi" -> avatarImage.setImageResource(R.drawable.ic_kimi)
                 else -> avatarImage.setImageResource(R.drawable.ic_default_ai)
             }
@@ -70,25 +70,21 @@ class AIContactListAdapter(
                 groupTagText.visibility = View.GONE
             }
 
-            // 设置状态
+            // 设置最后对话预览
             val isConfigured = contact.customData["is_configured"] == "true"
             if (isConfigured) {
-                statusText.text = "API已配置"
-                statusText.setTextColor(itemView.context.getColor(R.color.simple_mode_success_light))
+                // 显示最后对话预览，如果没有则显示默认提示
+                statusText.text = contact.lastMessage ?: "开始新对话"
+                statusText.setTextColor(itemView.context.getColor(R.color.simple_mode_text_secondary_light))
                 onlineIndicator.setBackgroundColor(itemView.context.getColor(R.color.simple_mode_success_light))
-                apiKeyButton.text = "修改配置"
-                apiKeyButton.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                    itemView.context.getColor(R.color.simple_mode_primary_light)
-                )
             } else {
-                statusText.text = "未配置API"
+                statusText.text = "点击配置API密钥"
                 statusText.setTextColor(itemView.context.getColor(R.color.simple_mode_warning_light))
                 onlineIndicator.setBackgroundColor(itemView.context.getColor(R.color.simple_mode_warning_light))
-                apiKeyButton.text = "配置API"
-                apiKeyButton.backgroundTintList = android.content.res.ColorStateList.valueOf(
-                    itemView.context.getColor(R.color.simple_mode_accent_light)
-                )
             }
+            
+            // 隐藏API配置按钮，改为通过点击联系人进行配置
+            apiKeyButton.visibility = View.GONE
 
             // 设置点击事件
             itemView.setOnClickListener {
@@ -110,7 +106,7 @@ class AIContactListAdapter(
         private fun getAIGroupTag(aiName: String): String? {
             return when (aiName.lowercase()) {
                 "chatgpt", "claude", "deepseek" -> "编程助手"
-                "文心一言", "智谱ai" -> "写作助手"
+                "文心一言", "智谱ai", "智谱AI".lowercase() -> "写作助手"
                 "通义千问", "讯飞星火" -> "翻译助手"
                 "gemini", "kimi" -> "AI助手"
                 else -> null

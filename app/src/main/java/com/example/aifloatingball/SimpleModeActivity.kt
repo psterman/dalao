@@ -8914,6 +8914,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "chatgpt" -> apiKey.startsWith("sk-") && apiKey.length >= 20
             "claude" -> apiKey.startsWith("sk-ant-") && apiKey.length >= 20
             "gemini" -> apiKey.length >= 20 // Google API密钥没有固定前缀
+            "智谱ai", "智谱AI" -> apiKey.length >= 10 // 智谱AI API密钥
             "文心一言" -> apiKey.length >= 10 // 百度API密钥
             "通义千问" -> apiKey.length >= 10 // 阿里云API密钥
             "讯飞星火" -> apiKey.length >= 10 // 讯飞API密钥
@@ -8933,7 +8934,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 "chatgpt" -> "chatgpt_api_key"
                 "claude" -> "claude_api_key"
                 "gemini" -> "gemini_api_key"
-                "智谱ai" -> "zhipu_ai_api_key"
+                "智谱ai", "智谱AI" -> "zhipu_ai_api_key"
                 "文心一言" -> "wenxin_api_key"
                 "通义千问" -> "qianwen_api_key"
                 "讯飞星火" -> "xinghuo_api_key"
@@ -8958,7 +8959,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 "chatgpt" -> "chatgpt_api_key"
                 "claude" -> "claude_api_key"
                 "gemini" -> "gemini_api_key"
-                "智谱ai" -> "zhipu_ai_api_key"
+                "智谱ai", "智谱AI" -> "zhipu_ai_api_key"
                 "文心一言" -> "wenxin_api_key"
                 "通义千问" -> "qianwen_api_key"
                 "讯飞星火" -> "xinghuo_api_key"

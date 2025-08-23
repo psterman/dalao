@@ -172,14 +172,22 @@ class AIContactListActivity : AppCompatActivity() {
             val apiKey = getApiKeyForAI(aiName)
             val isConfigured = apiKey.isNotEmpty()
 
+            // 获取真实的最后对话内容
+            val lastChatMessage = getLastChatMessage(aiName)
+            val displayMessage = when {
+                !isConfigured -> "点击配置API密钥"
+                lastChatMessage.isNotEmpty() -> lastChatMessage
+                else -> "开始新对话"
+            }
+            
             val contact = ChatContact(
                 id = "ai_${aiName.lowercase().replace(" ", "_")}",
                 name = aiName,
                 type = ContactType.AI,
                 description = null, // 不显示描述
                 isOnline = isConfigured,
-                lastMessage = if (isConfigured) "API已配置，可以开始对话" else "点击配置API密钥",
-                lastMessageTime = System.currentTimeMillis(),
+                lastMessage = displayMessage,
+                lastMessageTime = getLastChatTime(aiName),
                 unreadCount = 0,
                 isPinned = isConfigured,
                 customData = mapOf(
@@ -580,5 +588,21 @@ class AIContactListActivity : AppCompatActivity() {
             "智谱ai", "zhipu", "glm" -> "glm-4"
             else -> "gpt-3.5-turbo"
         }
+    }
+    
+    /**
+     * 获取AI的最后对话消息
+     */
+    private fun getLastChatMessage(aiName: String): String {
+        val sharedPrefs = getSharedPreferences("ai_chat_history", MODE_PRIVATE)
+        return sharedPrefs.getString("${aiName}_last_message", "") ?: ""
+    }
+    
+    /**
+     * 获取AI的最后对话时间
+     */
+    private fun getLastChatTime(aiName: String): Long {
+        val sharedPrefs = getSharedPreferences("ai_chat_history", MODE_PRIVATE)
+        return sharedPrefs.getLong("${aiName}_last_time", System.currentTimeMillis())
     }
 }
