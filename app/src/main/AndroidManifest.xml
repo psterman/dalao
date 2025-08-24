@@ -131,6 +131,11 @@
             android:label="@string/ai_api_settings"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
+            android:name=".AIApiConfigActivity"
+            android:exported="false"
+            android:label="AI API配置"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
+        <activity
             android:name=".AISearchEngineSettingsActivity"
             android:exported="false"
             android:label="AI搜索引擎设置"
@@ -474,4 +479,4 @@
         </intent>
     </queries>
 
-</manifest> 
+</manifest>

@@ -267,6 +267,12 @@ class AIApiSettingsActivity : AppCompatActivity() {
                                         return@setOnPreferenceChangeListener false
                                     }
                                 }
+                                "智谱AI" -> {
+                                    if (!newApiKey.contains(".") || newApiKey.length < 20) {
+                                        Toast.makeText(context, "智谱AI API密钥格式应为：xxxxx.xxxxx", Toast.LENGTH_LONG).show()
+                                        return@setOnPreferenceChangeListener false
+                                    }
+                                }
                             }
                             
                             if (newApiKey.length < 20) {

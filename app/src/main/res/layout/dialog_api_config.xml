@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <!-- API密钥输入 -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:hint="API密钥"
+        app:boxStrokeColor="@color/simple_mode_accent_light"
+        app:hintTextColor="@color/simple_mode_accent_light">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_api_key"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textPassword"
+            android:textColor="@color/simple_mode_text_primary_light"
+            android:textColorHint="@color/simple_mode_text_secondary_light" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- API地址输入 -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:hint="API地址"
+        app:boxStrokeColor="@color/simple_mode_accent_light"
+        app:hintTextColor="@color/simple_mode_accent_light">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_api_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textUri"
+            android:textColor="@color/simple_mode_text_primary_light"
+            android:textColorHint="@color/simple_mode_text_secondary_light" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- 模型名称输入 -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="模型名称（可选）"
+        app:boxStrokeColor="@color/simple_mode_accent_light"
+        app:hintTextColor="@color/simple_mode_accent_light">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/et_model"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:textColor="@color/simple_mode_text_primary_light"
+            android:textColorHint="@color/simple_mode_text_secondary_light" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- 说明文本 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="提示：API密钥将安全存储在本地，不会上传到服务器。如果API地址为空，将使用默认地址。"
+        android:textColor="@color/simple_mode_text_secondary_light"
+        android:textSize="12sp" />
+
+</LinearLayout>

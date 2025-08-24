@@ -194,8 +194,8 @@
             app:summary="设置智谱AI API地址"
             app:dialogTitle="输入智谱AI API地址"
             android:inputType="textUri"
-            android:defaultValue="https://api.zhipu.ai/v1/chat/completions"/>
+            android:defaultValue="https://open.bigmodel.cn/api/paas/v4/chat/completions"/>
 
     </PreferenceCategory>
 
-</PreferenceScreen> 
+</PreferenceScreen>

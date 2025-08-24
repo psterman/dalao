@@ -13,6 +13,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.aifloatingball.activity.AIApiConfigActivity
 import com.example.aifloatingball.adapter.AIContactListAdapter
 import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactType
@@ -94,7 +95,9 @@ class AIContactListActivity : AppCompatActivity() {
         }
 
         addCustomButton.setOnClickListener {
-            showAddCustomAIDialog()
+            // 跳转到AI API配置页面
+            val intent = Intent(this, AIApiConfigActivity::class.java)
+            startActivity(intent)
         }
     }
 
@@ -487,48 +490,59 @@ class AIContactListActivity : AppCompatActivity() {
     // 以下方法从SimpleModeActivity复制，用于API密钥管理
     private fun getApiKeyForAI(aiName: String): String {
         val settingsManager = SettingsManager.getInstance(this)
-        val keyName = when (aiName.lowercase()) {
-            "deepseek" -> "deepseek_api_key"
-            "chatgpt" -> "chatgpt_api_key"
-            "claude" -> "claude_api_key"
-            "gemini" -> "gemini_api_key"
-            "智谱ai" -> "zhipu_ai_api_key"
-            "文心一言" -> "wenxin_api_key"
-            "通义千问" -> "qianwen_api_key"
-            "讯飞星火" -> "xinghuo_api_key"
-            "kimi" -> "kimi_api_key"
-            else -> "${aiName.lowercase()}_api_key"
+        return when (aiName.lowercase()) {
+            "deepseek" -> settingsManager.getDeepSeekApiKey()
+            "chatgpt" -> settingsManager.getString("chatgpt_api_key", "") ?: ""
+            "claude" -> settingsManager.getString("claude_api_key", "") ?: ""
+            "gemini" -> settingsManager.getString("gemini_api_key", "") ?: ""
+            "智谱ai", "智谱AI" -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+            "文心一言" -> settingsManager.getString("wenxin_api_key", "") ?: ""
+            "通义千问" -> settingsManager.getString("qianwen_api_key", "") ?: ""
+            "讯飞星火" -> settingsManager.getString("xinghuo_api_key", "") ?: ""
+            "kimi" -> settingsManager.getString("kimi_api_key", "") ?: ""
+            else -> settingsManager.getString("${aiName.lowercase()}_api_key", "") ?: ""
         }
-        return settingsManager.getString(keyName, "") ?: ""
     }
 
     private fun saveApiKeyForAI(aiName: String, apiKey: String, apiUrl: String, model: String) {
         val settingsManager = SettingsManager.getInstance(this)
-        val keyName = when (aiName.lowercase()) {
-            "deepseek" -> "deepseek_api_key"
-            "chatgpt" -> "chatgpt_api_key"
-            "claude" -> "claude_api_key"
-            "gemini" -> "gemini_api_key"
-            "智谱ai" -> "zhipu_ai_api_key"
-            "文心一言" -> "wenxin_api_key"
-            "通义千问" -> "qianwen_api_key"
-            "讯飞星火" -> "xinghuo_api_key"
-            "kimi" -> "kimi_api_key"
-            else -> "${aiName.lowercase()}_api_key"
+        
+        when (aiName.lowercase()) {
+            "deepseek" -> {
+                // 使用专门的DeepSeek方法
+                settingsManager.setDeepSeekApiKey(apiKey)
+                settingsManager.putString("deepseek_api_url", apiUrl)
+                settingsManager.putString("deepseek_model", model)
+                Log.d(TAG, "保存DeepSeek API配置")
+            }
+            else -> {
+                // 其他AI使用通用方法
+                val keyName = when (aiName.lowercase()) {
+                    "chatgpt" -> "chatgpt_api_key"
+                    "claude" -> "claude_api_key"
+                    "gemini" -> "gemini_api_key"
+                    "智谱ai", "智谱AI" -> "zhipu_ai_api_key"
+                    "文心一言" -> "wenxin_api_key"
+                    "通义千问" -> "qianwen_api_key"
+                    "讯飞星火" -> "xinghuo_api_key"
+                    "kimi" -> "kimi_api_key"
+                    else -> "${aiName.lowercase()}_api_key"
+                }
+                
+                // 保存API密钥
+                settingsManager.putString(keyName, apiKey)
+                
+                // 保存API URL
+                val urlKeyName = keyName.replace("_api_key", "_api_url")
+                settingsManager.putString(urlKeyName, apiUrl)
+                
+                // 保存模型名称
+                val modelKeyName = keyName.replace("_api_key", "_model")
+                settingsManager.putString(modelKeyName, model)
+                
+                Log.d(TAG, "保存API配置: $keyName, $urlKeyName, $modelKeyName")
+            }
         }
-        
-        // 保存API密钥
-        settingsManager.putString(keyName, apiKey)
-        
-        // 保存API URL
-        val urlKeyName = keyName.replace("_api_key", "_api_url")
-        settingsManager.putString(urlKeyName, apiUrl)
-        
-        // 保存模型名称
-        val modelKeyName = keyName.replace("_api_key", "_model")
-        settingsManager.putString(modelKeyName, model)
-        
-        Log.d(TAG, "保存API配置: $keyName, $urlKeyName, $modelKeyName")
     }
 
     private fun deleteApiKeyForAI(aiName: String) {
@@ -538,7 +552,7 @@ class AIContactListActivity : AppCompatActivity() {
             "chatgpt" -> "chatgpt_api_key"
             "claude" -> "claude_api_key"
             "gemini" -> "gemini_api_key"
-            "智谱ai" -> "zhipu_ai_api_key"
+            "智谱ai", "智谱AI" -> "zhipu_ai_api_key"
             "文心一言" -> "wenxin_api_key"
             "通义千问" -> "qianwen_api_key"
             "讯飞星火" -> "xinghuo_api_key"

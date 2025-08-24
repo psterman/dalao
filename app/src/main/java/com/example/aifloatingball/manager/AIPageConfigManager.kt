@@ -437,7 +437,7 @@ class AIPageConfigManager(private val context: Context) {
     }
 
     private fun getZhipuApiUrl(): String {
-        return settingsManager.getString("zhipu_ai_api_url", "https://api.zhipu.ai/v1/chat/completions") ?: "https://api.zhipu.ai/v1/chat/completions"
+        return settingsManager.getString("zhipu_ai_api_url", "https://open.bigmodel.cn/api/paas/v4/chat/completions") ?: "https://open.bigmodel.cn/api/paas/v4/chat/completions"
     }
 
     /**

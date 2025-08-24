@@ -405,7 +405,7 @@ class ChatActivity : AppCompatActivity() {
             "通义千问", "qianwen" -> AIServiceType.QIANWEN
             "讯飞星火", "xinghuo" -> AIServiceType.XINGHUO
             "kimi" -> AIServiceType.KIMI
-            "智谱ai", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
+            "智谱ai", "智谱清言", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
             else -> null
         }
     }
@@ -420,7 +420,7 @@ class ChatActivity : AppCompatActivity() {
             AIServiceType.CLAUDE -> settingsManager.getString("claude_api_key", "") ?: ""
             AIServiceType.GEMINI -> settingsManager.getString("gemini_api_key", "") ?: ""
             AIServiceType.WENXIN -> settingsManager.getString("wenxin_api_key", "") ?: ""
-            AIServiceType.DEEPSEEK -> settingsManager.getString("deepseek_api_key", "") ?: ""
+            AIServiceType.DEEPSEEK -> settingsManager.getDeepSeekApiKey()
             AIServiceType.QIANWEN -> settingsManager.getString("qianwen_api_key", "") ?: ""
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""

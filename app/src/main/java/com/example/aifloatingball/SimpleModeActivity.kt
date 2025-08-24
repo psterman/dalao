@@ -6416,16 +6416,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun getPinnedAvailableAIs(): List<ChatContact> {
         val availableAIs = mutableListOf<ChatContact>()
+        Log.d(TAG, "getPinnedAvailableAIs: 开始查找可用AI，总分类数: ${allContacts.size}")
+        
         allContacts.forEach { category ->
+            Log.d(TAG, "getPinnedAvailableAIs: 检查分类: ${category.name}, 联系人数: ${category.contacts.size}")
             if (category.name == "AI助手") {
+                Log.d(TAG, "getPinnedAvailableAIs: 找到AI助手分类，联系人数: ${category.contacts.size}")
                 category.contacts.forEach { contact ->
+                    Log.d(TAG, "getPinnedAvailableAIs: 检查AI: ${contact.name}, isPinned: ${contact.isPinned}")
+                    val isPinned = isPinnedAIContact(contact)
+                    val hasValidKey = hasValidApiKey(contact)
+                    Log.d(TAG, "getPinnedAvailableAIs: AI ${contact.name} - isPinnedAIContact: $isPinned, hasValidApiKey: $hasValidKey")
+                    
                     // 检查是否为置顶的AI联系人（通过名称或其他标识）
-                    if (isPinnedAIContact(contact) && hasValidApiKey(contact)) {
+                    if (isPinned && hasValidKey) {
                         availableAIs.add(contact)
+                        Log.d(TAG, "getPinnedAvailableAIs: 添加可用AI: ${contact.name}")
+                    } else {
+                        Log.d(TAG, "getPinnedAvailableAIs: 跳过AI: ${contact.name} (isPinned: $isPinned, hasValidKey: $hasValidKey)")
                     }
                 }
             }
         }
+        
+        Log.d(TAG, "getPinnedAvailableAIs: 最终可用AI数量: ${availableAIs.size}")
+        availableAIs.forEach { ai ->
+            Log.d(TAG, "getPinnedAvailableAIs: 可用AI: ${ai.name}")
+        }
+        
         return availableAIs
     }
 
@@ -6777,9 +6795,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun hasValidApiKey(contact: ChatContact): Boolean {
         return try {
-            val apiKey = contact.customData["api_key"] ?: ""
-            apiKey.isNotBlank() && apiKey.length > 10
+            // 获取AI服务类型
+            val serviceType = getAIServiceType(contact)
+            if (serviceType != null) {
+                // 从SettingsManager获取API密钥
+                val apiKey = getApiKeyForService(serviceType)
+                apiKey.isNotBlank() && apiKey.length > 10
+            } else {
+                false
+            }
         } catch (e: Exception) {
+            Log.e(TAG, "检查API密钥失败: ${contact.name}", e)
             false
         }
     }
@@ -6810,6 +6836,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val aiTagManager = AITagManager.getInstance(this)
             val aiContacts = aiTagManager.getAIsByTag("ai_assistant", allContacts)
 
+            Log.d(TAG, "showAIContacts: 开始显示AI联系人")
+            Log.d(TAG, "showAIContacts: 总分类数: ${allContacts.size}")
+            allContacts.forEach { category ->
+                Log.d(TAG, "showAIContacts: 分类: ${category.name}, 联系人数: ${category.contacts.size}")
+                category.contacts.forEach { contact ->
+                    Log.d(TAG, "showAIContacts: - ${contact.name} (类型: ${contact.type})")
+                }
+            }
+
             // 将List<ChatContact>包装成List<ContactCategory>
             val aiContactCategory = listOf(ContactCategory(
                 name = "AI助手",
@@ -6819,6 +6854,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             chatContactAdapter?.updateContacts(aiContactCategory)
             Log.d(TAG, "显示AI联系人，AI助手标签下AI数量: ${aiContacts.size}")
+            aiContacts.forEach { ai ->
+                Log.d(TAG, "showAIContacts: AI助手标签下的AI: ${ai.name}")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "显示AI联系人失败", e)
         }
@@ -8671,15 +8709,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             if (!found) {
-                // 如果在allContacts中没找到，可能是未分组的AI，需要添加到未分组类别
-                Log.d(TAG, "在allContacts中未找到联系人，尝试添加到未分组")
+                // 如果在allContacts中没找到，根据联系人类型添加到相应分类
+                val targetCategory = if (contact.type == ContactType.AI) "AI助手" else "未分组"
+                Log.d(TAG, "在allContacts中未找到联系人，尝试添加到$targetCategory")
                 val updatedContact = contact.copy(isPinned = isPinned)
 
-                // 查找或创建"未分组"类别
-                val ungroupedIndex = allContacts.indexOfFirst { it.name == "未分组" }
-                if (ungroupedIndex != -1) {
-                    val ungroupedCategory = allContacts[ungroupedIndex]
-                    val updatedContacts = ungroupedCategory.contacts.toMutableList()
+                // 查找或创建目标类别
+                val categoryIndex = allContacts.indexOfFirst { it.name == targetCategory }
+                if (categoryIndex != -1) {
+                    val category = allContacts[categoryIndex]
+                    val updatedContacts = category.contacts.toMutableList()
                     updatedContacts.add(updatedContact)
 
                     val sortedContacts = updatedContacts.sortedWith(
@@ -8687,15 +8726,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             .thenByDescending { it.lastMessageTime }
                     )
 
-                    allContacts[ungroupedIndex] = ungroupedCategory.copy(contacts = sortedContacts)
+                    allContacts[categoryIndex] = category.copy(contacts = sortedContacts)
                 } else {
-                    // 创建新的未分组类别
-                    val newUngroupedCategory = ContactCategory(
-                        name = "未分组",
+                    // 创建新的类别
+                    val newCategory = ContactCategory(
+                        name = targetCategory,
                         contacts = listOf(updatedContact),
                         isExpanded = true
                     )
-                    allContacts.add(0, newUngroupedCategory)
+                    if (targetCategory == "AI助手") {
+                        allContacts.add(newCategory)
+                    } else {
+                        allContacts.add(0, newCategory)
+                    }
                 }
                 found = true
             }
@@ -8749,25 +8792,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             if (!found) {
-                // 如果在allContacts中没找到，可能是未分组的AI，需要添加到未分组类别
-                Log.d(TAG, "在allContacts中未找到联系人，尝试添加到未分组")
+                // 如果在allContacts中没找到，根据联系人类型添加到相应分类
+                val targetCategory = if (contact.type == ContactType.AI) "AI助手" else "未分组"
+                Log.d(TAG, "在allContacts中未找到联系人，尝试添加到$targetCategory")
                 val updatedContact = contact.copy(isMuted = isMuted)
 
-                // 查找或创建"未分组"类别
-                val ungroupedIndex = allContacts.indexOfFirst { it.name == "未分组" }
-                if (ungroupedIndex != -1) {
-                    val ungroupedCategory = allContacts[ungroupedIndex]
-                    val updatedContacts = ungroupedCategory.contacts.toMutableList()
+                // 查找或创建目标类别
+                val categoryIndex = allContacts.indexOfFirst { it.name == targetCategory }
+                if (categoryIndex != -1) {
+                    val category = allContacts[categoryIndex]
+                    val updatedContacts = category.contacts.toMutableList()
                     updatedContacts.add(updatedContact)
-                    allContacts[ungroupedIndex] = ungroupedCategory.copy(contacts = updatedContacts)
+                    allContacts[categoryIndex] = category.copy(contacts = updatedContacts)
                 } else {
-                    // 创建新的未分组类别
-                    val newUngroupedCategory = ContactCategory(
-                        name = "未分组",
+                    // 创建新的类别
+                    val newCategory = ContactCategory(
+                        name = targetCategory,
                         contacts = listOf(updatedContact),
                         isExpanded = true
                     )
-                    allContacts.add(0, newUngroupedCategory)
+                    if (targetCategory == "AI助手") {
+                        allContacts.add(newCategory)
+                    } else {
+                        allContacts.add(0, newCategory)
+                    }
                 }
                 found = true
             }
@@ -8914,7 +8962,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "chatgpt" -> apiKey.startsWith("sk-") && apiKey.length >= 20
             "claude" -> apiKey.startsWith("sk-ant-") && apiKey.length >= 20
             "gemini" -> apiKey.length >= 20 // Google API密钥没有固定前缀
-            "智谱ai", "智谱AI" -> apiKey.length >= 10 // 智谱AI API密钥
+            "智谱ai", "智谱AI" -> apiKey.contains(".") && apiKey.length >= 20 // 智谱AI API密钥格式：xxxxx.xxxxx
             "文心一言" -> apiKey.length >= 10 // 百度API密钥
             "通义千问" -> apiKey.length >= 10 // 阿里云API密钥
             "讯飞星火" -> apiKey.length >= 10 // 讯飞API密钥
@@ -9427,11 +9475,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         when (requestCode) {
             REQUEST_CODE_ADD_AI_CONTACT -> {
                 // 从AI联系人列表界面返回
-                if (resultCode == Activity.RESULT_OK) {
-                    // 刷新联系人列表
-                    Toast.makeText(this, "AI联系人已更新", Toast.LENGTH_SHORT).show()
+                if (resultCode == Activity.RESULT_OK && data != null) {
+                    val aiContact = data.getParcelableExtra<ChatContact>("extra_ai_contact")
+                    if (aiContact != null) {
+                        // 添加AI联系人到对话列表
+                        addAIContactToCategory(aiContact.name, aiContact.description ?: "AI助手")
+                        // 刷新联系人列表显示
+                        refreshChatContactsList()
+                        Toast.makeText(this, "已添加 ${aiContact.name} 到对话列表", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "成功添加AI联系人: ${aiContact.name}")
+                    } else {
+                        Toast.makeText(this, "AI联系人数据无效", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Log.d(TAG, "用户取消了AI联系人选择")
                 }
             }
+        }
+    }
+
+    /**
+     * 刷新对话联系人列表
+     */
+    private fun refreshChatContactsList() {
+        try {
+            // 重新加载所有AI助手联系人
+            showAllUserAIContacts()
+            
+            // 通知适配器数据已更改
+            chatContactAdapter?.updateContacts(allContacts)
+            
+            Log.d(TAG, "已刷新对话联系人列表")
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新对话联系人列表失败", e)
         }
     }
 
@@ -9639,7 +9715,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "通义千问", "qianwen" -> AIServiceType.QIANWEN
             "讯飞星火", "xinghuo" -> AIServiceType.XINGHUO
             "kimi" -> AIServiceType.KIMI
-            "智谱ai", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
+            "智谱ai", "智谱清言", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
             else -> null
         }
     }
@@ -9654,7 +9730,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             AIServiceType.CLAUDE -> settingsManager.getString("claude_api_key", "") ?: ""
             AIServiceType.GEMINI -> settingsManager.getString("gemini_api_key", "") ?: ""
             AIServiceType.WENXIN -> settingsManager.getString("wenxin_api_key", "") ?: ""
-            AIServiceType.DEEPSEEK -> settingsManager.getString("deepseek_api_key", "") ?: ""
+            AIServiceType.DEEPSEEK -> settingsManager.getDeepSeekApiKey()
             AIServiceType.QIANWEN -> settingsManager.getString("qianwen_api_key", "") ?: ""
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
@@ -10271,9 +10347,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 when (currentTabPosition) {
                     0 -> {
-                        // 在"全部"标签页中，AI属于未分组状态
-                        Log.d(TAG, "AI在全部标签页中，视为未分组")
-                        return "未分组"
+                        // 在"全部"标签页中，AI联系人应该属于AI助手分组
+                        Log.d(TAG, "AI在全部标签页中，归类为AI助手")
+                        return "AI助手"
                     }
                     1 -> {
                         // 在"AI助手"标签页中
@@ -10285,6 +10361,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         if (currentTabText != null && currentTabText != "+") {
                             Log.d(TAG, "AI在自定义标签页中: $currentTabText")
                             return currentTabText
+                        } else {
+                            // 如果是无效的自定义标签页，默认归类为AI助手
+                            Log.d(TAG, "AI在无效标签页中，默认归类为AI助手")
+                            return "AI助手"
                         }
                     }
                 }

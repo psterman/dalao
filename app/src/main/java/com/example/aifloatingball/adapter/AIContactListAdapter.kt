@@ -8,6 +8,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.ChatContact
+import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.button.MaterialButton
 
 class AIContactListAdapter(
@@ -48,39 +49,80 @@ class AIContactListAdapter(
             nameText.text = contact.name
 
             // 设置AI头像
-            when (contact.name.lowercase()) {
-                "chatgpt" -> avatarImage.setImageResource(R.drawable.ic_chatgpt)
-                "claude" -> avatarImage.setImageResource(R.drawable.ic_claude)
-                "deepseek" -> avatarImage.setImageResource(R.drawable.ic_deepseek)
-                "文心一言" -> avatarImage.setImageResource(R.drawable.ic_wenxin)
-                "智谱ai", "智谱AI".lowercase() -> avatarImage.setImageResource(R.drawable.ic_zhipu)
-                "通义千问" -> avatarImage.setImageResource(R.drawable.ic_qianwen)
-                "讯飞星火" -> avatarImage.setImageResource(R.drawable.ic_xinghuo)
-                "gemini" -> avatarImage.setImageResource(R.drawable.ic_gemini)
-                "kimi" -> avatarImage.setImageResource(R.drawable.ic_kimi)
-                else -> avatarImage.setImageResource(R.drawable.ic_default_ai)
+            val contactNameLower = contact.name.lowercase()
+            when {
+                contactNameLower.contains("chatgpt") || contactNameLower.contains("gpt") -> 
+                    avatarImage.setImageResource(R.drawable.ic_chatgpt)
+                contactNameLower.contains("claude") -> 
+                    avatarImage.setImageResource(R.drawable.ic_claude)
+                contactNameLower.contains("gemini") -> 
+                    avatarImage.setImageResource(R.drawable.ic_gemini)
+                contactNameLower.contains("文心一言") || contactNameLower.contains("wenxin") -> 
+                    avatarImage.setImageResource(R.drawable.ic_wenxin)
+                contactNameLower.contains("deepseek") -> 
+                    avatarImage.setImageResource(R.drawable.ic_deepseek)
+                contactNameLower.contains("通义千问") || contactNameLower.contains("qianwen") -> 
+                    avatarImage.setImageResource(R.drawable.ic_qianwen)
+                contactNameLower.contains("讯飞星火") || contactNameLower.contains("xinghuo") -> 
+                    avatarImage.setImageResource(R.drawable.ic_xinghuo)
+                contactNameLower.contains("kimi") -> 
+                    avatarImage.setImageResource(R.drawable.ic_kimi)
+                contactNameLower.contains("智谱") || contactNameLower.contains("zhipu") || contactNameLower.contains("glm") -> 
+                    avatarImage.setImageResource(R.drawable.ic_zhipu)
+                contactNameLower.contains("月之暗面") || contactNameLower.contains("moonshot") -> 
+                    avatarImage.setImageResource(R.drawable.ic_kimi)
+                contactNameLower.contains("豆包") || contactNameLower.contains("doubao") -> 
+                    avatarImage.setImageResource(R.drawable.ic_doubao)
+                contactNameLower.contains("腾讯混元") || contactNameLower.contains("hunyuan") -> 
+                    avatarImage.setImageResource(R.drawable.ic_default_ai)
+                contactNameLower.contains("百川") || contactNameLower.contains("baichuan") -> 
+                    avatarImage.setImageResource(R.drawable.ic_default_ai)
+                contactNameLower.contains("minimax") -> 
+                    avatarImage.setImageResource(R.drawable.ic_default_ai)
+                else -> {
+                    // 尝试通过FaviconLoader根据API URL加载图标
+                    val apiUrl = contact.customData["api_url"]
+                    if (!apiUrl.isNullOrEmpty()) {
+                        try {
+                            FaviconLoader.loadIcon(avatarImage, apiUrl, R.drawable.ic_default_ai)
+                            return
+                        } catch (e: Exception) {
+                            avatarImage.setImageResource(R.drawable.ic_default_ai)
+                        }
+                    } else {
+                        avatarImage.setImageResource(R.drawable.ic_default_ai)
+                    }
+                }
             }
 
-            // 设置AI分组标签
+            // 设置AI分组标签 - 始终显示
             val groupTag = getAIGroupTag(contact.name)
-            if (groupTag != null) {
+            if (!groupTag.isNullOrEmpty()) {
                 groupTagText.text = groupTag
                 groupTagText.visibility = View.VISIBLE
             } else {
-                groupTagText.visibility = View.GONE
+                // 如果没有特定分组，显示默认的"AI助手"标签
+                groupTagText.text = "AI助手"
+                groupTagText.visibility = View.VISIBLE
             }
 
-            // 设置最后对话预览
-            val isConfigured = contact.customData["is_configured"] == "true"
-            if (isConfigured) {
-                // 显示最后对话预览，如果没有则显示默认提示
-                statusText.text = contact.lastMessage ?: "开始新对话"
+            // 显示最后对话预览
+            val lastMessage = contact.lastMessage
+            if (!lastMessage.isNullOrBlank()) {
+                // 显示最后一句话的预览，限制长度
+                val previewText = if (lastMessage.length > 50) {
+                    lastMessage.substring(0, 50) + "..."
+                } else {
+                    lastMessage
+                }
+                statusText.text = previewText
                 statusText.setTextColor(itemView.context.getColor(R.color.simple_mode_text_secondary_light))
                 onlineIndicator.setBackgroundColor(itemView.context.getColor(R.color.simple_mode_success_light))
             } else {
-                statusText.text = "点击配置API密钥"
-                statusText.setTextColor(itemView.context.getColor(R.color.simple_mode_warning_light))
-                onlineIndicator.setBackgroundColor(itemView.context.getColor(R.color.simple_mode_warning_light))
+                // 没有对话记录时显示默认提示
+                statusText.text = "开始新对话"
+                statusText.setTextColor(itemView.context.getColor(R.color.simple_mode_text_secondary_light))
+                onlineIndicator.setBackgroundColor(itemView.context.getColor(R.color.simple_mode_text_secondary_light))
             }
             
             // 隐藏API配置按钮，改为通过点击联系人进行配置
@@ -103,10 +145,10 @@ class AIContactListAdapter(
         /**
          * 获取AI分组标签
          */
-        private fun getAIGroupTag(aiName: String): String? {
-            return when (aiName.lowercase()) {
+        private fun getAIGroupTag(aiName: String?): String? {
+            return when (aiName?.lowercase()) {
                 "chatgpt", "claude", "deepseek" -> "编程助手"
-                "文心一言", "智谱ai", "智谱AI".lowercase() -> "写作助手"
+                "文心一言", "智谱ai" -> "写作助手"
                 "通义千问", "讯飞星火" -> "翻译助手"
                 "gemini", "kimi" -> "AI助手"
                 else -> null

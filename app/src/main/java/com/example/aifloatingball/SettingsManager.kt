@@ -1,4 +1,4 @@
- package com.example.aifloatingball
+package com.example.aifloatingball
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -1027,5 +1027,219 @@ class SettingsManager private constructor(context: Context) {
     fun setSearchEngineShortcuts(shortcuts: String) {
         prefs.edit().putString("search_engine_shortcuts", shortcuts).apply()
         notifyListeners("search_engine_shortcuts", shortcuts)
+    }
+
+    // 智谱AI API配置
+    fun getZhipuAiApiKey(): String {
+        return prefs.getString("zhipu_ai_api_key", "") ?: ""
+    }
+
+    fun setZhipuAiApiKey(apiKey: String) {
+        prefs.edit().putString("zhipu_ai_api_key", apiKey).apply()
+        notifyListeners("zhipu_ai_api_key", apiKey)
+    }
+
+    fun getZhipuAiApiUrl(): String {
+        return prefs.getString("zhipu_ai_api_url", "https://open.bigmodel.cn/api/paas/v4/chat/completions") ?: "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    }
+
+    fun setZhipuAiApiUrl(apiUrl: String) {
+        prefs.edit().putString("zhipu_ai_api_url", apiUrl).apply()
+        notifyListeners("zhipu_ai_api_url", apiUrl)
+    }
+
+    fun getZhipuAiModel(): String {
+        return prefs.getString("zhipu_ai_model", "glm-4") ?: "glm-4"
+    }
+
+    fun setZhipuAiModel(model: String) {
+        prefs.edit().putString("zhipu_ai_model", model).apply()
+        notifyListeners("zhipu_ai_model", model)
+    }
+
+    // Claude API配置
+    fun getClaudeApiKey(): String {
+        return prefs.getString("claude_api_key", "") ?: ""
+    }
+
+    fun setClaudeApiKey(apiKey: String) {
+        prefs.edit().putString("claude_api_key", apiKey).apply()
+        notifyListeners("claude_api_key", apiKey)
+    }
+
+    fun getClaudeApiUrl(): String {
+        return prefs.getString("claude_api_url", "https://api.anthropic.com/v1/messages") ?: "https://api.anthropic.com/v1/messages"
+    }
+
+    fun setClaudeApiUrl(apiUrl: String) {
+        prefs.edit().putString("claude_api_url", apiUrl).apply()
+        notifyListeners("claude_api_url", apiUrl)
+    }
+
+    fun getClaudeModel(): String {
+        return prefs.getString("claude_model", "claude-3-sonnet-20240229") ?: "claude-3-sonnet-20240229"
+    }
+
+    fun setClaudeModel(model: String) {
+        prefs.edit().putString("claude_model", model).apply()
+        notifyListeners("claude_model", model)
+    }
+
+    // Gemini API配置
+    fun getGeminiApiKey(): String {
+        return prefs.getString("gemini_api_key", "") ?: ""
+    }
+
+    fun setGeminiApiKey(apiKey: String) {
+        prefs.edit().putString("gemini_api_key", apiKey).apply()
+        notifyListeners("gemini_api_key", apiKey)
+    }
+
+    fun getGeminiApiUrl(): String {
+        return prefs.getString("gemini_api_url", "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent") ?: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+    }
+
+    fun setGeminiApiUrl(apiUrl: String) {
+        prefs.edit().putString("gemini_api_url", apiUrl).apply()
+        notifyListeners("gemini_api_url", apiUrl)
+    }
+
+    fun getGeminiModel(): String {
+        return prefs.getString("gemini_model", "gemini-pro") ?: "gemini-pro"
+    }
+
+    fun setGeminiModel(model: String) {
+        prefs.edit().putString("gemini_model", model).apply()
+        notifyListeners("gemini_model", model)
+    }
+
+    // 通义千问API配置
+    fun getQianwenApiKey(): String {
+        return prefs.getString("qianwen_api_key", "") ?: ""
+    }
+
+    fun setQianwenApiKey(apiKey: String) {
+        prefs.edit().putString("qianwen_api_key", apiKey).apply()
+        notifyListeners("qianwen_api_key", apiKey)
+    }
+
+    fun getQianwenApiUrl(): String {
+        return prefs.getString("qianwen_api_url", "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation") ?: "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+    }
+
+    fun setQianwenApiUrl(apiUrl: String) {
+        prefs.edit().putString("qianwen_api_url", apiUrl).apply()
+        notifyListeners("qianwen_api_url", apiUrl)
+    }
+
+    fun getQianwenModel(): String {
+        return prefs.getString("qianwen_model", "qwen-turbo") ?: "qwen-turbo"
+    }
+
+    fun setQianwenModel(model: String) {
+        prefs.edit().putString("qianwen_model", model).apply()
+        notifyListeners("qianwen_model", model)
+    }
+
+    // 文心一言API配置
+    fun getWenxinApiKey(): String {
+        return prefs.getString("wenxin_api_key", "") ?: ""
+    }
+
+    fun setWenxinApiKey(apiKey: String) {
+        prefs.edit().putString("wenxin_api_key", apiKey).apply()
+        notifyListeners("wenxin_api_key", apiKey)
+    }
+
+    fun getWenxinApiUrl(): String {
+        return prefs.getString("wenxin_api_url", "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions") ?: "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions"
+    }
+
+    fun setWenxinApiUrl(apiUrl: String) {
+        prefs.edit().putString("wenxin_api_url", apiUrl).apply()
+        notifyListeners("wenxin_api_url", apiUrl)
+    }
+
+    fun getWenxinModel(): String {
+        return prefs.getString("wenxin_model", "ernie-bot-turbo") ?: "ernie-bot-turbo"
+    }
+
+    fun setWenxinModel(model: String) {
+        prefs.edit().putString("wenxin_model", model).apply()
+        notifyListeners("wenxin_model", model)
+    }
+
+    // Kimi API配置
+    fun getKimiApiKey(): String {
+        return prefs.getString("kimi_api_key", "") ?: ""
+    }
+
+    fun setKimiApiKey(apiKey: String) {
+        prefs.edit().putString("kimi_api_key", apiKey).apply()
+        notifyListeners("kimi_api_key", apiKey)
+    }
+
+    fun getKimiApiUrl(): String {
+        return prefs.getString("kimi_api_url", "https://api.moonshot.cn/v1/chat/completions") ?: "https://api.moonshot.cn/v1/chat/completions"
+    }
+
+    fun setKimiApiUrl(apiUrl: String) {
+        prefs.edit().putString("kimi_api_url", apiUrl).apply()
+        notifyListeners("kimi_api_url", apiUrl)
+    }
+
+    fun getKimiModel(): String {
+        return prefs.getString("kimi_model", "moonshot-v1-8k") ?: "moonshot-v1-8k"
+    }
+
+    fun setKimiModel(model: String) {
+        prefs.edit().putString("kimi_model", model).apply()
+        notifyListeners("kimi_model", model)
+    }
+
+    // 自定义AI配置
+    fun getCustomAICount(): Int {
+        return prefs.getInt("custom_ai_count", 0)
+    }
+
+    fun setCustomAICount(count: Int) {
+        prefs.edit().putInt("custom_ai_count", count).apply()
+        notifyListeners("custom_ai_count", count)
+    }
+
+    fun getCustomAIName(index: Int): String {
+        return prefs.getString("custom_ai_${index}_name", "") ?: ""
+    }
+
+    fun setCustomAIName(index: Int, name: String) {
+        prefs.edit().putString("custom_ai_${index}_name", name).apply()
+        notifyListeners("custom_ai_${index}_name", name)
+    }
+
+    fun getCustomAIApiKey(index: Int): String {
+        return prefs.getString("custom_ai_${index}_api_key", "") ?: ""
+    }
+
+    fun setCustomAIApiKey(index: Int, apiKey: String) {
+        prefs.edit().putString("custom_ai_${index}_api_key", apiKey).apply()
+        notifyListeners("custom_ai_${index}_api_key", apiKey)
+    }
+
+    fun getCustomAIUrl(index: Int): String {
+        return prefs.getString("custom_ai_${index}_api_url", "") ?: ""
+    }
+
+    fun setCustomAIUrl(index: Int, apiUrl: String) {
+        prefs.edit().putString("custom_ai_${index}_api_url", apiUrl).apply()
+        notifyListeners("custom_ai_${index}_api_url", apiUrl)
+    }
+
+    fun getCustomAIModel(index: Int): String {
+        return prefs.getString("custom_ai_${index}_model", "") ?: ""
+    }
+
+    fun setCustomAIModel(index: Int, model: String) {
+        prefs.edit().putString("custom_ai_${index}_model", model).apply()
+        notifyListeners("custom_ai_${index}_model", model)
     }
 }

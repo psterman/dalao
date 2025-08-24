@@ -13,6 +13,7 @@ import com.example.aifloatingball.SimpleModeActivity
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactType
+import com.example.aifloatingball.SettingsManager
 
 /**
  * 搜索小组件提供器
@@ -183,15 +184,78 @@ class SearchWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "handleAIChatAction: query='$query'")
 
         try {
-            // 创建默认的AI联系人（DeepSeek）
-            val aiContact = ChatContact(
-                id = "widget_deepseek",
-                name = "DeepSeek",
-                type = ContactType.AI,
-                lastMessage = "",
-                lastMessageTime = System.currentTimeMillis(),
-                customData = mutableMapOf()
+            // 获取用户首选的AI引擎
+            val settingsManager = SettingsManager.getInstance(context)
+            val enabledAIEngines = settingsManager.getEnabledAIEngines()
+            
+            // 选择AI引擎的优先级：智谱AI (Custom) > DeepSeek (API) > 其他已启用的AI
+            val preferredAINames = listOf(
+                "智谱AI (Custom)",
+                "DeepSeek (API)", 
+                "ChatGPT (Custom)",
+                "Claude (Custom)",
+                "通义千问 (Custom)"
             )
+            
+            val selectedAI = preferredAINames.firstOrNull { enabledAIEngines.contains(it) }
+                ?: enabledAIEngines.firstOrNull()
+                ?: "DeepSeek" // 最后的备用选项
+            
+            Log.d(TAG, "选择的AI引擎: $selectedAI")
+            
+            // 映射AI名称到引擎键
+            val engineKey = when {
+                selectedAI.contains("智谱", ignoreCase = true) -> "智谱AI (Custom)"
+                selectedAI.contains("ChatGPT", ignoreCase = true) -> "ChatGPT (Custom)"
+                selectedAI.contains("Claude", ignoreCase = true) -> "Claude (Custom)"
+                selectedAI.contains("通义千问", ignoreCase = true) -> "通义千问 (Custom)"
+                selectedAI.contains("DeepSeek", ignoreCase = true) -> "DeepSeek (API)"
+                else -> "DeepSeek (API)"
+            }
+            
+            // 根据选择的AI创建联系人
+            val aiContact = when {
+                selectedAI.contains("智谱", ignoreCase = true) -> ChatContact(
+                    id = "widget_zhipu",
+                    name = "智谱AI",
+                    type = ContactType.AI,
+                    lastMessage = "",
+                    lastMessageTime = System.currentTimeMillis(),
+                    customData = mutableMapOf()
+                )
+                selectedAI.contains("ChatGPT", ignoreCase = true) -> ChatContact(
+                    id = "widget_chatgpt",
+                    name = "ChatGPT",
+                    type = ContactType.AI,
+                    lastMessage = "",
+                    lastMessageTime = System.currentTimeMillis(),
+                    customData = mutableMapOf()
+                )
+                selectedAI.contains("Claude", ignoreCase = true) -> ChatContact(
+                    id = "widget_claude",
+                    name = "Claude",
+                    type = ContactType.AI,
+                    lastMessage = "",
+                    lastMessageTime = System.currentTimeMillis(),
+                    customData = mutableMapOf()
+                )
+                selectedAI.contains("通义千问", ignoreCase = true) -> ChatContact(
+                    id = "widget_qianwen",
+                    name = "通义千问",
+                    type = ContactType.AI,
+                    lastMessage = "",
+                    lastMessageTime = System.currentTimeMillis(),
+                    customData = mutableMapOf()
+                )
+                else -> ChatContact(
+                    id = "widget_deepseek",
+                    name = "DeepSeek",
+                    type = ContactType.AI,
+                    lastMessage = "",
+                    lastMessageTime = System.currentTimeMillis(),
+                    customData = mutableMapOf()
+                )
+            }
 
             // 启动ChatActivity并传递AI联系人和初始消息
             val intent = Intent(context, ChatActivity::class.java).apply {
@@ -199,10 +263,11 @@ class SearchWidgetProvider : AppWidgetProvider() {
                 putExtra(ChatActivity.EXTRA_CONTACT, aiContact)
                 putExtra("auto_send_message", query)
                 putExtra("source", "桌面小组件")
+                putExtra("engine_key", engineKey) // 传递正确的引擎键
             }
 
             context.startActivity(intent)
-            Log.d(TAG, "AI对话启动成功: $query")
+            Log.d(TAG, "AI对话启动成功: ${aiContact.name} - $query")
 
         } catch (e: Exception) {
             Log.e(TAG, "启动AI对话失败", e)
