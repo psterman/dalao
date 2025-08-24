@@ -216,11 +216,53 @@ class AIApiConfigActivity : AppCompatActivity() {
             return
         }
         
-        // 这里可以添加API连接测试逻辑
-        Toast.makeText(this, "正在测试${aiConfig.displayName}连接...", Toast.LENGTH_SHORT).show()
+        val apiKey = settingsManager.getString(aiConfig.apiKeyKey, "") ?: ""
+        val apiUrl = settingsManager.getString(aiConfig.apiUrlKey, aiConfig.defaultApiUrl) ?: aiConfig.defaultApiUrl
+        val model = getDefaultModel(aiConfig.name)
         
-        // TODO: 实现实际的API测试逻辑
-        Log.d(TAG, "测试API连接: ${aiConfig.name}")
+        if (apiKey.isEmpty()) {
+            Toast.makeText(this, "API密钥为空，请先配置", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val apiTestManager = com.example.aifloatingball.manager.ApiTestManager(this)
+        
+        apiTestManager.testApiConnection(
+            aiName = aiConfig.name,
+            apiKey = apiKey,
+            apiUrl = apiUrl,
+            model = model,
+            callback = object : com.example.aifloatingball.manager.ApiTestManager.TestCallback {
+                override fun onTestStart() {
+                    Toast.makeText(this@AIApiConfigActivity, "正在测试${aiConfig.displayName}连接...", Toast.LENGTH_SHORT).show()
+                }
+                
+                override fun onTestSuccess(message: String) {
+                    Toast.makeText(this@AIApiConfigActivity, "✅ $message", Toast.LENGTH_LONG).show()
+                    Log.d(TAG, "API测试成功: ${aiConfig.name} - $message")
+                }
+                
+                override fun onTestFailure(error: String) {
+                    Toast.makeText(this@AIApiConfigActivity, "❌ $error", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "API测试失败: ${aiConfig.name} - $error")
+                }
+            }
+        )
+    }
+    
+    private fun getDefaultModel(aiName: String): String {
+        return when (aiName.lowercase()) {
+            "deepseek" -> "deepseek-chat"
+            "chatgpt", "openai" -> "gpt-3.5-turbo"
+            "claude" -> "claude-3-sonnet-20240229"
+            "智谱ai", "智谱AI" -> "glm-4"
+            "文心一言" -> "ernie-bot"
+            "通义千问" -> "qwen-turbo"
+            "gemini" -> "gemini-pro"
+            "kimi" -> "moonshot-v1-8k"
+            "豆包" -> "doubao-lite-4k"
+            else -> "gpt-3.5-turbo"
+        }
     }
     
     private fun showAddCustomAIDialog() {

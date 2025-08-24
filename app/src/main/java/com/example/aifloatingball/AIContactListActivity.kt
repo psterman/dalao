@@ -382,13 +382,42 @@ class AIContactListActivity : AppCompatActivity() {
      */
     private fun testApiConnection(contact: ChatContact) {
         val apiKey = contact.customData["api_key"] ?: ""
+        val apiUrl = contact.customData["api_url"] ?: ""
+        val model = contact.customData["model"] ?: ""
+        
         if (apiKey.isEmpty()) {
             Toast.makeText(this, "请先配置API密钥", Toast.LENGTH_SHORT).show()
             return
         }
         
-        Toast.makeText(this, "开始测试API连接...", Toast.LENGTH_SHORT).show()
-        // TODO: 实现API连接测试逻辑
+        if (apiUrl.isEmpty()) {
+            Toast.makeText(this, "API地址未配置", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val apiTestManager = com.example.aifloatingball.manager.ApiTestManager(this)
+        
+        apiTestManager.testApiConnection(
+            aiName = contact.name,
+            apiKey = apiKey,
+            apiUrl = apiUrl,
+            model = model.ifEmpty { getDefaultModel(contact.name) },
+            callback = object : com.example.aifloatingball.manager.ApiTestManager.TestCallback {
+                override fun onTestStart() {
+                    Toast.makeText(this@AIContactListActivity, "正在测试${contact.name}连接...", Toast.LENGTH_SHORT).show()
+                }
+                
+                override fun onTestSuccess(message: String) {
+                    Toast.makeText(this@AIContactListActivity, "✅ $message", Toast.LENGTH_LONG).show()
+                    Log.d(TAG, "API测试成功: ${contact.name} - $message")
+                }
+                
+                override fun onTestFailure(error: String) {
+                    Toast.makeText(this@AIContactListActivity, "❌ $error", Toast.LENGTH_LONG).show()
+                    Log.e(TAG, "API测试失败: ${contact.name} - $error")
+                }
+            }
+        )
     }
 
     /**
