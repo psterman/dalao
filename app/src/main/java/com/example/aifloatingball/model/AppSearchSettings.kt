@@ -12,6 +12,7 @@ import com.example.aifloatingball.R
 enum class AppCategory(val displayName: String, val iconResId: Int) {
     CUSTOM("自定义", android.R.drawable.ic_menu_preferences),
     ALL("全部", android.R.drawable.ic_menu_view),
+    AI("AI", android.R.drawable.ic_menu_help),
     SHOPPING("购物", android.R.drawable.ic_menu_gallery),
     SOCIAL("社交", android.R.drawable.ic_menu_share),
     VIDEO("视频", android.R.drawable.ic_media_play),
@@ -658,6 +659,63 @@ class AppSearchSettings(context: Context) {
                 searchUrl = "newsapp://search?keyword={q}",
                 category = AppCategory.NEWS,
                 description = "网易新闻搜索资讯内容"
+            ),
+
+            // AI类应用
+            AppSearchConfig(
+                appId = "deepseek",
+                appName = "DeepSeek",
+                packageName = "com.deepseek.chat",
+                isEnabled = true,
+                order = 46,
+                iconResId = R.drawable.ic_deepseek,
+                searchUrl = "https://play.google.com/store/apps/details?id=com.deepseek.chat",
+                category = AppCategory.AI,
+                description = "DeepSeek AI助手搜索"
+            ),
+            AppSearchConfig(
+                appId = "doubao",
+                appName = "豆包",
+                packageName = "com.larus.nova",
+                isEnabled = true,
+                order = 47,
+                iconResId = R.drawable.ic_doubao,
+                searchUrl = "https://play.google.com/store/apps/details?id=com.larus.nova",
+                category = AppCategory.AI,
+                description = "豆包AI助手搜索"
+            ),
+            AppSearchConfig(
+                appId = "chatgpt",
+                appName = "ChatGPT",
+                packageName = "com.openai.chatgpt",
+                isEnabled = true,
+                order = 48,
+                iconResId = R.drawable.ic_chatgpt,
+                searchUrl = "https://play.google.com/store/apps/details?id=com.openai.chatgpt",
+                category = AppCategory.AI,
+                description = "ChatGPT AI助手搜索"
+            ),
+            AppSearchConfig(
+                appId = "kimi",
+                appName = "Kimi",
+                packageName = "com.moonshot.kimichat",
+                isEnabled = true,
+                order = 49,
+                iconResId = R.drawable.ic_kimi,
+                searchUrl = "https://play.google.com/store/apps/details?id=com.moonshot.kimichat",
+                category = AppCategory.AI,
+                description = "Kimi AI助手搜索"
+            ),
+            AppSearchConfig(
+                appId = "tencent_yuanbao",
+                appName = "腾讯元宝",
+                packageName = "com.tencent.hunyuan.app.chat",
+                isEnabled = true,
+                order = 50,
+                iconResId = R.drawable.ic_yuanbao,
+                searchUrl = "https://play.google.com/store/apps/details?id=com.tencent.hunyuan.app.chat",
+                category = AppCategory.AI,
+                description = "腾讯元宝AI助手搜索"
             )
         )
     }

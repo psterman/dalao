@@ -2027,6 +2027,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val categoryButtons = mapOf(
             AppCategory.CUSTOM to findViewById<LinearLayout>(R.id.category_custom),
             AppCategory.ALL to findViewById<LinearLayout>(R.id.category_all),
+            AppCategory.AI to findViewById<LinearLayout>(R.id.category_ai),
             AppCategory.SHOPPING to findViewById<LinearLayout>(R.id.category_shopping),
             AppCategory.SOCIAL to findViewById<LinearLayout>(R.id.category_social),
             AppCategory.VIDEO to findViewById<LinearLayout>(R.id.category_video),
@@ -2072,6 +2073,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val categoryData = mapOf(
             AppCategory.CUSTOM to Pair(R.drawable.ic_star, "自定义"),
             AppCategory.ALL to Pair(R.drawable.ic_apps, "全部"),
+            AppCategory.AI to Pair(R.drawable.ic_ai, "AI"),
             AppCategory.SHOPPING to Pair(R.drawable.ic_shopping, "购物"),
             AppCategory.SOCIAL to Pair(R.drawable.ic_people, "社交"),
             AppCategory.VIDEO to Pair(R.drawable.ic_video, "视频"),
@@ -2652,24 +2654,54 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun handleAppSearch(appConfig: AppSearchConfig, query: String) {
         try {
-            val searchUrl = appConfig.getSearchUrl(query)
-            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                setPackage(appConfig.packageName)
+            if (query.isNotEmpty()) {
+                // 有搜索内容时，使用应用内搜索
+                val searchUrl = appConfig.getSearchUrl(query)
+                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    setPackage(appConfig.packageName)
+                }
+
+                startActivity(intent)
+                Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
+
+                // 保存搜索历史
+                searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
+            } else {
+                // 没有搜索内容时，直接启动应用
+                val launchIntent = packageManager.getLaunchIntentForPackage(appConfig.packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Toast.makeText(this, "正在启动${appConfig.appName}", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "直接启动应用: ${appConfig.appName}")
+                } else {
+                    Log.w(TAG, "无法启动应用: ${appConfig.appName}, 应用可能未安装")
+                    Toast.makeText(this, "启动${appConfig.appName}失败，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
+                    return
+                }
             }
-
-            startActivity(intent)
-            Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
-
-            // 保存搜索历史
-            searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
 
             // 显示悬浮返回按钮
             showFloatingBackButton()
 
         } catch (e: Exception) {
-            Log.e(TAG, "启动应用搜索失败: ${e.message}")
-            Toast.makeText(this, "启动${appConfig.appName}失败，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "启动应用失败: ${e.message}")
+            // 尝试直接启动应用作为备用方案
+            try {
+                val launchIntent = packageManager.getLaunchIntentForPackage(appConfig.packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Toast.makeText(this, "正在启动${appConfig.appName}", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "备用方案启动应用成功: ${appConfig.appName}")
+                } else {
+                    Toast.makeText(this, "启动${appConfig.appName}失败，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
+                }
+            } catch (fallbackException: Exception) {
+                Log.e(TAG, "备用启动方案也失败: ${fallbackException.message}")
+                Toast.makeText(this, "启动${appConfig.appName}失败", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

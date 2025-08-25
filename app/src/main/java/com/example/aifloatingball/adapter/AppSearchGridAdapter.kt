@@ -63,6 +63,7 @@ class AppSearchGridAdapter(
         
         // 检查应用是否已安装
         val isInstalled = isAppInstalled(appConfig.packageName)
+        android.util.Log.i("APP_DETECTION", "🔍 Binding ${appConfig.appName} (${appConfig.packageName}): installed=$isInstalled")
         
         // 设置应用图标 - 使用异步加载
         loadAppIconAsync(appConfig, holder, isInstalled)
@@ -135,9 +136,38 @@ class AppSearchGridAdapter(
      */
     private fun isAppInstalled(packageName: String): Boolean {
         return try {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (e: PackageManager.NameNotFoundException) {
+            // 尝试多种方法检测应用是否安装
+            val packageManager = context.packageManager
+            
+            // 方法1: 使用getPackageInfo
+            try {
+                packageManager.getPackageInfo(packageName, 0)
+                android.util.Log.i("APP_DETECTION", "✅ App $packageName is installed (method 1)")
+                return true
+            } catch (e: PackageManager.NameNotFoundException) {
+                android.util.Log.w("APP_DETECTION", "❌ App $packageName not found with method 1")
+            }
+            
+            // 方法2: 使用getApplicationInfo
+            try {
+                packageManager.getApplicationInfo(packageName, 0)
+                android.util.Log.i("APP_DETECTION", "✅ App $packageName is installed (method 2)")
+                return true
+            } catch (e: PackageManager.NameNotFoundException) {
+                android.util.Log.w("APP_DETECTION", "❌ App $packageName not found with method 2")
+            }
+            
+            // 方法3: 使用getLaunchIntentForPackage
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                android.util.Log.i("APP_DETECTION", "✅ App $packageName is installed (method 3)")
+                return true
+            }
+            
+            android.util.Log.e("APP_DETECTION", "❌ App $packageName is NOT installed (all methods failed)")
+            false
+        } catch (e: Exception) {
+            android.util.Log.e("APP_DETECTION", "💥 Error checking app $packageName: ${e.message}")
             false
         }
     }

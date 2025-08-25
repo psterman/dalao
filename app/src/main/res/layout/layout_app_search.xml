@@ -300,6 +300,10 @@
                         <include layout="@layout/item_category_button_vertical"
                             android:id="@+id/category_news" />
 
+                        <!-- AI分类 -->
+                        <include layout="@layout/item_category_button_vertical"
+                            android:id="@+id/category_ai" />
+
                     </LinearLayout>
 
                 </ScrollView>
