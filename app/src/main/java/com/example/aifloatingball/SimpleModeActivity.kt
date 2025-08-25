@@ -21,6 +21,7 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.widget.Toast
@@ -1989,8 +1990,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置应用搜索页面
      */
     private fun setupAppSearchPage() {
+        Log.d(TAG, "setupAppSearchPage被调用")
+        Log.d(TAG, "appSearchAdapter是否已初始化: ${::appSearchAdapter.isInitialized}")
         // 初始化应用搜索适配器
         if (!::appSearchAdapter.isInitialized) {
+            Log.d(TAG, "开始初始化appSearchAdapter")
             appSearchAdapter = AppSearchGridAdapter(this, currentAppConfigs,
                 onAppClick = { appConfig, query ->
                     handleAppSearch(appConfig, query)
@@ -2041,6 +2045,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             AppCategory.EDUCATION to findViewById<LinearLayout>(R.id.category_education),
             AppCategory.NEWS to findViewById<LinearLayout>(R.id.category_news)
         )
+
+        // 调试：检查AI分类按钮是否找到
+        val aiButton = categoryButtons[AppCategory.AI]
+        Log.d(TAG, "AI分类按钮是否找到: ${aiButton != null}")
+        if (aiButton != null) {
+            Log.d(TAG, "AI分类按钮ID: ${aiButton.id}")
+            Log.d(TAG, "AI分类按钮可见性: ${aiButton.visibility}")
+        }
 
         // 设置分类按钮的图标和文字
         setupCategoryButtonContent(categoryButtons)
@@ -4196,6 +4208,28 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 false
             }
         }
+
+        // 添加文本变化监听器，检测"app"关键词自动切换到应用搜索
+        browserSearchInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val query = s?.toString()?.trim()?.lowercase() ?: ""
+                // 当用户输入"app"时，自动切换到应用搜索界面
+                if (query == "app") {
+                    Log.d(TAG, "检测到用户输入'app'，自动切换到应用搜索界面")
+                    // 延迟切换，避免输入过程中的干扰
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (browserSearchInput.text.toString().trim().lowercase() == "app") {
+                            switchToAppSearchWithQuery(null)
+                            // 清空浏览器搜索框
+                            browserSearchInput.setText("")
+                            Toast.makeText(this@SimpleModeActivity, "已切换到应用搜索", Toast.LENGTH_SHORT).show()
+                        }
+                    }, 500) // 500ms延迟，给用户时间完成输入
+                }
+            }
+        })
 
         // 设置手势检测
         setupBrowserGestureDetector()

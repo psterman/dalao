@@ -68,6 +68,7 @@ class CategoryDragHelper(private val context: Context) {
         return listOf(
             AppCategory.CUSTOM,
             AppCategory.ALL,
+            AppCategory.AI,
             AppCategory.SHOPPING,
             AppCategory.SOCIAL,
             AppCategory.VIDEO,
