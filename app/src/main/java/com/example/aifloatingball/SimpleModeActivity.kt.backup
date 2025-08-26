@@ -202,6 +202,618 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 步骤引导页面组件
     private lateinit var stepTitleText: TextView
     private lateinit var stepQuestionText: TextView
+package com.example.aifloatingball
+
+import android.Manifest
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.inputmethod.InputMethodManager
+import androidx.appcompat.app.AlertDialog
+import com.example.aifloatingball.voice.VoiceInputManager
+import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.text.Editable
+import android.text.TextWatcher
+import android.util.Log
+import android.widget.Toast
+import android.view.GestureDetector
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import kotlin.math.abs
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.widget.*
+import android.widget.ArrayAdapter
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.viewpager2.widget.ViewPager2
+import androidx.core.view.GravityCompat
+import androidx.core.view.GestureDetectorCompat
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.example.aifloatingball.manager.ModeManager
+import com.example.aifloatingball.manager.AIApiManager
+import com.example.aifloatingball.manager.AIServiceType
+import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.manager.SimpleChatHistoryManager
+import com.example.aifloatingball.adapter.TaskTemplateAdapter
+import com.example.aifloatingball.data.SimpleTaskTemplates
+import com.example.aifloatingball.model.PromptTemplate
+import com.example.aifloatingball.model.PromptField
+import com.example.aifloatingball.model.FieldType
+import com.example.aifloatingball.model.UserPromptData
+import com.example.aifloatingball.model.ChatContact
+import com.example.aifloatingball.model.ContactType
+import com.example.aifloatingball.model.ContactCategory
+import com.example.aifloatingball.adapter.ChatContactAdapter
+import com.example.aifloatingball.manager.AITagManager
+import com.example.aifloatingball.model.AppSearchConfig
+import com.example.aifloatingball.model.AppCategory
+import com.example.aifloatingball.model.AppSearchSettings
+import com.example.aifloatingball.adapter.AppSearchGridAdapter
+import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.ui.TabSwitchAnimationManager
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
+import java.net.HttpURLConnection
+import java.net.URL
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+
+import com.example.aifloatingball.service.SimpleModeService
+import com.example.aifloatingball.service.FloatingWindowService
+import com.example.aifloatingball.service.DynamicIslandService
+import com.example.aifloatingball.service.DualFloatingWebViewService
+import com.example.aifloatingball.voice.VoicePromptBranchManager
+import com.example.aifloatingball.webview.MultiPageWebViewManager
+import com.example.aifloatingball.webview.CardWebViewManager
+import com.example.aifloatingball.webview.GestureCardWebViewManager
+import com.example.aifloatingball.webview.MobileCardManager
+import com.example.aifloatingball.views.WebViewTabBar
+import com.example.aifloatingball.views.MaterialSearchEngineSelector
+import com.example.aifloatingball.views.CardPreviewOverlay
+import com.example.aifloatingball.views.QuarterArcOperationBar
+
+import com.google.android.material.switchmaterial.SwitchMaterial
+import android.widget.EditText
+import android.widget.Button
+import androidx.appcompat.app.AppCompatDelegate
+import android.provider.Settings
+import android.os.Build
+
+class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchViewListener {
+
+    companion object {
+        private const val TAG = "SimpleModeActivity"
+        // 为交互模式定义一个存储键
+        private const val KEY_VOICE_INTERACTION_MODE = "voice_interaction_mode"
+        // 用于保存当前界面状态的键
+        private const val KEY_CURRENT_STATE = "current_state"
+        // 系统语音输入请求码
+        private const val SYSTEM_VOICE_REQUEST_CODE = 1002
+        // 联系人数据持久化相关
+        private const val CONTACTS_PREFS_NAME = "chat_contacts"
+        private const val KEY_SAVED_CONTACTS = "saved_contacts"
+        // Activity请求码
+        private const val REQUEST_CODE_ADD_AI_CONTACT = 1101
+    }
+
+    /**
+     * 安全启动Activity的通用方法
+     */
+    private fun safeStartActivity(activityClass: Class<*>, activityName: String) {
+        try {
+            Log.d(TAG, "尝试启动$activityName")
+
+            // 检查Activity类是否存在
+            val intent = Intent(this, activityClass)
+
+            // 检查是否有可以处理这个Intent的Activity
+            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            if (resolveInfo == null) {
+                Log.e(TAG, "找不到可以处理Intent的Activity: $activityName")
+                Toast.makeText(this, "无法找到$activityName", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            Log.d(TAG, "Intent验证成功，准备启动$activityName")
+            startActivity(intent)
+            Log.d(TAG, "$activityName 启动成功")
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "启动$activityName 时权限不足", e)
+            Toast.makeText(this, "启动$activityName 权限不足", Toast.LENGTH_LONG).show()
+        } catch (e: android.content.ActivityNotFoundException) {
+            Log.e(TAG, "找不到$activityName", e)
+            Toast.makeText(this, "找不到$activityName", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "启动$activityName 失败", e)
+            Toast.makeText(this, "启动$activityName 失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // 界面状态
+    private enum class UIState {
+        CHAT,              // 对话页面
+        BROWSER,           // 搜索页面
+        TASK_SELECTION,    // 任务选择页面
+        STEP_GUIDANCE,     // 步骤引导页面
+        PROMPT_PREVIEW,    // 提示预览页面
+        VOICE,             // 语音页面
+        APP_SEARCH,        // 应用搜索页面
+        SETTINGS           // 设置页面
+    }
+
+    private var currentState = UIState.TASK_SELECTION
+    private var currentTemplate: PromptTemplate? = null
+    private var currentStepIndex = 0
+    private lateinit var userPromptData: UserPromptData
+    private lateinit var settingsManager: SettingsManager
+    
+    // 会话级别的恢复对话框标记，防止重复弹出
+    private var hasShownRestoreDialog = false
+
+    // UI组件
+    private lateinit var chatLayout: LinearLayout
+    private lateinit var taskSelectionLayout: LinearLayout
+    private lateinit var stepGuidanceLayout: LinearLayout
+    private lateinit var promptPreviewLayout: LinearLayout
+    private lateinit var voiceLayout: ScrollView
+    private lateinit var appSearchLayout: androidx.coordinatorlayout.widget.CoordinatorLayout
+    private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
+    private lateinit var settingsLayout: ScrollView
+    // private lateinit var modeSwitchWidget: ModeSwitchWidget  // 暂时禁用
+
+    // 任务选择页面组件
+    private lateinit var taskRecyclerView: RecyclerView
+    private lateinit var taskAdapter: TaskTemplateAdapter
+    private lateinit var directSearchInput: EditText
+    private lateinit var directSearchButton: ImageButton
+
+    // 步骤引导页面组件
+    private lateinit var stepTitleText: TextView
+    private lateinit var stepQuestionText: TextView
+package com.example.aifloatingball
+
+import android.Manifest
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.inputmethod.InputMethodManager
+import androidx.appcompat.app.AlertDialog
+import com.example.aifloatingball.voice.VoiceInputManager
+import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.text.Editable
+import android.text.TextWatcher
+import android.util.Log
+import android.widget.Toast
+import android.view.GestureDetector
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import kotlin.math.abs
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.widget.*
+import android.widget.ArrayAdapter
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.viewpager2.widget.ViewPager2
+import androidx.core.view.GravityCompat
+import androidx.core.view.GestureDetectorCompat
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.example.aifloatingball.manager.ModeManager
+import com.example.aifloatingball.manager.AIApiManager
+import com.example.aifloatingball.manager.AIServiceType
+import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.manager.SimpleChatHistoryManager
+import com.example.aifloatingball.adapter.TaskTemplateAdapter
+import com.example.aifloatingball.data.SimpleTaskTemplates
+import com.example.aifloatingball.model.PromptTemplate
+import com.example.aifloatingball.model.PromptField
+import com.example.aifloatingball.model.FieldType
+import com.example.aifloatingball.model.UserPromptData
+import com.example.aifloatingball.model.ChatContact
+import com.example.aifloatingball.model.ContactType
+import com.example.aifloatingball.model.ContactCategory
+import com.example.aifloatingball.adapter.ChatContactAdapter
+import com.example.aifloatingball.manager.AITagManager
+import com.example.aifloatingball.model.AppSearchConfig
+import com.example.aifloatingball.model.AppCategory
+import com.example.aifloatingball.model.AppSearchSettings
+import com.example.aifloatingball.adapter.AppSearchGridAdapter
+import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.ui.TabSwitchAnimationManager
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
+import java.net.HttpURLConnection
+import java.net.URL
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+
+import com.example.aifloatingball.service.SimpleModeService
+import com.example.aifloatingball.service.FloatingWindowService
+import com.example.aifloatingball.service.DynamicIslandService
+import com.example.aifloatingball.service.DualFloatingWebViewService
+import com.example.aifloatingball.voice.VoicePromptBranchManager
+import com.example.aifloatingball.webview.MultiPageWebViewManager
+import com.example.aifloatingball.webview.CardWebViewManager
+import com.example.aifloatingball.webview.GestureCardWebViewManager
+import com.example.aifloatingball.webview.MobileCardManager
+import com.example.aifloatingball.views.WebViewTabBar
+import com.example.aifloatingball.views.MaterialSearchEngineSelector
+import com.example.aifloatingball.views.CardPreviewOverlay
+import com.example.aifloatingball.views.QuarterArcOperationBar
+
+import com.google.android.material.switchmaterial.SwitchMaterial
+import android.widget.EditText
+import android.widget.Button
+import androidx.appcompat.app.AppCompatDelegate
+import android.provider.Settings
+import android.os.Build
+
+class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchViewListener {
+
+    companion object {
+        private const val TAG = "SimpleModeActivity"
+        // 为交互模式定义一个存储键
+        private const val KEY_VOICE_INTERACTION_MODE = "voice_interaction_mode"
+        // 用于保存当前界面状态的键
+        private const val KEY_CURRENT_STATE = "current_state"
+        // 系统语音输入请求码
+        private const val SYSTEM_VOICE_REQUEST_CODE = 1002
+        // 联系人数据持久化相关
+        private const val CONTACTS_PREFS_NAME = "chat_contacts"
+        private const val KEY_SAVED_CONTACTS = "saved_contacts"
+        // Activity请求码
+        private const val REQUEST_CODE_ADD_AI_CONTACT = 1101
+    }
+
+    /**
+     * 安全启动Activity的通用方法
+     */
+    private fun safeStartActivity(activityClass: Class<*>, activityName: String) {
+        try {
+            Log.d(TAG, "尝试启动$activityName")
+
+            // 检查Activity类是否存在
+            val intent = Intent(this, activityClass)
+
+            // 检查是否有可以处理这个Intent的Activity
+            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            if (resolveInfo == null) {
+                Log.e(TAG, "找不到可以处理Intent的Activity: $activityName")
+                Toast.makeText(this, "无法找到$activityName", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            Log.d(TAG, "Intent验证成功，准备启动$activityName")
+            startActivity(intent)
+            Log.d(TAG, "$activityName 启动成功")
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "启动$activityName 时权限不足", e)
+            Toast.makeText(this, "启动$activityName 权限不足", Toast.LENGTH_LONG).show()
+        } catch (e: android.content.ActivityNotFoundException) {
+            Log.e(TAG, "找不到$activityName", e)
+            Toast.makeText(this, "找不到$activityName", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "启动$activityName 失败", e)
+            Toast.makeText(this, "启动$activityName 失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // 界面状态
+    private enum class UIState {
+        CHAT,              // 对话页面
+        BROWSER,           // 搜索页面
+        TASK_SELECTION,    // 任务选择页面
+        STEP_GUIDANCE,     // 步骤引导页面
+        PROMPT_PREVIEW,    // 提示预览页面
+        VOICE,             // 语音页面
+        APP_SEARCH,        // 应用搜索页面
+        SETTINGS           // 设置页面
+    }
+
+    private var currentState = UIState.TASK_SELECTION
+    private var currentTemplate: PromptTemplate? = null
+    private var currentStepIndex = 0
+    private lateinit var userPromptData: UserPromptData
+    private lateinit var settingsManager: SettingsManager
+    
+    // 会话级别的恢复对话框标记，防止重复弹出
+    private var hasShownRestoreDialog = false
+
+    // UI组件
+    private lateinit var chatLayout: LinearLayout
+    private lateinit var taskSelectionLayout: LinearLayout
+    private lateinit var stepGuidanceLayout: LinearLayout
+    private lateinit var promptPreviewLayout: LinearLayout
+    private lateinit var voiceLayout: ScrollView
+    private lateinit var appSearchLayout: androidx.coordinatorlayout.widget.CoordinatorLayout
+    private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
+    private lateinit var settingsLayout: ScrollView
+    // private lateinit var modeSwitchWidget: ModeSwitchWidget  // 暂时禁用
+
+    // 任务选择页面组件
+    private lateinit var taskRecyclerView: RecyclerView
+    private lateinit var taskAdapter: TaskTemplateAdapter
+    private lateinit var directSearchInput: EditText
+    private lateinit var directSearchButton: ImageButton
+
+    // 步骤引导页面组件
+    private lateinit var stepTitleText: TextView
+    private lateinit var stepQuestionText: TextView
+package com.example.aifloatingball
+
+import android.Manifest
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.inputmethod.InputMethodManager
+import androidx.appcompat.app.AlertDialog
+import com.example.aifloatingball.voice.VoiceInputManager
+import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.text.Editable
+import android.text.TextWatcher
+import android.util.Log
+import android.widget.Toast
+import android.view.GestureDetector
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import kotlin.math.abs
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.webkit.WebSettings
+import android.widget.*
+import android.widget.ArrayAdapter
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.viewpager2.widget.ViewPager2
+import androidx.core.view.GravityCompat
+import androidx.core.view.GestureDetectorCompat
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.example.aifloatingball.manager.ModeManager
+import com.example.aifloatingball.manager.AIApiManager
+import com.example.aifloatingball.manager.AIServiceType
+import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.manager.SimpleChatHistoryManager
+import com.example.aifloatingball.adapter.TaskTemplateAdapter
+import com.example.aifloatingball.data.SimpleTaskTemplates
+import com.example.aifloatingball.model.PromptTemplate
+import com.example.aifloatingball.model.PromptField
+import com.example.aifloatingball.model.FieldType
+import com.example.aifloatingball.model.UserPromptData
+import com.example.aifloatingball.model.ChatContact
+import com.example.aifloatingball.model.ContactType
+import com.example.aifloatingball.model.ContactCategory
+import com.example.aifloatingball.adapter.ChatContactAdapter
+import com.example.aifloatingball.manager.AITagManager
+import com.example.aifloatingball.model.AppSearchConfig
+import com.example.aifloatingball.model.AppCategory
+import com.example.aifloatingball.model.AppSearchSettings
+import com.example.aifloatingball.adapter.AppSearchGridAdapter
+import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.ui.TabSwitchAnimationManager
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
+import java.net.HttpURLConnection
+import java.net.URL
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+
+import com.example.aifloatingball.service.SimpleModeService
+import com.example.aifloatingball.service.FloatingWindowService
+import com.example.aifloatingball.service.DynamicIslandService
+import com.example.aifloatingball.service.DualFloatingWebViewService
+import com.example.aifloatingball.voice.VoicePromptBranchManager
+import com.example.aifloatingball.webview.MultiPageWebViewManager
+import com.example.aifloatingball.webview.CardWebViewManager
+import com.example.aifloatingball.webview.GestureCardWebViewManager
+import com.example.aifloatingball.webview.MobileCardManager
+import com.example.aifloatingball.views.WebViewTabBar
+import com.example.aifloatingball.views.MaterialSearchEngineSelector
+import com.example.aifloatingball.views.CardPreviewOverlay
+import com.example.aifloatingball.views.QuarterArcOperationBar
+
+import com.google.android.material.switchmaterial.SwitchMaterial
+import android.widget.EditText
+import android.widget.Button
+import androidx.appcompat.app.AppCompatDelegate
+import android.provider.Settings
+import android.os.Build
+
+class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchViewListener {
+
+    companion object {
+        private const val TAG = "SimpleModeActivity"
+        // 为交互模式定义一个存储键
+        private const val KEY_VOICE_INTERACTION_MODE = "voice_interaction_mode"
+        // 用于保存当前界面状态的键
+        private const val KEY_CURRENT_STATE = "current_state"
+        // 系统语音输入请求码
+        private const val SYSTEM_VOICE_REQUEST_CODE = 1002
+        // 联系人数据持久化相关
+        private const val CONTACTS_PREFS_NAME = "chat_contacts"
+        private const val KEY_SAVED_CONTACTS = "saved_contacts"
+        // Activity请求码
+        private const val REQUEST_CODE_ADD_AI_CONTACT = 1101
+    }
+
+    /**
+     * 安全启动Activity的通用方法
+     */
+    private fun safeStartActivity(activityClass: Class<*>, activityName: String) {
+        try {
+            Log.d(TAG, "尝试启动$activityName")
+
+            // 检查Activity类是否存在
+            val intent = Intent(this, activityClass)
+
+            // 检查是否有可以处理这个Intent的Activity
+            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            if (resolveInfo == null) {
+                Log.e(TAG, "找不到可以处理Intent的Activity: $activityName")
+                Toast.makeText(this, "无法找到$activityName", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            Log.d(TAG, "Intent验证成功，准备启动$activityName")
+            startActivity(intent)
+            Log.d(TAG, "$activityName 启动成功")
+
+        } catch (e: SecurityException) {
+            Log.e(TAG, "启动$activityName 时权限不足", e)
+            Toast.makeText(this, "启动$activityName 权限不足", Toast.LENGTH_LONG).show()
+        } catch (e: android.content.ActivityNotFoundException) {
+            Log.e(TAG, "找不到$activityName", e)
+            Toast.makeText(this, "找不到$activityName", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "启动$activityName 失败", e)
+            Toast.makeText(this, "启动$activityName 失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // 界面状态
+    private enum class UIState {
+        CHAT,              // 对话页面
+        BROWSER,           // 搜索页面
+        TASK_SELECTION,    // 任务选择页面
+        STEP_GUIDANCE,     // 步骤引导页面
+        PROMPT_PREVIEW,    // 提示预览页面
+        VOICE,             // 语音页面
+        APP_SEARCH,        // 应用搜索页面
+        SETTINGS           // 设置页面
+    }
+
+    private var currentState = UIState.TASK_SELECTION
+    private var currentTemplate: PromptTemplate? = null
+    private var currentStepIndex = 0
+    private lateinit var userPromptData: UserPromptData
+    private lateinit var settingsManager: SettingsManager
+    
+    // 会话级别的恢复对话框标记，防止重复弹出
+    private var hasShownRestoreDialog = false
+
+    // UI组件
+    private lateinit var chatLayout: LinearLayout
+    private lateinit var taskSelectionLayout: LinearLayout
+    private lateinit var stepGuidanceLayout: LinearLayout
+    private lateinit var promptPreviewLayout: LinearLayout
+    private lateinit var voiceLayout: ScrollView
+    private lateinit var appSearchLayout: androidx.coordinatorlayout.widget.CoordinatorLayout
+    private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
+    private lateinit var settingsLayout: ScrollView
+    // private lateinit var modeSwitchWidget: ModeSwitchWidget  // 暂时禁用
+
+    // 任务选择页面组件
+    private lateinit var taskRecyclerView: RecyclerView
+    private lateinit var taskAdapter: TaskTemplateAdapter
+    private lateinit var directSearchInput: EditText
+    private lateinit var directSearchButton: ImageButton
+
+    // 步骤引导页面组件
+    private lateinit var stepTitleText: TextView
+    private lateinit var stepQuestionText: TextView
     private lateinit var stepInputLayout:                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              LinearLayout
     private lateinit var stepInputText: EditText
     private lateinit var stepChoiceGroup: RadioGroup
@@ -7025,7 +7637,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         avatar = "",
                         isPinned = false,
                         isMuted = false,
-                        aiMembers = emptyList()
+                        aiMembers = null
                     )),
                     isExpanded = true
                 ))
@@ -7994,7 +8606,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             "api_key" to apiKey,
                             "model" to getDefaultModel(aiName)
                         ),
-                        aiMembers = emptyList()
+                        aiMembers = null
                     )
                     aiContacts.add(contact)
                     Log.d(TAG, "添加AI助手: $aiName (API密钥已配置)")
@@ -9217,7 +9829,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     "api_key" to apiKey,
                     "model" to getDefaultModel(name)
                 ),
-                aiMembers = emptyList()
+                aiMembers = null
             )
 
             // 添加到联系人列表
@@ -9396,7 +10008,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 "api_key" to apiKey,
                                 "model" to model.ifEmpty { "default" }
                             ),
-                            aiMembers = emptyList()
+                            aiMembers = null
                         )
 
                         // 添加到联系人列表
@@ -11584,7 +12196,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             "model" to getDefaultModel(aiName),
                             "is_configured" to isConfigured.toString()
                         ),
-                        aiMembers = emptyList()
+                        aiMembers = null
                     )
                 }
                 availableAIs.add(contact)
@@ -12891,7 +13503,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     "api_key" to apiKey,
                     "model" to getDefaultModel(aiName)
                 ),
-                aiMembers = emptyList()
+                aiMembers = null
             )
 
             // 启动ChatActivity

@@ -221,7 +221,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     type = ContactType.AI,
                     lastMessage = "",
                     lastMessageTime = System.currentTimeMillis(),
-                    customData = mutableMapOf()
+                    customData = mutableMapOf(),
+                    aiMembers = emptyList()
                 )
                 selectedAI.contains("ChatGPT", ignoreCase = true) -> ChatContact(
                     id = "widget_chatgpt",
@@ -229,7 +230,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     type = ContactType.AI,
                     lastMessage = "",
                     lastMessageTime = System.currentTimeMillis(),
-                    customData = mutableMapOf()
+                    customData = mutableMapOf(),
+                    aiMembers = emptyList()
                 )
                 selectedAI.contains("Claude", ignoreCase = true) -> ChatContact(
                     id = "widget_claude",
@@ -237,7 +239,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     type = ContactType.AI,
                     lastMessage = "",
                     lastMessageTime = System.currentTimeMillis(),
-                    customData = mutableMapOf()
+                    customData = mutableMapOf(),
+                    aiMembers = emptyList()
                 )
                 selectedAI.contains("通义千问", ignoreCase = true) -> ChatContact(
                     id = "widget_qianwen",
@@ -245,7 +248,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     type = ContactType.AI,
                     lastMessage = "",
                     lastMessageTime = System.currentTimeMillis(),
-                    customData = mutableMapOf()
+                    customData = mutableMapOf(),
+                    aiMembers = emptyList()
                 )
                 else -> ChatContact(
                     id = "widget_deepseek",
@@ -253,7 +257,8 @@ class SearchWidgetProvider : AppWidgetProvider() {
                     type = ContactType.AI,
                     lastMessage = "",
                     lastMessageTime = System.currentTimeMillis(),
-                    customData = mutableMapOf()
+                    customData = mutableMapOf(),
+                    aiMembers = emptyList()
                 )
             }
 

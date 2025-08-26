@@ -711,6 +711,7 @@ class AIContactListActivity : AppCompatActivity() {
                 name = groupName,
                 description = "包含 ${selectedAIs.size} 个AI助手的群聊",
                 type = ContactType.GROUP,
+                aiMembers = selectedAIs.map { it.id },
                 customData = mutableMapOf(
                     "group_members" to selectedAIs.map { it.id }.joinToString(","),
                     "created_time" to System.currentTimeMillis().toString()

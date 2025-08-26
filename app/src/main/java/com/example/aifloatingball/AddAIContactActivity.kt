@@ -135,7 +135,8 @@ class AddAIContactActivity : AppCompatActivity() {
             type = ContactType.AI,
             description = presetAI.description,
             isOnline = true,
-            customData = mapOf("api_url" to presetAI.apiUrl)
+            customData = mapOf("api_url" to presetAI.apiUrl),
+            aiMembers = emptyList()
         )
 
         // 返回结果给SimpleModeActivity
@@ -177,7 +178,8 @@ class AddAIContactActivity : AppCompatActivity() {
             customData = mapOf(
                 "api_key" to apiKey,
                 "api_url" to apiUrl
-            )
+            ),
+            aiMembers = emptyList()
         )
 
         // 返回结果给SimpleModeActivity
@@ -197,4 +199,4 @@ class AddAIContactActivity : AppCompatActivity() {
         val description: String,
         val apiUrl: String
     )
-} 
+}
