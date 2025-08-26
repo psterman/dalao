@@ -48,7 +48,7 @@
 
     </LinearLayout>
 
-    <!-- 添加自定义AI按钮 -->
+    <!-- 操作按钮区域 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -60,13 +60,28 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/add_custom_button"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="➕ 添加自定义AI"
-            android:textSize="16sp"
-            android:padding="16dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:text="➕ 添加AI"
+            android:textSize="14sp"
+            android:padding="12dp"
             app:cornerRadius="12dp"
             app:backgroundTint="@color/accent_color"
+            android:textColor="@android:color/white" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/create_group_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:text="👥 创建群聊"
+            android:textSize="14sp"
+            android:padding="12dp"
+            app:cornerRadius="12dp"
+            app:backgroundTint="@color/group_chat_color"
             android:textColor="@android:color/white" />
 
     </LinearLayout>

@@ -181,6 +181,13 @@
                 android:label="聊天"
                 android:theme="@style/Theme.AIFloatingBall.NoActionBar"
                 android:windowSoftInputMode="adjustResize|stateHidden" />
+
+            <!-- 群聊设置Activity -->
+            <activity
+                android:name=".GroupChatSettingsActivity"
+                android:exported="false"
+                android:label="群聊设置"
+                android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity android:name=".SubSettingsActivity"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity

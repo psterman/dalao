@@ -6914,7 +6914,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 将List<ChatContact>包装成List<ContactCategory>
             val aiContactCategory = listOf(ContactCategory(
                 name = "AI助手",
-                contacts = aiContacts,
+                contacts = aiContacts.toMutableList(),
                 isExpanded = true
             ))
 
@@ -6990,7 +6990,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 在"全部"标签中，不显示分组标题，直接显示所有AI
                 listOf(ContactCategory(
                     name = "全部",
-                    contacts = sortedAIContacts,
+                    contacts = sortedAIContacts.toMutableList(),
                     isExpanded = true,
                     isPinned = false
                 ))
@@ -6998,7 +6998,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 如果没有任何AI，显示空状态提示
                 listOf(ContactCategory(
                     name = "提示",
-                    contacts = listOf(ChatContact(
+                    contacts = mutableListOf(ChatContact(
                         id = "empty_hint",
                         name = "暂无AI助手",
                         type = ContactType.AI, // 使用AI类型，但作为提示
@@ -7048,14 +7048,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 只显示真正的AI联系人
                 listOf(ContactCategory(
                     name = "AI助手",
-                    contacts = realAIContacts,
+                    contacts = realAIContacts.toMutableList(),
                     isExpanded = true
                 ))
             } else {
                 // 如果AI助手分组为空，显示空分组（不添加虚假联系人）
                 listOf(ContactCategory(
                     name = "AI助手",
-                    contacts = emptyList(),
+                    contacts = mutableListOf(),
                     isExpanded = true
                 ))
             }
@@ -8466,7 +8466,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (aiAssistantCategory == null) {
                 val newAIAssistantCategory = ContactCategory(
                     name = "AI助手",
-                    contacts = emptyList(),
+                    contacts = mutableListOf(),
                     isExpanded = true
                 )
                 allContacts.add(newAIAssistantCategory)
@@ -8766,7 +8766,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val sortedContacts = updatedContacts.sortedWith(
                         compareByDescending<ChatContact> { it.isPinned }
                             .thenByDescending { it.lastMessageTime }
-                    )
+                    ).toMutableList()
 
                     allContacts[categoryIndex] = category.copy(contacts = sortedContacts)
                     found = true
@@ -8790,14 +8790,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val sortedContacts = updatedContacts.sortedWith(
                         compareByDescending<ChatContact> { it.isPinned }
                             .thenByDescending { it.lastMessageTime }
-                    )
+                    ).toMutableList()
 
                     allContacts[categoryIndex] = category.copy(contacts = sortedContacts)
                 } else {
                     // 创建新的类别
                     val newCategory = ContactCategory(
                         name = targetCategory,
-                        contacts = listOf(updatedContact),
+                        contacts = mutableListOf(updatedContact),
                         isExpanded = true
                     )
                     if (targetCategory == "AI助手") {
@@ -8851,7 +8851,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val updatedContact = contact.copy(isMuted = isMuted)
                     updatedContacts[contactIndex] = updatedContact
 
-                    allContacts[categoryIndex] = category.copy(contacts = updatedContacts)
+                    allContacts[categoryIndex] = category.copy(contacts = updatedContacts.toMutableList())
                     found = true
                     break
                 }
@@ -8874,7 +8874,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 创建新的类别
                     val newCategory = ContactCategory(
                         name = targetCategory,
-                        contacts = listOf(updatedContact),
+                        contacts = mutableListOf(updatedContact),
                         isExpanded = true
                     )
                     if (targetCategory == "AI助手") {
@@ -9448,7 +9448,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val groupsToCheck = mutableListOf<String>()
             for (categoryIndex in allContacts.indices) {
                 val category = allContacts[categoryIndex]
-                val updatedContacts = category.contacts.filter { it.id != contact.id }
+                val updatedContacts = category.contacts.filter { it.id != contact.id }.toMutableList().toMutableList()
                 if (updatedContacts.size != category.contacts.size) {
                     allContacts[categoryIndex] = category.copy(contacts = updatedContacts)
 
@@ -9512,7 +9512,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     allContacts.removeAt(categoryIndex)
                 } else {
                     // 更新分类中的联系人列表
-                    allContacts[categoryIndex] = category.copy(contacts = updatedContacts)
+                    allContacts[categoryIndex] = category.copy(contacts = updatedContacts.toMutableList())
                 }
 
                 // 保存更新后的联系人数据
@@ -9619,6 +9619,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             val categoryName = when (contact.type) {
                 ContactType.AI -> "AI助手"
+                ContactType.GROUP -> "群聊"
             }
 
             // 查找或创建对应的分类
@@ -9643,12 +9644,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val sortedContacts = updatedContacts.sortedWith(
                     compareByDescending<ChatContact> { it.isPinned }
                         .thenByDescending { it.lastMessageTime }
-                )
+                ).toMutableList()
 
                 allContacts[categoryIndex] = category.copy(contacts = sortedContacts)
             } else {
                 // 分类不存在，创建新分类
-                val newCategory = ContactCategory(categoryName, listOf(contact))
+                val newCategory = ContactCategory(categoryName, mutableListOf(contact))
                 allContacts.add(newCategory)
             }
 
@@ -10087,7 +10088,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val aiIds = tabAIConfig.split(",")
                 val aiContacts = allContacts.flatMap { it.contacts }.filter { contact ->
                     aiIds.contains(contact.id) && isAIContact(contact)
-                }
+                }.toMutableList()
                 // 创建一个包含AI联系人的ContactCategory
                 return listOf(ContactCategory(
                     name = tabName,
@@ -10279,7 +10280,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 创建新的分组
             val newCategory = ContactCategory(
                 name = groupName,
-                contacts = emptyList(),
+                contacts = mutableListOf(),
                 isExpanded = true
             )
             allContacts.add(newCategory)
@@ -10328,7 +10329,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 如果分组为空，显示空的分组（不添加提示对象）
                 listOf(ContactCategory(
                     name = groupName,
-                    contacts = emptyList(),
+                    contacts = mutableListOf(),
                     isExpanded = true
                 ))
             }
@@ -10363,7 +10364,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             // 如果allContacts中不存在，创建一个空分组
                             val newCategory = ContactCategory(
                                 name = tabName,
-                                contacts = emptyList(),
+                                contacts = mutableListOf(),
                                 isExpanded = true
                             )
                             allContacts.add(newCategory)
@@ -10560,7 +10561,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (currentGroup != null && currentGroup != "未分组") {
                 val currentCategory = allContacts.find { it.name == currentGroup }
                 if (currentCategory != null) {
-                    val updatedContacts = currentCategory.contacts.filter { it.id != contact.id }
+                    val updatedContacts = currentCategory.contacts.filter { it.id != contact.id }.toMutableList()
                     val updatedCategory = currentCategory.copy(contacts = updatedContacts)
                     val index = allContacts.indexOf(currentCategory)
                     allContacts[index] = updatedCategory
@@ -10600,7 +10601,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 目标分组不存在，创建新分组
                 val newCategory = ContactCategory(
                     name = targetGroupName,
-                    contacts = listOf(contact),
+                    contacts = mutableListOf(contact),
                     isExpanded = true
                 )
                 allContacts.add(newCategory)
@@ -10959,7 +10960,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     contact.type == ContactType.AI &&
                     !contact.id.contains("hint") &&
                     !contact.id.contains("empty")
-                }
+                }.toMutableList()
 
                 if (validContacts.size != category.contacts.size) {
                     val updatedCategory = category.copy(contacts = validContacts)
@@ -11436,7 +11437,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (currentGroup != null && currentGroup != "未分组") {
                 val currentCategory = allContacts.find { it.name == currentGroup }
                 if (currentCategory != null) {
-                    val updatedContacts = currentCategory.contacts.filter { it.id != contact.id }
+                    val updatedContacts = currentCategory.contacts.filter { it.id != contact.id }.toMutableList()
                     val updatedCategory = currentCategory.copy(contacts = updatedContacts)
                     val index = allContacts.indexOf(currentCategory)
                     allContacts[index] = updatedCategory
@@ -11736,7 +11737,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (categoryIndex != -1) {
                 val updatedContacts = category.contacts.map { contact ->
                     contact.copy(unreadCount = contact.unreadCount + 1)
-                }
+                }.toMutableList()
                 val updatedCategory = category.copy(contacts = updatedContacts)
                 allContacts[categoryIndex] = updatedCategory
 
@@ -11870,7 +11871,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val categoryIndex = allContacts.indexOf(aiAssistantCategory)
                 val updatedContacts = aiAssistantCategory.contacts.map { contact ->
                     contact.copy(unreadCount = contact.unreadCount + 1)
-                }
+                }.toMutableList()
                 val updatedCategory = aiAssistantCategory.copy(contacts = updatedContacts)
                 allContacts[categoryIndex] = updatedCategory
 
@@ -11900,7 +11901,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val categoryIndex = allContacts.indexOf(customCategory)
                 val updatedContacts = customCategory.contacts.map { contact ->
                     contact.copy(unreadCount = contact.unreadCount + 1)
-                }
+                }.toMutableList()
                 val updatedCategory = customCategory.copy(contacts = updatedContacts)
                 allContacts[categoryIndex] = updatedCategory
 
@@ -12452,7 +12453,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 // 分组不存在，创建新分组
                                 val newCategory = ContactCategory(
                                     name = targetGroupName,
-                                    contacts = listOf(contact),
+                                    contacts = mutableListOf(contact),
                                     isExpanded = true
                                 )
                                 allContacts.add(newCategory)

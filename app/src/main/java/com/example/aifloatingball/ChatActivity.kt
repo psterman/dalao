@@ -17,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.ChatMessageAdapter
+import com.example.aifloatingball.adapter.GroupChatMessageAdapter
 import com.example.aifloatingball.model.AIPrompt
 import com.example.aifloatingball.model.PromptProfile
 import com.example.aifloatingball.manager.SimpleChatHistoryManager
@@ -25,12 +26,19 @@ import com.example.aifloatingball.SettingsManager
 import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactType
 import com.example.aifloatingball.model.ContactCategory
+import com.example.aifloatingball.model.GroupChat
+import com.example.aifloatingball.model.GroupChatMessage
+import com.example.aifloatingball.model.GroupMessageType
+import com.example.aifloatingball.model.MemberType
 import com.example.aifloatingball.manager.AIApiManager
 import com.example.aifloatingball.manager.AIServiceType
 import com.example.aifloatingball.manager.DeepSeekApiHelper
+import com.example.aifloatingball.manager.GroupChatManager
+import com.example.aifloatingball.manager.MultiAIReplyHandler
 import com.google.android.material.button.MaterialButton
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class ChatActivity : AppCompatActivity() {
 
@@ -39,6 +47,7 @@ class ChatActivity : AppCompatActivity() {
         const val EXTRA_CONTACT = "extra_contact"
         private const val CONTACTS_PREFS_NAME = "chat_contacts"
         private const val KEY_SAVED_CONTACTS = "saved_contacts"
+        private const val REQUEST_GROUP_SETTINGS = 1001
     }
 
     private lateinit var toolbar: com.google.android.material.appbar.MaterialToolbar
@@ -62,6 +71,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var aiApiManager: AIApiManager
     private lateinit var deepSeekApiHelper: DeepSeekApiHelper
     private lateinit var messageAdapter: ChatMessageAdapter
+    private lateinit var groupMessageAdapter: GroupChatMessageAdapter
     private lateinit var promptListContainer: View
     private lateinit var promptList: LinearLayout
     private lateinit var settingsManager: SettingsManager
@@ -69,6 +79,12 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var chatHistoryManager: SimpleChatHistoryManager
     private lateinit var chatDataManager: ChatDataManager
     private var isSending = false
+    
+    // 群聊相关
+    private lateinit var groupChatManager: GroupChatManager
+    private lateinit var multiAIReplyHandler: MultiAIReplyHandler
+    private var currentGroupChat: GroupChat? = null
+    private var isGroupChatMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -80,6 +96,8 @@ class ChatActivity : AppCompatActivity() {
         chatHistoryManager = SimpleChatHistoryManager(this)
         chatDataManager = ChatDataManager.getInstance(this)
         settingsManager = SettingsManager.getInstance(this)
+        groupChatManager = GroupChatManager.getInstance(this)
+        multiAIReplyHandler = MultiAIReplyHandler(this)
 
         // 加载用户档案
         userProfiles = settingsManager.getAllPromptProfiles()
@@ -121,6 +139,13 @@ class ChatActivity : AppCompatActivity() {
                 regenerateMessage(message, position)
             }
         )
+        
+        // 初始化群聊消息适配器
+        groupMessageAdapter = GroupChatMessageAdapter(
+            context = this,
+            messages = mutableListOf()
+        )
+        
         messagesRecyclerView.adapter = messageAdapter
 
         // 初始化AI助手档案列表
@@ -136,14 +161,38 @@ class ChatActivity : AppCompatActivity() {
         currentContact = intent.getParcelableExtra(EXTRA_CONTACT)
         currentContact?.let { contact ->
             contactNameText.text = contact.name
-            contactStatusText.text = if (contact.isOnline) "在线" else "离线"
-
-            // 设置标题栏颜色
-            when (contact.type) {
-                ContactType.AI -> {
-                    contactStatusText.setTextColor(getColor(R.color.ai_icon_color))
+            
+            // 检查是否为群聊模式
+            isGroupChatMode = contact.type == ContactType.GROUP
+            
+            if (isGroupChatMode) {
+                // 群聊模式
+                contact.groupId?.let { groupId ->
+                    currentGroupChat = groupChatManager.getGroupChat(groupId)
+                    currentGroupChat?.let { group ->
+                        contactStatusText.text = "群聊 · ${group.members.size}个成员"
+                        contactStatusText.setTextColor(getColor(R.color.group_chat_color))
+                    }
+                } ?: run {
+                    contactStatusText.text = "群聊"
+                    contactStatusText.setTextColor(getColor(R.color.group_chat_color))
                 }
+                // 切换到群聊适配器
+                messagesRecyclerView.adapter = groupMessageAdapter
+            } else {
+                // 切换到普通聊天适配器
+                messagesRecyclerView.adapter = messageAdapter
+                // 单聊模式
+                contactStatusText.text = if (contact.isOnline) "在线" else "离线"
+                when (contact.type) {
+                    ContactType.AI -> {
+                        contactStatusText.setTextColor(getColor(R.color.ai_icon_color))
+                    }
+                    else -> {
+                        contactStatusText.setTextColor(getColor(android.R.color.secondary_text_light))
+                    }
             }
+        }
         }
     }
 
@@ -215,39 +264,55 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun loadInitialMessages() {
-        // 加载聊天历史记录
         currentContact?.let { contact ->
-            // 优先使用统一的ChatDataManager
-            val unifiedMessages = chatDataManager.getMessages(contact.id)
-            if (unifiedMessages.isNotEmpty()) {
-                messages.clear()
-                // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
-                unifiedMessages.forEach { unifiedMsg ->
-                    val chatMsg = ChatMessage(
-                        content = unifiedMsg.content,
-                        isFromUser = unifiedMsg.role == "user",
-                        timestamp = unifiedMsg.timestamp
-                    )
-                    messages.add(chatMsg)
+            if (isGroupChatMode) {
+                // 群聊模式：加载群聊消息
+                currentGroupChat?.let { groupChat ->
+                    val groupMessages = groupChatManager.getGroupMessages(groupChat.id)
+                    groupMessageAdapter.updateMessages(groupMessages)
+                    
+                    // 滚动到底部
+                    if (groupMessages.isNotEmpty()) {
+                        messagesRecyclerView.post {
+                            messagesRecyclerView.smoothScrollToPosition(groupMessages.size - 1)
+                        }
+                    }
                 }
-                messageAdapter.updateMessages(messages.toList())
             } else {
-                // 如果统一存储中没有数据，尝试从旧的存储中加载并迁移
-                val historyMessages = chatHistoryManager.loadMessages(contact.id)
-                if (historyMessages.isNotEmpty()) {
+                // 单聊模式：加载普通聊天历史记录
+                val unifiedMessages = chatDataManager.getMessages(contact.id)
+                if (unifiedMessages.isNotEmpty()) {
                     messages.clear()
-                    messages.addAll(historyMessages)
+                    // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
+                    unifiedMessages.forEach { unifiedMsg ->
+                        val chatMsg = ChatMessage(
+                            content = unifiedMsg.content,
+                            isFromUser = unifiedMsg.role == "user",
+                            timestamp = unifiedMsg.timestamp
+                        )
+                        messages.add(chatMsg)
+                    }
                     messageAdapter.updateMessages(messages.toList())
+                } else {
+                    // 如果统一存储中没有数据，尝试从旧的存储中加载并迁移
+                    val historyMessages = chatHistoryManager.loadMessages(contact.id)
+                    if (historyMessages.isNotEmpty()) {
+                        messages.clear()
+                        messages.addAll(historyMessages)
+                        messageAdapter.updateMessages(messages.toList())
 
-                    // 迁移到统一存储
-                    migrateMessagesToUnifiedStorage(contact.id, historyMessages)
+                        // 迁移到统一存储
+                        migrateMessagesToUnifiedStorage(contact.id, historyMessages)
+                    }
                 }
-            }
 
-            // 滚动到底部
-            if (messages.isNotEmpty()) {
-                messagesRecyclerView.post {
-                    messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                // 滚动到底部
+                if (messages.isNotEmpty()) {
+                    messagesRecyclerView.post {
+                        messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                    }
+                } else {
+                    // 空分支
                 }
             }
         }
@@ -301,6 +366,10 @@ class ChatActivity : AppCompatActivity() {
             // 发送到AI服务
             currentContact?.let { contact ->
                 when (contact.type) {
+                    ContactType.GROUP -> {
+                        // 群聊模式：多AI并发回复
+                        handleGroupChatMessage(messageText)
+                    }
                     ContactType.AI -> {
                         // 获取AI服务类型
                         val serviceType = getAIServiceType(contact)
@@ -390,6 +459,136 @@ class ChatActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * 处理群聊消息
+     */
+    private fun handleGroupChatMessage(messageText: String) {
+        currentGroupChat?.let { groupChat ->
+            // 获取群聊中的AI成员
+            val aiMembers = groupChat.members.filter { it.type == com.example.aifloatingball.model.MemberType.AI }
+            
+            if (aiMembers.isEmpty()) {
+                val errorMessage = "群聊中没有AI成员"
+                val errorMsg = ChatMessage(errorMessage, false, System.currentTimeMillis())
+                messages.add(errorMsg)
+                messageAdapter.updateMessages(messages.toList())
+                isSending = false
+                sendButton.isEnabled = true
+                return
+            }
+            
+            // 准备对话历史
+            val baseConversationHistory = messages.map {
+                mapOf("role" to if (it.isFromUser) "user" else "assistant", "content" to it.content)
+            }
+            
+            // 为每个AI成员创建对话历史映射
+            val conversationHistory = aiMembers.associate { member ->
+                member.id to baseConversationHistory
+            }
+            
+            // 为每个AI添加回复占位符
+            val aiMessages = mutableMapOf<String, ChatMessage>()
+            aiMembers.forEach { member ->
+                val aiMessage = ChatMessage("${member.name} 正在思考中...", false, System.currentTimeMillis())
+                messages.add(aiMessage)
+                aiMessages[member.id] = aiMessage
+            }
+            messageAdapter.updateMessages(messages.toList())
+            
+            // 滚动到底部
+            messagesRecyclerView.post {
+                messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+            }
+            
+            // 启动多AI并发回复
+            lifecycleScope.launch {
+                try {
+                    multiAIReplyHandler.startConcurrentReplies(
+                        groupId = currentContact?.id ?: "unknown",
+                        userMessage = messageText,
+                        aiMembers = aiMembers,
+                        conversationHistory = conversationHistory,
+                        callback = object : MultiAIReplyHandler.ReplyProgressCallback {
+                            override fun onReplyStarted(aiId: String, aiName: String) {
+                                runOnUiThread {
+                                    aiMessages[aiId]?.let { aiMessage ->
+                                        aiMessage.content = "$aiName 正在思考中..."
+                                        messageAdapter.updateMessages(messages.toList())
+                                    }
+                                }
+                            }
+                            
+                            override fun onReplyCompleted(aiId: String, result: MultiAIReplyHandler.AIReplyResult) {
+                                runOnUiThread {
+                                    aiMessages[aiId]?.let { aiMessage ->
+                                        aiMessage.content = "${result.aiName}: ${result.content}"
+                                        messageAdapter.updateMessages(messages.toList())
+                                        
+                                        // 保存AI回复到群聊数据
+                                        currentContact?.let { contact ->
+                                            chatDataManager.addMessage(contact.id, "assistant", aiMessage.content)
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            override fun onAllRepliesCompleted(sessionId: String, results: Map<String, MultiAIReplyHandler.AIReplyResult>) {
+                                runOnUiThread {
+                                    isSending = false
+                                    sendButton.isEnabled = true
+                                    Toast.makeText(this@ChatActivity, "所有AI回复完成", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            
+                            override fun onReplyTimeout(sessionId: String, timeoutAIs: List<String>) {
+                                runOnUiThread {
+                                    timeoutAIs.forEach { aiId ->
+                                        aiMessages[aiId]?.let { aiMessage ->
+                                            aiMessage.content = "${getAIMemberName(aiId)}: 回复超时"
+                                            messageAdapter.updateMessages(messages.toList())
+                                        }
+                                    }
+                                    isSending = false
+                                    sendButton.isEnabled = true
+                                }
+                            }
+                            
+                            override fun onReplyError(sessionId: String, error: Throwable) {
+                                runOnUiThread {
+                                    Toast.makeText(this@ChatActivity, "回复出错: ${error.message}", Toast.LENGTH_SHORT).show()
+                                    isSending = false
+                                    sendButton.isEnabled = true
+                                }
+                            }
+                        }
+                    )
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        Toast.makeText(this@ChatActivity, "启动AI回复失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        isSending = false
+                        sendButton.isEnabled = true
+                    }
+                }
+            }
+        } ?: run {
+            // 没有找到群聊数据
+            val errorMessage = "群聊数据加载失败"
+            val errorMsg = ChatMessage(errorMessage, false, System.currentTimeMillis())
+            messages.add(errorMsg)
+            messageAdapter.updateMessages(messages.toList())
+            isSending = false
+            sendButton.isEnabled = true
+        }
+    }
+    
+    /**
+     * 获取AI成员名称
+     */
+    private fun getAIMemberName(memberId: String): String {
+        return currentGroupChat?.members?.find { it.id == memberId }?.name ?: "AI"
     }
 
     /**
@@ -785,6 +984,10 @@ class ChatActivity : AppCompatActivity() {
                             }
                         )
                     }
+                }
+                ContactType.GROUP -> {
+                    // 群聊模式下的重发逻辑
+                    handleGroupChatMessage(messageText)
                 }
             }
         }
@@ -1221,6 +1424,69 @@ class ChatActivity : AppCompatActivity() {
                         }, 1000)
                     }
                 }
+                ContactType.GROUP -> {
+                    // 群聊模式下的发送逻辑
+                    currentGroupChat?.let { groupChat ->
+                        val aiMembers = groupChat.members.filter { it.type == MemberType.AI }
+                        if (aiMembers.isNotEmpty()) {
+                            lifecycleScope.launch {
+                                try {
+                                    multiAIReplyHandler.startConcurrentReplies(
+                                        groupId = groupChat.id,
+                                        userMessage = messageText,
+                                        aiMembers = aiMembers,
+                                        conversationHistory = emptyMap(),
+                                        callback = object : MultiAIReplyHandler.ReplyProgressCallback {
+                                            override fun onReplyStarted(aiId: String, aiName: String) {
+                                                runOnUiThread {
+                                                    Toast.makeText(this@ChatActivity, "${aiName}开始回复", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                            override fun onReplyCompleted(aiId: String, result: MultiAIReplyHandler.AIReplyResult) {
+                                                runOnUiThread {
+                                                    if (result.success && result.content != null) {
+                                                        val aiReply = GroupChatMessage(
+                                                            id = UUID.randomUUID().toString(),
+                                                            content = result.content,
+                                                            senderId = aiId,
+                                                            senderName = result.aiName,
+                                                            senderType = MemberType.AI,
+                                                            timestamp = System.currentTimeMillis(),
+                                                            messageType = GroupMessageType.TEXT
+                                                        )
+                                                        groupMessageAdapter.addMessage(aiReply)
+                                                        messagesRecyclerView.smoothScrollToPosition(groupMessageAdapter.itemCount - 1)
+                                                    } else {
+                                                        Toast.makeText(this@ChatActivity, "${result.aiName}回复失败: ${result.errorMessage}", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            }
+                                            override fun onAllRepliesCompleted(sessionId: String, results: Map<String, MultiAIReplyHandler.AIReplyResult>) {
+                                                runOnUiThread {
+                                                    Toast.makeText(this@ChatActivity, "所有AI已完成回复", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                            override fun onReplyTimeout(sessionId: String, timeoutAIs: List<String>) {
+                                                runOnUiThread {
+                                                    Toast.makeText(this@ChatActivity, "部分AI回复超时", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                            override fun onReplyError(sessionId: String, error: Throwable) {
+                                                runOnUiThread {
+                                                    Toast.makeText(this@ChatActivity, "群聊回复失败: ${error.message}", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                    )
+                                } catch (e: Exception) {
+                                    runOnUiThread {
+                                        Toast.makeText(this@ChatActivity, "群聊发送失败: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1275,7 +1541,7 @@ class ChatActivity : AppCompatActivity() {
                         } else {
                             savedContact
                         }
-                    }
+                    }.toMutableList()
                     category.copy(contacts = updatedContacts)
                 }
 
@@ -1386,28 +1652,60 @@ class ChatActivity : AppCompatActivity() {
      * 显示聊天设置
      */
     private fun showChatSettings() {
-        val options = arrayOf("AI API设置", "聊天设置", "导出设置", "清空聊天记录")
+        val options = if (isGroupChatMode) {
+            arrayOf("群聊设置", "AI API设置", "聊天设置", "导出设置", "清空聊天记录")
+        } else {
+            arrayOf("AI API设置", "聊天设置", "导出设置", "清空聊天记录")
+        }
         
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("聊天设置")
             .setItems(options) { _, which ->
-                when (which) {
-                    0 -> {
-                        // 跳转到AI API设置
-                        val intent = Intent(this, AIApiSettingsActivity::class.java)
-                        startActivity(intent)
+                if (isGroupChatMode) {
+                    when (which) {
+                        0 -> {
+                            // 跳转到群聊设置
+                            val intent = Intent(this, GroupChatSettingsActivity::class.java)
+                            intent.putExtra(GroupChatSettingsActivity.EXTRA_GROUP_CONTACT, currentContact)
+                            startActivityForResult(intent, REQUEST_GROUP_SETTINGS)
+                        }
+                        1 -> {
+                            // 跳转到AI API设置
+                            val intent = Intent(this, AIApiSettingsActivity::class.java)
+                            startActivity(intent)
+                        }
+                        2 -> {
+                            // 显示聊天设置对话框
+                            showChatSettingsDialog()
+                        }
+                        3 -> {
+                            // 显示导出设置对话框
+                            showExportSettingsDialog()
+                        }
+                        4 -> {
+                            // 显示清空聊天确认对话框
+                            showClearChatDialog()
+                        }
                     }
-                    1 -> {
-                        // 显示聊天设置对话框
-                        showChatSettingsDialog()
-                    }
-                    2 -> {
-                        // 显示导出设置对话框
-                        showExportSettingsDialog()
-                    }
-                    3 -> {
-                        // 显示清空聊天确认对话框
-                        showClearChatDialog()
+                } else {
+                    when (which) {
+                        0 -> {
+                            // 跳转到AI API设置
+                            val intent = Intent(this, AIApiSettingsActivity::class.java)
+                            startActivity(intent)
+                        }
+                        1 -> {
+                            // 显示聊天设置对话框
+                            showChatSettingsDialog()
+                        }
+                        2 -> {
+                            // 显示导出设置对话框
+                            showExportSettingsDialog()
+                        }
+                        3 -> {
+                            // 显示清空聊天确认对话框
+                            showClearChatDialog()
+                        }
                     }
                 }
             }
@@ -1652,6 +1950,25 @@ class ChatActivity : AppCompatActivity() {
         // 释放AI API管理器资源
         if (::aiApiManager.isInitialized) {
             aiApiManager.destroy()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (requestCode == REQUEST_GROUP_SETTINGS && resultCode == RESULT_OK) {
+            // 群聊设置返回，更新联系人信息
+            data?.getParcelableExtra<ChatContact>(GroupChatSettingsActivity.EXTRA_GROUP_CONTACT)?.let { updatedContact ->
+                currentContact = updatedContact
+                contactNameText.text = updatedContact.name
+                contactStatusText.text = updatedContact.description ?: "群聊"
+                
+                // 如果群聊被删除，关闭当前页面
+                if (data.getBooleanExtra("group_deleted", false)) {
+                    Toast.makeText(this, "群聊已删除", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+            }
         }
     }
 

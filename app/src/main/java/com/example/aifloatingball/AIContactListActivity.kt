@@ -32,6 +32,7 @@ class AIContactListActivity : AppCompatActivity() {
     private lateinit var menuButton: ImageButton
     private lateinit var aiContactList: RecyclerView
     private lateinit var addCustomButton: MaterialButton
+    private lateinit var createGroupButton: MaterialButton
 
     private lateinit var aiContactAdapter: AIContactListAdapter
     private var allAIContacts = mutableListOf<ChatContact>()
@@ -52,6 +53,7 @@ class AIContactListActivity : AppCompatActivity() {
         menuButton = findViewById(R.id.menu_button)
         aiContactList = findViewById(R.id.ai_contact_list)
         addCustomButton = findViewById(R.id.add_custom_button)
+        createGroupButton = findViewById(R.id.create_group_button)
 
         titleText.text = "AI联系人列表"
 
@@ -98,6 +100,11 @@ class AIContactListActivity : AppCompatActivity() {
             // 跳转到AI API配置页面
             val intent = Intent(this, AIApiConfigActivity::class.java)
             startActivity(intent)
+        }
+
+        createGroupButton.setOnClickListener {
+            // 跳转到群聊创建页面
+            showCreateGroupDialog()
         }
     }
 
@@ -646,6 +653,123 @@ class AIContactListActivity : AppCompatActivity() {
      */
     private fun getLastChatTime(aiName: String): Long {
         val sharedPrefs = getSharedPreferences("ai_chat_history", MODE_PRIVATE)
-        return sharedPrefs.getLong("${aiName}_last_time", System.currentTimeMillis())
+        return sharedPrefs.getLong("${aiName}_last_time", 0)
+    }
+
+    /**
+     * 显示创建群聊对话框
+     */
+    private fun showCreateGroupDialog() {
+        // 获取已配置的AI列表
+        val configuredAIs = allAIContacts.filter { contact ->
+            val apiKey = contact.customData["api_key"] ?: ""
+            apiKey.isNotEmpty()
+        }
+
+        if (configuredAIs.size < 2) {
+            Toast.makeText(this, "至少需要配置2个AI才能创建群聊", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val aiNames = configuredAIs.map { it.name }.toTypedArray()
+        val selectedAIs = BooleanArray(aiNames.size)
+
+        AlertDialog.Builder(this)
+            .setTitle("创建群聊")
+            .setMultiChoiceItems(aiNames, selectedAIs) { _, which, isChecked ->
+                selectedAIs[which] = isChecked
+            }
+            .setPositiveButton("创建") { _, _ ->
+                val selectedContacts = mutableListOf<ChatContact>()
+                for (i in selectedAIs.indices) {
+                    if (selectedAIs[i]) {
+                        selectedContacts.add(configuredAIs[i])
+                    }
+                }
+
+                if (selectedContacts.size < 2) {
+                    Toast.makeText(this, "请至少选择2个AI", Toast.LENGTH_SHORT).show()
+                } else {
+                    createGroupChat(selectedContacts)
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 创建群聊
+     */
+    private fun createGroupChat(selectedAIs: List<ChatContact>) {
+        try {
+            // 创建群聊名称
+            val groupName = "群聊 (${selectedAIs.joinToString(", ") { it.name }})"
+            
+            // 创建群聊联系人
+            val groupContact = ChatContact(
+                id = "group_${System.currentTimeMillis()}",
+                name = groupName,
+                description = "包含 ${selectedAIs.size} 个AI助手的群聊",
+                type = ContactType.GROUP,
+                customData = mutableMapOf(
+                    "group_members" to selectedAIs.map { it.id }.joinToString(","),
+                    "created_time" to System.currentTimeMillis().toString()
+                )
+            )
+
+            // 保存群聊到本地存储
+            saveGroupChatContact(groupContact)
+
+            // 跳转到群聊界面
+            val intent = Intent(this, ChatActivity::class.java)
+            intent.putExtra(ChatActivity.EXTRA_CONTACT, groupContact)
+            startActivity(intent)
+            
+            Toast.makeText(this, "群聊创建成功", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e(TAG, "创建群聊失败", e)
+            Toast.makeText(this, "创建群聊失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 保存群聊联系人到本地存储
+     */
+    private fun saveGroupChatContact(groupContact: ChatContact) {
+        try {
+            val prefs = getSharedPreferences("chat_contacts", MODE_PRIVATE)
+            val existingJson = prefs.getString("saved_contacts", null)
+            
+            val gson = com.google.gson.Gson()
+            val categories: MutableList<com.example.aifloatingball.model.ContactCategory> = if (existingJson != null) {
+                val type = object : com.google.gson.reflect.TypeToken<MutableList<com.example.aifloatingball.model.ContactCategory>>() {}.type
+                val result = gson.fromJson<MutableList<com.example.aifloatingball.model.ContactCategory>>(existingJson, type)
+                result?.toMutableList() ?: mutableListOf()
+            } else {
+                mutableListOf()
+            }
+
+            // 查找或创建群聊分类
+            var groupCategory = categories.find { it.name == "群聊" }
+            if (groupCategory == null) {
+                groupCategory = com.example.aifloatingball.model.ContactCategory(
+                    name = "群聊",
+                    contacts = mutableListOf()
+                )
+                categories.add(groupCategory)
+            }
+
+            // 添加群聊联系人
+            groupCategory.contacts.add(groupContact)
+
+            // 保存更新后的数据
+            val updatedJson = gson.toJson(categories)
+            prefs.edit().putString("saved_contacts", updatedJson).apply()
+            
+            Log.d(TAG, "群聊联系人已保存: ${groupContact.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存群聊联系人失败", e)
+            throw e
+        }
     }
 }

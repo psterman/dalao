@@ -176,6 +176,10 @@
     <color name="api_status_connected">#4CAF50</color>
     <color name="api_status_error">#F44336</color>
     <color name="api_status_loading">#2196F3</color>
+    
+    <!-- 群聊相关颜色 -->
+    <color name="group_chat_color">#9C27B0</color>
+    <color name="ai_icon_color">#2196F3</color>
 
     <!-- 强调色 -->
     <color name="accent_color">#2196F3</color>
@@ -551,7 +555,6 @@
     <color name="pin_icon_color">#FF9800</color>
     <color name="mute_icon_color">#9E9E9E</color>
     <color name="add_button_icon_color">#FFFFFF</color>
-    <color name="ai_icon_color">#2196F3</color>
     <color name="rss_icon_color">#FF5722</color>
 
     <!-- =============================================================== -->

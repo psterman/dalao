@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginVertical="4dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="1dp"
+    app:cardBackgroundColor="@color/simple_mode_background_light">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="12dp">
+
+        <!-- AI头像 -->
+        <ImageView
+            android:id="@+id/member_avatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="12dp"
+            android:src="@drawable/ic_smart_toy"
+            android:background="@drawable/circle_background"
+            android:padding="8dp"
+            app:tint="@color/ai_icon_color" />
+
+        <!-- AI信息 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/member_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="AI助手名称"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/simple_mode_text_primary_light" />
+
+            <TextView
+                android:id="@+id/member_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="在线"
+                android:textSize="12sp"
+                android:textColor="@color/simple_mode_text_secondary_light"
+                android:layout_marginTop="2dp" />
+
+        </LinearLayout>
+
+        <!-- 在线状态指示器 -->
+        <View
+            android:id="@+id/online_indicator"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/circle_background"
+            android:backgroundTint="@android:color/holo_green_light" />
+
+        <!-- 移除按钮 -->
+        <ImageButton
+            android:id="@+id/remove_member_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_remove"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="移除成员"
+            app:tint="@android:color/holo_red_light" />
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

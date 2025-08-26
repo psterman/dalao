@@ -63,7 +63,7 @@ class ChatContactAdapter(
                     contact.name.contains(query, ignoreCase = true) ||
                     contact.description?.contains(query, ignoreCase = true) == true
                 }
-                category.copy(contacts = filteredContacts)
+                category.copy(contacts = filteredContacts.toMutableList())
             }.filter { it.contacts.isNotEmpty() }
         }
         notifyDataSetChanged()
@@ -256,7 +256,7 @@ class ChatContactAdapter(
                 groupTagText.visibility = View.GONE
             }
             
-            // 设置头像 - 目前只支持AI类型
+            // 设置头像
             when (contact.type) {
                 ContactType.AI -> {
                     // 清除tint以显示真实图标颜色
@@ -270,6 +270,11 @@ class ChatContactAdapter(
                         // 如果没有API URL，尝试根据AI名称加载图标
                         FaviconLoader.loadAIEngineIcon(avatarImage, contact.name, R.drawable.ic_smart_toy)
                     }
+                }
+                ContactType.GROUP -> {
+                    // 群聊头像
+                    avatarImage.setImageResource(R.drawable.ic_group)
+                    avatarImage.clearColorFilter()
                 }
             }
             
@@ -309,4 +314,4 @@ class ChatContactAdapter(
             mutedIndicator.visibility = if (contact.isMuted) View.VISIBLE else View.GONE
         }
     }
-} 
+}

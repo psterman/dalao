@@ -19,14 +19,19 @@ data class ChatContact(
     val unreadCount: Int = 0,
     val isPinned: Boolean = false,
     val isMuted: Boolean = false,
-    val customData: Map<String, String> = emptyMap()
+    val customData: Map<String, String> = emptyMap(),
+    // 群聊相关属性
+    val groupId: String? = null,
+    val memberCount: Int = 0,
+    val aiMembers: List<String> = emptyList()
 ) : Parcelable
 
 /**
  * 联系人类型
  */
 enum class ContactType {
-    AI      // AI助手
+    AI,     // AI助手
+    GROUP   // 群聊
 }
 
 /**
@@ -34,7 +39,7 @@ enum class ContactType {
  */
 data class ContactCategory(
     val name: String,
-    val contacts: List<ChatContact>,
+    val contacts: MutableList<ChatContact>,
     val isExpanded: Boolean = true,
     val isPinned: Boolean = false
 )
