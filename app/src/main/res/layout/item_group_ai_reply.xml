@@ -4,27 +4,27 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:paddingVertical="4dp"
+    android:paddingVertical="2dp"
     android:paddingStart="8dp"
     android:paddingEnd="16dp">
 
     <!-- AI头像 -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/ai_avatar_container"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
         android:layout_marginEnd="8dp"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         app:cardBackgroundColor="@color/material_dialog_surface_variant"
-        app:cardCornerRadius="16dp"
+        app:cardCornerRadius="15dp"
         app:cardElevation="0dp"
         app:strokeWidth="1dp"
         app:strokeColor="@color/material_chat_border_light">
 
         <ImageView
             android:id="@+id/ai_avatar"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
             android:layout_gravity="center"
             android:src="@drawable/ic_smart_toy"
             android:tint="@color/ai_icon_color" />
@@ -45,7 +45,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="2dp">
 
             <TextView
                 android:id="@+id/ai_name_text"
@@ -53,7 +53,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="AI助手"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 android:textColor="@color/group_chat_color"
                 android:fontFamily="sans-serif-medium" />
 
@@ -63,7 +63,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="回复中..."
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textColor="@color/material_chat_timestamp_light"
                 android:fontFamily="sans-serif"
                 android:visibility="gone" />
@@ -72,8 +72,8 @@
             <ProgressBar
                 android:id="@+id/ai_reply_progress"
                 style="?android:attr/progressBarStyleSmall"
-                android:layout_width="16dp"
-                android:layout_height="16dp"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
                 android:layout_marginStart="4dp"
                 android:visibility="gone" />
 
@@ -85,7 +85,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:cardBackgroundColor="@color/material_chat_ai_bubble_light"
-            app:cardCornerRadius="12dp"
+            app:cardCornerRadius="10dp"
             app:cardElevation="1dp"
             app:strokeWidth="1dp"
             app:strokeColor="@color/material_chat_border_light">
@@ -94,11 +94,11 @@
                 android:id="@+id/ai_reply_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingHorizontal="12dp"
-                android:paddingVertical="8dp"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp"
                 android:textColor="@color/material_chat_ai_text_light"
-                android:textSize="14sp"
-                android:lineSpacingExtra="2dp"
+                android:textSize="13sp"
+                android:lineSpacingExtra="1dp"
                 android:fontFamily="sans-serif"
                 android:letterSpacing="0.01" />
 
@@ -111,23 +111,23 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginTop="4dp">
+            android:layout_marginTop="2dp">
 
             <TextView
                 android:id="@+id/ai_reply_time"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textSize="11sp"
+                android:textSize="10sp"
                 android:textColor="@color/material_chat_timestamp_light"
                 android:fontFamily="sans-serif" />
 
             <!-- 操作按钮 -->
             <ImageButton
                 android:id="@+id/btn_copy_reply"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="8dp"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginStart="6dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_copy"
                 android:tint="@color/material_chat_timestamp_light"
@@ -137,9 +137,9 @@
 
             <ImageButton
                 android:id="@+id/btn_regenerate_reply"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="4dp"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginStart="3dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_refresh"
                 android:tint="@color/material_chat_timestamp_light"
@@ -149,9 +149,9 @@
 
             <ImageButton
                 android:id="@+id/btn_like_reply"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginStart="4dp"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginStart="3dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_thumb_up"
                 android:tint="@color/material_chat_timestamp_light"

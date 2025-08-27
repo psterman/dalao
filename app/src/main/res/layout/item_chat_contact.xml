@@ -6,9 +6,9 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="8dp"
-    android:layout_marginVertical="4dp"
-    app:cardCornerRadius="12dp"
-    app:cardElevation="2dp"
+    android:layout_marginVertical="2dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="1dp"
     app:cardBackgroundColor="@color/chat_contact_card_background_light"
     android:foreground="?attr/selectableItemBackground"
     android:clickable="true"
@@ -18,19 +18,19 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="12dp"
+        android:padding="10dp"
         android:gravity="center_vertical">
 
         <!-- 头像容器 -->
         <FrameLayout
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginEnd="12dp">
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginEnd="10dp">
 
             <ImageView
                 android:id="@+id/contact_avatar"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:src="@drawable/ic_ai_ball"
                 android:scaleType="centerCrop"
                 android:background="@drawable/contact_avatar_background"
@@ -39,8 +39,8 @@
             <!-- 在线状态指示器 -->
             <View
                 android:id="@+id/contact_online_indicator"
-                android:layout_width="12dp"
-                android:layout_height="12dp"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
                 android:layout_gravity="bottom|end"
                 android:background="@drawable/online_indicator_background"
                 android:visibility="gone" />
@@ -76,8 +76,8 @@
                 <!-- 置顶图标 -->
                 <ImageView
                     android:id="@+id/contact_pinned_indicator"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
                     android:layout_marginStart="4dp"
                     android:src="@drawable/ic_pin"
                     app:tint="@color/chat_contact_pinned_tint_light"
@@ -86,8 +86,8 @@
                 <!-- 静音图标 -->
                 <ImageView
                     android:id="@+id/contact_muted_indicator"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
+                    android:layout_width="14dp"
+                    android:layout_height="14dp"
                     android:layout_marginStart="4dp"
                     android:src="@drawable/ic_mute"
                     app:tint="@color/chat_contact_muted_tint_light"
@@ -101,24 +101,24 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="联系人描述"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:textColor="@color/chat_contact_description_text_light"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:layout_marginTop="2dp" />
+                android:layout_marginTop="1dp" />
 
             <!-- 分组标签 -->
             <TextView
                 android:id="@+id/contact_group_tag"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:text="工作AI"
-                android:textSize="10sp"
+                android:textSize="9sp"
                 android:textColor="@color/chat_contact_group_tag_text_light"
                 android:background="@drawable/group_tag_background"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="2dp"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="1dp"
                 android:visibility="gone" />
 
             <!-- 最后消息和时间 -->
@@ -127,7 +127,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginTop="4dp">
+                android:layout_marginTop="2dp">
 
                 <TextView
                     android:id="@+id/contact_last_message"
@@ -135,7 +135,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="最后一条消息"
-                    android:textSize="14sp"
+                    android:textSize="13sp"
                     android:textColor="@color/chat_contact_last_message_text_light"
                     android:maxLines="1"
                     android:ellipsize="end" />
@@ -144,9 +144,9 @@
                     android:id="@+id/contact_time"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="6dp"
                     android:text="12:34"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textColor="@color/chat_contact_time_text_light" />
 
             </LinearLayout>
@@ -158,12 +158,12 @@
             android:id="@+id/contact_unread_count"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:minWidth="20dp"
-            android:minHeight="20dp"
+            android:layout_marginStart="6dp"
+            android:minWidth="18dp"
+            android:minHeight="18dp"
             android:gravity="center"
             android:text="5"
-            android:textSize="12sp"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:textColor="@color/chat_contact_unread_text_light"
             android:background="@drawable/unread_count_background"

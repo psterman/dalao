@@ -54,6 +54,51 @@
     <uses-permission android:name="com.google.android.launcher.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.VIBRATE" />
     
+    <!-- Android 11+ 应用检测权限 -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    
+    <!-- 声明需要查询的应用包名 -->
+    <queries>
+        <!-- AI应用 -->
+        <package android:name="com.deepseek.chat" />
+        <package android:name="com.openai.chatgpt" />
+        <package android:name="com.larus.nova" />
+        <package android:name="com.moonshot.kimichat" />
+        <package android:name="com.tencent.hunyuan.app.chat" />
+        
+        <!-- 常用应用 -->
+        <package android:name="com.tencent.mm" />
+        <package android:name="com.tencent.mobileqq" />
+        <package android:name="com.sina.weibo" />
+        <package android:name="com.ss.android.ugc.aweme" />
+        <package android:name="com.zhihu.android" />
+        <package android:name="com.xingin.xhs" />
+        <package android:name="com.taobao.taobao" />
+        <package android:name="com.jingdong.app.mall" />
+        <package android:name="com.tmall.wireless" />
+        <package android:name="com.eg.android.AlipayGphone" />
+        <package android:name="com.tencent.wework" />
+        <package android:name="com.alibaba.android.rimet" />
+        
+        <!-- 浏览器 -->
+        <package android:name="com.android.chrome" />
+        <package android:name="com.UCMobile" />
+        <package android:name="com.qihoo.browser" />
+        <package android:name="com.baidu.searchbox" />
+        
+        <!-- 通用intent过滤器 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+    
     <application
         android:name=".MainApplication"
         android:allowBackup="true"

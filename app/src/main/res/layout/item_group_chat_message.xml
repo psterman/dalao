@@ -6,7 +6,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:paddingHorizontal="16dp"
-    android:paddingVertical="4dp">
+    android:paddingVertical="2dp">
 
     <!-- 用户消息容器 -->
     <LinearLayout
@@ -14,7 +14,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="4dp"
         android:visibility="gone">
 
         <!-- 左侧空间占位 -->
@@ -62,7 +62,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="2dp"
                 android:layout_marginEnd="8dp"
                 android:textSize="12sp"
                 android:textColor="@color/material_chat_timestamp_light"
@@ -114,7 +114,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="4dp"
         android:visibility="gone">
 
         <!-- AI头像 -->
@@ -188,7 +188,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="2dp"
                 android:layout_marginStart="8dp">
 
                 <TextView

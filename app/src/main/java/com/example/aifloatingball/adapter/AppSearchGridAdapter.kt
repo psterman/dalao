@@ -65,6 +65,11 @@ class AppSearchGridAdapter(
         val isInstalled = isAppInstalled(appConfig.packageName)
         android.util.Log.i("APP_DETECTION", "🔍 Binding ${appConfig.appName} (${appConfig.packageName}): installed=$isInstalled")
         
+                                                                                                                                                                                                                                                                                                                           // 特别关注AI应用的检测结果
+        if (appConfig.category == com.example.aifloatingball.model.AppCategory.AI) {
+            android.util.Log.w("APP_DETECTION", "🤖 AI App Detection: ${appConfig.appName} -> $isInstalled")
+        }
+        
         // 设置应用图标 - 使用异步加载
         loadAppIconAsync(appConfig, holder, isInstalled)
         
@@ -136,24 +141,42 @@ class AppSearchGridAdapter(
      */
     private fun isAppInstalled(packageName: String): Boolean {
         return try {
+            // 特别关注AI应用的检测
+            val isAIApp = packageName in listOf("com.deepseek.chat", "com.openai.chatgpt", "com.larus.nova", "com.moonshot.kimichat", "com.tencent.hunyuan.app.chat")
+            if (isAIApp) {
+                android.util.Log.e("APP_DETECTION", "🚨 检测AI应用: $packageName")
+            }
+            
             // 尝试多种方法检测应用是否安装
             val packageManager = context.packageManager
             
             // 方法1: 使用getPackageInfo
             try {
                 packageManager.getPackageInfo(packageName, 0)
+                if (isAIApp) {
+                    android.util.Log.e("APP_DETECTION", "🎉 AI应用 $packageName 检测成功 (方法1)")
+                }
                 android.util.Log.i("APP_DETECTION", "✅ App $packageName is installed (method 1)")
                 return true
             } catch (e: PackageManager.NameNotFoundException) {
+                if (isAIApp) {
+                    android.util.Log.e("APP_DETECTION", "❌ AI应用 $packageName 方法1失败: ${e.message}")
+                }
                 android.util.Log.w("APP_DETECTION", "❌ App $packageName not found with method 1")
             }
             
             // 方法2: 使用getApplicationInfo
             try {
                 packageManager.getApplicationInfo(packageName, 0)
+                if (isAIApp) {
+                    android.util.Log.e("APP_DETECTION", "🎉 AI应用 $packageName 检测成功 (方法2)")
+                }
                 android.util.Log.i("APP_DETECTION", "✅ App $packageName is installed (method 2)")
                 return true
             } catch (e: PackageManager.NameNotFoundException) {
+                if (isAIApp) {
+                    android.util.Log.e("APP_DETECTION", "❌ AI应用 $packageName 方法2失败: ${e.message}")
+                }
                 android.util.Log.w("APP_DETECTION", "❌ App $packageName not found with method 2")
             }
             

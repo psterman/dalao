@@ -5,7 +5,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:paddingHorizontal="16dp"
-    android:paddingVertical="4dp">
+    android:paddingVertical="2dp">
 
     <!-- 用户消息 -->
     <LinearLayout
@@ -14,7 +14,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="end"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="4dp"
         android:visibility="gone">
 
         <LinearLayout
@@ -53,7 +53,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="2dp"
                 android:layout_marginEnd="8dp"
                 android:textSize="12sp"
                 android:textColor="@color/material_dialog_text_hint"
@@ -70,7 +70,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="start"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="4dp"
         android:visibility="gone">
 
         <!-- AI头像 -->
@@ -140,7 +140,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="2dp"
                 android:layout_marginStart="8dp">
 
                 <TextView
@@ -156,7 +156,7 @@
                     android:id="@+id/btn_copy_message"
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:layout_marginStart="12dp"
+                    android:layout_marginStart="8dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:src="@drawable/ic_copy"
                     android:tint="@color/material_dialog_text_hint"

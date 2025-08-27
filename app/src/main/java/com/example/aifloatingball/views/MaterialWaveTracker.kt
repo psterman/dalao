@@ -103,6 +103,9 @@ class MaterialWaveTracker @JvmOverloads constructor(
 
     // 回调接口
     private var onCardSelectedListener: ((Int) -> Unit)? = null
+    
+    // 底部导航栏高度获取回调
+    private var bottomNavHeightProvider: (() -> Int)? = null
 
     data class WebViewCardData(
         val title: String,
@@ -131,6 +134,13 @@ class MaterialWaveTracker @JvmOverloads constructor(
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         // 确保触摸事件不被拦截，直接穿透到底层
         return false
+    }
+
+    /**
+     * 设置底部导航栏高度提供者
+     */
+    fun setBottomNavHeightProvider(provider: () -> Int) {
+        bottomNavHeightProvider = provider
     }
 
     /**
@@ -368,8 +378,9 @@ class MaterialWaveTracker @JvmOverloads constructor(
         val viewWidth = width.toFloat()
         val viewHeight = height.toFloat()
 
-        // 计算底部导航栏高度（120dp，确保完全不覆盖）
-        val bottomNavHeight = (120 * resources.displayMetrics.density)
+        // 计算底部导航栏高度，确保不覆盖
+        val bottomNavHeight = bottomNavHeightProvider?.invoke()?.toFloat() 
+            ?: (120 * resources.displayMetrics.density) // fallback to default
         val maskHeight = viewHeight - bottomNavHeight
 
         // 绘制半透明蒙版背景，完全不覆盖底部导航栏

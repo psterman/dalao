@@ -3,9 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginVertical="4dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="1dp"
+    android:layout_marginVertical="2dp"
+    app:cardCornerRadius="6dp"
+    app:cardElevation="0.5dp"
     app:cardBackgroundColor="@color/simple_mode_background_light">
 
     <LinearLayout
@@ -13,17 +13,17 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="12dp">
+        android:padding="10dp">
 
         <!-- AI头像 -->
         <ImageView
             android:id="@+id/member_avatar"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="12dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginEnd="10dp"
             android:src="@drawable/ic_smart_toy"
             android:background="@drawable/circle_background"
-            android:padding="8dp"
+            android:padding="6dp"
             app:tint="@color/ai_icon_color" />
 
         <!-- AI信息 -->

@@ -4987,7 +4987,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         cardPreviewOverlay.layoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
-        )
+        ).apply {
+            topMargin = 150 // 添加顶部边距，避免覆盖搜索tab区域
+        }
         cardPreviewOverlay.visibility = View.GONE
 
         // 关键修复：将覆盖层添加到根布局而不是WebView容器
@@ -8767,6 +8769,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun toggleContactPin(contact: ChatContact, isPinned: Boolean) {
         try {
             Log.d(TAG, "开始切换联系人置顶状态: ${contact.name} -> $isPinned")
+            Log.d(TAG, "联系人ID: ${contact.id}, 当前置顶状态: ${contact.isPinned}")
+            Log.d(TAG, "当前allContacts大小: ${allContacts.size}")
+            
+            // 验证输入参数
+            if (contact.id.isBlank()) {
+                Log.e(TAG, "联系人ID为空，无法执行置顶操作")
+                Toast.makeText(this, "置顶操作失败：联系人数据异常", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 打印当前所有分类和联系人信息
+            allContacts.forEachIndexed { index, category ->
+                Log.d(TAG, "分类[$index]: ${category.name}, 联系人数量: ${category.contacts.size}")
+                category.contacts.forEach { c ->
+                    Log.d(TAG, "  联系人: ${c.name} (id: ${c.id}, isPinned: ${c.isPinned})")
+                }
+            }
 
             // 找到联系人所在的分类和位置
             var found = false
@@ -8775,15 +8794,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val contactIndex = category.contacts.indexOfFirst { it.id == contact.id }
 
                 if (contactIndex != -1) {
+                    Log.d(TAG, "在分类[${category.name}]中找到联系人: ${contact.name}")
+                    val originalContact = category.contacts[contactIndex]
+                    Log.d(TAG, "原始联系人状态: isPinned=${originalContact.isPinned}, 目标状态: isPinned=$isPinned")
+                    
+                    // 检查是否需要更新
+                    if (originalContact.isPinned == isPinned) {
+                        Log.w(TAG, "联系人${contact.name}已经是${if (isPinned) "置顶" else "非置顶"}状态，无需更新")
+                        val action = if (isPinned) "已置顶" else "已取消置顶"
+                        Toast.makeText(this, "${contact.name} $action", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                    
                     val updatedContacts = category.contacts.toMutableList()
                     val updatedContact = contact.copy(isPinned = isPinned)
                     updatedContacts[contactIndex] = updatedContact
+                    Log.d(TAG, "更新后的联系人: ${updatedContact.name}, isPinned=${updatedContact.isPinned}")
 
                     // 重新排序：置顶的联系人在前面
                     val sortedContacts = updatedContacts.sortedWith(
                         compareByDescending<ChatContact> { it.isPinned }
                             .thenByDescending { it.lastMessageTime }
                     ).toMutableList()
+                    
+                    Log.d(TAG, "排序后联系人列表:")
+                    sortedContacts.forEachIndexed { idx, c ->
+                        Log.d(TAG, "  [$idx] ${c.name} (isPinned: ${c.isPinned})")
+                    }
 
                     allContacts[categoryIndex] = category.copy(contacts = sortedContacts)
                     found = true
@@ -8827,18 +8864,36 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             if (found) {
+                Log.d(TAG, "开始保存联系人数据...")
                 // 保存更新后的联系人数据
                 saveContacts()
+                Log.d(TAG, "联系人数据保存完成")
 
+                Log.d(TAG, "开始刷新UI显示...")
                 // 立即刷新显示
                 refreshCurrentTabDisplay()
+                Log.d(TAG, "UI显示刷新完成")
 
                 // 更新适配器
-                chatContactAdapter?.updateContacts(allContacts)
+                if (chatContactAdapter != null) {
+                    Log.d(TAG, "更新聊天联系人适配器...")
+                    chatContactAdapter?.updateContacts(allContacts)
+                    Log.d(TAG, "聊天联系人适配器更新完成")
+                } else {
+                    Log.w(TAG, "聊天联系人适配器为null，跳过更新")
+                }
 
                 val action = if (isPinned) "已置顶" else "已取消置顶"
                 Toast.makeText(this, "${contact.name} $action", Toast.LENGTH_SHORT).show()
                 Log.d(TAG, "切换联系人置顶状态成功: ${contact.name} -> $isPinned")
+                
+                // 验证最终状态
+                val finalContact = findContactById(contact.id)
+                if (finalContact != null) {
+                    Log.d(TAG, "最终验证 - 联系人${finalContact.name}的置顶状态: ${finalContact.isPinned}")
+                } else {
+                    Log.w(TAG, "最终验证失败 - 无法找到联系人${contact.name}")
+                }
             } else {
                 Log.e(TAG, "无法找到联系人: ${contact.name}")
                 Toast.makeText(this, "操作失败：找不到联系人", Toast.LENGTH_SHORT).show()
@@ -8846,8 +8901,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         } catch (e: Exception) {
             Log.e(TAG, "切换联系人置顶状态失败", e)
-            Toast.makeText(this, "置顶操作失败", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "异常详情: ${e.message}")
+            Log.e(TAG, "异常堆栈: ${e.stackTraceToString()}")
+            Toast.makeText(this, "置顶操作失败: ${e.message}", Toast.LENGTH_LONG).show()
         }
+    }
+
+    /**
+     * 根据ID查找联系人
+     */
+    private fun findContactById(contactId: String): ChatContact? {
+        for (category in allContacts) {
+            for (contact in category.contacts) {
+                if (contact.id == contactId) {
+                    return contact
+                }
+            }
+        }
+        return null
     }
 
     /**
@@ -13516,6 +13587,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 设置层级
                 elevation = 18f
 
+                // 设置底部导航栏高度提供者
+                setBottomNavHeightProvider {
+                    val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+                    bottomNav?.height ?: (120 * resources.displayMetrics.density).toInt()
+                }
+
                 // 设置卡片选择监听器
                 setOnCardSelectedListener { cardIndex ->
                     // 切换到选中的卡片
@@ -13542,6 +13619,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 设置层级
                 elevation = 16f
+
+                // 设置底部导航栏高度提供者
+                setBottomNavHeightProvider {
+                    val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+                    bottomNav?.height ?: (120 * resources.displayMetrics.density).toInt()
+                }
 
                 // 设置卡片选择监听器
                 setOnCardSelectedListener { cardIndex ->
@@ -14176,10 +14259,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             searchTabSwipeHotArea = View(this).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
-                    200 // 热区高度200dp，覆盖搜索tab上方区域
+                    120 // 热区高度120dp，避免覆盖搜索tab区域
                 ).apply {
                     gravity = android.view.Gravity.TOP
-                    topMargin = 100 // 距离顶部100dp开始
+                    topMargin = 200 // 距离顶部200dp开始，确保不覆盖搜索tab
                 }
 
                 // 设置透明背景

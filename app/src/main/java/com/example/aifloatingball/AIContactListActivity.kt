@@ -15,10 +15,14 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.activity.AIApiConfigActivity
 import com.example.aifloatingball.adapter.AIContactListAdapter
-import com.example.aifloatingball.manager.AIServiceType
-import com.example.aifloatingball.manager.GroupChatManager
+
 import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactType
+import com.example.aifloatingball.model.GroupChat
+import com.example.aifloatingball.model.GroupMember
+import com.example.aifloatingball.model.MemberType
+import com.example.aifloatingball.model.MemberRole
+import com.example.aifloatingball.manager.GroupChatManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 
@@ -37,6 +41,7 @@ class AIContactListActivity : AppCompatActivity() {
     private lateinit var createGroupButton: MaterialButton
 
     private lateinit var aiContactAdapter: AIContactListAdapter
+    private lateinit var groupChatManager: GroupChatManager
     private var allAIContacts = mutableListOf<ChatContact>()
     private var showOnlyConfiguredAIs = true // 默认只显示配置了API的AI
 
@@ -44,6 +49,9 @@ class AIContactListActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_ai_contact_list)
 
+        // 初始化GroupChatManager
+        groupChatManager = GroupChatManager.getInstance(this)
+        
         initializeViews()
         setupAIContacts()
         setupListeners()
@@ -707,50 +715,53 @@ class AIContactListActivity : AppCompatActivity() {
             // 创建群聊名称
             val groupName = "群聊 (${selectedAIs.joinToString(", ") { it.name }})"
             
-            // 转换ChatContact为AIServiceType
-            val aiServiceTypes = selectedAIs.mapNotNull { contact ->
-                when (contact.name) {
-                    "DeepSeek" -> AIServiceType.DEEPSEEK
-                    "ChatGPT" -> AIServiceType.CHATGPT
-                    "Claude" -> AIServiceType.CLAUDE
-                    "Gemini" -> AIServiceType.GEMINI
-                    "智谱AI", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
-                    "文心一言" -> AIServiceType.WENXIN
-                    "通义千问" -> AIServiceType.QIANWEN
-                    "讯飞星火" -> AIServiceType.XINGHUO
-                    "Kimi" -> AIServiceType.KIMI
-                    else -> {
-                        Log.w(TAG, "未知的AI类型: ${contact.name}")
-                        null
-                    }
-                }
-            }
+            // 简化方案：直接创建群聊ID和数据
+             val groupId = "group_${System.currentTimeMillis()}"
+             
+             // 创建群聊成员列表
+             val groupMembers = selectedAIs.map { ai ->
+                 GroupMember(
+                     id = ai.id,
+                     name = ai.name,
+                     type = MemberType.AI,
+                     role = MemberRole.MEMBER,
+                     joinTime = System.currentTimeMillis()
+                 )
+             }
+             
+             // 创建群聊对象
+             val groupChat = GroupChat(
+                 id = groupId,
+                 name = groupName,
+                 description = "包含 ${selectedAIs.size} 个AI助手的群聊",
+                 members = groupMembers,
+                 createdTime = System.currentTimeMillis()
+             )
+             
+             // 保存到GroupChatManager的SharedPreferences
+             val prefs = getSharedPreferences("group_chat_prefs", MODE_PRIVATE)
+             val gson = com.google.gson.Gson()
+             val existingGroupChats = prefs.getString("group_chats", "[]")
+             val type = object : com.google.gson.reflect.TypeToken<MutableList<GroupChat>>() {}.type
+             val groupChatsList: MutableList<GroupChat> = try {
+                 gson.fromJson(existingGroupChats, type) ?: mutableListOf()
+             } catch (e: Exception) {
+                 mutableListOf()
+             }
+             groupChatsList.add(groupChat)
+             prefs.edit().putString("group_chats", gson.toJson(groupChatsList)).apply()
             
-            if (aiServiceTypes.isEmpty()) {
-                Toast.makeText(this, "未能识别选中的AI类型", Toast.LENGTH_SHORT).show()
-                return
-            }
-            
-            // 在GroupChatManager中创建群聊
-            val groupChatManager = GroupChatManager.getInstance(this)
-            val groupChat = groupChatManager.createGroupChat(
-                name = groupName,
-                description = "包含 ${selectedAIs.size} 个AI助手的群聊",
-                aiMembers = aiServiceTypes
-            )
-            
-            // 创建群聊联系人，关联GroupChat的ID
+            // 创建群聊联系人
             val groupContact = ChatContact(
-                id = "group_${System.currentTimeMillis()}",
+                id = groupId,
                 name = groupName,
                 description = "包含 ${selectedAIs.size} 个AI助手的群聊",
                 type = ContactType.GROUP,
-                groupId = groupChat.id, // 设置groupId关联
+                groupId = groupId,
                 aiMembers = selectedAIs.map { it.id },
                 customData = mutableMapOf(
                     "group_members" to selectedAIs.map { it.id }.joinToString(","),
-                    "created_time" to System.currentTimeMillis().toString(),
-                    "group_chat_id" to groupChat.id // 额外保存关联ID
+                    "created_time" to System.currentTimeMillis().toString()
                 )
             )
 
@@ -763,7 +774,6 @@ class AIContactListActivity : AppCompatActivity() {
             startActivity(intent)
             
             Toast.makeText(this, "群聊创建成功", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "群聊创建成功: ${groupChat.id}, ChatContact: ${groupContact.id}")
         } catch (e: Exception) {
             Log.e(TAG, "创建群聊失败", e)
             Toast.makeText(this, "创建群聊失败: ${e.message}", Toast.LENGTH_SHORT).show()

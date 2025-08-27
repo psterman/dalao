@@ -128,6 +128,9 @@ class StackedCardPreview @JvmOverloads constructor(
     private var onCardSelectedListener: ((Int) -> Unit)? = null
     private var onCardCloseListener: ((Int) -> Unit)? = null
     private var onCardRefreshListener: ((Int) -> Unit)? = null
+    
+    // 底部导航栏高度获取回调
+    private var bottomNavHeightProvider: (() -> Int)? = null
 
     data class WebViewCardData(
         val title: String,
@@ -168,6 +171,13 @@ class StackedCardPreview @JvmOverloads constructor(
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         // 平行模式下拦截事件，用于滑动交互
         return super.dispatchTouchEvent(event)
+    }
+
+    /**
+     * 设置底部导航栏高度提供者
+     */
+    fun setBottomNavHeightProvider(provider: () -> Int) {
+        bottomNavHeightProvider = provider
     }
 
     /**
@@ -865,7 +875,8 @@ class StackedCardPreview @JvmOverloads constructor(
         val viewHeight = height.toFloat()
 
         // 计算底部导航栏高度，确保不覆盖
-        val bottomNavHeight = (120 * resources.displayMetrics.density)
+        val bottomNavHeight = bottomNavHeightProvider?.invoke()?.toFloat() 
+            ?: (120 * resources.displayMetrics.density) // fallback to default
         val maskHeight = viewHeight - bottomNavHeight
 
         // 绘制半透明蒙版背景

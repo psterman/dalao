@@ -5,7 +5,7 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:paddingHorizontal="16dp"
-    android:paddingVertical="8dp"
+    android:paddingVertical="4dp"
     android:gravity="end">
 
     <LinearLayout
@@ -43,7 +43,7 @@
             android:id="@+id/time_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="2dp"
             android:layout_marginEnd="8dp"
             android:textColor="@color/material_wechat_on_surface_variant"
             android:textSize="12sp"
