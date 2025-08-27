@@ -8766,8 +8766,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     /**
      * 切换联系人置顶状态
      */
-    private fun toggleContactPin(contact: ChatContact, isPinned: Boolean) {
+    private fun toggleContactPin(contact: ChatContact?, isPinned: Boolean) {
         try {
+            // 首先检查contact是否为null
+            if (contact == null) {
+                Log.e(TAG, "联系人对象为null，无法执行置顶操作")
+                Toast.makeText(this, "置顶操作失败：联系人数据为空", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
             Log.d(TAG, "开始切换联系人置顶状态: ${contact.name} -> $isPinned")
             Log.d(TAG, "联系人ID: ${contact.id}, 当前置顶状态: ${contact.isPinned}")
             Log.d(TAG, "当前allContacts大小: ${allContacts.size}")
@@ -8776,6 +8783,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (contact.id.isBlank()) {
                 Log.e(TAG, "联系人ID为空，无法执行置顶操作")
                 Toast.makeText(this, "置顶操作失败：联系人数据异常", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 验证联系人的关键属性
+            if (contact.name.isBlank()) {
+                Log.e(TAG, "联系人名称为空，无法执行置顶操作")
+                Toast.makeText(this, "置顶操作失败：联系人名称异常", Toast.LENGTH_SHORT).show()
                 return
             }
             
@@ -8807,7 +8821,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                     
                     val updatedContacts = category.contacts.toMutableList()
-                    val updatedContact = contact.copy(isPinned = isPinned)
+                    
+                    // 安全地创建更新后的联系人对象
+                    val updatedContact = try {
+                        contact.copy(
+                            id = contact.id ?: "",
+                            name = contact.name ?: "未知联系人",
+                            type = contact.type,
+                            isPinned = isPinned,
+                            aiMembers = contact.aiMembers ?: emptyList(),
+                            customData = contact.customData ?: emptyMap()
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "创建更新联系人对象失败: ${e.message}")
+                        Toast.makeText(this, "置顶操作失败：数据更新异常", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                    
                     updatedContacts[contactIndex] = updatedContact
                     Log.d(TAG, "更新后的联系人: ${updatedContact.name}, isPinned=${updatedContact.isPinned}")
 
@@ -8832,7 +8862,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 如果在allContacts中没找到，根据联系人类型添加到相应分类
                 val targetCategory = if (contact.type == ContactType.AI) "AI助手" else "未分组"
                 Log.d(TAG, "在allContacts中未找到联系人，尝试添加到$targetCategory")
-                val updatedContact = contact.copy(isPinned = isPinned)
+                
+                // 安全地创建更新后的联系人对象
+                val updatedContact = try {
+                    contact.copy(
+                        id = contact.id ?: "",
+                        name = contact.name ?: "未知联系人",
+                        type = contact.type,
+                        isPinned = isPinned,
+                        aiMembers = contact.aiMembers ?: emptyList(),
+                        customData = contact.customData ?: emptyMap()
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "创建新联系人对象失败: ${e.message}")
+                    Toast.makeText(this, "置顶操作失败：数据创建异常", Toast.LENGTH_SHORT).show()
+                    return
+                }
 
                 // 查找或创建目标类别
                 val categoryIndex = allContacts.indexOfFirst { it.name == targetCategory }
@@ -8924,8 +8969,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     /**
      * 切换联系人静音状态
      */
-    private fun toggleContactMute(contact: ChatContact, isMuted: Boolean) {
+    private fun toggleContactMute(contact: ChatContact?, isMuted: Boolean) {
         try {
+            // 首先检查contact是否为null
+            if (contact == null) {
+                Log.e(TAG, "联系人对象为null，无法执行静音操作")
+                Toast.makeText(this, "静音操作失败：联系人数据为空", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
             Log.d(TAG, "开始切换联系人静音状态: ${contact.name} -> $isMuted")
 
             // 找到联系人所在的分类和位置
@@ -8936,7 +8988,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 if (contactIndex != -1) {
                     val updatedContacts = category.contacts.toMutableList()
-                    val updatedContact = contact.copy(isMuted = isMuted)
+                    
+                    // 安全地创建更新后的联系人对象
+                    val updatedContact = try {
+                        contact.copy(
+                            id = contact.id ?: "",
+                            name = contact.name ?: "未知联系人",
+                            type = contact.type,
+                            isMuted = isMuted,
+                            aiMembers = contact.aiMembers ?: emptyList(),
+                            customData = contact.customData ?: emptyMap()
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "创建更新联系人对象失败: ${e.message}")
+                        Toast.makeText(this, "静音操作失败：数据更新异常", Toast.LENGTH_SHORT).show()
+                        return
+                    }
+                    
                     updatedContacts[contactIndex] = updatedContact
 
                     allContacts[categoryIndex] = category.copy(contacts = updatedContacts.toMutableList())
@@ -8949,7 +9017,22 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 如果在allContacts中没找到，根据联系人类型添加到相应分类
                 val targetCategory = if (contact.type == ContactType.AI) "AI助手" else "未分组"
                 Log.d(TAG, "在allContacts中未找到联系人，尝试添加到$targetCategory")
-                val updatedContact = contact.copy(isMuted = isMuted)
+                
+                // 安全地创建更新后的联系人对象
+                val updatedContact = try {
+                    contact.copy(
+                        id = contact.id ?: "",
+                        name = contact.name ?: "未知联系人",
+                        type = contact.type,
+                        isMuted = isMuted,
+                        aiMembers = contact.aiMembers ?: emptyList(),
+                        customData = contact.customData ?: emptyMap()
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "创建新联系人对象失败: ${e.message}")
+                    Toast.makeText(this, "静音操作失败：数据创建异常", Toast.LENGTH_SHORT).show()
+                    return
+                }
 
                 // 查找或创建目标类别
                 val categoryIndex = allContacts.indexOfFirst { it.name == targetCategory }
