@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="@color/simple_mode_background_light">
+    android:background="@color/white">
 
     <!-- 顶部标题栏 -->
     <LinearLayout
@@ -13,7 +13,7 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:padding="16dp"
-        android:background="@color/simple_mode_header_background_light"
+        android:background="@color/simple_mode_green_500_light"
         android:elevation="4dp">
 
         <ImageButton
@@ -54,7 +54,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:background="@color/simple_mode_card_background_light"
+        android:background="@color/white"
         android:layout_margin="16dp"
         android:elevation="2dp">
 
@@ -68,7 +68,7 @@
             android:textSize="14sp"
             android:padding="12dp"
             app:cornerRadius="12dp"
-            app:backgroundTint="@color/accent_color"
+            app:backgroundTint="@color/simple_mode_green_500_light"
             android:textColor="@android:color/white" />
 
         <com.google.android.material.button.MaterialButton
@@ -81,7 +81,7 @@
             android:textSize="14sp"
             android:padding="12dp"
             app:cornerRadius="12dp"
-            app:backgroundTint="@color/group_chat_color"
+            app:backgroundTint="@color/simple_mode_text_secondary_light"
             android:textColor="@android:color/white" />
 
     </LinearLayout>

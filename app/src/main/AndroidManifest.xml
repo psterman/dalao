@@ -176,7 +176,7 @@
             android:label="@string/ai_api_settings"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
         <activity
-            android:name=".AIApiConfigActivity"
+            android:name=".activity.AIApiConfigActivity"
             android:exported="false"
             android:label="AI API配置"
             android:theme="@style/Theme.AIFloatingBall.NoActionBar" />
