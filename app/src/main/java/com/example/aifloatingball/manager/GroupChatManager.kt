@@ -7,6 +7,9 @@ import com.example.aifloatingball.model.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.*
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
@@ -243,10 +246,10 @@ class GroupChatManager private constructor(private val context: Context) {
             // 获取对话历史
             val conversationHistory = buildConversationHistory(groupId, aiMember.id)
             
-            // 调用AI API
-            val response = callAIAPI(aiServiceType, userMessage, conversationHistory, groupChat.settings.customPrompt)
-            
-            if (response != null) {
+            try {
+                // 调用AI API
+                val response = callAIAPI(aiServiceType, userMessage, conversationHistory, groupChat.settings.customPrompt)
+                
                 // 创建AI回复消息
                 val aiMessage = GroupChatMessage(
                     id = UUID.randomUUID().toString(),
@@ -263,9 +266,9 @@ class GroupChatManager private constructor(private val context: Context) {
                 updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.COMPLETED)
                 
                 Log.d(TAG, "AI ${aiMember.name} 回复成功")
-            } else {
-                updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, "API调用失败")
-                Log.e(TAG, "AI ${aiMember.name} 回复失败")
+            } catch (e: Exception) {
+                updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, "API调用失败: ${e.message}")
+                Log.e(TAG, "AI ${aiMember.name} 回复失败", e)
             }
             
         } catch (e: Exception) {
@@ -282,8 +285,8 @@ class GroupChatManager private constructor(private val context: Context) {
         message: String,
         conversationHistory: List<Map<String, String>>,
         customPrompt: String?
-    ): String? {
-        return withContext(Dispatchers.IO) {
+    ): String = withContext(Dispatchers.IO) {
+        return@withContext suspendCancellableCoroutine { continuation ->
             try {
                 // 构建完整的消息内容
                 val fullMessage = if (customPrompt != null) {
@@ -294,6 +297,8 @@ class GroupChatManager private constructor(private val context: Context) {
                 
                 // 使用统一的sendMessage方法
                 var response: String? = null
+                var isCompleted = false
+                
                 val callback = object : AIApiManager.StreamingCallback {
                     override fun onChunkReceived(chunk: String) {
                         // 累积响应内容
@@ -302,29 +307,34 @@ class GroupChatManager private constructor(private val context: Context) {
                     }
                     
                     override fun onComplete(fullResponse: String) {
-                        response = fullResponse
+                        if (!isCompleted) {
+                            isCompleted = true
+                            response = fullResponse
+                            continuation.resume(fullResponse)
+                        }
                     }
                     
                     override fun onError(error: String) {
-                        Log.e(TAG, "AI API调用失败: $error")
-                        response = null
+                        if (!isCompleted) {
+                            isCompleted = true
+                            Log.e(TAG, "AI API调用失败: $error")
+                            continuation.resumeWithException(Exception(error))
+                        }
                     }
                 }
                 
                 // 调用AI API
                 aiApiManager.sendMessage(serviceType, fullMessage, conversationHistory, callback)
                 
-                // 等待响应完成（简化处理）
-                var waitTime = 0
-                while (response == null && waitTime < 30000) { // 最多等待30秒
-                    delay(100)
-                    waitTime += 100
+                // 设置超时
+                continuation.invokeOnCancellation {
+                    Log.w(TAG, "AI API调用被取消")
                 }
                 
-                response
             } catch (e: Exception) {
-                Log.e(TAG, "调用AI API失败: $serviceType", e)
-                null
+                if (!continuation.isCompleted) {
+                    continuation.resumeWithException(e)
+                }
             }
         }
     }

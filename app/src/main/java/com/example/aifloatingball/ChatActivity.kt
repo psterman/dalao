@@ -167,16 +167,50 @@ class ChatActivity : AppCompatActivity() {
             
             if (isGroupChatMode) {
                 // 群聊模式
+                var groupChatFound = false
+                
+                // 首先尝试通过groupId查找
                 contact.groupId?.let { groupId ->
                     currentGroupChat = groupChatManager.getGroupChat(groupId)
-                    currentGroupChat?.let { group ->
-                        contactStatusText.text = "群聊 · ${group.members.size}个成员"
+                    if (currentGroupChat != null) {
+                        groupChatFound = true
+                        contactStatusText.text = "群聊 · ${currentGroupChat!!.members.size}个成员"
                         contactStatusText.setTextColor(getColor(R.color.group_chat_color))
                     }
-                } ?: run {
-                    contactStatusText.text = "群聊"
-                    contactStatusText.setTextColor(getColor(R.color.group_chat_color))
                 }
+                
+                // 如果没有找到GroupChat，尝试从customData中获取group_chat_id
+                if (!groupChatFound) {
+                    contact.customData["group_chat_id"]?.let { groupChatId ->
+                        currentGroupChat = groupChatManager.getGroupChat(groupChatId)
+                        if (currentGroupChat != null) {
+                            groupChatFound = true
+                            contactStatusText.text = "群聊 · ${currentGroupChat!!.members.size}个成员"
+                            contactStatusText.setTextColor(getColor(R.color.group_chat_color))
+                        }
+                    }
+                }
+                
+                // 如果仍然没有找到，尝试创建一个新的GroupChat
+                if (!groupChatFound) {
+                    Log.w(TAG, "未找到群聊数据，尝试根据aiMembers重新创建")
+                    if (contact.aiMembers.isNotEmpty()) {
+                        currentGroupChat = createGroupChatFromContact(contact)
+                        if (currentGroupChat != null) {
+                            groupChatFound = true
+                            contactStatusText.text = "群聊 · ${currentGroupChat!!.members.size}个成员"
+                            contactStatusText.setTextColor(getColor(R.color.group_chat_color))
+                        }
+                    }
+                }
+                
+                if (!groupChatFound) {
+                    Log.e(TAG, "群聊数据加载失败，无法找到或创建GroupChat")
+                    contactStatusText.text = "群聊 (数据加载失败)"
+                    contactStatusText.setTextColor(getColor(android.R.color.holo_red_light))
+                    Toast.makeText(this, "群聊数据加载失败，请重新创建群聊", Toast.LENGTH_LONG).show()
+                }
+                
                 // 切换到群聊适配器
                 messagesRecyclerView.adapter = groupMessageAdapter
             } else {
@@ -461,6 +495,65 @@ class ChatActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 根据ChatContact创建GroupChat
+     */
+    private fun createGroupChatFromContact(contact: ChatContact): GroupChat? {
+        return try {
+            Log.d(TAG, "尝试根据ChatContact重新创建GroupChat: ${contact.name}")
+            
+            // 从contact的aiMembers或customData中提取AI类型
+            val aiServiceTypes = mutableListOf<AIServiceType>()
+            
+            // 如果有aiMembers，尝试转换
+            if (contact.aiMembers.isNotEmpty()) {
+                contact.aiMembers.forEach { aiId ->
+                    val aiType = when {
+                        aiId.contains("deepseek", ignoreCase = true) -> AIServiceType.DEEPSEEK
+                        aiId.contains("chatgpt", ignoreCase = true) || aiId.contains("gpt", ignoreCase = true) -> AIServiceType.CHATGPT
+                        aiId.contains("claude", ignoreCase = true) -> AIServiceType.CLAUDE
+                        aiId.contains("gemini", ignoreCase = true) -> AIServiceType.GEMINI
+                        aiId.contains("zhipu", ignoreCase = true) || aiId.contains("glm", ignoreCase = true) -> AIServiceType.ZHIPU_AI
+                        aiId.contains("wenxin", ignoreCase = true) -> AIServiceType.WENXIN
+                        aiId.contains("qianwen", ignoreCase = true) -> AIServiceType.QIANWEN
+                        aiId.contains("xinghuo", ignoreCase = true) -> AIServiceType.XINGHUO
+                        aiId.contains("kimi", ignoreCase = true) -> AIServiceType.KIMI
+                        else -> null
+                    }
+                    aiType?.let { aiServiceTypes.add(it) }
+                }
+            }
+            
+            // 如果没有识别到AI类型，使用默认配置
+            if (aiServiceTypes.isEmpty()) {
+                Log.w(TAG, "无法从aiMembers识别AI类型，使用DeepSeek作为默认")
+                aiServiceTypes.add(AIServiceType.DEEPSEEK)
+            }
+            
+            // 创建GroupChat
+            val groupChat = groupChatManager.createGroupChat(
+                name = contact.name,
+                description = contact.description ?: "从联系人恢复的群聊",
+                aiMembers = aiServiceTypes
+            )
+            
+            // 更新contact的groupId（如果customData是可变的）
+            try {
+                if (contact.customData is MutableMap) {
+                    (contact.customData as MutableMap<String, String>)["group_chat_id"] = groupChat.id
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "无法更新contact的customData", e)
+            }
+            
+            Log.d(TAG, "成功创建GroupChat: ${groupChat.id}")
+            groupChat
+        } catch (e: Exception) {
+            Log.e(TAG, "创建GroupChat失败", e)
+            null
+        }
+    }
+    
     /**
      * 处理群聊消息
      */

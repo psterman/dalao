@@ -119,7 +119,8 @@ enum class AIReplyStatus {
     TYPING,         // 正在输入
     COMPLETED,      // 回复完成
     ERROR,          // 回复错误
-    TIMEOUT         // 回复超时
+    TIMEOUT,        // 回复超时
+    CANCELLED       // 用户取消
 }
 
 /**
