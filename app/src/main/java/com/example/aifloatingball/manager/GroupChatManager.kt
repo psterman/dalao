@@ -14,6 +14,16 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 /**
+ * 群聊监听器接口
+ */
+interface GroupChatListener {
+    fun onMessageAdded(groupId: String, message: GroupChatMessage)
+    fun onMessageUpdated(groupId: String, messageIndex: Int, message: GroupChatMessage)
+    fun onAIReplyStatusChanged(groupId: String, aiId: String, status: AIReplyStatus, message: String? = null)
+    fun onGroupChatUpdated(groupChat: GroupChat)
+}
+
+/**
  * 群聊管理器
  * 负责管理群聊的创建、消息处理、成员管理等功能
  */
@@ -44,11 +54,28 @@ class GroupChatManager private constructor(private val context: Context) {
     private val groupMessages = ConcurrentHashMap<String, MutableList<GroupChatMessage>>()
     private val aiReplyStatus = ConcurrentHashMap<String, MutableMap<String, AIReplyInfo>>()
     
+    // 监听器列表
+    private val groupChatListeners = mutableListOf<GroupChatListener>()
+    
     // 协程作用域
     private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
     init {
         loadGroupChats()
+    }
+    
+    /**
+     * 添加群聊监听器
+     */
+    fun addGroupChatListener(listener: GroupChatListener) {
+        groupChatListeners.add(listener)
+    }
+    
+    /**
+     * 移除群聊监听器
+     */
+    fun removeGroupChatListener(listener: GroupChatListener) {
+        groupChatListeners.remove(listener)
     }
     
     /**
@@ -135,13 +162,18 @@ class GroupChatManager private constructor(private val context: Context) {
     suspend fun sendUserMessage(groupId: String, content: String): Boolean {
         val groupChat = groupChats[groupId] ?: return false
         
-        // 创建用户消息
+        // 获取用户在群聊中的角色
+        val userMember = groupChat.members.find { it.id == "user" }
+        val userRole = userMember?.role?.name ?: "MEMBER"
+        
+        // 创建用户消息，包含角色信息
         val userMessage = GroupChatMessage(
             id = UUID.randomUUID().toString(),
             content = content,
             senderId = "user",
             senderName = "用户",
-            senderType = MemberType.USER
+            senderType = MemberType.USER,
+            metadata = mapOf("userRole" to userRole)
         )
         
         // 添加消息到群聊
@@ -229,7 +261,7 @@ class GroupChatManager private constructor(private val context: Context) {
     }
     
     /**
-     * 处理单个AI的回复
+     * 处理单个AI的回复（支持流式回复）
      */
     private suspend fun processAIReply(
         groupId: String,
@@ -243,42 +275,156 @@ class GroupChatManager private constructor(private val context: Context) {
             // 更新状态为正在输入
             updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.TYPING)
             
+            // 通知监听器状态变化
+            CoroutineScope(Dispatchers.Main).launch {
+                groupChatListeners.forEach { listener ->
+                    listener.onAIReplyStatusChanged(groupId, aiMember.id, AIReplyStatus.TYPING)
+                }
+            }
+            
             // 获取对话历史
             val conversationHistory = buildConversationHistory(groupId, aiMember.id)
             
+            // 创建初始AI回复消息（空内容）
+            val aiMessage = GroupChatMessage(
+                id = UUID.randomUUID().toString(),
+                content = "",
+                senderId = aiMember.id,
+                senderName = aiMember.name,
+                senderType = MemberType.AI
+            )
+            
+            // 添加空消息到群聊
+            addMessageToGroup(groupId, aiMessage)
+            val messageIndex = getMessageIndex(groupId, aiMessage.id)
+            
             try {
-                // 调用AI API
-                val response = callAIAPI(aiServiceType, userMessage, conversationHistory, groupChat.settings.customPrompt)
+                // 调用AI API（流式回复）
+                callAIAPIStreaming(aiServiceType, userMessage, conversationHistory, groupChat.settings.customPrompt) { chunk, isComplete, fullResponse ->
+                    if (isComplete) {
+                        // 流式回复完成，更新最终内容
+                        val cleanContent = removeEmojis(fullResponse)
+                        val updatedMessage = aiMessage.copy(content = cleanContent)
+                        updateMessageInGroup(groupId, messageIndex, updatedMessage)
+                        updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.COMPLETED)
+                        
+                        // 通知监听器回复完成
+                        CoroutineScope(Dispatchers.Main).launch {
+                            groupChatListeners.forEach { listener ->
+                                listener.onAIReplyStatusChanged(groupId, aiMember.id, AIReplyStatus.COMPLETED, cleanContent)
+                            }
+                        }
+                        
+                        Log.d(TAG, "AI ${aiMember.name} 流式回复完成")
+                    } else {
+                        // 流式回复中，更新部分内容
+                        val currentContent = aiMessage.content + removeEmojis(chunk)
+                        val updatedMessage = aiMessage.copy(content = currentContent)
+                        updateMessageInGroup(groupId, messageIndex, updatedMessage)
+                    }
+                }
                 
-                // 创建AI回复消息
-                val aiMessage = GroupChatMessage(
-                    id = UUID.randomUUID().toString(),
-                    content = response,
-                    senderId = aiMember.id,
-                    senderName = aiMember.name,
-                    senderType = MemberType.AI
-                )
-                
-                // 添加消息到群聊
-                addMessageToGroup(groupId, aiMessage)
-                
-                // 更新状态为完成
-                updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.COMPLETED)
-                
-                Log.d(TAG, "AI ${aiMember.name} 回复成功")
             } catch (e: Exception) {
-                updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, "API调用失败: ${e.message}")
+                val errorMessage = "API调用失败: ${e.message}"
+                updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, errorMessage)
+                
+                // 通知监听器错误状态
+                CoroutineScope(Dispatchers.Main).launch {
+                    groupChatListeners.forEach { listener ->
+                        listener.onAIReplyStatusChanged(groupId, aiMember.id, AIReplyStatus.ERROR, errorMessage)
+                    }
+                }
+                
                 Log.e(TAG, "AI ${aiMember.name} 回复失败", e)
             }
             
         } catch (e: Exception) {
-            updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, e.message)
+            val errorMessage = e.message ?: "未知错误"
+            updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, errorMessage)
+            
+            // 通知监听器错误状态
+            CoroutineScope(Dispatchers.Main).launch {
+                groupChatListeners.forEach { listener ->
+                    listener.onAIReplyStatusChanged(groupId, aiMember.id, AIReplyStatus.ERROR, errorMessage)
+                }
+            }
+            
             Log.e(TAG, "AI ${aiMember.name} 回复异常", e)
         }
     }
     
     /**
-     * 调用AI API
+     * 调用AI API（流式回复）
+     */
+    private suspend fun callAIAPIStreaming(
+        serviceType: AIServiceType,
+        message: String,
+        conversationHistory: List<Map<String, String>>,
+        customPrompt: String?,
+        onUpdate: (chunk: String, isComplete: Boolean, fullResponse: String) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        return@withContext suspendCancellableCoroutine<Unit> { continuation ->
+            try {
+                // 构建完整的消息内容
+                val fullMessage = if (customPrompt != null) {
+                    "$customPrompt\n\n$message"
+                } else {
+                    message
+                }
+                
+                var fullResponse = ""
+                var isCompleted = false
+                
+                val callback = object : AIApiManager.StreamingCallback {
+                    override fun onChunkReceived(chunk: String) {
+                        if (!isCompleted) {
+                            fullResponse += chunk
+                            // 在主线程更新UI
+                            CoroutineScope(Dispatchers.Main).launch {
+                                onUpdate(chunk, false, fullResponse)
+                            }
+                        }
+                    }
+                    
+                    override fun onComplete(response: String) {
+                        if (!isCompleted) {
+                            isCompleted = true
+                            fullResponse = response
+                            // 在主线程更新UI
+                            CoroutineScope(Dispatchers.Main).launch {
+                                onUpdate("", true, fullResponse)
+                            }
+                            continuation.resume(Unit)
+                        }
+                    }
+                    
+                    override fun onError(error: String) {
+                        if (!isCompleted) {
+                            isCompleted = true
+                            Log.e(TAG, "AI API调用失败: $error")
+                            continuation.resumeWithException(Exception(error))
+                        }
+                    }
+                }
+                
+                // 调用AI API
+                aiApiManager.sendMessage(serviceType, fullMessage, conversationHistory, callback)
+                
+                // 设置超时
+                continuation.invokeOnCancellation {
+                    Log.w(TAG, "AI API调用被取消")
+                }
+                
+            } catch (e: Exception) {
+                if (!continuation.isCompleted) {
+                    continuation.resumeWithException(e)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 调用AI API（非流式，保持兼容性）
      */
     private suspend fun callAIAPI(
         serviceType: AIServiceType,
@@ -366,6 +512,63 @@ class GroupChatManager private constructor(private val context: Context) {
     }
     
     /**
+     * 移除文本中的表情包
+     */
+    private fun removeEmojis(text: String): String {
+        // 移除Unicode表情符号
+        val emojiPattern = "[\uD83C-\uDBFF\uDC00-\uDFFF]+".toRegex()
+        return text.replace(emojiPattern, "")
+            .replace(":([a-zA-Z0-9_]+):".toRegex(), "") // 移除:emoji_name:格式
+            .replace("\\s+".toRegex(), " ") // 合并多个空格
+            .trim()
+    }
+    
+    /**
+     * 获取消息在列表中的索引
+     */
+    private fun getMessageIndex(groupId: String, messageId: String): Int {
+        val messages = groupMessages[groupId] ?: return -1
+        return messages.indexOfFirst { it.id == messageId }
+    }
+    
+    /**
+     * 更新群聊中的消息
+     */
+    private fun updateMessageInGroup(groupId: String, messageIndex: Int, updatedMessage: GroupChatMessage) {
+        val messages = groupMessages[groupId] ?: return
+        if (messageIndex >= 0 && messageIndex < messages.size) {
+            messages[messageIndex] = updatedMessage
+            
+            // 如果是最后一条消息，更新群聊的最后消息信息
+            if (messageIndex == messages.size - 1) {
+                groupChats[groupId]?.let { groupChat ->
+                    val updatedGroupChat = groupChat.copy(
+                        lastMessage = updatedMessage.content,
+                        lastMessageTime = updatedMessage.timestamp
+                    )
+                    groupChats[groupId] = updatedGroupChat
+                    saveGroupChats()
+                    
+                    // 通知监听器
+                    CoroutineScope(Dispatchers.Main).launch {
+                        groupChatListeners.forEach { listener ->
+                            listener.onMessageUpdated(groupId, messageIndex, updatedMessage)
+                            listener.onGroupChatUpdated(updatedGroupChat)
+                        }
+                    }
+                }
+            } else {
+                // 通知监听器消息更新
+                CoroutineScope(Dispatchers.Main).launch {
+                    groupChatListeners.forEach { listener ->
+                        listener.onMessageUpdated(groupId, messageIndex, updatedMessage)
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
      * 添加消息到群聊
      */
     private fun addMessageToGroup(groupId: String, message: GroupChatMessage) {
@@ -379,6 +582,14 @@ class GroupChatManager private constructor(private val context: Context) {
                 lastMessageTime = message.timestamp
             )
             groupChats[groupId] = updatedGroupChat
+            
+            // 通知监听器
+            CoroutineScope(Dispatchers.Main).launch {
+                groupChatListeners.forEach { listener ->
+                    listener.onMessageAdded(groupId, message)
+                    listener.onGroupChatUpdated(updatedGroupChat)
+                }
+            }
         }
         
         // 保存数据
@@ -594,6 +805,88 @@ class GroupChatManager private constructor(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "加载群聊消息失败: $groupId", e)
             groupMessages[groupId] = mutableListOf()
+        }
+    }
+    
+    /**
+     * 重新生成指定AI的回复
+     */
+    suspend fun regenerateAIReply(groupId: String, messageId: String, aiName: String) {
+        val messages = groupMessages[groupId] ?: return
+        val messageIndex = messages.indexOfFirst { it.id == messageId }
+        if (messageIndex == -1) return
+        
+        val message = messages[messageIndex]
+        if (message.senderType != MemberType.USER) return
+        
+        val groupChat = groupChats[groupId] ?: return
+        val aiMember = groupChat.members.find { 
+            it.type == MemberType.AI && getAIDisplayName(it.aiServiceType!!) == aiName 
+        } ?: return
+        
+        val aiServiceType = aiMember.aiServiceType!!
+        val aiId = aiMember.id
+        
+        // 更新AI回复状态为正在回复
+        updateAIReplyStatus(groupId, aiId, AIReplyStatus.TYPING, "正在重新生成回复...")
+        
+        try {
+            // 构建对话历史
+            val conversationHistory = buildConversationHistory(groupId, aiId)
+            
+            // 调用AI API生成新回复
+            callAIAPIStreaming(
+                serviceType = aiServiceType,
+                message = message.content,
+                conversationHistory = conversationHistory,
+                customPrompt = groupChat.settings.customPrompt,
+                onUpdate = { chunk: String, isComplete: Boolean, fullResponse: String ->
+                    // 更新流式回复内容
+                    val currentReply = message.content
+                    val updatedContent = if (isComplete) fullResponse else currentReply + chunk
+                    
+                    val updatedMessage = message.copy(content = updatedContent)
+                    messages[messageIndex] = updatedMessage
+                    
+                    // 通知监听器
+                    CoroutineScope(Dispatchers.Main).launch {
+                        groupChatListeners.forEach { listener ->
+                            listener.onMessageUpdated(groupId, messageIndex, updatedMessage)
+                        }
+                    }
+                }
+            )
+            
+            // 更新AI回复状态为完成
+            updateAIReplyStatus(groupId, aiId, AIReplyStatus.COMPLETED)
+            
+            // 保存消息
+            saveGroupMessages(groupId)
+            
+            // AI回复完成后的处理在onChunkReceived中已经完成
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "重新生成AI回复失败: ${e.message}", e)
+            updateAIReplyStatus(groupId, aiId, AIReplyStatus.ERROR, "重新生成失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 更新群聊消息
+     */
+    fun updateMessage(groupId: String, messageId: String, updatedMessage: GroupChatMessage) {
+        val messages = groupMessages[groupId] ?: return
+        val messageIndex = messages.indexOfFirst { it.id == messageId }
+        if (messageIndex == -1) return
+        
+        messages[messageIndex] = updatedMessage
+        saveGroupMessages(groupId)
+        
+        // 通知监听器
+        CoroutineScope(Dispatchers.Main).launch {
+            groupChatListeners.forEach { listener ->
+                listener.onMessageUpdated(groupId, messageIndex, updatedMessage)
+            }
         }
     }
     

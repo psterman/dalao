@@ -30,17 +30,19 @@ import com.example.aifloatingball.model.GroupChat
 import com.example.aifloatingball.model.GroupChatMessage
 import com.example.aifloatingball.model.GroupMessageType
 import com.example.aifloatingball.model.MemberType
+import com.example.aifloatingball.model.AIReplyStatus
 import com.example.aifloatingball.manager.AIApiManager
 import com.example.aifloatingball.manager.AIServiceType
 import com.example.aifloatingball.manager.DeepSeekApiHelper
 import com.example.aifloatingball.manager.GroupChatManager
+import com.example.aifloatingball.manager.GroupChatListener
 // MultiAIReplyHandler已移除，使用GroupChatManager
 import com.google.android.material.button.MaterialButton
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class ChatActivity : AppCompatActivity() {
+class ChatActivity : AppCompatActivity(), GroupChatListener {
 
     companion object {
         private const val TAG = "ChatActivity"
@@ -54,6 +56,7 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var searchButton: ImageButton
     private lateinit var contactNameText: TextView
     private lateinit var contactStatusText: TextView
+    private lateinit var replyStatusIndicator: TextView
     private lateinit var messageInput: EditText
     private lateinit var sendButton: ImageButton
     private lateinit var messagesRecyclerView: RecyclerView
@@ -109,13 +112,19 @@ class ChatActivity : AppCompatActivity() {
 
         // 处理从小组件传入的自动发送消息
         handleAutoSendMessage()
+        
+        // 注册群聊监听器
+        groupChatManager.addGroupChatListener(this)
     }
+    
+
 
     private fun initializeViews() {
         toolbar = findViewById(R.id.toolbar)
         searchButton = findViewById(R.id.search_button)
         contactNameText = findViewById(R.id.contact_name)
         contactStatusText = findViewById(R.id.contact_status)
+        replyStatusIndicator = findViewById(R.id.reply_status_indicator)
         messageInput = findViewById(R.id.message_input)
         sendButton = findViewById(R.id.send_button)
         messagesRecyclerView = findViewById(R.id.messages_recycler_view)
@@ -145,6 +154,33 @@ class ChatActivity : AppCompatActivity() {
             context = this,
             messages = mutableListOf()
         )
+        
+        // 设置群聊消息操作监听器
+        groupMessageAdapter.setOnMessageActionListener(object : GroupChatMessageAdapter.OnMessageActionListener {
+            override fun onCopyMessage(message: GroupChatMessage) {
+                copyGroupMessage(message)
+            }
+            
+            override fun onRegenerateMessage(message: GroupChatMessage) {
+                regenerateGroupMessage(message)
+            }
+            
+            override fun onCopyAIReply(message: GroupChatMessage, aiName: String, replyContent: String) {
+                copyAIReply(aiName, replyContent)
+            }
+            
+            override fun onRegenerateAIReply(message: GroupChatMessage, aiName: String) {
+                regenerateAIReply(message, aiName)
+            }
+            
+            override fun onLikeAIReply(message: GroupChatMessage, aiName: String) {
+                likeAIReply(message, aiName)
+            }
+            
+            override fun onDeleteAIReply(message: GroupChatMessage, aiName: String) {
+                deleteAIReply(message, aiName)
+            }
+        })
         
         messagesRecyclerView.adapter = messageAdapter
 
@@ -1902,6 +1938,8 @@ class ChatActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // 移除群聊监听器
+        groupChatManager.removeGroupChatListener(this)
         // 释放AI API管理器资源
         if (::aiApiManager.isInitialized) {
             aiApiManager.destroy()
@@ -1969,5 +2007,136 @@ class ChatActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "处理自动发送消息失败", e)
         }
+    }
+    
+    // GroupChatListener接口实现
+    override fun onMessageAdded(groupId: String, message: GroupChatMessage) {
+        if (isGroupChatMode && currentGroupChat?.id == groupId) {
+            runOnUiThread {
+                groupMessageAdapter.addMessage(message)
+                messagesRecyclerView.scrollToPosition(groupMessageAdapter.itemCount - 1)
+            }
+        }
+    }
+    
+    override fun onMessageUpdated(groupId: String, messageIndex: Int, message: GroupChatMessage) {
+        if (isGroupChatMode && currentGroupChat?.id == groupId) {
+            runOnUiThread {
+                groupMessageAdapter.updateMessage(messageIndex, message)
+            }
+        }
+    }
+    
+    override fun onAIReplyStatusChanged(groupId: String, aiId: String, status: AIReplyStatus, message: String?) {
+        if (isGroupChatMode && currentGroupChat?.id == groupId) {
+            runOnUiThread {
+                when (status) {
+                    AIReplyStatus.TYPING -> {
+                        // 显示正在回复状态
+                        replyStatusIndicator.text = "$aiId 正在回复..."
+                        replyStatusIndicator.visibility = View.VISIBLE
+                    }
+                    AIReplyStatus.COMPLETED -> {
+                        // 隐藏回复状态
+                        replyStatusIndicator.visibility = View.GONE
+                    }
+                    AIReplyStatus.ERROR -> {
+                        // 显示错误状态
+                        replyStatusIndicator.text = "$aiId 回复失败"
+                        replyStatusIndicator.visibility = View.VISIBLE
+                        // 3秒后隐藏
+                        replyStatusIndicator.postDelayed({
+                            replyStatusIndicator.visibility = View.GONE
+                        }, 3000)
+                    }
+                    else -> {
+                        // 其他状态隐藏指示器
+                        replyStatusIndicator.visibility = View.GONE
+                    }
+                }
+            }
+        }
+    }
+    
+    override fun onGroupChatUpdated(groupChat: GroupChat) {
+        if (isGroupChatMode && currentGroupChat?.id == groupChat.id) {
+            runOnUiThread {
+                currentGroupChat = groupChat
+                contactStatusText.text = "群聊 · ${groupChat.members.size}个成员"
+            }
+        }
+    }
+    
+    // 群聊消息操作方法实现
+    private fun copyGroupMessage(message: GroupChatMessage) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText("群聊消息", message.content)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(this, "消息已复制到剪贴板", Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun regenerateGroupMessage(message: GroupChatMessage) {
+        if (message.messageType == GroupMessageType.TEXT && message.senderType == MemberType.USER) {
+            // 重新发送用户消息，触发AI回复
+            currentGroupChat?.let { groupChat ->
+                lifecycleScope.launch {
+                    try {
+                        groupChatManager.sendUserMessage(groupChat.id, message.content)
+                        Toast.makeText(this@ChatActivity, "正在重新生成回复...", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "重新生成消息失败", e)
+                        Toast.makeText(this@ChatActivity, "重新生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun copyAIReply(aiName: String, replyContent: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText("AI回复", replyContent)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(this, "AI回复已复制到剪贴板", Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun regenerateAIReply(message: GroupChatMessage, aiName: String) {
+        currentGroupChat?.let { groupChat ->
+            lifecycleScope.launch {
+                try {
+                    // 重新生成指定AI的回复
+                    groupChatManager.regenerateAIReply(groupChat.id, message.id, aiName)
+                    Toast.makeText(this@ChatActivity, "正在重新生成${aiName}的回复...", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "重新生成AI回复失败", e)
+                    Toast.makeText(this@ChatActivity, "重新生成失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    
+    private fun likeAIReply(message: GroupChatMessage, aiName: String) {
+        // 实现点赞功能
+        Toast.makeText(this, "已点赞${aiName}的回复", Toast.LENGTH_SHORT).show()
+        // TODO: 可以在这里添加点赞数据的持久化逻辑
+    }
+    
+    private fun deleteAIReply(message: GroupChatMessage, aiName: String) {
+        // 显示确认删除对话框
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("删除AI回复")
+            .setMessage("确定要删除${aiName}的回复吗？")
+            .setPositiveButton("删除") { _, _ ->
+                currentGroupChat?.let { groupChat ->
+                    try {
+                        // 暂不支持删除单个AI回复
+                        Toast.makeText(this@ChatActivity, "删除功能暂未实现", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "删除AI回复失败", e)
+                        Toast.makeText(this@ChatActivity, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 }

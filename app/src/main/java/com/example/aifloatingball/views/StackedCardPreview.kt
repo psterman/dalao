@@ -876,7 +876,7 @@ class StackedCardPreview @JvmOverloads constructor(
 
         // 计算底部导航栏高度，确保不覆盖
         val bottomNavHeight = bottomNavHeightProvider?.invoke()?.toFloat() 
-            ?: (120 * resources.displayMetrics.density) // fallback to default
+            ?: (64 * resources.displayMetrics.density) // fallback to layout defined 64dp
         val maskHeight = viewHeight - bottomNavHeight
 
         // 绘制半透明蒙版背景

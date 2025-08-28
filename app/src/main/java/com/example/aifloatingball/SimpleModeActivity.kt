@@ -13673,7 +13673,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 设置底部导航栏高度提供者
                 setBottomNavHeightProvider {
                     val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
-                    bottomNav?.height ?: (120 * resources.displayMetrics.density).toInt()
+                    if (bottomNav != null && bottomNav.height > 0) {
+                        bottomNav.height
+                    } else {
+                        // 使用布局中定义的64dp高度作为fallback
+                        (64 * resources.displayMetrics.density).toInt()
+                    }
                 }
 
                 // 设置卡片选择监听器
@@ -13706,7 +13711,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 设置底部导航栏高度提供者
                 setBottomNavHeightProvider {
                     val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
-                    bottomNav?.height ?: (120 * resources.displayMetrics.density).toInt()
+                    if (bottomNav != null && bottomNav.height > 0) {
+                        bottomNav.height
+                    } else {
+                        // 使用布局中定义的64dp高度作为fallback
+                        (64 * resources.displayMetrics.density).toInt()
+                    }
                 }
 
                 // 设置卡片选择监听器
