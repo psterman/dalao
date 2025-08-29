@@ -13,8 +13,8 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
-import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.HostnameVerifier
+import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
@@ -361,7 +361,7 @@ class ApiTestManager(private val context: Context) {
             if (connection is HttpsURLConnection) {
                 val sslContext = createTrustAllSSLContext()
                 connection.sslSocketFactory = sslContext.socketFactory
-                connection.hostnameVerifier = HostnameVerifier { _, _ -> true }
+                connection.hostnameVerifier = HostnameVerifier { hostname: String, session -> true }
             }
             
             connection.apply {
