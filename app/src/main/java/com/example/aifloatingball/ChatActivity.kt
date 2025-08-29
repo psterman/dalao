@@ -101,6 +101,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         settingsManager = SettingsManager.getInstance(this)
         groupChatManager = GroupChatManager.getInstance(this)
         // multiAIReplyHandler初始化已移除
+        
+        // 调试：检查存储的数据
+        groupChatManager.debugCheckStoredData()
 
         // 加载用户档案
         userProfiles = settingsManager.getAllPromptProfiles()
@@ -630,8 +633,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 加载群聊消息
      */
     private fun loadGroupChatMessages(groupId: String) {
+        Log.d(TAG, "开始加载群聊消息，群聊ID: $groupId")
         val groupMessages = groupChatManager.getGroupMessages(groupId)
+        Log.d(TAG, "从GroupChatManager获取到 ${groupMessages.size} 条消息")
+        
         groupMessageAdapter.updateMessages(groupMessages)
+        Log.d(TAG, "已更新适配器，适配器项目数: ${groupMessageAdapter.itemCount}")
         
         // 滚动到底部
         messagesRecyclerView.post {
@@ -2063,6 +2070,15 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             runOnUiThread {
                 currentGroupChat = groupChat
                 contactStatusText.text = "群聊 · ${groupChat.members.size}个成员"
+            }
+        }
+    }
+    
+    override fun onAIReplyContentUpdated(groupId: String, messageIndex: Int, aiId: String, content: String) {
+        if (isGroupChatMode && currentGroupChat?.id == groupId) {
+            runOnUiThread {
+                // 更新适配器中的AI回复内容
+                groupMessageAdapter.updateAIStreamingReply(messageIndex, aiId, content)
             }
         }
     }

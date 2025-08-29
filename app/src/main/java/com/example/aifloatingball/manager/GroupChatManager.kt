@@ -20,6 +20,7 @@ interface GroupChatListener {
     fun onMessageAdded(groupId: String, message: GroupChatMessage)
     fun onMessageUpdated(groupId: String, messageIndex: Int, message: GroupChatMessage)
     fun onAIReplyStatusChanged(groupId: String, aiId: String, status: AIReplyStatus, message: String? = null)
+    fun onAIReplyContentUpdated(groupId: String, messageIndex: Int, aiId: String, content: String)
     fun onGroupChatUpdated(groupChat: GroupChat)
 }
 
@@ -153,7 +154,9 @@ class GroupChatManager private constructor(private val context: Context) {
      * 获取群聊消息
      */
     fun getGroupMessages(groupId: String): List<GroupChatMessage> {
-        return groupMessages[groupId]?.toList() ?: emptyList()
+        val messages = groupMessages[groupId]?.toList() ?: emptyList()
+        Log.d(TAG, "获取群聊消息 $groupId，返回 ${messages.size} 条消息")
+        return messages
     }
     
     /**
@@ -308,6 +311,9 @@ class GroupChatManager private constructor(private val context: Context) {
                         updateMessageInGroup(groupId, messageIndex, updatedMessage)
                         updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.COMPLETED)
                         
+                        // 保存群聊消息到持久化存储
+                        saveGroupMessages(groupId)
+                        
                         // 通知监听器回复完成
                         CoroutineScope(Dispatchers.Main).launch {
                             groupChatListeners.forEach { listener ->
@@ -315,12 +321,17 @@ class GroupChatManager private constructor(private val context: Context) {
                             }
                         }
                         
-                        Log.d(TAG, "AI ${aiMember.name} 流式回复完成")
+                        Log.d(TAG, "AI ${aiMember.name} 流式回复完成，内容长度: ${cleanContent.length}")
                     } else {
                         // 流式回复中，更新部分内容
-                        val currentContent = aiMessage.content + removeEmojis(chunk)
-                        val updatedMessage = aiMessage.copy(content = currentContent)
+                        // 获取当前消息的最新内容
+                        val currentMessage = getGroupMessages(groupId).getOrNull(messageIndex)
+                        val currentContent = currentMessage?.content ?: ""
+                        val newContent = currentContent + removeEmojis(chunk)
+                        val updatedMessage = aiMessage.copy(content = newContent)
                         updateMessageInGroup(groupId, messageIndex, updatedMessage)
+                        
+                        Log.d(TAG, "AI ${aiMember.name} 流式更新，当前内容长度: ${newContent.length}")
                     }
                 }
                 
@@ -538,6 +549,10 @@ class GroupChatManager private constructor(private val context: Context) {
         val messages = groupMessages[groupId] ?: return
         if (messageIndex >= 0 && messageIndex < messages.size) {
             messages[messageIndex] = updatedMessage
+            
+            // 保存消息到持久化存储
+            saveGroupMessages(groupId)
+            Log.d(TAG, "消息更新并保存: 群聊=$groupId, 索引=$messageIndex, 内容长度=${updatedMessage.content.length}")
             
             // 如果是最后一条消息，更新群聊的最后消息信息
             if (messageIndex == messages.size - 1) {
@@ -763,7 +778,14 @@ class GroupChatManager private constructor(private val context: Context) {
      */
     private fun loadGroupChats() {
         try {
-            val json = prefs.getString(KEY_GROUP_CHATS, null) ?: return
+            val json = prefs.getString(KEY_GROUP_CHATS, null)
+            Log.d(TAG, "尝试加载群聊数据，JSON内容: ${json?.take(200)}...")
+            
+            if (json == null) {
+                Log.w(TAG, "没有找到群聊数据")
+                return
+            }
+            
             val type = object : TypeToken<List<GroupChat>>() {}.type
             val loadedGroupChats: List<GroupChat> = gson.fromJson(json, type)
             
@@ -784,9 +806,17 @@ class GroupChatManager private constructor(private val context: Context) {
      */
     private fun saveGroupMessages(groupId: String) {
         try {
-            val messages = groupMessages[groupId] ?: return
+            val messages = groupMessages[groupId]
+            if (messages == null) {
+                Log.w(TAG, "群聊 $groupId 没有消息数据需要保存")
+                return
+            }
+            
             val json = gson.toJson(messages)
+            Log.d(TAG, "保存群聊消息 $groupId，共 ${messages.size} 条消息，JSON长度: ${json.length}")
+            
             prefs.edit().putString(KEY_GROUP_MESSAGES + groupId, json).apply()
+            Log.d(TAG, "群聊消息 $groupId 保存成功")
         } catch (e: Exception) {
             Log.e(TAG, "保存群聊消息失败: $groupId", e)
         }
@@ -797,11 +827,28 @@ class GroupChatManager private constructor(private val context: Context) {
      */
     private fun loadGroupMessages(groupId: String) {
         try {
-            val json = prefs.getString(KEY_GROUP_MESSAGES + groupId, null) ?: return
+            val json = prefs.getString(KEY_GROUP_MESSAGES + groupId, null)
+            Log.d(TAG, "尝试加载群聊消息 $groupId，JSON内容: ${json?.take(200)}...")
+            
+            if (json == null) {
+                Log.w(TAG, "群聊 $groupId 没有找到消息数据")
+                groupMessages[groupId] = mutableListOf()
+                return
+            }
+            
             val type = object : TypeToken<List<GroupChatMessage>>() {}.type
             val loadedMessages: List<GroupChatMessage> = gson.fromJson(json, type)
             
             groupMessages[groupId] = loadedMessages.toMutableList()
+            Log.d(TAG, "群聊 $groupId 加载消息成功，共 ${loadedMessages.size} 条消息")
+            
+            // 添加详细的消息内容调试
+            loadedMessages.forEachIndexed { index, message ->
+                Log.d(TAG, "消息[$index]: ID=${message.id}, 发送者=${message.senderName}, 类型=${message.senderType}, 内容长度=${message.content.length}")
+                if (message.senderType == MemberType.AI) {
+                    Log.d(TAG, "AI消息内容预览: ${message.content.take(100)}...")
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "加载群聊消息失败: $groupId", e)
             groupMessages[groupId] = mutableListOf()
@@ -888,6 +935,38 @@ class GroupChatManager private constructor(private val context: Context) {
                 listener.onMessageUpdated(groupId, messageIndex, updatedMessage)
             }
         }
+    }
+    
+    /**
+     * 调试方法：检查SharedPreferences中的数据
+     */
+    fun debugCheckStoredData() {
+        Log.d(TAG, "=== 调试：检查SharedPreferences中的数据 ===")
+        
+        // 检查群聊数据
+        val groupChatsJson = prefs.getString(KEY_GROUP_CHATS, null)
+        Log.d(TAG, "群聊数据存在: ${groupChatsJson != null}")
+        if (groupChatsJson != null) {
+            Log.d(TAG, "群聊数据长度: ${groupChatsJson.length}")
+            Log.d(TAG, "群聊数据前200字符: ${groupChatsJson.take(200)}")
+        }
+        
+        // 检查所有群聊消息数据
+        val allKeys = prefs.all.keys.filter { it.startsWith(KEY_GROUP_MESSAGES) }
+        Log.d(TAG, "找到 ${allKeys.size} 个群聊消息键")
+        allKeys.forEach { key ->
+            val messageJson = prefs.getString(key, null)
+            Log.d(TAG, "消息键: $key, 数据存在: ${messageJson != null}, 长度: ${messageJson?.length ?: 0}")
+        }
+        
+        // 检查内存中的数据
+        Log.d(TAG, "内存中群聊数量: ${groupChats.size}")
+        Log.d(TAG, "内存中消息群聊数量: ${groupMessages.size}")
+        groupMessages.forEach { (groupId, messages) ->
+            Log.d(TAG, "群聊 $groupId 内存中消息数量: ${messages.size}")
+        }
+        
+        Log.d(TAG, "=== 调试检查完成 ===")
     }
     
     /**

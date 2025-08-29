@@ -98,6 +98,8 @@ import com.example.aifloatingball.webview.MultiPageWebViewManager
 import com.example.aifloatingball.webview.CardWebViewManager
 import com.example.aifloatingball.webview.GestureCardWebViewManager
 import com.example.aifloatingball.webview.MobileCardManager
+import com.example.aifloatingball.manager.GroupChatManager
+import com.example.aifloatingball.model.MemberType
 import com.example.aifloatingball.views.WebViewTabBar
 import com.example.aifloatingball.views.MaterialSearchEngineSelector
 import com.example.aifloatingball.views.CardPreviewOverlay
@@ -290,6 +292,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // API密钥同步广播接收器
     private var apiKeySyncReceiver: BroadcastReceiver? = null
     private var addAIContactReceiver: BroadcastReceiver? = null
+    
+    // 群聊管理器
+    private lateinit var groupChatManager: GroupChatManager
 
 
     private lateinit var browserShortcutsGrid: androidx.recyclerview.widget.RecyclerView
@@ -385,6 +390,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
+        
+        // 初始化群聊管理器
+        groupChatManager = GroupChatManager.getInstance(this)
 
         // 初始化语音提示分支管理器
         promptBranchManager = VoicePromptBranchManager(this, this)
@@ -3991,6 +3999,61 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val savedContacts = loadSavedContacts()
             if (savedContacts.isNotEmpty()) {
                 allContacts = savedContacts.toMutableList()
+                
+                // 重新加载群聊数据并合并到联系人列表中
+                try {
+                    val groupChats = groupChatManager.getAllGroupChats()
+                    if (groupChats.isNotEmpty()) {
+                        // 将GroupChat转换为ChatContact
+                        val groupChatContacts = groupChats.map { groupChat ->
+                            ChatContact(
+                                id = groupChat.id,
+                                name = groupChat.name,
+                                avatar = groupChat.avatar,
+                                type = ContactType.GROUP,
+                                description = groupChat.description,
+                                isOnline = true,
+                                lastMessage = groupChat.lastMessage,
+                                lastMessageTime = groupChat.lastMessageTime,
+                                unreadCount = groupChat.unreadCount,
+                                isPinned = groupChat.isPinned,
+                                isMuted = groupChat.isMuted,
+                                groupId = groupChat.id,
+                                memberCount = groupChat.members.size,
+                                aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
+                            )
+                        }
+                        
+                        // 查找或创建"全部"分类，并添加群聊
+                        val allCategoryIndex = allContacts.indexOfFirst { it.name == "全部" }
+                        if (allCategoryIndex != -1) {
+                            val allCategory = allContacts[allCategoryIndex]
+                            val updatedContacts = allCategory.contacts.toMutableList()
+                            
+                            // 移除现有的群聊联系人，避免重复
+                            updatedContacts.removeAll { it.type == ContactType.GROUP }
+                            
+                            // 添加最新的群聊数据
+                            updatedContacts.addAll(groupChatContacts)
+                            
+                            // 重新排序
+                            val sortedContacts = updatedContacts.sortedWith(
+                                compareByDescending<ChatContact> { it.isPinned }
+                                    .thenByDescending { it.lastMessageTime }
+                            ).toMutableList()
+                            
+                            allContacts[allCategoryIndex] = allCategory.copy(contacts = sortedContacts)
+                        } else {
+                            // 如果"全部"分类不存在，创建新分类
+                            allContacts.add(ContactCategory("全部", groupChatContacts.toMutableList()))
+                        }
+                        
+                        Log.d(TAG, "onResume: 重新加载了 ${groupChats.size} 个群聊")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "onResume: 重新加载群聊数据失败", e)
+                }
+                
                 chatContactAdapter?.updateContacts(allContacts)
                 Log.d(TAG, "onResume: 重新加载了联系人数据")
             }
@@ -6980,34 +7043,61 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showAllUserAIContacts() {
         try {
             // 收集所有分组中的AI（除了"全部"本身）
-            val allAIContacts = mutableListOf<ChatContact>()
+            val allContacts = mutableListOf<ChatContact>()
 
-            allContacts.forEach { category ->
+            this.allContacts.forEach { category ->
                 if (category.name != "全部") {
-                    val aiContacts = category.contacts.filter { contact ->
+                    val validContacts = category.contacts.filter { contact ->
+                        // 只包含AI，排除提示性联系人和群聊（群聊单独处理）
                         contact.type == ContactType.AI &&
                         !contact.id.contains("hint") &&
                         !contact.id.contains("empty") &&
                         contact.name != "暂无AI助手" &&
                         contact.name != "AI助手分组为空"
                     }
-                    allAIContacts.addAll(aiContacts)
+                    allContacts.addAll(validContacts)
                 }
             }
+            
+            // 从GroupChatManager加载群聊数据（确保获取最新的群聊数据）
+            val groupChats = groupChatManager.getAllGroupChats()
+            Log.d(TAG, "从GroupChatManager加载到 ${groupChats.size} 个群聊")
+            // 将GroupChat转换为ChatContact
+            val groupChatContacts = groupChats.map { groupChat ->
+                ChatContact(
+                    id = groupChat.id,
+                    name = groupChat.name,
+                    avatar = groupChat.avatar,
+                    type = ContactType.GROUP,
+                    description = groupChat.description,
+                    isOnline = true,
+                    lastMessage = groupChat.lastMessage,
+                    lastMessageTime = groupChat.lastMessageTime,
+                    unreadCount = groupChat.unreadCount,
+                    isPinned = groupChat.isPinned,
+                    isMuted = groupChat.isMuted,
+                    groupId = groupChat.id,
+                    memberCount = groupChat.members.size,
+                    aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
+                )
+            }
+            // 添加群聊到联系人列表
+            allContacts.addAll(groupChatContacts)
+            Log.d(TAG, "合并后共有 ${allContacts.size} 个联系人（${allContacts.count { it.type == ContactType.AI }} 个AI，${allContacts.count { it.type == ContactType.GROUP }} 个群聊）")
 
             // 按置顶状态和最后消息时间排序
-            val sortedAIContacts = allAIContacts.distinctBy { it.id }.sortedWith(
+            val sortedContacts = allContacts.distinctBy { it.id }.sortedWith(
                 compareByDescending<ChatContact> { it.isPinned }
                     .thenByDescending { it.lastMessageTime }
             )
 
-            Log.d(TAG, "全部标签页显示 ${sortedAIContacts.size} 个AI")
+            Log.d(TAG, "全部标签页显示 ${sortedContacts.size} 个联系人（AI和群聊）")
 
-            val displayCategories = if (sortedAIContacts.isNotEmpty()) {
-                // 在"全部"标签中，不显示分组标题，直接显示所有AI
+            val displayCategories = if (sortedContacts.isNotEmpty()) {
+                // 在"全部"标签中，不显示分组标题，直接显示所有联系人
                 listOf(ContactCategory(
                     name = "全部",
-                    contacts = sortedAIContacts.toMutableList(),
+                    contacts = sortedContacts.toMutableList(),
                     isExpanded = true,
                     isPinned = false
                 ))
@@ -7040,7 +7130,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             syncAIContactStates(displayCategories)
 
             chatContactAdapter?.updateContacts(displayCategories)
-            Log.d(TAG, "显示全部用户AI助手，共${sortedAIContacts.size}个AI")
+            Log.d(TAG, "显示全部用户联系人，共${sortedContacts.size}个联系人（AI和群聊）")
         } catch (e: Exception) {
             Log.e(TAG, "显示全部用户AI助手失败", e)
         }
@@ -7939,6 +8029,42 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val savedContacts = loadSavedContacts()
             if (savedContacts.isNotEmpty()) {
                 allContacts = savedContacts.toMutableList()
+                
+                // 加载群聊数据并添加到联系人列表
+                try {
+                    val groupChats = groupChatManager.getAllGroupChats()
+                    if (groupChats.isNotEmpty()) {
+                        // 将GroupChat转换为ChatContact
+                        val groupChatContacts = groupChats.map { groupChat ->
+                            ChatContact(
+                                id = groupChat.id,
+                                name = groupChat.name,
+                                avatar = groupChat.avatar,
+                                type = ContactType.GROUP,
+                                description = groupChat.description,
+                                isOnline = true,
+                                lastMessage = groupChat.lastMessage,
+                                lastMessageTime = groupChat.lastMessageTime,
+                                unreadCount = groupChat.unreadCount,
+                                isPinned = groupChat.isPinned,
+                                isMuted = groupChat.isMuted,
+                                groupId = groupChat.id,
+                                memberCount = groupChat.members.size,
+                                aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
+                            )
+                        }
+                        // 将群聊添加到现有联系人分类中
+                        if (allContacts.isNotEmpty()) {
+                            allContacts[0].contacts.addAll(groupChatContacts)
+                        } else {
+                            allContacts.add(ContactCategory("全部联系人", groupChatContacts.toMutableList()))
+                        }
+                        Log.d(TAG, "从GroupChatManager加载了 ${groupChats.size} 个群聊")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "加载群聊数据失败", e)
+                }
+                
                 chatContactAdapter?.updateContacts(allContacts)
                 Log.d(TAG, "从存储中恢复了 ${savedContacts.size} 个联系人分类")
                 return
@@ -8010,9 +8136,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "没有配置任何AI助手，显示空状态")
             }
 
-            // 创建分类
+            // 将GroupChat转换为ChatContact
+            val groupChatContacts = mutableListOf<ChatContact>()
+            try {
+                val groupChats = groupChatManager.getAllGroupChats()
+                if (groupChats.isNotEmpty()) {
+                    groupChats.forEach { groupChat ->
+                        val groupChatContact = ChatContact(
+                            id = groupChat.id,
+                            name = groupChat.name,
+                            avatar = groupChat.avatar,
+                            type = ContactType.GROUP,
+                            description = groupChat.description,
+                            isOnline = true,
+                            lastMessage = groupChat.lastMessage,
+                            lastMessageTime = groupChat.lastMessageTime,
+                            unreadCount = groupChat.unreadCount,
+                            isPinned = groupChat.isPinned,
+                            isMuted = groupChat.isMuted,
+                            groupId = groupChat.id,
+                            memberCount = groupChat.members.size,
+                            aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
+                        )
+                        groupChatContacts.add(groupChatContact)
+                    }
+                    Log.d(TAG, "从GroupChatManager加载了 ${groupChats.size} 个群聊")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "加载群聊数据失败", e)
+            }
+            
+            // 创建分类，包含AI助手和群聊
+            val allChatContacts = mutableListOf<ChatContact>()
+            allChatContacts.addAll(aiContacts)
+            allChatContacts.addAll(groupChatContacts)
+            
             allContacts = mutableListOf(
-                ContactCategory("AI助手", aiContacts)
+                ContactCategory("全部联系人", allChatContacts)
             )
 
             // 保存生成的联系人数据
@@ -9738,7 +9898,69 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun refreshChatContactsList() {
         try {
-            // 重新加载所有AI助手联系人
+            // 重新从存储中加载所有联系人数据（包括AI和群聊）
+            val savedContacts = loadSavedContacts()
+            if (savedContacts.isNotEmpty()) {
+                allContacts = savedContacts.toMutableList()
+                Log.d(TAG, "从存储中重新加载了 ${savedContacts.size} 个联系人分类")
+            }
+            
+            // 重新加载群聊数据并添加到联系人列表
+            try {
+                val groupChats = groupChatManager.getAllGroupChats()
+                if (groupChats.isNotEmpty()) {
+                    // 将GroupChat转换为ChatContact
+                    val groupChatContacts = groupChats.map { groupChat ->
+                        ChatContact(
+                            id = groupChat.id,
+                            name = groupChat.name,
+                            avatar = groupChat.avatar,
+                            type = ContactType.GROUP,
+                            description = groupChat.description,
+                            isOnline = true,
+                            lastMessage = groupChat.lastMessage,
+                            lastMessageTime = groupChat.lastMessageTime,
+                            unreadCount = groupChat.unreadCount,
+                            isPinned = groupChat.isPinned,
+                            isMuted = groupChat.isMuted,
+                            groupId = groupChat.id,
+                            memberCount = groupChat.members.size,
+                            aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
+                        )
+                    }
+                    
+                    // 清除现有的群聊联系人，避免重复
+                    for (i in allContacts.indices) {
+                        val category = allContacts[i]
+                        val updatedContacts = category.contacts.filter { it.type != ContactType.GROUP }.toMutableList()
+                        allContacts[i] = category.copy(contacts = updatedContacts)
+                    }
+                    
+                    // 确保有"全部"分类来存放群聊
+                    val allCategoryIndex = allContacts.indexOfFirst { it.name == "全部" }
+                    if (allCategoryIndex != -1) {
+                        val allCategory = allContacts[allCategoryIndex]
+                        val updatedContacts = allCategory.contacts.toMutableList()
+                        updatedContacts.addAll(groupChatContacts)
+                        
+                        // 重新排序
+                        val sortedContacts = updatedContacts.sortedWith(
+                            compareByDescending<ChatContact> { it.isPinned }
+                                .thenByDescending { it.lastMessageTime }
+                        ).toMutableList()
+                        
+                        allContacts[allCategoryIndex] = allCategory.copy(contacts = sortedContacts)
+                    } else {
+                        // 如果"全部"分类不存在，创建新分类
+                        allContacts.add(0, ContactCategory("全部", groupChatContacts.toMutableList()))
+                    }
+                    Log.d(TAG, "重新加载了 ${groupChats.size} 个群聊到'全部'分类中")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "重新加载群聊数据失败", e)
+            }
+            
+            // 显示所有联系人（AI和群聊）
             showAllUserAIContacts()
             
             // 通知适配器数据已更改

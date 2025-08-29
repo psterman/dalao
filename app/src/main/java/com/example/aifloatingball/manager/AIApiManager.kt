@@ -185,7 +185,7 @@ class AIApiManager(private val context: Context) {
             }
             AIServiceType.KIMI -> {
                 val apiKey = getStringSetting("kimi_api_key", "")
-                val apiUrl = getStringSetting("kimi_api_url", "https://kimi.moonshot.cn/api/chat-messages")
+                val apiUrl = getStringSetting("kimi_api_url", "https://api.moonshot.cn/v1/chat/completions")
                 if (apiKey.isNotBlank()) {
                     AIServiceConfig(
                         type = type,
@@ -822,8 +822,154 @@ class AIApiManager(private val context: Context) {
         conversationHistory: List<Map<String, String>>,
         callback: StreamingCallback
     ) {
-        // Kimi API实现
-        callback.onError("Kimi API暂未实现")
+        try {
+            Log.d(TAG, "开始发送Kimi请求")
+            Log.d(TAG, "API URL: ${config.apiUrl}")
+            Log.d(TAG, "模型: ${config.model}")
+            Log.d(TAG, "API密钥长度: ${config.apiKey.length}")
+            Log.d(TAG, "API密钥前10位: ${config.apiKey.take(10)}...")
+            
+            val url = URL(config.apiUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            
+            // 如果是HTTPS连接，配置SSL信任
+            if (connection is HttpsURLConnection) {
+                val sslContext = createTrustAllSSLContext()
+                connection.sslSocketFactory = sslContext.socketFactory
+                connection.hostnameVerifier = HostnameVerifier { _, _ -> true }
+            }
+            
+            connection.apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Authorization", "Bearer ${config.apiKey}")
+                setRequestProperty("User-Agent", "AI-FloatingBall/1.0")
+                doOutput = true
+                doInput = true
+                connectTimeout = 30000
+                readTimeout = 60000
+            }
+            
+            val requestBody = JSONObject().apply {
+                put("model", config.model)
+                put("messages", JSONArray().apply {
+                    // 添加历史对话
+                    conversationHistory.forEach { msg ->
+                        put(JSONObject().apply {
+                            put("role", msg["role"])
+                            put("content", msg["content"])
+                        })
+                    }
+                    // 添加当前消息
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", message)
+                    })
+                })
+                put("stream", true)
+                put("max_tokens", config.maxTokens)
+                put("temperature", config.temperature)
+            }
+            
+            val requestJson = requestBody.toString()
+            Log.d(TAG, "请求体: $requestJson")
+            
+            connection.outputStream.use { os ->
+                val input = requestJson.toByteArray(StandardCharsets.UTF_8)
+                os.write(input, 0, input.size)
+            }
+            
+            val responseCode = connection.responseCode
+            Log.d(TAG, "Kimi响应码: $responseCode")
+            
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+                var fullResponse = ""
+                var line: String?
+                var lineCount = 0
+                
+                while (reader.readLine().also { line = it } != null) {
+                    lineCount++
+                    Log.d(TAG, "Kimi响应行 $lineCount: $line")
+                    
+                    if (line!!.startsWith("data: ")) {
+                        val jsonString = line!!.substring(6)
+                        Log.d(TAG, "解析JSON: $jsonString")
+                        
+                        if (jsonString.trim() == "[DONE]") {
+                            Log.d(TAG, "收到结束标记")
+                            break
+                        }
+                        
+                        try {
+                            val jsonObject = JSONObject(jsonString)
+                            Log.d(TAG, "JSON对象: $jsonObject")
+                            
+                            if (jsonObject.has("choices")) {
+                                val choices = jsonObject.getJSONArray("choices")
+                                if (choices.length() > 0) {
+                                    val choice = choices.getJSONObject(0)
+                                    Log.d(TAG, "Choice对象: $choice")
+                                    
+                                    if (choice.has("delta")) {
+                                        val delta = choice.getJSONObject("delta")
+                                        Log.d(TAG, "Delta对象: $delta")
+                                        
+                                        if (delta.has("content")) {
+                                            val contentChunk = delta.getString("content")
+                                            Log.d(TAG, "内容块: '$contentChunk'")
+                                            fullResponse += contentChunk
+                                            callback.onChunkReceived(contentChunk)
+                                        } else {
+                                            Log.d(TAG, "Delta中没有content字段")
+                                        }
+                                    } else {
+                                        Log.d(TAG, "Choice中没有delta字段")
+                                    }
+                                } else {
+                                    Log.d(TAG, "Choices数组为空")
+                                }
+                            } else {
+                                Log.d(TAG, "JSON中没有choices字段")
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "解析Kimi流式响应时出错: ${e.message}")
+                            Log.w(TAG, "原始JSON: $jsonString")
+                        }
+                    } else if (line!!.isNotEmpty()) {
+                        Log.d(TAG, "非data行: $line")
+                    }
+                }
+                reader.close()
+                Log.d(TAG, "Kimi完整响应: '$fullResponse'")
+                callback.onComplete(fullResponse)
+            } else {
+                val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
+                Log.e(TAG, "Kimi API错误: $responseCode - $errorBody")
+                callback.onError("Kimi API错误: $responseCode - $errorBody")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Kimi请求异常", e)
+            val errorMessage = when {
+                e is java.net.SocketTimeoutException -> {
+                    "Kimi请求超时，请检查网络连接"
+                }
+                e is java.net.ConnectException -> {
+                    "无法连接到Kimi服务器，请检查网络连接"
+                }
+                e is javax.net.ssl.SSLException -> {
+                    "SSL连接失败，请检查网络安全设置"
+                }
+                e.message?.contains("JSON") == true -> {
+                    "服务器响应格式错误，请稍后重试"
+                }
+                else -> {
+                    "Kimi请求失败：${e.message ?: "未知错误"}"
+                }
+            }
+            
+            callback.onError(errorMessage)
+        }
     }
 
     /**

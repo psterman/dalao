@@ -173,7 +173,7 @@
             app:summary="设置Kimi API地址"
             app:dialogTitle="输入Kimi API地址"
             android:inputType="textUri"
-            android:defaultValue="https://kimi.moonshot.cn/api/chat-messages"/>
+            android:defaultValue="https://api.moonshot.cn/v1/chat/completions"/>
 
     </PreferenceCategory>
 
