@@ -3147,6 +3147,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
 
+        // 同步群聊数据，确保显示最新的群聊列表
+        try {
+            syncGroupChatsFromUnifiedManager()
+            // 刷新当前显示的联系人列表
+            chatContactAdapter?.updateContacts(allContacts)
+            Log.d(TAG, "showChat: 已同步群聊数据并刷新显示")
+        } catch (e: Exception) {
+            Log.e(TAG, "showChat: 同步群聊数据失败", e)
+        }
+
         // 更新Tab颜色状态
         updateTabColors()
     }
