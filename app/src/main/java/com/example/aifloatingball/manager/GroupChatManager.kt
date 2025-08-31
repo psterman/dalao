@@ -129,6 +129,9 @@ class GroupChatManager private constructor(private val context: Context) {
         groupMessages[groupId] = mutableListOf()
         saveGroupChats()
         
+        // 同步到UnifiedGroupChatManager
+        syncToUnifiedManager(groupChat)
+        
         // 添加系统消息
         addSystemMessage(groupId, "群聊创建成功，欢迎大家！")
         
@@ -667,6 +670,9 @@ class GroupChatManager private constructor(private val context: Context) {
             aiReplyStatus.remove(groupId)
             saveGroupChats()
             
+            // 同步删除到UnifiedGroupChatManager
+            syncDeleteToUnifiedManager(groupId)
+            
             // 删除消息数据
             prefs.edit().remove(KEY_GROUP_MESSAGES + groupId).apply()
         }
@@ -681,6 +687,10 @@ class GroupChatManager private constructor(private val context: Context) {
         val updatedGroupChat = groupChat.copy(settings = settings)
         groupChats[groupId] = updatedGroupChat
         saveGroupChats()
+        
+        // 同步更新到UnifiedGroupChatManager
+        syncToUnifiedManager(updatedGroupChat)
+        
         return true
     }
     
@@ -716,6 +726,9 @@ class GroupChatManager private constructor(private val context: Context) {
         groupChats[groupId] = updatedGroupChat
         saveGroupChats()
         
+        // 同步更新到UnifiedGroupChatManager
+        syncToUnifiedManager(updatedGroupChat)
+        
         // 添加系统消息
         addSystemMessage(groupId, "${newMember.name} 加入了群聊")
         
@@ -737,6 +750,9 @@ class GroupChatManager private constructor(private val context: Context) {
         val updatedGroupChat = groupChat.copy(members = updatedMembers)
         groupChats[groupId] = updatedGroupChat
         saveGroupChats()
+        
+        // 同步更新到UnifiedGroupChatManager
+        syncToUnifiedManager(updatedGroupChat)
         
         // 添加系统消息
         addSystemMessage(groupId, "${memberToRemove.name} 离开了群聊")
@@ -967,6 +983,45 @@ class GroupChatManager private constructor(private val context: Context) {
         }
         
         Log.d(TAG, "=== 调试检查完成 ===")
+    }
+    
+    /**
+     * 同步群聊数据到UnifiedGroupChatManager
+     */
+    private fun syncToUnifiedManager(groupChat: GroupChat) {
+        try {
+            val unifiedManager = UnifiedGroupChatManager.getInstance(context)
+            
+            // 检查群聊是否已存在
+            val existingGroupChat = unifiedManager.getGroupChat(groupChat.id)
+            
+            if (existingGroupChat != null) {
+                // 更新现有群聊
+                unifiedManager.updateGroupChat(groupChat)
+                Log.d(TAG, "同步更新群聊到UnifiedManager: ${groupChat.name}")
+            } else {
+                // 创建新群聊 - 需要导入到UnifiedManager
+                managerScope.launch {
+                    unifiedManager.importGroupChat(groupChat)
+                    Log.d(TAG, "同步创建群聊到UnifiedManager: ${groupChat.name}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "同步群聊到UnifiedManager失败", e)
+        }
+    }
+    
+    /**
+     * 同步删除群聊到UnifiedGroupChatManager
+     */
+    private fun syncDeleteToUnifiedManager(groupId: String) {
+        try {
+            val unifiedManager = UnifiedGroupChatManager.getInstance(context)
+            val deleted = unifiedManager.deleteGroupChat(groupId)
+            Log.d(TAG, "同步删除群聊到UnifiedManager: $groupId, 结果: $deleted")
+        } catch (e: Exception) {
+            Log.e(TAG, "同步删除群聊到UnifiedManager失败", e)
+        }
     }
     
     /**

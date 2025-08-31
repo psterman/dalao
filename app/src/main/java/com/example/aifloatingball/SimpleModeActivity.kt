@@ -99,7 +99,11 @@ import com.example.aifloatingball.webview.CardWebViewManager
 import com.example.aifloatingball.webview.GestureCardWebViewManager
 import com.example.aifloatingball.webview.MobileCardManager
 import com.example.aifloatingball.manager.GroupChatManager
+import com.example.aifloatingball.manager.UnifiedGroupChatManager
+import com.example.aifloatingball.manager.GroupChatDataChangeListener
+import com.example.aifloatingball.manager.GroupChatDataChangeEvent
 import com.example.aifloatingball.model.MemberType
+import com.example.aifloatingball.model.GroupChat
 import com.example.aifloatingball.views.WebViewTabBar
 import com.example.aifloatingball.views.MaterialSearchEngineSelector
 import com.example.aifloatingball.views.CardPreviewOverlay
@@ -112,7 +116,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import android.provider.Settings
 import android.os.Build
 
-class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchViewListener {
+class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchViewListener, GroupChatDataChangeListener {
 
     companion object {
         private const val TAG = "SimpleModeActivity"
@@ -294,7 +298,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var addAIContactReceiver: BroadcastReceiver? = null
     
     // 群聊管理器
-    private lateinit var groupChatManager: GroupChatManager
+    // 统一群聊管理器
+    private lateinit var unifiedGroupChatManager: UnifiedGroupChatManager
 
 
     private lateinit var browserShortcutsGrid: androidx.recyclerview.widget.RecyclerView
@@ -391,8 +396,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
         
-        // 初始化群聊管理器
-        groupChatManager = GroupChatManager.getInstance(this)
+        // 初始化统一群聊管理器
+        unifiedGroupChatManager = UnifiedGroupChatManager.getInstance(this)
+        
+        // 设置数据变更监听器
+        unifiedGroupChatManager.addDataChangeListener(this)
 
         // 初始化语音提示分支管理器
         promptBranchManager = VoicePromptBranchManager(this, this)
@@ -4002,7 +4010,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 
                 // 重新加载群聊数据并合并到联系人列表中
                 try {
-                    val groupChats = groupChatManager.getAllGroupChats()
+                    val groupChats = unifiedGroupChatManager.getAllGroupChats()
                     if (groupChats.isNotEmpty()) {
                         // 将GroupChat转换为ChatContact
                         val groupChatContacts = groupChats.map { groupChat ->
@@ -4020,7 +4028,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 isMuted = groupChat.isMuted,
                                 groupId = groupChat.id,
                                 memberCount = groupChat.members.size,
-                                aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
+                                aiMembers = groupChat.members.filter { member -> member.type == MemberType.AI }.map { member -> member.name }
                             )
                         }
                         
@@ -4111,6 +4119,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         tabSwitchAnimationManager.cancelCurrentAnimation()
 
         // 清理应用搜索适配器资源
+        
+        // 移除数据变更监听器
+        try {
+            unifiedGroupChatManager.removeDataChangeListener(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "移除数据变更监听器失败", e)
+        }
         try {
             if (::appSearchAdapter.isInitialized) {
                 appSearchAdapter.onDestroy()
@@ -7042,48 +7057,54 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showAllUserAIContacts() {
         try {
-            // 收集所有分组中的AI（除了"全部"本身）
-            val allContacts = mutableListOf<ChatContact>()
-
+            // 收集所有AI联系人
+            val aiContacts = mutableListOf<ChatContact>()
             this.allContacts.forEach { category ->
                 if (category.name != "全部") {
-                    val validContacts = category.contacts.filter { contact ->
-                        // 只包含AI，排除提示性联系人和群聊（群聊单独处理）
+                    val validAIContacts = category.contacts.filter { contact ->
                         contact.type == ContactType.AI &&
                         !contact.id.contains("hint") &&
                         !contact.id.contains("empty") &&
                         contact.name != "暂无AI助手" &&
                         contact.name != "AI助手分组为空"
                     }
-                    allContacts.addAll(validContacts)
+                    aiContacts.addAll(validAIContacts)
                 }
             }
             
-            // 从GroupChatManager加载群聊数据（确保获取最新的群聊数据）
-            val groupChats = groupChatManager.getAllGroupChats()
-            Log.d(TAG, "从GroupChatManager加载到 ${groupChats.size} 个群聊")
-            // 将GroupChat转换为ChatContact
-            val groupChatContacts = groupChats.map { groupChat ->
-                ChatContact(
-                    id = groupChat.id,
-                    name = groupChat.name,
-                    avatar = groupChat.avatar,
-                    type = ContactType.GROUP,
-                    description = groupChat.description,
-                    isOnline = true,
-                    lastMessage = groupChat.lastMessage,
-                    lastMessageTime = groupChat.lastMessageTime,
-                    unreadCount = groupChat.unreadCount,
-                    isPinned = groupChat.isPinned,
-                    isMuted = groupChat.isMuted,
-                    groupId = groupChat.id,
-                    memberCount = groupChat.members.size,
-                    aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
-                )
+            // 从UnifiedGroupChatManager获取群聊数据
+            val groupChatContacts = mutableListOf<ChatContact>()
+            try {
+                val groupChats = unifiedGroupChatManager.getAllGroupChats()
+                groupChats.forEach { groupChat ->
+                    val groupChatContact = ChatContact(
+                        id = groupChat.id,
+                        name = groupChat.name,
+                        avatar = groupChat.avatar,
+                        type = ContactType.GROUP,
+                        description = groupChat.description,
+                        isOnline = true,
+                        lastMessage = groupChat.lastMessage,
+                        lastMessageTime = groupChat.lastMessageTime,
+                        unreadCount = groupChat.unreadCount,
+                        isPinned = groupChat.isPinned,
+                        isMuted = groupChat.isMuted,
+                        groupId = groupChat.id,
+                        memberCount = groupChat.members.size,
+                        aiMembers = groupChat.members.filter { member -> member.type == MemberType.AI }.map { member -> member.name }
+                    )
+                    groupChatContacts.add(groupChatContact)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "从统一管理器获取群聊数据失败", e)
             }
-            // 添加群聊到联系人列表
+            
+            // 合并AI和群聊联系人
+            val allContacts = mutableListOf<ChatContact>()
+            allContacts.addAll(aiContacts)
             allContacts.addAll(groupChatContacts)
-            Log.d(TAG, "合并后共有 ${allContacts.size} 个联系人（${allContacts.count { it.type == ContactType.AI }} 个AI，${allContacts.count { it.type == ContactType.GROUP }} 个群聊）")
+            
+            Log.d(TAG, "收集到 ${allContacts.size} 个联系人（${aiContacts.size} 个AI，${groupChatContacts.size} 个群聊）")
 
             // 按置顶状态和最后消息时间排序
             val sortedContacts = allContacts.distinctBy { it.id }.sortedWith(
@@ -8030,39 +8051,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (savedContacts.isNotEmpty()) {
                 allContacts = savedContacts.toMutableList()
                 
-                // 加载群聊数据并添加到联系人列表
+                // 使用统一群聊管理器同步群聊数据
                 try {
-                    val groupChats = groupChatManager.getAllGroupChats()
-                    if (groupChats.isNotEmpty()) {
-                        // 将GroupChat转换为ChatContact
-                        val groupChatContacts = groupChats.map { groupChat ->
-                            ChatContact(
-                                id = groupChat.id,
-                                name = groupChat.name,
-                                avatar = groupChat.avatar,
-                                type = ContactType.GROUP,
-                                description = groupChat.description,
-                                isOnline = true,
-                                lastMessage = groupChat.lastMessage,
-                                lastMessageTime = groupChat.lastMessageTime,
-                                unreadCount = groupChat.unreadCount,
-                                isPinned = groupChat.isPinned,
-                                isMuted = groupChat.isMuted,
-                                groupId = groupChat.id,
-                                memberCount = groupChat.members.size,
-                                aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
-                            )
-                        }
-                        // 将群聊添加到现有联系人分类中
-                        if (allContacts.isNotEmpty()) {
-                            allContacts[0].contacts.addAll(groupChatContacts)
-                        } else {
-                            allContacts.add(ContactCategory("全部联系人", groupChatContacts.toMutableList()))
-                        }
-                        Log.d(TAG, "从GroupChatManager加载了 ${groupChats.size} 个群聊")
-                    }
+                    syncGroupChatsFromUnifiedManager()
                 } catch (e: Exception) {
-                    Log.e(TAG, "加载群聊数据失败", e)
+                    Log.e(TAG, "从统一管理器同步群聊数据失败", e)
                 }
                 
                 chatContactAdapter?.updateContacts(allContacts)
@@ -8077,6 +8070,66 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "加载初始联系人数据失败", e)
             // 出错时生成默认联系人
             generateDefaultContacts()
+        }
+    }
+
+    /**
+     * 从统一群聊管理器同步群聊数据到allContacts
+     * 使用新的UnifiedGroupChatManager作为单一数据源
+     */
+    private fun syncGroupChatsFromUnifiedManager() {
+        try {
+            val groupChats = unifiedGroupChatManager.getAllGroupChats()
+            if (groupChats.isEmpty()) {
+                Log.d(TAG, "UnifiedGroupChatManager中没有群聊数据")
+                return
+            }
+
+            // 收集allContacts中已存在的群聊ID
+            val existingGroupIds = mutableSetOf<String>()
+            for (category in allContacts) {
+                for (contact in category.contacts) {
+                    if (contact.type == ContactType.GROUP && contact.groupId != null) {
+                        existingGroupIds.add(contact.groupId!!)
+                    }
+                }
+            }
+
+            // 找出需要添加的新群聊
+            val newGroupChats = groupChats.filter { !existingGroupIds.contains(it.id) }
+            if (newGroupChats.isNotEmpty()) {
+                val groupChatContacts = newGroupChats.map { groupChat ->
+                    ChatContact(
+                        id = groupChat.id,
+                        name = groupChat.name,
+                        avatar = groupChat.avatar,
+                        type = ContactType.GROUP,
+                        description = groupChat.description,
+                        isOnline = true,
+                        lastMessage = groupChat.lastMessage,
+                        lastMessageTime = groupChat.lastMessageTime,
+                        unreadCount = groupChat.unreadCount,
+                        isPinned = groupChat.isPinned,
+                        isMuted = groupChat.isMuted,
+                        groupId = groupChat.id,
+                        memberCount = groupChat.members.size,
+                        aiMembers = groupChat.members.filter { member -> member.type == MemberType.AI }.map { member -> member.name }
+                    )
+                }
+
+                // 添加到第一个分类中（通常是"全部联系人"）
+                if (allContacts.isNotEmpty()) {
+                    allContacts[0].contacts.addAll(groupChatContacts)
+                } else {
+                    allContacts.add(ContactCategory("全部联系人", groupChatContacts.toMutableList()))
+                }
+                
+                Log.d(TAG, "从统一管理器同步了 ${newGroupChats.size} 个新群聊到allContacts")
+            } else {
+                Log.d(TAG, "所有群聊已存在于allContacts中，无需同步")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "从统一管理器同步群聊数据失败", e)
         }
     }
 
@@ -8136,10 +8189,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "没有配置任何AI助手，显示空状态")
             }
 
-            // 将GroupChat转换为ChatContact
+            // 从UnifiedGroupChatManager加载群聊数据（仅在生成默认数据时）
             val groupChatContacts = mutableListOf<ChatContact>()
             try {
-                val groupChats = groupChatManager.getAllGroupChats()
+                val groupChats = unifiedGroupChatManager.getAllGroupChats()
                 if (groupChats.isNotEmpty()) {
                     groupChats.forEach { groupChat ->
                         val groupChatContact = ChatContact(
@@ -8160,10 +8213,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         )
                         groupChatContacts.add(groupChatContact)
                     }
-                    Log.d(TAG, "从GroupChatManager加载了 ${groupChats.size} 个群聊")
+                    Log.d(TAG, "生成默认数据时从UnifiedGroupChatManager加载了 ${groupChats.size} 个群聊")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "加载群聊数据失败", e)
+                Log.e(TAG, "从统一管理器加载群聊数据失败", e)
             }
             
             // 创建分类，包含AI助手和群聊
@@ -9754,10 +9807,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun deleteContact(contact: ChatContact) {
         try {
-            if (contact.type == ContactType.AI) {
-                removeAIConfiguration(contact)
-            } else {
-                removeContactFromList(contact)
+            when (contact.type) {
+                ContactType.AI -> {
+                    removeAIConfiguration(contact)
+                }
+                ContactType.GROUP -> {
+                    removeGroupChatConfiguration(contact)
+                }
+                else -> {
+                    removeContactFromList(contact)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "删除联系人失败", e)
@@ -9817,6 +9876,61 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "移除AI配置失败", e)
             Toast.makeText(this, "❌ 移除配置失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 移除群聊配置
+     */
+    private fun removeGroupChatConfiguration(contact: ChatContact) {
+        try {
+            // 从GroupChatManager中删除群聊数据
+            if (contact.groupId != null) {
+                unifiedGroupChatManager.deleteGroupChat(contact.groupId!!)
+                Log.d(TAG, "从GroupChatManager删除群聊: ${contact.groupId}")
+            }
+
+            // 从所有分组中移除该群聊联系人
+            val groupsToCheck = mutableListOf<String>()
+            for (categoryIndex in allContacts.indices) {
+                val category = allContacts[categoryIndex]
+                val updatedContacts = category.contacts.filter { it.id != contact.id }.toMutableList()
+                if (updatedContacts.size != category.contacts.size) {
+                    allContacts[categoryIndex] = category.copy(contacts = updatedContacts)
+
+                    // 检查是否需要移除空分组标签页
+                    if (updatedContacts.isEmpty() &&
+                        category.name != "AI助手" &&
+                        category.name != "全部" &&
+                        category.name != "未分组") {
+                        groupsToCheck.add(category.name)
+                    }
+                }
+            }
+
+            // 移除空分组的标签页
+            groupsToCheck.forEach { groupName ->
+                removeEmptyGroupTab(groupName)
+            }
+
+            // 保存更改
+            saveContacts()
+
+            // 切换到"全部"标签页
+            switchToTabIfExists("全部")
+
+            // 刷新显示
+            refreshCurrentTabDisplay()
+
+            // 更新适配器
+            chatContactAdapter?.updateContacts(allContacts)
+
+            Log.d(TAG, "移除群聊配置成功: ${contact.name}")
+            Toast.makeText(this, "✅ 群聊 ${contact.name} 已删除", Toast.LENGTH_SHORT).show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "移除群聊配置失败", e)
+            Toast.makeText(this, "❌ 删除群聊失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -9907,7 +10021,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
             // 重新加载群聊数据并添加到联系人列表
             try {
-                val groupChats = groupChatManager.getAllGroupChats()
+                val groupChats = unifiedGroupChatManager.getAllGroupChats()
                 if (groupChats.isNotEmpty()) {
                     // 将GroupChat转换为ChatContact
                     val groupChatContacts = groupChats.map { groupChat ->
@@ -11153,38 +11267,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
-    /**
-     * 刷新当前标签页显示
-     */
-    private fun refreshCurrentTabDisplay() {
-        try {
-            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
-            val currentTabPosition = chatTabLayout?.selectedTabPosition ?: 0
-            val currentTab = chatTabLayout?.getTabAt(currentTabPosition)
 
-            // 重新触发当前标签页的选择事件
-            currentTab?.let { tab ->
-                val tabText = tab.text?.toString()
-                when (tabText) {
-                    "全部" -> showAllUserAIContacts()
-                    "AI助手" -> showAIAssistantGroup()
-                    "+" -> {
-                        // +号按钮不需要刷新内容
-                        Log.d(TAG, "当前在+号按钮，不刷新内容")
-                    }
-                    else -> {
-                        if (tabText != null) {
-                            showCustomGroupContacts(tabText)
-                        } else {
-                            Log.w(TAG, "标签页文本为空，无法刷新内容")
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "刷新当前标签页显示失败", e)
-        }
-    }
 
     /**
      * 显示全部标签页管理选项
@@ -15544,5 +15627,97 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         override fun getItemCount(): Int = manager.getAllCards().size
     }
+    
+    // ==================== GroupChatDataChangeListener 实现 ====================
+    
+    override fun onGroupChatCreated(groupChat: GroupChat) {
+        try {
+            Log.d(TAG, "收到群聊创建事件: ${groupChat.name}")
+            
+            // 在主线程中处理UI更新
+            runOnUiThread {
+                refreshCurrentTabDisplay()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理群聊创建事件失败", e)
+        }
+    }
+    
+    override fun onGroupChatDeleted(groupId: String) {
+        try {
+            Log.d(TAG, "收到群聊删除事件: $groupId")
+            
+            // 在主线程中处理UI更新
+            runOnUiThread {
+                refreshCurrentTabDisplay()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理群聊删除事件失败", e)
+        }
+    }
+    
+    override fun onGroupChatUpdated(groupChat: GroupChat) {
+        try {
+            Log.d(TAG, "收到群聊更新事件: ${groupChat.name}")
+            
+            // 在主线程中处理UI更新
+            runOnUiThread {
+                refreshCurrentTabDisplay()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理群聊更新事件失败", e)
+        }
+    }
+    
+    override fun onGroupChatsReloaded(groupChats: List<GroupChat>) {
+        try {
+            Log.d(TAG, "收到群聊重新加载事件，共 ${groupChats.size} 个群聊")
+            
+            // 在主线程中处理UI更新
+            runOnUiThread {
+                refreshCurrentTabDisplay()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理群聊重新加载事件失败", e)
+        }
+    }
+    
+    /**
+     * 刷新当前标签页显示
+     * 基于事件驱动模式重构的刷新逻辑
+     */
+    private fun refreshCurrentTabDisplay() {
+        try {
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            val currentTab = chatTabLayout?.getTabAt(chatTabLayout.selectedTabPosition)
+            val currentTabText = currentTab?.text?.toString()
+            
+            Log.d(TAG, "刷新当前标签页显示: $currentTabText")
+            
+            when (currentTabText) {
+                "全部" -> {
+                    showAllUserAIContacts()
+                }
+                "AI助手" -> {
+                    showAIAssistantGroup()
+                }
+                else -> {
+                    if (currentTabText != null && currentTabText != "+") {
+                        showCustomGroupContacts(currentTabText)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新当前标签页显示失败", e)
+        }
+    }
+    
+
+    
+
+    
+
+    
+
 
 }
