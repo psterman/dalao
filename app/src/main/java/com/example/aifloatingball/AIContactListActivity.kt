@@ -797,11 +797,11 @@ class AIContactListActivity : AppCompatActivity() {
                 mutableListOf()
             }
 
-            // 查找或创建群聊分类
-            var groupCategory = categories.find { it.name == "群聊" }
+            // 查找或创建全部分类
+            var groupCategory = categories.find { it.name == "全部" }
             if (groupCategory == null) {
                 groupCategory = com.example.aifloatingball.model.ContactCategory(
-                    name = "群聊",
+                    name = "全部",
                     contacts = mutableListOf()
                 )
                 categories.add(groupCategory)

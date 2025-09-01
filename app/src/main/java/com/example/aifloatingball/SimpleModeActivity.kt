@@ -7124,35 +7124,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             Log.d(TAG, "全部标签页显示 ${sortedContacts.size} 个联系人（AI和群聊）")
 
-            val displayCategories = if (sortedContacts.isNotEmpty()) {
-                // 在"全部"标签中，不显示分组标题，直接显示所有联系人
-                listOf(ContactCategory(
-                    name = "全部",
-                    contacts = sortedContacts.toMutableList(),
-                    isExpanded = true,
-                    isPinned = false
-                ))
-            } else {
-                // 如果没有任何AI，显示空状态提示
-                listOf(ContactCategory(
-                    name = "提示",
-                    contacts = mutableListOf(ChatContact(
-                        id = "empty_hint",
-                        name = "暂无AI助手",
-                        type = ContactType.AI, // 使用AI类型，但作为提示
-                        description = "点击右上角+号添加AI助手",
-                        isOnline = false,
-                        lastMessage = "点击右上角+号添加AI助手",
-                        lastMessageTime = System.currentTimeMillis(),
-                        unreadCount = 0,
-                        avatar = "",
-                        isPinned = false,
-                        isMuted = false,
-                        aiMembers = emptyList()
-                    )),
-                    isExpanded = true
-                ))
-            }
+            val displayCategories = listOf(ContactCategory(
+                name = "全部",
+                contacts = sortedContacts.toMutableList(),
+                isExpanded = true,
+                isPinned = false
+            ))
 
             // 确保所有显示的AI都在allContacts中（用于长按菜单功能）
             ensureAIsInAllContacts(displayCategories)
@@ -10138,7 +10115,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             val categoryName = when (contact.type) {
                 ContactType.AI -> "AI助手"
-                ContactType.GROUP -> "群聊"
+                ContactType.GROUP -> "全部"  // 群聊联系人添加到"全部"分组
             }
 
             // 查找或创建对应的分类

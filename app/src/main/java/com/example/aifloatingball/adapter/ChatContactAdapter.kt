@@ -179,14 +179,11 @@ class ChatContactAdapter(
 
         fun bind(category: ContactCategory) {
             currentCategory = category
-            categoryNameText.text = category.name
-
-            if (category.contacts.isEmpty()) {
-                contactCountText.text = "暂无联系人"
-                contactCountText.alpha = 0.6f
-            } else {
-                contactCountText.text = "${category.contacts.size}个联系人"
-                contactCountText.alpha = 1.0f
+            
+            // 隐藏分组标题，不显示分组名称
+            itemView.visibility = View.GONE
+            itemView.layoutParams = itemView.layoutParams?.apply {
+                height = 0
             }
         }
     }
