@@ -24,6 +24,7 @@ import com.example.aifloatingball.model.MemberType
 import com.example.aifloatingball.model.MemberRole
 import com.example.aifloatingball.manager.AIServiceType
 import com.example.aifloatingball.manager.GroupChatManager
+import com.example.aifloatingball.manager.UnifiedGroupChatManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 
@@ -43,6 +44,7 @@ class AIContactListActivity : AppCompatActivity() {
 
     private lateinit var aiContactAdapter: AIContactListAdapter
     private lateinit var groupChatManager: GroupChatManager
+    private lateinit var unifiedGroupChatManager: UnifiedGroupChatManager
     private var allAIContacts = mutableListOf<ChatContact>()
     private var showOnlyConfiguredAIs = true // 默认只显示配置了API的AI
 
@@ -52,6 +54,9 @@ class AIContactListActivity : AppCompatActivity() {
 
         // 初始化GroupChatManager
         groupChatManager = GroupChatManager.getInstance(this)
+        
+        // 初始化UnifiedGroupChatManager
+        unifiedGroupChatManager = UnifiedGroupChatManager.getInstance(this)
         
         initializeViews()
         setupAIContacts()
@@ -748,8 +753,8 @@ class AIContactListActivity : AppCompatActivity() {
             // 创建群聊名称
             val groupName = "群聊 (${selectedAIs.joinToString(", ") { it.name }})"
             
-            // 简化方案：直接创建群聊ID和数据
-             val groupId = "group_${System.currentTimeMillis()}"
+            // 使用UUID生成群聊ID，确保与UnifiedGroupChatManager兼容
+             val groupId = java.util.UUID.randomUUID().toString()
              
              // 创建群聊成员列表，确保包含aiServiceType
              val groupMembers = selectedAIs.mapNotNull { ai ->
@@ -769,35 +774,27 @@ class AIContactListActivity : AppCompatActivity() {
                  }
              }
              
-             // 创建群聊对象
-             val groupChat = GroupChat(
-                 id = groupId,
+             // 获取AI服务类型列表
+             val aiServiceTypes = selectedAIs.mapNotNull { ai ->
+                 getAIServiceTypeFromContact(ai)
+             }
+             
+             // 使用UnifiedGroupChatManager创建群聊
+             val groupChat = unifiedGroupChatManager.createGroupChat(
                  name = groupName,
                  description = "包含 ${selectedAIs.size} 个AI助手的群聊",
-                 members = groupMembers,
-                 createdTime = System.currentTimeMillis()
+                 aiMembers = aiServiceTypes
              )
              
-             // 保存到GroupChatManager的SharedPreferences
-             val prefs = getSharedPreferences("group_chat_prefs", MODE_PRIVATE)
-             val gson = com.google.gson.Gson()
-             val existingGroupChats = prefs.getString("group_chats", "[]")
-             val type = object : com.google.gson.reflect.TypeToken<MutableList<GroupChat>>() {}.type
-             val groupChatsList: MutableList<GroupChat> = try {
-                 gson.fromJson(existingGroupChats, type) ?: mutableListOf()
-             } catch (e: Exception) {
-                 mutableListOf()
-             }
-             groupChatsList.add(groupChat)
-             prefs.edit().putString("group_chats", gson.toJson(groupChatsList)).apply()
+             Log.d(TAG, "通过UnifiedGroupChatManager创建群聊成功: ${groupChat.id}")
             
             // 创建群聊联系人
             val groupContact = ChatContact(
-                id = groupId,
+                id = groupChat.id,
                 name = groupName,
                 description = "包含 ${selectedAIs.size} 个AI助手的群聊",
                 type = ContactType.GROUP,
-                groupId = groupId,
+                groupId = groupChat.id,
                 aiMembers = selectedAIs.map { it.id },
                 customData = mutableMapOf(
                     "group_members" to selectedAIs.map { it.id }.joinToString(","),

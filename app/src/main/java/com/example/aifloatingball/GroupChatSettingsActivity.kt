@@ -13,6 +13,10 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.adapter.GroupMemberAdapter
 import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactType
+import com.example.aifloatingball.model.GroupChat
+import com.example.aifloatingball.model.GroupMember
+import com.example.aifloatingball.model.MemberType
+import com.example.aifloatingball.manager.GroupChatManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
@@ -39,14 +43,17 @@ class GroupChatSettingsActivity : AppCompatActivity() {
 
     private lateinit var groupMemberAdapter: GroupMemberAdapter
     private var currentGroupContact: ChatContact? = null
+    private var currentGroupChat: GroupChat? = null
     private var groupMembers = mutableListOf<ChatContact>()
     private var allAIContacts = mutableListOf<ChatContact>()
+    private lateinit var groupChatManager: GroupChatManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_group_chat_settings)
 
         initializeViews()
+        initializeGroupChatManager()
         loadGroupData()
         setupListeners()
         setupMembersList()
@@ -64,6 +71,10 @@ class GroupChatSettingsActivity : AppCompatActivity() {
         groupMembersList = findViewById(R.id.group_members_list)
     }
 
+    private fun initializeGroupChatManager() {
+        groupChatManager = GroupChatManager.getInstance(this)
+    }
+
     private fun loadGroupData() {
         currentGroupContact = intent.getParcelableExtra(EXTRA_GROUP_CONTACT)
         if (currentGroupContact == null) {
@@ -72,9 +83,28 @@ class GroupChatSettingsActivity : AppCompatActivity() {
             return
         }
 
-        // 设置群聊信息
-        groupNameInput.setText(currentGroupContact!!.name)
-        groupDescriptionInput.setText(currentGroupContact!!.description ?: "")
+        // 从GroupChatManager获取群聊数据
+        val groupId = currentGroupContact!!.groupId
+        if (groupId != null) {
+            currentGroupChat = groupChatManager.getGroupChat(groupId)
+            if (currentGroupChat != null) {
+                // 设置群聊信息
+                groupNameInput.setText(currentGroupChat!!.name)
+                groupDescriptionInput.setText(currentGroupChat!!.description ?: "")
+                
+                Log.d(TAG, "从GroupChatManager加载群聊: ${currentGroupChat!!.name}, 成员数: ${currentGroupChat!!.members.size}")
+            } else {
+                Log.w(TAG, "GroupChatManager中未找到群聊: $groupId")
+                // 回退到旧方式
+                groupNameInput.setText(currentGroupContact!!.name)
+                groupDescriptionInput.setText(currentGroupContact!!.description ?: "")
+            }
+        } else {
+            Log.w(TAG, "群聊联系人缺少groupId")
+            // 回退到旧方式
+            groupNameInput.setText(currentGroupContact!!.name)
+            groupDescriptionInput.setText(currentGroupContact!!.description ?: "")
+        }
 
         // 加载群成员
         loadGroupMembers()
@@ -83,27 +113,48 @@ class GroupChatSettingsActivity : AppCompatActivity() {
 
     private fun loadGroupMembers() {
         try {
-            val memberIds = currentGroupContact?.customData?.get("group_members")?.split(",") ?: emptyList()
             groupMembers.clear()
 
-            // 从保存的联系人中查找群成员
-            val prefs = getSharedPreferences(CONTACTS_PREFS_NAME, MODE_PRIVATE)
-            val json = prefs.getString(KEY_SAVED_CONTACTS, null)
-            if (json != null) {
-                val gson = Gson()
-                val type = object : TypeToken<List<com.example.aifloatingball.model.ContactCategory>>() {}.type
-                val categories: List<com.example.aifloatingball.model.ContactCategory> = gson.fromJson(json, type)
+            // 优先从GroupChatManager加载成员
+            if (currentGroupChat != null) {
+                Log.d(TAG, "从GroupChatManager加载群成员")
+                for (member in currentGroupChat!!.members) {
+                    if (member.type == MemberType.AI) {
+                        // 将GroupMember转换为ChatContact
+                        val contact = ChatContact(
+                            id = member.id,
+                            name = member.name,
+                            type = ContactType.AI,
+                            description = member.aiServiceType?.name ?: "AI助手",
+                            avatar = member.avatar
+                        )
+                        groupMembers.add(contact)
+                    }
+                }
+                Log.d(TAG, "从GroupChatManager加载群成员: ${groupMembers.size} 个")
+            } else {
+                // 回退到旧方式
+                Log.d(TAG, "回退到旧方式加载群成员")
+                val memberIds = currentGroupContact?.customData?.get("group_members")?.split(",") ?: emptyList()
                 
-                for (category in categories) {
-                    for (contact in category.contacts) {
-                        if (contact.type == ContactType.AI && memberIds.contains(contact.id)) {
-                            groupMembers.add(contact)
+                // 从保存的联系人中查找群成员
+                val prefs = getSharedPreferences(CONTACTS_PREFS_NAME, MODE_PRIVATE)
+                val json = prefs.getString(KEY_SAVED_CONTACTS, null)
+                if (json != null) {
+                    val gson = Gson()
+                    val type = object : TypeToken<List<com.example.aifloatingball.model.ContactCategory>>() {}.type
+                    val categories: List<com.example.aifloatingball.model.ContactCategory> = gson.fromJson(json, type)
+                    
+                    for (category in categories) {
+                        for (contact in category.contacts) {
+                            if (contact.type == ContactType.AI && memberIds.contains(contact.id)) {
+                                groupMembers.add(contact)
+                            }
                         }
                     }
                 }
+                Log.d(TAG, "从旧方式加载群成员: ${groupMembers.size} 个")
             }
-
-            Log.d(TAG, "加载群成员: ${groupMembers.size} 个")
         } catch (e: Exception) {
             Log.e(TAG, "加载群成员失败", e)
             Toast.makeText(this, "加载群成员失败", Toast.LENGTH_SHORT).show()
@@ -158,7 +209,7 @@ class GroupChatSettingsActivity : AppCompatActivity() {
         }
 
         deleteGroupButton.setOnClickListener {
-            showDeleteGroupDialog()
+            deleteGroup()
         }
 
         leaveGroupButton.setOnClickListener {
@@ -244,7 +295,18 @@ class GroupChatSettingsActivity : AppCompatActivity() {
 
     private fun deleteGroup() {
         try {
-            // 从本地存储中删除群聊
+            val groupId = currentGroupContact?.groupId
+            if (groupId != null) {
+                // 从GroupChatManager删除群聊
+                val deleted = groupChatManager.deleteGroupChat(groupId)
+                if (deleted) {
+                    Log.d(TAG, "从GroupChatManager删除群聊成功: $groupId")
+                } else {
+                    Log.w(TAG, "从GroupChatManager删除群聊失败: $groupId")
+                }
+            }
+            
+            // 从本地存储中删除群聊联系人
             val prefs = getSharedPreferences(CONTACTS_PREFS_NAME, MODE_PRIVATE)
             val json = prefs.getString(KEY_SAVED_CONTACTS, null)
             if (json != null) {
@@ -260,6 +322,7 @@ class GroupChatSettingsActivity : AppCompatActivity() {
                 
                 val updatedJson = gson.toJson(categories)
                 prefs.edit().putString(KEY_SAVED_CONTACTS, updatedJson).apply()
+                Log.d(TAG, "从本地存储删除群聊联系人: ${currentGroupContact?.id}")
             }
             
             Toast.makeText(this, "群聊已删除", Toast.LENGTH_SHORT).show()

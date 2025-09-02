@@ -4021,6 +4021,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 重新加载群聊数据并合并到联系人列表中
                 try {
                     val groupChats = unifiedGroupChatManager.getAllGroupChats()
+                    Log.d(TAG, "onResume: 从UnifiedGroupChatManager加载到 ${groupChats.size} 个群聊")
                     if (groupChats.isNotEmpty()) {
                         // 将GroupChat转换为ChatContact
                         val groupChatContacts = groupChats.map { groupChat ->
@@ -9849,10 +9850,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 保存更改
             saveContacts()
 
-            // 切换到"全部"标签页
-            switchToTabIfExists("全部")
-
-            // 刷新显示
+            // 刷新显示（不切换到"全部"标签页，避免弹窗）
             refreshCurrentTabDisplay()
 
             // 更新适配器
@@ -9871,10 +9869,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun removeGroupChatConfiguration(contact: ChatContact) {
         try {
-            // 从GroupChatManager中删除群聊数据
+            Log.d(TAG, "=== 开始删除群聊: ${contact.name} (ID: ${contact.id}, GroupID: ${contact.groupId}) ===")
+            
+            // 从所有数据源删除群聊数据
             if (contact.groupId != null) {
-                unifiedGroupChatManager.deleteGroupChat(contact.groupId!!)
-                Log.d(TAG, "从GroupChatManager删除群聊: ${contact.groupId}")
+                // 1. 从UnifiedGroupChatManager删除
+                Log.d(TAG, "删除前UnifiedGroupChatManager中的群聊数量: ${unifiedGroupChatManager.getAllGroupChats().size}")
+                val deleted = unifiedGroupChatManager.deleteGroupChat(contact.groupId!!)
+                Log.d(TAG, "从UnifiedGroupChatManager删除群聊: ${contact.groupId}, 结果: $deleted")
+                Log.d(TAG, "删除后UnifiedGroupChatManager中的群聊数量: ${unifiedGroupChatManager.getAllGroupChats().size}")
+                
+                // 2. 从GroupChatManager删除（如果存在）
+                try {
+                    val groupChatManager = GroupChatManager.getInstance(this)
+                    val groupChatManagerDeleted = groupChatManager.deleteGroupChat(contact.groupId!!)
+                    Log.d(TAG, "从GroupChatManager删除群聊: ${contact.groupId}, 结果: $groupChatManagerDeleted")
+                } catch (e: Exception) {
+                    Log.w(TAG, "从GroupChatManager删除群聊失败: ${e.message}")
+                }
+            } else {
+                Log.w(TAG, "群聊联系人缺少groupId，无法从管理器删除")
             }
 
             // 从所有分组中移除该群聊联系人
@@ -9903,16 +9917,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 保存更改
             saveContacts()
 
-            // 切换到"全部"标签页
-            switchToTabIfExists("全部")
-
-            // 刷新显示
+            // 刷新显示（不切换到"全部"标签页，避免弹窗）
             refreshCurrentTabDisplay()
 
             // 更新适配器
             chatContactAdapter?.updateContacts(allContacts)
 
             Log.d(TAG, "移除群聊配置成功: ${contact.name}")
+            Log.d(TAG, "删除完成后UnifiedGroupChatManager中的群聊数量: ${unifiedGroupChatManager.getAllGroupChats().size}")
+            Log.d(TAG, "=== 群聊删除完成 ===")
             Toast.makeText(this, "✅ 群聊 ${contact.name} 已删除", Toast.LENGTH_SHORT).show()
 
         } catch (e: Exception) {
@@ -9952,10 +9965,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 保存更新后的联系人数据
                 saveContacts()
 
-                // 切换到"全部"标签页
-                switchToTabIfExists("全部")
-
-                // 刷新显示
+                // 刷新显示（不切换到"全部"标签页，避免弹窗）
                 refreshCurrentTabDisplay()
 
                 // 更新适配器
@@ -11919,10 +11929,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     // 保存更改
                     saveContacts()
 
-                    // 切换到"全部"标签页
-                    switchToTabIfExists("全部")
-
-                    // 刷新当前显示
+                    // 刷新当前显示（不切换到"全部"标签页，避免弹窗）
                     refreshCurrentTabDisplay()
 
                     // 更新适配器
