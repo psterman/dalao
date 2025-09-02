@@ -63,6 +63,8 @@ class GroupChatManager private constructor(private val context: Context) {
     
     init {
         loadGroupChats()
+        // 自动修复缺少aiServiceType的AI成员
+        fixMissingAIServiceTypes()
     }
     
     /**
@@ -275,7 +277,24 @@ class GroupChatManager private constructor(private val context: Context) {
         aiMember: GroupMember,
         groupChat: GroupChat
     ) {
-        val aiServiceType = aiMember.aiServiceType ?: return
+        Log.d(TAG, "开始处理AI回复: ${aiMember.name} (ID: ${aiMember.id})")
+        Log.d(TAG, "AI成员详情: name=${aiMember.name}, type=${aiMember.type}, aiServiceType=${aiMember.aiServiceType}")
+        
+        val aiServiceType = aiMember.aiServiceType
+        if (aiServiceType == null) {
+            Log.e(TAG, "AI成员 ${aiMember.name} (ID: ${aiMember.id}) 缺少aiServiceType，无法处理回复")
+            updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, "AI服务类型未配置")
+            
+            // 通知监听器错误状态
+            CoroutineScope(Dispatchers.Main).launch {
+                groupChatListeners.forEach { listener ->
+                    listener.onAIReplyStatusChanged(groupId, aiMember.id, AIReplyStatus.ERROR, "AI服务类型未配置")
+                }
+            }
+            return
+        }
+        
+        Log.d(TAG, "AI服务类型确认: ${aiServiceType.name}")
         
         try {
             // 更新状态为正在输入
@@ -377,6 +396,11 @@ class GroupChatManager private constructor(private val context: Context) {
         customPrompt: String?,
         onUpdate: (chunk: String, isComplete: Boolean, fullResponse: String) -> Unit
     ) = withContext(Dispatchers.IO) {
+        Log.d(TAG, "开始调用AI API: ${serviceType.name}")
+        Log.d(TAG, "消息内容: $message")
+        Log.d(TAG, "对话历史长度: ${conversationHistory.size}")
+        Log.d(TAG, "自定义提示词: $customPrompt")
+        
         return@withContext suspendCancellableCoroutine<Unit> { continuation ->
             try {
                 // 构建完整的消息内容
@@ -386,11 +410,14 @@ class GroupChatManager private constructor(private val context: Context) {
                     message
                 }
                 
+                Log.d(TAG, "完整消息内容: $fullMessage")
+                
                 var fullResponse = ""
                 var isCompleted = false
                 
                 val callback = object : AIApiManager.StreamingCallback {
                     override fun onChunkReceived(chunk: String) {
+                        Log.d(TAG, "收到AI响应块: '$chunk'")
                         if (!isCompleted) {
                             fullResponse += chunk
                             // 在主线程更新UI
@@ -401,6 +428,7 @@ class GroupChatManager private constructor(private val context: Context) {
                     }
                     
                     override fun onComplete(response: String) {
+                        Log.d(TAG, "AI响应完成，总长度: ${response.length}")
                         if (!isCompleted) {
                             isCompleted = true
                             fullResponse = response
@@ -413,15 +441,16 @@ class GroupChatManager private constructor(private val context: Context) {
                     }
                     
                     override fun onError(error: String) {
+                        Log.e(TAG, "AI API调用失败: $error")
                         if (!isCompleted) {
                             isCompleted = true
-                            Log.e(TAG, "AI API调用失败: $error")
                             continuation.resumeWithException(Exception(error))
                         }
                     }
                 }
                 
                 // 调用AI API
+                Log.d(TAG, "发送消息到AI API管理器")
                 aiApiManager.sendMessage(serviceType, fullMessage, conversationHistory, callback)
                 
                 // 设置超时
@@ -1024,6 +1053,68 @@ class GroupChatManager private constructor(private val context: Context) {
         }
     }
     
+    /**
+     * 修复群聊中缺少aiServiceType的AI成员
+     */
+    fun fixMissingAIServiceTypes(): Int {
+        var fixedCount = 0
+        
+        groupChats.values.forEach { groupChat ->
+            val updatedMembers = groupChat.members.map { member ->
+                if (member.type == MemberType.AI && member.aiServiceType == null) {
+                    // 尝试从成员名称或ID推断AI服务类型
+                    val inferredType = inferAIServiceType(member.name, member.id)
+                    if (inferredType != null) {
+                        Log.d(TAG, "修复群聊 ${groupChat.name} 中成员 ${member.name} 的aiServiceType: $inferredType")
+                        fixedCount++
+                        member.copy(aiServiceType = inferredType)
+                    } else {
+                        Log.w(TAG, "无法推断群聊 ${groupChat.name} 中成员 ${member.name} 的AI服务类型")
+                        member
+                    }
+                } else {
+                    member
+                }
+            }
+            
+            // 如果有成员被修复，更新群聊
+            if (updatedMembers != groupChat.members) {
+                val updatedGroupChat = groupChat.copy(members = updatedMembers)
+                groupChats[groupChat.id] = updatedGroupChat
+                saveGroupChats()
+            }
+        }
+        
+        Log.d(TAG, "修复了 $fixedCount 个缺少aiServiceType的AI成员")
+        return fixedCount
+    }
+    
+    /**
+     * 从名称和ID推断AI服务类型
+     */
+    private fun inferAIServiceType(name: String, id: String): AIServiceType? {
+        val nameLower = name.lowercase()
+        val idLower = id.lowercase()
+        
+        return when {
+            nameLower.contains("智谱") || nameLower.contains("zhipu") || nameLower.contains("glm") ||
+            idLower.contains("zhipu") || idLower.contains("glm") -> AIServiceType.ZHIPU_AI
+            nameLower.contains("deepseek") || idLower.contains("deepseek") -> AIServiceType.DEEPSEEK
+            nameLower.contains("chatgpt") || nameLower.contains("gpt") || 
+            idLower.contains("chatgpt") || idLower.contains("gpt") -> AIServiceType.CHATGPT
+            nameLower.contains("claude") || idLower.contains("claude") -> AIServiceType.CLAUDE
+            nameLower.contains("gemini") || idLower.contains("gemini") -> AIServiceType.GEMINI
+            nameLower.contains("文心") || nameLower.contains("wenxin") || 
+            idLower.contains("wenxin") -> AIServiceType.WENXIN
+            nameLower.contains("通义") || nameLower.contains("qianwen") || 
+            idLower.contains("qianwen") -> AIServiceType.QIANWEN
+            nameLower.contains("星火") || nameLower.contains("xinghuo") || 
+            idLower.contains("xinghuo") -> AIServiceType.XINGHUO
+            nameLower.contains("kimi") || idLower.contains("kimi") -> AIServiceType.KIMI
+            else -> null
+        }
+    }
+
     /**
      * 清理资源
      */

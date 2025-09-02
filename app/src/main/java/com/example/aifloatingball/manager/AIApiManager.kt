@@ -221,11 +221,19 @@ class AIApiManager(private val context: Context) {
         conversationHistory: List<Map<String, String>> = emptyList(),
         callback: StreamingCallback
     ) {
+        Log.d(TAG, "AIApiManager.sendMessage 被调用")
+        Log.d(TAG, "服务类型: ${serviceType.name}")
+        Log.d(TAG, "消息长度: ${message.length}")
+        Log.d(TAG, "对话历史长度: ${conversationHistory.size}")
+        
         val config = getServiceConfig(serviceType)
         if (config == null) {
+            Log.e(TAG, "API配置获取失败，服务类型: ${serviceType.name}")
             callback.onError("API密钥未配置")
             return
         }
+        
+        Log.d(TAG, "API配置获取成功: ${config.name}, URL: ${config.apiUrl}")
         
         scope.launch {
             try {
@@ -238,7 +246,10 @@ class AIApiManager(private val context: Context) {
                     AIServiceType.QIANWEN -> sendToQianwen(config, message, conversationHistory, callback)
                     AIServiceType.XINGHUO -> sendToXinghuo(config, message, conversationHistory, callback)
                     AIServiceType.KIMI -> sendToKimi(config, message, conversationHistory, callback)
-                    AIServiceType.ZHIPU_AI -> sendToZhupu(config, message, conversationHistory, callback)
+                    AIServiceType.ZHIPU_AI -> {
+                        Log.d(TAG, "调用智谱AI API")
+                        sendToZhupu(config, message, conversationHistory, callback)
+                    }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "发送消息失败", e)
@@ -1028,6 +1039,9 @@ class AIApiManager(private val context: Context) {
                 put("stream", true)
                 put("max_tokens", config.maxTokens)
                 put("temperature", config.temperature)
+                // 智谱AI特定参数
+                put("top_p", 0.7)
+                put("incremental", true)
             }
             
             val requestJson = requestBody.toString()

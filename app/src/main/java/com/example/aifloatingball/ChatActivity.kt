@@ -212,6 +212,18 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 contact.groupId?.let { groupId ->
                     currentGroupChat = groupChatManager.getGroupChat(groupId)
                     if (currentGroupChat != null) {
+                        // 验证AI成员配置
+                        validateGroupChatAIMembers(currentGroupChat!!)
+                        
+                        // 测试智谱AI配置
+                        testZhipuAIConfiguration()
+                        
+                        // 强制修复智谱AI配置
+                        forceFixZhipuAIInGroupChat()
+                        
+                        // 输出诊断报告
+                        outputZhipuAIDiagnosticReport()
+                        
                         groupChatFound = true
                         contactStatusText.text = "群聊 · ${currentGroupChat!!.members.size}个成员"
                         contactStatusText.setTextColor(getColor(R.color.group_chat_color))
@@ -629,6 +641,225 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         }
     }
     
+    /**
+     * 验证群聊中AI成员的配置
+     */
+    private fun validateGroupChatAIMembers(groupChat: GroupChat) {
+        val aiMembers = groupChat.members.filter { it.type == MemberType.AI }
+        Log.d(TAG, "验证群聊 ${groupChat.name} 中的AI成员配置")
+        
+        aiMembers.forEach { member ->
+            if (member.aiServiceType == null) {
+                Log.e(TAG, "❌ AI成员 ${member.name} (ID: ${member.id}) 缺少aiServiceType")
+            } else {
+                Log.d(TAG, "✅ AI成员 ${member.name} (ID: ${member.id}) 配置正确: ${member.aiServiceType}")
+                
+                // 特别检查智谱AI的配置
+                if (member.aiServiceType == AIServiceType.ZHIPU_AI) {
+                    val apiKey = getApiKeyForService(AIServiceType.ZHIPU_AI)
+                    if (apiKey.isBlank()) {
+                        Log.e(TAG, "❌ 智谱AI API密钥未配置")
+                    } else {
+                        Log.d(TAG, "✅ 智谱AI API密钥已配置，长度: ${apiKey.length}")
+                        Log.d(TAG, "智谱AI API密钥格式检查: ${apiKey.contains(".") && apiKey.length >= 20}")
+                    }
+                }
+            }
+        }
+        
+        val configuredCount = aiMembers.count { it.aiServiceType != null }
+        Log.d(TAG, "群聊 ${groupChat.name} 中 $configuredCount/${aiMembers.size} 个AI成员配置正确")
+    }
+
+    /**
+     * 测试智谱AI配置
+     */
+    private fun testZhipuAIConfiguration() {
+        Log.d(TAG, "=== 测试智谱AI配置 ===")
+        
+        // 检查API密钥
+        val apiKey = getApiKeyForService(AIServiceType.ZHIPU_AI)
+        Log.d(TAG, "智谱AI API密钥: ${if (apiKey.isBlank()) "未配置" else "已配置 (长度: ${apiKey.length})"}")
+        
+        // 检查API密钥格式
+        if (apiKey.isNotBlank()) {
+            val isValidFormat = apiKey.contains(".") && apiKey.length >= 20
+            Log.d(TAG, "智谱AI API密钥格式: ${if (isValidFormat) "有效" else "无效"}")
+            
+            if (!isValidFormat) {
+                Log.e(TAG, "❌ 智谱AI API密钥格式错误！应该是 xxxxx.xxxxx 格式，长度≥20")
+                return
+            }
+        } else {
+            Log.e(TAG, "❌ 智谱AI API密钥未配置！")
+            return
+        }
+        
+        // 检查群聊中的智谱AI成员
+        currentGroupChat?.let { groupChat ->
+            val zhipuMembers = groupChat.members.filter { 
+                it.type == MemberType.AI && it.aiServiceType == AIServiceType.ZHIPU_AI 
+            }
+            Log.d(TAG, "群聊中智谱AI成员数量: ${zhipuMembers.size}")
+            
+            zhipuMembers.forEach { member ->
+                Log.d(TAG, "智谱AI成员: ${member.name} (ID: ${member.id})")
+            }
+        }
+        
+        // 测试API调用
+        Log.d(TAG, "测试智谱AI API调用...")
+        aiApiManager.sendMessage(
+            serviceType = AIServiceType.ZHIPU_AI,
+            message = "你好，请回复'测试成功'",
+            conversationHistory = emptyList(),
+            callback = object : AIApiManager.StreamingCallback {
+                override fun onChunkReceived(chunk: String) {
+                    Log.d(TAG, "智谱AI测试响应块: '$chunk'")
+                }
+                
+                override fun onComplete(response: String) {
+                    Log.d(TAG, "✅ 智谱AI测试成功，响应: '$response'")
+                    if (response.contains("测试成功")) {
+                        Log.d(TAG, "✅ 智谱AI API工作正常！")
+                    } else {
+                        Log.w(TAG, "⚠️ 智谱AI响应了，但内容可能有问题")
+                    }
+                }
+                
+                override fun onError(error: String) {
+                    Log.e(TAG, "❌ 智谱AI测试失败: $error")
+                    
+                    // 分析错误类型
+                    when {
+                        error.contains("API密钥未配置") -> {
+                            Log.e(TAG, "问题：API密钥未配置")
+                        }
+                        error.contains("401") -> {
+                            Log.e(TAG, "问题：API密钥无效或已过期")
+                        }
+                        error.contains("403") -> {
+                            Log.e(TAG, "问题：API访问被拒绝，可能是权限问题")
+                        }
+                        error.contains("429") -> {
+                            Log.e(TAG, "问题：API调用频率超限")
+                        }
+                        error.contains("500") -> {
+                            Log.e(TAG, "问题：智谱AI服务器内部错误")
+                        }
+                        else -> {
+                            Log.e(TAG, "问题：未知错误 - $error")
+                        }
+                    }
+                }
+            }
+        )
+        
+        Log.d(TAG, "=== 智谱AI配置测试完成 ===")
+    }
+    
+    /**
+     * 强制修复群聊中智谱AI的配置
+     */
+    private fun forceFixZhipuAIInGroupChat() {
+        Log.d(TAG, "=== 强制修复群聊中智谱AI配置 ===")
+        
+        currentGroupChat?.let { groupChat ->
+            val zhipuMembers = groupChat.members.filter { 
+                it.type == MemberType.AI && it.aiServiceType == AIServiceType.ZHIPU_AI 
+            }
+            
+            if (zhipuMembers.isEmpty()) {
+                Log.w(TAG, "群聊中没有智谱AI成员，尝试添加...")
+                
+                // 直接尝试添加智谱AI到群聊
+                val success = groupChatManager.addAIMemberToGroup(groupChat.id, AIServiceType.ZHIPU_AI)
+                if (success) {
+                    Log.d(TAG, "✅ 成功添加智谱AI到群聊")
+                    // 重新加载群聊数据
+                    currentGroupChat = groupChatManager.getGroupChat(groupChat.id)
+                } else {
+                    Log.e(TAG, "❌ 添加智谱AI到群聊失败")
+                }
+            } else {
+                Log.d(TAG, "群聊中已有 ${zhipuMembers.size} 个智谱AI成员")
+                
+                // 检查每个智谱AI成员的配置
+                zhipuMembers.forEach { member ->
+                    if (member.aiServiceType == null) {
+                        Log.w(TAG, "发现缺少aiServiceType的智谱AI成员: ${member.name}")
+                    } else {
+                        Log.d(TAG, "智谱AI成员配置正确: ${member.name}")
+                    }
+                }
+            }
+        }
+        
+        Log.d(TAG, "=== 智谱AI配置修复完成 ===")
+    }
+    
+    /**
+     * 输出智谱AI当前的问题诊断报告
+     */
+    private fun outputZhipuAIDiagnosticReport() {
+        Log.d(TAG, "=== 智谱AI问题诊断报告 ===")
+        
+        // 1. 检查API密钥配置
+        val apiKey = getApiKeyForService(AIServiceType.ZHIPU_AI)
+        Log.d(TAG, "1. API密钥状态: ${if (apiKey.isBlank()) "❌ 未配置" else "✅ 已配置 (长度: ${apiKey.length})"}")
+        
+        if (apiKey.isNotBlank()) {
+            val isValidFormat = apiKey.contains(".") && apiKey.length >= 20
+            Log.d(TAG, "2. API密钥格式: ${if (isValidFormat) "✅ 有效" else "❌ 无效 (应该是 xxxxx.xxxxx 格式)"}")
+        }
+        
+        // 2. 检查群聊配置
+        currentGroupChat?.let { groupChat ->
+            val zhipuMembers = groupChat.members.filter { 
+                it.type == MemberType.AI && it.aiServiceType == AIServiceType.ZHIPU_AI 
+            }
+            Log.d(TAG, "3. 群聊中智谱AI成员: ${if (zhipuMembers.isEmpty()) "❌ 无智谱AI成员" else "✅ ${zhipuMembers.size}个智谱AI成员"}")
+            
+            zhipuMembers.forEach { member ->
+                val hasServiceType = member.aiServiceType != null
+                Log.d(TAG, "   - ${member.name}: ${if (hasServiceType) "✅ 配置正确" else "❌ 缺少aiServiceType"}")
+            }
+        } ?: Log.d(TAG, "3. 群聊状态: ❌ 当前不在群聊中")
+        
+        // 3. 检查GroupChatManager状态
+        val groupChatManagerStatus = try {
+            groupChatManager.fixMissingAIServiceTypes()
+            "✅ 自动修复功能正常"
+        } catch (e: Exception) {
+            "❌ 自动修复功能异常: ${e.message}"
+        }
+        Log.d(TAG, "4. GroupChatManager状态: $groupChatManagerStatus")
+        
+        // 4. 总结问题
+        Log.d(TAG, "=== 问题总结 ===")
+        if (apiKey.isBlank()) {
+            Log.e(TAG, "❌ 主要问题: 智谱AI API密钥未配置")
+            Log.d(TAG, "💡 解决方案: 在设置中配置智谱AI API密钥")
+        } else if (apiKey.isNotBlank() && !apiKey.contains(".")) {
+            Log.e(TAG, "❌ 主要问题: 智谱AI API密钥格式错误")
+            Log.d(TAG, "💡 解决方案: 检查API密钥格式，应该是 xxxxx.xxxxx 格式")
+        } else {
+            currentGroupChat?.let { groupChat ->
+                val zhipuMembers = groupChat.members.filter { 
+                    it.type == MemberType.AI && it.aiServiceType == AIServiceType.ZHIPU_AI 
+                }
+                if (zhipuMembers.isEmpty()) {
+                    Log.e(TAG, "❌ 主要问题: 群聊中没有智谱AI成员")
+                    Log.d(TAG, "💡 解决方案: 重新创建群聊并添加智谱AI，或使用自动修复功能")
+                } else {
+                    Log.d(TAG, "✅ 配置看起来正常，如果仍有问题，请检查网络连接和API服务状态")
+                }
+            }
+        }
+        
+        Log.d(TAG, "=== 诊断报告完成 ===")
+    }
+
     /**
      * 加载群聊消息
      */
