@@ -35,6 +35,7 @@ import com.example.aifloatingball.manager.AIApiManager
 import com.example.aifloatingball.manager.AIServiceType
 import com.example.aifloatingball.manager.DeepSeekApiHelper
 import com.example.aifloatingball.manager.GroupChatManager
+import com.example.aifloatingball.manager.UnifiedGroupChatManager
 import com.example.aifloatingball.manager.GroupChatListener
 // MultiAIReplyHandler已移除，使用GroupChatManager
 import com.google.android.material.button.MaterialButton
@@ -210,7 +211,18 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 
                 // 首先尝试通过groupId查找
                 contact.groupId?.let { groupId ->
+                    // 1. 尝试从GroupChatManager查找
                     currentGroupChat = groupChatManager.getGroupChat(groupId)
+                    
+                    // 2. 如果没找到，尝试从UnifiedGroupChatManager查找
+                    if (currentGroupChat == null) {
+                        val unifiedManager = UnifiedGroupChatManager.getInstance(this)
+                        currentGroupChat = unifiedManager.getGroupChat(groupId)
+                        if (currentGroupChat != null) {
+                            Log.d(TAG, "从UnifiedGroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                        }
+                    }
+                    
                     if (currentGroupChat != null) {
                         // 验证AI成员配置
                         validateGroupChatAIMembers(currentGroupChat!!)

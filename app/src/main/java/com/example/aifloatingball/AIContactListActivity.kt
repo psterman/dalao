@@ -763,27 +763,39 @@ class AIContactListActivity : AppCompatActivity() {
              
              Log.d(TAG, "通过UnifiedGroupChatManager创建群聊成功: ${groupChat.id}")
             
-            // 创建群聊联系人
-            val groupContact = ChatContact(
-                id = groupChat.id,
-                name = groupName,
-                description = "包含 ${selectedAIs.size} 个AI助手的群聊",
-                type = ContactType.GROUP,
-                groupId = groupChat.id,
-                aiMembers = selectedAIs.map { it.id },
-                customData = mutableMapOf(
-                    "group_members" to selectedAIs.map { it.id }.joinToString(","),
-                    "created_time" to System.currentTimeMillis().toString()
+            // 从UnifiedGroupChatManager获取群聊联系人（避免重复创建）
+            val groupContacts = unifiedGroupChatManager.getGroupChatContacts()
+            val groupContact = groupContacts.find { it.groupId == groupChat.id }
+            
+            if (groupContact != null) {
+                Log.d(TAG, "找到群聊联系人: ${groupContact.name}")
+                
+                // 跳转到群聊界面
+                val intent = Intent(this, ChatActivity::class.java)
+                intent.putExtra(ChatActivity.EXTRA_CONTACT, groupContact)
+                startActivity(intent)
+            } else {
+                Log.e(TAG, "未找到群聊联系人，使用群聊对象创建临时联系人")
+                
+                // 创建临时群聊联系人（仅用于跳转）
+                val tempGroupContact = ChatContact(
+                    id = groupChat.id,
+                    name = groupName,
+                    description = "包含 ${selectedAIs.size} 个AI助手的群聊",
+                    type = ContactType.GROUP,
+                    groupId = groupChat.id,
+                    aiMembers = selectedAIs.map { it.id },
+                    customData = mutableMapOf(
+                        "group_members" to selectedAIs.map { it.id }.joinToString(","),
+                        "created_time" to System.currentTimeMillis().toString()
+                    )
                 )
-            )
-
-            // 保存群聊到本地存储
-            saveGroupChatContact(groupContact)
-
-            // 跳转到群聊界面
-            val intent = Intent(this, ChatActivity::class.java)
-            intent.putExtra(ChatActivity.EXTRA_CONTACT, groupContact)
-            startActivity(intent)
+                
+                // 跳转到群聊界面
+                val intent = Intent(this, ChatActivity::class.java)
+                intent.putExtra(ChatActivity.EXTRA_CONTACT, tempGroupContact)
+                startActivity(intent)
+            }
             
             Toast.makeText(this, "群聊创建成功", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
