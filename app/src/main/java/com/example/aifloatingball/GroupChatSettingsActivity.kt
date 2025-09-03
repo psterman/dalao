@@ -17,6 +17,7 @@ import com.example.aifloatingball.model.GroupChat
 import com.example.aifloatingball.model.GroupMember
 import com.example.aifloatingball.model.MemberType
 import com.example.aifloatingball.manager.GroupChatManager
+import com.example.aifloatingball.manager.UnifiedGroupChatManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.gson.Gson
@@ -297,7 +298,12 @@ class GroupChatSettingsActivity : AppCompatActivity() {
         try {
             val groupId = currentGroupContact?.groupId
             if (groupId != null) {
-                // 从GroupChatManager删除群聊
+                // 1. 从UnifiedGroupChatManager删除群聊
+                val unifiedManager = UnifiedGroupChatManager.getInstance(this)
+                val unifiedDeleted = unifiedManager.deleteGroupChat(groupId)
+                Log.d(TAG, "从UnifiedGroupChatManager删除群聊: $groupId, 结果: $unifiedDeleted")
+                
+                // 2. 从GroupChatManager删除群聊
                 val deleted = groupChatManager.deleteGroupChat(groupId)
                 if (deleted) {
                     Log.d(TAG, "从GroupChatManager删除群聊成功: $groupId")

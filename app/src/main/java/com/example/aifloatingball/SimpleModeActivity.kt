@@ -8464,28 +8464,72 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 确认删除联系人
      */
     private fun confirmDeleteContact(contact: ChatContact) {
-        if (contact.type == ContactType.AI) {
-            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
-                .setTitle("移除AI助手")
-                .setMessage("确定要移除 ${contact.name} 吗？\n\n这将清除该AI的API配置，但可以重新添加。")
-                .setPositiveButton("移除") { _, _ ->
-                    removeAIConfiguration(contact)
-                    Toast.makeText(this, "${contact.name} 配置已移除", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "移除AI配置: ${contact.name}")
-                }
-                .setNegativeButton("取消", null)
-                .show()
-        } else {
-            AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
-                .setTitle("删除联系人")
-                .setMessage("确定要删除 ${contact.name} 吗？\n\n删除后将无法恢复。")
-                .setPositiveButton("删除") { _, _ ->
-                    removeContactFromList(contact)
-                    Toast.makeText(this, "${contact.name} 已删除", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "删除联系人: ${contact.name}")
-                }
-                .setNegativeButton("取消", null)
-                .show()
+        when (contact.type) {
+            ContactType.AI -> {
+                AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                    .setTitle("移除AI助手")
+                    .setMessage("确定要移除 ${contact.name} 吗？\n\n这将清除该AI的API配置，但可以重新添加。")
+                    .setPositiveButton("移除") { _, _ ->
+                        removeAIConfiguration(contact)
+                        Toast.makeText(this, "${contact.name} 配置已移除", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "移除AI配置: ${contact.name}")
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+            ContactType.GROUP -> {
+                AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                    .setTitle("删除群聊")
+                    .setMessage("确定要删除群聊 ${contact.name} 吗？\n\n删除后将无法恢复，包括群聊中的所有消息。")
+                    .setPositiveButton("删除") { _, _ ->
+                        removeGroupChatConfiguration(contact)
+                        Log.d(TAG, "删除群聊: ${contact.name}")
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+            else -> {
+                AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+                    .setTitle("删除联系人")
+                    .setMessage("确定要删除 ${contact.name} 吗？\n\n删除后将无法恢复。")
+                    .setPositiveButton("删除") { _, _ ->
+                        removeContactFromList(contact)
+                        Toast.makeText(this, "${contact.name} 已删除", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "删除联系人: ${contact.name}")
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+        }
+    }
+
+    /**
+     * 测试群聊删除功能（调试用）
+     */
+    private fun testGroupChatDeleteFunction() {
+        try {
+            Log.d(TAG, "=== 开始测试群聊删除功能 ===")
+            
+            // 查找第一个群聊联系人
+            val groupContact = allContacts.flatMap { it.contacts }
+                .firstOrNull { it.type == ContactType.GROUP }
+            
+            if (groupContact != null) {
+                Log.d(TAG, "找到群聊联系人: ${groupContact.name} (ID: ${groupContact.id}, GroupID: ${groupContact.groupId})")
+                
+                // 测试删除确认对话框
+                confirmDeleteContact(groupContact)
+                
+                Log.d(TAG, "群聊删除测试对话框已显示")
+            } else {
+                Log.w(TAG, "没有找到群聊联系人进行测试")
+                Toast.makeText(this, "没有找到群聊进行测试", Toast.LENGTH_SHORT).show()
+            }
+            
+            Log.d(TAG, "=== 群聊删除功能测试完成 ===")
+        } catch (e: Exception) {
+            Log.e(TAG, "测试群聊删除功能失败", e)
+            Toast.makeText(this, "测试失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
