@@ -64,7 +64,13 @@ class GroupChatManager private constructor(private val context: Context) {
     init {
         loadGroupChats()
         // 自动修复缺少aiServiceType的AI成员
-        fixMissingAIServiceTypes()
+        val generalFixed = fixMissingAIServiceTypes()
+        // 专门修复智谱AI成员问题
+        val zhipuFixed = fixZhipuAIMembers()
+        
+        if (generalFixed > 0 || zhipuFixed > 0) {
+            Log.d(TAG, "群聊管理器初始化完成，修复了 $generalFixed 个一般AI成员问题，$zhipuFixed 个智谱AI成员问题")
+        }
     }
     
     /**
@@ -105,17 +111,25 @@ class GroupChatManager private constructor(private val context: Context) {
             )
         )
         
-        // 添加AI成员
+        // 添加AI成员，确保aiServiceType正确设置
         aiMembers.forEach { aiType ->
+            val aiId = if (aiType == AIServiceType.ZHIPU_AI) {
+                com.example.aifloatingball.utils.AIServiceTypeUtils.generateZhipuAIId()
+            } else {
+                "ai_${aiType.name.lowercase()}"
+            }
+            
             members.add(
                 GroupMember(
-                    id = "ai_${aiType.name.lowercase()}",
+                    id = aiId,
                     name = getAIDisplayName(aiType),
                     type = MemberType.AI,
-                    aiServiceType = aiType,
+                    aiServiceType = aiType, // 明确设置aiServiceType
                     role = MemberRole.MEMBER
                 )
             )
+            
+            Log.d(TAG, "添加AI成员：${getAIDisplayName(aiType)} (ID: $aiId, aiServiceType: $aiType)")
         }
         
         val groupChat = GroupChat(
@@ -282,13 +296,52 @@ class GroupChatManager private constructor(private val context: Context) {
         
         val aiServiceType = aiMember.aiServiceType
         if (aiServiceType == null) {
-            Log.e(TAG, "AI成员 ${aiMember.name} (ID: ${aiMember.id}) 缺少aiServiceType，无法处理回复")
-            updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, "AI服务类型未配置")
+            Log.e(TAG, "AI成员 ${aiMember.name} (ID: ${aiMember.id}) 缺少aiServiceType，尝试自动修复")
+            
+            // 尝试推断和修复aiServiceType
+            val inferredType = inferAIServiceType(aiMember.name, aiMember.id)
+            if (inferredType != null) {
+                Log.d(TAG, "成功推断AI服务类型: $inferredType，正在修复成员配置")
+                
+                // 更新群聊中的成员配置
+                val groupChat = groupChats[groupId]
+                if (groupChat != null) {
+                    val updatedMembers = groupChat.members.map { member ->
+                        if (member.id == aiMember.id) {
+                            if (inferredType == AIServiceType.ZHIPU_AI) {
+                                // 智谱AI特殊处理，标准化名称和ID
+                                member.copy(
+                                    id = com.example.aifloatingball.utils.AIServiceTypeUtils.generateZhipuAIId(),
+                                    name = com.example.aifloatingball.utils.AIServiceTypeUtils.getZhipuAIStandardName(),
+                                    aiServiceType = inferredType
+                                )
+                            } else {
+                                member.copy(aiServiceType = inferredType)
+                            }
+                        } else {
+                            member
+                        }
+                    }
+                    
+                    val updatedGroupChat = groupChat.copy(members = updatedMembers)
+                    groupChats[groupId] = updatedGroupChat
+                    saveGroupChats()
+                    
+                    // 重新开始处理回复，使用修复后的成员
+                    val fixedMember = updatedMembers.first { it.id == aiMember.id || it.name == aiMember.name }
+                    Log.d(TAG, "AI成员修复完成，重新开始处理回复：${fixedMember.name} (aiServiceType: ${fixedMember.aiServiceType})")
+                    processAIReply(groupId, userMessage, fixedMember, groupChat)
+                    return
+                }
+            }
+            
+            Log.e(TAG, "无法修复AI成员 ${aiMember.name} (ID: ${aiMember.id}) 的aiServiceType")
+            updateAIReplyStatus(groupId, aiMember.id, AIReplyStatus.ERROR, "AI服务类型未配置且无法自动修复")
             
             // 通知监听器错误状态
             CoroutineScope(Dispatchers.Main).launch {
                 groupChatListeners.forEach { listener ->
-                    listener.onAIReplyStatusChanged(groupId, aiMember.id, AIReplyStatus.ERROR, "AI服务类型未配置")
+                    listener.onAIReplyStatusChanged(groupId, aiMember.id, AIReplyStatus.ERROR, "AI服务类型未配置且无法自动修复")
                 }
             }
             return
@@ -790,20 +843,10 @@ class GroupChatManager private constructor(private val context: Context) {
     }
     
     /**
-     * 获取AI显示名称
+     * 获取AI显示名称（使用统一工具类）
      */
     private fun getAIDisplayName(aiServiceType: AIServiceType): String {
-        return when (aiServiceType) {
-            AIServiceType.DEEPSEEK -> "DeepSeek"
-            AIServiceType.CHATGPT -> "ChatGPT"
-            AIServiceType.CLAUDE -> "Claude"
-            AIServiceType.GEMINI -> "Gemini"
-            AIServiceType.ZHIPU_AI -> "智谱AI"
-            AIServiceType.WENXIN -> "文心一言"
-            AIServiceType.QIANWEN -> "通义千问"
-            AIServiceType.XINGHUO -> "讯飞星火"
-            AIServiceType.KIMI -> "Kimi"
-        }
+        return com.example.aifloatingball.utils.AIServiceTypeUtils.getAIDisplayName(aiServiceType)
     }
     
     /**
@@ -1067,7 +1110,19 @@ class GroupChatManager private constructor(private val context: Context) {
                     if (inferredType != null) {
                         Log.d(TAG, "修复群聊 ${groupChat.name} 中成员 ${member.name} 的aiServiceType: $inferredType")
                         fixedCount++
-                        member.copy(aiServiceType = inferredType)
+                        
+                        // 特别处理智谱AI，标准化其ID和名称
+                        if (inferredType == AIServiceType.ZHIPU_AI) {
+                            val standardId = com.example.aifloatingball.utils.AIServiceTypeUtils.generateZhipuAIId()
+                            val standardName = com.example.aifloatingball.utils.AIServiceTypeUtils.getZhipuAIStandardName()
+                            member.copy(
+                                id = standardId,
+                                name = standardName,
+                                aiServiceType = inferredType
+                            )
+                        } else {
+                            member.copy(aiServiceType = inferredType)
+                        }
                     } else {
                         Log.w(TAG, "无法推断群聊 ${groupChat.name} 中成员 ${member.name} 的AI服务类型")
                         member
@@ -1082,6 +1137,9 @@ class GroupChatManager private constructor(private val context: Context) {
                 val updatedGroupChat = groupChat.copy(members = updatedMembers)
                 groupChats[groupChat.id] = updatedGroupChat
                 saveGroupChats()
+                
+                // 同步到UnifiedGroupChatManager
+                syncToUnifiedManager(updatedGroupChat)
             }
         }
         
@@ -1090,29 +1148,61 @@ class GroupChatManager private constructor(private val context: Context) {
     }
     
     /**
-     * 从名称和ID推断AI服务类型
+     * 专门检查和修复智谱AI成员的问题
+     */
+    fun fixZhipuAIMembers(): Int {
+        var fixedCount = 0
+        
+        groupChats.values.forEach { groupChat ->
+            var hasChanges = false
+            val updatedMembers = groupChat.members.map { member ->
+                if (member.type == MemberType.AI) {
+                    // 检查是否为智谱AI成员但aiServiceType缺失或错误
+                    val isZhipuByName = com.example.aifloatingball.utils.AIServiceTypeUtils.isZhipuAIContact(
+                        ChatContact(id = member.id, name = member.name, type = ContactType.AI)
+                    )
+                    
+                    if (isZhipuByName && member.aiServiceType != AIServiceType.ZHIPU_AI) {
+                        Log.d(TAG, "发现智谱AI成员需要修复: ${member.name} (ID: ${member.id})")
+                        fixedCount++
+                        hasChanges = true
+                        
+                        // 标准化智谱AI成员
+                        member.copy(
+                            id = com.example.aifloatingball.utils.AIServiceTypeUtils.generateZhipuAIId(),
+                            name = com.example.aifloatingball.utils.AIServiceTypeUtils.getZhipuAIStandardName(),
+                            aiServiceType = AIServiceType.ZHIPU_AI
+                        )
+                    } else {
+                        member
+                    }
+                } else {
+                    member
+                }
+            }
+            
+            // 如果有成员被修复，更新群聊
+            if (hasChanges) {
+                val updatedGroupChat = groupChat.copy(members = updatedMembers)
+                groupChats[groupChat.id] = updatedGroupChat
+                saveGroupChats()
+                
+                // 同步到UnifiedGroupChatManager
+                syncToUnifiedManager(updatedGroupChat)
+                
+                Log.d(TAG, "更新群聊 ${groupChat.name} 的智谱AI成员配置")
+            }
+        }
+        
+        Log.d(TAG, "修复了 $fixedCount 个智谱AI成员配置问题")
+        return fixedCount
+    }
+    
+    /**
+     * 从名称和ID推断AI服务类型（使用统一工具类）
      */
     private fun inferAIServiceType(name: String, id: String): AIServiceType? {
-        val nameLower = name.lowercase()
-        val idLower = id.lowercase()
-        
-        return when {
-            nameLower.contains("智谱") || nameLower.contains("zhipu") || nameLower.contains("glm") ||
-            idLower.contains("zhipu") || idLower.contains("glm") -> AIServiceType.ZHIPU_AI
-            nameLower.contains("deepseek") || idLower.contains("deepseek") -> AIServiceType.DEEPSEEK
-            nameLower.contains("chatgpt") || nameLower.contains("gpt") || 
-            idLower.contains("chatgpt") || idLower.contains("gpt") -> AIServiceType.CHATGPT
-            nameLower.contains("claude") || idLower.contains("claude") -> AIServiceType.CLAUDE
-            nameLower.contains("gemini") || idLower.contains("gemini") -> AIServiceType.GEMINI
-            nameLower.contains("文心") || nameLower.contains("wenxin") || 
-            idLower.contains("wenxin") -> AIServiceType.WENXIN
-            nameLower.contains("通义") || nameLower.contains("qianwen") || 
-            idLower.contains("qianwen") -> AIServiceType.QIANWEN
-            nameLower.contains("星火") || nameLower.contains("xinghuo") || 
-            idLower.contains("xinghuo") -> AIServiceType.XINGHUO
-            nameLower.contains("kimi") || idLower.contains("kimi") -> AIServiceType.KIMI
-            else -> null
-        }
+        return com.example.aifloatingball.utils.AIServiceTypeUtils.inferAIServiceType(name, id)
     }
 
     /**

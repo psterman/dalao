@@ -764,32 +764,65 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     private fun forceFixZhipuAIInGroupChat() {
         Log.d(TAG, "=== 强制修复群聊中智谱AI配置 ===")
         
+        // 先执行全局修复
+        val generalFixed = groupChatManager.fixMissingAIServiceTypes()
+        val zhipuFixed = groupChatManager.fixZhipuAIMembers()
+        Log.d(TAG, "全局修复结果: 一般=$generalFixed, 智谱AI专项=$zhipuFixed")
+        
         currentGroupChat?.let { groupChat ->
-            val zhipuMembers = groupChat.members.filter { 
-                it.type == MemberType.AI && it.aiServiceType == AIServiceType.ZHIPU_AI 
-            }
+            // 重新获取最新的群聊数据
+            val latestGroupChat = groupChatManager.getGroupChat(groupChat.id)
+            currentGroupChat = latestGroupChat
             
-            if (zhipuMembers.isEmpty()) {
-                Log.w(TAG, "群聊中没有智谱AI成员，尝试添加...")
-                
-                // 直接尝试添加智谱AI到群聊
-                val success = groupChatManager.addAIMemberToGroup(groupChat.id, AIServiceType.ZHIPU_AI)
-                if (success) {
-                    Log.d(TAG, "✅ 成功添加智谱AI到群聊")
-                    // 重新加载群聊数据
-                    currentGroupChat = groupChatManager.getGroupChat(groupChat.id)
-                } else {
-                    Log.e(TAG, "❌ 添加智谱AI到群聊失败")
+            latestGroupChat?.let { updatedGroupChat ->
+                val zhipuMembers = updatedGroupChat.members.filter { 
+                    it.type == MemberType.AI && it.aiServiceType == AIServiceType.ZHIPU_AI 
                 }
-            } else {
-                Log.d(TAG, "群聊中已有 ${zhipuMembers.size} 个智谱AI成员")
                 
-                // 检查每个智谱AI成员的配置
-                zhipuMembers.forEach { member ->
-                    if (member.aiServiceType == null) {
-                        Log.w(TAG, "发现缺少aiServiceType的智谱AI成员: ${member.name}")
+                // 检查是否有疑似智谱AI但配置错误的成员
+                val potentialZhipuMembers = updatedGroupChat.members.filter { member ->
+                    member.type == MemberType.AI && 
+                    member.aiServiceType != AIServiceType.ZHIPU_AI &&
+                    com.example.aifloatingball.utils.AIServiceTypeUtils.isZhipuAIContact(
+                        ChatContact(id = member.id, name = member.name, type = ContactType.AI)
+                    )
+                }
+                
+                if (potentialZhipuMembers.isNotEmpty()) {
+                    Log.w(TAG, "发现 ${potentialZhipuMembers.size} 个疑似智谱AI成员配置错误")
+                    potentialZhipuMembers.forEach { member ->
+                        Log.w(TAG, "疑似智谱AI: ${member.name} (当前aiServiceType: ${member.aiServiceType})")
+                    }
+                    
+                    // 再次执行智谱AI专项修复
+                    val additionalFixed = groupChatManager.fixZhipuAIMembers()
+                    Log.d(TAG, "追加修复了 $additionalFixed 个智谱AI成员")
+                }
+                
+                if (zhipuMembers.isEmpty()) {
+                    Log.w(TAG, "群聊中没有智谱AI成员，尝试添加...")
+                    
+                    // 直接尝试添加智谱AI到群聊
+                    val success = groupChatManager.addAIMemberToGroup(updatedGroupChat.id, AIServiceType.ZHIPU_AI)
+                    if (success) {
+                        Log.d(TAG, "✅ 成功添加智谱AI到群聊")
+                        // 重新加载群聊数据
+                        currentGroupChat = groupChatManager.getGroupChat(updatedGroupChat.id)
                     } else {
-                        Log.d(TAG, "智谱AI成员配置正确: ${member.name}")
+                        Log.e(TAG, "❌ 添加智谱AI到群聊失败")
+                    }
+                } else {
+                    Log.d(TAG, "群聊中已有 ${zhipuMembers.size} 个智谱AI成员")
+                    
+                    // 检查每个智谱AI成员的配置
+                    zhipuMembers.forEach { member ->
+                        val isStandardName = member.name == com.example.aifloatingball.utils.AIServiceTypeUtils.getZhipuAIStandardName()
+                        val isStandardId = member.id == com.example.aifloatingball.utils.AIServiceTypeUtils.generateZhipuAIId()
+                        
+                        Log.d(TAG, "智谱AI成员: ${member.name} (ID: ${member.id})")
+                        Log.d(TAG, "  标准名称: ${if (isStandardName) "✅" else "⚠️ 非标准 (${com.example.aifloatingball.utils.AIServiceTypeUtils.getZhipuAIStandardName()})"}")
+                        Log.d(TAG, "  标准ID: ${if (isStandardId) "✅" else "⚠️ 非标准 (${com.example.aifloatingball.utils.AIServiceTypeUtils.generateZhipuAIId()})"}")
+                        Log.d(TAG, "  aiServiceType: ${if (member.aiServiceType == AIServiceType.ZHIPU_AI) "✅" else "❌"}")
                     }
                 }
             }
@@ -883,18 +916,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 根据联系人信息获取AI服务类型
      */
     private fun getAIServiceType(contact: ChatContact): AIServiceType? {
-        return when (contact.name.lowercase()) {
-            "chatgpt", "gpt" -> AIServiceType.CHATGPT
-            "claude" -> AIServiceType.CLAUDE
-            "gemini" -> AIServiceType.GEMINI
-            "文心一言", "wenxin" -> AIServiceType.WENXIN
-            "deepseek" -> AIServiceType.DEEPSEEK
-            "通义千问", "qianwen" -> AIServiceType.QIANWEN
-            "讯飞星火", "xinghuo" -> AIServiceType.XINGHUO
-            "kimi" -> AIServiceType.KIMI
-            "智谱ai", "智谱清言", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
-            else -> null
-        }
+        return com.example.aifloatingball.utils.AIServiceTypeUtils.getAIServiceTypeFromContact(contact)
     }
 
     /**

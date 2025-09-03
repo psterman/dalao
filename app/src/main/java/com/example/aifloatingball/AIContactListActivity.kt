@@ -717,32 +717,7 @@ class AIContactListActivity : AppCompatActivity() {
      * 从ChatContact获取AIServiceType
      */
     private fun getAIServiceTypeFromContact(contact: ChatContact): AIServiceType? {
-        return when (contact.name.lowercase()) {
-            "chatgpt", "gpt" -> AIServiceType.CHATGPT
-            "claude" -> AIServiceType.CLAUDE
-            "gemini" -> AIServiceType.GEMINI
-            "文心一言", "wenxin" -> AIServiceType.WENXIN
-            "deepseek" -> AIServiceType.DEEPSEEK
-            "通义千问", "qianwen" -> AIServiceType.QIANWEN
-            "讯飞星火", "xinghuo" -> AIServiceType.XINGHUO
-            "kimi" -> AIServiceType.KIMI
-            "智谱ai", "智谱清言", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
-            else -> {
-                // 尝试从ID中识别
-                when {
-                    contact.id.contains("deepseek", ignoreCase = true) -> AIServiceType.DEEPSEEK
-                    contact.id.contains("chatgpt", ignoreCase = true) || contact.id.contains("gpt", ignoreCase = true) -> AIServiceType.CHATGPT
-                    contact.id.contains("claude", ignoreCase = true) -> AIServiceType.CLAUDE
-                    contact.id.contains("gemini", ignoreCase = true) -> AIServiceType.GEMINI
-                    contact.id.contains("zhipu", ignoreCase = true) || contact.id.contains("glm", ignoreCase = true) -> AIServiceType.ZHIPU_AI
-                    contact.id.contains("wenxin", ignoreCase = true) -> AIServiceType.WENXIN
-                    contact.id.contains("qianwen", ignoreCase = true) -> AIServiceType.QIANWEN
-                    contact.id.contains("xinghuo", ignoreCase = true) -> AIServiceType.XINGHUO
-                    contact.id.contains("kimi", ignoreCase = true) -> AIServiceType.KIMI
-                    else -> null
-                }
-            }
-        }
+        return com.example.aifloatingball.utils.AIServiceTypeUtils.getAIServiceTypeFromContact(contact)
     }
 
     /**

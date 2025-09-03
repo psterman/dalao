@@ -158,17 +158,25 @@ class UnifiedGroupChatManager private constructor(private val context: Context) 
             )
         )
         
-        // 添加AI成员
+        // 添加AI成员，确保aiServiceType正确设置
         aiMembers.forEach { aiType ->
+            val aiId = if (aiType == AIServiceType.ZHIPU_AI) {
+                com.example.aifloatingball.utils.AIServiceTypeUtils.generateZhipuAIId()
+            } else {
+                "ai_${aiType.name.lowercase()}"
+            }
+            
             members.add(
                 GroupMember(
-                    id = "ai_${aiType.name.lowercase()}",
+                    id = aiId,
                     name = getAIDisplayName(aiType),
                     type = MemberType.AI,
-                    aiServiceType = aiType,
+                    aiServiceType = aiType, // 明确设置aiServiceType
                     role = MemberRole.MEMBER
                 )
             )
+            
+            Log.d(TAG, "添加AI成员：${getAIDisplayName(aiType)} (ID: $aiId, aiServiceType: $aiType)")
         }
         
         val groupChat = GroupChat(
@@ -328,20 +336,10 @@ class UnifiedGroupChatManager private constructor(private val context: Context) 
     }
     
     /**
-     * 获取AI显示名称
+     * 获取AI显示名称（使用统一工具类）
      */
     private fun getAIDisplayName(aiType: AIServiceType): String {
-        return when (aiType) {
-            AIServiceType.DEEPSEEK -> "DeepSeek"
-            AIServiceType.CHATGPT -> "ChatGPT"
-            AIServiceType.CLAUDE -> "Claude"
-            AIServiceType.GEMINI -> "Gemini"
-            AIServiceType.WENXIN -> "文心一言"
-            AIServiceType.QIANWEN -> "通义千问"
-            AIServiceType.XINGHUO -> "讯飞星火"
-            AIServiceType.KIMI -> "Kimi"
-            AIServiceType.ZHIPU_AI -> "智谱清言"
-        }
+        return com.example.aifloatingball.utils.AIServiceTypeUtils.getAIDisplayName(aiType)
     }
     
     /**
