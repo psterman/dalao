@@ -180,6 +180,13 @@
             app:icon="@drawable/ic_opacity"/>
 
         <SwitchPreferenceCompat
+            app:key="island_enhanced_layout"
+            app:title="增强版布局"
+            app:summary="启用后，灵动岛将显示可交互的按钮，支持长按弹出菜单"
+            app:defaultValue="true"
+            app:icon="@drawable/ic_settings"/>
+
+        <SwitchPreferenceCompat
             app:key="enable_notification_listener"
             app:title="启用通知监听"
             app:summary="允许应用读取通知以在灵动岛中显示"

@@ -56,7 +56,7 @@ class SettingsManager private constructor(context: Context) {
         const val DEFAULT_CHATGPT_API_URL = "https://api.openai.com/v1/chat/completions"
         
         // 灵动岛设置的默认值
-        private const val DEFAULT_ISLAND_WIDTH = 72 // dp
+        private const val DEFAULT_ISLAND_WIDTH = 280 // dp
         private const val DEFAULT_ISLAND_ALPHA = 255 // 0-255
         
         @Volatile
@@ -972,7 +972,7 @@ class SettingsManager private constructor(context: Context) {
     }
     
     fun setIslandWidth(width: Int) {
-        val clampedWidth = width.coerceIn(48, 120) // 限制宽度范围在48-120dp之间
+        val clampedWidth = width.coerceIn(48, 400) // 限制宽度范围在48-400dp之间
         prefs.edit().putInt("island_width", clampedWidth).apply()
         notifyListeners("island_width", clampedWidth)
     }

@@ -95,10 +95,10 @@
 
     <!-- 灵动岛尺寸 -->
     <dimen name="dynamic_island_height">32dp</dimen>
-    <dimen name="dynamic_island_min_width">120dp</dimen>
-    <dimen name="dynamic_island_max_width">280dp</dimen>
+    <dimen name="dynamic_island_min_width">280dp</dimen>
+    <dimen name="dynamic_island_max_width">400dp</dimen>
     <dimen name="dynamic_island_corner_radius">16dp</dimen>
-    <dimen name="dynamic_island_margin_top">4dp</dimen>
+    <dimen name="dynamic_island_margin_top">48dp</dimen>
     <dimen name="dynamic_island_icon_size">20dp</dimen>
     <dimen name="dynamic_island_text_size">14sp</dimen>
     <dimen name="dynamic_island_elevation">4dp</dimen>

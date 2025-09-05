@@ -47,6 +47,12 @@
     <color name="fold_text_light">#000000</color>
     <color name="fold_text_dark">#FFFFFF</color>
 
+    <!-- DeepSeek 回复窗口颜色 -->
+    <color name="deepseek_response_background">#F0F8FF</color>
+    <color name="deepseek_icon_tint">#2196F3</color>
+    <color name="deepseek_title_color">#1976D2</color>
+    <color name="deepseek_text_color">#424242</color>
+
     <!-- Material Theme -->
     <color name="material_background_light">#F5F5F5</color>
 

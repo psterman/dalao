@@ -55,6 +55,7 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
         settingsManager.registerOnSharedPreferenceChangeListener(this)
         applyLayoutDirection()
 
+
         if (savedInstanceState == null) {
             supportFragmentManager
                 .beginTransaction()

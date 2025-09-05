@@ -3,18 +3,24 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_gravity="bottom"
+    android:layout_height="match_parent"
+    android:layout_gravity="top"
     app:cardBackgroundColor="@color/dynamic_island_panel_background"
     app:cardCornerRadius="28dp"
     app:cardElevation="8dp"
     app:strokeWidth="0dp">
 
-    <LinearLayout
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="16dp">
 
         <com.airbnb.lottie.LottieAnimationView
             android:id="@+id/config_panel_animation"
@@ -91,8 +97,11 @@
                 android:textColorHint="@color/dynamic_island_input_hint"
                 android:textSize="16sp"
                 android:imeOptions="actionSearch"
-                android:inputType="textMultiLine"
-                android:maxLines="5" />
+                android:inputType="textCapSentences|textMultiLine"
+                android:maxLines="5"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:clickable="true" />
 
             <ImageView
                 android:id="@+id/search_button"
@@ -121,6 +130,130 @@
                 android:layout_height="match_parent" />
 
         </LinearLayout>
+
+        <!-- AI 助手窗口 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/ai_assistant_container"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="12dp"
+            android:minHeight="200dp"
+            app:cardBackgroundColor="@color/deepseek_response_background"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <!-- AI 服务选择区域 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_marginEnd="8dp"
+                        android:src="@drawable/ic_ai_assistant"
+                        app:tint="@color/deepseek_icon_tint" />
+
+                    <Spinner
+                        android:id="@+id/ai_service_spinner"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@drawable/spinner_background"
+                        android:padding="8dp" />
+
+                    <ImageButton
+                        android:id="@+id/btn_ai_settings"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginStart="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="AI设置"
+                        android:src="@drawable/ic_settings"
+                        app:tint="@color/deepseek_icon_tint" />
+
+                    <ImageButton
+                        android:id="@+id/btn_clear_ai_response"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_marginStart="4dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="清除回复"
+                        android:src="@drawable/ic_close"
+                        app:tint="@color/deepseek_icon_tint" />
+
+                </LinearLayout>
+
+                <!-- AI 输入区域 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:background="@drawable/ai_input_background"
+                    android:padding="8dp"
+                    android:layout_marginBottom="8dp">
+
+                    <EditText
+                        android:id="@+id/ai_input_text"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@android:color/transparent"
+                        android:hint="输入问题或指令..."
+                        android:textColor="@color/deepseek_text_color"
+                        android:textColorHint="@color/deepseek_icon_tint"
+                        android:textSize="12sp"
+                        android:inputType="textCapSentences|textMultiLine"
+                        android:maxLines="3"
+                        android:focusable="true"
+                        android:focusableInTouchMode="true"
+                        android:clickable="true" />
+
+                    <ImageButton
+                        android:id="@+id/btn_send_ai_message"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="发送"
+                        android:src="@drawable/ic_send_plane"
+                        app:tint="@color/deepseek_icon_tint" />
+
+                </LinearLayout>
+
+                <!-- AI 回复区域 -->
+                <ScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:scrollbars="none">
+
+                    <TextView
+                        android:id="@+id/ai_response_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="选择AI服务并输入问题获取回复..."
+                        android:textColor="@color/deepseek_text_color"
+                        android:textSize="11sp"
+                        android:lineSpacingExtra="2dp" />
+
+                </ScrollView>
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- Action Buttons -->
         <LinearLayout
@@ -157,5 +290,6 @@
 
         </LinearLayout>
 
-    </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
 </com.google.android.material.card.MaterialCardView> 

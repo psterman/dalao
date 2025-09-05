@@ -36,15 +36,18 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
+import android.view.DragEvent
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
+import android.widget.Spinner
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -52,6 +55,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.HomeActivity
 import com.example.aifloatingball.R
+import com.example.aifloatingball.activity.AIApiConfigActivity
+import com.example.aifloatingball.manager.AIApiManager
+import com.example.aifloatingball.manager.AIServiceType
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -70,6 +76,7 @@ import android.util.TypedValue
 import androidx.annotation.AttrRes
 import android.content.pm.PackageManager
 import com.example.aifloatingball.MasterPromptSettingsActivity
+import com.example.aifloatingball.SettingsActivity as MainSettingsActivity
 import com.google.android.material.button.MaterialButton
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -77,9 +84,11 @@ import androidx.appcompat.app.AlertDialog
 import android.widget.Toast
 import android.content.ClipDescription
 import android.util.Log
+import com.example.aifloatingball.ChatActivity
+import com.example.aifloatingball.AIContactListActivity
+import com.example.aifloatingball.SimpleModeActivity
 import com.example.aifloatingball.model.AppSearchConfig
 import com.example.aifloatingball.VoiceRecognitionActivity
-import com.example.aifloatingball.SettingsActivity
 import android.os.VibrationEffect
 import com.example.aifloatingball.adapter.AppSearchAdapter
 import com.example.aifloatingball.manager.AppInfoManager
@@ -141,7 +150,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var appSearchIconContainer: LinearLayout? = null
     private var appSearchIconScrollView: HorizontalScrollView? = null
 
-    private var proxyIndicatorView: View? = null
+    // 不再需要proxyIndicatorView，因为现在使用按钮
     private var proxyIndicatorAnimator: ValueAnimator? = null
 
     private var currentKeyboardHeight = 0
@@ -267,6 +276,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         appSearchSettings = AppSearchSettings.getInstance(this)
+        
+        // 强制启用增强版布局（调试用）
+        forceEnableEnhancedLayout()
+        
+        // 测试增强版灵动岛功能
+        testEnhancedIslandFeatures()
         settingsManager = SettingsManager.getInstance(this) // Initialize SettingsManager
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -339,10 +354,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // Recalculate dimensions based on current configuration and settings
         val displayMetrics = resources.displayMetrics
         val islandWidth = settingsManager.getIslandWidth()
-        compactWidth = (islandWidth * displayMetrics.density).toInt()
+        
+        // 强制设置合适的宽度，确保四个按钮能够完整显示
+        val minRequiredWidth = 240 // 240dp，确保四个按钮能够完整显示
+        val actualWidth = maxOf(islandWidth, minRequiredWidth)
+        
+        compactWidth = (actualWidth * displayMetrics.density).toInt()
         expandedWidth = (displayMetrics.widthPixels * 0.9).toInt()
         compactHeight = resources.getDimensionPixelSize(R.dimen.dynamic_island_compact_height)
         expandedHeight = resources.getDimensionPixelSize(R.dimen.dynamic_island_expanded_height)
+        
+        Log.d(TAG, "灵动岛尺寸计算: 原始宽度=${islandWidth}dp, 实际宽度=${actualWidth}dp, 像素宽度=${compactWidth}px, 高度=${compactHeight}px")
 
         // 1. The Stage
         windowContainerView = FrameLayout(this)
@@ -350,7 +372,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             WindowManager.LayoutParams.MATCH_PARENT, // Use full width for the stage
             WindowManager.LayoutParams.WRAP_CONTENT, // Adjust height to content
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START // Change gravity to START to avoid horizontal conflicts
@@ -360,202 +382,52 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 2. The Animating View (Island itself, not the proxy bar)
         animatingIslandView = FrameLayout(this).apply {
             background = ColorDrawable(Color.TRANSPARENT)
-            layoutParams = FrameLayout.LayoutParams(compactWidth, statusBarHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-            visibility = View.GONE // Initially hidden
+            layoutParams = FrameLayout.LayoutParams(compactWidth, compactHeight, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+                topMargin = statusBarHeight // 设置在状态栏下方
+            }
+            visibility = View.VISIBLE // 初始状态就显示，包含按钮
         }
         
-        // 3. The Content
+        // 3. The Content - 使用包含按钮的布局
         islandContentView = inflater.inflate(R.layout.dynamic_island_layout, animatingIslandView, false)
         islandContentView?.background = ColorDrawable(Color.TRANSPARENT)
+        
+        // 设置islandContentView的布局参数，确保它使用父容器的完整宽度
+        islandContentView?.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        
         notificationIconContainer = islandContentView!!.findViewById(R.id.notification_icon_container)
         // 移除永久隐藏通知图标的代码
         // notificationIconContainer.visibility = View.GONE // 删除这行
         appSearchIconScrollView = islandContentView!!.findViewById(R.id.app_search_icon_scroll_view)
         appSearchIconContainer = islandContentView!!.findViewById(R.id.app_search_icon_container)
+        
+        // 确保按钮容器始终可见
+        val buttonContainer = islandContentView!!.findViewById<LinearLayout>(R.id.button_container)
+        buttonContainer?.visibility = View.VISIBLE
+        
+        // 设置按钮交互
+        Log.d(TAG, "设置灵动岛按钮交互")
+        setupEnhancedLayoutButtons(islandContentView!!)
+        
         animatingIslandView!!.addView(islandContentView)
 
-        // 4. Create a touch target that spans the full width to avoid clipping
-        val touchTargetView = FrameLayout(this).apply {
-            id = R.id.touch_target_view // Set an ID to find this view later
-            // Use full width to prevent clipping when the indicator moves to screen edges
-            val touchableWidth = WindowManager.LayoutParams.MATCH_PARENT
-            // A reasonable height for a touch target below the status bar
-            val touchableHeight = 36.dpToPx() 
-            
-            layoutParams = FrameLayout.LayoutParams(touchableWidth, touchableHeight, Gravity.TOP or Gravity.START).apply {
-                // Position the entire touch target just below the status bar
-                topMargin = statusBarHeight
-            }
-            
-            // Don't set click listeners on the container to avoid wide touch area
-        }
-
-        // 5. The Proxy Indicator (Enhanced Dynamic Island), now inside the touch target with its own click handling
-        proxyIndicatorView = DynamicIslandIndicatorView(this).apply {
-            // The new DynamicIslandIndicatorView handles its own sizing and touch area
-            (this as View).layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT,
-                Gravity.START or Gravity.TOP
-            )
-            
-            setOnClickListener {
+        // 4. 灵动岛现在使用按钮交互，不需要拖拽功能
+        
+        // 5. 设置灵动岛的长按监听器
+        animatingIslandView?.setOnLongClickListener {
                 if (!isSearchModeActive) {
-                    // 检查是否有通知需要显示
-                    if (activeNotifications.isNotEmpty()) {
-                        showNotificationExpandedView()
-                    } else {
-                        // Show app icon based on action
-                        val action = settingsManager.getActionIslandClick()
-                        showActionIcon(action)
-                        executeAction(action)
-                    }
-                }
-            }
-            setOnLongClickListener {
-                if (!isSearchModeActive && !isDragging()) {
-                    val action = settingsManager.getActionIslandLongPress()
-                    showActionIcon(action)
-                    executeAction(action)
-                    true // Consume the long click
+                Log.d(TAG, "灵动岛长按，显示搜索面板")
+                showConfigPanel()
+                true
                 } else {
                     false
                 }
             }
-            
-            // 设置拖拽监听器
-            setOnDragListener(object : DynamicIslandIndicatorView.OnDragListener {
-                private var isDragInProgress = false
-                
-                override fun onDragStart() {
-                    isDragInProgress = true
-                    Log.d(TAG, "拖拽开始")
-                }
-                
-                override fun onDragMove(deltaX: Float, deltaY: Float) {
-                    if (!isDragInProgress) return
-                    
-                    // 拖拽移动时更新位置
-                    val touchTarget = windowContainerView?.findViewById<FrameLayout>(R.id.touch_target_view)
-                    touchTarget?.let { target ->
-                        val params = target.layoutParams as FrameLayout.LayoutParams
-                        val screenWidth = resources.displayMetrics.widthPixels
-                        
-                        // 使用translationX来实现平滑移动，避免跳跃
-                        val currentTranslationX = target.translationX
-                        val newTranslationX = currentTranslationX + deltaX
-                        
-                        // 获取小横条的实际宽度
-                        val proxyIndicator = target.getChildAt(0)
-                        val indicatorWidth = if (proxyIndicator != null) {
-                            if (proxyIndicator.measuredWidth == 0) {
-                                proxyIndicator.measure(
-                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                                )
-                            }
-                            proxyIndicator.measuredWidth
-                        } else {
-                            96.dpToPx() // 默认宽度
-                        }
-                        
-                        // 计算实际位置（margin + translation）
-                        val actualX = params.leftMargin + newTranslationX
-                        val edgeMargin = 4.dpToPx()
-                        
-                        // 限制在屏幕范围内
-                        val minX = edgeMargin.toFloat()
-                        val maxX = (screenWidth - edgeMargin - indicatorWidth).toFloat()
-                        val safeMaxX = maxX.coerceAtLeast(minX)
-                        val clampedX = actualX.coerceIn(minX, safeMaxX)
-                        
-                        // 更新translationX
-                        target.translationX = clampedX - params.leftMargin
-                        
-                        // 根据新位置计算百分比并保存（减少保存频率，避免频繁IO）
-                        val range = safeMaxX - minX
-                        val position = if (range > 0) {
-                            (((clampedX - minX) / range) * 100).toInt().coerceIn(0, 100)
-                        } else {
-                            50
-                        }
-                        
-                        // 使用Handler延迟保存，避免频繁保存
-                        savePositionRunnable?.let { uiHandler.removeCallbacks(it) }
-                        val newRunnable = Runnable {
-                            settingsManager.setIslandPosition(position)
-                        }
-                        savePositionRunnable = newRunnable
-                        uiHandler.postDelayed(newRunnable, 50)
-                    }
-                }
-                
-                override fun onDragEnd() {
-                    isDragInProgress = false
-                    Log.d(TAG, "拖拽结束")
-                    
-                    // 拖拽结束时，将translationX合并到margin中，重置translationX
-                    val touchTarget = windowContainerView?.findViewById<FrameLayout>(R.id.touch_target_view)
-                    touchTarget?.let { target ->
-                        val params = target.layoutParams as FrameLayout.LayoutParams
-                        val finalX = params.leftMargin + target.translationX.toInt()
-                        
-                        params.leftMargin = finalX
-                        target.translationX = 0f
-                        target.layoutParams = params
-                        
-                        // 立即保存最终位置
-                        savePositionRunnable?.let { uiHandler.removeCallbacks(it) }
-                        val screenWidth = resources.displayMetrics.widthPixels
-                        
-                        // 获取小横条的实际宽度
-                        val proxyIndicator = target.getChildAt(0)
-                        val indicatorWidth = if (proxyIndicator != null) {
-                            if (proxyIndicator.measuredWidth == 0) {
-                                proxyIndicator.measure(
-                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                                )
-                            }
-                            proxyIndicator.measuredWidth
-                        } else {
-                            96.dpToPx() // 默认宽度
-                        }
-                        
-                        val edgeMargin = 4.dpToPx()
-                        val minX = edgeMargin
-                        val maxX = screenWidth - edgeMargin - indicatorWidth
-                        val safeMaxX = maxX.coerceAtLeast(minX)
-                        val range = safeMaxX - minX
-                        
-                        val position = if (range > 0) {
-                            ((finalX - minX) * 100 / range).coerceIn(0, 100)
-                        } else {
-                            50
-                        }
-                        
-                        Log.d(TAG, "拖拽结束位置计算: finalX=$finalX, minX=$minX, maxX=$safeMaxX, range=$range, position=$position")
-                        settingsManager.setIslandPosition(position)
-                    }
-                    
-                    // 拖拽结束后，如果处于搜索状态，需要隐藏小横条
-                    if (isSearchModeActive) {
-                        uiHandler.postDelayed({
-                            proxyIndicatorView?.visibility = View.GONE
-                        }, 100) // 短暂延迟确保拖拽动画完成
-                    }
-                }
-            })
-        }
-        touchTargetView.addView(proxyIndicatorView)
-
-        // Position the entire touchTargetView horizontally
-        updateIslandPositionForView(touchTargetView)
-        
-        setupProxyIndicator()
         
         windowContainerView!!.addView(animatingIslandView)
-        windowContainerView!!.addView(touchTargetView)
         
         updateIslandVisibility()
 
@@ -567,7 +439,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun showActionIcon(action: String) {
-        val indicatorView = proxyIndicatorView as? DynamicIslandIndicatorView ?: return
+        // 不再需要显示动作图标，因为现在有按钮
+        return
         
         val iconResId = when (action) {
             "voice_recognize" -> R.drawable.ic_mic
@@ -578,7 +451,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             else -> R.drawable.ic_apps // 默认图标
         }
         
-        indicatorView.showAppIcon(iconResId)
+        // 不再需要显示应用图标，因为现在有按钮
     }
 
     private fun executeAction(action: String) {
@@ -642,7 +515,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun openSettings() {
         try {
-            val intent = Intent(this, SettingsActivity::class.java).apply {
+            val intent = Intent(this, MainSettingsActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
@@ -653,19 +526,40 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
+    private fun showSearchDialog() {
+        try {
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra("source", "灵动岛搜索")
+                putExtra("startTime", System.currentTimeMillis())
+            }
+            startService(intent)
+            Log.d(TAG, "启动搜索服务")
+        } catch (e: Exception) {
+            Log.e(TAG, "启动搜索服务失败", e)
+            Toast.makeText(this, "无法启动搜索", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showAppListDialog() {
+        try {
+            val intent = Intent(this, AIContactListActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            Log.d(TAG, "打开应用程序列表")
+        } catch (e: Exception) {
+            Log.e(TAG, "打开应用程序列表失败", e)
+            Toast.makeText(this, "无法打开应用程序列表", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
     private fun transitionToSearchState(force: Boolean = false) {
         if (isSearchModeActive && !force) return
         isSearchModeActive = true
 
-        // 检查是否正在拖拽，如果是则不隐藏小横条
-        val indicatorView = proxyIndicatorView as? DynamicIslandIndicatorView
-        val isDragging = indicatorView?.isDragging() ?: false
-        
-        if (!isDragging) {
-        proxyIndicatorView?.visibility = View.GONE
-        } else {
-            Log.d(TAG, "正在拖拽中，不隐藏小横条")
-        }
+        // 不再需要检查拖拽状态，因为现在使用按钮
         proxyIndicatorAnimator?.cancel()
 
         val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
@@ -773,7 +667,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 windowContainerView?.setBackgroundColor(Color.TRANSPARENT)
 
                 // 确保小横条可见并重新设置
-                proxyIndicatorView?.visibility = View.VISIBLE
+                // 不再需要显示代理指示器
                 setupProxyIndicator()
                 Log.d(TAG, "搜索状态结束，恢复小横条显示")
             }
@@ -830,7 +724,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             "${it.prompt}\n\n---\n\n${query}"
         } ?: query
 
-        // 使用第一个活动卡槽中的引擎，或使用默认引擎
+        // 显示DeepSeek回复窗口
+        showDeepSeekResponse("正在思考中...")
+
+        // 调用DeepSeek API
+        callDeepSeekAPI(finalQuery)
+
+        // 同时启动搜索服务
         val engine = activeSlots[1] ?: loadSearchCategories().firstOrNull()?.engines?.firstOrNull() ?: return
 
         val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
@@ -842,6 +742,134 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         startService(intent)
         
         transitionToCompactState()
+    }
+
+    private fun showDeepSeekResponse(text: String) {
+        val aiResponseText = configPanelView?.findViewById<TextView>(R.id.ai_response_text)
+        aiResponseText?.text = text
+    }
+
+    private fun callDeepSeekAPI(query: String) {
+        // 调用DeepSeek API
+        val aiApiManager = AIApiManager(this)
+        
+        aiApiManager.sendMessage(
+            serviceType = AIServiceType.DEEPSEEK,
+            message = query,
+            conversationHistory = emptyList(),
+            callback = object : AIApiManager.StreamingCallback {
+                override fun onChunkReceived(chunk: String) {
+                    uiHandler.post {
+                        val currentText = configPanelView?.findViewById<TextView>(R.id.ai_response_text)?.text?.toString() ?: ""
+                        configPanelView?.findViewById<TextView>(R.id.ai_response_text)?.text = currentText + chunk
+                    }
+                }
+                
+                override fun onComplete(fullResponse: String) {
+                    uiHandler.post {
+                        showDeepSeekResponse(fullResponse)
+                    }
+                }
+                
+                override fun onError(error: String) {
+                    uiHandler.post {
+                        showDeepSeekResponse("错误：$error\n\n请检查DeepSeek API密钥配置是否正确。")
+                    }
+                }
+            }
+        )
+    }
+
+    private fun updateWindowParamsForInput() {
+        // 更新窗口参数以允许焦点和输入法
+        windowContainerView?.let { view ->
+            val params = view.layoutParams as WindowManager.LayoutParams
+            // 移除FLAG_NOT_FOCUSABLE，允许焦点
+            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+            // 添加FLAG_NOT_TOUCH_MODAL，允许输入法
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            try {
+                windowManager?.updateViewLayout(view, params)
+                Log.d(TAG, "窗口参数已更新以支持输入法")
+            } catch (e: Exception) {
+                Log.e(TAG, "更新窗口参数失败", e)
+            }
+        }
+    }
+
+    private fun setupAIServiceSpinner(spinner: Spinner?) {
+        spinner?.let { sp ->
+            val aiServices = listOf(
+                "DeepSeek",
+                "智谱AI", 
+                "Kimi",
+                "ChatGPT",
+                "Claude",
+                "Gemini",
+                "文心一言",
+                "通义千问",
+                "讯飞星火"
+            )
+            
+            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, aiServices)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            sp.adapter = adapter
+            
+            // 设置默认选择
+            sp.setSelection(0)
+        }
+    }
+
+    private fun sendAIMessage(query: String, responseTextView: TextView?) {
+        responseTextView?.text = "正在思考中..."
+        
+        // 获取当前选择的AI服务
+        val spinner = configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+        val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
+        
+        // 将显示名称映射到AIServiceType
+        val serviceType = when (selectedService) {
+            "DeepSeek" -> AIServiceType.DEEPSEEK
+            "智谱AI" -> AIServiceType.ZHIPU_AI
+            "Kimi" -> AIServiceType.KIMI
+            "ChatGPT" -> AIServiceType.CHATGPT
+            "Claude" -> AIServiceType.CLAUDE
+            "Gemini" -> AIServiceType.GEMINI
+            "文心一言" -> AIServiceType.WENXIN
+            "通义千问" -> AIServiceType.QIANWEN
+            "讯飞星火" -> AIServiceType.XINGHUO
+            else -> AIServiceType.DEEPSEEK
+        }
+        
+        // 创建AI API管理器
+        val aiApiManager = AIApiManager(this)
+        
+        // 调用真实API
+        aiApiManager.sendMessage(
+            serviceType = serviceType,
+            message = query,
+            conversationHistory = emptyList(),
+            callback = object : AIApiManager.StreamingCallback {
+                override fun onChunkReceived(chunk: String) {
+                    uiHandler.post {
+                        val currentText = responseTextView?.text?.toString() ?: ""
+                        responseTextView?.text = currentText + chunk
+                    }
+                }
+                
+                override fun onComplete(fullResponse: String) {
+                    uiHandler.post {
+                        responseTextView?.text = fullResponse
+                    }
+                }
+                
+                override fun onError(error: String) {
+                    uiHandler.post {
+                        responseTextView?.text = "错误：$error\n\n请检查API密钥配置是否正确。"
+                    }
+                }
+            }
+        )
     }
 
     private fun addNotificationIcon(key: String, iconBitmap: android.graphics.Bitmap) {
@@ -863,16 +891,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun showNotificationOnIndicator(icon: android.graphics.Bitmap, title: String, text: String) {
-        (proxyIndicatorView as? DynamicIslandIndicatorView)?.showNotification(icon, title, text)
+        // 不再需要显示通知图标，因为现在有按钮
     }
 
     private fun clearNotificationOnIndicator() {
-        (proxyIndicatorView as? DynamicIslandIndicatorView)?.clearNotification()
+        // 不再需要清除通知图标，因为现在有按钮
     }
 
     private fun updateIslandVisibility() {
         val hasNotifications = activeNotifications.isNotEmpty()
         val hasAppSearchIcons = appSearchIconContainer?.childCount ?: 0 > 0
+        
+        // 始终显示按钮容器和灵动岛本身
+        val buttonContainer = islandContentView?.findViewById<LinearLayout>(R.id.button_container)
+        buttonContainer?.visibility = View.VISIBLE
+        animatingIslandView?.visibility = View.VISIBLE
         
         if (hasNotifications && !isSearchModeActive) {
             // 显示通知图标，隐藏应用搜索图标
@@ -886,7 +919,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             notificationIconContainer.visibility = View.GONE
             appSearchIconScrollView?.visibility = View.VISIBLE
         } else {
-            // 都隐藏，保持紧凑状态
+            // 都隐藏，保持紧凑状态，但按钮容器和灵动岛始终显示
             notificationIconContainer.visibility = View.GONE
             appSearchIconScrollView?.visibility = View.GONE
         }
@@ -1093,8 +1126,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun cleanupViews() {
         try {
-            // 清理DynamicIslandIndicatorView的动画
-            (proxyIndicatorView as? DynamicIslandIndicatorView)?.cleanup()
+            // 不再需要清理代理指示器
 
             if (windowContainerView?.isAttachedToWindow == true) {
                 windowManager.removeView(windowContainerView)
@@ -1111,7 +1143,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         configPanelView = null
         searchEngineSelectorView = null
         assistantSelectorView = null
-        proxyIndicatorView = null
+        // 不再需要代理指示器
         assistantPromptSelectorView = null
         selectorScrimView = null
         editingScrimView = null
@@ -1138,6 +1170,50 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         closeAppSearchButton = configPanelView?.findViewById(R.id.close_app_search_button)
         closeAppSearchButton?.setOnClickListener {
             hideAppSearchResults()
+        }
+
+        // Setup AI 助手窗口
+        val aiAssistantContainer = configPanelView?.findViewById<MaterialCardView>(R.id.ai_assistant_container)
+        val aiServiceSpinner = configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+        val aiInputText = configPanelView?.findViewById<EditText>(R.id.ai_input_text)
+        val aiResponseText = configPanelView?.findViewById<TextView>(R.id.ai_response_text)
+        val btnAiSettings = configPanelView?.findViewById<ImageButton>(R.id.btn_ai_settings)
+        val btnClearAiResponse = configPanelView?.findViewById<ImageButton>(R.id.btn_clear_ai_response)
+        val btnSendAiMessage = configPanelView?.findViewById<ImageButton>(R.id.btn_send_ai_message)
+        
+        // 设置AI服务选择器
+        setupAIServiceSpinner(aiServiceSpinner)
+        
+        // 设置按钮点击事件
+        btnClearAiResponse?.setOnClickListener {
+            aiResponseText?.text = "选择AI服务并输入问题获取回复..."
+        }
+        
+        btnAiSettings?.setOnClickListener {
+            // 打开AI设置页面
+            val intent = Intent(this, AIApiConfigActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        }
+        
+        btnSendAiMessage?.setOnClickListener {
+            val query = aiInputText?.text?.toString()?.trim()
+            if (!query.isNullOrEmpty()) {
+                sendAIMessage(query, aiResponseText)
+            }
+        }
+        
+        // 设置输入框监听器
+        aiInputText?.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEND) {
+                val query = aiInputText?.text?.toString()?.trim()
+                if (!query.isNullOrEmpty()) {
+                    sendAIMessage(query, aiResponseText)
+                }
+                true
+            } else {
+                false
+            }
         }
 
         // Set initial state and add listener for the send button's alpha
@@ -1167,7 +1243,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // Showing the button is now handled when the panel appears.
             if (!hasFocus) {
                 hidePasteButton()
+            } else {
+                // 当获得焦点时，强制显示输入法
+                uiHandler.postDelayed({
+                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                    imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY)
+                }, 100)
             }
+        }
+
+        // 添加点击监听器，确保点击时显示输入法
+        searchInput?.setOnClickListener {
+            searchInput?.requestFocus()
+            uiHandler.postDelayed({
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY)
+            }, 100)
         }
 
         // We abandon ActionMode as it's unreliable in overlays.
@@ -1273,22 +1364,60 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             openSettings()
         }
 
+        // 计算灵动岛的位置，让搜索面板从灵动岛下方展开
+        val islandY = statusBarHeight + compactHeight + 16 // 灵动岛下方16dp
+        val screenHeight = resources.displayMetrics.heightPixels
+        val maxPanelHeight = screenHeight - islandY - 100 // 留出底部空间给输入法
+
         val panelParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM
-        )
+            maxPanelHeight,
+            Gravity.TOP
+        ).apply {
+            topMargin = islandY
+            leftMargin = 16.dpToPx()
+            rightMargin = 16.dpToPx()
+        }
 
         // Add the panel to the window
         windowContainerView?.addView(configPanelView, panelParams)
+        
+        // 更新窗口参数以允许焦点和输入法
+        updateWindowParamsForInput()
+        
         configPanelView?.apply {
             alpha = 0f
-            translationY = 1000f
-            animate().alpha(1f).translationY(0f).setDuration(300).start()
+            translationY = -200f // 从上方滑入
+            scaleX = 0.9f
+            scaleY = 0.9f
+            animate()
+                .alpha(1f)
+                .translationY(0f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(300)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .withEndAction {
+                    // 动画完成后显示输入法
+                    searchInput?.requestFocus()
+                    uiHandler.postDelayed({
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        // 使用更强制的方法显示输入法
+                        imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY)
+                    }, 200)
+                }
+                .start()
         }
 
         // Automatically show the paste button when the config panel appears.
         showPasteButton()
+        
+        // 延迟显示输入法，确保面板完全显示后再显示输入法
+        uiHandler.postDelayed({
+            searchInput?.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY)
+        }, 500)
     }
 
     private fun showCustomTextMenu() {
@@ -1328,6 +1457,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // Make the popup focusable and dismissable on outside touch.
         textActionMenu = PopupWindow(menuView, WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT, true).apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            // PopupWindow不需要设置窗口类型，它会自动继承父窗口的类型
         }
 
         val layout = editText.layout ?: return
@@ -1832,16 +1962,27 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 // 重新计算并更新视图大小
                 val displayMetrics = resources.displayMetrics
                 val islandWidth = settingsManager.getIslandWidth()
-                compactWidth = (islandWidth * displayMetrics.density).toInt()
                 
-                // 如果不在搜索模式，更新当前宽度
-                if (!isSearchModeActive) {
-                    animatingIslandView?.layoutParams?.width = compactWidth
-                    animatingIslandView?.requestLayout()
-                }
+                // 强制设置合适的宽度，确保四个按钮能够完整显示
+                val minRequiredWidth = 240 // 240dp，确保四个按钮能够完整显示
+                val actualWidth = maxOf(islandWidth, minRequiredWidth)
+                
+                compactWidth = (actualWidth * displayMetrics.density).toInt()
+                
+                Log.d(TAG, "灵动岛宽度设置已变更: 原始宽度=${islandWidth}dp, 实际宽度=${actualWidth}dp, 像素宽度=${compactWidth}px")
+                // 强制重启灵动岛以应用新宽度
+                forceRestartIsland()
             }
             "island_position" -> {
                 updateProxyIndicatorPosition()
+            }
+            "island_enhanced_layout" -> {
+                Log.d(TAG, "灵动岛增强版布局设置已变更，重新创建视图")
+                // 重新创建灵动岛视图以应用新的布局
+                uiHandler.post {
+                    cleanupViews()
+                    showDynamicIsland()
+                }
             }
         }
     }
@@ -1958,7 +2099,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, // Not focusable, but can receive touch
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, // 允许接收触摸事件
             PixelFormat.TRANSLUCENT
         )
         // Set a high Z-order but lower than the island itself
@@ -1985,7 +2126,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val panelToRemove = configPanelView
         configPanelView = null
 
-        val animation = panelToRemove?.animate()?.translationY(panelToRemove.height.toFloat())?.setDuration(300)
+        val animation = panelToRemove?.animate()
+            ?.translationY(-200f) // 向上滑出
+            ?.alpha(0f)
+            ?.scaleX(0.9f)
+            ?.scaleY(0.9f)
+            ?.setDuration(250)
+            ?.setInterpolator(android.view.animation.AccelerateInterpolator())
+        
         animation?.setListener(object : AnimatorListenerAdapter() {
             override fun onAnimationEnd(animation: Animator) {
                 if (panelToRemove.parent is ViewGroup) {
@@ -2301,88 +2449,48 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         proxyIndicatorAnimator = null
         
         // Update the custom indicator view settings
-        (proxyIndicatorView as? DynamicIslandIndicatorView)?.updateSettings()
+        // 不再需要更新代理指示器设置
         
         // Apply the current position setting
         updateProxyIndicatorPosition()
     }
 
     private fun updateProxyIndicatorPosition() {
-        Log.d(TAG, "更新小横条位置: proxyIndicatorView=${proxyIndicatorView != null}")
-        
-        // Find the touchTargetView first
-        val touchTargetView = windowContainerView?.findViewById<FrameLayout>(R.id.touch_target_view)
-        touchTargetView?.let { targetView ->
-            updateIslandPositionForView(targetView)
-            Log.d(TAG, "通过 touchTargetView 更新小横条位置")
-        } ?: run {
-            Log.d(TAG, "未找到 touchTargetView，无法更新位置")
-        }
+        // 不再需要更新代理指示器位置，因为现在使用按钮
     }
 
     private fun updateIslandPosition(position: Int) {
-        // Find the touchTargetView and proxyIndicatorView and update their position
-        windowContainerView?.let { container ->
-            val touchTarget = container.findViewById<FrameLayout>(R.id.touch_target_view)
-            touchTarget?.let {
-                updateIslandPositionForView(it)
-                Log.d(TAG, "动态更新小横条位置: position=$position")
-            }
+        // 不再需要更新位置，因为现在使用按钮
+    }
+    
+    private fun updateIslandWidth() {
+        if (animatingIslandView != null) {
+            val displayMetrics = resources.displayMetrics
+            val islandWidth = settingsManager.getIslandWidth()
+            
+            // 强制设置合适的宽度，确保四个按钮能够完整显示
+            val minRequiredWidth = 240 // 240dp，确保四个按钮能够完整显示
+            val actualWidth = maxOf(islandWidth, minRequiredWidth)
+            
+            compactWidth = (actualWidth * displayMetrics.density).toInt()
+            
+            // 更新灵动岛宽度
+            animatingIslandView?.layoutParams?.width = compactWidth
+            windowManager?.updateViewLayout(windowContainerView, windowContainerView?.layoutParams)
+            Log.d(TAG, "更新灵动岛宽度: 原始宽度=${islandWidth}dp, 实际宽度=${actualWidth}dp, 像素宽度=${compactWidth}px")
         }
+    }
+    
+    private fun forceRestartIsland() {
+        Log.d(TAG, "强制重启灵动岛以应用新宽度")
+        cleanupViews()
+        uiHandler.postDelayed({
+            showDynamicIsland()
+        }, 100)
     }
 
     private fun updateIslandPositionForView(touchTargetView: View) {
-        val position = settingsManager.getIslandPosition()
-        val screenWidth = resources.displayMetrics.widthPixels
-        
-        // Find the proxyIndicatorView within the touchTargetView
-        val proxyIndicator = if (touchTargetView is FrameLayout) {
-            touchTargetView.getChildAt(0) // proxyIndicatorView is the first (and only) child
-        } else {
-            null
-        }
-        
-        proxyIndicator?.let { indicator ->
-            // 确保View已经测量过，获取实际宽度
-            if (indicator.measuredWidth == 0) {
-                indicator.measure(
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                )
-            }
-            
-            val indicatorWidth = indicator.measuredWidth
-            val edgeMargin = 4.dpToPx()
-            
-            val minX = edgeMargin
-            val maxX = screenWidth - edgeMargin - indicatorWidth
-            
-            // 确保maxX不小于minX，避免负数范围
-            val safeMaxX = maxX.coerceAtLeast(minX)
-            
-            val targetX = when {
-                position <= 0 -> minX
-                position >= 100 -> safeMaxX
-                else -> {
-                    val range = safeMaxX - minX
-                    if (range > 0) {
-                        minX + (position / 100.0f * range).toInt()
-                    } else {
-                        minX
-                    }
-                }
-            }
-            
-            Log.d(TAG, "位置计算: position=$position, screenWidth=$screenWidth, indicatorWidth=$indicatorWidth, targetX=$targetX, range=${safeMaxX - minX}")
-            
-            // Update the proxyIndicatorView position within its parent
-            (indicator.layoutParams as FrameLayout.LayoutParams).apply {
-                gravity = Gravity.START or Gravity.TOP
-                leftMargin = targetX
-                rightMargin = 0
-            }
-            indicator.requestLayout()
-        }
+        // 不再需要更新位置，因为现在使用按钮
     }
 
     private fun expandIsland() {
@@ -2509,10 +2617,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         }
         
-        // Re-apply island position after configuration change
-        uiHandler.post {
-            updateProxyIndicatorPosition()
-        }
+        // 不再需要更新代理指示器位置，因为现在使用按钮
     }
 
     private fun getIslandLayoutParams(isCompact: Boolean): WindowManager.LayoutParams {
@@ -2526,7 +2631,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             width,
             height,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
@@ -2687,7 +2791,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             } else {
                 WindowManager.LayoutParams.TYPE_PHONE
             },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -2708,6 +2811,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun createIslandView() {
         val themedContext = getThemedContext()
         val inflater = LayoutInflater.from(ContextThemeWrapper(themedContext, R.style.Theme_DynamicIsland))
+        
+        // 使用包含按钮的布局
         val view = inflater.inflate(R.layout.dynamic_island_layout, null)
 
         // 根据主题设置圆角和背景
@@ -2746,7 +2851,267 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             textSize = resources.getDimension(R.dimen.dynamic_island_text_size)
         }
 
+        // 确保按钮容器始终可见
+        val buttonContainer = view.findViewById<LinearLayout>(R.id.button_container)
+        buttonContainer?.visibility = View.VISIBLE
+        
+        // 设置按钮交互
+        Log.d(TAG, "设置灵动岛按钮交互")
+        setupEnhancedLayoutButtons(view)
+
         windowContainerView = view as FrameLayout
         islandContentView = view
+    }
+
+    /**
+     * 设置增强版布局的按钮交互
+     */
+    private fun setupEnhancedLayoutButtons(view: View) {
+        // 设置紧凑状态按钮
+        val btnAiAssistant = view.findViewById<MaterialButton>(R.id.btn_ai_assistant)
+        val btnApps = view.findViewById<MaterialButton>(R.id.btn_apps)
+        val btnSearch = view.findViewById<MaterialButton>(R.id.btn_search)
+        val btnSettings = view.findViewById<MaterialButton>(R.id.btn_settings)
+
+        // AI助手按钮
+        btnAiAssistant?.setOnClickListener {
+            Log.d(TAG, "AI助手按钮被点击")
+            showQuickChatDialog()
+        }
+
+        // 应用程序按钮
+        btnApps?.setOnClickListener {
+            Log.d(TAG, "应用程序按钮被点击 - 准备打开搜索面板")
+            showConfigPanel()
+        }
+
+        // 搜索按钮
+        btnSearch?.setOnClickListener {
+            Log.d(TAG, "搜索按钮被点击")
+            showSearchDialog()
+        }
+
+        // 设置按钮
+        btnSettings?.setOnClickListener {
+            Log.d(TAG, "设置按钮被点击")
+            showSettingsDialog()
+        }
+
+        // 设置长按监听器
+        val buttonContainer = view.findViewById<LinearLayout>(R.id.button_container)
+        buttonContainer?.setOnLongClickListener {
+            Log.d(TAG, "灵动岛长按，显示扩展菜单")
+            showExpandedMenu(view)
+            true
+        }
+
+        // 设置扩展菜单按钮
+        setupExpandedMenuButtons(view)
+    }
+
+    /**
+     * 设置扩展菜单的按钮交互
+     */
+    private fun setupExpandedMenuButtons(view: View) {
+        val expandedMenuContainer = view.findViewById<MaterialCardView>(R.id.expanded_menu_container)
+        
+        // 快速聊天
+        expandedMenuContainer?.findViewById<MaterialButton>(R.id.menu_btn_chat)?.setOnClickListener {
+            Log.d(TAG, "快速聊天按钮被点击")
+            hideExpandedMenu()
+            showQuickChatDialog()
+        }
+
+        // 群聊
+        expandedMenuContainer?.findViewById<MaterialButton>(R.id.menu_btn_group_chat)?.setOnClickListener {
+            Log.d(TAG, "群聊按钮被点击")
+            hideExpandedMenu()
+            showGroupChatDialog()
+        }
+
+        // 语音助手
+        expandedMenuContainer?.findViewById<MaterialButton>(R.id.menu_btn_voice)?.setOnClickListener {
+            Log.d(TAG, "语音助手按钮被点击")
+            hideExpandedMenu()
+            showVoiceAssistant()
+        }
+
+        // 翻译
+        expandedMenuContainer?.findViewById<MaterialButton>(R.id.menu_btn_translate)?.setOnClickListener {
+            Log.d(TAG, "翻译按钮被点击")
+            hideExpandedMenu()
+            showTranslateDialog()
+        }
+
+        // 设置
+        expandedMenuContainer?.findViewById<MaterialButton>(R.id.menu_btn_settings)?.setOnClickListener {
+            Log.d(TAG, "菜单设置按钮被点击")
+            hideExpandedMenu()
+            showSettingsDialog()
+        }
+
+        // 更多
+        expandedMenuContainer?.findViewById<MaterialButton>(R.id.menu_btn_more)?.setOnClickListener {
+            Log.d(TAG, "更多按钮被点击")
+            hideExpandedMenu()
+            showMoreOptionsDialog()
+        }
+    }
+
+    /**
+     * 显示扩展菜单
+     */
+    private fun showExpandedMenu(view: View) {
+        val expandedMenuContainer = view.findViewById<MaterialCardView>(R.id.expanded_menu_container)
+        expandedMenuContainer?.let { menu ->
+            // 显示动画
+            menu.alpha = 0f
+            menu.scaleX = 0.8f
+            menu.scaleY = 0.8f
+            menu.visibility = View.VISIBLE
+            
+            menu.animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(200)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
+                .start()
+        }
+    }
+
+    /**
+     * 隐藏扩展菜单
+     */
+    private fun hideExpandedMenu() {
+        val expandedMenuContainer = windowContainerView?.findViewById<MaterialCardView>(R.id.expanded_menu_container)
+        expandedMenuContainer?.let { menu ->
+            menu.animate()
+                .alpha(0f)
+                .scaleX(0.8f)
+                .scaleY(0.8f)
+                .setDuration(150)
+                .setInterpolator(android.view.animation.AccelerateInterpolator())
+                .withEndAction {
+                    menu.visibility = View.GONE
+                }
+                .start()
+        }
+    }
+
+    /**
+     * 显示快速聊天对话框
+     */
+    private fun showQuickChatDialog() {
+        val intent = Intent(this, ChatActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("quick_chat", true)
+        }
+        startActivity(intent)
+    }
+
+    /**
+     * 显示群聊对话框
+     */
+    private fun showGroupChatDialog() {
+        val intent = Intent(this, AIContactListActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("create_group_chat", true)
+        }
+        startActivity(intent)
+    }
+
+    /**
+     * 显示语音助手
+     */
+    private fun showVoiceAssistant() {
+        // 启动语音识别
+        val intent = Intent(this, ChatActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("voice_mode", true)
+        }
+        startActivity(intent)
+    }
+
+    /**
+     * 显示翻译对话框
+     */
+    private fun showTranslateDialog() {
+        val intent = Intent(this, ChatActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("translate_mode", true)
+        }
+        startActivity(intent)
+    }
+
+    /**
+     * 显示设置对话框
+     */
+    private fun showSettingsDialog() {
+        val intent = Intent(this, MainSettingsActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+
+    /**
+     * 显示更多选项对话框
+     */
+    private fun showMoreOptionsDialog() {
+        val intent = Intent(this, SimpleModeActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+
+    /**
+     * 强制启用增强版布局（调试用）
+     */
+    private fun forceEnableEnhancedLayout() {
+        val useEnhancedLayout = sharedPreferences.getBoolean("island_enhanced_layout", true)
+        if (!useEnhancedLayout) {
+            Log.d(TAG, "强制启用增强版布局")
+            sharedPreferences.edit().putBoolean("island_enhanced_layout", true).apply()
+        }
+    }
+
+    /**
+     * 测试增强版灵动岛功能（调试用）
+     */
+    private fun testEnhancedIslandFeatures() {
+        Log.d(TAG, "=== 测试增强版灵动岛功能 ===")
+        
+        val useEnhancedLayout = sharedPreferences.getBoolean("island_enhanced_layout", true)
+        Log.d(TAG, "增强版布局状态: $useEnhancedLayout")
+        
+        if (useEnhancedLayout) {
+            Log.d(TAG, "✅ 增强版布局已启用")
+            Log.d(TAG, "功能包括:")
+            Log.d(TAG, "  - 紧凑状态按钮: AI助手、搜索、设置")
+            Log.d(TAG, "  - 长按弹出扩展菜单")
+            Log.d(TAG, "  - 扩展菜单包含: 快速聊天、群聊、语音助手、翻译、设置、更多")
+        } else {
+            Log.d(TAG, "❌ 增强版布局未启用，使用传统布局")
+        }
+        
+        // 测试按钮点击功能
+        windowContainerView?.let { view ->
+            val btnAiAssistant = view.findViewById<MaterialButton>(R.id.btn_ai_assistant)
+            val btnSearch = view.findViewById<MaterialButton>(R.id.btn_search)
+            val btnSettings = view.findViewById<MaterialButton>(R.id.btn_settings)
+            val buttonContainer = view.findViewById<LinearLayout>(R.id.button_container)
+            
+            Log.d(TAG, "按钮状态检查:")
+            Log.d(TAG, "  - 按钮容器: ${if (buttonContainer != null) "✅ 存在" else "❌ 不存在"}")
+            Log.d(TAG, "  - AI助手按钮: ${if (btnAiAssistant != null) "✅ 存在" else "❌ 不存在"}")
+            Log.d(TAG, "  - 搜索按钮: ${if (btnSearch != null) "✅ 存在" else "❌ 不存在"}")
+            Log.d(TAG, "  - 设置按钮: ${if (btnSettings != null) "✅ 存在" else "❌ 不存在"}")
+            
+            // 检查按钮容器可见性
+            buttonContainer?.let {
+                Log.d(TAG, "  - 按钮容器可见性: ${it.visibility}")
+                Log.d(TAG, "  - 按钮容器子视图数量: ${it.childCount}")
+            }
+        }
     }
 }

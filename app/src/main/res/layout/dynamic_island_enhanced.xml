@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center_horizontal"
+    android:layout_marginTop="@dimen/dynamic_island_margin_top"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <!-- 主灵动岛容器 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/island_card_view"
+        android:layout_width="wrap_content"
+        android:layout_height="@dimen/dynamic_island_height"
+        android:minWidth="@dimen/dynamic_island_min_width"
+        android:maxWidth="@dimen/dynamic_island_max_width"
+        app:cardBackgroundColor="#CC000000"
+        app:cardCornerRadius="@dimen/dynamic_island_corner_radius"
+        app:cardElevation="4dp">
+
+        <!-- 紧凑状态：显示按钮区域 -->
+        <LinearLayout
+            android:id="@+id/button_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:visibility="visible">
+
+            <!-- 左侧按钮：AI助手 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_ai_assistant"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/dynamic_island_button_background"
+                android:contentDescription="AI助手"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_ai_assistant"
+                app:icon="@drawable/ic_ai_assistant"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon" />
+
+            <!-- 中间按钮：搜索 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_search"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/dynamic_island_button_background"
+                android:contentDescription="搜索"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_search"
+                app:icon="@drawable/ic_search"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon" />
+
+            <!-- 右侧按钮：设置 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_settings"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/dynamic_island_button_background"
+                android:contentDescription="设置"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_settings"
+                app:icon="@drawable/ic_settings"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon" />
+
+        </LinearLayout>
+
+        <!-- 通知显示区域 -->
+        <LinearLayout
+            android:id="@+id/notification_icon_container"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/notification_icon"
+                android:layout_width="@dimen/dynamic_island_icon_size"
+                android:layout_height="@dimen/dynamic_island_icon_size"
+                android:layout_marginEnd="8dp"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:id="@+id/notification_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/dynamic_island_text_size" />
+        </LinearLayout>
+
+        <!-- 复制提示区域 -->
+        <LinearLayout
+            android:id="@+id/copy_toast_container"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/copy_toast_icon"
+                android:layout_width="@dimen/dynamic_island_icon_size"
+                android:layout_height="@dimen/dynamic_island_icon_size"
+                android:layout_marginEnd="8dp"
+                android:src="@drawable/ic_check" />
+
+            <TextView
+                android:id="@+id/copy_toast_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="已复制"
+                android:textColor="@android:color/white"
+                android:textSize="@dimen/dynamic_island_text_size" />
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 长按放大后的菜单容器 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/expanded_menu_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="60dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="#E6000000"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- 菜单标题 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginBottom="12dp"
+                android:text="AI助手菜单"
+                android:textColor="@android:color/white"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <!-- 菜单按钮网格 -->
+            <GridLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:columnCount="3"
+                android:rowCount="2">
+
+                <!-- 快速聊天 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_btn_chat"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dynamic_island_menu_button_background"
+                    android:contentDescription="快速聊天"
+                    app:icon="@drawable/ic_chat"
+                    app:iconSize="24dp"
+                    app:iconTint="@color/dynamic_island_button_icon" />
+
+                <!-- 群聊 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_btn_group_chat"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dynamic_island_menu_button_background"
+                    android:contentDescription="群聊"
+                    app:icon="@drawable/ic_group_chat"
+                    app:iconSize="24dp"
+                    app:iconTint="@color/dynamic_island_button_icon" />
+
+                <!-- 语音助手 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_btn_voice"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dynamic_island_menu_button_background"
+                    android:contentDescription="语音助手"
+                    app:icon="@drawable/ic_voice"
+                    app:iconSize="24dp"
+                    app:iconTint="@color/dynamic_island_button_icon" />
+
+                <!-- 翻译 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_btn_translate"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dynamic_island_menu_button_background"
+                    android:contentDescription="翻译"
+                    app:icon="@drawable/ic_translate"
+                    app:iconSize="24dp"
+                    app:iconTint="@color/dynamic_island_button_icon" />
+
+                <!-- 设置 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_btn_settings"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dynamic_island_menu_button_background"
+                    android:contentDescription="设置"
+                    app:icon="@drawable/ic_settings"
+                    app:iconSize="24dp"
+                    app:iconTint="@color/dynamic_island_button_icon" />
+
+                <!-- 更多 -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/menu_btn_more"
+                    style="@style/Widget.Material3.Button.IconButton"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:layout_margin="4dp"
+                    android:background="@drawable/dynamic_island_menu_button_background"
+                    android:contentDescription="更多"
+                    app:icon="@drawable/ic_more"
+                    app:iconSize="24dp"
+                    app:iconTint="@color/dynamic_island_button_icon" />
+
+            </GridLayout>
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+</FrameLayout>
