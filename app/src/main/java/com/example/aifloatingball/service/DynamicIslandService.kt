@@ -73,6 +73,13 @@ import com.example.aifloatingball.utils.FaviconLoader
 import com.google.android.material.tabs.TabLayout
 import android.content.res.Configuration
 import android.util.TypedValue
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Typeface
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import androidx.annotation.AttrRes
 import android.content.pm.PackageManager
 import com.example.aifloatingball.MasterPromptSettingsActivity
@@ -82,7 +89,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.appcompat.app.AlertDialog
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import android.content.ClipDescription
+import android.widget.Button
 import android.util.Log
 import com.example.aifloatingball.ChatActivity
 import com.example.aifloatingball.AIContactListActivity
@@ -91,6 +100,7 @@ import com.example.aifloatingball.model.AppSearchConfig
 import com.example.aifloatingball.VoiceRecognitionActivity
 import android.os.VibrationEffect
 import com.example.aifloatingball.adapter.AppSearchAdapter
+import com.example.aifloatingball.adapter.RecentAppAdapter
 import com.example.aifloatingball.manager.AppInfoManager
 import com.example.aifloatingball.model.AppInfo
 import com.google.android.material.card.MaterialCardView
@@ -261,6 +271,19 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var appSearchAdapter: AppSearchAdapter? = null
     private var appSearchResultsContainer: View? = null
     private var closeAppSearchButton: View? = null
+    
+    // 最近选中的APP相关
+    private var recentAppButton: MaterialButton? = null
+    private var recentAppsDropdown: PopupWindow? = null
+    private var recentAppAdapter: RecentAppAdapter? = null
+    private val recentApps = mutableListOf<AppInfo>()
+    private var currentSelectedApp: AppInfo? = null
+    private var lastSearchQuery: String = ""
+    
+    // 状态保存相关
+    private val PREFS_NAME = "dynamic_island_prefs"
+    private val KEY_CURRENT_APP_PACKAGE = "current_app_package"
+    private val KEY_RECENT_APPS = "recent_apps"
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -276,6 +299,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         appSearchSettings = AppSearchSettings.getInstance(this)
+        
+        // 初始化AppInfoManager并加载应用列表
+        AppInfoManager.getInstance().loadApps(this)
         
         // 强制启用增强版布局（调试用）
         forceEnableEnhancedLayout()
@@ -696,13 +722,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val query = searchInput?.text.toString().trim()
                 if (query.isNotEmpty()) {
                     hideKeyboard(searchInput)
-                    val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                        putExtra("search_query", query)
-                        putExtra("source", "灵动岛")
-                        putExtra("startTime", System.currentTimeMillis())
-                    }
-                    startService(intent)
-                    collapseIsland()
+                    performSearch() // 使用统一的搜索逻辑
                 }
                 true
             } else {
@@ -719,29 +739,52 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val query = searchInput?.text.toString().trim()
         if (query.isEmpty()) return
 
-        // Prepend assistant prompt if selected
-        val finalQuery = selectedAssistantPrompt?.let {
-            "${it.prompt}\n\n---\n\n${query}"
-        } ?: query
+        Log.d(TAG, "执行搜索: $query")
+        lastSearchQuery = query
 
-        // 显示DeepSeek回复窗口
-        showDeepSeekResponse("正在思考中...")
-
-        // 调用DeepSeek API
-        callDeepSeekAPI(finalQuery)
-
-        // 同时启动搜索服务
-        val engine = activeSlots[1] ?: loadSearchCategories().firstOrNull()?.engines?.firstOrNull() ?: return
-
-        val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-            putExtra("search_query", finalQuery)
-            putExtra("engine_key", engine.name.lowercase())
-            putExtra("search_source", "灵动岛输入")
-            putExtra("startTime", System.currentTimeMillis())
+        // 检查是否有选中的APP
+        if (currentSelectedApp != null) {
+            handleSearchWithSelectedApp(query, currentSelectedApp!!)
+            return
         }
-        startService(intent)
+
+        // 没有选中APP时，搜索匹配的APP
+        val appInfoManager = AppInfoManager.getInstance()
+        val appResults = if (appInfoManager.isLoaded()) {
+            appInfoManager.search(query)
+        } else {
+            emptyList()
+        }
+
+        if (appResults.isNotEmpty()) {
+            // 找到匹配的APP，显示搜索结果
+            Log.d(TAG, "显示应用搜索结果: ${appResults.map { it.label }}")
+            showAppSearchResults(appResults)
+        } else {
+            // 没有找到匹配的APP，显示支持URL scheme的APP图标
+            Log.d(TAG, "没有找到匹配的应用，显示URL scheme APP图标")
+            showUrlSchemeAppIcons()
+        }
+
+        // 复制搜索文本到剪贴板
+        copyTextToClipboard(query)
         
+        // 显示提示
+        Toast.makeText(this, "已复制搜索文本，请在APP中粘贴", Toast.LENGTH_SHORT).show()
+        
+        // 收起灵动岛
         transitionToCompactState()
+    }
+
+    private fun copyTextToClipboard(text: String) {
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("搜索文本", text)
+            clipboard.setPrimaryClip(clip)
+            Log.d(TAG, "已复制文本到剪贴板: $text")
+        } catch (e: Exception) {
+            Log.e(TAG, "复制文本到剪贴板失败", e)
+        }
     }
 
     private fun showDeepSeekResponse(text: String) {
@@ -1171,6 +1214,28 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         closeAppSearchButton?.setOnClickListener {
             hideAppSearchResults()
         }
+        
+        // 初始化时显示常用APP图标
+        showDefaultAppIcons()
+        
+        // 初始化最近选中的APP按钮
+        recentAppButton = configPanelView?.findViewById<MaterialButton>(R.id.recent_app_button)
+        recentAppButton?.setOnClickListener {
+            showRecentAppsDropdown()
+        }
+        
+        // 恢复当前选中的APP
+        restoreCurrentSelectedApp()
+        
+        // 设置点击其他位置退出功能
+        val configPanelRoot = configPanelView?.findViewById<MaterialCardView>(R.id.config_panel_root)
+        configPanelRoot?.setOnClickListener { view ->
+            // 检查点击的是否是面板本身（而不是子元素）
+            if (view.id == R.id.config_panel_root) {
+                Log.d(TAG, "点击搜索面板其他位置，关闭面板")
+                hideConfigPanel()
+            }
+        }
 
         // Setup AI 助手窗口
         val aiAssistantContainer = configPanelView?.findViewById<MaterialCardView>(R.id.ai_assistant_container)
@@ -1218,25 +1283,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // Set initial state and add listener for the send button's alpha
         searchButton?.alpha = 0.5f // Start as semi-transparent
-        searchInput?.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                hidePasteButton() // Hide as soon as user interacts
-            }
-            override fun afterTextChanged(s: Editable?) {
-                val query = s.toString()
-                if (query.isNotEmpty()) {
-                    val appResults = appInfoManager.search(query)
-                    if (appResults.isNotEmpty()) {
-                        showAppSearchResults(appResults)
-                    } else {
-                        hideAppSearchResults()
-                    }
-                } else {
-                    hideAppSearchResults()
-                }
-            }
-        })
+        // 移除重复的TextWatcher，使用统一的initSearchInputListener
 
         searchInput?.setOnFocusChangeListener { _, hasFocus ->
             // If the input field loses focus, we should hide the paste button.
@@ -2172,11 +2219,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 setPadding(4.dpToPx(), 4.dpToPx(), 4.dpToPx(), 4.dpToPx())
                 scaleType = ImageView.ScaleType.CENTER_CROP
 
-                try {
-                    setImageDrawable(packageManager.getApplicationIcon(config.packageName))
-                } catch (e: PackageManager.NameNotFoundException) {
-                    setImageResource(config.iconResId) // Fallback
-                }
+                // 改进的图标加载逻辑
+                val icon = loadAppIcon(config)
+                setImageDrawable(icon)
+                
                 setOnClickListener {
                     val query = searchInput?.text.toString().trim()
                     if (query.isNotEmpty()) {
@@ -2195,6 +2241,78 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             appSearchIconContainer?.addView(iconView)
         }
+    }
+
+    /**
+     * 加载应用图标，支持多种fallback策略
+     */
+    private fun loadAppIcon(config: AppSearchConfig): Drawable? {
+        return try {
+            // 1. 首先检查应用是否已安装，如果已安装则获取真实图标
+            if (isAppInstalled(config.packageName)) {
+                Log.d(TAG, "应用已安装，获取真实图标: ${config.appName}")
+                val icon = packageManager.getApplicationIcon(config.packageName)
+                if (icon != null) {
+                    return icon
+                }
+            }
+            
+            Log.d(TAG, "应用未安装或图标获取失败，尝试其他图标加载方式: ${config.appName}")
+            
+            // 2. 尝试使用自定义图标资源（但排除系统默认图标）
+            try {
+                val customIcon = getDrawable(config.iconResId)
+                if (customIcon != null && config.iconResId != android.R.drawable.ic_menu_search && 
+                    config.iconResId != android.R.drawable.ic_menu_gallery &&
+                    config.iconResId != android.R.drawable.ic_menu_directions &&
+                    config.iconResId != android.R.drawable.ic_menu_manage) {
+                    return customIcon
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "自定义图标加载失败: ${config.appName}")
+            }
+            
+            // 3. 生成字母图标作为fallback
+            generateLetterIcon(config)
+        } catch (e: Exception) {
+            Log.e(TAG, "图标加载异常: ${config.appName}", e)
+            // 4. 最后使用字母图标
+            generateLetterIcon(config)
+        }
+    }
+
+    /**
+     * 生成字母图标
+     */
+    private fun generateLetterIcon(config: AppSearchConfig): Drawable {
+        val size = 40.dpToPx()
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        
+        // 设置背景
+        val paint = Paint().apply {
+            isAntiAlias = true
+            color = Color.parseColor("#FF6200EA") // 紫色背景
+        }
+        canvas.drawCircle(size / 2f, size / 2f, size / 2f, paint)
+        
+        // 绘制字母
+        val textPaint = Paint().apply {
+            isAntiAlias = true
+            color = Color.WHITE
+            textSize = size * 0.4f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        
+        val letter = config.appName.take(1).uppercase()
+        val textBounds = Rect()
+        textPaint.getTextBounds(letter, 0, letter.length, textBounds)
+        val y = size / 2f + textBounds.height() / 2f - textBounds.bottom
+        
+        canvas.drawText(letter, size / 2f, y, textPaint)
+        
+        return BitmapDrawable(resources, bitmap)
     }
 
     private fun clearAppSearchIcons() {
@@ -2652,32 +2770,57 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
-                val query = s.toString()
+                val query = s.toString().trim()
                 if (query.isNotEmpty()) {
+                    // 确保AppInfoManager已加载
+                    val appInfoManager = AppInfoManager.getInstance()
+                    if (!appInfoManager.isLoaded()) {
+                        Log.d(TAG, "AppInfoManager未加载，开始加载")
+                        appInfoManager.loadApps(this@DynamicIslandService)
+                    }
+                    
+                    // 实时搜索匹配的APP
                     val appResults = appInfoManager.search(query)
+                    Log.d(TAG, "搜索查询: '$query', 找到 ${appResults.size} 个结果")
+                    
                     if (appResults.isNotEmpty()) {
+                        Log.d(TAG, "找到匹配的APP: ${appResults.map { it.label }}")
                         showAppSearchResults(appResults)
                     } else {
-                        hideAppSearchResults()
+                        // 没有匹配的APP时，显示支持URL scheme的APP图标
+                        Log.d(TAG, "没有匹配的APP，显示URL scheme APP图标")
+                        showUrlSchemeAppIcons()
                     }
                 } else {
-                    hideAppSearchResults()
+                    // 输入框为空时，显示常用APP图标
+                    Log.d(TAG, "输入框为空，显示默认APP图标")
+                    showDefaultAppIcons()
                 }
             }
         })
     }
 
     private fun showAppSearchResults(results: List<AppInfo>) {
+        Log.d(TAG, "showAppSearchResults: 显示 ${results.size} 个应用结果")
+        Log.d(TAG, "appSearchResultsContainer: $appSearchResultsContainer")
+        Log.d(TAG, "appSearchRecyclerView: $appSearchRecyclerView")
+        
         if (appSearchAdapter == null) {
             appSearchAdapter = AppSearchAdapter(results, isHorizontal = true) { appInfo ->
-                val intent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
-                if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(intent)
-                    hideContent() // This will collapse the island
+                // 添加到最近选中的APP列表
+                addToRecentApps(appInfo)
+                // 更新最近APP按钮图标
+                updateRecentAppButton(appInfo)
+                // 使用输入框文本作为搜索词跳转到APP
+                val searchQuery = searchInput?.text.toString().trim()
+                if (searchQuery.isNotEmpty()) {
+                    handleSearchWithSelectedApp(searchQuery, appInfo)
                 } else {
-                    Toast.makeText(this, "无法启动该应用", Toast.LENGTH_SHORT).show()
+                    // 如果没有搜索词，直接启动APP
+                    launchAppSearchResults(appInfo)
                 }
+                // 跳转后最小化搜索界面
+                hideConfigPanel()
             }
             appSearchRecyclerView?.apply {
                 layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
@@ -2700,11 +2843,595 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
     
+    private fun showDefaultAppIcons() {
+        // 创建常用APP列表，包含URL scheme信息
+        val defaultApps = createDefaultAppList()
+        if (defaultApps.isNotEmpty()) {
+            showAppSearchResults(defaultApps)
+        }
+    }
+    
+    private fun showUrlSchemeAppIcons() {
+        // 创建支持URL scheme的APP列表
+        val urlSchemeApps = createUrlSchemeAppList()
+        if (urlSchemeApps.isNotEmpty()) {
+            Log.d(TAG, "显示URL scheme APP图标: ${urlSchemeApps.map { it.label }}")
+            showAppSearchResults(urlSchemeApps)
+        }
+    }
+    
+    private fun createDefaultAppList(): List<AppInfo> {
+        val pm = packageManager
+        val defaultApps = mutableListOf<AppInfo>()
+        
+        // 定义常用APP的包名和URL scheme
+        val appConfigs = listOf(
+            Triple("com.tencent.mm", "weixin", "微信"),
+            Triple("com.tencent.mobileqq", "mqqapi", "QQ"),
+            Triple("com.taobao.taobao", "taobao", "淘宝"),
+            Triple("com.eg.android.AlipayGphone", "alipay", "支付宝"),
+            Triple("com.ss.android.ugc.aweme", "snssdk1128", "抖音"),
+            Triple("com.sina.weibo", "sinaweibo", "微博"),
+            Triple("com.tencent.wework", "wework", "企业微信"),
+            Triple("com.tencent.tim", "tim", "TIM"),
+            Triple("com.tencent.mtt", "mttbrowser", "QQ浏览器"),
+            Triple("com.UCMobile", "ucbrowser", "UC浏览器")
+        )
+        
+        for ((packageName, urlScheme, appName) in appConfigs) {
+            try {
+                val appInfo = pm.getApplicationInfo(packageName, 0)
+                val icon = pm.getApplicationIcon(packageName)
+                val label = pm.getApplicationLabel(appInfo).toString()
+                
+                defaultApps.add(AppInfo(
+                    label = label,
+                    packageName = packageName,
+                    icon = icon,
+                    urlScheme = urlScheme
+                ))
+            } catch (e: Exception) {
+                // 应用未安装，跳过
+                Log.d(TAG, "应用 $appName 未安装: $packageName")
+            }
+        }
+        
+        return defaultApps
+    }
+    
+    private fun createUrlSchemeAppList(): List<AppInfo> {
+        val pm = packageManager
+        val urlSchemeApps = mutableListOf<AppInfo>()
+        
+        // 定义支持URL scheme的APP列表（更全面的列表）
+        val urlSchemeAppConfigs = listOf(
+            // 社交类
+            Triple("com.tencent.mm", "weixin", "微信"),
+            Triple("com.tencent.mobileqq", "mqqapi", "QQ"),
+            Triple("com.tencent.wework", "wework", "企业微信"),
+            Triple("com.tencent.tim", "tim", "TIM"),
+            Triple("com.sina.weibo", "sinaweibo", "微博"),
+            Triple("com.tencent.mm", "weixin", "微信"),
+            
+            // 购物类
+            Triple("com.taobao.taobao", "taobao", "淘宝"),
+            Triple("com.eg.android.AlipayGphone", "alipay", "支付宝"),
+            Triple("com.jingdong.app.mall", "openapp.jdmobile", "京东"),
+            Triple("com.pinduoduo", "pinduoduo", "拼多多"),
+            
+            // 视频类
+            Triple("com.ss.android.ugc.aweme", "snssdk1128", "抖音"),
+            Triple("com.ss.android.ugc.live", "snssdk1128", "抖音直播"),
+            Triple("tv.danmaku.bili", "bilibili", "哔哩哔哩"),
+            Triple("com.tencent.qqlive", "qqlive", "腾讯视频"),
+            Triple("com.iqiyi.app", "iqiyi", "爱奇艺"),
+            
+            // 浏览器类
+            Triple("com.tencent.mtt", "mttbrowser", "QQ浏览器"),
+            Triple("com.UCMobile", "ucbrowser", "UC浏览器"),
+            Triple("com.android.chrome", "googlechrome", "Chrome"),
+            Triple("org.mozilla.firefox", "firefox", "Firefox"),
+            
+            // 工具类
+            Triple("com.tencent.mm", "weixin", "微信"),
+            Triple("com.tencent.mobileqq", "mqqapi", "QQ"),
+            Triple("com.tencent.wework", "wework", "企业微信"),
+            Triple("com.tencent.tim", "tim", "TIM"),
+            Triple("com.sina.weibo", "sinaweibo", "微博"),
+            Triple("com.taobao.taobao", "taobao", "淘宝"),
+            Triple("com.eg.android.AlipayGphone", "alipay", "支付宝"),
+            Triple("com.ss.android.ugc.aweme", "snssdk1128", "抖音"),
+            Triple("com.tencent.mtt", "mttbrowser", "QQ浏览器"),
+            Triple("com.UCMobile", "ucbrowser", "UC浏览器")
+        )
+        
+        for ((packageName, urlScheme, appName) in urlSchemeAppConfigs) {
+            try {
+                val appInfo = pm.getApplicationInfo(packageName, 0)
+                val icon = pm.getApplicationIcon(packageName)
+                val label = pm.getApplicationLabel(appInfo).toString()
+                
+                // 避免重复添加
+                if (!urlSchemeApps.any { it.packageName == packageName }) {
+                    urlSchemeApps.add(AppInfo(
+                        label = label,
+                        packageName = packageName,
+                        icon = icon,
+                        urlScheme = urlScheme
+                    ))
+                }
+            } catch (e: Exception) {
+                // 应用未安装，跳过
+                Log.d(TAG, "URL scheme应用 $appName 未安装: $packageName")
+            }
+        }
+        
+        return urlSchemeApps
+    }
+    
+    private fun launchAppSearchResults(appInfo: AppInfo) {
+        try {
+            val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+            
+            // 优先使用URL scheme跳转到APP搜索结果页面
+            if (appInfo.urlScheme != null) {
+                val urlScheme = appInfo.urlScheme
+                val intent = when (urlScheme) {
+                    "weixin" -> {
+                        // 微信搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=${Uri.encode(searchQuery)}"))
+                    }
+                    "mqqapi" -> {
+                        // QQ搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=${Uri.encode(searchQuery)}"))
+                    }
+                    "taobao" -> {
+                        // 淘宝搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("taobao://search?q=${Uri.encode(searchQuery)}"))
+                    }
+                    "alipay" -> {
+                        // 支付宝搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("alipay://search?query=${Uri.encode(searchQuery)}"))
+                    }
+                    "snssdk1128" -> {
+                        // 抖音搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search?keyword=${Uri.encode(searchQuery)}"))
+                    }
+                    "sinaweibo" -> {
+                        // 微博搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://search?keyword=${Uri.encode(searchQuery)}"))
+                    }
+                    "wework" -> {
+                        // 企业微信搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=${Uri.encode(searchQuery)}"))
+                    }
+                    "tim" -> {
+                        // TIM搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=${Uri.encode(searchQuery)}"))
+                    }
+                    "mttbrowser" -> {
+                        // QQ浏览器搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=${Uri.encode(searchQuery)}"))
+                    }
+                    "ucbrowser" -> {
+                        // UC浏览器搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?query=${Uri.encode(searchQuery)}"))
+                    }
+                    else -> {
+                        // 通用URL scheme
+                        Intent(Intent.ACTION_VIEW, Uri.parse("$urlScheme://search?query=${Uri.encode(searchQuery)}"))
+                    }
+                }
+                
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                hideContent()
+                return
+            }
+            
+            // 如果没有URL scheme，使用包名启动应用
+            val launchIntent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                hideContent()
+            } else {
+                Toast.makeText(this, "无法启动该应用", Toast.LENGTH_SHORT).show()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "启动应用失败: ${appInfo.label}", e)
+            Toast.makeText(this, "启动应用失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     private fun hideContent() {
         // This function is called when an app is launched from the search results.
         // It should collapse the island and hide the keyboard and search results.
         transitionToCompactState()
         hideAppSearchResults()
+        hideConfigPanel()
+    }
+    
+    private fun exitDynamicIsland() {
+        try {
+            // 停止服务
+            stopSelf()
+            
+            // 启动设置页面
+            val intent = Intent(this, MainSettingsActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            
+            Log.d(TAG, "灵动岛已退出，打开设置页面")
+        } catch (e: Exception) {
+            Log.e(TAG, "退出灵动岛失败", e)
+        }
+    }
+    
+    // 最近选中的APP相关方法
+    private fun addToRecentApps(appInfo: AppInfo) {
+        // 移除已存在的相同APP
+        recentApps.removeAll { it.packageName == appInfo.packageName }
+        // 添加到列表开头
+        recentApps.add(0, appInfo)
+        // 限制最多保存10个
+        if (recentApps.size > 10) {
+            recentApps.removeAt(recentApps.size - 1)
+        }
+        Log.d(TAG, "添加到最近APP: ${appInfo.label}")
+    }
+    
+    private fun updateRecentAppButton(appInfo: AppInfo) {
+        currentSelectedApp = appInfo
+        try {
+            // 使用与简易模式相同的图标加载策略
+            val icon = getAppIconDrawable(appInfo)
+            if (icon != null) {
+                // 优先使用icon属性设置
+                recentAppButton?.icon = icon
+                // 清除iconTint，避免影响真实图标的颜色
+                recentAppButton?.iconTint = null
+                Log.d(TAG, "更新最近APP按钮图标: ${appInfo.label}")
+            } else {
+                Log.w(TAG, "获取的图标为null，使用默认图标: ${appInfo.label}")
+                val defaultIcon = ContextCompat.getDrawable(this, R.drawable.ic_apps)
+                recentAppButton?.icon = defaultIcon
+                // 恢复iconTint
+                recentAppButton?.iconTint = ContextCompat.getColorStateList(this, R.color.dynamic_island_button_icon)
+            }
+        } catch (e: Exception) {
+            // 如果设置图标失败，使用默认图标
+            val defaultIcon = ContextCompat.getDrawable(this, R.drawable.ic_apps)
+            recentAppButton?.icon = defaultIcon
+            recentAppButton?.iconTint = ContextCompat.getColorStateList(this, R.color.dynamic_island_button_icon)
+            Log.e(TAG, "设置APP按钮图标失败: ${appInfo.label}", e)
+        }
+        
+        // 保存当前选中的APP
+        saveCurrentSelectedApp(appInfo)
+    }
+    
+    /**
+     * 获取应用图标Drawable - 与简易模式相同的策略
+     */
+    private fun getAppIconDrawable(appInfo: AppInfo): android.graphics.drawable.Drawable? {
+        return try {
+            if (isAppInstalled(appInfo.packageName)) {
+                Log.d(TAG, "应用已安装，获取真实图标: ${appInfo.label}")
+                val icon = packageManager.getApplicationIcon(appInfo.packageName)
+                // 确保图标不为null
+                if (icon != null) {
+                    icon
+                } else {
+                    Log.w(TAG, "获取的图标为null，使用默认图标: ${appInfo.label}")
+                    ContextCompat.getDrawable(this, R.drawable.ic_apps)
+                }
+            } else {
+                Log.d(TAG, "应用未安装，使用默认图标: ${appInfo.label}")
+                ContextCompat.getDrawable(this, R.drawable.ic_apps)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取应用图标失败: ${appInfo.label}", e)
+            ContextCompat.getDrawable(this, R.drawable.ic_apps)
+        }
+    }
+    
+    /**
+     * 检查应用是否已安装
+     */
+    private fun isAppInstalled(packageName: String): Boolean {
+        return try {
+            packageManager.getApplicationInfo(packageName, 0)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    /**
+     * 保存当前选中的APP
+     */
+    private fun saveCurrentSelectedApp(appInfo: AppInfo) {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString(KEY_CURRENT_APP_PACKAGE, appInfo.packageName)
+                .apply()
+            Log.d(TAG, "已保存当前选中APP: ${appInfo.label}")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存当前选中APP失败", e)
+        }
+    }
+    
+    /**
+     * 恢复当前选中的APP
+     */
+    private fun restoreCurrentSelectedApp() {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val packageName = prefs.getString(KEY_CURRENT_APP_PACKAGE, null)
+            
+            if (packageName != null) {
+                // 检查应用是否仍然安装
+                try {
+                    val appInfo = packageManager.getApplicationInfo(packageName, 0)
+                    val label = packageManager.getApplicationLabel(appInfo).toString()
+                    
+                    val restoredApp = AppInfo(
+                        label = label,
+                        packageName = packageName,
+                        icon = packageManager.getApplicationIcon(packageName), // 临时设置图标
+                        urlScheme = getUrlSchemeForPackage(packageName)
+                    )
+                    
+                    currentSelectedApp = restoredApp
+                    // 使用统一的图标加载方法
+                    val icon = getAppIconDrawable(restoredApp)
+                    if (icon != null) {
+                        recentAppButton?.icon = icon
+                        recentAppButton?.iconTint = null
+                        Log.d(TAG, "已恢复当前选中APP图标: $label")
+                    } else {
+                        val defaultIcon = ContextCompat.getDrawable(this, R.drawable.ic_apps)
+                        recentAppButton?.icon = defaultIcon
+                        recentAppButton?.iconTint = ContextCompat.getColorStateList(this, R.color.dynamic_island_button_icon)
+                        Log.w(TAG, "恢复APP图标失败，使用默认图标: $label")
+                    }
+                    Log.d(TAG, "已恢复当前选中APP: $label")
+                } catch (e: Exception) {
+                    Log.d(TAG, "恢复的APP已卸载: $packageName")
+                    // 清除无效的保存状态
+                    clearCurrentSelectedApp()
+                    // 设置默认图标
+                    setDefaultRecentAppIcon()
+                }
+            } else {
+                Log.d(TAG, "没有保存的APP，设置默认图标")
+                // 没有保存的APP时，设置默认图标
+                setDefaultRecentAppIcon()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复当前选中APP失败", e)
+            // 出现异常时也设置默认图标
+            setDefaultRecentAppIcon()
+        }
+    }
+    
+    /**
+     * 设置默认的最近APP图标
+     */
+    private fun setDefaultRecentAppIcon() {
+        try {
+            val defaultIcon = ContextCompat.getDrawable(this, R.drawable.ic_apps)
+            recentAppButton?.icon = defaultIcon
+            recentAppButton?.iconTint = ContextCompat.getColorStateList(this, R.color.dynamic_island_button_icon)
+            Log.d(TAG, "已设置默认最近APP图标")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置默认图标失败", e)
+        }
+    }
+    
+    /**
+     * 清除当前选中的APP
+     */
+    private fun clearCurrentSelectedApp() {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit()
+                .remove(KEY_CURRENT_APP_PACKAGE)
+                .apply()
+            currentSelectedApp = null
+            val defaultIcon = ContextCompat.getDrawable(this, R.drawable.ic_apps)
+            recentAppButton?.icon = defaultIcon
+            recentAppButton?.iconTint = ContextCompat.getColorStateList(this, R.color.dynamic_island_button_icon)
+            Log.d(TAG, "已清除当前选中APP")
+        } catch (e: Exception) {
+            Log.e(TAG, "清除当前选中APP失败", e)
+        }
+    }
+    
+    /**
+     * 获取应用的URL scheme
+     */
+    private fun getUrlSchemeForPackage(packageName: String): String? {
+        // 使用已知的包名到URL scheme的映射
+        val urlSchemeMap = mapOf(
+            "com.tencent.mm" to "weixin",
+            "com.tencent.mobileqq" to "mqqapi",
+            "com.taobao.taobao" to "taobao",
+            "com.eg.android.AlipayGphone" to "alipay",
+            "com.ss.android.ugc.aweme" to "snssdk1128",
+            "com.sina.weibo" to "sinaweibo",
+            "com.tencent.wework" to "wework",
+            "com.tencent.tim" to "tim",
+            "com.tencent.mtt" to "mttbrowser",
+            "com.UCMobile" to "ucbrowser",
+            "com.android.chrome" to "googlechrome",
+            "org.mozilla.firefox" to "firefox",
+            "com.jingdong.app.mall" to "openapp.jdmobile",
+            "com.pinduoduo" to "pinduoduo",
+            "tv.danmaku.bili" to "bilibili",
+            "com.tencent.qqlive" to "qqlive",
+            "com.iqiyi.app" to "iqiyi"
+        )
+        
+        return urlSchemeMap[packageName]
+    }
+    
+    private fun showRecentAppsDropdown() {
+        if (recentApps.isEmpty()) {
+            Toast.makeText(this, "暂无最近选中的APP", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val inflater = LayoutInflater.from(this)
+        val dropdownView = inflater.inflate(R.layout.recent_apps_dropdown, null)
+        
+        val recyclerView = dropdownView.findViewById<RecyclerView>(R.id.recent_apps_recycler_view)
+        val clearButton = dropdownView.findViewById<Button>(R.id.clear_recent_apps_button)
+        
+        // 设置适配器
+        recentAppAdapter = RecentAppAdapter(
+            recentApps,
+            onAppClick = { appInfo ->
+                // 切换选中的APP
+                updateRecentAppButton(appInfo)
+                hideRecentAppsDropdown()
+            },
+            onAppRemove = { appInfo ->
+                // 从最近列表中移除
+                recentApps.remove(appInfo)
+                recentAppAdapter?.updateApps(recentApps)
+                if (currentSelectedApp == appInfo) {
+                    currentSelectedApp = null
+                    recentAppButton?.icon = ContextCompat.getDrawable(this, R.drawable.ic_apps)
+                    recentAppButton?.iconTint = ContextCompat.getColorStateList(this, R.color.dynamic_island_button_icon)
+                }
+            }
+        )
+        
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = recentAppAdapter
+        
+        // 清空按钮
+        clearButton.setOnClickListener {
+            recentApps.clear()
+            recentAppAdapter?.updateApps(recentApps)
+            currentSelectedApp = null
+            recentAppButton?.icon = ContextCompat.getDrawable(this, R.drawable.ic_apps)
+            recentAppButton?.iconTint = ContextCompat.getColorStateList(this, R.color.dynamic_island_button_icon)
+            hideRecentAppsDropdown()
+        }
+        
+        // 创建PopupWindow
+        recentAppsDropdown = PopupWindow(
+            dropdownView,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true
+        )
+        
+        // 设置背景
+        recentAppsDropdown?.setBackgroundDrawable(
+            ContextCompat.getDrawable(this, android.R.color.transparent)
+        )
+        
+        // 显示在最近APP按钮下方
+        recentAppButton?.let { button ->
+            recentAppsDropdown?.showAsDropDown(button, 0, 8)
+        }
+    }
+    
+    private fun hideRecentAppsDropdown() {
+        recentAppsDropdown?.dismiss()
+        recentAppsDropdown = null
+    }
+    
+    private fun handleSearchWithSelectedApp(query: String, appInfo: AppInfo) {
+        Log.d(TAG, "使用选中的APP进行搜索: ${appInfo.label}, 查询: $query")
+        
+        if (appInfo.urlScheme != null) {
+            // 有URL scheme，直接跳转到APP搜索结果页面
+            try {
+                val urlScheme = appInfo.urlScheme
+                val intent = when (urlScheme) {
+                    "weixin" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=${Uri.encode(query)}"))
+                    }
+                    "mqqapi" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=${Uri.encode(query)}"))
+                    }
+                    "taobao" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("taobao://search?q=${Uri.encode(query)}"))
+                    }
+                    "alipay" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("alipay://search?query=${Uri.encode(query)}"))
+                    }
+                    "snssdk1128" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search?keyword=${Uri.encode(query)}"))
+                    }
+                    "sinaweibo" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://search?keyword=${Uri.encode(query)}"))
+                    }
+                    "wework" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=${Uri.encode(query)}"))
+                    }
+                    "tim" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=${Uri.encode(query)}"))
+                    }
+                    "mttbrowser" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=${Uri.encode(query)}"))
+                    }
+                    "ucbrowser" -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?query=${Uri.encode(query)}"))
+                    }
+                    else -> {
+                        Intent(Intent.ACTION_VIEW, Uri.parse("$urlScheme://search?query=${Uri.encode(query)}"))
+                    }
+                }
+
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                hideContent()
+                Toast.makeText(this, "已跳转到${appInfo.label}搜索", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "跳转到APP搜索失败: ${appInfo.label}", e)
+                showNoUrlSchemeDialog(query, appInfo)
+            }
+        } else {
+            // 没有URL scheme，显示提示对话框
+            showNoUrlSchemeDialog(query, appInfo)
+        }
+    }
+    
+    private fun showNoUrlSchemeDialog(query: String, appInfo: AppInfo) {
+        AlertDialog.Builder(this)
+            .setTitle("搜索提示")
+            .setMessage("已复制关键词「$query」，请在${appInfo.label}中粘贴搜索")
+            .setPositiveButton("确定") { _, _ ->
+                // 复制到剪贴板
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("搜索关键词", query)
+                clipboard.setPrimaryClip(clip)
+                
+                // 启动APP
+                try {
+                    val launchIntent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(launchIntent)
+                        hideContent()
+                    } else {
+                        Toast.makeText(this, "无法启动该应用", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "启动应用失败: ${appInfo.label}", e)
+                    Toast.makeText(this, "启动应用失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun getActiveProfile(): com.example.aifloatingball.model.PromptProfile? {
@@ -2872,6 +3599,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val btnApps = view.findViewById<MaterialButton>(R.id.btn_apps)
         val btnSearch = view.findViewById<MaterialButton>(R.id.btn_search)
         val btnSettings = view.findViewById<MaterialButton>(R.id.btn_settings)
+        val btnExit = view.findViewById<MaterialButton>(R.id.btn_exit)
 
         // AI助手按钮
         btnAiAssistant?.setOnClickListener {
@@ -2895,6 +3623,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         btnSettings?.setOnClickListener {
             Log.d(TAG, "设置按钮被点击")
             showSettingsDialog()
+        }
+
+        // 退出按钮
+        btnExit?.setOnClickListener {
+            Log.d(TAG, "退出按钮被点击")
+            exitDynamicIsland()
         }
 
         // 设置长按监听器

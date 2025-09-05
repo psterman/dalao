@@ -42,7 +42,14 @@ class AppSearchAdapter(
         private val appName: TextView? = if (!isHorizontal) itemView.findViewById(R.id.app_name) else null
 
         fun bind(app: AppInfo, clickListener: (AppInfo) -> Unit) {
-            appIcon.setImageDrawable(app.icon)
+            // 设置图标，如果图标为null则使用默认图标
+            if (app.icon != null) {
+                appIcon.setImageDrawable(app.icon)
+            } else {
+                // 使用默认应用图标
+                appIcon.setImageResource(android.R.drawable.sym_def_app_icon)
+            }
+            
             if (!isHorizontal) {
                 appName?.text = app.label
             }

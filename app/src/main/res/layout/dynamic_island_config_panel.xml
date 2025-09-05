@@ -2,9 +2,12 @@
 <com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/config_panel_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:layout_gravity="top"
+    android:clickable="true"
+    android:focusable="true"
     app:cardBackgroundColor="@color/dynamic_island_panel_background"
     app:cardCornerRadius="28dp"
     app:cardElevation="8dp"
@@ -72,47 +75,74 @@
                 app:tint="?android:attr/textColorSecondary" />
         </FrameLayout>
 
-        <!-- Input Area -->
+        <!-- Input Area with App Button Outside -->
         <LinearLayout
-            android:id="@+id/input_area"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/dynamic_island_input_background"
-            android:elevation="4dp"
-            android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="16dp"
-            android:paddingTop="8dp"
-            android:paddingEnd="8dp"
-            android:paddingBottom="8dp">
+            android:gravity="center_vertical"
+            android:layout_marginBottom="8dp">
 
-            <EditText
-                android:id="@+id/search_input"
+            <!-- 最近选中的APP按钮 - 移到搜索框外围左边 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/recent_app_button"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/dynamic_island_button_background"
+                android:contentDescription="最近选中的APP"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_apps"
+                app:icon="@drawable/ic_apps"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="20dp"
+                app:iconTint="@color/dynamic_island_button_icon" />
+
+            <!-- 搜索框区域 -->
+            <LinearLayout
+                android:id="@+id/input_area"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:background="@android:color/transparent"
-                android:hint="输入搜索内容或指令..."
-                android:textColor="@color/dynamic_island_input_text"
-                android:textColorHint="@color/dynamic_island_input_hint"
-                android:textSize="16sp"
-                android:imeOptions="actionSearch"
-                android:inputType="textCapSentences|textMultiLine"
-                android:maxLines="5"
-                android:focusable="true"
-                android:focusableInTouchMode="true"
-                android:clickable="true" />
+                android:background="@drawable/dynamic_island_input_background"
+                android:elevation="4dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp">
 
-            <ImageView
-                android:id="@+id/search_button"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginStart="8dp"
-                android:alpha="0.5"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:padding="6dp"
-                android:src="@drawable/ic_send_plane"
-                app:tint="@color/dynamic_island_send_icon_tint" />
+                <EditText
+                    android:id="@+id/search_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@android:color/transparent"
+                    android:hint="输入搜索内容或指令..."
+                    android:textColor="@color/dynamic_island_input_text"
+                    android:textColorHint="@color/dynamic_island_input_hint"
+                    android:textSize="16sp"
+                    android:imeOptions="actionSearch"
+                    android:inputType="textCapSentences|textMultiLine"
+                    android:maxLines="5"
+                    android:focusable="true"
+                    android:focusableInTouchMode="true"
+                    android:clickable="true" />
+
+                <ImageView
+                    android:id="@+id/search_button"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="8dp"
+                    android:alpha="0.5"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_send_plane"
+                    app:tint="@color/dynamic_island_send_icon_tint" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Slot Container -->
