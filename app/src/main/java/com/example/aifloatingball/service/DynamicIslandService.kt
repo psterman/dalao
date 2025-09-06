@@ -95,6 +95,9 @@ import androidx.core.content.ContextCompat
 import android.content.ClipDescription
 import android.widget.Button
 import android.util.Log
+import android.app.ActivityManager
+import android.app.usage.UsageStatsManager
+import android.app.usage.UsageEvents
 import com.example.aifloatingball.ChatActivity
 import com.example.aifloatingball.AIContactListActivity
 import com.example.aifloatingball.SimpleModeActivity
@@ -280,6 +283,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var closeAppSearchButton: View? = null
     private var ballView: View? = null // 圆球状态视图
     
+    // 应用切换监听相关
+    private var usageStatsManager: UsageStatsManager? = null
+    private var appSwitchHandler: Handler? = null
+    private var appSwitchRunnable: Runnable? = null
+    private var currentPackageName: String? = null
+    private var isAutoMinimizeEnabled = true // 是否启用自动缩小功能
+    
     // 剪贴板相关
     private var clipboardManager: ClipboardManager? = null
     private var lastClipboardContent: String? = null
@@ -321,6 +331,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 初始化剪贴板监听器
         initClipboardListener()
+        
+        // 初始化应用切换监听器
+        initAppSwitchListener()
         
         // 强制启用增强版布局（调试用）
         forceEnableEnhancedLayout()
@@ -548,11 +561,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun startDualSearch() {
         try {
-            // 不再跳转到DualFloatingWebViewService，只显示提示
-            Toast.makeText(this, "搜索功能已禁用", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "搜索功能已禁用")
+            // 启动双搜索服务
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startService(intent)
+            Log.d(TAG, "启动双搜索服务")
         } catch (e: Exception) {
-            Log.e(TAG, "处理搜索请求失败", e)
+            Log.e(TAG, "启动双搜索服务失败", e)
+            Toast.makeText(this, "无法启动搜索功能", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -571,11 +588,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun showSearchDialog() {
         try {
-            // 不再跳转到DualFloatingWebViewService，只显示提示
-            Toast.makeText(this, "搜索功能已禁用", Toast.LENGTH_SHORT).show()
-            Log.d(TAG, "搜索功能已禁用")
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra("source", "灵动岛搜索")
+                putExtra("startTime", System.currentTimeMillis())
+            }
+            startService(intent)
+            Log.d(TAG, "启动搜索服务")
         } catch (e: Exception) {
-            Log.e(TAG, "处理搜索请求失败", e)
+            Log.e(TAG, "启动搜索服务失败", e)
+            Toast.makeText(this, "无法启动搜索", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1188,6 +1210,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 清理剪贴板监听器
         cleanupClipboardListener()
+        
+        // 清理应用切换监听器
+        cleanupAppSwitchListener()
     }
 
     private fun cleanupViews() {
@@ -2742,8 +2767,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val query = searchInput?.text.toString().trim()
                 if (query.isNotEmpty()) {
                     hideKeyboard(searchInput)
-                    // 不再跳转到DualFloatingWebViewService，只显示提示
-                    Toast.makeText(this, "搜索功能已禁用", Toast.LENGTH_SHORT).show()
+                    val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                        putExtra("search_query", query)
+                        putExtra("source", "灵动岛")
+                        putExtra("startTime", System.currentTimeMillis())
+                    }
+                    startService(intent)
                     collapseIsland()
                 }
                 true
@@ -3263,20 +3292,36 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         ballView = View(this).apply {
             // 创建圆形背景
             val ballSize = (32 * resources.displayMetrics.density).toInt() // 32dp，更小更精致
+            val touchAreaSize = (60 * resources.displayMetrics.density).toInt() // 60dp触摸区域，更大更容易点击
             val cornerRadius = ballSize / 2f
             
             // 创建渐变背景，模拟灵动岛效果
-            val gradientDrawable = GradientDrawable().apply {
+            // 使用LayerDrawable来创建中心小圆球，外围透明触摸区域
+            val ballDrawable = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#1C1C1E")) // 深色背景
                 setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#3A3A3C")) // 边框
             }
-            background = gradientDrawable
+            
+            // 创建外层透明背景，用于触摸区域
+            val outerDrawable = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.TRANSPARENT) // 透明背景
+            }
+            
+            // 使用LayerDrawable组合两个drawable
+            val layerDrawable = android.graphics.drawable.LayerDrawable(arrayOf(outerDrawable, ballDrawable))
+            // 设置内层圆球的位置和大小
+            layerDrawable.setLayerInset(1, (touchAreaSize - ballSize) / 2, (touchAreaSize - ballSize) / 2, 
+                (touchAreaSize - ballSize) / 2, (touchAreaSize - ballSize) / 2)
+            
+            background = layerDrawable
             
             // 设置阴影效果
             elevation = 8f
             
-            layoutParams = FrameLayout.LayoutParams(ballSize, ballSize, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+            // 使用更大的触摸区域，但视觉上仍然是小的圆球
+            layoutParams = FrameLayout.LayoutParams(touchAreaSize, touchAreaSize, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
                 topMargin = statusBarHeight + 16 // 状态栏下方16dp
             }
             visibility = View.VISIBLE
@@ -3329,6 +3374,86 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
             else -> false
+        }
+    }
+    
+    /**
+     * 初始化应用切换监听器
+     */
+    private fun initAppSwitchListener() {
+        try {
+            usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            appSwitchHandler = Handler(Looper.getMainLooper())
+            
+            // 获取当前应用包名
+            currentPackageName = getCurrentAppPackageName()
+            
+            // 启动定期检查
+            startAppSwitchMonitoring()
+            
+            Log.d(TAG, "应用切换监听器已初始化，当前应用: $currentPackageName")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化应用切换监听器失败", e)
+        }
+    }
+    
+    /**
+     * 启动应用切换监控
+     */
+    private fun startAppSwitchMonitoring() {
+        appSwitchRunnable = object : Runnable {
+            override fun run() {
+                checkAppSwitch()
+                // 每500ms检查一次
+                appSwitchHandler?.postDelayed(this, 500)
+            }
+        }
+        appSwitchHandler?.post(appSwitchRunnable!!)
+    }
+    
+    /**
+     * 检查应用切换
+     */
+    private fun checkAppSwitch() {
+        if (!isAutoMinimizeEnabled) return
+        
+        try {
+            val newPackageName = getCurrentAppPackageName()
+            
+            // 如果包名发生变化，说明用户切换了应用
+            if (newPackageName != null && newPackageName != currentPackageName) {
+                Log.d(TAG, "检测到应用切换: $currentPackageName -> $newPackageName")
+                
+                // 如果当前不是圆球状态，则自动缩小
+                if (ballView == null || ballView?.visibility != View.VISIBLE) {
+                    Log.d(TAG, "自动缩小灵动岛为圆球状态")
+                    hideContentAndSwitchToBall()
+                }
+                
+                currentPackageName = newPackageName
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "检查应用切换失败", e)
+        }
+    }
+    
+    /**
+     * 获取当前前台应用的包名
+     */
+    private fun getCurrentAppPackageName(): String? {
+        return try {
+            // 使用ActivityManager获取当前应用
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            @Suppress("DEPRECATION")
+            val runningTasks = activityManager.getRunningTasks(1)
+            if (runningTasks.isNotEmpty()) {
+                runningTasks[0].topActivity?.packageName
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取当前应用包名失败", e)
+            null
         }
     }
     
@@ -3563,6 +3688,23 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun autoPasteToAIInput() {
         // 已禁用自动粘贴功能，因为已移除输入框
         Log.d(TAG, "自动粘贴到AI助手功能已禁用")
+    }
+    
+    /**
+     * 清理应用切换监听器
+     */
+    private fun cleanupAppSwitchListener() {
+        try {
+            appSwitchRunnable?.let { runnable ->
+                appSwitchHandler?.removeCallbacks(runnable)
+            }
+            appSwitchRunnable = null
+            appSwitchHandler = null
+            usageStatsManager = null
+            Log.d(TAG, "应用切换监听器已清理")
+        } catch (e: Exception) {
+            Log.e(TAG, "清理应用切换监听器失败", e)
+        }
     }
     
     /**
