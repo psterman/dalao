@@ -61,6 +61,8 @@ import com.example.aifloatingball.manager.AIServiceType
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import android.view.WindowInsets
 import android.widget.HorizontalScrollView
 import com.example.aifloatingball.model.AppSearchSettings
@@ -403,7 +405,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             WindowManager.LayoutParams.MATCH_PARENT, // Use full width for the stage
             WindowManager.LayoutParams.WRAP_CONTENT, // Adjust height to content
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or 
+            WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // 允许触摸事件穿透到下层
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START // Change gravity to START to avoid horizontal conflicts
@@ -2044,18 +2049,43 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun setupOutsideTouchListener() {
         windowContainerView?.setOnTouchListener { _, event ->
-            if (textActionMenu?.isShowing == true) {
-                hideCustomTextMenu()
-                return@setOnTouchListener true
-            }
-
-            if (isSearchModeActive && event.action == MotionEvent.ACTION_DOWN) {
-                if (isTouchOutsideAllViews(event)) {
-                    transitionToCompactState()
-                    return@setOnTouchListener true // 消费掉外部点击事件
+            when {
+                // 1. 文本操作菜单显示时，处理触摸事件
+                textActionMenu?.isShowing == true -> {
+                    hideCustomTextMenu()
+                    return@setOnTouchListener true
                 }
+                
+                // 2. 圆球状态下的触摸处理
+                ballView != null && ballView?.visibility == View.VISIBLE -> {
+                    handleBallTouchEvent(event)
+                }
+                
+                // 3. 搜索模式激活时，检查是否在外部区域
+                isSearchModeActive && event.action == MotionEvent.ACTION_DOWN -> {
+                    if (isTouchOutsideAllViews(event)) {
+                        transitionToCompactState()
+                        return@setOnTouchListener true // 消费掉外部点击事件
+                    } else {
+                        return@setOnTouchListener false // 在内部区域，让子视图处理
+                    }
+                }
+                
+                // 4. 紧凑模式下的触摸处理
+                !isSearchModeActive && event.action == MotionEvent.ACTION_DOWN -> {
+                    if (isTouchInIslandArea(event)) {
+                        // 在灵动岛区域内，展开搜索模式
+                        expandIsland()
+                        return@setOnTouchListener true
+                    } else {
+                        // 在灵动岛区域外，让事件穿透
+                        return@setOnTouchListener false
+                    }
+                }
+                
+                // 5. 其他情况，让事件穿透到下层
+                else -> false
             }
-            false // 对于内部点击，不消费事件，让子视图处理
         }
     }
 
@@ -2088,6 +2118,49 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // 如果触摸点不在任何一个UI视图内，则视为外部点击
         return true
+    }
+    
+    /**
+     * 检查触摸是否在灵动岛区域内
+     */
+    private fun isTouchInIslandArea(event: MotionEvent): Boolean {
+        val x = event.rawX.toInt()
+        val y = event.rawY.toInt()
+
+        // 检查触摸点是否在灵动岛主体内部
+        val islandRect = android.graphics.Rect()
+        animatingIslandView?.getGlobalVisibleRect(islandRect)
+        if (islandRect.contains(x, y)) return true
+
+        // 检查触摸点是否在配置面板内部
+        val configRect = android.graphics.Rect()
+        configPanelView?.let {
+            if (it.isShown) {
+                it.getGlobalVisibleRect(configRect)
+                if (configRect.contains(x, y)) return true
+            }
+        }
+
+        // 检查触摸点是否在搜索引擎选择器内部
+        val selectorRect = android.graphics.Rect()
+        searchEngineSelectorView?.let {
+            if (it.isShown) {
+                it.getGlobalVisibleRect(selectorRect)
+                if (selectorRect.contains(x, y)) return true
+            }
+        }
+
+        // 检查触摸点是否在搜索结果面板内部
+        val searchResultsRect = android.graphics.Rect()
+        appSearchResultsContainer?.let {
+            if (it.isShown) {
+                it.getGlobalVisibleRect(searchResultsRect)
+                if (searchResultsRect.contains(x, y)) return true
+            }
+        }
+
+        // 如果触摸点不在任何一个UI视图内，则不在灵动岛区域
+        return false
     }
 
     private fun setupInsetsListener() {
@@ -3172,12 +3245,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 清理展开的视图
         cleanupExpandedViews()
         
-        // 动画切换到圆球状态
+        // 动画切换到圆球状态，带有缩放效果
         animatingIslandView?.animate()
             ?.withLayer()
             ?.alpha(0f)
-            ?.setInterpolator(AccelerateDecelerateInterpolator())
-            ?.setDuration(300)
+            ?.scaleX(0.3f)
+            ?.scaleY(0.3f)
+            ?.setInterpolator(AccelerateInterpolator())
+            ?.setDuration(400)
             ?.withEndAction {
                 // 动画完成后，切换到圆球状态
                 switchToBallMode()
@@ -3206,6 +3281,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     
     /**
      * 创建圆球视图
+     * 实现类似iPhone Dynamic Island的最小化效果
      */
     private fun createBallView() {
         // 如果圆球视图已存在，先移除
@@ -3217,10 +3293,23 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 创建圆球视图
         ballView = View(this).apply {
-            background = ContextCompat.getDrawable(this@DynamicIslandService, R.drawable.ic_launcher_foreground)
-            val ballSize = (48 * resources.displayMetrics.density).toInt() // 48dp
+            // 创建圆形背景
+            val ballSize = (32 * resources.displayMetrics.density).toInt() // 32dp，更小更精致
+            val cornerRadius = ballSize / 2f
+            
+            // 创建渐变背景，模拟灵动岛效果
+            val gradientDrawable = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#1C1C1E")) // 深色背景
+                setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#3A3A3C")) // 边框
+            }
+            background = gradientDrawable
+            
+            // 设置阴影效果
+            elevation = 8f
+            
             layoutParams = FrameLayout.LayoutParams(ballSize, ballSize, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-                topMargin = statusBarHeight + 20 // 状态栏下方20dp
+                topMargin = statusBarHeight + 16 // 状态栏下方16dp
             }
             visibility = View.VISIBLE
             alpha = 0f
@@ -3229,10 +3318,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 添加到窗口容器
         windowContainerView?.addView(ballView)
         
-        // 显示圆球动画
+        // 显示圆球动画，带有缩放效果
         ballView?.animate()
             ?.alpha(1f)
-            ?.setDuration(300)
+            ?.scaleX(1f)
+            ?.scaleY(1f)
+            ?.setDuration(400)
+            ?.setInterpolator(AccelerateDecelerateInterpolator())
             ?.start()
     }
     
@@ -3247,16 +3339,45 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
+     * 处理圆球状态下的触摸事件
+     */
+    private fun handleBallTouchEvent(event: MotionEvent): Boolean {
+        return when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                // 检查触摸点是否在圆球区域内
+                val ballRect = android.graphics.Rect()
+                ballView?.getGlobalVisibleRect(ballRect)
+                val x = event.rawX.toInt()
+                val y = event.rawY.toInt()
+                
+                if (ballRect.contains(x, y)) {
+                    // 在圆球区域内，处理点击事件
+                    Log.d(TAG, "圆球被点击，恢复灵动岛状态")
+                    restoreIslandState()
+                    true
+                } else {
+                    // 在圆球区域外，让事件穿透
+                    false
+                }
+            }
+            else -> false
+        }
+    }
+    
+    /**
      * 恢复灵动岛状态
      * 用户点击圆球后，恢复横条状态
      */
     private fun restoreIslandState() {
         Log.d(TAG, "恢复灵动岛状态")
         
-        // 隐藏圆球
+        // 隐藏圆球，带有缩放动画
         ballView?.animate()
             ?.alpha(0f)
-            ?.setDuration(200)
+            ?.scaleX(0.5f)
+            ?.scaleY(0.5f)
+            ?.setDuration(300)
+            ?.setInterpolator(AccelerateInterpolator())
             ?.withEndAction {
                 try {
                     windowContainerView?.removeView(ballView)
@@ -3265,13 +3386,50 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             ?.start()
         
-        // 恢复灵动岛视图
+        // 恢复灵动岛视图，带有缩放动画
         animatingIslandView?.visibility = View.VISIBLE
         animatingIslandView?.alpha = 0f
+        animatingIslandView?.scaleX = 0.8f
+        animatingIslandView?.scaleY = 0.8f
         animatingIslandView?.animate()
             ?.alpha(1f)
-            ?.setDuration(300)
+            ?.scaleX(1f)
+            ?.scaleY(1f)
+            ?.setDuration(400)
+            ?.setInterpolator(OvershootInterpolator(0.8f))
             ?.start()
+    }
+    
+    /**
+     * 最小化灵动岛
+     * 将灵动岛切换到圆球状态，实现真正的灵动岛最小化效果
+     */
+    private fun minimizeDynamicIsland() {
+        try {
+            Log.d(TAG, "开始最小化灵动岛为圆球状态")
+            
+            // 隐藏所有面板和内容
+            hideAppSearchResults()
+            hideConfigPanel()
+            hideNotificationExpandedView()
+            
+            // 隐藏键盘
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(windowContainerView?.windowToken, 0)
+            searchInput?.clearFocus()
+            searchInput?.setText("")
+            
+            // 切换到圆球状态
+            transitionToBallState()
+            
+            // 显示最小化提示
+            Toast.makeText(this, "灵动岛已最小化为圆球", Toast.LENGTH_SHORT).show()
+            
+            Log.d(TAG, "灵动岛最小化为圆球完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "最小化灵动岛失败", e)
+            Toast.makeText(this, "最小化失败", Toast.LENGTH_SHORT).show()
+        }
     }
     
     private fun exitDynamicIsland() {
@@ -3893,10 +4051,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             showSettingsDialog()
         }
 
-        // 退出按钮
+        // 退出按钮（现在改为最小化按钮）
         btnExit?.setOnClickListener {
-            Log.d(TAG, "退出按钮被点击")
-            exitDynamicIsland()
+            Log.d(TAG, "最小化按钮被点击")
+            minimizeDynamicIsland()
         }
 
         // 设置长按监听器
