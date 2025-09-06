@@ -86,6 +86,15 @@ class AppInfoManager private constructor() {
         
         Log.d(TAG, "开始搜索: '$query', 应用总数: ${appList.size}")
         
+        // 首先尝试简单搜索
+        val simpleResults = performSimpleSearch(query)
+        if (simpleResults.isNotEmpty()) {
+            Log.d(TAG, "简单搜索找到 ${simpleResults.size} 个应用")
+            searchCache[normalizedQuery] = simpleResults
+            return simpleResults
+        }
+        
+        // 如果简单搜索没有结果，使用复杂搜索算法
         val results = mutableMapOf<AppInfo, Int>() // 应用 -> 匹配分数
         
         // 并行处理搜索以提升性能
@@ -97,7 +106,7 @@ class AppInfoManager private constructor() {
                 Log.d(TAG, "匹配应用: ${app.label}, 分数: $score")
             } else {
                 // 即使分数为0，也记录日志以便调试
-                Log.d(TAG, "未匹配应用: ${app.label}, 查询: '$normalizedQuery'")
+                Log.d(TAG, "未匹配应用: ${app.label}, 查询: '$normalizedQuery', 标准化后: '${normalizeString(app.label)}'")
             }
         }
         
@@ -118,6 +127,25 @@ class AppInfoManager private constructor() {
         
         Log.d(TAG, "搜索结果: ${sortedResults.size} 个应用")
         return sortedResults
+    }
+    
+    /**
+     * 简单搜索方法
+     * 使用基本的字符串包含匹配，确保搜索功能能够正常工作
+     */
+    private fun performSimpleSearch(query: String): List<AppInfo> {
+        val queryLower = query.lowercase()
+        val results = mutableListOf<AppInfo>()
+        
+        appList.forEach { app ->
+            val appNameLower = app.label.lowercase()
+            if (appNameLower.contains(queryLower)) {
+                results.add(app)
+                Log.d(TAG, "简单搜索匹配: ${app.label}")
+            }
+        }
+        
+        return results.sortedBy { it.label }
     }
     
     /**
@@ -177,7 +205,7 @@ class AppInfoManager private constructor() {
     private fun normalizeString(text: String): String {
         return Normalizer.normalize(text, Normalizer.Form.NFD)
             .replace(Regex("[\\p{InCombiningDiacriticalMarks}]"), "")
-            .replace(Regex("[^\\p{L}\\p{N}\\s]"), "") // 只保留字母、数字和空格
+            .replace(Regex("[^\\p{L}\\p{N}\\s\\u4e00-\\u9fa5]"), "") // 保留字母、数字、空格和中文字符
             .replace(Regex("\\s+"), " ")
             .trim()
     }
@@ -426,6 +454,7 @@ class AppInfoManager private constructor() {
         // 如果查询长度太短，不进行宽松匹配
         if (query.length < 1) return 0
         
+        // 使用原始字符串进行匹配，不进行额外的标准化
         val queryLower = query.lowercase()
         val appNameLower = appName.lowercase()
         

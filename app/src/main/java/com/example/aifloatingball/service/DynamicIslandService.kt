@@ -271,6 +271,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var appSearchAdapter: AppSearchAdapter? = null
     private var appSearchResultsContainer: View? = null
     private var closeAppSearchButton: View? = null
+    private var ballView: View? = null // 圆球状态视图
     
     // 最近选中的APP相关
     private var recentAppButton: MaterialButton? = null
@@ -3135,6 +3136,142 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         hideConfigPanel()
     }
     
+    /**
+     * 隐藏内容并切换到圆球状态
+     * 当用户进入其他应用时，灵动岛应该从横条变成圆球
+     */
+    private fun hideContentAndSwitchToBall() {
+        Log.d(TAG, "隐藏内容并切换到圆球状态")
+        
+        // 隐藏搜索面板和配置面板
+        hideAppSearchResults()
+        hideConfigPanel()
+        
+        // 隐藏键盘
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.hideSoftInputFromWindow(windowContainerView?.windowToken, 0)
+        searchInput?.clearFocus()
+        searchInput?.setText("")
+        
+        // 切换到圆球状态
+        transitionToBallState()
+    }
+    
+    /**
+     * 切换到圆球状态
+     * 灵动岛从横条变成圆球，用户点击后可以恢复
+     */
+    private fun transitionToBallState() {
+        Log.d(TAG, "切换到圆球状态")
+        
+        // 设置搜索模式为非活跃状态
+        isSearchModeActive = false
+        
+        // 清理展开的视图
+        cleanupExpandedViews()
+        
+        // 动画切换到圆球状态
+        animatingIslandView?.animate()
+            ?.withLayer()
+            ?.alpha(0f)
+            ?.setInterpolator(AccelerateDecelerateInterpolator())
+            ?.setDuration(300)
+            ?.withEndAction {
+                // 动画完成后，切换到圆球状态
+                switchToBallMode()
+            }
+            ?.start()
+    }
+    
+    /**
+     * 切换到圆球模式
+     * 显示一个小的圆球，用户点击可以恢复灵动岛状态
+     */
+    private fun switchToBallMode() {
+        Log.d(TAG, "切换到圆球模式")
+        
+        // 隐藏当前的灵动岛视图
+        animatingIslandView?.visibility = View.GONE
+        appSearchIconScrollView?.visibility = View.GONE
+        clearAppSearchIcons()
+        
+        // 创建圆球视图
+        createBallView()
+        
+        // 设置点击监听器，点击圆球恢复灵动岛状态
+        setupBallClickListener()
+    }
+    
+    /**
+     * 创建圆球视图
+     */
+    private fun createBallView() {
+        // 如果圆球视图已存在，先移除
+        if (ballView != null) {
+            try {
+                windowContainerView?.removeView(ballView)
+            } catch (e: Exception) { /* ignore */ }
+        }
+        
+        // 创建圆球视图
+        ballView = View(this).apply {
+            background = ContextCompat.getDrawable(this@DynamicIslandService, R.drawable.ic_launcher_foreground)
+            val ballSize = (48 * resources.displayMetrics.density).toInt() // 48dp
+            layoutParams = FrameLayout.LayoutParams(ballSize, ballSize, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
+                topMargin = statusBarHeight + 20 // 状态栏下方20dp
+            }
+            visibility = View.VISIBLE
+            alpha = 0f
+        }
+        
+        // 添加到窗口容器
+        windowContainerView?.addView(ballView)
+        
+        // 显示圆球动画
+        ballView?.animate()
+            ?.alpha(1f)
+            ?.setDuration(300)
+            ?.start()
+    }
+    
+    /**
+     * 设置圆球点击监听器
+     */
+    private fun setupBallClickListener() {
+        ballView?.setOnClickListener {
+            Log.d(TAG, "圆球被点击，恢复灵动岛状态")
+            restoreIslandState()
+        }
+    }
+    
+    /**
+     * 恢复灵动岛状态
+     * 用户点击圆球后，恢复横条状态
+     */
+    private fun restoreIslandState() {
+        Log.d(TAG, "恢复灵动岛状态")
+        
+        // 隐藏圆球
+        ballView?.animate()
+            ?.alpha(0f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                try {
+                    windowContainerView?.removeView(ballView)
+                } catch (e: Exception) { /* ignore */ }
+                ballView = null
+            }
+            ?.start()
+        
+        // 恢复灵动岛视图
+        animatingIslandView?.visibility = View.VISIBLE
+        animatingIslandView?.alpha = 0f
+        animatingIslandView?.animate()
+            ?.alpha(1f)
+            ?.setDuration(300)
+            ?.start()
+    }
+    
     private fun exitDynamicIsland() {
         try {
             // 停止服务
@@ -3487,16 +3624,49 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
-                // 执行搜索动作后退出搜索面板
-                hideContent()
+                // 执行搜索动作后退出搜索面板并切换到圆球状态
+                hideContentAndSwitchToBall()
                 Toast.makeText(this, "已跳转到${appInfo.label}搜索", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e(TAG, "跳转到APP搜索失败: ${appInfo.label}", e)
                 showNoUrlSchemeDialog(query, appInfo)
             }
         } else {
-            // 没有URL scheme，显示提示对话框
-            showNoUrlSchemeDialog(query, appInfo)
+            // 没有URL scheme，直接复制文本并打开应用
+            handleAppWithoutUrlScheme(query, appInfo)
+        }
+    }
+    
+    /**
+     * 处理没有URL scheme的应用
+     * 直接复制文本并打开应用
+     */
+    private fun handleAppWithoutUrlScheme(query: String, appInfo: AppInfo) {
+        Log.d(TAG, "处理没有URL scheme的应用: ${appInfo.label}, 查询: $query")
+        
+        try {
+            // 复制搜索文本到剪贴板
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("搜索关键词", query)
+            clipboard.setPrimaryClip(clip)
+            
+            // 启动应用
+            val launchIntent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                
+                // 显示提示信息
+                Toast.makeText(this, "已复制「$query」到剪贴板，请在${appInfo.label}中粘贴搜索", Toast.LENGTH_LONG).show()
+                
+                // 执行搜索动作后退出搜索面板并切换到圆球状态
+                hideContentAndSwitchToBall()
+            } else {
+                Toast.makeText(this, "无法启动该应用", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动应用失败: ${appInfo.label}", e)
+            Toast.makeText(this, "启动应用失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
     
