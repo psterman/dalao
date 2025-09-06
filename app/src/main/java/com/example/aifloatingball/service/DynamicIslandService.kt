@@ -2788,20 +2788,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     if (!appInfoManager.isLoaded()) {
                         Log.d(TAG, "AppInfoManager未加载，开始加载")
                         appInfoManager.loadApps(this@DynamicIslandService)
+                        // 显示加载提示
+                        showLoadingIndicator()
+                        return@afterTextChanged
                     }
                     
                     // 实时搜索匹配的APP
-                    val appResults = appInfoManager.search(query)
-                    Log.d(TAG, "搜索查询: '$query', 找到 ${appResults.size} 个结果")
-                    
-                    if (appResults.isNotEmpty()) {
-                        Log.d(TAG, "找到匹配的APP: ${appResults.map { it.label }}")
-                        showAppSearchResults(appResults)
-                    } else {
-                        // 没有匹配的APP时，显示支持URL scheme的APP图标
-                        Log.d(TAG, "没有匹配的APP，显示URL scheme APP图标")
-                        showUrlSchemeAppIcons()
-                    }
+                    performRealTimeSearch(query, appInfoManager)
                 } else {
                     // 输入框为空时，显示常用APP图标
                     Log.d(TAG, "输入框为空，显示默认APP图标")
@@ -2809,6 +2802,50 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
         })
+    }
+
+    /**
+     * 执行实时搜索
+     */
+    private fun performRealTimeSearch(query: String, appInfoManager: AppInfoManager) {
+        val appResults = appInfoManager.search(query)
+        Log.d(TAG, "搜索查询: '$query', 找到 ${appResults.size} 个结果")
+        
+        if (appResults.isNotEmpty()) {
+            Log.d(TAG, "找到匹配的APP: ${appResults.map { it.label }}")
+            showAppSearchResults(appResults)
+        } else {
+            // 没有匹配的APP时，显示支持URL scheme的APP图标
+            Log.d(TAG, "没有匹配的APP，显示URL scheme APP图标")
+            showUrlSchemeAppIcons()
+        }
+    }
+    
+    /**
+     * 显示加载指示器
+     */
+    private fun showLoadingIndicator() {
+        // 隐藏搜索结果
+        hideAppSearchResults()
+        
+        // 显示加载提示
+        val loadingText = "正在加载应用列表..."
+        searchInput?.hint = loadingText
+        Toast.makeText(this, loadingText, Toast.LENGTH_SHORT).show()
+        
+        // 延迟检查加载状态
+        searchInput?.postDelayed({
+            val appInfoManager = AppInfoManager.getInstance()
+            if (appInfoManager.isLoaded()) {
+                val currentQuery = searchInput?.text.toString().trim()
+                if (currentQuery.isNotEmpty()) {
+                    performRealTimeSearch(currentQuery, appInfoManager)
+                }
+            } else {
+                // 如果仍未加载完成，继续等待
+                showLoadingIndicator()
+            }
+        }, 500)
     }
 
     private fun showAppSearchResults(results: List<AppInfo>) {

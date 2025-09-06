@@ -91,9 +91,13 @@ class AppInfoManager private constructor() {
         // 并行处理搜索以提升性能
         appList.forEach { app ->
             val score = calculateMatchScore(normalizedQuery, app)
+            // 降低匹配阈值，确保更多应用能被匹配到
             if (score > 0) {
                 results[app] = score
                 Log.d(TAG, "匹配应用: ${app.label}, 分数: $score")
+            } else {
+                // 即使分数为0，也记录日志以便调试
+                Log.d(TAG, "未匹配应用: ${app.label}, 查询: '$normalizedQuery'")
             }
         }
         
@@ -159,6 +163,10 @@ class AppInfoManager private constructor() {
         // 8. 包名匹配 (分数5-15)
         val packageScore = calculatePackageMatch(query, app.packageName)
         score += packageScore
+        
+        // 9. 超宽松匹配 (分数1-5) - 确保所有应用都能被搜索到
+        val looseScore = calculateLooseMatch(query, appName)
+        score += looseScore
         
         return score
     }
@@ -318,6 +326,7 @@ class AppInfoManager private constructor() {
             similarity > 0.8 -> 40
             similarity > 0.6 -> 30
             similarity > 0.4 -> 20
+            similarity > 0.2 -> 10  // 降低阈值，增加更多匹配
             else -> 0
         }
     }
@@ -404,6 +413,44 @@ class AppInfoManager private constructor() {
             if (part.contains(query, ignoreCase = true)) {
                 return 10
             }
+        }
+        
+        return 0
+    }
+    
+    /**
+     * 超宽松匹配算法
+     * 确保所有应用都能被搜索到，即使是很模糊的匹配
+     */
+    private fun calculateLooseMatch(query: String, appName: String): Int {
+        // 如果查询长度太短，不进行宽松匹配
+        if (query.length < 1) return 0
+        
+        val queryLower = query.lowercase()
+        val appNameLower = appName.lowercase()
+        
+        // 1. 包含任意字符匹配 (分数5)
+        if (appNameLower.contains(queryLower)) {
+            return 5
+        }
+        
+        // 2. 查询包含应用名中的任意字符 (分数3)
+        val queryChars = queryLower.toCharArray().distinct()
+        val appNameChars = appNameLower.toCharArray().distinct()
+        val commonChars = queryChars.intersect(appNameChars.toSet())
+        if (commonChars.size >= queryChars.size * 0.5) {
+            return 3
+        }
+        
+        // 3. 应用名包含查询中的任意字符 (分数2)
+        if (queryChars.any { char -> appNameLower.contains(char) }) {
+            return 2
+        }
+        
+        // 4. 非常宽松的相似度匹配 (分数1)
+        val similarity = calculateSimilarity(queryLower, appNameLower)
+        if (similarity > 0.1) {
+            return 1
         }
         
         return 0
