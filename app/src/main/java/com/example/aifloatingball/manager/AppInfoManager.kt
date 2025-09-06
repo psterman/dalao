@@ -84,29 +84,21 @@ class AppInfoManager private constructor() {
             return cachedResults
         }
         
-        Log.d(TAG, "开始搜索: '$query', 应用总数: ${appList.size}")
-        
         // 首先尝试简单搜索
         val simpleResults = performSimpleSearch(query)
         if (simpleResults.isNotEmpty()) {
-            Log.d(TAG, "简单搜索找到 ${simpleResults.size} 个应用")
             searchCache[normalizedQuery] = simpleResults
             return simpleResults
         }
         
-        // 如果简单搜索没有结果，使用复杂搜索算法
+        // 如果简单搜索没有结果，使用快速搜索算法
         val results = mutableMapOf<AppInfo, Int>() // 应用 -> 匹配分数
         
-        // 并行处理搜索以提升性能
+        // 快速搜索：只进行基本的包含匹配和前缀匹配
         appList.forEach { app ->
-            val score = calculateMatchScore(normalizedQuery, app)
-            // 降低匹配阈值，确保更多应用能被匹配到
+            val score = calculateQuickMatchScore(normalizedQuery, app)
             if (score > 0) {
                 results[app] = score
-                Log.d(TAG, "匹配应用: ${app.label}, 分数: $score")
-            } else {
-                // 即使分数为0，也记录日志以便调试
-                Log.d(TAG, "未匹配应用: ${app.label}, 查询: '$normalizedQuery', 标准化后: '${normalizeString(app.label)}'")
             }
         }
         
@@ -115,6 +107,7 @@ class AppInfoManager private constructor() {
             .sortedWith(compareByDescending<Pair<AppInfo, Int>> { it.second }
                 .thenBy { it.first.label })
             .map { it.first }
+            .take(20) // 限制搜索结果数量，提升性能
         
         // 缓存结果
         searchCache[normalizedQuery] = sortedResults
@@ -125,7 +118,6 @@ class AppInfoManager private constructor() {
             keysToRemove.forEach { searchCache.remove(it) }
         }
         
-        Log.d(TAG, "搜索结果: ${sortedResults.size} 个应用")
         return sortedResults
     }
     
@@ -141,11 +133,37 @@ class AppInfoManager private constructor() {
             val appNameLower = app.label.lowercase()
             if (appNameLower.contains(queryLower)) {
                 results.add(app)
-                Log.d(TAG, "简单搜索匹配: ${app.label}")
             }
         }
         
-        return results.sortedBy { it.label }
+        return results.sortedBy { it.label }.take(20) // 限制结果数量
+    }
+    
+    /**
+     * 快速搜索方法
+     * 只进行基本的包含匹配和前缀匹配，提升性能
+     */
+    private fun calculateQuickMatchScore(query: String, app: AppInfo): Int {
+        val appName = normalizeString(app.label)
+        var score = 0
+        
+        // 1. 完全匹配 (最高分100)
+        if (appName.equals(query, ignoreCase = true)) {
+            score += 100
+        }
+        
+        // 2. 前缀匹配 (分数80-90)
+        if (appName.startsWith(query, ignoreCase = true)) {
+            score += 90 - (appName.length - query.length) // 长度差异越小分数越高
+        }
+        
+        // 3. 包含匹配 (分数60-80)
+        if (appName.contains(query, ignoreCase = true)) {
+            val containsScore = 80 - (appName.indexOf(query, ignoreCase = true) * 2) // 位置越靠前分数越高
+            score += max(containsScore, 60)
+        }
+        
+        return score
     }
     
     /**

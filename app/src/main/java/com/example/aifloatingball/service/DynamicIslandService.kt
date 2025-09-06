@@ -265,6 +265,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private val hideHandler = Handler(Looper.getMainLooper())
     private var hideRunnable: Runnable? = null
     
+    // 搜索防抖相关
+    private val searchHandler = Handler(Looper.getMainLooper())
+    private var searchRunnable: Runnable? = null
+    
     // App Search Components
     private lateinit var appInfoManager: AppInfoManager
     private var appSearchRecyclerView: RecyclerView? = null
@@ -2775,30 +2779,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 val query = s.toString().trim()
-                Log.d(TAG, "文本变化: '$query', 当前选中应用: ${currentSelectedApp?.label}")
+                
+                // 取消之前的搜索任务
+                searchRunnable?.let { searchHandler.removeCallbacks(it) }
                 
                 if (query.isNotEmpty()) {
                     // 清除选中提示
                     if (currentSelectedApp != null) {
                         searchInput?.hint = "搜索应用或输入内容"
-                        Log.d(TAG, "清除选中提示，当前选中应用: ${currentSelectedApp?.label}")
                     }
                     
                     // 确保AppInfoManager已加载
                     val appInfoManager = AppInfoManager.getInstance()
                     if (!appInfoManager.isLoaded()) {
-                        Log.d(TAG, "AppInfoManager未加载，开始加载")
                         appInfoManager.loadApps(this@DynamicIslandService)
-                        // 显示加载提示
                         showLoadingIndicator()
                         return@afterTextChanged
                     }
                     
-                    // 实时搜索匹配的APP
-                    performRealTimeSearch(query, appInfoManager)
+                    // 使用防抖机制，延迟300ms执行搜索
+                    searchRunnable = Runnable {
+                        performRealTimeSearch(query, appInfoManager)
+                    }
+                    searchRunnable?.let { searchHandler.postDelayed(it, 300) }
                 } else {
                     // 输入框为空时，显示常用APP图标
-                    Log.d(TAG, "输入框为空，显示默认APP图标")
                     showDefaultAppIcons()
                 }
             }
@@ -2810,14 +2815,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun performRealTimeSearch(query: String, appInfoManager: AppInfoManager) {
         val appResults = appInfoManager.search(query)
-        Log.d(TAG, "搜索查询: '$query', 找到 ${appResults.size} 个结果")
         
         if (appResults.isNotEmpty()) {
-            Log.d(TAG, "找到匹配的APP: ${appResults.map { it.label }}")
             showAppSearchResults(appResults)
         } else {
             // 没有匹配的APP时，显示支持URL scheme的APP图标
-            Log.d(TAG, "没有匹配的APP，显示URL scheme APP图标")
             showUrlSchemeAppIcons()
         }
     }
