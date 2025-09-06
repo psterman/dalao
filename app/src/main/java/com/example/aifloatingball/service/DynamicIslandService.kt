@@ -145,6 +145,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var assistantSelectorView: View? = null
     private var assistantPromptSelectorView: View? = null
     private var selectorScrimView: View? = null
+    private var aiAssistantPanelView: View? = null // 新的AI助手面板
 
     private lateinit var notificationIconContainer: LinearLayout
     private var searchInput: EditText? = null
@@ -279,6 +280,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var closeAppSearchButton: View? = null
     private var ballView: View? = null // 圆球状态视图
     
+    // 剪贴板相关
+    private var clipboardManager: ClipboardManager? = null
+    private var lastClipboardContent: String? = null
+    private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    private var isClipboardAutoExpandEnabled = true // 是否启用复制文字自动展开功能
+    private var lastClipboardChangeTime = 0L // 上次剪贴板变化时间
+    private val clipboardChangeDebounceTime = 1000L // 防抖时间：1秒
+    
     // 最近选中的APP相关
     private var recentAppButton: MaterialButton? = null
     private var recentAppsDropdown: PopupWindow? = null
@@ -309,6 +318,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 初始化AppInfoManager并加载应用列表
         AppInfoManager.getInstance().loadApps(this)
+        
+        // 初始化剪贴板监听器
+        initClipboardListener()
         
         // 强制启用增强版布局（调试用）
         forceEnableEnhancedLayout()
@@ -536,16 +548,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun startDualSearch() {
         try {
-            // This action might open the multi-window search directly
-            // It might be useful to pre-fill a query from clipboard if available
-            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startService(intent)
-            Log.d(TAG, "启动双搜索服务")
+            // 不再跳转到DualFloatingWebViewService，只显示提示
+            Toast.makeText(this, "搜索功能已禁用", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "搜索功能已禁用")
         } catch (e: Exception) {
-            Log.e(TAG, "启动双搜索服务失败", e)
-            Toast.makeText(this, "无法启动双搜索功能", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "处理搜索请求失败", e)
         }
     }
 
@@ -564,16 +571,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun showSearchDialog() {
         try {
-            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra("source", "灵动岛搜索")
-                putExtra("startTime", System.currentTimeMillis())
-            }
-            startService(intent)
-            Log.d(TAG, "启动搜索服务")
+            // 不再跳转到DualFloatingWebViewService，只显示提示
+            Toast.makeText(this, "搜索功能已禁用", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "搜索功能已禁用")
         } catch (e: Exception) {
-            Log.e(TAG, "启动搜索服务失败", e)
-            Toast.makeText(this, "无法启动搜索", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "处理搜索请求失败", e)
         }
     }
 
@@ -801,7 +803,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun showDeepSeekResponse(text: String) {
-        val aiResponseText = configPanelView?.findViewById<TextView>(R.id.ai_response_text)
+        // 优先使用AI助手面板中的响应文本视图
+        val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
+            ?: configPanelView?.findViewById<TextView>(R.id.ai_response_text)
         aiResponseText?.text = text
     }
 
@@ -816,8 +820,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             callback = object : AIApiManager.StreamingCallback {
                 override fun onChunkReceived(chunk: String) {
                     uiHandler.post {
-                        val currentText = configPanelView?.findViewById<TextView>(R.id.ai_response_text)?.text?.toString() ?: ""
-                        configPanelView?.findViewById<TextView>(R.id.ai_response_text)?.text = currentText + chunk
+                        val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
+                            ?: configPanelView?.findViewById<TextView>(R.id.ai_response_text)
+                        val currentText = aiResponseText?.text?.toString() ?: ""
+                        aiResponseText?.text = currentText + chunk
                     }
                 }
                 
@@ -879,8 +885,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun sendAIMessage(query: String, responseTextView: TextView?) {
         responseTextView?.text = "正在思考中..."
         
-        // 获取当前选择的AI服务
-        val spinner = configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+        // 获取当前选择的AI服务，优先使用AI助手面板中的选择器
+        val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+            ?: configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
         val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
         
         // 将显示名称映射到AIServiceType
@@ -1178,6 +1185,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         hidePasteButton()
         proxyIndicatorAnimator?.cancel()
         savePositionRunnable?.let { uiHandler.removeCallbacks(it) }
+        
+        // 清理剪贴板监听器
+        cleanupClipboardListener()
     }
 
     private fun cleanupViews() {
@@ -1202,6 +1212,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 不再需要代理指示器
         assistantPromptSelectorView = null
         selectorScrimView = null
+        aiAssistantPanelView = null
         editingScrimView = null
         searchInput = null
         searchButton = null
@@ -1250,49 +1261,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         }
 
-        // Setup AI 助手窗口
-        val aiAssistantContainer = configPanelView?.findViewById<MaterialCardView>(R.id.ai_assistant_container)
-        val aiServiceSpinner = configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-        val aiInputText = configPanelView?.findViewById<EditText>(R.id.ai_input_text)
-        val aiResponseText = configPanelView?.findViewById<TextView>(R.id.ai_response_text)
-        val btnAiSettings = configPanelView?.findViewById<ImageButton>(R.id.btn_ai_settings)
-        val btnClearAiResponse = configPanelView?.findViewById<ImageButton>(R.id.btn_clear_ai_response)
-        val btnSendAiMessage = configPanelView?.findViewById<ImageButton>(R.id.btn_send_ai_message)
-        
-        // 设置AI服务选择器
-        setupAIServiceSpinner(aiServiceSpinner)
-        
-        // 设置按钮点击事件
-        btnClearAiResponse?.setOnClickListener {
-            aiResponseText?.text = "选择AI服务并输入问题获取回复..."
-        }
-        
-        btnAiSettings?.setOnClickListener {
-            // 打开AI设置页面
-            val intent = Intent(this, AIApiConfigActivity::class.java)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-        }
-        
-        btnSendAiMessage?.setOnClickListener {
-            val query = aiInputText?.text?.toString()?.trim()
-            if (!query.isNullOrEmpty()) {
-                sendAIMessage(query, aiResponseText)
-            }
-        }
-        
-        // 设置输入框监听器
-        aiInputText?.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND) {
-                val query = aiInputText?.text?.toString()?.trim()
-                if (!query.isNullOrEmpty()) {
-                    sendAIMessage(query, aiResponseText)
-                }
-                true
-            } else {
-                false
-            }
-        }
+        // AI助手功能已移动到独立的AI助手面板中
+        // 这里不再需要设置AI相关的UI组件
 
         // Set initial state and add listener for the send button's alpha
         searchButton?.alpha = 0.5f // Start as semi-transparent
@@ -1398,21 +1368,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         }
 
-        // 设置按钮点击处理
-        val settingsButton = configPanelView?.findViewById<View>(R.id.btn_settings)
-        settingsButton?.setOnClickListener {
+        // 退出按钮点击处理
+        val exitButton = configPanelView?.findViewById<View>(R.id.btn_settings)
+        exitButton?.setOnClickListener {
             animationView?.apply {
                 visibility = View.VISIBLE
                 playAnimation()
             }
 
             // 添加点击动画效果
-            settingsButton.animate()
+            exitButton.animate()
                 .scaleX(0.95f)
                 .scaleY(0.95f)
                 .setDuration(100)
                 .withEndAction {
-                    settingsButton.animate()
+                    exitButton.animate()
                         .scaleX(1f)
                         .scaleY(1f)
                         .setDuration(100)
@@ -1420,8 +1390,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
                 .start()
 
-            // 打开设置页面
-            openSettings()
+            // 退出搜索面板
+            hideConfigPanel()
         }
 
         // 计算灵动岛的位置，让搜索面板从灵动岛下方展开
@@ -1465,6 +1435,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         // 使用更强制的方法显示输入法
                         imm.toggleSoftInput(InputMethodManager.SHOW_FORCED, InputMethodManager.HIDE_IMPLICIT_ONLY)
                     }, 200)
+                    
+                    // 不再自动粘贴到搜索框，因为已移除输入框
                 }
                 .start()
         }
@@ -2770,12 +2742,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val query = searchInput?.text.toString().trim()
                 if (query.isNotEmpty()) {
                     hideKeyboard(searchInput)
-                    val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                        putExtra("search_query", query)
-                        putExtra("source", "灵动岛")
-                        putExtra("startTime", System.currentTimeMillis())
-                    }
-                    startService(intent)
+                    // 不再跳转到DualFloatingWebViewService，只显示提示
+                    Toast.makeText(this, "搜索功能已禁用", Toast.LENGTH_SHORT).show()
                     collapseIsland()
                 }
                 true
@@ -3361,6 +3329,426 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
             else -> false
+        }
+    }
+    
+    /**
+     * 初始化剪贴板监听器
+     */
+    private fun initClipboardListener() {
+        try {
+            clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            
+            clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+                if (isClipboardAutoExpandEnabled) {
+                    handleClipboardChange()
+                }
+            }
+            
+            clipboardManager?.addPrimaryClipChangedListener(clipboardListener)
+            
+            // 初始化当前剪贴板内容
+            updateLastClipboardContent()
+            
+            Log.d(TAG, "剪贴板监听器已初始化")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化剪贴板监听器失败", e)
+        }
+    }
+    
+    /**
+     * 处理剪贴板变化
+     */
+    private fun handleClipboardChange() {
+        try {
+            val currentTime = System.currentTimeMillis()
+            
+            // 防抖处理：如果距离上次变化时间太短，忽略
+            if (currentTime - lastClipboardChangeTime < clipboardChangeDebounceTime) {
+                Log.d(TAG, "剪贴板变化过于频繁，忽略此次变化")
+                return
+            }
+            
+            val currentContent = getCurrentClipboardContent()
+            
+            // 检查是否有新内容且内容不为空
+            if (currentContent != null && 
+                currentContent.isNotEmpty() && 
+                currentContent != lastClipboardContent &&
+                isValidClipboardContent(currentContent)) {
+                
+                Log.d(TAG, "检测到剪贴板内容变化: $currentContent")
+                
+                // 更新时间和内容
+                lastClipboardChangeTime = currentTime
+                lastClipboardContent = currentContent
+                
+                // 自动展开灵动岛
+                autoExpandForClipboard(currentContent)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理剪贴板变化失败", e)
+        }
+    }
+    
+    /**
+     * 为剪贴板内容自动展开灵动岛
+     */
+    private fun autoExpandForClipboard(content: String) {
+        try {
+            Log.d(TAG, "为剪贴板内容自动展开灵动岛: $content")
+            
+            // 如果当前是圆球状态，先恢复灵动岛状态
+            if (ballView != null && ballView?.visibility == View.VISIBLE) {
+                restoreIslandState()
+                // 等待恢复动画完成后再展开搜索
+                windowContainerView?.postDelayed({
+                    expandIslandForClipboard(content)
+                }, 500)
+            } else {
+                // 直接展开搜索
+                expandIslandForClipboard(content)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "自动展开灵动岛失败", e)
+        }
+    }
+    
+    /**
+     * 为剪贴板内容展开搜索模式（仅展开动画，不显示输入框）
+     */
+    private fun expandIslandForClipboard(content: String) {
+        try {
+            Log.d(TAG, "为剪贴板内容展开灵动岛动画: $content")
+            
+            // 只展开灵动岛动画，不显示搜索框
+            if (!isSearchModeActive) {
+                // 创建一个简化的展开动画，不包含输入框
+                animateIslandForClipboard()
+            }
+            
+            // 显示Toast提示
+            val displayContent = if (content.length > 20) {
+                content.substring(0, 20) + "..."
+            } else {
+                content
+            }
+            Toast.makeText(this, "检测到复制内容：$displayContent", Toast.LENGTH_SHORT).show()
+            
+            Log.d(TAG, "剪贴板内容检测完成: $content")
+        } catch (e: Exception) {
+            Log.e(TAG, "展开灵动岛动画失败", e)
+        }
+    }
+    
+    /**
+     * 为剪贴板内容创建简化的展开动画（不包含输入框）
+     */
+    private fun animateIslandForClipboard() {
+        try {
+            val animator = ValueAnimator.ofInt(compactWidth, expandedWidth)
+            animator.duration = 350
+            animator.interpolator = AccelerateDecelerateInterpolator()
+            animator.addUpdateListener {
+                animatingIslandView?.layoutParams?.width = it.animatedValue as Int
+                animatingIslandView?.requestLayout()
+            }
+            animator.addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationStart(animation: Animator) {
+                    // 展开时显示一个简单的提示视图，而不是搜索框
+                    islandContentView = LayoutInflater.from(this@DynamicIslandService)
+                        .inflate(R.layout.dynamic_island_clipboard_hint, animatingIslandView, false)
+                    animatingIslandView?.addView(islandContentView)
+                }
+                override fun onAnimationEnd(animation: Animator) {
+                    // 动画结束后，延迟3秒自动收起
+                    windowContainerView?.postDelayed({
+                        collapseIslandForClipboard()
+                    }, 3000)
+                }
+            })
+            animator.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "创建剪贴板展开动画失败", e)
+        }
+    }
+    
+    /**
+     * 收起剪贴板提示的灵动岛
+     */
+    private fun collapseIslandForClipboard() {
+        try {
+            val animator = ValueAnimator.ofInt(expandedWidth, compactWidth)
+            animator.duration = 350
+            animator.interpolator = AccelerateDecelerateInterpolator()
+            animator.addUpdateListener {
+                animatingIslandView?.layoutParams?.width = it.animatedValue as Int
+                animatingIslandView?.requestLayout()
+            }
+            animator.addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    // 收起时移除内容视图
+                    animatingIslandView?.removeAllViews()
+                }
+            })
+            animator.start()
+        } catch (e: Exception) {
+            Log.e(TAG, "收起剪贴板提示失败", e)
+        }
+    }
+    
+    /**
+     * 检查剪贴板内容是否有效
+     */
+    private fun isValidClipboardContent(content: String): Boolean {
+        // 过滤掉太短的内容（少于2个字符）
+        if (content.length < 2) {
+            return false
+        }
+        
+        // 过滤掉纯数字内容（可能是验证码等）
+        if (content.matches(Regex("^\\d+$"))) {
+            return false
+        }
+        
+        // 过滤掉纯符号内容
+        if (content.matches(Regex("^[^\\p{L}\\p{N}]+$"))) {
+            return false
+        }
+        
+        // 过滤掉太长的内容（超过500字符）
+        if (content.length > 500) {
+            return false
+        }
+        
+        return true
+    }
+    
+    /**
+     * 获取当前剪贴板内容
+     */
+    private fun getCurrentClipboardContent(): String? {
+        return try {
+            val clipData = clipboardManager?.primaryClip
+            if (clipData != null && clipData.itemCount > 0) {
+                val item = clipData.getItemAt(0)
+                item.text?.toString()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取剪贴板内容失败", e)
+            null
+        }
+    }
+    
+    /**
+     * 更新最后记录的剪贴板内容
+     */
+    private fun updateLastClipboardContent() {
+        lastClipboardContent = getCurrentClipboardContent()
+    }
+    
+    /**
+     * 自动粘贴剪贴板内容到搜索框（已禁用）
+     */
+    private fun autoPasteToSearchInput() {
+        // 已禁用自动粘贴功能，因为已移除输入框
+        Log.d(TAG, "自动粘贴功能已禁用")
+    }
+    
+    /**
+     * 自动粘贴剪贴板内容到AI助手输入框（已禁用）
+     */
+    private fun autoPasteToAIInput() {
+        // 已禁用自动粘贴功能，因为已移除输入框
+        Log.d(TAG, "自动粘贴到AI助手功能已禁用")
+    }
+    
+    /**
+     * 清理剪贴板监听器
+     */
+    private fun cleanupClipboardListener() {
+        try {
+            clipboardListener?.let { listener ->
+                clipboardManager?.removePrimaryClipChangedListener(listener)
+            }
+            clipboardListener = null
+            clipboardManager = null
+            lastClipboardContent = null
+            Log.d(TAG, "剪贴板监听器已清理")
+        } catch (e: Exception) {
+            Log.e(TAG, "清理剪贴板监听器失败", e)
+        }
+    }
+    
+    /**
+     * 显示AI助手面板
+     */
+    private fun showAIAssistantPanel() {
+        if (aiAssistantPanelView != null) return
+        
+        try {
+            val themedContext = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
+            aiAssistantPanelView = LayoutInflater.from(themedContext).inflate(R.layout.ai_assistant_panel, null)
+            
+            // 设置面板参数
+            val panelParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                topMargin = statusBarHeight + 56.dpToPx() + 16.dpToPx()
+            }
+            
+        // 设置AI助手面板的交互
+        setupAIAssistantPanelInteractions()
+        
+        // 添加到窗口并显示动画
+        windowContainerView?.addView(aiAssistantPanelView, panelParams)
+        aiAssistantPanelView?.apply {
+            alpha = 0f
+            translationY = -100f
+            animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(350)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .withEndAction {
+                    // 面板显示完成，不再自动粘贴剪贴板内容
+                    Log.d(TAG, "AI助手面板显示完成")
+                }
+                .start()
+        }
+        
+        Log.d(TAG, "AI助手面板已显示")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI助手面板失败", e)
+        }
+    }
+    
+    /**
+     * 隐藏AI助手面板
+     */
+    private fun hideAIAssistantPanel() {
+        val panelToRemove = aiAssistantPanelView
+        aiAssistantPanelView = null
+        
+        panelToRemove?.let { panel ->
+            panel.animate()
+                .alpha(0f)
+                .translationY(-100f)
+                .setDuration(250)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .withEndAction {
+                    try {
+                        windowContainerView?.removeView(panel)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "移除AI助手面板失败", e)
+                    }
+                }
+                .start()
+        }
+        
+        Log.d(TAG, "AI助手面板已隐藏")
+    }
+    
+    /**
+     * 设置AI助手面板的交互
+     */
+    private fun setupAIAssistantPanelInteractions() {
+        try {
+            // 关闭按钮
+            val btnClosePanel = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_close_ai_panel)
+            btnClosePanel?.setOnClickListener {
+                hideAIAssistantPanel()
+            }
+            
+            // AI服务选择器
+            val aiServiceSpinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+            setupAIServiceSpinner(aiServiceSpinner)
+            
+            // AI输入框
+            val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
+            val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
+            
+            // AI设置按钮
+            val btnAiSettings = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_ai_settings)
+            btnAiSettings?.setOnClickListener {
+                val intent = Intent(this, AIApiConfigActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            }
+            
+            // 清除回复按钮
+            val btnClearAiResponse = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_clear_ai_response)
+            btnClearAiResponse?.setOnClickListener {
+                aiResponseText?.text = "选择AI服务并输入问题获取回复..."
+            }
+            
+            // 发送消息按钮
+            val btnSendAiMessage = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_send_ai_message)
+            btnSendAiMessage?.setOnClickListener {
+                val query = aiInputText?.text?.toString()?.trim()
+                if (!query.isNullOrEmpty()) {
+                    sendAIMessage(query, aiResponseText)
+                    aiInputText?.setText("") // 清空输入框
+                }
+            }
+            
+            // 复制回复按钮
+            val btnCopyResponse = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_copy_response)
+            btnCopyResponse?.setOnClickListener {
+                val responseText = aiResponseText?.text?.toString()
+                if (!responseText.isNullOrEmpty() && responseText != "选择AI服务并输入问题获取回复...") {
+                    copyTextToClipboard(responseText)
+                    Toast.makeText(this, "回复已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                }
+            }
+            
+            // 分享回复按钮
+            val btnShareResponse = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_share_response)
+            btnShareResponse?.setOnClickListener {
+                val responseText = aiResponseText?.text?.toString()
+                if (!responseText.isNullOrEmpty() && responseText != "选择AI服务并输入问题获取回复...") {
+                    shareText(responseText)
+                }
+            }
+            
+            // 助手选择按钮
+            val btnSelectAssistant = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_select_assistant)
+            btnSelectAssistant?.setOnClickListener {
+                showAssistantSelector()
+            }
+            
+            // 身份生成按钮
+            val btnGeneratePrompt = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_generate_prompt)
+            btnGeneratePrompt?.setOnClickListener {
+                showPromptProfileSelector()
+            }
+            
+            Log.d(TAG, "AI助手面板交互设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置AI助手面板交互失败", e)
+        }
+    }
+    
+    /**
+     * 分享文本
+     */
+    private fun shareText(text: String) {
+        try {
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
+            val chooserIntent = Intent.createChooser(shareIntent, "分享AI回复")
+            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(chooserIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "分享文本失败", e)
+            Toast.makeText(this, "分享失败", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -4030,7 +4418,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // AI助手按钮
         btnAiAssistant?.setOnClickListener {
             Log.d(TAG, "AI助手按钮被点击")
-            showQuickChatDialog()
+            showAIAssistantPanel()
         }
 
         // 应用程序按钮
