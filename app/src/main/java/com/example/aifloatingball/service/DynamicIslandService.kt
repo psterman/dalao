@@ -744,7 +744,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // 检查是否有选中的APP
         if (currentSelectedApp != null) {
+            // 有选中APP时，执行搜索动作并退出搜索面板
             handleSearchWithSelectedApp(query, currentSelectedApp!!)
+            // 清除选中的APP，为下次搜索做准备
+            currentSelectedApp = null
             return
         }
 
@@ -2771,7 +2774,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 val query = s.toString().trim()
+                Log.d(TAG, "文本变化: '$query', 当前选中应用: ${currentSelectedApp?.label}")
+                
                 if (query.isNotEmpty()) {
+                    // 清除选中提示
+                    if (currentSelectedApp != null) {
+                        searchInput?.hint = "搜索应用或输入内容"
+                        Log.d(TAG, "清除选中提示，当前选中应用: ${currentSelectedApp?.label}")
+                    }
+                    
                     // 确保AppInfoManager已加载
                     val appInfoManager = AppInfoManager.getInstance()
                     if (!appInfoManager.isLoaded()) {
@@ -2805,30 +2816,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         Log.d(TAG, "appSearchResultsContainer: $appSearchResultsContainer")
         Log.d(TAG, "appSearchRecyclerView: $appSearchRecyclerView")
         
-        if (appSearchAdapter == null) {
-            appSearchAdapter = AppSearchAdapter(results, isHorizontal = true) { appInfo ->
-                // 添加到最近选中的APP列表
-                addToRecentApps(appInfo)
-                // 更新最近APP按钮图标
-                updateRecentAppButton(appInfo)
-                // 使用输入框文本作为搜索词跳转到APP
-                val searchQuery = searchInput?.text.toString().trim()
-                if (searchQuery.isNotEmpty()) {
-                    handleSearchWithSelectedApp(searchQuery, appInfo)
-                } else {
-                    // 如果没有搜索词，直接启动APP
-                    launchAppSearchResults(appInfo)
-                }
-                // 跳转后最小化搜索界面
-                hideConfigPanel()
-            }
-            appSearchRecyclerView?.apply {
-                layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-                adapter = appSearchAdapter
-                overScrollMode = View.OVER_SCROLL_NEVER
-            }
-        } else {
-            appSearchAdapter?.updateData(results)
+        // 每次都重新创建适配器，确保点击监听器正确设置
+        appSearchAdapter = AppSearchAdapter(results, isHorizontal = true) { appInfo ->
+            // 选中应用，但不执行搜索动作
+            selectAppForSearch(appInfo)
+        }
+        appSearchRecyclerView?.apply {
+            layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+            adapter = appSearchAdapter
+            overScrollMode = View.OVER_SCROLL_NEVER
         }
 
         appSearchResultsContainer?.visibility = View.VISIBLE
@@ -2841,6 +2837,55 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             appSearchRecyclerView?.adapter = null
             appSearchAdapter = null
         }
+    }
+    
+    /**
+     * 选中应用用于搜索，但不执行搜索动作
+     * 用户需要输入文本并执行搜索后才会退出搜索面板
+     */
+    private fun selectAppForSearch(appInfo: AppInfo) {
+        Log.d(TAG, "选中应用: ${appInfo.label}")
+        
+        // 添加到最近选中的APP列表
+        addToRecentApps(appInfo)
+        // 更新最近APP按钮图标
+        updateRecentAppButton(appInfo)
+        // 设置当前选中的APP
+        currentSelectedApp = appInfo
+        
+        // 清理输入框文本，等待用户输入新的搜索关键词
+        searchInput?.setText("")
+        searchInput?.hint = "已选中 ${appInfo.label}，请输入搜索内容"
+        
+        // 显示选中提示
+        Toast.makeText(this, "已选中 ${appInfo.label}，请输入搜索内容", Toast.LENGTH_SHORT).show()
+        
+        // 不退出搜索面板，让用户继续输入搜索内容
+        // 搜索面板保持打开状态，用户可以继续输入文本
+    }
+    
+    /**
+     * 从历史列表选中应用，但不执行搜索动作
+     * 用于历史列表选择应用时的处理
+     */
+    private fun selectAppFromHistory(appInfo: AppInfo) {
+        Log.d(TAG, "从历史列表选中应用: ${appInfo.label}")
+        
+        // 添加到最近选中的APP列表
+        addToRecentApps(appInfo)
+        // 更新最近APP按钮图标
+        updateRecentAppButton(appInfo)
+        // 设置当前选中的APP
+        currentSelectedApp = appInfo
+        
+        // 设置提示信息，等待用户输入搜索关键词
+        searchInput?.hint = "已选中 ${appInfo.label}，请输入搜索内容"
+        
+        // 显示选中提示
+        Toast.makeText(this, "已选中 ${appInfo.label}，请输入搜索内容", Toast.LENGTH_SHORT).show()
+        
+        // 不退出搜索面板，让用户继续输入搜索内容
+        // 搜索面板保持打开状态，用户可以继续输入文本
     }
     
     private fun showDefaultAppIcons() {
@@ -3295,9 +3340,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         recentAppAdapter = RecentAppAdapter(
             recentApps,
             onAppClick = { appInfo ->
-                // 切换选中的APP
-                updateRecentAppButton(appInfo)
-                hideRecentAppsDropdown()
+                // 检查搜索框是否有内容
+                val searchText = searchInput?.text.toString().trim()
+                if (searchText.isNotEmpty()) {
+                    // 搜索框不为空，直接执行搜索
+                    Log.d(TAG, "历史列表选择应用，直接执行搜索: ${appInfo.label}, 搜索内容: $searchText")
+                    handleSearchWithSelectedApp(searchText, appInfo)
+                    // 清除选中的APP，为下次搜索做准备
+                    currentSelectedApp = null
+                    hideRecentAppsDropdown()
+                } else {
+                    // 搜索框为空，只选中应用，等待用户输入
+                    Log.d(TAG, "历史列表选择应用，等待用户输入: ${appInfo.label}")
+                    selectAppFromHistory(appInfo)
+                    hideRecentAppsDropdown()
+                }
             },
             onAppRemove = { appInfo ->
                 // 从最近列表中移除
@@ -3393,6 +3450,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
+                // 执行搜索动作后退出搜索面板
                 hideContent()
                 Toast.makeText(this, "已跳转到${appInfo.label}搜索", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
@@ -3421,6 +3479,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     if (launchIntent != null) {
                         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         startActivity(launchIntent)
+                        // 执行搜索动作后退出搜索面板
                         hideContent()
                     } else {
                         Toast.makeText(this, "无法启动该应用", Toast.LENGTH_SHORT).show()
