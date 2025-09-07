@@ -329,6 +329,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 初始化AppInfoManager并加载应用列表
         AppInfoManager.getInstance().loadApps(this)
         
+        // 加载最近选中的APP历史
+        loadRecentAppsFromPrefs()
+        
         // 初始化剪贴板监听器
         initClipboardListener()
         
@@ -3622,7 +3625,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     // 添加间距（除了最后一个）
                     if (index < appsToShow.size - 1) {
                         val spacer = View(this).apply {
-                            layoutParams = LinearLayout.LayoutParams(8.dpToPx(), 1)
+                            layoutParams = LinearLayout.LayoutParams(12.dpToPx(), 1)
                         }
                         containerLayout.addView(spacer)
                     }
@@ -3651,7 +3654,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun createAppIconButton(appInfo: AppInfo, clipboardContent: String): View {
         return ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx())
+            // 调整图标大小以适应灵动岛高度（56dp展开高度，图标用48dp，留8dp边距）
+            val iconSize = 48.dpToPx()
+            layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
+                // 垂直居中对齐
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
             scaleType = ImageView.ScaleType.CENTER_CROP
             
             // 设置圆形背景
@@ -4158,7 +4166,103 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (recentApps.size > 10) {
             recentApps.removeAt(recentApps.size - 1)
         }
+        // 保存到SharedPreferences
+        saveRecentAppsToPrefs()
         Log.d(TAG, "添加到最近APP: ${appInfo.label}")
+    }
+    
+    /**
+     * 用于序列化的简化AppInfo数据类（不包含Drawable）
+     */
+    private data class SerializableAppInfo(
+        val label: String,
+        val packageName: String,
+        val urlScheme: String? = null
+    )
+    
+    /**
+     * 将AppInfo转换为可序列化的格式
+     */
+    private fun AppInfo.toSerializable(): SerializableAppInfo {
+        return SerializableAppInfo(
+            label = this.label,
+            packageName = this.packageName,
+            urlScheme = this.urlScheme
+        )
+    }
+    
+    /**
+     * 从可序列化格式重建AppInfo（重新加载图标）
+     */
+    private fun SerializableAppInfo.toAppInfo(): AppInfo? {
+        return try {
+            // 验证应用是否仍然安装
+            packageManager.getPackageInfo(this.packageName, 0)
+            
+            // 重新加载图标
+            val icon = packageManager.getApplicationIcon(this.packageName)
+            
+            AppInfo(
+                label = this.label,
+                packageName = this.packageName,
+                icon = icon,
+                urlScheme = this.urlScheme
+            )
+        } catch (e: Exception) {
+            Log.d(TAG, "应用已卸载或无法加载: ${this.label}")
+            null
+        }
+    }
+
+    /**
+     * 保存最近选中的APP列表到SharedPreferences
+     */
+    private fun saveRecentAppsToPrefs() {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val gson = com.google.gson.Gson()
+            
+            // 转换为可序列化的格式
+            val serializableApps = recentApps.map { it.toSerializable() }
+            val jsonString = gson.toJson(serializableApps)
+            
+            prefs.edit()
+                .putString(KEY_RECENT_APPS, jsonString)
+                .apply()
+            Log.d(TAG, "已保存最近APP列表: ${recentApps.size}个")
+        } catch (e: Exception) {
+            Log.e(TAG, "保存最近APP列表失败", e)
+        }
+    }
+    
+    /**
+     * 从SharedPreferences加载最近选中的APP列表
+     */
+    private fun loadRecentAppsFromPrefs() {
+        try {
+            val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val jsonString = prefs.getString(KEY_RECENT_APPS, null)
+            
+            if (jsonString != null) {
+                val gson = com.google.gson.Gson()
+                val type = object : com.google.gson.reflect.TypeToken<List<SerializableAppInfo>>() {}.type
+                val serializableApps: List<SerializableAppInfo> = gson.fromJson(jsonString, type)
+                
+                // 转换回AppInfo并过滤有效的应用
+                recentApps.clear()
+                serializableApps.forEach { serializableApp ->
+                    val appInfo = serializableApp.toAppInfo()
+                    if (appInfo != null) {
+                        recentApps.add(appInfo)
+                    }
+                }
+                
+                Log.d(TAG, "已加载最近APP列表: ${recentApps.size}个")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载最近APP列表失败", e)
+            recentApps.clear()
+        }
     }
     
     private fun updateRecentAppButton(appInfo: AppInfo) {
@@ -4393,6 +4497,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             onAppRemove = { appInfo ->
                 // 从最近列表中移除
                 recentApps.remove(appInfo)
+                saveRecentAppsToPrefs() // 保存移除状态
                 recentAppAdapter?.updateApps(recentApps)
                 if (currentSelectedApp == appInfo) {
                     currentSelectedApp = null
@@ -4408,6 +4513,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 清空按钮
         clearButton.setOnClickListener {
             recentApps.clear()
+            saveRecentAppsToPrefs() // 保存清空状态
             recentAppAdapter?.updateApps(recentApps)
             currentSelectedApp = null
             recentAppButton?.icon = ContextCompat.getDrawable(this, R.drawable.ic_apps)
