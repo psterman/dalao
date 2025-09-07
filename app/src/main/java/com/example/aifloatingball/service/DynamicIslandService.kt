@@ -3865,8 +3865,30 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             // 身份生成按钮
             val btnGeneratePrompt = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_generate_prompt)
-            btnGeneratePrompt?.setOnClickListener {
-                showPromptProfileSelector()
+            if (btnGeneratePrompt != null) {
+                Log.d(TAG, "找到AI助手面板的身份按钮，设置点击监听器")
+                btnGeneratePrompt.setOnClickListener {
+                    Log.d(TAG, "AI助手面板身份按钮被点击")
+                    
+                    // 添加点击动画效果，参考搜索面板的实现
+                    btnGeneratePrompt.animate()
+                        .scaleX(0.95f)
+                        .scaleY(0.95f)
+                        .setDuration(100)
+                        .withEndAction {
+                            btnGeneratePrompt.animate()
+                                .scaleX(1f)
+                                .scaleY(1f)
+                                .setDuration(100)
+                                .start()
+                        }
+                        .start()
+                    
+                    // 调用档案选择器
+                    showPromptProfileSelectorForAI()
+                }
+            } else {
+                Log.e(TAG, "找不到AI助手面板的身份按钮 (btn_generate_prompt)")
             }
             
             Log.d(TAG, "AI助手面板交互设置完成")
@@ -4394,6 +4416,114 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val activeProfileId = settingsManager.getActivePromptProfileId()
         val profiles = settingsManager.getPromptProfiles()
         return profiles.find { it.id == activeProfileId } ?: profiles.firstOrNull()
+    }
+
+    /**
+     * 为AI助手面板显示档案选择器
+     */
+    private fun showPromptProfileSelectorForAI() {
+        try {
+            Log.d(TAG, "开始显示AI助手档案选择器")
+            
+            val profiles = settingsManager.getPromptProfiles()
+            Log.d(TAG, "获取到的档案列表大小: ${profiles.size}")
+            
+            if (profiles.isEmpty()) {
+                Log.w(TAG, "档案列表为空，显示提示")
+                Toast.makeText(this, "没有可用的档案，请先在设置中创建档案", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            Log.d(TAG, "找到 ${profiles.size} 个档案")
+            
+            // 使用主题包装的上下文，参考搜索面板的实现
+            val context = ContextThemeWrapper(getThemedContext(), R.style.Theme_FloatingWindow)
+            val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_profile_selector, null)
+            
+            val currentProfileId = settingsManager.getActivePromptProfileId()
+            val currentProfile = profiles.find { it.id == currentProfileId } ?: profiles.firstOrNull()
+            
+            Log.d(TAG, "当前档案ID: $currentProfileId, 档案名称: ${currentProfile?.name}")
+            
+            // 更新当前档案显示
+            val currentProfileText = dialogView.findViewById<TextView>(R.id.current_profile_text)
+            currentProfileText?.text = "当前档案: ${currentProfile?.name ?: "未选择"}"
+            
+            // 设置RecyclerView
+            val recyclerView = dialogView.findViewById<RecyclerView>(R.id.profiles_recycler_view)
+            recyclerView?.layoutManager = LinearLayoutManager(context)
+            
+            var selectedProfile = currentProfile
+            val adapter = ProfileSelectorAdapter(profiles, currentProfileId) { profile ->
+                selectedProfile = profile
+                Log.d(TAG, "选择了档案: ${profile.name}")
+            }
+            recyclerView?.adapter = adapter
+            
+            val dialog = AlertDialog.Builder(context)
+                .setView(dialogView)
+                .create()
+            
+            // 设置对话框窗口类型，确保可以从服务中显示
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            
+            // 设置按钮点击事件
+            dialogView.findViewById<View>(R.id.btn_cancel)?.setOnClickListener {
+                Log.d(TAG, "取消选择档案")
+                dialog.dismiss()
+            }
+            
+            dialogView.findViewById<View>(R.id.btn_confirm)?.setOnClickListener {
+                try {
+                    selectedProfile?.let { profile ->
+                        Log.d(TAG, "确认选择档案: ${profile.name}")
+                        
+                        // 切换档案
+                        settingsManager.setActivePromptProfileId(profile.id)
+                        
+                        // 生成并插入提示词到AI输入框
+                        val generatedPrompt = settingsManager.generateMasterPrompt(profile)
+                        val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
+                        val currentText = aiInputText?.text?.toString() ?: ""
+                        val newText = if (currentText.isBlank()) generatedPrompt else "$currentText\n\n$generatedPrompt"
+                        
+                        aiInputText?.setText(newText)
+                        aiInputText?.setSelection(aiInputText?.text?.length ?: 0)
+                        Toast.makeText(this, "已切换到档案: ${profile.name} 并生成提示词", Toast.LENGTH_SHORT).show()
+                        
+                        Log.d(TAG, "档案切换完成")
+                    } ?: run {
+                        Toast.makeText(this, "请选择一个档案", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "处理档案选择时出错", e)
+                    Toast.makeText(this, "处理档案选择时出错: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+                dialog.dismiss()
+            }
+            
+            dialogView.findViewById<View>(R.id.btn_manage_profiles)?.setOnClickListener {
+                try {
+                    Log.d(TAG, "打开档案管理")
+                    val intent = Intent(this, MasterPromptSettingsActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(intent)
+                    dialog.dismiss()
+                } catch (e: Exception) {
+                    Log.e(TAG, "打开档案管理失败", e)
+                    Toast.makeText(this, "打开档案管理失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+            
+            dialog.show()
+            
+            Log.d(TAG, "AI助手档案选择器显示成功")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI助手档案选择器失败", e)
+            Toast.makeText(this, "显示档案选择器失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showPromptProfileSelector() {
