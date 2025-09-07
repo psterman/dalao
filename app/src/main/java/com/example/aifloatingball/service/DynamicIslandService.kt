@@ -3540,25 +3540,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
-     * 为剪贴板内容展开搜索模式（仅展开动画，不显示输入框）
+     * 为剪贴板内容展开搜索模式（显示最近选中app历史的图标列表）
      */
     private fun expandIslandForClipboard(content: String) {
         try {
-            Log.d(TAG, "为剪贴板内容展开灵动岛动画: $content")
+            Log.d(TAG, "为剪贴板内容展开灵动岛，显示最近app历史: $content")
             
-            // 只展开灵动岛动画，不显示搜索框
+            // 只展开灵动岛动画，显示app历史图标
             if (!isSearchModeActive) {
-                // 创建一个简化的展开动画，不包含输入框
-                animateIslandForClipboard()
+                // 创建展开动画，显示最近app历史
+                animateIslandForClipboardWithApps(content)
             }
-            
-            // 显示Toast提示
-            val displayContent = if (content.length > 20) {
-                content.substring(0, 20) + "..."
-            } else {
-                content
-            }
-            Toast.makeText(this, "检测到复制内容：$displayContent", Toast.LENGTH_SHORT).show()
             
             Log.d(TAG, "剪贴板内容检测完成: $content")
         } catch (e: Exception) {
@@ -3567,9 +3559,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
-     * 为剪贴板内容创建简化的展开动画（不包含输入框）
+     * 为剪贴板内容创建展开动画（显示最近app历史图标列表）
      */
-    private fun animateIslandForClipboard() {
+    private fun animateIslandForClipboardWithApps(clipboardContent: String) {
         try {
             val animator = ValueAnimator.ofInt(compactWidth, expandedWidth)
             animator.duration = 350
@@ -3580,16 +3572,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             animator.addListener(object : AnimatorListenerAdapter() {
                 override fun onAnimationStart(animation: Animator) {
-                    // 展开时显示一个简单的提示视图，而不是搜索框
-                    islandContentView = LayoutInflater.from(this@DynamicIslandService)
-                        .inflate(R.layout.dynamic_island_clipboard_hint, animatingIslandView, false)
-                    animatingIslandView?.addView(islandContentView)
+                    // 展开时显示最近app历史图标列表
+                    createClipboardAppHistoryView(clipboardContent)
                 }
                 override fun onAnimationEnd(animation: Animator) {
-                    // 动画结束后，延迟3秒自动收起
+                    // 动画结束后，延迟5秒自动收起（给用户更多时间选择）
                     windowContainerView?.postDelayed({
                         collapseIslandForClipboard()
-                    }, 3000)
+                    }, 5000)
                 }
             })
             animator.start()
@@ -3597,6 +3587,164 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Log.e(TAG, "创建剪贴板展开动画失败", e)
         }
     }
+    
+    /**
+     * 创建剪贴板app历史视图
+     */
+    private fun createClipboardAppHistoryView(clipboardContent: String) {
+        try {
+            // 创建容器布局
+            val containerLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(16.dpToPx(), 8.dpToPx(), 16.dpToPx(), 8.dpToPx())
+                
+                // 设置透明背景
+                setBackgroundColor(Color.TRANSPARENT)
+                
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+            
+            // 如果有最近的app历史，显示图标
+            if (recentApps.isNotEmpty()) {
+                Log.d(TAG, "显示 ${recentApps.size} 个最近app历史图标")
+                
+                // 最多显示6个app图标
+                val appsToShow = recentApps.take(6)
+                
+                appsToShow.forEachIndexed { index, appInfo ->
+                    val iconButton = createAppIconButton(appInfo, clipboardContent)
+                    containerLayout.addView(iconButton)
+                    
+                    // 添加间距（除了最后一个）
+                    if (index < appsToShow.size - 1) {
+                        val spacer = View(this).apply {
+                            layoutParams = LinearLayout.LayoutParams(8.dpToPx(), 1)
+                        }
+                        containerLayout.addView(spacer)
+                    }
+                }
+            } else {
+                // 没有历史记录时显示提示
+                val hintText = TextView(this).apply {
+                    text = "暂无最近使用的应用"
+                    textSize = 12f
+                    setTextColor(Color.WHITE)
+                    gravity = Gravity.CENTER
+                }
+                containerLayout.addView(hintText)
+            }
+            
+            islandContentView = containerLayout
+            animatingIslandView?.addView(islandContentView)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "创建剪贴板app历史视图失败", e)
+        }
+    }
+    
+    /**
+     * 创建app图标按钮
+     */
+    private fun createAppIconButton(appInfo: AppInfo, clipboardContent: String): View {
+        return ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx())
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            
+            // 设置圆形背景
+            val drawable = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#33FFFFFF")) // 半透明白色背景
+            }
+            background = drawable
+            
+            // 设置app图标
+            val icon = getAppIconDrawable(appInfo)
+            if (icon != null) {
+                setImageDrawable(icon)
+            } else {
+                setImageResource(R.drawable.ic_apps)
+            }
+            
+            // 设置点击监听器
+            setOnClickListener {
+                Log.d(TAG, "点击app图标: ${appInfo.label}")
+                handleAppIconClick(appInfo, clipboardContent)
+            }
+            
+            // 添加点击动画效果
+            setOnTouchListener { view, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        view.animate().scaleX(0.9f).scaleY(0.9f).setDuration(100).start()
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        view.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                    }
+                }
+                false
+            }
+        }
+    }
+    
+    /**
+     * 处理app图标点击事件
+     */
+    private fun handleAppIconClick(appInfo: AppInfo, clipboardContent: String) {
+        try {
+            // 立即收起灵动岛
+            collapseIslandForClipboard()
+            
+            // 判断是否支持URL Scheme搜索
+            if (!appInfo.urlScheme.isNullOrEmpty()) {
+                // 支持URL Scheme，直接跳转到app搜索页面
+                val searchUrl = "${appInfo.urlScheme}$clipboardContent"
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                
+                try {
+                    startActivity(intent)
+                    Toast.makeText(this, "已在${appInfo.label}中搜索复制内容", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "通过URL Scheme跳转到${appInfo.label}搜索: $searchUrl")
+                } catch (e: ActivityNotFoundException) {
+                    // URL Scheme不可用，降级到普通启动
+                    launchAppForManualPaste(appInfo)
+                }
+            } else {
+                // 不支持URL Scheme，启动app让用户手动粘贴
+                launchAppForManualPaste(appInfo)
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "处理app图标点击失败", e)
+            Toast.makeText(this, "启动应用失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 启动app让用户手动粘贴
+     */
+    private fun launchAppForManualPaste(appInfo: AppInfo) {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                Toast.makeText(this, "已启动${appInfo.label}，请手动粘贴内容", Toast.LENGTH_LONG).show()
+                Log.d(TAG, "启动app让用户手动粘贴: ${appInfo.label}")
+            } else {
+                Toast.makeText(this, "无法启动${appInfo.label}", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动app失败: ${appInfo.label}", e)
+            Toast.makeText(this, "启动应用失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     
     /**
      * 收起剪贴板提示的灵动岛
