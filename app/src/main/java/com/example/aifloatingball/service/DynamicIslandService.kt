@@ -3493,26 +3493,37 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             // 防抖处理：如果距离上次变化时间太短，忽略
             if (currentTime - lastClipboardChangeTime < clipboardChangeDebounceTime) {
-                Log.d(TAG, "剪贴板变化过于频繁，忽略此次变化")
+                Log.d(TAG, "剪贴板变化过于频繁，忽略此次变化 (${currentTime - lastClipboardChangeTime}ms)")
                 return
             }
             
             val currentContent = getCurrentClipboardContent()
             
-            // 检查是否有新内容且内容不为空
+            // 严格的内容验证
             if (currentContent != null && 
                 currentContent.isNotEmpty() && 
                 currentContent != lastClipboardContent &&
-                isValidClipboardContent(currentContent)) {
+                isValidClipboardContent(currentContent) &&
+                isUserGeneratedClipboard(currentContent)) {
                 
-                Log.d(TAG, "检测到剪贴板内容变化: $currentContent")
+                Log.d(TAG, "检测到有效的剪贴板内容变化: ${currentContent.take(50)}${if (currentContent.length > 50) "..." else ""}")
                 
                 // 更新时间和内容
                 lastClipboardChangeTime = currentTime
                 lastClipboardContent = currentContent
                 
-                // 自动展开灵动岛
-                autoExpandForClipboard(currentContent)
+                // 延迟一小段时间再展开，确保不是系统自动复制
+                windowContainerView?.postDelayed({
+                    // 再次验证内容是否还有效（避免快速变化的剪贴板）
+                    val verifyContent = getCurrentClipboardContent()
+                    if (verifyContent == currentContent) {
+                        autoExpandForClipboard(currentContent)
+                    } else {
+                        Log.d(TAG, "剪贴板内容已变化，取消展开")
+                    }
+                }, 200) // 200ms延迟验证
+            } else {
+                Log.d(TAG, "剪贴板内容未通过验证或为重复内容")
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理剪贴板变化失败", e)
@@ -3579,9 +3590,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     createClipboardAppHistoryView(clipboardContent)
                 }
                 override fun onAnimationEnd(animation: Animator) {
-                    // 动画结束后，延迟5秒自动收起（给用户更多时间选择）
+                    // 动画结束后，延迟5秒自动缩小到球状（给用户更多时间选择）
                     windowContainerView?.postDelayed({
-                        collapseIslandForClipboard()
+                        // 缩小到球状，而不是完全收起
+                        hideContentAndSwitchToBall()
                     }, 5000)
                 }
             })
@@ -3625,7 +3637,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     // 添加间距（除了最后一个）
                     if (index < appsToShow.size - 1) {
                         val spacer = View(this).apply {
-                            layoutParams = LinearLayout.LayoutParams(12.dpToPx(), 1)
+                            layoutParams = LinearLayout.LayoutParams(8.dpToPx(), 1)
                         }
                         containerLayout.addView(spacer)
                     }
@@ -3654,13 +3666,18 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun createAppIconButton(appInfo: AppInfo, clipboardContent: String): View {
         return ImageView(this).apply {
-            // 调整图标大小以适应灵动岛高度（56dp展开高度，图标用48dp，留8dp边距）
-            val iconSize = 48.dpToPx()
+            // 进一步缩小图标大小（从44dp缩小到22dp）
+            val iconSize = 22.dpToPx()
             layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
                 // 垂直居中对齐
                 gravity = android.view.Gravity.CENTER_VERTICAL
             }
-            scaleType = ImageView.ScaleType.CENTER_CROP
+            // 使用CENTER_INSIDE确保图标完整显示，不被裁剪
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            
+            // 减少内边距，适应更小的图标
+            val padding = 3.dpToPx()
+            setPadding(padding, padding, padding, padding)
             
             // 设置圆形背景
             val drawable = GradientDrawable().apply {
@@ -3703,23 +3720,72 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun handleAppIconClick(appInfo: AppInfo, clipboardContent: String) {
         try {
-            // 立即收起灵动岛
-            collapseIslandForClipboard()
+            // 立即缩小到球状态，而不是完全收起
+            hideContentAndSwitchToBall()
             
             // 判断是否支持URL Scheme搜索
             if (!appInfo.urlScheme.isNullOrEmpty()) {
-                // 支持URL Scheme，直接跳转到app搜索页面
-                val searchUrl = "${appInfo.urlScheme}$clipboardContent"
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl)).apply {
+                // 支持URL Scheme，使用正确的格式跳转到app搜索页面
+                val encodedContent = Uri.encode(clipboardContent)
+                val intent = when (appInfo.urlScheme) {
+                    "weixin" -> {
+                        // 微信搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedContent"))
+                    }
+                    "mqqapi" -> {
+                        // QQ搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=$encodedContent"))
+                    }
+                    "taobao" -> {
+                        // 淘宝搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("taobao://s.taobao.com?q=$encodedContent"))
+                    }
+                    "alipay" -> {
+                        // 支付宝搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("alipays://platformapi/startapp?appId=20000067&query=$encodedContent"))
+                    }
+                    "snssdk1128" -> {
+                        // 抖音搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search?keyword=$encodedContent"))
+                    }
+                    "sinaweibo" -> {
+                        // 微博搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://search?q=$encodedContent"))
+                    }
+                    "wework" -> {
+                        // 企业微信搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=$encodedContent"))
+                    }
+                    "tim" -> {
+                        // TIM搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=$encodedContent"))
+                    }
+                    "mttbrowser" -> {
+                        // QQ浏览器搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=$encodedContent"))
+                    }
+                    "ucbrowser" -> {
+                        // UC浏览器搜索
+                        Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?query=$encodedContent"))
+                    }
+                    else -> {
+                        // 通用URL scheme格式
+                        Intent(Intent.ACTION_VIEW, Uri.parse("${appInfo.urlScheme}://search?query=$encodedContent"))
+                    }
+                }.apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 
                 try {
                     startActivity(intent)
-                    Toast.makeText(this, "已在${appInfo.label}中搜索复制内容", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "通过URL Scheme跳转到${appInfo.label}搜索: $searchUrl")
+                    Toast.makeText(this, "已在${appInfo.label}中搜索: $clipboardContent", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "通过URL Scheme跳转到${appInfo.label}搜索: ${intent.data}")
                 } catch (e: ActivityNotFoundException) {
                     // URL Scheme不可用，降级到普通启动
+                    Log.w(TAG, "URL Scheme失败，降级到普通启动: ${appInfo.urlScheme}")
+                    launchAppForManualPaste(appInfo)
+                } catch (e: Exception) {
+                    Log.e(TAG, "启动URL Scheme失败", e)
                     launchAppForManualPaste(appInfo)
                 }
             } else {
@@ -3784,21 +3850,75 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun isValidClipboardContent(content: String): Boolean {
         // 过滤掉太短的内容（少于2个字符）
         if (content.length < 2) {
+            Log.d(TAG, "剪贴板内容太短: ${content.length}")
             return false
         }
         
         // 过滤掉纯数字内容（可能是验证码等）
         if (content.matches(Regex("^\\d+$"))) {
+            Log.d(TAG, "剪贴板内容为纯数字，可能是验证码")
             return false
         }
         
         // 过滤掉纯符号内容
         if (content.matches(Regex("^[^\\p{L}\\p{N}]+$"))) {
+            Log.d(TAG, "剪贴板内容为纯符号")
             return false
         }
         
         // 过滤掉太长的内容（超过500字符）
         if (content.length > 500) {
+            Log.d(TAG, "剪贴板内容太长: ${content.length}")
+            return false
+        }
+        
+        // 过滤掉空白字符（空格、换行等）
+        if (content.trim().isEmpty()) {
+            Log.d(TAG, "剪贴板内容为空白字符")
+            return false
+        }
+        
+        return true
+    }
+    
+    /**
+     * 检查是否为用户主动生成的剪贴板内容
+     * 过滤掉系统自动生成、应用自动复制等情况
+     */
+    private fun isUserGeneratedClipboard(content: String): Boolean {
+        // 过滤掉常见的系统自动复制内容
+        val systemPatterns = listOf(
+            // URL模式（除非是搜索关键词）
+            Regex("^https?://.*"),
+            // 文件路径模式
+            Regex("^[a-zA-Z]:\\\\.*"),
+            Regex("^/.*"),
+            // 包名模式
+            Regex("^[a-z]+\\.[a-z]+\\.[a-z]+.*"),
+            // 系统信息模式
+            Regex(".*Build.*API.*"),
+            Regex(".*Android.*version.*"),
+            // 错误日志模式
+            Regex(".*Exception.*at.*"),
+            Regex(".*Error.*line.*"),
+            // UUID模式
+            Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
+            // Base64模式
+            Regex("^[A-Za-z0-9+/=]{20,}$")
+        )
+        
+        for (pattern in systemPatterns) {
+            if (pattern.matches(content)) {
+                Log.d(TAG, "剪贴板内容疑似系统自动生成: ${content.take(30)}...")
+                return false
+            }
+        }
+        
+        // 检查是否包含过多的特殊字符（可能是系统生成的token等）
+        val specialCharCount = content.count { !it.isLetterOrDigit() && !it.isWhitespace() && it !in ".,!?;:()[]{}\"'-_" }
+        val specialCharRatio = specialCharCount.toFloat() / content.length
+        if (specialCharRatio > 0.4) {
+            Log.d(TAG, "剪贴板内容包含过多特殊字符，疑似系统生成 (${String.format("%.1f", specialCharRatio * 100)}%)")
             return false
         }
         
