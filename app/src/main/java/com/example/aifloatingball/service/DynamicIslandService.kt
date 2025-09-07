@@ -120,6 +120,255 @@ import android.widget.ImageButton
 import com.example.aifloatingball.adapter.NotificationAdapter
 import com.example.aifloatingball.adapter.ProfileSelectorAdapter
 
+// 剪贴板内容类型枚举
+enum class ClipboardContentType {
+    ADDRESS,           // 地址信息
+    URL,              // 普通URL链接
+    URL_SCHEME,       // 应用URL Scheme
+    WEATHER,          // 天气相关
+    FINANCE,          // 金融相关
+    FOREIGN_LANGUAGE, // 外文内容
+    PHONE_NUMBER,     // 电话号码
+    EMAIL,            // 邮箱地址
+    GENERAL_TEXT      // 普通文本
+}
+
+// 场景分类
+enum class SceneCategory {
+    MAPS,             // 地图导航
+    BROWSER,          // 浏览器
+    SOCIAL,           // 社交应用
+    SHOPPING,         // 购物应用
+    WEATHER,          // 天气应用
+    FINANCE,          // 金融应用
+    TRANSLATION,      // 翻译应用
+    COMMUNICATION,    // 通讯应用
+    GENERAL           // 通用应用
+}
+
+// 内容分析器
+class ContentAnalyzer {
+    companion object {
+        // 地址识别正则
+        private val ADDRESS_PATTERNS = listOf(
+            ".*省.*市.*区.*",           // 中国地址格式
+            ".*街道.*号.*",             // 街道地址
+            ".*路.*号.*",               // 道路地址
+            ".*大厦.*",                 // 建筑物
+            ".*广场.*",                 // 广场
+            ".*公园.*",                 // 公园
+            ".*医院.*",                 // 医院
+            ".*学校.*",                 // 学校
+            ".*商场.*",                 // 商场
+            ".*酒店.*",                 // 酒店
+            ".*银行.*",                 // 银行
+            ".*地铁.*",                 // 地铁站
+            ".*火车站.*",               // 火车站
+            ".*机场.*"                  // 机场
+        )
+        
+        // URL识别正则
+        private val URL_PATTERNS = listOf(
+            "https?://.*",              // HTTP/HTTPS链接
+            "www\\..*",                 // www开头的链接
+            ".*\\.com.*",               // .com域名
+            ".*\\.cn.*",                // .cn域名
+            ".*\\.org.*",               // .org域名
+            ".*\\.net.*"                // .net域名
+        )
+        
+        // URL Scheme识别
+        private val URL_SCHEME_PATTERNS = mapOf(
+            "weixin://" to "微信",
+            "mqqapi://" to "QQ", 
+            "taobao://" to "淘宝",
+            "alipay://" to "支付宝",
+            "snssdk1128://" to "抖音",
+            "sinaweibo://" to "微博",
+            "bilibili://" to "哔哩哔哩",
+            "youtube://" to "YouTube",
+            "wework://" to "企业微信",
+            "tim://" to "TIM",
+            "xhsdiscover://" to "小红书",
+            "douban://" to "豆瓣",
+            "twitter://" to "Twitter-X",
+            "zhihu://" to "知乎"
+        )
+        
+        // 天气关键词
+        private val WEATHER_KEYWORDS = listOf(
+            "天气", "温度", "下雨", "晴天", "阴天", "多云", 
+            "雪", "风", "湿度", "气压", "紫外线", "空气质量",
+            "weather", "rain", "sunny", "cloudy", "snow",
+            "°C", "°F", "摄氏度", "华氏度", "暴雨", "雷雨"
+        )
+        
+        // 金融关键词
+        private val FINANCE_KEYWORDS = listOf(
+            "股票", "基金", "理财", "投资", "银行", "贷款", "保险",
+            "汇率", "黄金", "原油", "期货", "债券", "信用卡",
+            "stock", "fund", "investment", "bank", "loan",
+            "￥", "$", "€", "£", "¥", "元", "美元", "欧元", "英镑"
+        )
+        
+        // 外文检测正则
+        private val FOREIGN_LANGUAGE_PATTERNS = listOf(
+            "[a-zA-Z]{3,}",             // 英文单词
+            "[\\u3040-\\u309F\\u30A0-\\u30FF]", // 日文
+            "[\\uAC00-\\uD7AF]",        // 韩文
+            "[\\u0400-\\u04FF]",        // 俄文
+            "[\\u00C0-\\u017F]"         // 拉丁文扩展
+        )
+        
+        // 电话号码正则
+        private val PHONE_PATTERN = "1[3-9]\\d{9}|\\d{3,4}-?\\d{7,8}"
+        
+        // 邮箱正则
+        private val EMAIL_PATTERN = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+    }
+    
+    fun analyzeContent(content: String): ClipboardContentType {
+        val trimmedContent = content.trim()
+        
+        // 1. 检查URL Scheme
+        if (URL_SCHEME_PATTERNS.keys.any { trimmedContent.startsWith(it) }) {
+            return ClipboardContentType.URL_SCHEME
+        }
+        
+        // 2. 检查URL链接
+        if (URL_PATTERNS.any { trimmedContent.matches(it.toRegex()) }) {
+            return ClipboardContentType.URL
+        }
+        
+        // 3. 检查地址
+        if (ADDRESS_PATTERNS.any { trimmedContent.matches(it.toRegex()) }) {
+            return ClipboardContentType.ADDRESS
+        }
+        
+        // 4. 检查天气关键词
+        if (WEATHER_KEYWORDS.any { trimmedContent.contains(it, ignoreCase = true) }) {
+            return ClipboardContentType.WEATHER
+        }
+        
+        // 5. 检查金融关键词
+        if (FINANCE_KEYWORDS.any { trimmedContent.contains(it, ignoreCase = true) }) {
+            return ClipboardContentType.FINANCE
+        }
+        
+        // 6. 检查外文
+        if (FOREIGN_LANGUAGE_PATTERNS.any { trimmedContent.matches(it.toRegex()) }) {
+            return ClipboardContentType.FOREIGN_LANGUAGE
+        }
+        
+        // 7. 检查电话号码
+        if (trimmedContent.matches(PHONE_PATTERN.toRegex())) {
+            return ClipboardContentType.PHONE_NUMBER
+        }
+        
+        // 8. 检查邮箱
+        if (trimmedContent.matches(EMAIL_PATTERN.toRegex())) {
+            return ClipboardContentType.EMAIL
+        }
+        
+        return ClipboardContentType.GENERAL_TEXT
+    }
+    
+    fun getUrlSchemeApp(content: String): String? {
+        return URL_SCHEME_PATTERNS.entries.find { content.startsWith(it.key) }?.value
+    }
+}
+
+// 场景推荐引擎
+class SceneRecommendationEngine {
+    companion object {
+        // 场景推荐规则
+        private val SCENE_RULES = mapOf(
+            ClipboardContentType.ADDRESS to listOf(SceneCategory.MAPS),
+            ClipboardContentType.URL to listOf(SceneCategory.BROWSER),
+            ClipboardContentType.URL_SCHEME to listOf(SceneCategory.SOCIAL, SceneCategory.SHOPPING),
+            ClipboardContentType.WEATHER to listOf(SceneCategory.WEATHER),
+            ClipboardContentType.FINANCE to listOf(SceneCategory.FINANCE),
+            ClipboardContentType.FOREIGN_LANGUAGE to listOf(SceneCategory.TRANSLATION),
+            ClipboardContentType.PHONE_NUMBER to listOf(SceneCategory.COMMUNICATION),
+            ClipboardContentType.EMAIL to listOf(SceneCategory.COMMUNICATION),
+            ClipboardContentType.GENERAL_TEXT to listOf(SceneCategory.GENERAL)
+        )
+        
+        // 场景应用映射
+        private val SCENE_APPS = mapOf(
+            SceneCategory.MAPS to listOf("高德地图", "百度地图", "腾讯地图"),
+            SceneCategory.BROWSER to listOf("Chrome", "Firefox", "UC浏览器", "QQ浏览器", "夸克"),
+            SceneCategory.SOCIAL to listOf("微信", "QQ", "微博", "抖音", "小红书", "知乎"),
+            SceneCategory.SHOPPING to listOf("淘宝", "京东", "拼多多", "天猫", "闲鱼"),
+            SceneCategory.WEATHER to listOf("墨迹天气", "天气通", "彩云天气", "中国天气"),
+            SceneCategory.FINANCE to listOf("支付宝", "招商银行", "蚂蚁财富", "同花顺", "东方财富"),
+            SceneCategory.TRANSLATION to listOf("有道词典", "欧路词典", "百度翻译", "Google翻译"),
+            SceneCategory.COMMUNICATION to listOf("微信", "QQ", "电话", "短信"),
+            SceneCategory.GENERAL to listOf("微信", "QQ", "微博", "浏览器")
+        )
+    }
+    
+    fun getRecommendedScenes(contentType: ClipboardContentType): List<SceneCategory> {
+        return SCENE_RULES[contentType] ?: listOf(SceneCategory.GENERAL)
+    }
+    
+    fun getAppsForScene(scene: SceneCategory): List<String> {
+        return SCENE_APPS[scene] ?: emptyList()
+    }
+    
+    fun calculateAppPriority(appName: String, contentType: ClipboardContentType, scenes: List<SceneCategory>): Int {
+        var priority = 0
+        
+        // 基础优先级
+        priority += 100
+        
+        // 场景匹配加分
+        scenes.forEach { scene ->
+            val sceneApps = getAppsForScene(scene)
+            if (sceneApps.contains(appName)) {
+                priority += 50
+            }
+        }
+        
+        // 特殊类型加分
+        when (contentType) {
+            ClipboardContentType.URL_SCHEME -> {
+                if (appName in listOf("微信", "QQ", "微博", "抖音", "淘宝", "支付宝")) {
+                    priority += 30
+                }
+            }
+            ClipboardContentType.ADDRESS -> {
+                if (appName in listOf("高德地图", "百度地图")) {
+                    priority += 30
+                }
+            }
+            ClipboardContentType.URL -> {
+                if (appName in listOf("Chrome", "Firefox", "UC浏览器")) {
+                    priority += 30
+                }
+            }
+            ClipboardContentType.WEATHER -> {
+                if (appName in listOf("墨迹天气", "天气通")) {
+                    priority += 30
+                }
+            }
+            ClipboardContentType.FINANCE -> {
+                if (appName in listOf("支付宝", "招商银行")) {
+                    priority += 30
+                }
+            }
+            ClipboardContentType.FOREIGN_LANGUAGE -> {
+                if (appName in listOf("有道词典", "欧路词典")) {
+                    priority += 30
+                }
+            }
+            else -> {}
+        }
+        
+        return priority
+    }
+}
+
 class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChangeListener {
 
     // --- Enhanced Data Models ---
@@ -305,6 +554,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private val recentApps = mutableListOf<AppInfo>()
     private var currentSelectedApp: AppInfo? = null
     private var lastSearchQuery: String = ""
+    
+    // 智能场景匹配系统
+    private val contentAnalyzer = ContentAnalyzer()
+    private val sceneRecommendationEngine = SceneRecommendationEngine()
     
     // 状态保存相关
     private val PREFS_NAME = "dynamic_island_prefs"
@@ -3691,19 +3944,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 )
             }
             
-            // 如果有最近的app历史，显示图标
-            if (recentApps.isNotEmpty()) {
-                Log.d(TAG, "显示 ${recentApps.size} 个最近app历史图标")
+            // 智能场景匹配：分析内容类型
+            val contentType = contentAnalyzer.analyzeContent(clipboardContent)
+            val recommendedScenes = sceneRecommendationEngine.getRecommendedScenes(contentType)
+            
+            Log.d(TAG, "剪贴板内容分析: $clipboardContent -> $contentType, 推荐场景: $recommendedScenes")
+            
+            // 获取智能推荐的应用列表
+            val recommendedApps = getSmartRecommendedApps(clipboardContent, contentType, recommendedScenes)
+            
+            // 合并最近使用的应用和智能推荐的应用，按优先级排序
+            val allApps = (recommendedApps + recentApps).distinctBy { it.packageName }
+                .sortedByDescending { appInfo ->
+                    sceneRecommendationEngine.calculateAppPriority(appInfo.label, contentType, recommendedScenes)
+                }
+                .take(6)
+            
+            if (allApps.isNotEmpty()) {
+                Log.d(TAG, "显示 ${allApps.size} 个智能推荐app图标")
                 
-                // 最多显示6个app图标
-                val appsToShow = recentApps.take(6)
-                
-                appsToShow.forEachIndexed { index, appInfo ->
+                allApps.forEachIndexed { index, appInfo ->
                     val iconButton = createAppIconButton(appInfo, clipboardContent)
                     containerLayout.addView(iconButton)
                     
                     // 添加间距（除了最后一个）
-                    if (index < appsToShow.size - 1) {
+                    if (index < allApps.size - 1) {
                         val spacer = View(this).apply {
                             layoutParams = LinearLayout.LayoutParams(8.dpToPx(), 1)
                         }
@@ -3711,9 +3976,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     }
                 }
             } else {
-                // 没有历史记录时显示提示
+                // 没有推荐的应用，显示提示
                 val hintText = TextView(this).apply {
-                    text = "暂无最近使用的应用"
+                    text = "暂无推荐的应用"
                     textSize = 12f
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
@@ -3726,6 +3991,143 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
         } catch (e: Exception) {
             Log.e(TAG, "创建剪贴板app历史视图失败", e)
+        }
+    }
+    
+    /**
+     * 获取智能推荐的应用列表
+     */
+    private fun getSmartRecommendedApps(content: String, contentType: ClipboardContentType, scenes: List<SceneCategory>): List<AppInfo> {
+        val recommendedApps = mutableListOf<AppInfo>()
+        
+        try {
+            // 特殊处理：URL Scheme直接匹配
+            if (contentType == ClipboardContentType.URL_SCHEME) {
+                val urlSchemeApp = contentAnalyzer.getUrlSchemeApp(content)
+                if (urlSchemeApp != null) {
+                    // 查找对应的AppInfo
+                    val appInfo = findAppByName(urlSchemeApp)
+                    if (appInfo != null) {
+                        recommendedApps.add(appInfo)
+                        Log.d(TAG, "URL Scheme匹配: $urlSchemeApp")
+                    }
+                }
+            }
+            
+            // 特殊处理：URL链接推荐浏览器
+            if (contentType == ClipboardContentType.URL) {
+                val browserApps = listOf("Chrome", "Firefox", "UC浏览器", "QQ浏览器", "夸克")
+                browserApps.forEach { appName ->
+                    val appInfo = findAppByName(appName)
+                    if (appInfo != null) {
+                        recommendedApps.add(appInfo)
+                    }
+                }
+                Log.d(TAG, "URL链接推荐浏览器应用")
+            }
+            
+            // 根据场景推荐应用
+            scenes.forEach { scene ->
+                val sceneAppNames = sceneRecommendationEngine.getAppsForScene(scene)
+                sceneAppNames.forEach { appName ->
+                    val appInfo = findAppByName(appName)
+                    if (appInfo != null && !recommendedApps.any { it.packageName == appInfo.packageName }) {
+                        recommendedApps.add(appInfo)
+                    }
+                }
+            }
+            
+            // 特殊场景处理
+            when (contentType) {
+                ClipboardContentType.ADDRESS -> {
+                    // 地址推荐地图应用
+                    val mapApps = listOf("高德地图", "百度地图", "腾讯地图")
+                    mapApps.forEach { appName ->
+                        val appInfo = findAppByName(appName)
+                        if (appInfo != null && !recommendedApps.any { it.packageName == appInfo.packageName }) {
+                            recommendedApps.add(appInfo)
+                        }
+                    }
+                }
+                ClipboardContentType.WEATHER -> {
+                    // 天气推荐天气应用
+                    val weatherApps = listOf("墨迹天气", "天气通", "彩云天气", "中国天气")
+                    weatherApps.forEach { appName ->
+                        val appInfo = findAppByName(appName)
+                        if (appInfo != null && !recommendedApps.any { it.packageName == appInfo.packageName }) {
+                            recommendedApps.add(appInfo)
+                        }
+                    }
+                }
+                ClipboardContentType.FINANCE -> {
+                    // 金融推荐金融应用
+                    val financeApps = listOf("支付宝", "招商银行", "蚂蚁财富", "同花顺", "东方财富")
+                    financeApps.forEach { appName ->
+                        val appInfo = findAppByName(appName)
+                        if (appInfo != null && !recommendedApps.any { it.packageName == appInfo.packageName }) {
+                            recommendedApps.add(appInfo)
+                        }
+                    }
+                }
+                ClipboardContentType.FOREIGN_LANGUAGE -> {
+                    // 外文推荐翻译应用
+                    val translationApps = listOf("有道词典", "欧路词典", "百度翻译", "Google翻译")
+                    translationApps.forEach { appName ->
+                        val appInfo = findAppByName(appName)
+                        if (appInfo != null && !recommendedApps.any { it.packageName == appInfo.packageName }) {
+                            recommendedApps.add(appInfo)
+                        }
+                    }
+                }
+                ClipboardContentType.PHONE_NUMBER, ClipboardContentType.EMAIL -> {
+                    // 通讯推荐通讯应用
+                    val communicationApps = listOf("微信", "QQ", "电话", "短信")
+                    communicationApps.forEach { appName ->
+                        val appInfo = findAppByName(appName)
+                        if (appInfo != null && !recommendedApps.any { it.packageName == appInfo.packageName }) {
+                            recommendedApps.add(appInfo)
+                        }
+                    }
+                }
+                else -> {}
+            }
+            
+            Log.d(TAG, "智能推荐应用: ${recommendedApps.map { it.label }}")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "获取智能推荐应用失败", e)
+        }
+        
+        return recommendedApps
+    }
+    
+    /**
+     * 根据应用名称查找AppInfo
+     */
+    private fun findAppByName(appName: String): AppInfo? {
+        return try {
+            // 从已安装的应用中查找
+            val packageManager = packageManager
+            val installedApps = packageManager.getInstalledPackages(0)
+            
+            for (packageInfo in installedApps) {
+                val appLabel = packageManager.getApplicationLabel(packageInfo.applicationInfo).toString()
+                if (appLabel == appName) {
+                    val appIcon = packageManager.getApplicationIcon(packageInfo.applicationInfo)
+                    val urlScheme = getUrlSchemeForPackage(packageInfo.packageName)
+                    
+                    return AppInfo(
+                        label = appLabel,
+                        packageName = packageInfo.packageName,
+                        icon = appIcon,
+                        urlScheme = urlScheme
+                    )
+                }
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "查找应用失败: $appName", e)
+            null
         }
     }
     
@@ -3790,6 +4192,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         try {
             // 立即缩小到球状态，而不是完全收起
             hideContentAndSwitchToBall()
+            
+            // 特殊处理：URL链接使用DualFloatingWebViewService
+            val contentType = contentAnalyzer.analyzeContent(clipboardContent)
+            if (contentType == ClipboardContentType.URL) {
+                Log.d(TAG, "URL链接，启动DualFloatingWebViewService")
+                startDualFloatingWebViewService(clipboardContent)
+                return
+            }
             
             // 判断是否支持URL Scheme搜索
             if (!appInfo.urlScheme.isNullOrEmpty()) {
@@ -3897,6 +4307,32 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         } catch (e: Exception) {
             Log.e(TAG, "处理app图标点击失败", e)
             Toast.makeText(this, "启动应用失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 启动DualFloatingWebViewService用于URL链接
+     */
+    private fun startDualFloatingWebViewService(url: String) {
+        try {
+            val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("url", url)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startService(intent)
+            Log.d(TAG, "启动DualFloatingWebViewService: $url")
+        } catch (e: Exception) {
+            Log.e(TAG, "启动DualFloatingWebViewService失败", e)
+            // 降级处理：尝试用默认浏览器打开
+            try {
+                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(browserIntent)
+                Log.d(TAG, "降级处理：使用默认浏览器打开URL")
+            } catch (e2: Exception) {
+                Log.e(TAG, "降级处理也失败", e2)
+            }
         }
     }
     
