@@ -200,7 +200,7 @@ class BilibiliContentService(private val context: Context) : ContentService {
                 creatorAvatar = author?.face ?: "",
                 title = dynamic?.major?.archive?.title ?: dynamic?.desc?.text ?: "",
                 description = dynamic?.desc?.text ?: "",
-                contentType = determineContentType(item),
+                contentType =  determineContentType(item),
                 coverUrl = dynamic?.major?.archive?.cover ?: "",
                 contentUrl = dynamic?.major?.archive?.jump_url ?: "",
                 publishTime = item.modules?.module_author?.pub_ts?.times(1000) ?: 0,

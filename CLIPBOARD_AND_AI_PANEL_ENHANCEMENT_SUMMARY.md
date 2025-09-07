@@ -182,3 +182,5 @@ btnGeneratePrompt?.setOnClickListener {
 
 用户现在可以享受更加智能和便捷的剪贴板交互体验，同时AI助手面板也具备了更完整的功能。
 
+
+

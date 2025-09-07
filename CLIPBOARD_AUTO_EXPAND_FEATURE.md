@@ -334,3 +334,5 @@ private var isClipboardAutoExpandEnabled = true // 默认启用
 
 这个功能大大提升了灵动岛的实用性和用户体验，让搜索变得更加便捷和智能！
 
+
+

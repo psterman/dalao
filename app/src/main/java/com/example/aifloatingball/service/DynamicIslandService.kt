@@ -65,6 +65,7 @@ import android.view.animation.AccelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.view.WindowInsets
 import android.widget.HorizontalScrollView
+import android.widget.ScrollView
 import com.example.aifloatingball.model.AppSearchSettings
 import android.net.Uri
 import android.content.ActivityNotFoundException
@@ -398,6 +399,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var assistantPromptSelectorView: View? = null
     private var selectorScrimView: View? = null
     private var aiAssistantPanelView: View? = null // 新的AI助手面板
+    private var isResponseFolded = false // 回复区域是否折叠
 
     private lateinit var notificationIconContainer: LinearLayout
     private var searchInput: EditText? = null
@@ -411,6 +413,48 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var compactHeight: Int = 0
     private var expandedHeight: Int = 0
     private var statusBarHeight: Int = 0
+    
+    /**
+     * 获取灵动岛的实际高度（自适应）
+     */
+    private fun getIslandActualHeight(): Int {
+        return animatingIslandView?.height ?: expandedHeight
+    }
+    
+    /**
+     * 更新面板位置（基于灵动岛实际高度）
+     */
+    private fun updatePanelPositions() {
+        try {
+            val actualHeight = getIslandActualHeight()
+            val newTopMargin = statusBarHeight + actualHeight + 16.dpToPx()
+            
+            // 更新助手选择器面板位置
+            assistantSelectorView?.let { view ->
+                val params = view.layoutParams as? FrameLayout.LayoutParams
+                params?.topMargin = newTopMargin
+                view.layoutParams = params
+            }
+            
+            // 更新身份选择器面板位置
+            assistantPromptSelectorView?.let { view ->
+                val params = view.layoutParams as? FrameLayout.LayoutParams
+                params?.topMargin = newTopMargin
+                view.layoutParams = params
+            }
+            
+            // 更新AI助手面板位置
+            aiAssistantPanelView?.let { view ->
+                val params = view.layoutParams as? FrameLayout.LayoutParams
+                params?.topMargin = newTopMargin
+                view.layoutParams = params
+            }
+            
+            Log.d(TAG, "面板位置已更新，灵动岛实际高度: ${actualHeight}px, 面板顶部边距: ${newTopMargin}px")
+        } catch (e: Exception) {
+            Log.e(TAG, "更新面板位置失败", e)
+        }
+    }
 
     private var appSearchIconContainer: LinearLayout? = null
     private var appSearchIconScrollView: HorizontalScrollView? = null
@@ -906,7 +950,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         animatingIslandView?.visibility = View.VISIBLE
         val islandParams = animatingIslandView?.layoutParams as FrameLayout.LayoutParams
         islandParams.width = expandedWidth
-        islandParams.height = 56.dpToPx() // Final height
+        islandParams.height = FrameLayout.LayoutParams.WRAP_CONTENT // 使用自适应高度
         islandParams.topMargin = statusBarHeight
         animatingIslandView?.layoutParams = islandParams
         animatingIslandView?.background = ColorDrawable(Color.TRANSPARENT) // Make the container transparent
@@ -2133,7 +2177,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             // Position below the main island view with a small margin
-            topMargin = statusBarHeight + 56.dpToPx() + 16.dpToPx()
+            topMargin = statusBarHeight + getIslandActualHeight() + 16.dpToPx()
         }
 
         // Add panel to the window and animate it in
@@ -2182,7 +2226,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            topMargin = statusBarHeight + 56.dpToPx() + 16.dpToPx()
+            topMargin = statusBarHeight + getIslandActualHeight() + 16.dpToPx()
         }
 
         windowContainerView?.addView(assistantPromptSelectorView, panelParams)
@@ -2963,7 +3007,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         animator.duration = 350
         animator.interpolator = AccelerateDecelerateInterpolator()
         animator.addUpdateListener {
-            animatingIslandView?.layoutParams?.width = it.animatedValue as Int
+            val params = animatingIslandView?.layoutParams as? FrameLayout.LayoutParams
+            params?.width = it.animatedValue as Int
+            // 如果是展开状态，使用自适应高度
+            if (toWidth > fromWidth) {
+                params?.height = FrameLayout.LayoutParams.WRAP_CONTENT
+            }
+            animatingIslandView?.layoutParams = params
             animatingIslandView?.requestLayout()
         }
         animator.addListener(object : AnimatorListenerAdapter() {
@@ -3838,7 +3888,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     // 再次验证内容是否还有效（避免快速变化的剪贴板）
                     val verifyContent = getCurrentClipboardContent()
                     if (verifyContent == currentContent) {
-                        autoExpandForClipboard(currentContent)
+                autoExpandForClipboard(currentContent)
                     } else {
                         Log.d(TAG, "剪贴板内容已变化，取消展开")
                     }
@@ -3902,7 +3952,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             animator.duration = 350
             animator.interpolator = AccelerateDecelerateInterpolator()
             animator.addUpdateListener {
-                animatingIslandView?.layoutParams?.width = it.animatedValue as Int
+                val params = animatingIslandView?.layoutParams as? FrameLayout.LayoutParams
+                params?.width = it.animatedValue as Int
+                // 使用自适应高度
+                params?.height = FrameLayout.LayoutParams.WRAP_CONTENT
+                animatingIslandView?.layoutParams = params
                 animatingIslandView?.requestLayout()
             }
             animator.addListener(object : AnimatorListenerAdapter() {
@@ -3911,7 +3965,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     createClipboardAppHistoryView(clipboardContent)
                 }
                 override fun onAnimationEnd(animation: Animator) {
-                    // 动画结束后，延迟5秒自动缩小到球状（给用户更多时间选择）
+                    // 动画结束后，重新计算面板位置
+                    updatePanelPositions()
+                    // 延迟5秒自动缩小到球状（给用户更多时间选择）
                     windowContainerView?.postDelayed({
                         // 缩小到球状，而不是完全收起
                         hideContentAndSwitchToBall()
@@ -3929,19 +3985,29 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun createClipboardAppHistoryView(clipboardContent: String) {
         try {
-            // 创建容器布局
-            val containerLayout = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(16.dpToPx(), 8.dpToPx(), 16.dpToPx(), 8.dpToPx())
+            // 创建主容器布局（垂直方向）
+            val mainContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(16.dpToPx(), 12.dpToPx(), 16.dpToPx(), 12.dpToPx())
                 
-                // 设置透明背景
-                setBackgroundColor(Color.TRANSPARENT)
+                // 设置半透明背景，确保内容可见
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#E6000000")) // 半透明黑色背景
+                    cornerRadius = 20.dpToPx().toFloat()
+                    setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF")) // 白色边框
+                }
                 
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 )
+            }
+            
+            // 创建应用图标容器（水平方向）
+            val appIconsContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
             }
             
             // 智能场景匹配：分析内容类型
@@ -3965,16 +4031,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 
                 allApps.forEachIndexed { index, appInfo ->
                     val iconButton = createAppIconButton(appInfo, clipboardContent)
-                    containerLayout.addView(iconButton)
+                    appIconsContainer.addView(iconButton)
                     
                     // 添加间距（除了最后一个）
                     if (index < allApps.size - 1) {
                         val spacer = View(this).apply {
                             layoutParams = LinearLayout.LayoutParams(8.dpToPx(), 1)
                         }
-                        containerLayout.addView(spacer)
+                        appIconsContainer.addView(spacer)
                     }
                 }
+                
+                // 在app图标最后添加退出按钮
+                val exitButton = createExitButton()
+                appIconsContainer.addView(exitButton)
+                Log.d(TAG, "退出按钮已添加到app图标容器")
             } else {
                 // 没有推荐的应用，显示提示
                 val hintText = TextView(this).apply {
@@ -3983,15 +4054,487 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     setTextColor(Color.WHITE)
                     gravity = Gravity.CENTER
                 }
-                containerLayout.addView(hintText)
+                appIconsContainer.addView(hintText)
             }
             
-            islandContentView = containerLayout
+            // 添加应用图标容器到主容器
+            mainContainer.addView(appIconsContainer)
+            
+            // 添加AI预览部分
+            Log.d(TAG, "创建AI预览容器")
+            val aiPreviewContainer = createAIPreviewContainer(clipboardContent)
+            mainContainer.addView(aiPreviewContainer)
+            Log.d(TAG, "AI预览容器已添加到主容器")
+            
+            islandContentView = mainContainer
             animatingIslandView?.addView(islandContentView)
+            Log.d(TAG, "剪贴板视图创建完成，包含应用图标、AI预览和退出按钮")
             
         } catch (e: Exception) {
             Log.e(TAG, "创建剪贴板app历史视图失败", e)
         }
+    }
+    
+    /**
+     * 创建退出按钮
+     */
+    private fun createExitButton(): View {
+        val exitButton = ImageButton(this).apply {
+            id = View.generateViewId()
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(6.dpToPx(), 6.dpToPx(), 6.dpToPx(), 6.dpToPx())
+            
+            // 设置按钮背景
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#80000000")) // 半透明黑色背景
+                cornerRadius = 12.dpToPx().toFloat()
+                setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 白色边框
+            }
+            
+            // 设置按钮大小，与app图标保持一致
+            layoutParams = LinearLayout.LayoutParams(
+                40.dpToPx(),
+                40.dpToPx()
+            ).apply {
+                gravity = Gravity.CENTER
+                leftMargin = 8.dpToPx() // 与app图标保持间距
+            }
+            
+            // 设置点击事件
+            setOnClickListener {
+                Log.d(TAG, "退出按钮被点击，切换到球状态")
+                hideContentAndSwitchToBall()
+            }
+        }
+        
+        return exitButton
+    }
+    
+    /**
+     * 创建AI预览容器
+     */
+    private fun createAIPreviewContainer(clipboardContent: String): View {
+        Log.d(TAG, "开始创建AI预览容器")
+        
+        val aiContainer = LinearLayout(this).apply {
+            id = View.generateViewId() // 使用动态ID
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 12.dpToPx())
+            
+            // 设置半透明背景
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#CC000000")) // 更明显的背景
+                cornerRadius = 12.dpToPx().toFloat()
+                setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 更明显的边框
+            }
+            
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT // 自适应高度
+            ).apply {
+                topMargin = 12.dpToPx()
+                leftMargin = 8.dpToPx()
+                rightMargin = 8.dpToPx()
+            }
+        }
+        
+        // AI图标和名称容器
+        val aiHeaderContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 8.dpToPx()
+            }
+        }
+        
+        // AI图标
+        val aiIcon = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx())
+            setImageResource(R.drawable.ic_chat) // 使用聊天图标
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setColorFilter(Color.parseColor("#4CAF50")) // 绿色AI图标
+            
+            // 添加圆形背景
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#404CAF50"))
+                shape = GradientDrawable.OVAL
+            }
+            
+            // 添加点击切换AI功能
+            setOnClickListener {
+                Log.d(TAG, "AI图标被点击，显示AI选择对话框")
+                showAISelectionDialog(clipboardContent)
+            }
+        }
+        
+        // AI提供商标签
+        val aiProviderLabel = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 4.dpToPx()
+            }
+            text = currentAIProvider
+            textSize = 11f
+            setTextColor(Color.parseColor("#4CAF50"))
+            setPadding(8.dpToPx(), 4.dpToPx(), 8.dpToPx(), 4.dpToPx())
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#204CAF50"))
+                cornerRadius = 8.dpToPx().toFloat()
+            }
+            gravity = Gravity.CENTER
+        }
+        
+        // AI回复内容区域（可延展）
+        val aiResponseContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        
+        // AI回复预览文本
+        val aiPreviewText = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = "AI正在分析中..."
+            textSize = 12f
+            setTextColor(Color.WHITE)
+            maxLines = 3 // 增加显示行数
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
+            gravity = Gravity.CENTER
+            setLineSpacing(2.dpToPx().toFloat(), 1.2f) // 增加行间距
+            
+            // 设置背景
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#20000000"))
+                cornerRadius = 8.dpToPx().toFloat()
+            }
+            
+            // 添加点击查看完整回复功能
+            setOnClickListener {
+                Log.d(TAG, "AI预览文本被点击，显示完整回复")
+                showFullAIResponse(clipboardContent)
+            }
+        }
+        
+        // 展开/折叠按钮
+        val expandButton = ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                24.dpToPx(),
+                24.dpToPx()
+            ).apply {
+                gravity = Gravity.CENTER
+                topMargin = 4.dpToPx()
+            }
+            setImageResource(R.drawable.ic_expand_more)
+            setColorFilter(Color.parseColor("#4CAF50"))
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#20000000"))
+                shape = GradientDrawable.OVAL
+            }
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            
+            setOnClickListener {
+                Log.d(TAG, "展开按钮被点击，显示完整回复")
+                showFullAIResponse(clipboardContent)
+            }
+        }
+        
+        // 组装布局
+        aiHeaderContainer.addView(aiIcon)
+        aiHeaderContainer.addView(aiProviderLabel)
+        
+        aiResponseContainer.addView(aiPreviewText)
+        aiResponseContainer.addView(expandButton)
+        
+        aiContainer.addView(aiHeaderContainer)
+        aiContainer.addView(aiResponseContainer)
+        
+        // 异步获取AI回复
+        Log.d(TAG, "开始获取AI回复预览")
+        getAIResponsePreview(clipboardContent, aiPreviewText)
+        
+        Log.d(TAG, "AI预览容器创建完成")
+        return aiContainer
+    }
+    
+    // AI相关变量
+    private var currentAIProvider = "DeepSeek" // 默认AI提供商
+    private val aiProviders = listOf("DeepSeek", "GPT-4", "Claude", "Gemini")
+    
+    /**
+     * 显示AI选择对话框
+     */
+    private fun showAISelectionDialog(clipboardContent: String) {
+        try {
+            val items = aiProviders.toTypedArray()
+            val checkedItem = aiProviders.indexOf(currentAIProvider)
+            
+            // 使用Application Context避免Service context问题
+            val context = applicationContext
+            AlertDialog.Builder(ContextThemeWrapper(context, android.R.style.Theme_Material_Dialog))
+                .setTitle("选择AI助手")
+                .setSingleChoiceItems(items, checkedItem) { dialog, which ->
+                    currentAIProvider = aiProviders[which]
+                    Log.d(TAG, "AI提供商已切换为: $currentAIProvider")
+                    dialog.dismiss()
+                    
+                    // 重新获取AI回复
+                    refreshAIResponse(clipboardContent)
+                }
+                .setNegativeButton("取消", null)
+                .create()
+                .apply {
+                    window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                    show()
+                }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI选择对话框失败", e)
+            // 降级处理：直接切换到下一个AI
+            val currentIndex = aiProviders.indexOf(currentAIProvider)
+            val nextIndex = (currentIndex + 1) % aiProviders.size
+            currentAIProvider = aiProviders[nextIndex]
+            refreshAIResponse(clipboardContent)
+            Toast.makeText(this, "已切换到 $currentAIProvider", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 获取AI回复预览
+     */
+    private fun getAIResponsePreview(content: String, textView: TextView) {
+        // 设置加载状态
+        Handler(Looper.getMainLooper()).post {
+            textView.text = "AI正在分析中..."
+        }
+        
+        // 获取当前选择的AI服务
+        val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+            ?: configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+        val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
+        
+        // 将显示名称映射到AIServiceType
+        val serviceType = when (selectedService) {
+            "DeepSeek" -> AIServiceType.DEEPSEEK
+            "智谱AI" -> AIServiceType.ZHIPU_AI
+            "Kimi" -> AIServiceType.KIMI
+            "ChatGPT" -> AIServiceType.CHATGPT
+            "Claude" -> AIServiceType.CLAUDE
+            "Gemini" -> AIServiceType.GEMINI
+            "文心一言" -> AIServiceType.WENXIN
+            "通义千问" -> AIServiceType.QIANWEN
+            "讯飞星火" -> AIServiceType.XINGHUO
+            else -> AIServiceType.DEEPSEEK
+        }
+        
+        // 创建AI API管理器
+        val aiApiManager = AIApiManager(this)
+        
+        // 调用真实API
+        aiApiManager.sendMessage(
+            serviceType = serviceType,
+            message = "请简要分析以下内容：$content",
+            conversationHistory = emptyList(),
+            callback = object : AIApiManager.StreamingCallback {
+                override fun onChunkReceived(chunk: String) {
+                    uiHandler.post {
+                        val currentText = textView.text?.toString() ?: ""
+                        val newText = currentText + chunk
+                        // 限制预览长度
+                        textView.text = if (newText.length > 50) {
+                            newText.take(50) + "..."
+                        } else {
+                            newText
+                        }
+                    }
+                }
+                
+                override fun onComplete(fullResponse: String) {
+                    uiHandler.post {
+                        // 限制预览长度
+                        textView.text = if (fullResponse.length > 50) {
+                            fullResponse.take(50) + "..."
+                        } else {
+                            fullResponse
+                        }
+                    }
+                }
+                
+                override fun onError(error: String) {
+                    uiHandler.post {
+                        textView.text = "AI分析失败"
+                    }
+                }
+            }
+        )
+    }
+    
+    /**
+     * 刷新AI回复
+     */
+    private fun refreshAIResponse(content: String) {
+        // 查找AI预览文本视图并更新
+        islandContentView?.let { container ->
+            // 查找AI容器（第二个子视图）
+            if (container is LinearLayout && container.childCount > 1) {
+                val aiContainer = container.getChildAt(1) as? LinearLayout
+                if (aiContainer != null && aiContainer.childCount >= 3) {
+                    // 更新AI提供商标签（第二个子视图）
+                    val aiProviderLabel = aiContainer.getChildAt(1) as? TextView
+                    aiProviderLabel?.text = currentAIProvider
+                    
+                    // 更新AI预览文本（第三个子视图）
+                    val aiPreviewText = aiContainer.getChildAt(2) as? TextView
+                    aiPreviewText?.let {
+                        it.text = "AI正在分析中..."
+                        getAIResponsePreview(content, it)
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 显示完整AI回复
+     */
+    private fun showFullAIResponse(content: String) {
+        try {
+            val context = applicationContext
+            val dialog = AlertDialog.Builder(ContextThemeWrapper(context, android.R.style.Theme_Material_Dialog))
+                .setTitle("AI回复 - $currentAIProvider")
+                .setMessage("正在获取完整回复...")
+                .setPositiveButton("关闭", null)
+                .create()
+            
+            dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+            dialog.show()
+            
+            // 获取当前选择的AI服务
+            val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+                ?: configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+            val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
+            
+            // 将显示名称映射到AIServiceType
+            val serviceType = when (selectedService) {
+                "DeepSeek" -> AIServiceType.DEEPSEEK
+                "智谱AI" -> AIServiceType.ZHIPU_AI
+                "Kimi" -> AIServiceType.KIMI
+                "ChatGPT" -> AIServiceType.CHATGPT
+                "Claude" -> AIServiceType.CLAUDE
+                "Gemini" -> AIServiceType.GEMINI
+                "文心一言" -> AIServiceType.WENXIN
+                "通义千问" -> AIServiceType.QIANWEN
+                "讯飞星火" -> AIServiceType.XINGHUO
+                else -> AIServiceType.DEEPSEEK
+            }
+            
+            // 创建AI API管理器
+            val aiApiManager = AIApiManager(this)
+            
+            // 调用真实API
+            aiApiManager.sendMessage(
+                serviceType = serviceType,
+                message = "请详细分析以下内容：$content",
+                conversationHistory = emptyList(),
+                callback = object : AIApiManager.StreamingCallback {
+                    override fun onChunkReceived(chunk: String) {
+                        uiHandler.post {
+                            val currentMessage = dialog.findViewById<TextView>(android.R.id.message)?.text?.toString() ?: ""
+                            dialog.setMessage(currentMessage + chunk)
+                        }
+                    }
+                    
+                    override fun onComplete(fullResponse: String) {
+                        uiHandler.post {
+                            dialog.setMessage(fullResponse)
+                        }
+                    }
+                    
+                    override fun onError(error: String) {
+                        uiHandler.post {
+                            dialog.setMessage("获取AI回复失败: $error")
+                        }
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "显示完整AI回复失败", e)
+        }
+    }
+    
+    /**
+     * 调用AI API
+     */
+    private fun callAIAPI(content: String, provider: String): String {
+        return when (provider) {
+            "DeepSeek" -> callDeepSeekAPIForResponse(content)
+            "GPT-4" -> callGPT4API(content)
+            "Claude" -> callClaudeAPI(content)
+            "Gemini" -> callGeminiAPI(content)
+            else -> "不支持的AI提供商: $provider"
+        }
+    }
+    
+    /**
+     * 调用DeepSeek API获取回复
+     */
+    private fun callDeepSeekAPIForResponse(content: String): String {
+        // 模拟网络延迟
+        Thread.sleep(500)
+        
+        // 智能内容分析
+        val contentType = contentAnalyzer.analyzeContent(content)
+        
+        return when (contentType) {
+            ClipboardContentType.ADDRESS -> "🗺️ 检测到地址信息：${content.take(20)}...\n建议使用地图应用进行导航和位置查询。"
+            ClipboardContentType.URL -> "🌐 检测到网页链接：${content.take(30)}...\n建议在浏览器中打开查看详细内容。"
+            ClipboardContentType.URL_SCHEME -> "📱 检测到应用链接，可直接跳转到对应应用。"
+            ClipboardContentType.WEATHER -> "🌤️ 检测到天气相关内容，建议查看天气应用获取实时信息。"
+            ClipboardContentType.FINANCE -> "💰 检测到金融相关内容，建议使用金融应用查看详细信息。"
+            ClipboardContentType.FOREIGN_LANGUAGE -> "🌍 检测到外文内容，建议使用翻译应用进行翻译。"
+            ClipboardContentType.PHONE_NUMBER -> "📞 检测到电话号码，可直接拨打或添加到联系人。"
+            ClipboardContentType.EMAIL -> "📧 检测到邮箱地址，可发送邮件或添加到联系人。"
+            ClipboardContentType.GENERAL_TEXT -> {
+                when {
+                    content.length > 100 -> "📄 文本内容较长(${content.length}字符)，建议选择合适的应用进行编辑或分享。"
+                    content.contains(Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}")) -> "📅 检测到日期信息，建议添加到日历应用。"
+                    content.contains(Regex("\\d+[元￥$]")) -> "💵 检测到价格信息，建议使用购物或记账应用。"
+                    else -> "📝 通用文本内容，根据需要选择相应应用进行处理。"
+                }
+            }
+        }
+    }
+    
+    /**
+     * 调用GPT-4 API
+     */
+    private fun callGPT4API(content: String): String {
+        return "GPT-4分析：${content.take(30)}... 建议使用相关应用处理。"
+    }
+    
+    /**
+     * 调用Claude API
+     */
+    private fun callClaudeAPI(content: String): String {
+        return "Claude分析：${content.take(30)}... 推荐使用对应应用。"
+    }
+    
+    /**
+     * 调用Gemini API
+     */
+    private fun callGeminiAPI(content: String): String {
+        return "Gemini分析：${content.take(30)}... 建议选择合适应用。"
     }
     
     /**
@@ -4553,7 +5096,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                topMargin = statusBarHeight + 56.dpToPx() + 16.dpToPx()
+                topMargin = statusBarHeight + getIslandActualHeight() + 16.dpToPx()
             }
             
         // 设置AI助手面板的交互
@@ -4704,9 +5247,76 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 Log.e(TAG, "找不到AI助手面板的身份按钮 (btn_generate_prompt)")
             }
             
+            // 折叠/展开按钮
+            val btnFoldResponse = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_fold_response)
+            btnFoldResponse?.setOnClickListener {
+                toggleResponseFold()
+            }
+            
             Log.d(TAG, "AI助手面板交互设置完成")
         } catch (e: Exception) {
             Log.e(TAG, "设置AI助手面板交互失败", e)
+        }
+    }
+    
+    /**
+     * 切换AI服务
+     */
+    private fun switchAIService() {
+        try {
+            val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+            if (spinner != null) {
+                val currentPosition = spinner.selectedItemPosition
+                val itemCount = spinner.adapter?.count ?: 0
+                
+                if (itemCount > 1) {
+                    // 切换到下一个AI服务
+                    val nextPosition = (currentPosition + 1) % itemCount
+                    spinner.setSelection(nextPosition)
+                    
+                    val selectedService = spinner.selectedItem?.toString() ?: "未知"
+                    Log.d(TAG, "AI服务已切换到: $selectedService")
+                    
+                    // 显示切换提示
+                    Toast.makeText(this, "已切换到: $selectedService", Toast.LENGTH_SHORT).show()
+                } else {
+                    Log.w(TAG, "没有可切换的AI服务")
+                    Toast.makeText(this, "没有可切换的AI服务", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Log.w(TAG, "找不到AI服务选择器")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换AI服务失败", e)
+            Toast.makeText(this, "切换AI服务失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 切换回复区域折叠状态
+     */
+    private fun toggleResponseFold() {
+        try {
+            val responseScroll = aiAssistantPanelView?.findViewById<ScrollView>(R.id.ai_response_scroll)
+            val foldButton = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_fold_response)
+            
+            if (responseScroll != null && foldButton != null) {
+                isResponseFolded = !isResponseFolded
+                
+                if (isResponseFolded) {
+                    // 折叠：隐藏滚动区域
+                    responseScroll.visibility = View.GONE
+                    foldButton.setImageResource(R.drawable.ic_expand_more)
+                    Log.d(TAG, "AI回复区域已折叠")
+                } else {
+                    // 展开：显示滚动区域
+                    responseScroll.visibility = View.VISIBLE
+                    foldButton.setImageResource(R.drawable.ic_expand_less)
+                    Log.d(TAG, "AI回复区域已展开")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换回复区域折叠状态失败", e)
         }
     }
     
@@ -5701,7 +6311,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // AI助手按钮
         btnAiAssistant?.setOnClickListener {
             Log.d(TAG, "AI助手按钮被点击")
-            showAIAssistantPanel()
+            // 如果AI助手面板已经显示，则切换AI服务
+            if (aiAssistantPanelView != null) {
+                switchAIService()
+            } else {
+                // 否则显示AI助手面板
+                showAIAssistantPanel()
+            }
         }
 
         // 应用程序按钮
