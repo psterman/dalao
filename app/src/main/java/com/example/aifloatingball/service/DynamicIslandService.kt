@@ -3061,7 +3061,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val pm = packageManager
         val urlSchemeApps = mutableListOf<AppInfo>()
         
-        // 定义支持URL scheme的APP列表（更全面的列表）
+        // 根据AppSearchSettings中的配置创建更全面的URL scheme支持列表
         val urlSchemeAppConfigs = listOf(
             // 社交类
             Triple("com.tencent.mm", "weixin", "微信"),
@@ -3069,38 +3069,73 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Triple("com.tencent.wework", "wework", "企业微信"),
             Triple("com.tencent.tim", "tim", "TIM"),
             Triple("com.sina.weibo", "sinaweibo", "微博"),
-            Triple("com.tencent.mm", "weixin", "微信"),
+            Triple("com.xingin.xhs", "xhsdiscover", "小红书"),
+            Triple("com.douban.frodo", "douban", "豆瓣"),
+            Triple("com.twitter.android", "twitter", "Twitter-X"),
+            Triple("com.zhihu.android", "zhihu", "知乎"),
             
             // 购物类
             Triple("com.taobao.taobao", "taobao", "淘宝"),
             Triple("com.eg.android.AlipayGphone", "alipay", "支付宝"),
             Triple("com.jingdong.app.mall", "openapp.jdmobile", "京东"),
-            Triple("com.pinduoduo", "pinduoduo", "拼多多"),
+            Triple("com.xunmeng.pinduoduo", "pinduoduo", "拼多多"),
+            Triple("com.tmall.wireless", "tmall", "天猫"),
+            Triple("com.taobao.idlefish", "fleamarket", "闲鱼"),
             
             // 视频类
             Triple("com.ss.android.ugc.aweme", "snssdk1128", "抖音"),
-            Triple("com.ss.android.ugc.live", "snssdk1128", "抖音直播"),
+            Triple("com.zhiliaoapp.musically", "snssdk1128", "TikTok"),
             Triple("tv.danmaku.bili", "bilibili", "哔哩哔哩"),
             Triple("com.tencent.qqlive", "qqlive", "腾讯视频"),
             Triple("com.iqiyi.app", "iqiyi", "爱奇艺"),
+            Triple("com.google.android.youtube", "youtube", "YouTube"),
+            
+            // 音乐类
+            Triple("com.tencent.qqmusic", "qqmusic", "QQ音乐"),
+            Triple("com.netease.cloudmusic", "orpheus", "网易云音乐"),
+            Triple("com.spotify.music", "spotify", "Spotify"),
+            
+            // 生活服务类
+            Triple("com.sankuai.meituan", "imeituan", "美团"),
+            Triple("me.ele", "eleme", "饿了么"),
+            Triple("com.dianping.v1", "dianping", "大众点评"),
+            
+            // 地图导航类
+            Triple("com.autonavi.minimap", "androidamap", "高德地图"),
+            Triple("com.baidu.BaiduMap", "baidumap", "百度地图"),
             
             // 浏览器类
             Triple("com.tencent.mtt", "mttbrowser", "QQ浏览器"),
             Triple("com.UCMobile", "ucbrowser", "UC浏览器"),
             Triple("com.android.chrome", "googlechrome", "Chrome"),
             Triple("org.mozilla.firefox", "firefox", "Firefox"),
+            Triple("com.quark.browser", "quark", "夸克"),
             
-            // 工具类
-            Triple("com.tencent.mm", "weixin", "微信"),
-            Triple("com.tencent.mobileqq", "mqqapi", "QQ"),
-            Triple("com.tencent.wework", "wework", "企业微信"),
-            Triple("com.tencent.tim", "tim", "TIM"),
-            Triple("com.sina.weibo", "sinaweibo", "微博"),
-            Triple("com.taobao.taobao", "taobao", "淘宝"),
-            Triple("com.eg.android.AlipayGphone", "alipay", "支付宝"),
-            Triple("com.ss.android.ugc.aweme", "snssdk1128", "抖音"),
-            Triple("com.tencent.mtt", "mttbrowser", "QQ浏览器"),
-            Triple("com.UCMobile", "ucbrowser", "UC浏览器")
+            // 金融类
+            Triple("cmb.pb", "cmbmobilebank", "招商银行"),
+            Triple("com.antfortune.wealth", "antfortune", "蚂蚁财富"),
+            
+            // 出行类
+            Triple("com.sdu.didi.psnger", "diditaxi", "滴滴出行"),
+            Triple("com.MobileTicket", "cn.12306", "12306"),
+            Triple("ctrip.android.view", "ctrip", "携程旅行"),
+            Triple("com.Qunar", "qunar", "去哪儿"),
+            Triple("com.jingyao.easybike", "hellobike", "哈啰出行"),
+            
+            // 招聘类
+            Triple("com.hpbr.bosszhipin", "bosszhipin", "BOSS直聘"),
+            Triple("com.liepin.android", "liepin", "猎聘"),
+            Triple("com.job.android", "zhaopin", "前程无忧"),
+            
+            // 教育类
+            Triple("com.youdao.dict", "yddict", "有道词典"),
+            Triple("com.eusoft.eudic", "eudic", "欧路词典"),
+            Triple("com.jiongji.andriod.card", "baicizhan", "百词斩"),
+            Triple("com.baidu.homework", "zuoyebang", "作业帮"),
+            Triple("com.fenbi.android.solar", "yuansouti", "小猿搜题"),
+            
+            // 新闻类
+            Triple("com.netease.nr", "newsapp", "网易新闻")
         )
         
         for ((packageName, urlScheme, appName) in urlSchemeAppConfigs) {
@@ -3133,51 +3168,84 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             // 优先使用URL scheme跳转到APP搜索结果页面
             if (appInfo.urlScheme != null) {
-                val urlScheme = appInfo.urlScheme
-                val intent = when (urlScheme) {
-                    "weixin" -> {
-                        // 微信搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=${Uri.encode(searchQuery)}"))
-                    }
-                    "mqqapi" -> {
-                        // QQ搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=${Uri.encode(searchQuery)}"))
-                    }
-                    "taobao" -> {
-                        // 淘宝搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("taobao://search?q=${Uri.encode(searchQuery)}"))
-                    }
-                    "alipay" -> {
-                        // 支付宝搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("alipay://search?query=${Uri.encode(searchQuery)}"))
-                    }
-                    "snssdk1128" -> {
-                        // 抖音搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search?keyword=${Uri.encode(searchQuery)}"))
-                    }
-                    "sinaweibo" -> {
-                        // 微博搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://search?keyword=${Uri.encode(searchQuery)}"))
-                    }
-                    "wework" -> {
-                        // 企业微信搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=${Uri.encode(searchQuery)}"))
-                    }
-                    "tim" -> {
-                        // TIM搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=${Uri.encode(searchQuery)}"))
-                    }
-                    "mttbrowser" -> {
-                        // QQ浏览器搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=${Uri.encode(searchQuery)}"))
-                    }
-                    "ucbrowser" -> {
-                        // UC浏览器搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?query=${Uri.encode(searchQuery)}"))
-                    }
+                val encodedQuery = Uri.encode(searchQuery)
+                val intent = when (appInfo.urlScheme) {
+                    // 社交类
+                    "weixin" -> Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedQuery"))
+                    "mqqapi" -> Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=$encodedQuery"))
+                    "wework" -> Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=$encodedQuery"))
+                    "tim" -> Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=$encodedQuery"))
+                    "sinaweibo" -> Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://searchall?q=$encodedQuery"))
+                    "xhsdiscover" -> Intent(Intent.ACTION_VIEW, Uri.parse("xhsdiscover://search/result?keyword=$encodedQuery"))
+                    "douban" -> Intent(Intent.ACTION_VIEW, Uri.parse("douban://search?q=$encodedQuery"))
+                    "twitter" -> Intent(Intent.ACTION_VIEW, Uri.parse("twitter://search?query=$encodedQuery"))
+                    "zhihu" -> Intent(Intent.ACTION_VIEW, Uri.parse("zhihu://search?q=$encodedQuery"))
+                    
+                    // 购物类
+                    "taobao" -> Intent(Intent.ACTION_VIEW, Uri.parse("taobao://s.taobao.com?q=$encodedQuery"))
+                    "alipay" -> Intent(Intent.ACTION_VIEW, Uri.parse("alipays://platformapi/startapp?appId=20000067&query=$encodedQuery"))
+                    "openapp.jdmobile" -> Intent(Intent.ACTION_VIEW, Uri.parse("openapp.jdmobile://virtual?params={\"des\":\"productList\",\"keyWord\":\"$encodedQuery\"}"))
+                    "pinduoduo" -> Intent(Intent.ACTION_VIEW, Uri.parse("pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key=$encodedQuery"))
+                    "tmall" -> Intent(Intent.ACTION_VIEW, Uri.parse("tmall://page.tm/search?q=$encodedQuery"))
+                    "fleamarket" -> Intent(Intent.ACTION_VIEW, Uri.parse("fleamarket://x_search_items?keyword=$encodedQuery"))
+                    
+                    // 视频类
+                    "snssdk1128" -> Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search/tabs?keyword=$encodedQuery"))
+                    "bilibili" -> Intent(Intent.ACTION_VIEW, Uri.parse("bilibili://search?keyword=$encodedQuery"))
+                    "qqlive" -> Intent(Intent.ACTION_VIEW, Uri.parse("qqlive://search?query=$encodedQuery"))
+                    "iqiyi" -> Intent(Intent.ACTION_VIEW, Uri.parse("iqiyi://search?key=$encodedQuery"))
+                    "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("youtube://results?search_query=$encodedQuery"))
+                    
+                    // 音乐类
+                    "qqmusic" -> Intent(Intent.ACTION_VIEW, Uri.parse("qqmusic://search?key=$encodedQuery"))
+                    "orpheus" -> Intent(Intent.ACTION_VIEW, Uri.parse("orpheus://search?keyword=$encodedQuery"))
+                    "spotify" -> Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:$encodedQuery"))
+                    
+                    // 生活服务类
+                    "imeituan" -> Intent(Intent.ACTION_VIEW, Uri.parse("imeituan://www.meituan.com/search?q=$encodedQuery"))
+                    "eleme" -> Intent(Intent.ACTION_VIEW, Uri.parse("eleme://search?keyword=$encodedQuery"))
+                    "dianping" -> Intent(Intent.ACTION_VIEW, Uri.parse("dianping://searchshoplist?keyword=$encodedQuery"))
+                    
+                    // 地图导航类
+                    "androidamap" -> Intent(Intent.ACTION_VIEW, Uri.parse("androidamap://poi?sourceApplication=appname&keywords=$encodedQuery"))
+                    "baidumap" -> Intent(Intent.ACTION_VIEW, Uri.parse("baidumap://map/place/search?query=$encodedQuery"))
+                    
+                    // 浏览器类
+                    "mttbrowser" -> Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=$encodedQuery"))
+                    "ucbrowser" -> Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?keyword=$encodedQuery"))
+                    "googlechrome" -> Intent(Intent.ACTION_VIEW, Uri.parse("googlechrome://www.google.com/search?q=$encodedQuery"))
+                    "firefox" -> Intent(Intent.ACTION_VIEW, Uri.parse("firefox://search?q=$encodedQuery"))
+                    "quark" -> Intent(Intent.ACTION_VIEW, Uri.parse("quark://search?q=$encodedQuery"))
+                    
+                    // 金融类
+                    "cmbmobilebank" -> Intent(Intent.ACTION_VIEW, Uri.parse("cmbmobilebank://search?keyword=$encodedQuery"))
+                    "antfortune" -> Intent(Intent.ACTION_VIEW, Uri.parse("antfortune://search?keyword=$encodedQuery"))
+                    
+                    // 出行类
+                    "diditaxi" -> Intent(Intent.ACTION_VIEW, Uri.parse("diditaxi://search?keyword=$encodedQuery"))
+                    "cn.12306" -> Intent(Intent.ACTION_VIEW, Uri.parse("cn.12306://search?keyword=$encodedQuery"))
+                    "ctrip" -> Intent(Intent.ACTION_VIEW, Uri.parse("ctrip://search?keyword=$encodedQuery"))
+                    "qunar" -> Intent(Intent.ACTION_VIEW, Uri.parse("qunar://search?keyword=$encodedQuery"))
+                    "hellobike" -> Intent(Intent.ACTION_VIEW, Uri.parse("hellobike://search?keyword=$encodedQuery"))
+                    
+                    // 招聘类
+                    "bosszhipin" -> Intent(Intent.ACTION_VIEW, Uri.parse("bosszhipin://search?keyword=$encodedQuery"))
+                    "liepin" -> Intent(Intent.ACTION_VIEW, Uri.parse("liepin://search?keyword=$encodedQuery"))
+                    "zhaopin" -> Intent(Intent.ACTION_VIEW, Uri.parse("zhaopin://search?keyword=$encodedQuery"))
+                    
+                    // 教育类
+                    "yddict" -> Intent(Intent.ACTION_VIEW, Uri.parse("yddict://search?keyword=$encodedQuery"))
+                    "eudic" -> Intent(Intent.ACTION_VIEW, Uri.parse("eudic://dict/$encodedQuery"))
+                    "baicizhan" -> Intent(Intent.ACTION_VIEW, Uri.parse("baicizhan://search?keyword=$encodedQuery"))
+                    "zuoyebang" -> Intent(Intent.ACTION_VIEW, Uri.parse("zuoyebang://search?keyword=$encodedQuery"))
+                    "yuansouti" -> Intent(Intent.ACTION_VIEW, Uri.parse("yuansouti://search?keyword=$encodedQuery"))
+                    
+                    // 新闻类
+                    "newsapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("newsapp://search?keyword=$encodedQuery"))
+                    
                     else -> {
-                        // 通用URL scheme
-                        Intent(Intent.ACTION_VIEW, Uri.parse("$urlScheme://search?query=${Uri.encode(searchQuery)}"))
+                        // 通用URL scheme格式
+                        Intent(Intent.ACTION_VIEW, Uri.parse("${appInfo.urlScheme}://search?query=$encodedQuery"))
                     }
                 }
                 
@@ -3728,46 +3796,79 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 // 支持URL Scheme，使用正确的格式跳转到app搜索页面
                 val encodedContent = Uri.encode(clipboardContent)
                 val intent = when (appInfo.urlScheme) {
-                    "weixin" -> {
-                        // 微信搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedContent"))
-                    }
-                    "mqqapi" -> {
-                        // QQ搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=$encodedContent"))
-                    }
-                    "taobao" -> {
-                        // 淘宝搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("taobao://s.taobao.com?q=$encodedContent"))
-                    }
-                    "alipay" -> {
-                        // 支付宝搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("alipays://platformapi/startapp?appId=20000067&query=$encodedContent"))
-                    }
-                    "snssdk1128" -> {
-                        // 抖音搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search?keyword=$encodedContent"))
-                    }
-                    "sinaweibo" -> {
-                        // 微博搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://search?q=$encodedContent"))
-                    }
-                    "wework" -> {
-                        // 企业微信搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=$encodedContent"))
-                    }
-                    "tim" -> {
-                        // TIM搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=$encodedContent"))
-                    }
-                    "mttbrowser" -> {
-                        // QQ浏览器搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=$encodedContent"))
-                    }
-                    "ucbrowser" -> {
-                        // UC浏览器搜索
-                        Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?query=$encodedContent"))
-                    }
+                    // 社交类
+                    "weixin" -> Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedContent"))
+                    "mqqapi" -> Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=$encodedContent"))
+                    "wework" -> Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=$encodedContent"))
+                    "tim" -> Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=$encodedContent"))
+                    "sinaweibo" -> Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://searchall?q=$encodedContent"))
+                    "xhsdiscover" -> Intent(Intent.ACTION_VIEW, Uri.parse("xhsdiscover://search/result?keyword=$encodedContent"))
+                    "douban" -> Intent(Intent.ACTION_VIEW, Uri.parse("douban://search?q=$encodedContent"))
+                    "twitter" -> Intent(Intent.ACTION_VIEW, Uri.parse("twitter://search?query=$encodedContent"))
+                    "zhihu" -> Intent(Intent.ACTION_VIEW, Uri.parse("zhihu://search?q=$encodedContent"))
+                    
+                    // 购物类
+                    "taobao" -> Intent(Intent.ACTION_VIEW, Uri.parse("taobao://s.taobao.com?q=$encodedContent"))
+                    "alipay" -> Intent(Intent.ACTION_VIEW, Uri.parse("alipays://platformapi/startapp?appId=20000067&query=$encodedContent"))
+                    "openapp.jdmobile" -> Intent(Intent.ACTION_VIEW, Uri.parse("openapp.jdmobile://virtual?params={\"des\":\"productList\",\"keyWord\":\"$encodedContent\"}"))
+                    "pinduoduo" -> Intent(Intent.ACTION_VIEW, Uri.parse("pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key=$encodedContent"))
+                    "tmall" -> Intent(Intent.ACTION_VIEW, Uri.parse("tmall://page.tm/search?q=$encodedContent"))
+                    "fleamarket" -> Intent(Intent.ACTION_VIEW, Uri.parse("fleamarket://x_search_items?keyword=$encodedContent"))
+                    
+                    // 视频类
+                    "snssdk1128" -> Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search/tabs?keyword=$encodedContent"))
+                    "bilibili" -> Intent(Intent.ACTION_VIEW, Uri.parse("bilibili://search?keyword=$encodedContent"))
+                    "qqlive" -> Intent(Intent.ACTION_VIEW, Uri.parse("qqlive://search?query=$encodedContent"))
+                    "iqiyi" -> Intent(Intent.ACTION_VIEW, Uri.parse("iqiyi://search?key=$encodedContent"))
+                    "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("youtube://results?search_query=$encodedContent"))
+                    
+                    // 音乐类
+                    "qqmusic" -> Intent(Intent.ACTION_VIEW, Uri.parse("qqmusic://search?key=$encodedContent"))
+                    "orpheus" -> Intent(Intent.ACTION_VIEW, Uri.parse("orpheus://search?keyword=$encodedContent"))
+                    "spotify" -> Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:$encodedContent"))
+                    
+                    // 生活服务类
+                    "imeituan" -> Intent(Intent.ACTION_VIEW, Uri.parse("imeituan://www.meituan.com/search?q=$encodedContent"))
+                    "eleme" -> Intent(Intent.ACTION_VIEW, Uri.parse("eleme://search?keyword=$encodedContent"))
+                    "dianping" -> Intent(Intent.ACTION_VIEW, Uri.parse("dianping://searchshoplist?keyword=$encodedContent"))
+                    
+                    // 地图导航类
+                    "androidamap" -> Intent(Intent.ACTION_VIEW, Uri.parse("androidamap://poi?sourceApplication=appname&keywords=$encodedContent"))
+                    "baidumap" -> Intent(Intent.ACTION_VIEW, Uri.parse("baidumap://map/place/search?query=$encodedContent"))
+                    
+                    // 浏览器类
+                    "mttbrowser" -> Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=$encodedContent"))
+                    "ucbrowser" -> Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?keyword=$encodedContent"))
+                    "googlechrome" -> Intent(Intent.ACTION_VIEW, Uri.parse("googlechrome://www.google.com/search?q=$encodedContent"))
+                    "firefox" -> Intent(Intent.ACTION_VIEW, Uri.parse("firefox://search?q=$encodedContent"))
+                    "quark" -> Intent(Intent.ACTION_VIEW, Uri.parse("quark://search?q=$encodedContent"))
+                    
+                    // 金融类
+                    "cmbmobilebank" -> Intent(Intent.ACTION_VIEW, Uri.parse("cmbmobilebank://search?keyword=$encodedContent"))
+                    "antfortune" -> Intent(Intent.ACTION_VIEW, Uri.parse("antfortune://search?keyword=$encodedContent"))
+                    
+                    // 出行类
+                    "diditaxi" -> Intent(Intent.ACTION_VIEW, Uri.parse("diditaxi://search?keyword=$encodedContent"))
+                    "cn.12306" -> Intent(Intent.ACTION_VIEW, Uri.parse("cn.12306://search?keyword=$encodedContent"))
+                    "ctrip" -> Intent(Intent.ACTION_VIEW, Uri.parse("ctrip://search?keyword=$encodedContent"))
+                    "qunar" -> Intent(Intent.ACTION_VIEW, Uri.parse("qunar://search?keyword=$encodedContent"))
+                    "hellobike" -> Intent(Intent.ACTION_VIEW, Uri.parse("hellobike://search?keyword=$encodedContent"))
+                    
+                    // 招聘类
+                    "bosszhipin" -> Intent(Intent.ACTION_VIEW, Uri.parse("bosszhipin://search?keyword=$encodedContent"))
+                    "liepin" -> Intent(Intent.ACTION_VIEW, Uri.parse("liepin://search?keyword=$encodedContent"))
+                    "zhaopin" -> Intent(Intent.ACTION_VIEW, Uri.parse("zhaopin://search?keyword=$encodedContent"))
+                    
+                    // 教育类
+                    "yddict" -> Intent(Intent.ACTION_VIEW, Uri.parse("yddict://search?keyword=$encodedContent"))
+                    "eudic" -> Intent(Intent.ACTION_VIEW, Uri.parse("eudic://dict/$encodedContent"))
+                    "baicizhan" -> Intent(Intent.ACTION_VIEW, Uri.parse("baicizhan://search?keyword=$encodedContent"))
+                    "zuoyebang" -> Intent(Intent.ACTION_VIEW, Uri.parse("zuoyebang://search?keyword=$encodedContent"))
+                    "yuansouti" -> Intent(Intent.ACTION_VIEW, Uri.parse("yuansouti://search?keyword=$encodedContent"))
+                    
+                    // 新闻类
+                    "newsapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("newsapp://search?keyword=$encodedContent"))
+                    
                     else -> {
                         // 通用URL scheme格式
                         Intent(Intent.ACTION_VIEW, Uri.parse("${appInfo.urlScheme}://search?query=$encodedContent"))
@@ -4558,25 +4659,81 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 获取应用的URL scheme
      */
     private fun getUrlSchemeForPackage(packageName: String): String? {
-        // 使用已知的包名到URL scheme的映射
+        // 根据AppSearchSettings配置创建完整的包名到URL scheme映射
         val urlSchemeMap = mapOf(
+            // 社交类
             "com.tencent.mm" to "weixin",
             "com.tencent.mobileqq" to "mqqapi",
-            "com.taobao.taobao" to "taobao",
-            "com.eg.android.AlipayGphone" to "alipay",
-            "com.ss.android.ugc.aweme" to "snssdk1128",
-            "com.sina.weibo" to "sinaweibo",
             "com.tencent.wework" to "wework",
             "com.tencent.tim" to "tim",
+            "com.sina.weibo" to "sinaweibo",
+            "com.xingin.xhs" to "xhsdiscover",
+            "com.douban.frodo" to "douban",
+            "com.twitter.android" to "twitter",
+            "com.zhihu.android" to "zhihu",
+            
+            // 购物类
+            "com.taobao.taobao" to "taobao",
+            "com.eg.android.AlipayGphone" to "alipay",
+            "com.jingdong.app.mall" to "openapp.jdmobile",
+            "com.xunmeng.pinduoduo" to "pinduoduo",
+            "com.tmall.wireless" to "tmall",
+            "com.taobao.idlefish" to "fleamarket",
+            
+            // 视频类
+            "com.ss.android.ugc.aweme" to "snssdk1128",
+            "com.zhiliaoapp.musically" to "snssdk1128",
+            "tv.danmaku.bili" to "bilibili",
+            "com.tencent.qqlive" to "qqlive",
+            "com.iqiyi.app" to "iqiyi",
+            "com.google.android.youtube" to "youtube",
+            
+            // 音乐类
+            "com.tencent.qqmusic" to "qqmusic",
+            "com.netease.cloudmusic" to "orpheus",
+            "com.spotify.music" to "spotify",
+            
+            // 生活服务类
+            "com.sankuai.meituan" to "imeituan",
+            "me.ele" to "eleme",
+            "com.dianping.v1" to "dianping",
+            
+            // 地图导航类
+            "com.autonavi.minimap" to "androidamap",
+            "com.baidu.BaiduMap" to "baidumap",
+            
+            // 浏览器类
             "com.tencent.mtt" to "mttbrowser",
             "com.UCMobile" to "ucbrowser",
             "com.android.chrome" to "googlechrome",
             "org.mozilla.firefox" to "firefox",
-            "com.jingdong.app.mall" to "openapp.jdmobile",
-            "com.pinduoduo" to "pinduoduo",
-            "tv.danmaku.bili" to "bilibili",
-            "com.tencent.qqlive" to "qqlive",
-            "com.iqiyi.app" to "iqiyi"
+            "com.quark.browser" to "quark",
+            
+            // 金融类
+            "cmb.pb" to "cmbmobilebank",
+            "com.antfortune.wealth" to "antfortune",
+            
+            // 出行类
+            "com.sdu.didi.psnger" to "diditaxi",
+            "com.MobileTicket" to "cn.12306",
+            "ctrip.android.view" to "ctrip",
+            "com.Qunar" to "qunar",
+            "com.jingyao.easybike" to "hellobike",
+            
+            // 招聘类
+            "com.hpbr.bosszhipin" to "bosszhipin",
+            "com.liepin.android" to "liepin",
+            "com.job.android" to "zhaopin",
+            
+            // 教育类
+            "com.youdao.dict" to "yddict",
+            "com.eusoft.eudic" to "eudic",
+            "com.jiongji.andriod.card" to "baicizhan",
+            "com.baidu.homework" to "zuoyebang",
+            "com.fenbi.android.solar" to "yuansouti",
+            
+            // 新闻类
+            "com.netease.nr" to "newsapp"
         )
         
         return urlSchemeMap[packageName]
@@ -4671,40 +4828,84 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (appInfo.urlScheme != null) {
             // 有URL scheme，直接跳转到APP搜索结果页面
             try {
-                val urlScheme = appInfo.urlScheme
-                val intent = when (urlScheme) {
-                    "weixin" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=${Uri.encode(query)}"))
-                    }
-                    "mqqapi" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=${Uri.encode(query)}"))
-                    }
-                    "taobao" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("taobao://search?q=${Uri.encode(query)}"))
-                    }
-                    "alipay" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("alipay://search?query=${Uri.encode(query)}"))
-                    }
-                    "snssdk1128" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search?keyword=${Uri.encode(query)}"))
-                    }
-                    "sinaweibo" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://search?keyword=${Uri.encode(query)}"))
-                    }
-                    "wework" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=${Uri.encode(query)}"))
-                    }
-                    "tim" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=${Uri.encode(query)}"))
-                    }
-                    "mttbrowser" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=${Uri.encode(query)}"))
-                    }
-                    "ucbrowser" -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?query=${Uri.encode(query)}"))
-                    }
+                val encodedQuery = Uri.encode(query)
+                val intent = when (appInfo.urlScheme) {
+                    // 社交类
+                    "weixin" -> Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedQuery"))
+                    "mqqapi" -> Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=$encodedQuery"))
+                    "wework" -> Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=$encodedQuery"))
+                    "tim" -> Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=$encodedQuery"))
+                    "sinaweibo" -> Intent(Intent.ACTION_VIEW, Uri.parse("sinaweibo://searchall?q=$encodedQuery"))
+                    "xhsdiscover" -> Intent(Intent.ACTION_VIEW, Uri.parse("xhsdiscover://search/result?keyword=$encodedQuery"))
+                    "douban" -> Intent(Intent.ACTION_VIEW, Uri.parse("douban://search?q=$encodedQuery"))
+                    "twitter" -> Intent(Intent.ACTION_VIEW, Uri.parse("twitter://search?query=$encodedQuery"))
+                    "zhihu" -> Intent(Intent.ACTION_VIEW, Uri.parse("zhihu://search?q=$encodedQuery"))
+                    
+                    // 购物类
+                    "taobao" -> Intent(Intent.ACTION_VIEW, Uri.parse("taobao://s.taobao.com?q=$encodedQuery"))
+                    "alipay" -> Intent(Intent.ACTION_VIEW, Uri.parse("alipays://platformapi/startapp?appId=20000067&query=$encodedQuery"))
+                    "openapp.jdmobile" -> Intent(Intent.ACTION_VIEW, Uri.parse("openapp.jdmobile://virtual?params={\"des\":\"productList\",\"keyWord\":\"$encodedQuery\"}"))
+                    "pinduoduo" -> Intent(Intent.ACTION_VIEW, Uri.parse("pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key=$encodedQuery"))
+                    "tmall" -> Intent(Intent.ACTION_VIEW, Uri.parse("tmall://page.tm/search?q=$encodedQuery"))
+                    "fleamarket" -> Intent(Intent.ACTION_VIEW, Uri.parse("fleamarket://x_search_items?keyword=$encodedQuery"))
+                    
+                    // 视频类
+                    "snssdk1128" -> Intent(Intent.ACTION_VIEW, Uri.parse("snssdk1128://search/tabs?keyword=$encodedQuery"))
+                    "bilibili" -> Intent(Intent.ACTION_VIEW, Uri.parse("bilibili://search?keyword=$encodedQuery"))
+                    "qqlive" -> Intent(Intent.ACTION_VIEW, Uri.parse("qqlive://search?query=$encodedQuery"))
+                    "iqiyi" -> Intent(Intent.ACTION_VIEW, Uri.parse("iqiyi://search?key=$encodedQuery"))
+                    "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("youtube://results?search_query=$encodedQuery"))
+                    
+                    // 音乐类
+                    "qqmusic" -> Intent(Intent.ACTION_VIEW, Uri.parse("qqmusic://search?key=$encodedQuery"))
+                    "orpheus" -> Intent(Intent.ACTION_VIEW, Uri.parse("orpheus://search?keyword=$encodedQuery"))
+                    "spotify" -> Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:$encodedQuery"))
+                    
+                    // 生活服务类
+                    "imeituan" -> Intent(Intent.ACTION_VIEW, Uri.parse("imeituan://www.meituan.com/search?q=$encodedQuery"))
+                    "eleme" -> Intent(Intent.ACTION_VIEW, Uri.parse("eleme://search?keyword=$encodedQuery"))
+                    "dianping" -> Intent(Intent.ACTION_VIEW, Uri.parse("dianping://searchshoplist?keyword=$encodedQuery"))
+                    
+                    // 地图导航类
+                    "androidamap" -> Intent(Intent.ACTION_VIEW, Uri.parse("androidamap://poi?sourceApplication=appname&keywords=$encodedQuery"))
+                    "baidumap" -> Intent(Intent.ACTION_VIEW, Uri.parse("baidumap://map/place/search?query=$encodedQuery"))
+                    
+                    // 浏览器类
+                    "mttbrowser" -> Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=$encodedQuery"))
+                    "ucbrowser" -> Intent(Intent.ACTION_VIEW, Uri.parse("ucbrowser://search?keyword=$encodedQuery"))
+                    "googlechrome" -> Intent(Intent.ACTION_VIEW, Uri.parse("googlechrome://www.google.com/search?q=$encodedQuery"))
+                    "firefox" -> Intent(Intent.ACTION_VIEW, Uri.parse("firefox://search?q=$encodedQuery"))
+                    "quark" -> Intent(Intent.ACTION_VIEW, Uri.parse("quark://search?q=$encodedQuery"))
+                    
+                    // 金融类
+                    "cmbmobilebank" -> Intent(Intent.ACTION_VIEW, Uri.parse("cmbmobilebank://search?keyword=$encodedQuery"))
+                    "antfortune" -> Intent(Intent.ACTION_VIEW, Uri.parse("antfortune://search?keyword=$encodedQuery"))
+                    
+                    // 出行类
+                    "diditaxi" -> Intent(Intent.ACTION_VIEW, Uri.parse("diditaxi://search?keyword=$encodedQuery"))
+                    "cn.12306" -> Intent(Intent.ACTION_VIEW, Uri.parse("cn.12306://search?keyword=$encodedQuery"))
+                    "ctrip" -> Intent(Intent.ACTION_VIEW, Uri.parse("ctrip://search?keyword=$encodedQuery"))
+                    "qunar" -> Intent(Intent.ACTION_VIEW, Uri.parse("qunar://search?keyword=$encodedQuery"))
+                    "hellobike" -> Intent(Intent.ACTION_VIEW, Uri.parse("hellobike://search?keyword=$encodedQuery"))
+                    
+                    // 招聘类
+                    "bosszhipin" -> Intent(Intent.ACTION_VIEW, Uri.parse("bosszhipin://search?keyword=$encodedQuery"))
+                    "liepin" -> Intent(Intent.ACTION_VIEW, Uri.parse("liepin://search?keyword=$encodedQuery"))
+                    "zhaopin" -> Intent(Intent.ACTION_VIEW, Uri.parse("zhaopin://search?keyword=$encodedQuery"))
+                    
+                    // 教育类
+                    "yddict" -> Intent(Intent.ACTION_VIEW, Uri.parse("yddict://search?keyword=$encodedQuery"))
+                    "eudic" -> Intent(Intent.ACTION_VIEW, Uri.parse("eudic://dict/$encodedQuery"))
+                    "baicizhan" -> Intent(Intent.ACTION_VIEW, Uri.parse("baicizhan://search?keyword=$encodedQuery"))
+                    "zuoyebang" -> Intent(Intent.ACTION_VIEW, Uri.parse("zuoyebang://search?keyword=$encodedQuery"))
+                    "yuansouti" -> Intent(Intent.ACTION_VIEW, Uri.parse("yuansouti://search?keyword=$encodedQuery"))
+                    
+                    // 新闻类
+                    "newsapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("newsapp://search?keyword=$encodedQuery"))
+                    
                     else -> {
-                        Intent(Intent.ACTION_VIEW, Uri.parse("$urlScheme://search?query=${Uri.encode(query)}"))
+                        // 通用URL scheme格式
+                        Intent(Intent.ACTION_VIEW, Uri.parse("${appInfo.urlScheme}://search?query=$encodedQuery"))
                     }
                 }
 
