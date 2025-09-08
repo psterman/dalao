@@ -2349,10 +2349,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             when {
                 // 1. 文本操作菜单显示时，处理触摸事件
                 textActionMenu?.isShowing == true -> {
-                    hideCustomTextMenu()
-                    return@setOnTouchListener true
-                }
-                
+                hideCustomTextMenu()
+                return@setOnTouchListener true
+            }
+
                 // 2. 圆球状态下的触摸处理
                 ballView != null && ballView?.visibility == View.VISIBLE -> {
                     handleBallTouchEvent(event)
@@ -2360,9 +2360,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 
                 // 3. 搜索模式激活时，检查是否在外部区域
                 isSearchModeActive && event.action == MotionEvent.ACTION_DOWN -> {
-                    if (isTouchOutsideAllViews(event)) {
-                        transitionToCompactState()
-                        return@setOnTouchListener true // 消费掉外部点击事件
+                if (isTouchOutsideAllViews(event)) {
+                    transitionToCompactState()
+                    return@setOnTouchListener true // 消费掉外部点击事件
                     } else {
                         return@setOnTouchListener false // 在内部区域，让子视图处理
                     }
@@ -3190,14 +3190,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 执行实时搜索
      */
     private fun performRealTimeSearch(query: String, appInfoManager: AppInfoManager) {
-        val appResults = appInfoManager.search(query)
-        
-        if (appResults.isNotEmpty()) {
-            showAppSearchResults(appResults)
-        } else {
-            // 没有匹配的APP时，显示支持URL scheme的APP图标
-            showUrlSchemeAppIcons()
-        }
+                    val appResults = appInfoManager.search(query)
+                    
+                    if (appResults.isNotEmpty()) {
+                        showAppSearchResults(appResults)
+                    } else {
+                        // 没有匹配的APP时，显示支持URL scheme的APP图标
+                        showUrlSchemeAppIcons()
+                    }
     }
     
     /**
@@ -3233,14 +3233,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         Log.d(TAG, "appSearchRecyclerView: $appSearchRecyclerView")
         
         // 每次都重新创建适配器，确保点击监听器正确设置
-        appSearchAdapter = AppSearchAdapter(results, isHorizontal = true) { appInfo ->
+            appSearchAdapter = AppSearchAdapter(results, isHorizontal = true) { appInfo ->
             // 选中应用，但不执行搜索动作
             selectAppForSearch(appInfo)
-        }
-        appSearchRecyclerView?.apply {
-            layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-            adapter = appSearchAdapter
-            overScrollMode = View.OVER_SCROLL_NEVER
+            }
+            appSearchRecyclerView?.apply {
+                layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+                adapter = appSearchAdapter
+                overScrollMode = View.OVER_SCROLL_NEVER
         }
 
         appSearchResultsContainer?.visibility = View.VISIBLE
@@ -3985,17 +3985,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun createClipboardAppHistoryView(clipboardContent: String) {
         try {
+            // 获取主题化的上下文
+            val themedContext = getThemedContext()
+            val isDarkMode = (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            
             // 创建主容器布局（垂直方向）
             val mainContainer = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 setPadding(16.dpToPx(), 12.dpToPx(), 16.dpToPx(), 12.dpToPx())
                 
-                // 设置半透明背景，确保内容可见
+                // 根据主题设置背景
                 background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#E6000000")) // 半透明黑色背景
+                    if (isDarkMode) {
+                        setColor(Color.parseColor("#E6000000")) // 深色模式：半透明黑色背景
+                        setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF")) // 白色边框
+                    } else {
+                        setColor(Color.parseColor("#E6FFFFFF")) // 浅色模式：半透明白色背景
+                        setStroke(1.dpToPx(), Color.parseColor("#40000000")) // 黑色边框
+                    }
                     cornerRadius = 20.dpToPx().toFloat()
-                    setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF")) // 白色边框
                 }
                 
                 layoutParams = ViewGroup.LayoutParams(
@@ -4042,29 +4051,29 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     }
                 }
                 
+                // 添加AI按钮（在退出按钮左边）
+                val aiButton = createAIButton(clipboardContent)
+                appIconsContainer.addView(aiButton)
+                Log.d(TAG, "AI按钮已添加到app图标容器")
+                
                 // 在app图标最后添加退出按钮
                 val exitButton = createExitButton()
                 appIconsContainer.addView(exitButton)
                 Log.d(TAG, "退出按钮已添加到app图标容器")
             } else {
-                // 没有推荐的应用，显示提示
-                val hintText = TextView(this).apply {
-                    text = "暂无推荐的应用"
-                    textSize = 12f
-                    setTextColor(Color.WHITE)
-                    gravity = Gravity.CENTER
-                }
-                appIconsContainer.addView(hintText)
+                // 没有推荐的应用，显示AI按钮和退出按钮
+                val aiButton = createAIButton(clipboardContent)
+                appIconsContainer.addView(aiButton)
+                
+                val exitButton = createExitButton()
+                appIconsContainer.addView(exitButton)
+                Log.d(TAG, "AI按钮和退出按钮已添加到app图标容器")
             }
             
             // 添加应用图标容器到主容器
             mainContainer.addView(appIconsContainer)
             
-            // 添加AI预览部分
-            Log.d(TAG, "创建AI预览容器")
-            val aiPreviewContainer = createAIPreviewContainer(clipboardContent)
-            mainContainer.addView(aiPreviewContainer)
-            Log.d(TAG, "AI预览容器已添加到主容器")
+            // 不再自动添加AI预览部分，改为用户点击AI按钮时才显示
             
             islandContentView = mainContainer
             animatingIslandView?.addView(islandContentView)
@@ -4072,6 +4081,75 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
         } catch (e: Exception) {
             Log.e(TAG, "创建剪贴板app历史视图失败", e)
+        }
+    }
+    
+    /**
+     * 创建AI按钮
+     */
+    private fun createAIButton(clipboardContent: String): View {
+        val aiButton = ImageButton(this).apply {
+            id = View.generateViewId()
+            setImageResource(R.drawable.ic_chat) // 使用聊天图标
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(6.dpToPx(), 6.dpToPx(), 6.dpToPx(), 6.dpToPx())
+            setColorFilter(Color.parseColor("#4CAF50")) // 绿色AI图标
+            
+            // 设置按钮背景
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#804CAF50")) // 半透明绿色背景
+                cornerRadius = 12.dpToPx().toFloat()
+                setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 白色边框
+            }
+            
+            // 设置按钮大小，与app图标保持一致
+            layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx()).apply {
+                leftMargin = 8.dpToPx()
+            }
+            
+            // 添加点击事件
+            setOnClickListener {
+                Log.d(TAG, "AI按钮被点击")
+                showAIPreviewForClipboard(clipboardContent)
+            }
+        }
+        
+        return aiButton
+    }
+    
+    /**
+     * 显示AI预览（用户点击AI按钮时调用）
+     */
+    private fun showAIPreviewForClipboard(clipboardContent: String) {
+        try {
+            Log.d(TAG, "显示AI预览，剪贴板内容: $clipboardContent")
+            
+            // 获取主容器
+            val mainContainer = islandContentView as? LinearLayout
+            if (mainContainer == null) {
+                Log.e(TAG, "主容器为空，无法显示AI预览")
+                return
+            }
+            
+            // 检查是否已经有AI预览容器
+            val existingAIPreview = mainContainer.getChildAt(1) // AI预览容器是第二个子视图
+            if (existingAIPreview != null) {
+                Log.d(TAG, "AI预览已存在，移除旧预览")
+                mainContainer.removeView(existingAIPreview)
+            }
+            
+            // 创建新的AI预览容器
+            val aiPreviewContainer = createAIPreviewContainer(clipboardContent)
+            mainContainer.addView(aiPreviewContainer)
+            
+            // 显示提示
+            Toast.makeText(this, "AI正在分析中...", Toast.LENGTH_SHORT).show()
+            
+            Log.d(TAG, "AI预览已添加到主容器")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI预览失败", e)
+            Toast.makeText(this, "显示AI预览失败", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -4117,17 +4195,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun createAIPreviewContainer(clipboardContent: String): View {
         Log.d(TAG, "开始创建AI预览容器")
         
+        // 获取主题化的上下文
+        val themedContext = getThemedContext()
+        val isDarkMode = (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        
         val aiContainer = LinearLayout(this).apply {
             id = View.generateViewId() // 使用动态ID
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 12.dpToPx())
             
-            // 设置半透明背景
+            // 根据主题设置背景
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#CC000000")) // 更明显的背景
+                if (isDarkMode) {
+                    setColor(Color.parseColor("#CC000000")) // 深色模式：半透明黑色背景
+                    setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 白色边框
+                } else {
+                    setColor(Color.parseColor("#CCFFFFFF")) // 浅色模式：半透明白色背景
+                    setStroke(1.dpToPx(), Color.parseColor("#60000000")) // 黑色边框
+                }
                 cornerRadius = 12.dpToPx().toFloat()
-                setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 更明显的边框
             }
             
             layoutParams = LinearLayout.LayoutParams(
@@ -4172,23 +4259,48 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         }
         
-        // AI提供商标签
-        val aiProviderLabel = TextView(this).apply {
+        // AI提供商标签容器（支持多个配置好的AI服务）
+        val aiProviderContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 topMargin = 4.dpToPx()
             }
-            text = currentAIProvider
-            textSize = 11f
-            setTextColor(Color.parseColor("#4CAF50"))
-            setPadding(8.dpToPx(), 4.dpToPx(), 8.dpToPx(), 4.dpToPx())
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#204CAF50"))
-                cornerRadius = 8.dpToPx().toFloat()
+        }
+        
+        // 获取配置好的AI服务
+        val configuredAIServices = getConfiguredAIServices()
+        Log.d(TAG, "找到 ${configuredAIServices.size} 个配置好的AI服务: $configuredAIServices")
+        
+        // 为每个配置好的AI服务创建标签
+        configuredAIServices.forEachIndexed { index, aiService ->
+            val aiProviderLabel = TextView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    if (index > 0) leftMargin = 4.dpToPx()
+                }
+                text = aiService
+                textSize = 10f
+                setTextColor(if (isDarkMode) Color.parseColor("#4CAF50") else Color.parseColor("#2E7D32"))
+                setPadding(6.dpToPx(), 3.dpToPx(), 6.dpToPx(), 3.dpToPx())
+                background = GradientDrawable().apply {
+                    setColor(if (isDarkMode) Color.parseColor("#204CAF50") else Color.parseColor("#E8F5E8"))
+                    cornerRadius = 6.dpToPx().toFloat()
+                }
+                gravity = Gravity.CENTER
+                
+                // 添加点击事件，切换AI服务
+                setOnClickListener {
+                    Log.d(TAG, "用户点击AI标签: $aiService")
+                    switchToAIService(aiService, clipboardContent)
+                }
             }
-            gravity = Gravity.CENTER
+            aiProviderContainer.addView(aiProviderLabel)
         }
         
         // AI回复内容区域（可延展）
@@ -4253,7 +4365,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 组装布局
         aiHeaderContainer.addView(aiIcon)
-        aiHeaderContainer.addView(aiProviderLabel)
+        aiHeaderContainer.addView(aiProviderContainer)
         
         aiResponseContainer.addView(aiPreviewText)
         aiResponseContainer.addView(expandButton)
@@ -4272,6 +4384,89 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     // AI相关变量
     private var currentAIProvider = "DeepSeek" // 默认AI提供商
     private val aiProviders = listOf("DeepSeek", "GPT-4", "Claude", "Gemini")
+    
+    /**
+     * 获取配置好的AI服务列表
+     */
+    private fun getConfiguredAIServices(): List<String> {
+        val configuredServices = mutableListOf<String>()
+        
+        try {
+            // 获取已启用的AI引擎
+            val enabledAIEngines = settingsManager.getEnabledAIEngines()
+            Log.d(TAG, "已启用的AI引擎: $enabledAIEngines")
+            
+            // 将AI引擎名称映射到显示名称
+            val aiEngineMapping = mapOf(
+                "DeepSeek (API)" to "DeepSeek",
+                "ChatGPT (Custom)" to "GPT-4",
+                "Claude (Custom)" to "Claude",
+                "Gemini" to "Gemini",
+                "通义千问 (Custom)" to "通义千问",
+                "文心一言 (Custom)" to "文心一言",
+                "讯飞星火 (Custom)" to "讯飞星火"
+            )
+            
+            // 根据已启用的AI引擎添加对应的显示名称
+            enabledAIEngines.forEach { engineName ->
+                val displayName = aiEngineMapping[engineName]
+                if (displayName != null) {
+                    configuredServices.add(displayName)
+                }
+            }
+            
+            // 如果没有配置任何AI服务，返回默认的DeepSeek
+            if (configuredServices.isEmpty()) {
+                configuredServices.add("DeepSeek")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "获取配置好的AI服务失败", e)
+            configuredServices.add("DeepSeek") // 默认返回DeepSeek
+        }
+        
+        Log.d(TAG, "配置好的AI服务: $configuredServices")
+        return configuredServices
+    }
+    
+    /**
+     * 切换到指定的AI服务并重新获取回复
+     */
+    private fun switchToAIService(aiService: String, clipboardContent: String) {
+        Log.d(TAG, "切换到AI服务: $aiService")
+        currentAIProvider = aiService
+        
+        // 显示切换提示
+        Toast.makeText(this, "已切换到 $aiService", Toast.LENGTH_SHORT).show()
+        
+        // 重新创建AI预览容器
+        recreateAIPreviewContainer(clipboardContent)
+    }
+    
+    /**
+     * 重新创建AI预览容器
+     */
+    private fun recreateAIPreviewContainer(clipboardContent: String) {
+        try {
+            // 找到AI预览容器
+            val mainContainer = islandContentView as? LinearLayout
+            if (mainContainer != null) {
+                // 移除旧的AI预览容器
+                val aiPreviewContainer = mainContainer.getChildAt(1) // AI预览容器是第二个子视图
+                if (aiPreviewContainer != null) {
+                    mainContainer.removeView(aiPreviewContainer)
+                }
+                
+                // 创建新的AI预览容器
+                val newAIPreviewContainer = createAIPreviewContainer(clipboardContent)
+                mainContainer.addView(newAIPreviewContainer)
+                
+                Log.d(TAG, "AI预览容器已重新创建")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "重新创建AI预览容器失败", e)
+        }
+    }
     
     /**
      * 显示AI选择对话框
@@ -4313,16 +4508,20 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     /**
      * 获取AI回复预览
      */
-    private fun getAIResponsePreview(content: String, textView: TextView) {
+    private fun getAIResponsePreview(content: String, textView: TextView?) {
+        // 如果textView为null，说明是切换AI服务，需要重新创建预览
+        if (textView == null) {
+            Log.d(TAG, "textView为null，跳过预览更新")
+            return
+        }
+        
         // 设置加载状态
         Handler(Looper.getMainLooper()).post {
             textView.text = "AI正在分析中..."
         }
         
-        // 获取当前选择的AI服务
-        val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-            ?: configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-        val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
+        // 使用当前选择的AI服务
+        val selectedService = currentAIProvider
         
         // 将显示名称映射到AIServiceType
         val serviceType = when (selectedService) {
@@ -5809,7 +6008,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     handleSearchWithSelectedApp(searchText, appInfo)
                     // 清除选中的APP，为下次搜索做准备
                     currentSelectedApp = null
-                    hideRecentAppsDropdown()
+                hideRecentAppsDropdown()
                 } else {
                     // 搜索框为空，只选中应用，等待用户输入
                     Log.d(TAG, "历史列表选择应用，等待用户输入: ${appInfo.label}")
