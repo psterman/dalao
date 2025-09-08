@@ -28,6 +28,9 @@ import android.os.Looper
 import android.preference.PreferenceManager
 import android.text.Editable
 import android.text.TextWatcher
+import java.io.File
+import org.json.JSONObject
+import org.json.JSONArray
 import android.view.ActionMode
 import android.view.ContextThemeWrapper
 import android.view.Gravity
@@ -58,6 +61,7 @@ import com.example.aifloatingball.R
 import com.example.aifloatingball.activity.AIApiConfigActivity
 import com.example.aifloatingball.manager.AIApiManager
 import com.example.aifloatingball.manager.AIServiceType
+import com.example.aifloatingball.data.ChatDataManager
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -390,6 +394,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private lateinit var windowManager: WindowManager
     private lateinit var appSearchSettings: AppSearchSettings
     private lateinit var settingsManager: SettingsManager
+    private lateinit var chatDataManager: ChatDataManager
     
     private var windowContainerView: FrameLayout? = null // The stage
     private var animatingIslandView: FrameLayout? = null // The moving/transforming view
@@ -622,6 +627,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
+        
+        // 初始化聊天数据管理器
+        chatDataManager = ChatDataManager.getInstance(this)
         appSearchSettings = AppSearchSettings.getInstance(this)
         
         // 初始化AppInfoManager并加载应用列表
@@ -1246,6 +1254,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 override fun onComplete(fullResponse: String) {
                     uiHandler.post {
                         responseTextView?.text = fullResponse
+                        
+                        // 保存到聊天历史
+                        saveToChatHistory(query, fullResponse, serviceType)
                     }
                 }
                 
@@ -4119,6 +4130,168 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
+     * 保存AI对话到聊天历史
+     */
+    private fun saveToChatHistory(userContent: String, aiResponse: String, serviceType: AIServiceType) {
+        try {
+            // 使用与AI联系人匹配的会话ID格式
+            val sessionId = getAIContactId(serviceType)
+            
+            Log.d(TAG, "灵动岛保存对话 - 会话ID: $sessionId, 服务类型: ${serviceType.name}")
+            Log.d(TAG, "灵动岛保存对话 - 用户消息: ${userContent.take(50)}...")
+            Log.d(TAG, "灵动岛保存对话 - AI回复: ${aiResponse.take(50)}...")
+            
+            // 设置当前会话ID
+            chatDataManager.setCurrentSessionId(sessionId, serviceType)
+            
+            // 添加用户消息
+            chatDataManager.addMessage(sessionId, "user", userContent, serviceType)
+            
+            // 添加AI回复
+            chatDataManager.addMessage(sessionId, "assistant", aiResponse, serviceType)
+            
+            Log.d(TAG, "AI对话已保存到聊天历史: $sessionId (${serviceType.name})")
+            
+            // 验证保存是否成功
+            val savedMessages = chatDataManager.getMessages(sessionId, serviceType)
+            Log.d(TAG, "验证保存结果 - 会话 $sessionId 中有 ${savedMessages.size} 条消息")
+            
+            // 显示保存提示
+            Toast.makeText(this, "对话已保存到聊天历史", Toast.LENGTH_SHORT).show()
+            
+            // 发送广播通知简易模式更新数据
+            notifySimpleModeUpdate(serviceType, sessionId)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "保存AI对话到聊天历史失败", e)
+        }
+    }
+    
+    /**
+     * 通知简易模式更新AI对话数据
+     */
+    private fun notifySimpleModeUpdate(serviceType: AIServiceType, sessionId: String) {
+        try {
+            Log.d(TAG, "=== 开始发送AI对话更新广播 ===")
+            Log.d(TAG, "服务类型: ${serviceType.name}")
+            Log.d(TAG, "会话ID: $sessionId")
+            
+            val intent = Intent("com.example.aifloatingball.AI_CHAT_UPDATED")
+            intent.putExtra("ai_service_type", serviceType.name)
+            intent.putExtra("session_id", sessionId)
+            intent.putExtra("timestamp", System.currentTimeMillis())
+            
+            // 获取最新消息数量和内容
+            val messages = chatDataManager.getMessages(sessionId, serviceType)
+            intent.putExtra("message_count", messages.size)
+            
+            Log.d(TAG, "从ChatDataManager获取到 ${messages.size} 条消息")
+            
+            if (messages.isNotEmpty()) {
+                val lastMessage = messages.last()
+                intent.putExtra("last_message", lastMessage.content.take(100))
+                intent.putExtra("last_message_role", lastMessage.role)
+                Log.d(TAG, "最后消息: ${lastMessage.content.take(50)}... (${lastMessage.role})")
+            }
+            
+            // 发送广播
+            sendBroadcast(intent)
+            Log.d(TAG, "广播已发送: ${intent.action}")
+            Log.d(TAG, "广播包名: ${intent.`package`}")
+            Log.d(TAG, "广播组件: ${intent.component}")
+            
+            // 额外尝试：发送到特定包名的广播
+            val specificIntent = Intent("com.example.aifloatingball.AI_CHAT_UPDATED")
+            specificIntent.setPackage("com.example.aifloatingball")
+            specificIntent.putExtra("ai_service_type", serviceType.name)
+            specificIntent.putExtra("session_id", sessionId)
+            specificIntent.putExtra("timestamp", System.currentTimeMillis())
+            specificIntent.putExtra("message_count", messages.size)
+            
+            if (messages.isNotEmpty()) {
+                val lastMessage = messages.last()
+                specificIntent.putExtra("last_message", lastMessage.content.take(100))
+                specificIntent.putExtra("last_message_role", lastMessage.role)
+            }
+            
+            sendBroadcast(specificIntent)
+            Log.d(TAG, "特定包名广播已发送")
+            
+            // 写入文件作为备用同步机制
+            writeSyncFile(serviceType, sessionId, messages)
+            
+            Log.d(TAG, "=== AI对话更新广播发送完成 ===")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送AI对话更新广播失败", e)
+        }
+    }
+    
+    /**
+     * 写入同步文件作为备用机制
+     */
+    private fun writeSyncFile(serviceType: AIServiceType, sessionId: String, messages: List<com.example.aifloatingball.data.ChatDataManager.ChatMessage>) {
+        try {
+            val syncFile = File(filesDir, "ai_sync_${serviceType.name.lowercase()}.json")
+            val syncData = JSONObject().apply {
+                put("service_type", serviceType.name)
+                put("session_id", sessionId)
+                put("message_count", messages.size)
+                put("timestamp", System.currentTimeMillis())
+                
+                val messagesArray = JSONArray()
+                messages.forEach { message ->
+                    val messageObj = JSONObject().apply {
+                        put("role", message.role)
+                        put("content", message.content)
+                        put("timestamp", message.timestamp)
+                    }
+                    messagesArray.put(messageObj)
+                }
+                put("messages", messagesArray)
+            }
+            
+            syncFile.writeText(syncData.toString())
+            Log.d(TAG, "同步文件已写入: ${syncFile.absolutePath}")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "写入同步文件失败", e)
+        }
+    }
+    
+    /**
+     * 获取AI联系人的ID（与简易模式中的格式保持一致）
+     */
+    private fun getAIContactId(serviceType: AIServiceType): String {
+        val aiName = when (serviceType) {
+            AIServiceType.DEEPSEEK -> "DeepSeek"
+            AIServiceType.CHATGPT -> "ChatGPT"
+            AIServiceType.CLAUDE -> "Claude"
+            AIServiceType.GEMINI -> "Gemini"
+            AIServiceType.ZHIPU_AI -> "智谱AI"
+            AIServiceType.WENXIN -> "文心一言"
+            AIServiceType.QIANWEN -> "通义千问"
+            AIServiceType.XINGHUO -> "讯飞星火"
+            AIServiceType.KIMI -> "Kimi"
+            else -> serviceType.name
+        }
+        
+        // 使用与简易模式相同的ID生成逻辑
+        // 对于中文字符，直接使用原名称，不进行lowercase转换
+        val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+            // 包含中文字符，直接使用原名称
+            aiName
+        } else {
+            // 英文字符，转换为小写
+            aiName.lowercase()
+        }
+        
+        val contactId = "ai_${processedName.replace(" ", "_")}"
+        Log.d(TAG, "生成AI联系人ID: $serviceType -> $aiName -> $contactId")
+        return contactId
+    }
+    
+    /**
      * 显示文本上下文菜单
      */
     private fun showTextContextMenu(textView: TextView) {
@@ -4465,7 +4638,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     
     // AI相关变量
     private var currentAIProvider = "DeepSeek" // 默认AI提供商
-    private val aiProviders = listOf("DeepSeek", "GPT-4", "Claude", "Gemini")
+    private val aiProviders = listOf("DeepSeek", "智谱AI", "GPT-4", "Claude", "Gemini", "Kimi", "通义千问", "文心一言", "讯飞星火")
     
     /**
      * 获取配置好的AI服务列表
@@ -4484,9 +4657,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 "ChatGPT (Custom)" to "GPT-4",
                 "Claude (Custom)" to "Claude",
                 "Gemini" to "Gemini",
+                "智谱AI (Custom)" to "智谱AI",
                 "通义千问 (Custom)" to "通义千问",
                 "文心一言 (Custom)" to "文心一言",
-                "讯飞星火 (Custom)" to "讯飞星火"
+                "讯飞星火 (Custom)" to "讯飞星火",
+                "Kimi" to "Kimi"
             )
             
             // 根据已启用的AI引擎添加对应的显示名称
@@ -4658,6 +4833,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                                 scrollView.fullScroll(ScrollView.FOCUS_DOWN)
                             }
                         }
+                        
+                        // 保存到聊天历史
+                        saveToChatHistory(content, fullResponse, serviceType)
                     }
                 }
                 
@@ -4748,6 +4926,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     override fun onComplete(fullResponse: String) {
                         uiHandler.post {
                             dialog.setMessage(fullResponse)
+                            
+                            // 保存到聊天历史
+                            saveToChatHistory(content, fullResponse, serviceType)
                         }
                     }
                     
@@ -5491,6 +5672,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 if (!responseText.isNullOrEmpty() && responseText != "选择AI服务并输入问题获取回复...") {
                     copyTextToClipboard(responseText)
                     Toast.makeText(this, "回复已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                    
+                    // 如果还没有保存到聊天历史，现在保存
+                    val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+                    val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
+                    val serviceType = when (selectedService) {
+                        "DeepSeek" -> AIServiceType.DEEPSEEK
+                        "智谱AI" -> AIServiceType.ZHIPU_AI
+                        "Kimi" -> AIServiceType.KIMI
+                        "ChatGPT" -> AIServiceType.CHATGPT
+                        "Claude" -> AIServiceType.CLAUDE
+                        "Gemini" -> AIServiceType.GEMINI
+                        "文心一言" -> AIServiceType.WENXIN
+                        "通义千问" -> AIServiceType.QIANWEN
+                        "讯飞星火" -> AIServiceType.XINGHUO
+                        else -> AIServiceType.DEEPSEEK
+                    }
+                    
+                    // 获取用户输入的问题（从输入框或从上下文推断）
+                    val userQuery = aiInputText?.text?.toString()?.trim() ?: "用户问题"
+                    saveToChatHistory(userQuery, responseText, serviceType)
                 }
             }
             
@@ -5500,6 +5701,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val responseText = aiResponseText?.text?.toString()
                 if (!responseText.isNullOrEmpty() && responseText != "选择AI服务并输入问题获取回复...") {
                     shareText(responseText)
+                    
+                    // 如果还没有保存到聊天历史，现在保存
+                    val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
+                    val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
+                    val serviceType = when (selectedService) {
+                        "DeepSeek" -> AIServiceType.DEEPSEEK
+                        "智谱AI" -> AIServiceType.ZHIPU_AI
+                        "Kimi" -> AIServiceType.KIMI
+                        "ChatGPT" -> AIServiceType.CHATGPT
+                        "Claude" -> AIServiceType.CLAUDE
+                        "Gemini" -> AIServiceType.GEMINI
+                        "文心一言" -> AIServiceType.WENXIN
+                        "通义千问" -> AIServiceType.QIANWEN
+                        "讯飞星火" -> AIServiceType.XINGHUO
+                        else -> AIServiceType.DEEPSEEK
+                    }
+                    
+                    // 获取用户输入的问题（从输入框或从上下文推断）
+                    val userQuery = aiInputText?.text?.toString()?.trim() ?: "用户问题"
+                    saveToChatHistory(userQuery, responseText, serviceType)
                 }
             }
             

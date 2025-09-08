@@ -2,8 +2,15 @@ package com.example.aifloatingball
 
 import android.content.Context
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import java.io.File
+import org.json.JSONObject
+import org.json.JSONArray
 import android.view.inputmethod.InputMethodManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
@@ -89,6 +96,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     // multiAIReplyHandler已移除，使用GroupChatManager
     private var currentGroupChat: GroupChat? = null
     private var isGroupChatMode = false
+    
+    // 实时数据更新相关
+    private var aiChatUpdateReceiver: BroadcastReceiver? = null
+    private var fileSyncHandler: Handler? = null
+    private var fileSyncRunnable: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -119,6 +131,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         
         // 注册群聊监听器
         groupChatManager.addGroupChatListener(this)
+        
+        // 设置实时数据更新机制
+        setupRealtimeDataUpdate()
     }
     
 
@@ -377,7 +392,31 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 }
             } else {
                 // 单聊模式：加载普通聊天历史记录
-                val unifiedMessages = chatDataManager.getMessages(contact.id)
+                // 获取AI服务类型
+                val serviceType = getAIServiceType(contact)
+                
+                Log.d(TAG, "ChatActivity加载对话 - 联系人: ${contact.name}, ID: ${contact.id}, 服务类型: ${serviceType?.name ?: "默认"}")
+                
+                // 强制重新加载所有数据
+                chatDataManager.forceReloadAllData()
+                
+                // 再次加载特定AI服务的数据
+                if (serviceType != null) {
+                    chatDataManager.loadDataForAIService(serviceType)
+                }
+                
+                val unifiedMessages = if (serviceType != null) {
+                    chatDataManager.getMessages(contact.id, serviceType)
+                } else {
+                    chatDataManager.getMessages(contact.id)
+                }
+                
+                Log.d(TAG, "ChatActivity加载对话 - 从ChatDataManager获取到 ${unifiedMessages.size} 条消息")
+                
+                // 调试：检查AI联系人列表使用的相同方法
+                val simpleModeMessage = getLastChatMessageFromSimpleMode(contact.name)
+                Log.d(TAG, "ChatActivity调试 - 简易模式预览消息: ${simpleModeMessage.take(30)}...")
+                
                 if (unifiedMessages.isNotEmpty()) {
                     messages.clear()
                     // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
@@ -390,16 +429,27 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         messages.add(chatMsg)
                     }
                     messageAdapter.updateMessages(messages.toList())
+                    Log.d(TAG, "从ChatDataManager加载了 ${unifiedMessages.size} 条消息 (${serviceType?.name ?: "默认"})")
                 } else {
-                    // 如果统一存储中没有数据，尝试从旧的存储中加载并迁移
-                    val historyMessages = chatHistoryManager.loadMessages(contact.id)
-                    if (historyMessages.isNotEmpty()) {
-                        messages.clear()
-                        messages.addAll(historyMessages)
-                        messageAdapter.updateMessages(messages.toList())
+                    Log.d(TAG, "ChatDataManager中没有找到数据，但简易模式预览有数据，尝试强制同步")
+                    
+                    // 如果ChatDataManager中没有数据，但简易模式有预览，强制同步数据
+                    if (simpleModeMessage.isNotEmpty()) {
+                        Log.d(TAG, "检测到简易模式有数据，强制同步到ChatActivity")
+                        forceSyncFromSimpleMode(contact, serviceType)
+                    } else {
+                        // 尝试从旧的存储中加载并迁移
+                        val historyMessages = chatHistoryManager.loadMessages(contact.id)
+                        if (historyMessages.isNotEmpty()) {
+                            messages.clear()
+                            messages.addAll(historyMessages)
+                            messageAdapter.updateMessages(messages.toList())
 
-                        // 迁移到统一存储
-                        migrateMessagesToUnifiedStorage(contact.id, historyMessages)
+                            // 迁移到统一存储
+                            migrateMessagesToUnifiedStorage(contact.id, historyMessages, serviceType)
+                        } else {
+                            Log.d(TAG, "没有找到 ${contact.name} 的对话记录")
+                        }
                     }
                 }
 
@@ -418,17 +468,42 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     /**
      * 迁移消息到统一存储
      */
-    private fun migrateMessagesToUnifiedStorage(contactId: String, oldMessages: List<ChatMessage>) {
+    private fun migrateMessagesToUnifiedStorage(contactId: String, oldMessages: List<ChatMessage>, serviceType: AIServiceType? = null) {
         try {
-            chatDataManager.setCurrentSessionId(contactId)
+            val targetServiceType = serviceType ?: AIServiceType.DEEPSEEK
+            chatDataManager.setCurrentSessionId(contactId, targetServiceType)
             oldMessages.forEach { oldMsg ->
                 val role = if (oldMsg.isFromUser) "user" else "assistant"
-                chatDataManager.addMessage(contactId, role, oldMsg.content)
+                chatDataManager.addMessage(contactId, role, oldMsg.content, targetServiceType)
             }
-            Log.d(TAG, "成功迁移 ${oldMessages.size} 条消息到统一存储")
+            Log.d(TAG, "成功迁移 ${oldMessages.size} 条消息到统一存储 (${targetServiceType.name})")
         } catch (e: Exception) {
             Log.e(TAG, "迁移消息到统一存储失败", e)
         }
+    }
+
+    /**
+     * 根据联系人信息获取AI服务类型
+     */
+    private fun getAIServiceType(contact: ChatContact): AIServiceType? {
+        val lowerName = contact.name.lowercase()
+        Log.d(TAG, "getAIServiceType - 联系人名称: ${contact.name}, 小写: $lowerName")
+        
+        val serviceType = when (lowerName) {
+            "chatgpt", "gpt" -> AIServiceType.CHATGPT
+            "claude" -> AIServiceType.CLAUDE
+            "gemini" -> AIServiceType.GEMINI
+            "文心一言", "wenxin" -> AIServiceType.WENXIN
+            "deepseek" -> AIServiceType.DEEPSEEK
+            "通义千问", "qianwen" -> AIServiceType.QIANWEN
+            "讯飞星火", "xinghuo" -> AIServiceType.XINGHUO
+            "kimi" -> AIServiceType.KIMI
+            "智谱ai", "智谱清言", "zhipu", "glm" -> AIServiceType.ZHIPU_AI
+            else -> null
+        }
+        
+        Log.d(TAG, "getAIServiceType - 映射结果: $serviceType")
+        return serviceType
     }
 
     private fun sendMessage() {
@@ -443,8 +518,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
 
             // 保存聊天记录到统一存储
             currentContact?.let { contact ->
-                chatDataManager.setCurrentSessionId(contact.id)
-                chatDataManager.addMessage(contact.id, "user", messageText)
+                val serviceType = getAIServiceType(contact) ?: AIServiceType.DEEPSEEK
+                chatDataManager.setCurrentSessionId(contact.id, serviceType)
+                chatDataManager.addMessage(contact.id, "user", messageText, serviceType)
 
                 // 同时保存到旧存储（向后兼容）
                 chatHistoryManager.saveMessages(contact.id, messages)
@@ -924,12 +1000,6 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     
     // getAIMemberName方法已移除，由GroupChatManager处理
 
-    /**
-     * 根据联系人信息获取AI服务类型
-     */
-    private fun getAIServiceType(contact: ChatContact): AIServiceType? {
-        return com.example.aifloatingball.utils.AIServiceTypeUtils.getAIServiceTypeFromContact(contact)
-    }
 
     /**
      * 获取指定服务的API密钥
@@ -1038,7 +1108,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
 
                         // 保存AI回复到统一存储
                         currentContact?.let { contact ->
-                            chatDataManager.addMessage(contact.id, "assistant", aiMessage.content)
+                            val serviceType = getAIServiceType(contact) ?: AIServiceType.DEEPSEEK
+                            chatDataManager.addMessage(contact.id, "assistant", aiMessage.content, serviceType)
 
                             // 同时保存到旧存储（向后兼容）
                             chatHistoryManager.saveMessages(contact.id, messages)
@@ -2216,6 +2287,16 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         if (::aiApiManager.isInitialized) {
             aiApiManager.destroy()
         }
+        // 清理实时数据更新机制
+        try {
+            aiChatUpdateReceiver?.let { receiver ->
+                unregisterReceiver(receiver)
+            }
+            stopFileSyncMonitoring()
+            Log.d(TAG, "ChatActivity实时数据更新机制已清理")
+        } catch (e: Exception) {
+            Log.e(TAG, "清理ChatActivity实时数据更新机制失败", e)
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -2278,6 +2359,320 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             }
         } catch (e: Exception) {
             Log.e(TAG, "处理自动发送消息失败", e)
+        }
+    }
+    
+    /**
+     * 设置实时数据更新机制
+     */
+    private fun setupRealtimeDataUpdate() {
+        try {
+            // 1. 设置广播接收器
+            setupAIChatUpdateReceiver()
+            
+            // 2. 设置文件同步监听
+            startFileSyncMonitoring()
+            
+            Log.d(TAG, "实时数据更新机制已启动")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置实时数据更新机制失败", e)
+        }
+    }
+    
+    /**
+     * 设置AI对话更新广播接收器
+     */
+    private fun setupAIChatUpdateReceiver() {
+        try {
+            aiChatUpdateReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    if (intent?.action == "com.example.aifloatingball.AI_CHAT_UPDATED") {
+                        val action = intent.getStringExtra("action")
+                        val serviceTypeName = intent.getStringExtra("ai_service_type")
+                        val sessionId = intent.getStringExtra("session_id")
+                        
+                        // 如果是全局刷新广播，直接刷新当前聊天
+                        if (action == "refresh_all") {
+                            refreshChatMessages()
+                            return
+                        }
+                        
+                        // 检查是否是当前联系人的更新
+                        currentContact?.let { contact ->
+                            val currentServiceType = getAIServiceType(contact)
+                            if (currentServiceType?.name == serviceTypeName && contact.id == sessionId) {
+                                refreshChatMessages()
+                            }
+                        }
+                    }
+                }
+            }
+            
+            val filter = IntentFilter("com.example.aifloatingball.AI_CHAT_UPDATED")
+            registerReceiver(aiChatUpdateReceiver, filter)
+        } catch (e: Exception) {
+            Log.e(TAG, "注册ChatActivity AI对话更新广播接收器失败", e)
+        }
+    }
+    
+    /**
+     * 启动文件同步监听
+     */
+    private fun startFileSyncMonitoring() {
+        try {
+            fileSyncHandler = Handler(Looper.getMainLooper())
+            fileSyncRunnable = object : Runnable {
+                override fun run() {
+                    checkSyncFiles()
+                    fileSyncHandler?.postDelayed(this, 5000) // 每5秒检查一次
+                }
+            }
+            fileSyncHandler?.post(fileSyncRunnable!!)
+            Log.d(TAG, "ChatActivity文件同步监听已启动")
+        } catch (e: Exception) {
+            Log.e(TAG, "启动ChatActivity文件同步监听失败", e)
+        }
+    }
+    
+    /**
+     * 检查同步文件
+     */
+    private fun checkSyncFiles() {
+        try {
+            currentContact?.let { contact ->
+                val serviceType = getAIServiceType(contact)
+                if (serviceType != null) {
+                    val serviceName = when (serviceType) {
+                        AIServiceType.DEEPSEEK -> "deepseek"
+                        AIServiceType.ZHIPU_AI -> "zhipu_ai"
+                        AIServiceType.KIMI -> "kimi"
+                        AIServiceType.CHATGPT -> "chatgpt"
+                        AIServiceType.CLAUDE -> "claude"
+                        AIServiceType.GEMINI -> "gemini"
+                        AIServiceType.WENXIN -> "wenxin"
+                        AIServiceType.QIANWEN -> "qianwen"
+                        AIServiceType.XINGHUO -> "xinghuo"
+                        else -> serviceType.name.lowercase()
+                    }
+                    
+                    val syncFile = File(filesDir, "ai_sync_$serviceName.json")
+                    if (syncFile.exists()) {
+                        val lastModified = syncFile.lastModified()
+                        val currentTime = System.currentTimeMillis()
+                        
+                        // 如果文件在最近10秒内被修改，说明有新的同步数据
+                        if (currentTime - lastModified < 10000L) {
+                            Log.d(TAG, "ChatActivity检测到同步文件更新: $serviceName")
+                            processSyncFile(syncFile, serviceName)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "ChatActivity检查同步文件失败", e)
+        }
+    }
+    
+    /**
+     * 处理同步文件
+     */
+    private fun processSyncFile(syncFile: File, serviceName: String) {
+        try {
+            val jsonContent = syncFile.readText()
+            val jsonObject = JSONObject(jsonContent)
+            
+            val sessionId = jsonObject.getString("sessionId")
+            val messagesArray = jsonObject.getJSONArray("messages")
+            
+            Log.d(TAG, "ChatActivity处理同步文件: 会话ID=$sessionId, 消息数=${messagesArray.length()}")
+            
+            // 检查是否是当前联系人的会话
+            currentContact?.let { contact ->
+                if (contact.id == sessionId) {
+                    Log.d(TAG, "检测到当前联系人的同步文件，刷新聊天记录")
+                    refreshChatMessages()
+                }
+            }
+            
+            // 删除同步文件
+            syncFile.delete()
+        } catch (e: Exception) {
+            Log.e(TAG, "ChatActivity处理同步文件失败", e)
+        }
+    }
+    
+    /**
+     * 刷新聊天消息
+     */
+    private fun refreshChatMessages() {
+        try {
+            currentContact?.let { contact ->
+                if (!isGroupChatMode) {
+                    // 单聊模式：重新加载消息
+                    val serviceType = getAIServiceType(contact)
+                    
+                    // 强制重新加载所有数据
+                    chatDataManager.forceReloadAllData()
+                    
+                    // 再次加载特定AI服务的数据
+                    if (serviceType != null) {
+                        chatDataManager.loadDataForAIService(serviceType)
+                    }
+                    
+                    val unifiedMessages = if (serviceType != null) {
+                        chatDataManager.getMessages(contact.id, serviceType)
+                    } else {
+                        chatDataManager.getMessages(contact.id)
+                    }
+                    
+                    if (unifiedMessages.isNotEmpty()) {
+                        messages.clear()
+                        // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
+                        unifiedMessages.forEach { unifiedMsg ->
+                            val chatMsg = ChatMessage(
+                                content = unifiedMsg.content,
+                                isFromUser = unifiedMsg.role == "user",
+                                timestamp = unifiedMsg.timestamp
+                            )
+                            messages.add(chatMsg)
+                        }
+                        
+                        runOnUiThread {
+                            messageAdapter.updateMessages(messages.toList())
+                            // 滚动到底部
+                            if (messages.isNotEmpty()) {
+                                messagesRecyclerView.post {
+                                    messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新聊天消息失败", e)
+        }
+    }
+    
+    /**
+     * 调试方法：使用与SimpleModeActivity相同的逻辑获取消息
+     */
+    private fun getLastChatMessageFromSimpleMode(aiName: String): String {
+        try {
+            // 使用与灵动岛相同的ID生成逻辑
+            val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                aiName
+            } else {
+                aiName.lowercase()
+            }
+            val contactId = "ai_${processedName.replace(" ", "_")}"
+            
+            // 获取对应的AI服务类型
+            val serviceType = when (aiName) {
+                "DeepSeek" -> AIServiceType.DEEPSEEK
+                "ChatGPT" -> AIServiceType.CHATGPT
+                "Claude" -> AIServiceType.CLAUDE
+                "Gemini" -> AIServiceType.GEMINI
+                "智谱AI" -> AIServiceType.ZHIPU_AI
+                "文心一言" -> AIServiceType.WENXIN
+                "通义千问" -> AIServiceType.QIANWEN
+                "讯飞星火" -> AIServiceType.XINGHUO
+                "Kimi" -> AIServiceType.KIMI
+                else -> null
+            }
+            
+            if (serviceType != null) {
+                val messages = chatDataManager.getMessages(contactId, serviceType)
+                if (messages.isNotEmpty()) {
+                    return messages.last().content
+                }
+            }
+            
+            return ""
+        } catch (e: Exception) {
+            Log.e(TAG, "获取简易模式消息失败", e)
+            return ""
+        }
+    }
+
+    /**
+     * 强制从SimpleModeActivity的逻辑同步数据
+     */
+    private fun forceSyncFromSimpleMode(contact: ChatContact, serviceType: AIServiceType?) {
+        try {
+            Log.d(TAG, "开始强制同步 ${contact.name} 的数据")
+            
+            // 使用与SimpleModeActivity相同的逻辑获取所有消息
+            val processedName = if (contact.name.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                contact.name
+            } else {
+                contact.name.lowercase()
+            }
+            val contactId = "ai_${processedName.replace(" ", "_")}"
+            
+            val aiServiceType = serviceType ?: when (contact.name) {
+                "DeepSeek" -> AIServiceType.DEEPSEEK
+                "ChatGPT" -> AIServiceType.CHATGPT
+                "Claude" -> AIServiceType.CLAUDE
+                "Gemini" -> AIServiceType.GEMINI
+                "智谱AI" -> AIServiceType.ZHIPU_AI
+                "文心一言" -> AIServiceType.WENXIN
+                "通义千问" -> AIServiceType.QIANWEN
+                "讯飞星火" -> AIServiceType.XINGHUO
+                "Kimi" -> AIServiceType.KIMI
+                else -> AIServiceType.DEEPSEEK
+            }
+            
+            // 再次尝试获取数据，使用更强的重新加载
+            chatDataManager.forceReloadAllData()
+            Thread.sleep(100) // 给一点时间让数据加载完成
+            
+            val allMessages = chatDataManager.getMessages(contactId, aiServiceType)
+            Log.d(TAG, "强制同步 - 获取到 ${allMessages.size} 条消息")
+            
+            if (allMessages.isNotEmpty()) {
+                messages.clear()
+                allMessages.forEach { unifiedMsg ->
+                    val chatMsg = ChatMessage(
+                        content = unifiedMsg.content,
+                        isFromUser = unifiedMsg.role == "user",
+                        timestamp = unifiedMsg.timestamp
+                    )
+                    messages.add(chatMsg)
+                }
+                
+                runOnUiThread {
+                    messageAdapter.updateMessages(messages.toList())
+                    // 滚动到底部
+                    if (messages.isNotEmpty()) {
+                        messagesRecyclerView.post {
+                            messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                        }
+                    }
+                }
+                
+                Log.d(TAG, "强制同步成功，加载了 ${allMessages.size} 条消息")
+            } else {
+                Log.d(TAG, "强制同步失败，仍然没有找到数据")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "强制同步失败", e)
+        }
+    }
+
+    /**
+     * 停止文件同步监听
+     */
+    private fun stopFileSyncMonitoring() {
+        try {
+            fileSyncRunnable?.let { runnable ->
+                fileSyncHandler?.removeCallbacks(runnable)
+            }
+            fileSyncHandler = null
+            fileSyncRunnable = null
+            Log.d(TAG, "ChatActivity文件同步监听已停止")
+        } catch (e: Exception) {
+            Log.e(TAG, "停止ChatActivity文件同步监听失败", e)
         }
     }
     

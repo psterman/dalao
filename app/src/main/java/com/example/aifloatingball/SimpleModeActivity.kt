@@ -49,6 +49,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
+import java.io.File
+import org.json.JSONObject
+import org.json.JSONArray
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -446,6 +449,21 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 注册添加AI联系人广播接收器
         setupAddAIContactReceiver()
+        
+        // 注册AI对话更新广播接收器
+        setupAIChatUpdateReceiver()
+        
+        // 启动文件监听同步机制
+        startFileSyncMonitoring()
+        
+        // 启动定时强制同步机制
+        startPeriodicSync()
+        
+        // 调试：检查所有AI的数据状态
+        debugAllAIData()
+        
+        // 添加测试按钮来手动刷新数据
+        addTestRefreshButton()
 
         // 检查是否需要恢复之前的状态
         val savedState = savedInstanceState?.getString(KEY_CURRENT_STATE)
@@ -4106,6 +4124,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "注销添加AI联系人广播接收器失败", e)
         }
 
+        // 注销AI对话更新广播接收器
+        try {
+            unregisterReceiver(aiChatUpdateReceiver)
+            Log.d(TAG, "AI对话更新广播接收器已注销")
+        } catch (e: Exception) {
+            Log.e(TAG, "注销AI对话更新广播接收器失败", e)
+        }
+
+        // 停止文件监听同步机制
+        stopFileSyncMonitoring()
+        
+        // 停止定时强制同步机制
+        stopPeriodicSync()
+
         // 释放语音识别器
         releaseSpeechRecognizer()
 
@@ -6871,11 +6903,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                         // 获取或创建会话ID（使用AI联系人ID作为会话标识）
                         val sessionId = aiContact.id
-                        chatDataManager.setCurrentSessionId(sessionId)
+                        chatDataManager.setCurrentSessionId(sessionId, serviceType)
 
                         // 添加用户消息和AI回复
-                        chatDataManager.addMessage(sessionId, "user", query)
-                        chatDataManager.addMessage(sessionId, "assistant", response)
+                        chatDataManager.addMessage(sessionId, "user", query, serviceType)
+                        chatDataManager.addMessage(sessionId, "assistant", response, serviceType)
 
                         // 更新联系人的最后消息
                         runOnUiThread {
@@ -6926,6 +6958,499 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         return responses[aiName] ?: "感谢您的提问！针对\"$query\"这个问题，我正在为您准备详细的回答。基于我的理解，这涉及多个方面的考虑..."
     }
 
+    /**
+     * 从聊天历史中获取最后的消息
+     */
+    private fun getLastChatMessageFromHistory(aiName: String): String {
+        try {
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            
+            // 使用与灵动岛相同的ID生成逻辑
+            val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                // 包含中文字符，直接使用原名称
+                aiName
+            } else {
+                // 英文字符，转换为小写
+                aiName.lowercase()
+            }
+            val contactId = "ai_${processedName.replace(" ", "_")}"
+            
+            Log.d(TAG, "简易模式获取历史消息 - AI名称: $aiName, 联系人ID: $contactId")
+            
+            // 获取对应的AI服务类型
+            val serviceType = getAIServiceTypeFromName(aiName)
+            if (serviceType != null) {
+                Log.d(TAG, "简易模式获取历史消息 - 服务类型: ${serviceType.name}")
+                
+                // 先尝试从内存中获取
+                var messages = chatDataManager.getMessages(contactId, serviceType)
+                Log.d(TAG, "简易模式获取历史消息 - 从内存获取到 ${messages.size} 条消息")
+                
+                // 如果内存中没有数据，尝试重新加载数据
+                if (messages.isEmpty()) {
+                    Log.d(TAG, "简易模式获取历史消息 - 内存中无数据，尝试重新加载")
+                    // 这里可以添加重新加载逻辑，但ChatDataManager应该已经自动加载了
+                }
+                
+                if (messages.isNotEmpty()) {
+                    val lastMessage = messages.last()
+                    val result = lastMessage.content.take(50) + if (lastMessage.content.length > 50) "..." else ""
+                    Log.d(TAG, "简易模式获取历史消息 - 最后消息: ${result.take(20)}...")
+                    return result
+                } else {
+                    Log.d(TAG, "简易模式获取历史消息 - 该AI暂无历史消息")
+                }
+            } else {
+                Log.w(TAG, "简易模式获取历史消息 - 无法识别AI服务类型: $aiName")
+            }
+            
+            return ""
+        } catch (e: Exception) {
+            Log.e(TAG, "获取最后聊天消息失败", e)
+            return ""
+        }
+    }
+    
+    /**
+     * 从聊天历史中获取最后的时间
+     */
+    private fun getLastChatTimeFromHistory(aiName: String): Long {
+        try {
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            
+            // 使用与灵动岛相同的ID生成逻辑
+            val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                // 包含中文字符，直接使用原名称
+                aiName
+            } else {
+                // 英文字符，转换为小写
+                aiName.lowercase()
+            }
+            val contactId = "ai_${processedName.replace(" ", "_")}"
+            
+            // 获取对应的AI服务类型
+            val serviceType = getAIServiceTypeFromName(aiName)
+            if (serviceType != null) {
+                val messages = chatDataManager.getMessages(contactId, serviceType)
+                if (messages.isNotEmpty()) {
+                    return messages.last().timestamp
+                }
+            }
+            
+            return 0
+        } catch (e: Exception) {
+            Log.e(TAG, "获取最后聊天时间失败", e)
+            return 0
+        }
+    }
+    
+    /**
+     * 根据AI名称获取对应的AIServiceType
+     */
+    private fun getAIServiceTypeFromName(aiName: String): AIServiceType? {
+        return when (aiName) {
+            "DeepSeek" -> AIServiceType.DEEPSEEK
+            "ChatGPT" -> AIServiceType.CHATGPT
+            "Claude" -> AIServiceType.CLAUDE
+            "Gemini" -> AIServiceType.GEMINI
+            "智谱AI" -> AIServiceType.ZHIPU_AI
+            "文心一言" -> AIServiceType.WENXIN
+            "通义千问" -> AIServiceType.QIANWEN
+            "讯飞星火" -> AIServiceType.XINGHUO
+            "Kimi" -> AIServiceType.KIMI
+            else -> null
+        }
+    }
+    
+    /**
+     * 调试方法：检查所有AI的数据状态
+     */
+    private fun debugAllAIData() {
+        try {
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            val aiNames = listOf("DeepSeek", "Kimi", "智谱AI", "ChatGPT", "Claude", "Gemini")
+            
+            Log.d(TAG, "=== 调试所有AI数据状态 ===")
+            
+            aiNames.forEach { aiName ->
+                val serviceType = getAIServiceTypeFromName(aiName)
+                if (serviceType != null) {
+                    val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                        aiName
+                    } else {
+                        aiName.lowercase()
+                    }
+                    val contactId = "ai_${processedName.replace(" ", "_")}"
+                    
+                    val messages = chatDataManager.getMessages(contactId, serviceType)
+                    Log.d(TAG, "AI: $aiName, ID: $contactId, 服务类型: ${serviceType.name}, 消息数: ${messages.size}")
+                    
+                    if (messages.isNotEmpty()) {
+                        val lastMessage = messages.last()
+                        Log.d(TAG, "  最后消息: ${lastMessage.content.take(30)}... (${lastMessage.role})")
+                        
+                        // 显示所有消息的详细信息
+                        messages.forEachIndexed { index, message ->
+                            Log.d(TAG, "    消息${index + 1}: [${message.role}] ${message.content.take(50)}...")
+                        }
+                    }
+                } else {
+                    Log.w(TAG, "AI: $aiName - 无法识别服务类型")
+                }
+            }
+            
+            Log.d(TAG, "=== 调试完成 ===")
+        } catch (e: Exception) {
+            Log.e(TAG, "调试AI数据状态失败", e)
+        }
+    }
+    
+    /**
+     * 强制刷新AI数据
+     */
+    private fun forceRefreshAIData() {
+        try {
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            
+            // 强制重新加载所有数据
+            Log.d(TAG, "强制刷新AI数据 - 重新加载所有数据")
+            chatDataManager.forceReloadAllData()
+            
+            // 调试数据状态
+            chatDataManager.debugAllData()
+            
+            // 刷新联系人列表
+            runOnUiThread {
+                chatContactAdapter?.notifyDataSetChanged()
+                Log.d(TAG, "强制刷新AI数据 - UI已刷新")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "强制刷新AI数据失败", e)
+        }
+    }
+    
+    /**
+     * AI对话更新广播接收器
+     */
+    private val aiChatUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.example.aifloatingball.AI_CHAT_UPDATED") {
+                val serviceTypeName = intent.getStringExtra("ai_service_type")
+                val sessionId = intent.getStringExtra("session_id")
+                val messageCount = intent.getIntExtra("message_count", 0)
+                val lastMessage = intent.getStringExtra("last_message")
+                val timestamp = intent.getLongExtra("timestamp", 0)
+                
+                Log.d(TAG, "收到AI对话更新广播:")
+                Log.d(TAG, "  服务类型: $serviceTypeName")
+                Log.d(TAG, "  会话ID: $sessionId")
+                Log.d(TAG, "  消息数: $messageCount")
+                Log.d(TAG, "  最后消息: ${lastMessage?.take(30)}...")
+                Log.d(TAG, "  时间戳: $timestamp")
+                
+                // 强制刷新AI对话数据
+                refreshAIContactData()
+            }
+        }
+    }
+    
+    /**
+     * 设置AI对话更新广播接收器
+     */
+    private fun setupAIChatUpdateReceiver() {
+        try {
+            val filter = IntentFilter("com.example.aifloatingball.AI_CHAT_UPDATED")
+            registerReceiver(aiChatUpdateReceiver, filter)
+            Log.d(TAG, "AI对话更新广播接收器已注册")
+        } catch (e: Exception) {
+            Log.e(TAG, "注册AI对话更新广播接收器失败", e)
+        }
+    }
+    
+    /**
+     * 刷新AI对话数据
+     */
+    private fun refreshAIContactData() {
+        try {
+            // 重新加载ChatDataManager数据
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            chatDataManager.forceReloadAllData()
+            
+            // 刷新UI
+            runOnUiThread {
+                try {
+                    // 刷新联系人适配器
+                    chatContactAdapter?.notifyDataSetChanged()
+                    
+                    // 如果当前显示的是对话tab，强制刷新联系人列表
+                    val currentTab = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)?.selectedTabPosition
+                    if (currentTab == 0) { // 对话tab
+                        // 重新生成联系人数据
+                        refreshContactListData()
+                    }
+                    
+                    // 发送广播通知所有ChatActivity更新
+                    val intent = Intent("com.example.aifloatingball.AI_CHAT_UPDATED")
+                    intent.putExtra("action", "refresh_all")
+                    sendBroadcast(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "刷新UI失败", e)
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新AI对话数据失败", e)
+        }
+    }
+    
+    /**
+     * 刷新联系人列表数据
+     */
+    private fun refreshContactListData() {
+        try {
+            // 重新加载和更新联系人数据
+            val aiNames = listOf("DeepSeek", "Kimi", "智谱AI", "ChatGPT", "Claude", "Gemini")
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            
+            aiNames.forEach { aiName ->
+                val serviceType = getAIServiceTypeFromName(aiName)
+                if (serviceType != null) {
+                    val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                        aiName
+                    } else {
+                        aiName.lowercase()
+                    }
+                    val contactId = "ai_${processedName.replace(" ", "_")}"
+                    
+                    val messages = chatDataManager.getMessages(contactId, serviceType)
+                    if (messages.isNotEmpty()) {
+                        // 更新对应联系人的最后消息
+                        updateContactLastMessageData(aiName, contactId, messages.last())
+                    }
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新联系人列表数据失败", e)
+        }
+    }
+    
+    /**
+     * 更新联系人的最后消息数据
+     */
+    private fun updateContactLastMessageData(aiName: String, contactId: String, lastMessage: com.example.aifloatingball.data.ChatDataManager.ChatMessage) {
+        try {
+            // 在allContacts中找到对应的联系人并更新
+            for (i in allContacts.indices) {
+                val category = allContacts[i]
+                val contactIndex = category.contacts.indexOfFirst { it.id == contactId }
+                if (contactIndex != -1) {
+                    val mutableContacts = category.contacts.toMutableList()
+                    val updatedContact = mutableContacts[contactIndex].copy(
+                        lastMessage = lastMessage.content.take(50) + if (lastMessage.content.length > 50) "..." else "",
+                        lastMessageTime = lastMessage.timestamp
+                    )
+                    mutableContacts[contactIndex] = updatedContact
+                    allContacts[i] = category.copy(contacts = mutableContacts)
+                    
+                    Log.d(TAG, "已更新联系人 $aiName 的最后消息: ${lastMessage.content.take(30)}...")
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新联系人最后消息数据失败", e)
+        }
+    }
+    
+    /**
+     * 文件同步监控
+     */
+    private var fileSyncHandler: Handler? = null
+    private var fileSyncRunnable: Runnable? = null
+    private val fileSyncInterval = 5000L // 5秒检查一次
+    
+    /**
+     * 启动文件监听同步机制
+     */
+    private fun startFileSyncMonitoring() {
+        try {
+            Log.d(TAG, "启动文件监听同步机制")
+            
+            fileSyncHandler = Handler(Looper.getMainLooper())
+            fileSyncRunnable = object : Runnable {
+                override fun run() {
+                    checkSyncFiles()
+                    fileSyncHandler?.postDelayed(this, fileSyncInterval)
+                }
+            }
+            
+            fileSyncHandler?.post(fileSyncRunnable!!)
+            Log.d(TAG, "文件监听同步机制已启动")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "启动文件监听同步机制失败", e)
+        }
+    }
+    
+    /**
+     * 检查同步文件
+     */
+    private fun checkSyncFiles() {
+        try {
+            val aiServices = listOf("deepseek", "kimi", "zhipu_ai", "chatgpt", "claude", "gemini")
+            val filesDir = filesDir
+            
+            aiServices.forEach { serviceName ->
+                val syncFile = File(filesDir, "ai_sync_$serviceName.json")
+                if (syncFile.exists()) {
+                    val lastModified = syncFile.lastModified()
+                    val currentTime = System.currentTimeMillis()
+                    
+                    // 如果文件在最近10秒内被修改，说明有新的同步数据
+                    if (currentTime - lastModified < 10000L) {
+                        Log.d(TAG, "检测到同步文件更新: $serviceName")
+                        processSyncFile(syncFile, serviceName)
+                    }
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "检查同步文件失败", e)
+        }
+    }
+    
+    /**
+     * 处理同步文件
+     */
+    private fun processSyncFile(syncFile: File, serviceName: String) {
+        try {
+            val jsonString = syncFile.readText()
+            val syncData = JSONObject(jsonString)
+            
+            val serviceTypeName = syncData.getString("service_type")
+            val sessionId = syncData.getString("session_id")
+            val messageCount = syncData.getInt("message_count")
+            val timestamp = syncData.getLong("timestamp")
+            
+            Log.d(TAG, "处理同步文件:")
+            Log.d(TAG, "  服务类型: $serviceTypeName")
+            Log.d(TAG, "  会话ID: $sessionId")
+            Log.d(TAG, "  消息数: $messageCount")
+            Log.d(TAG, "  时间戳: $timestamp")
+            
+            // 强制刷新数据
+            refreshAIContactData()
+            
+            // 删除已处理的同步文件
+            syncFile.delete()
+            Log.d(TAG, "同步文件已处理并删除")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "处理同步文件失败", e)
+        }
+    }
+    
+    /**
+     * 停止文件监听同步机制
+     */
+    private fun stopFileSyncMonitoring() {
+        try {
+            fileSyncRunnable?.let { runnable ->
+                fileSyncHandler?.removeCallbacks(runnable)
+            }
+            fileSyncHandler = null
+            fileSyncRunnable = null
+            Log.d(TAG, "文件监听同步机制已停止")
+        } catch (e: Exception) {
+            Log.e(TAG, "停止文件监听同步机制失败", e)
+        }
+    }
+    
+    /**
+     * 定时强制同步机制
+     */
+    private var periodicSyncHandler: Handler? = null
+    private var periodicSyncRunnable: Runnable? = null
+    private val periodicSyncInterval = 10000L // 10秒同步一次
+    
+    /**
+     * 启动定时强制同步
+     */
+    private fun startPeriodicSync() {
+        try {
+            Log.d(TAG, "启动定时强制同步机制")
+            
+            periodicSyncHandler = Handler(Looper.getMainLooper())
+            periodicSyncRunnable = object : Runnable {
+                override fun run() {
+                    Log.d(TAG, "执行定时强制同步...")
+                    forceRefreshAIData()
+                    periodicSyncHandler?.postDelayed(this, periodicSyncInterval)
+                }
+            }
+            
+            periodicSyncHandler?.post(periodicSyncRunnable!!)
+            Log.d(TAG, "定时强制同步机制已启动")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "启动定时强制同步机制失败", e)
+        }
+    }
+    
+    /**
+     * 停止定时强制同步
+     */
+    private fun stopPeriodicSync() {
+        try {
+            periodicSyncRunnable?.let { runnable ->
+                periodicSyncHandler?.removeCallbacks(runnable)
+            }
+            periodicSyncHandler = null
+            periodicSyncRunnable = null
+            Log.d(TAG, "定时强制同步机制已停止")
+        } catch (e: Exception) {
+            Log.e(TAG, "停止定时强制同步机制失败", e)
+        }
+    }
+    
+    /**
+     * 添加测试刷新按钮
+     */
+    private fun addTestRefreshButton() {
+        try {
+            // 在对话tab中添加一个测试按钮
+            val chatTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.chat_tab_layout)
+            chatTabLayout?.let { tabLayout ->
+                // 添加一个测试标签页
+                val testTab = tabLayout.newTab().setText("测试")
+                tabLayout.addTab(testTab)
+                
+                // 设置点击监听器
+                tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
+                    override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                        if (tab?.text == "测试") {
+                            Log.d(TAG, "测试标签页被选中 - 开始调试数据")
+                            debugAllAIData()
+                            forceRefreshAIData()
+                            
+                            // 显示调试信息
+                            Toast.makeText(this@SimpleModeActivity, "数据调试完成，请查看日志", Toast.LENGTH_LONG).show()
+                            
+                            // 切换回对话标签页
+                            tabLayout.getTabAt(0)?.select()
+                        }
+                    }
+                    
+                    override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+                    override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+                })
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "添加测试刷新按钮失败", e)
+        }
+    }
+    
     /**
      * 更新联系人的最后消息
      */
@@ -8148,14 +8673,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val apiKey = getApiKeyForAI(aiName)
                 if (isValidApiKey(apiKey, aiName)) {
                     // 有有效API密钥配置，添加到联系人列表
+                    // 获取真实的最后聊天消息
+                    val lastChatMessage = getLastChatMessageFromHistory(aiName)
+                    val lastChatTime = getLastChatTimeFromHistory(aiName)
+                    
+                    // 使用与灵动岛相同的ID生成逻辑
+                    val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                        // 包含中文字符，直接使用原名称
+                        aiName
+                    } else {
+                        // 英文字符，转换为小写
+                        aiName.lowercase()
+                    }
+                    val contactId = "ai_${processedName.replace(" ", "_")}"
+                    
+                    Log.d(TAG, "生成AI联系人 - AI名称: $aiName, 联系人ID: $contactId")
+                    
                     val contact = ChatContact(
-                        id = "ai_${aiName.lowercase().replace(" ", "_")}",
+                        id = contactId,
                         name = aiName,
                         type = ContactType.AI,
                         description = description,
                         isOnline = true,
-                        lastMessage = "你好！我是$aiName，有什么可以帮助你的吗？",
-                        lastMessageTime = System.currentTimeMillis() - (Math.random() * 86400000).toLong(), // 随机时间
+                        lastMessage = lastChatMessage.ifEmpty { "你好！我是$aiName，有什么可以帮助你的吗？" },
+                        lastMessageTime = if (lastChatTime > 0) lastChatTime else System.currentTimeMillis() - (Math.random() * 86400000).toLong(),
                         unreadCount = 0,
                         isPinned = true, // 有API配置的AI优先显示
                         customData = mapOf(
@@ -12036,7 +12577,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             )
 
             aiDefinitions.forEach { (aiName, description) ->
-                val aiId = "ai_${aiName.lowercase().replace(" ", "_")}"
+                // 使用与灵动岛相同的ID生成逻辑
+                val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                    // 包含中文字符，直接使用原名称
+                    aiName
+                } else {
+                    // 英文字符，转换为小写
+                    aiName.lowercase()
+                }
+                val aiId = "ai_${processedName.replace(" ", "_")}"
+                
+                Log.d(TAG, "getAllAvailableAIs - AI名称: $aiName, 联系人ID: $aiId")
 
                 // 首先尝试从allContacts中找到已存在的AI联系人
                 var existingContact: ChatContact? = null

@@ -98,10 +98,15 @@ class ChatDataManager private constructor(private val context: Context) {
     /**
      * 为特定AI引擎加载数据
      */
-    private fun loadDataForAIService(aiServiceType: AIServiceType) {
+    fun loadDataForAIService(aiServiceType: AIServiceType) {
         try {
+            val sessionsKey = getSessionsKey(aiServiceType)
+            Log.d(TAG, "loadDataForAIService - 加载 ${aiServiceType.name} 数据，键名: $sessionsKey")
+            
             // 加载会话数据
-            val sessionsJson = prefs.getString(getSessionsKey(aiServiceType), "{}") ?: "{}"
+            val sessionsJson = prefs.getString(sessionsKey, "{}") ?: "{}"
+            Log.d(TAG, "loadDataForAIService - 原始JSON数据: ${sessionsJson.take(200)}...")
+            
             val sessionsObject = JSONObject(sessionsJson)
 
             val aiSessions = mutableMapOf<String, MutableList<ChatMessage>>()
@@ -121,8 +126,10 @@ class ChatDataManager private constructor(private val context: Context) {
                 }
 
                 aiSessions[sessionId] = messages
+                Log.d(TAG, "loadDataForAIService - 加载会话 $sessionId: ${messages.size} 条消息")
             }
             chatSessions[aiServiceType] = aiSessions
+            Log.d(TAG, "loadDataForAIService - 完成加载 ${aiServiceType.name} 数据: ${aiSessions.size} 个会话")
             
             // 加载收藏数据
             val favoritesJson = prefs.getString(getFavoritesKey(aiServiceType), "[]") ?: "[]"
@@ -291,7 +298,20 @@ class ChatDataManager private constructor(private val context: Context) {
      * 获取会话消息
      */
     fun getMessages(sessionId: String, aiServiceType: AIServiceType = AIServiceType.DEEPSEEK): List<ChatMessage> {
-        return chatSessions[aiServiceType]?.get(sessionId)?.toList() ?: emptyList()
+        Log.d(TAG, "getMessages - 请求会话ID: $sessionId, 服务类型: ${aiServiceType.name}")
+        
+        // 调试：打印所有可用的会话
+        Log.d(TAG, "getMessages - 当前所有会话:")
+        chatSessions.forEach { (serviceType, sessions) ->
+            Log.d(TAG, "  服务类型: ${serviceType.name}, 会话数: ${sessions.size}")
+            sessions.forEach { (id, messages) ->
+                Log.d(TAG, "    会话ID: $id, 消息数: ${messages.size}")
+            }
+        }
+        
+        val messages = chatSessions[aiServiceType]?.get(sessionId)?.toList() ?: emptyList()
+        Log.d(TAG, "getMessages - 返回消息数: ${messages.size}")
+        return messages
     }
     
     /**
@@ -314,6 +334,50 @@ class ChatDataManager private constructor(private val context: Context) {
         }
 
         return allSessions.sortedByDescending { it.updatedAt }
+    }
+    
+    /**
+     * 强制重新加载所有数据
+     */
+    fun forceReloadAllData() {
+        try {
+            Log.d(TAG, "强制重新加载所有数据")
+            
+            // 清空内存缓存
+            chatSessions.clear()
+            favoriteMessages.clear()
+            currentSessionIds.clear()
+            
+            // 重新加载数据
+            loadDataFromPrefs()
+            
+            Log.d(TAG, "数据重新加载完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "强制重新加载数据失败", e)
+        }
+    }
+    
+    /**
+     * 调试方法：打印所有数据状态
+     */
+    fun debugAllData() {
+        try {
+            Log.d(TAG, "=== ChatDataManager 数据调试 ===")
+            
+            chatSessions.forEach { (aiServiceType, sessions) ->
+                Log.d(TAG, "AI服务类型: ${aiServiceType.name}, 会话数: ${sessions.size}")
+                sessions.forEach { (sessionId, messages) ->
+                    Log.d(TAG, "  会话ID: $sessionId, 消息数: ${messages.size}")
+                    messages.forEachIndexed { index, message ->
+                        Log.d(TAG, "    消息${index + 1}: [${message.role}] ${message.content.take(30)}...")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "=== 数据调试完成 ===")
+        } catch (e: Exception) {
+            Log.e(TAG, "数据调试失败", e)
+        }
     }
     
     /**

@@ -660,16 +660,73 @@ class AIContactListActivity : AppCompatActivity() {
      * 获取AI的最后对话消息
      */
     private fun getLastChatMessage(aiName: String): String {
-        val sharedPrefs = getSharedPreferences("ai_chat_history", MODE_PRIVATE)
-        return sharedPrefs.getString("${aiName}_last_message", "") ?: ""
+        try {
+            // 从ChatDataManager获取最后的消息
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            val contactId = "ai_${aiName.lowercase().replace(" ", "_")}"
+            
+            // 获取对应的AI服务类型
+            val serviceType = getAIServiceType(aiName)
+            if (serviceType != null) {
+                val messages = chatDataManager.getMessages(contactId, serviceType)
+                if (messages.isNotEmpty()) {
+                    val lastMessage = messages.last()
+                    return lastMessage.content.take(50) + if (lastMessage.content.length > 50) "..." else ""
+                }
+            }
+            
+            // 如果ChatDataManager中没有数据，尝试从旧的存储中获取
+            val sharedPrefs = getSharedPreferences("ai_chat_history", MODE_PRIVATE)
+            return sharedPrefs.getString("${aiName}_last_message", "") ?: ""
+        } catch (e: Exception) {
+            Log.e(TAG, "获取最后聊天消息失败", e)
+            return ""
+        }
     }
     
     /**
      * 获取AI的最后对话时间
      */
     private fun getLastChatTime(aiName: String): Long {
-        val sharedPrefs = getSharedPreferences("ai_chat_history", MODE_PRIVATE)
-        return sharedPrefs.getLong("${aiName}_last_time", 0)
+        try {
+            // 从ChatDataManager获取最后的时间
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            val contactId = "ai_${aiName.lowercase().replace(" ", "_")}"
+            
+            // 获取对应的AI服务类型
+            val serviceType = getAIServiceType(aiName)
+            if (serviceType != null) {
+                val messages = chatDataManager.getMessages(contactId, serviceType)
+                if (messages.isNotEmpty()) {
+                    return messages.last().timestamp
+                }
+            }
+            
+            // 如果ChatDataManager中没有数据，尝试从旧的存储中获取
+            val sharedPrefs = getSharedPreferences("ai_chat_history", MODE_PRIVATE)
+            return sharedPrefs.getLong("${aiName}_last_time", 0)
+        } catch (e: Exception) {
+            Log.e(TAG, "获取最后聊天时间失败", e)
+            return 0
+        }
+    }
+    
+    /**
+     * 根据AI名称获取对应的AIServiceType
+     */
+    private fun getAIServiceType(aiName: String): com.example.aifloatingball.manager.AIServiceType? {
+        return when (aiName) {
+            "DeepSeek" -> com.example.aifloatingball.manager.AIServiceType.DEEPSEEK
+            "ChatGPT" -> com.example.aifloatingball.manager.AIServiceType.CHATGPT
+            "Claude" -> com.example.aifloatingball.manager.AIServiceType.CLAUDE
+            "Gemini" -> com.example.aifloatingball.manager.AIServiceType.GEMINI
+            "智谱AI" -> com.example.aifloatingball.manager.AIServiceType.ZHIPU_AI
+            "文心一言" -> com.example.aifloatingball.manager.AIServiceType.WENXIN
+            "通义千问" -> com.example.aifloatingball.manager.AIServiceType.QIANWEN
+            "讯飞星火" -> com.example.aifloatingball.manager.AIServiceType.XINGHUO
+            "Kimi" -> com.example.aifloatingball.manager.AIServiceType.KIMI
+            else -> null
+        }
     }
 
     /**
