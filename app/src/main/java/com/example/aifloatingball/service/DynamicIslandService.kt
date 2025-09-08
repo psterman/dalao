@@ -63,6 +63,7 @@ import java.util.concurrent.ConcurrentHashMap
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.OvershootInterpolator
+import android.widget.PopupMenu
 import android.view.WindowInsets
 import android.widget.HorizontalScrollView
 import android.widget.ScrollView
@@ -4118,6 +4119,58 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
+     * 显示文本上下文菜单
+     */
+    private fun showTextContextMenu(textView: TextView) {
+        try {
+            val popupMenu = PopupMenu(this, textView)
+            popupMenu.menuInflater.inflate(R.menu.text_context_menu, popupMenu.menu)
+            
+            // 设置菜单项点击事件
+            popupMenu.setOnMenuItemClickListener { item: MenuItem ->
+                when (item.itemId) {
+                    R.id.action_copy_text -> {
+                        val text = textView.text.toString()
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("AI回复", text)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(this, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                    R.id.action_share_text -> {
+                        val text = textView.text.toString()
+                        val shareIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                        }
+                        val chooserIntent = Intent.createChooser(shareIntent, "分享AI回复")
+                        chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(chooserIntent)
+                        true
+                    }
+                    R.id.action_select_all -> {
+                        textView.setSelectAllOnFocus(true)
+                        textView.requestFocus()
+                        true
+                    }
+                    R.id.action_clear_text -> {
+                        textView.text = ""
+                        true
+                    }
+                    else -> false
+                }
+            }
+            
+            popupMenu.show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示文本上下文菜单失败", e)
+            // 如果菜单资源不存在，使用简单的Toast提示
+            Toast.makeText(this, "长按功能：复制、分享、全选", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    /**
      * 显示AI预览（用户点击AI按钮时调用）
      */
     private fun showAIPreviewForClipboard(clipboardContent: String) {
@@ -4303,7 +4356,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             aiProviderContainer.addView(aiProviderLabel)
         }
         
-        // AI回复内容区域（可延展）
+        // AI回复内容区域（可延展，带滚动条）
         val aiResponseContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
@@ -4312,25 +4365,51 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             )
         }
         
-        // AI回复预览文本
-        val aiPreviewText = TextView(this).apply {
+        // 创建滚动容器
+        val scrollView = ScrollView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            // 设置滚动条样式
+            isVerticalScrollBarEnabled = true
+            scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
+        }
+        
+        // AI回复文本（支持长按菜单）
+        var aiPreviewText: TextView? = null
+        aiPreviewText = TextView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
             text = "AI正在分析中..."
             textSize = 12f
-            setTextColor(Color.WHITE)
-            maxLines = 3 // 增加显示行数
-            ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
-            gravity = Gravity.CENTER
-            setLineSpacing(2.dpToPx().toFloat(), 1.2f) // 增加行间距
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            // 移除行数限制，让文本可以完全显示
+            maxLines = Integer.MAX_VALUE
+            setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 12.dpToPx())
+            gravity = Gravity.START // 改为左对齐，更符合阅读习惯
+            setLineSpacing(4.dpToPx().toFloat(), 1.3f) // 增加行间距
             
             // 设置背景
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#20000000"))
+                if (isDarkMode) {
+                    setColor(Color.parseColor("#20000000"))
+                } else {
+                    setColor(Color.parseColor("#20FFFFFF"))
+                }
                 cornerRadius = 8.dpToPx().toFloat()
+            }
+            
+            // 启用文本选择
+            setTextIsSelectable(true)
+            
+            // 添加长按菜单
+            setOnLongClickListener {
+                Log.d(TAG, "AI回复文本被长按，显示操作菜单")
+                showTextContextMenu(this)
+                true
             }
             
             // 添加点击查看完整回复功能
@@ -4339,6 +4418,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 showFullAIResponse(clipboardContent)
             }
         }
+        
+        // 将文本添加到滚动容器
+        scrollView.addView(aiPreviewText)
         
         // 展开/折叠按钮
         val expandButton = ImageButton(this).apply {
@@ -4367,7 +4449,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         aiHeaderContainer.addView(aiIcon)
         aiHeaderContainer.addView(aiProviderContainer)
         
-        aiResponseContainer.addView(aiPreviewText)
+        aiResponseContainer.addView(scrollView)
         aiResponseContainer.addView(expandButton)
         
         aiContainer.addView(aiHeaderContainer)
@@ -4375,7 +4457,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 异步获取AI回复
         Log.d(TAG, "开始获取AI回复预览")
-        getAIResponsePreview(clipboardContent, aiPreviewText)
+        getAIResponsePreview(clipboardContent, aiPreviewText!!)
         
         Log.d(TAG, "AI预览容器创建完成")
         return aiContainer
@@ -4550,22 +4632,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     uiHandler.post {
                         val currentText = textView.text?.toString() ?: ""
                         val newText = currentText + chunk
-                        // 限制预览长度
-                        textView.text = if (newText.length > 50) {
-                            newText.take(50) + "..."
-                        } else {
-                            newText
+                        // 不再限制预览长度，让文本完全显示
+                        textView.text = newText
+                        
+                        // 自动滚动到底部，显示最新内容
+                        if (textView.parent is ScrollView) {
+                            val scrollView = textView.parent as ScrollView
+                            scrollView.post {
+                                scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
                         }
                     }
                 }
                 
                 override fun onComplete(fullResponse: String) {
                     uiHandler.post {
-                        // 限制预览长度
-                        textView.text = if (fullResponse.length > 50) {
-                            fullResponse.take(50) + "..."
-                        } else {
-                            fullResponse
+                        // 显示完整回复，不限制长度
+                        textView.text = fullResponse
+                        Log.d(TAG, "AI回复预览完成")
+                        
+                        // 滚动到底部
+                        if (textView.parent is ScrollView) {
+                            val scrollView = textView.parent as ScrollView
+                            scrollView.post {
+                                scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            }
                         }
                     }
                 }
