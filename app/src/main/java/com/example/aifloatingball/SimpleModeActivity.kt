@@ -459,6 +459,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 启动定时强制同步机制
         startPeriodicSync()
         
+        // 注册广播接收器
+        registerBroadcastReceiver()
+        
         // 调试：检查所有AI的数据状态
         debugAllAIData()
         
@@ -4093,6 +4096,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 
                 chatContactAdapter?.updateContacts(allContacts)
                 Log.d(TAG, "onResume: 重新加载了联系人数据")
+                
+                // 强制刷新AI联系人数据，确保显示最新的消息
+                forceLoadContactDataSummary()
             }
         } catch (e: Exception) {
             Log.e(TAG, "onResume: 重新加载联系人数据失败", e)
@@ -4112,6 +4118,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "注销API密钥同步广播接收器失败", e)
         }
+        
+        // 注销AI消息更新广播接收器
+        unregisterBroadcastReceiver()
 
         // 注销添加AI联系人广播接收器
         try {
@@ -7223,10 +7232,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     }
                     val contactId = "ai_${processedName.replace(" ", "_")}"
                     
-                    val messages = chatDataManager.getMessages(contactId, serviceType)
-                    if (messages.isNotEmpty()) {
+                    // 使用与getLastChatMessageFromHistory相同的逻辑：获取所有会话中的最新消息
+                    val allSessions = chatDataManager.getAllSessions(serviceType)
+                    val latestSession = allSessions.maxByOrNull { it.updatedAt }
+                    
+                    if (latestSession != null && latestSession.messages.isNotEmpty()) {
+                        val lastMessage = latestSession.messages.last()
                         // 更新对应联系人的最后消息
-                        updateContactLastMessageData(aiName, contactId, messages.last())
+                        updateContactLastMessageData(aiName, contactId, lastMessage)
+                        Log.d(TAG, "刷新联系人列表 - $aiName 最新消息: ${lastMessage.content.take(30)}...")
+                    } else {
+                        Log.d(TAG, "刷新联系人列表 - $aiName 暂无历史消息")
                     }
                 }
             }
@@ -7395,6 +7411,146 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             
         } catch (e: Exception) {
             Log.e(TAG, "启动定时强制同步机制失败", e)
+        }
+    }
+    
+    /**
+     * 广播接收器，用于接收AI消息更新通知
+     */
+    private val aiMessageUpdateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            try {
+                Log.d(TAG, "收到广播: action=${intent?.action}")
+                if (intent?.action == "com.example.aifloatingball.AI_MESSAGE_UPDATED") {
+                    val contactId = intent.getStringExtra("contact_id") ?: return
+                    val contactName = intent.getStringExtra("contact_name") ?: return
+                    val lastMessage = intent.getStringExtra("last_message") ?: return
+                    val lastMessageTime = intent.getLongExtra("last_message_time", System.currentTimeMillis())
+                    
+                    Log.d(TAG, "收到AI消息更新广播: $contactName ($contactId) - ${lastMessage.take(50)}...")
+                    
+                    // 更新联系人数据
+                    updateContactFromBroadcast(contactId, contactName, lastMessage, lastMessageTime)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "处理AI消息更新广播失败", e)
+            }
+        }
+    }
+    
+    /**
+     * 从广播更新联系人数据
+     */
+    private fun updateContactFromBroadcast(contactId: String, contactName: String, lastMessage: String, lastMessageTime: Long) {
+        try {
+            Log.d(TAG, "开始更新联系人数据: $contactName ($contactId) - ${lastMessage.take(50)}...")
+            
+            // 打印所有可用的联系人ID用于调试
+            Log.d(TAG, "当前allContacts中的联系人ID:")
+            allContacts.forEach { category ->
+                category.contacts.forEach { contact ->
+                    Log.d(TAG, "  - ${contact.name} (${contact.id})")
+                }
+            }
+            
+            // 在allContacts中找到对应的联系人并更新
+            var found = false
+            for (i in allContacts.indices) {
+                val category = allContacts[i]
+                val contactIndex = category.contacts.indexOfFirst { it.id == contactId }
+                if (contactIndex != -1) {
+                    Log.d(TAG, "找到匹配的联系人: ${category.contacts[contactIndex].name} (${category.contacts[contactIndex].id}) -> $contactName ($contactId)")
+                    found = true
+                    
+                    val mutableContacts = category.contacts.toMutableList()
+                    val updatedContact = mutableContacts[contactIndex].copy(
+                        lastMessage = lastMessage.take(50) + if (lastMessage.length > 50) "..." else "",
+                        lastMessageTime = lastMessageTime
+                    )
+                    mutableContacts[contactIndex] = updatedContact
+                    allContacts[i] = category.copy(contacts = mutableContacts)
+                    
+                    // 通知适配器更新
+                    chatContactAdapter?.notifyDataSetChanged()
+                    
+                    Log.d(TAG, "已从广播更新联系人 $contactName 的最后消息: ${lastMessage.take(30)}...")
+                    break
+                }
+            }
+            
+            if (!found) {
+                Log.w(TAG, "未找到匹配的联系人: $contactName ($contactId)")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "从广播更新联系人数据失败", e)
+        }
+    }
+    
+    /**
+     * 注册广播接收器
+     */
+    private fun registerBroadcastReceiver() {
+        try {
+            val filter = IntentFilter("com.example.aifloatingball.AI_MESSAGE_UPDATED")
+            registerReceiver(aiMessageUpdateReceiver, filter)
+            Log.d(TAG, "已注册AI消息更新广播接收器")
+        } catch (e: Exception) {
+            Log.e(TAG, "注册广播接收器失败", e)
+        }
+    }
+    
+    /**
+     * 注销广播接收器
+     */
+    private fun unregisterBroadcastReceiver() {
+        try {
+            unregisterReceiver(aiMessageUpdateReceiver)
+            Log.d(TAG, "已注销AI消息更新广播接收器")
+        } catch (e: Exception) {
+            Log.e(TAG, "注销广播接收器失败", e)
+        }
+    }
+    
+    /**
+     * 强制加载AI联系人列表数据汇总
+     */
+    private fun forceLoadContactDataSummary() {
+        try {
+            Log.d(TAG, "开始强制加载AI联系人列表数据汇总")
+            
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            val aiNames = listOf("DeepSeek", "Kimi", "智谱AI", "ChatGPT", "Claude", "Gemini")
+            
+            aiNames.forEach { aiName ->
+                val serviceType = getAIServiceTypeFromName(aiName)
+                if (serviceType != null) {
+                    val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                        aiName
+                    } else {
+                        aiName.lowercase()
+                    }
+                    val contactId = "ai_${processedName.replace(" ", "_")}"
+                    
+                    // 获取所有会话，找到最新的有消息的会话
+                    val allSessions = chatDataManager.getAllSessions(serviceType)
+                    val latestSession = allSessions.maxByOrNull { it.updatedAt }
+                    
+                    if (latestSession != null && latestSession.messages.isNotEmpty()) {
+                        val lastMessage = latestSession.messages.last()
+                        
+                        // 更新联系人数据
+                        updateContactFromBroadcast(contactId, aiName, lastMessage.content, lastMessage.timestamp)
+                        
+                        Log.d(TAG, "强制加载 - $aiName 最新消息: ${lastMessage.content.take(30)}...")
+                    } else {
+                        Log.d(TAG, "强制加载 - $aiName 暂无历史消息")
+                    }
+                }
+            }
+            
+            Log.d(TAG, "强制加载AI联系人列表数据汇总完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "强制加载AI联系人列表数据汇总失败", e)
         }
     }
     
@@ -8773,6 +8929,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun openChatWithContact(contact: ChatContact) {
         try {
+            // 在进入AI对话前，强制加载AI联系人列表数据汇总
+            if (contact.type == ContactType.AI) {
+                forceLoadContactDataSummary()
+            }
+            
             val intent = Intent(this, ChatActivity::class.java)
             intent.putExtra(ChatActivity.EXTRA_CONTACT, contact)
             startActivity(intent)

@@ -109,6 +109,9 @@ class AndroidChatInterface(
                             chatDataManager.addMessage(currentSessionId, "assistant", fullResponse, aiServiceType)
                             // 通知WebView响应完成
                             webViewCallback?.onMessageCompleted(fullResponse)
+                            
+                            // 发送广播通知简易模式更新AI联系人列表
+                            notifySimpleModeUpdate(fullResponse)
                         }
 
                         override fun onError(error: String) {
@@ -419,5 +422,31 @@ class AndroidChatInterface(
         }
 
         return jsonArray.toString()
+    }
+    
+    /**
+     * 通知简易模式更新AI联系人列表
+     */
+    private fun notifySimpleModeUpdate(lastMessage: String) {
+        try {
+            val aiName = getAIServiceDisplayName(aiServiceType)
+            val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                aiName
+            } else {
+                aiName.lowercase()
+            }
+            val contactId = "ai_${processedName.replace(" ", "_")}"
+            
+            val intent = android.content.Intent("com.example.aifloatingball.AI_MESSAGE_UPDATED").apply {
+                putExtra("contact_id", contactId)
+                putExtra("contact_name", aiName)
+                putExtra("last_message", lastMessage)
+                putExtra("last_message_time", System.currentTimeMillis())
+            }
+            context.sendBroadcast(intent)
+            Log.d(TAG, "已发送广播通知简易模式更新: $aiName")
+        } catch (e: Exception) {
+            Log.e(TAG, "发送广播通知失败", e)
+        }
     }
 }

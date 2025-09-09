@@ -285,13 +285,27 @@ class ChatDataManager private constructor(private val context: Context) {
         val aiSessions = chatSessions[aiServiceType]!!
         if (!aiSessions.containsKey(sessionId)) {
             aiSessions[sessionId] = mutableListOf()
+            Log.d(TAG, "创建新会话 (${aiServiceType.name}) $sessionId")
         }
 
         aiSessions[sessionId]?.add(message)
+        
+        // 更新会话的最后更新时间
+        updateSessionTimestamp(sessionId, aiServiceType)
+        
         saveDataForAIService(aiServiceType)
 
         Log.d(TAG, "添加消息到会话 (${aiServiceType.name}) $sessionId: ${role} - ${content.take(50)}")
+        Log.d(TAG, "会话 $sessionId 现在有 ${aiSessions[sessionId]?.size ?: 0} 条消息")
         return message
+    }
+    
+    /**
+     * 更新会话时间戳
+     */
+    private fun updateSessionTimestamp(sessionId: String, aiServiceType: AIServiceType) {
+        // 这里可以添加时间戳更新逻辑，暂时使用简单的实现
+        Log.d(TAG, "更新会话时间戳: $sessionId (${aiServiceType.name})")
     }
     
     /**

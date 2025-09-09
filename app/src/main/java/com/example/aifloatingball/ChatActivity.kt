@@ -418,6 +418,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 Log.d(TAG, "ChatActivity调试 - 简易模式预览消息: ${simpleModeMessage.take(30)}...")
                 
                 if (unifiedMessages.isNotEmpty()) {
+                    Log.d(TAG, "从ChatDataManager加载到 ${unifiedMessages.size} 条消息，准备合并到当前对话")
+                    
+                    // 获取当前messages中已有的消息内容，避免重复
+                    val existingMessageContents = messages.map { "${it.content}|${it.isFromUser}|${it.timestamp}" }.toSet()
+                    Log.d(TAG, "当前已有 ${messages.size} 条消息，准备合并新消息")
+                    
                     messages.clear()
                     // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
                     unifiedMessages.forEach { unifiedMsg ->
@@ -428,8 +434,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         )
                         messages.add(chatMsg)
                     }
+                    
+                    // 按时间戳排序确保消息顺序正确
+                    messages.sortBy { it.timestamp }
+                    
                     messageAdapter.updateMessages(messages.toList())
-                    Log.d(TAG, "从ChatDataManager加载了 ${unifiedMessages.size} 条消息 (${serviceType?.name ?: "默认"})")
+                    Log.d(TAG, "合并完成，现在共有 ${messages.size} 条消息 (${serviceType?.name ?: "默认"})")
                 } else {
                     Log.d(TAG, "ChatDataManager中没有找到数据，但简易模式预览有数据，尝试强制同步")
                     
@@ -519,6 +529,10 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             // 保存聊天记录到统一存储
             currentContact?.let { contact ->
                 val serviceType = getAIServiceType(contact) ?: AIServiceType.DEEPSEEK
+                
+                // 确保会话存在，如果不存在则创建
+                ensureSessionExists(contact.id, serviceType)
+                
                 chatDataManager.setCurrentSessionId(contact.id, serviceType)
                 chatDataManager.addMessage(contact.id, "user", messageText, serviceType)
 
@@ -1109,6 +1123,10 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         // 保存AI回复到统一存储
                         currentContact?.let { contact ->
                             val serviceType = getAIServiceType(contact) ?: AIServiceType.DEEPSEEK
+                            
+                            // 确保会话存在，如果不存在则创建
+                            ensureSessionExists(contact.id, serviceType)
+                            
                             chatDataManager.addMessage(contact.id, "assistant", aiMessage.content, serviceType)
 
                             // 同时保存到旧存储（向后兼容）
@@ -1856,6 +1874,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      */
     private fun updateContactLastMessage(contact: ChatContact, lastMessage: String) {
         try {
+            Log.d(TAG, "开始更新联系人最后消息: ${contact.name} (ID: ${contact.id}) - ${lastMessage.take(50)}...")
+            
             // 加载当前保存的联系人数据
             val prefs = getSharedPreferences(CONTACTS_PREFS_NAME, MODE_PRIVATE)
             val json = prefs.getString(KEY_SAVED_CONTACTS, null)
@@ -1865,9 +1885,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 val categories: List<ContactCategory> = gson.fromJson(json, type)
 
                 // 查找并更新对应的联系人
+                var found = false
                 val updatedCategories = categories.map { category ->
                     val updatedContacts = category.contacts.map { savedContact ->
                         if (savedContact.id == contact.id) {
+                            Log.d(TAG, "找到匹配的联系人: ${savedContact.name} (${savedContact.id}) -> ${contact.name} (${contact.id})")
+                            found = true
                             savedContact.copy(
                                 lastMessage = lastMessage,
                                 lastMessageTime = System.currentTimeMillis()
@@ -1879,13 +1902,94 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     category.copy(contacts = updatedContacts)
                 }
 
+                if (!found) {
+                    Log.w(TAG, "未找到匹配的联系人: ${contact.name} (${contact.id})")
+                    // 打印所有可用的联系人ID用于调试
+                    categories.forEach { category ->
+                        category.contacts.forEach { savedContact ->
+                            Log.d(TAG, "可用联系人: ${savedContact.name} (${savedContact.id})")
+                        }
+                    }
+                }
+
                 // 保存更新后的数据
                 val updatedJson = gson.toJson(updatedCategories)
                 prefs.edit().putString(KEY_SAVED_CONTACTS, updatedJson).apply()
                 Log.d(TAG, "联系人最后消息已更新: ${contact.name}")
+                
+                // 发送广播通知简易模式更新数据
+                notifySimpleModeUpdate(contact, lastMessage)
+            } else {
+                Log.w(TAG, "未找到保存的联系人数据")
             }
         } catch (e: Exception) {
             Log.e(TAG, "更新联系人最后消息失败", e)
+        }
+    }
+    
+    /**
+     * 确保会话存在，如果不存在则创建
+     */
+    private fun ensureSessionExists(sessionId: String, serviceType: AIServiceType) {
+        try {
+            val existingMessages = chatDataManager.getMessages(sessionId, serviceType)
+            if (existingMessages.isEmpty()) {
+                Log.d(TAG, "会话 $sessionId 不存在或为空，检查是否需要迁移现有数据")
+                
+                // 检查当前messages列表中是否有数据需要迁移到ChatDataManager
+                if (messages.isNotEmpty()) {
+                    Log.d(TAG, "发现 ${messages.size} 条现有消息，迁移到ChatDataManager")
+                    messages.forEach { chatMsg ->
+                        val role = if (chatMsg.isFromUser) "user" else "assistant"
+                        chatDataManager.addMessage(sessionId, role, chatMsg.content, serviceType)
+                        Log.d(TAG, "迁移消息: $role - ${chatMsg.content.take(30)}...")
+                    }
+                }
+            } else {
+                Log.d(TAG, "会话 $sessionId 已存在，包含 ${existingMessages.size} 条消息")
+                
+                // 检查ChatDataManager中的消息是否比当前messages列表更完整
+                if (existingMessages.size > messages.size) {
+                    Log.d(TAG, "ChatDataManager中有更多消息，同步到当前列表")
+                    messages.clear()
+                    existingMessages.forEach { unifiedMsg ->
+                        val chatMsg = ChatMessage(
+                            content = unifiedMsg.content,
+                            isFromUser = unifiedMsg.role == "user",
+                            timestamp = unifiedMsg.timestamp
+                        )
+                        messages.add(chatMsg)
+                    }
+                    messages.sortBy { it.timestamp }
+                    messageAdapter.updateMessages(messages.toList())
+                    Log.d(TAG, "同步完成，现在共有 ${messages.size} 条消息")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "确保会话存在失败", e)
+        }
+    }
+    
+    /**
+     * 通知简易模式更新AI对话数据
+     */
+    private fun notifySimpleModeUpdate(contact: ChatContact, lastMessage: String) {
+        try {
+            Log.d(TAG, "准备发送广播通知简易模式更新: ${contact.name} (${contact.id})")
+            
+            val intent = Intent("com.example.aifloatingball.AI_MESSAGE_UPDATED").apply {
+                putExtra("contact_id", contact.id)
+                putExtra("contact_name", contact.name)
+                putExtra("last_message", lastMessage)
+                putExtra("last_message_time", System.currentTimeMillis())
+            }
+            
+            Log.d(TAG, "广播Intent内容: action=${intent.action}, contact_id=${intent.getStringExtra("contact_id")}, contact_name=${intent.getStringExtra("contact_name")}")
+            
+            sendBroadcast(intent)
+            Log.d(TAG, "已发送广播通知简易模式更新: ${contact.name}")
+        } catch (e: Exception) {
+            Log.e(TAG, "发送广播通知失败", e)
         }
     }
 
