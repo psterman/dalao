@@ -2358,42 +2358,63 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun setupOutsideTouchListener() {
         windowContainerView?.setOnTouchListener { _, event ->
+            Log.d(TAG, "窗口容器收到触摸事件: action=${event.action}, x=${event.rawX}, y=${event.rawY}")
+            
             when {
                 // 1. 文本操作菜单显示时，处理触摸事件
                 textActionMenu?.isShowing == true -> {
-                hideCustomTextMenu()
-                return@setOnTouchListener true
-            }
+                    Log.d(TAG, "文本菜单显示中，隐藏菜单")
+                    hideCustomTextMenu()
+                    return@setOnTouchListener true
+                }
 
                 // 2. 圆球状态下的触摸处理
                 ballView != null && ballView?.visibility == View.VISIBLE -> {
-                    handleBallTouchEvent(event)
+                    Log.d(TAG, "圆球状态下，处理触摸事件")
+                    val result = handleBallTouchEvent(event)
+                    if (result) {
+                        Log.d(TAG, "圆球区域内触摸，消费事件")
+                        return@setOnTouchListener true
+                    } else {
+                        // 圆球区域外的触摸，让事件穿透
+                        Log.d(TAG, "圆球区域外触摸，让事件穿透到下层应用")
+                        return@setOnTouchListener false
+                    }
                 }
                 
                 // 3. 搜索模式激活时，检查是否在外部区域
                 isSearchModeActive && event.action == MotionEvent.ACTION_DOWN -> {
-                if (isTouchOutsideAllViews(event)) {
-                    transitionToCompactState()
-                    return@setOnTouchListener true // 消费掉外部点击事件
+                    Log.d(TAG, "搜索模式下，检查外部点击")
+                    if (isTouchOutsideAllViews(event)) {
+                        Log.d(TAG, "外部点击，退出搜索模式")
+                        transitionToCompactState()
+                        return@setOnTouchListener true // 消费掉外部点击事件
                     } else {
+                        Log.d(TAG, "内部点击，让子视图处理")
                         return@setOnTouchListener false // 在内部区域，让子视图处理
                     }
                 }
                 
                 // 4. 紧凑模式下的触摸处理
                 !isSearchModeActive && event.action == MotionEvent.ACTION_DOWN -> {
+                    Log.d(TAG, "紧凑模式下，检查灵动岛点击")
                     if (isTouchInIslandArea(event)) {
                         // 在灵动岛区域内，展开搜索模式
+                        Log.d(TAG, "灵动岛区域内点击，展开搜索")
                         expandIsland()
                         return@setOnTouchListener true
                     } else {
                         // 在灵动岛区域外，让事件穿透
+                        Log.d(TAG, "灵动岛区域外点击，让事件穿透")
                         return@setOnTouchListener false
                     }
                 }
                 
                 // 5. 其他情况，让事件穿透到下层
-                else -> false
+                else -> {
+                    Log.d(TAG, "其他情况，让事件穿透")
+                    false
+                }
             }
         }
     }
@@ -3631,8 +3652,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 清理展开的视图
         cleanupExpandedViews()
         
-        // 创建圆球视图（先隐藏）
+        // 创建圆球视图（完全隐藏，避免闪现）
         createBallView()
+        ballView?.visibility = View.INVISIBLE // 使用INVISIBLE而不是设置alpha
         ballView?.alpha = 0f
         ballView?.scaleX = 0.1f
         ballView?.scaleY = 0.1f
@@ -3640,7 +3662,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 设置点击监听器
         setupBallClickListener()
         
-        // 同时进行两个动画：灵动岛缩小消失，圆球放大出现
+        // 先启动灵动岛消失动画
         val islandAnimation = animatingIslandView?.animate()
             ?.withLayer()
             ?.alpha(0f)
@@ -3648,6 +3670,18 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             ?.scaleY(0.1f)
             ?.setInterpolator(AccelerateInterpolator())
             ?.setDuration(300)
+            ?.withEndAction {
+                // 隐藏灵动岛视图
+                animatingIslandView?.visibility = View.GONE
+                appSearchIconScrollView?.visibility = View.GONE
+                clearAppSearchIcons()
+                
+                // 优化窗口参数
+                optimizeWindowForBallMode()
+                
+                // 灵动岛消失后，显示圆球并开始动画
+                ballView?.visibility = View.VISIBLE
+                Log.d(TAG, "圆球视图已设置为可见，开始动画")
         
         val ballAnimation = ballView?.animate()
             ?.withLayer()
@@ -3656,20 +3690,20 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             ?.scaleY(1f)
             ?.setInterpolator(OvershootInterpolator(0.8f))
             ?.setDuration(400)
-            ?.setStartDelay(150) // 稍微延迟，让圆球在灵动岛开始消失后出现
+                    ?.withEndAction {
+                        Log.d(TAG, "圆球动画完成，启动透明度渐变")
+                        // 动画完成后启动透明度渐变
+                        startFadeOutTimer()
+                    }
+                ballAnimation?.start()
+                
+                // 添加调试信息
+                Log.d(TAG, "圆球状态: visibility=${ballView?.visibility}, alpha=${ballView?.alpha}, scaleX=${ballView?.scaleX}, scaleY=${ballView?.scaleY}")
+                Log.d(TAG, "圆球位置: leftMargin=${(ballView?.layoutParams as? FrameLayout.LayoutParams)?.leftMargin}, topMargin=${(ballView?.layoutParams as? FrameLayout.LayoutParams)?.topMargin}")
+            }
         
-        // 启动动画
-        islandAnimation?.withEndAction {
-            // 隐藏灵动岛视图
-            animatingIslandView?.visibility = View.GONE
-            appSearchIconScrollView?.visibility = View.GONE
-            clearAppSearchIcons()
-            
-            // 优化窗口参数
-            optimizeWindowForBallMode()
-        }?.start()
-        
-        ballAnimation?.start()
+        // 启动灵动岛消失动画
+        islandAnimation?.start()
     }
     
     /**
@@ -3692,6 +3726,27 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 优化窗口参数，减少遮挡
         optimizeWindowForBallMode()
+        
+        // 显示圆球动画
+        ballView?.visibility = View.VISIBLE
+        Log.d(TAG, "switchToBallMode: 圆球视图已设置为可见，开始动画")
+        
+        ballView?.animate()
+            ?.alpha(0.9f)
+            ?.scaleX(1f)
+            ?.scaleY(1f)
+            ?.setDuration(400)
+            ?.setInterpolator(AccelerateDecelerateInterpolator())
+            ?.withEndAction {
+                Log.d(TAG, "switchToBallMode: 圆球动画完成，启动透明度渐变")
+                // 动画完成后启动透明度渐变
+                startFadeOutTimer()
+            }
+            ?.start()
+        
+        // 添加调试信息
+        Log.d(TAG, "switchToBallMode: 圆球状态: visibility=${ballView?.visibility}, alpha=${ballView?.alpha}")
+        Log.d(TAG, "switchToBallMode: 圆球位置: leftMargin=${(ballView?.layoutParams as? FrameLayout.LayoutParams)?.leftMargin}, topMargin=${(ballView?.layoutParams as? FrameLayout.LayoutParams)?.topMargin}")
     }
     
     /**
@@ -3747,8 +3802,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 leftMargin = ballX // 使用保存的位置
                 topMargin = ballY
             }
-            visibility = View.VISIBLE
-            alpha = 0.8f // 提高透明度，确保可见性
+            visibility = View.INVISIBLE // 初始状态为不可见，避免闪现
+            alpha = 0f // 初始透明度为0
         }
         
         // 添加到窗口容器
@@ -3756,14 +3811,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         Log.d(TAG, "圆球视图已创建并添加到窗口容器，位置: (${ballX}, ${ballY}), 大小: ${ballSize}x${ballSize}")
         
-        // 显示圆球动画，带有缩放效果
-        ballView?.animate()
-            ?.alpha(0.9f) // 提高透明度，确保可见性
-            ?.scaleX(1f)
-            ?.scaleY(1f)
-            ?.setDuration(400)
-            ?.setInterpolator(AccelerateDecelerateInterpolator())
-            ?.start()
+        // 注意：不在这里启动动画，动画将在transitionToBallState中控制
     }
     
     // 圆球拖动相关变量
@@ -3774,6 +3822,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var initialBallY = 0
     private var longPressRunnable: Runnable? = null
     private val longPressDelay = 500L // 长按延迟500ms
+    
+    // 透明度渐变相关变量
+    private var fadeOutRunnable: Runnable? = null
+    private val fadeOutDelay = 3000L // 3秒后开始渐变
+    private val fadeOutDuration = 2000L // 2秒完成渐变
+    private var isFadingOut = false
 
     /**
      * 设置圆球点击和拖动监听器
@@ -3788,7 +3842,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     initialBallX = (view.layoutParams as FrameLayout.LayoutParams).leftMargin
                     initialBallY = (view.layoutParams as FrameLayout.LayoutParams).topMargin
                     
-                    // 触摸时提供视觉反馈
+                    // 停止透明度渐变
+                    stopFadeOutTimer()
+                    
+                    // 触摸时提供视觉反馈，立即恢复透明度
                     ballView?.animate()?.alpha(1f)?.setDuration(100)?.start()
                     
                     // 启动长按检测
@@ -3844,6 +3901,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     if (isDragging) {
                         // 结束拖动
                         stopDragging()
+                        // 拖动结束后重新启动渐变
+                        startFadeOutTimer()
                     } else {
                         // 检查是否是有效的点击（没有移动太多）
                         val deltaX = Math.abs(event.rawX - dragStartX)
@@ -3856,8 +3915,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             restoreIslandState()
                             }
                         } else {
-                            // 移动距离过大，不是有效点击，只恢复透明度
-                            ballView?.animate()?.alpha(0.9f)?.setDuration(200)?.start()
+                            // 移动距离过大，不是有效点击，恢复透明度并重新启动渐变
+                            ballView?.animate()?.alpha(0.9f)?.setDuration(200)?.withEndAction {
+                                startFadeOutTimer()
+                            }?.start()
                         }
                     }
                     true
@@ -3873,6 +3934,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun startDragging() {
         isDragging = true
         Log.d(TAG, "开始拖动圆球")
+        
+        // 停止透明度渐变
+        stopFadeOutTimer()
         
         // 拖动时的视觉反馈
         ballView?.animate()
@@ -3949,27 +4013,64 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
     
+    // 圆球触摸状态跟踪
+    private var ballTouchDownInside = false
+    
     /**
      * 处理圆球状态下的触摸事件
+     * 重新设计的触摸处理逻辑，确保只有圆球区域内的触摸被处理
      */
     private fun handleBallTouchEvent(event: MotionEvent): Boolean {
+        // 获取圆球区域
+        val ballRect = android.graphics.Rect()
+        ballView?.getGlobalVisibleRect(ballRect)
+        val x = event.rawX.toInt()
+        val y = event.rawY.toInt()
+        
+        val isInBallArea = ballRect.contains(x, y)
+        
         return when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                // 检查触摸点是否在圆球区域内
-                val ballRect = android.graphics.Rect()
-                ballView?.getGlobalVisibleRect(ballRect)
-                val x = event.rawX.toInt()
-                val y = event.rawY.toInt()
-                
-                if (ballRect.contains(x, y)) {
-                    // 在圆球区域内，处理点击事件
-                    Log.d(TAG, "圆球被点击，恢复灵动岛状态")
-                    restoreIslandState()
+                if (isInBallArea) {
+                    // 在圆球区域内按下，记录状态并处理
+                    ballTouchDownInside = true
+                    Log.d(TAG, "圆球区域内按下，开始处理触摸")
                     true
                 } else {
-                    // 在圆球区域外，让事件穿透
+                    // 在圆球区域外按下，不处理，让事件穿透
+                    ballTouchDownInside = false
+                    Log.d(TAG, "圆球区域外按下，让事件穿透")
                     false
                 }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                // 只有在圆球区域内按下的情况下才处理移动事件
+                if (ballTouchDownInside) {
+                    Log.d(TAG, "圆球拖动中...")
+                    true
+                } else {
+                    // 不是在圆球区域内开始的触摸，让事件穿透
+                    false
+                }
+            }
+            MotionEvent.ACTION_UP -> {
+                if (ballTouchDownInside) {
+                    // 在圆球区域内开始的触摸，处理抬起事件
+                    if (isInBallArea) {
+                        Log.d(TAG, "圆球被点击，恢复灵动岛状态")
+                        restoreIslandState()
+                    }
+                    ballTouchDownInside = false
+                    true
+                } else {
+                    // 不是在圆球区域内开始的触摸，让事件穿透
+                    false
+                }
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                // 取消事件，重置状态
+                ballTouchDownInside = false
+                false
             }
             else -> false
         }
@@ -3977,18 +4078,19 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     /**
      * 优化窗口参数以减少遮挡
-     * 在圆球模式下，让窗口能够容纳圆球的完整移动范围
+     * 在圆球模式下，将窗口尺寸缩小到只覆盖圆球区域
      */
     private fun optimizeWindowForBallMode() {
         try {
             val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
             if (windowParams != null) {
-                // 计算圆球区域
-                val ballSize = (40 * resources.displayMetrics.density).toInt() // 使用新的圆球大小
+                // 计算圆球区域 - 使用与createBallView相同的逻辑
+                val ballSize = (40 * resources.displayMetrics.density).toInt() // 40dp，与圆球视觉大小一致
+                val touchAreaSize = (60 * resources.displayMetrics.density).toInt() // 60dp触摸区域
                 val screenWidth = resources.displayMetrics.widthPixels
                 val screenHeight = resources.displayMetrics.heightPixels
                 
-                // 使用保存的位置或默认位置
+                // 使用保存的位置或默认位置 - 与createBallView保持一致
                 val savedX = settingsManager.getBallX()
                 val savedY = settingsManager.getBallY()
                 val defaultX = (screenWidth - ballSize) / 2 // 居中
@@ -3997,24 +4099,25 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val ballX = if (savedX == -1) defaultX else savedX.coerceIn(0, screenWidth - ballSize)
                 val ballY = if (savedY == -1) defaultY else savedY.coerceIn(statusBarHeight, screenHeight - ballSize)
                 
-                // 设置窗口为全屏，但只在圆球区域接收触摸事件
+                // 设置窗口参数，与灵动岛模式保持一致
                 windowParams.width = WindowManager.LayoutParams.MATCH_PARENT
-                windowParams.height = WindowManager.LayoutParams.MATCH_PARENT
+                windowParams.height = WindowManager.LayoutParams.WRAP_CONTENT  // 关键：使用WRAP_CONTENT而不是MATCH_PARENT
                 windowParams.x = 0
                 windowParams.y = 0
                 
                 // 确保窗口可见
                 windowParams.alpha = 1.0f
                 
-                // 保持窗口类型不变，确保剪贴板监听器正常工作
-                // 只添加必要的触摸穿透标志，避免影响屏幕其他区域
-                windowParams.flags = windowParams.flags or 
+                // 重新设置窗口标志，确保触摸穿透正常工作
+                windowParams.flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                 
                 // 更新窗口布局
                 windowManager?.updateViewLayout(windowContainerView, windowParams)
                 
-                Log.d(TAG, "圆球模式窗口优化完成: 全屏模式，圆球位置($ballX, $ballY)")
+                Log.d(TAG, "圆球模式窗口优化完成: 全屏模式，圆球位置($ballX, $ballY)，触摸区域${touchAreaSize}x${touchAreaSize}")
             }
         } catch (e: Exception) {
             Log.e(TAG, "优化圆球模式窗口参数失败", e)
@@ -4035,18 +4138,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 windowParams.x = 0
                 windowParams.y = 0
                 
-                // 移除触摸穿透标志，恢复正常触摸处理
-                windowParams.flags = windowParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
-                
-                // 确保窗口标志正确设置
-                windowParams.flags = windowParams.flags or 
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                // 重新设置窗口标志，确保触摸穿透正常工作
+                windowParams.flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                 
                 // 更新窗口布局
                 windowManager?.updateViewLayout(windowContainerView, windowParams)
                 
-                Log.d(TAG, "窗口参数已恢复到正常状态")
+                Log.d(TAG, "窗口参数已恢复到正常状态，保持触摸穿透功能")
             }
         } catch (e: Exception) {
             Log.e(TAG, "恢复窗口参数失败", e)
@@ -6361,6 +6462,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun restoreIslandState() {
         Log.d(TAG, "恢复灵动岛状态")
         
+        // 停止透明度渐变定时器
+        stopFadeOutTimer()
+        
         // 恢复窗口参数到正常状态
         restoreWindowForNormalMode()
         
@@ -7583,6 +7687,59 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 Log.d(TAG, "  - 按钮容器可见性: ${it.visibility}")
                 Log.d(TAG, "  - 按钮容器子视图数量: ${it.childCount}")
             }
+        }
+    }
+    
+    /**
+     * 启动透明度渐变定时器
+     * 在指定延迟后开始将圆球逐渐变透明
+     */
+    private fun startFadeOutTimer() {
+        // 先停止之前的定时器
+        stopFadeOutTimer()
+        
+        // 重置渐变状态
+        isFadingOut = false
+        
+        // 创建新的定时器
+        fadeOutRunnable = Runnable {
+            if (ballView != null && !isDragging) {
+                Log.d(TAG, "开始透明度渐变")
+                isFadingOut = true
+                
+                // 执行透明度渐变动画
+                ballView?.animate()
+                    ?.alpha(0.3f) // 渐变到30%透明度
+                    ?.setDuration(fadeOutDuration)
+                    ?.setInterpolator(AccelerateDecelerateInterpolator())
+                    ?.withEndAction {
+                        isFadingOut = false
+                        Log.d(TAG, "透明度渐变完成")
+                    }
+                    ?.start()
+            }
+        }
+        
+        // 延迟启动
+        uiHandler.postDelayed(fadeOutRunnable!!, fadeOutDelay)
+        Log.d(TAG, "透明度渐变定时器已启动，${fadeOutDelay}ms后开始渐变")
+    }
+    
+    /**
+     * 停止透明度渐变定时器
+     * 在用户触摸圆球时调用
+     */
+    private fun stopFadeOutTimer() {
+        fadeOutRunnable?.let { 
+            uiHandler.removeCallbacks(it)
+            fadeOutRunnable = null
+        }
+        
+        // 如果正在渐变，停止渐变动画
+        if (isFadingOut) {
+            ballView?.animate()?.cancel()
+            isFadingOut = false
+            Log.d(TAG, "透明度渐变已停止")
         }
     }
 }
