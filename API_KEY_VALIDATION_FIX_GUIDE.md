@@ -264,3 +264,4 @@ adb logcat | grep -E "(isValidApiKey|API密钥格式)"
 4. **提供清晰反馈**：通过日志和UI提供配置状态反馈
 
 修复后，ChatGPT和Claude等未配置API密钥的AI服务将不会显示在灵动岛界面中！🎉
+

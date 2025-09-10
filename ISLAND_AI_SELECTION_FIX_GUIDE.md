@@ -262,3 +262,4 @@ adb logcat | grep -E "(sendMessage|AIApiManager)"
 4. **稳定切换功能**：提供可靠的AI服务切换体验
 
 修复后，用户将只看到已配置API的AI服务，避免选择未配置的AI服务导致的错误！🎉
+

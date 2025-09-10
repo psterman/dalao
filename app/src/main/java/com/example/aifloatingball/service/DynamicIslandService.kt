@@ -2818,6 +2818,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         cleanupViews()
         showDynamicIsland()
 
+        // 更新圆球主题（如果圆球存在）
+        updateBallTheme()
+
         if (wasSearchModeActive) {
             transitionToSearchState(force = true)
             // We need a slight delay to ensure the config panel is laid out before setting text
@@ -3628,19 +3631,45 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 清理展开的视图
         cleanupExpandedViews()
         
-        // 动画切换到圆球状态，带有缩放效果
-        animatingIslandView?.animate()
+        // 创建圆球视图（先隐藏）
+        createBallView()
+        ballView?.alpha = 0f
+        ballView?.scaleX = 0.1f
+        ballView?.scaleY = 0.1f
+        
+        // 设置点击监听器
+        setupBallClickListener()
+        
+        // 同时进行两个动画：灵动岛缩小消失，圆球放大出现
+        val islandAnimation = animatingIslandView?.animate()
             ?.withLayer()
             ?.alpha(0f)
-            ?.scaleX(0.3f)
-            ?.scaleY(0.3f)
+            ?.scaleX(0.1f)
+            ?.scaleY(0.1f)
             ?.setInterpolator(AccelerateInterpolator())
+            ?.setDuration(300)
+        
+        val ballAnimation = ballView?.animate()
+            ?.withLayer()
+            ?.alpha(0.9f)
+            ?.scaleX(1f)
+            ?.scaleY(1f)
+            ?.setInterpolator(OvershootInterpolator(0.8f))
             ?.setDuration(400)
-            ?.withEndAction {
-                // 动画完成后，切换到圆球状态
-                switchToBallMode()
-            }
-            ?.start()
+            ?.setStartDelay(150) // 稍微延迟，让圆球在灵动岛开始消失后出现
+        
+        // 启动动画
+        islandAnimation?.withEndAction {
+            // 隐藏灵动岛视图
+            animatingIslandView?.visibility = View.GONE
+            appSearchIconScrollView?.visibility = View.GONE
+            clearAppSearchIcons()
+            
+            // 优化窗口参数
+            optimizeWindowForBallMode()
+        }?.start()
+        
+        ballAnimation?.start()
     }
     
     /**
@@ -3660,6 +3689,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 设置点击监听器，点击圆球恢复灵动岛状态
         setupBallClickListener()
+        
+        // 优化窗口参数，减少遮挡
+        optimizeWindowForBallMode()
     }
     
     /**
@@ -3674,52 +3706,59 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             } catch (e: Exception) { /* ignore */ }
         }
         
+        // 创建完美圆形背景
+        val ballSize = (40 * resources.displayMetrics.density).toInt() // 40dp，适中的大小
+        
+        // 设置布局参数，使用保存的位置或默认位置
+        val savedX = settingsManager.getBallX()
+        val savedY = settingsManager.getBallY()
+        val defaultX = (resources.displayMetrics.widthPixels - ballSize) / 2 // 居中
+        val defaultY = statusBarHeight + 20 * resources.displayMetrics.density.toInt()
+        
+        val ballX = if (savedX == -1) defaultX else savedX.coerceIn(0, resources.displayMetrics.widthPixels - ballSize)
+        val ballY = if (savedY == -1) defaultY else savedY.coerceIn(statusBarHeight, resources.displayMetrics.heightPixels - ballSize)
+        
         // 创建圆球视图
         ballView = View(this).apply {
-            // 创建圆形背景
-            val ballSize = (32 * resources.displayMetrics.density).toInt() // 32dp，更小更精致
-            val touchAreaSize = (60 * resources.displayMetrics.density).toInt() // 60dp触摸区域，更大更容易点击
-            val cornerRadius = ballSize / 2f
+            // 检测当前主题模式
+            val themedContext = getThemedContext()
+            val isDarkMode = (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
             
-            // 创建渐变背景，模拟灵动岛效果
-            // 使用LayerDrawable来创建中心小圆球，外围透明触摸区域
+            // 创建渐变背景，根据主题动态调整
             val ballDrawable = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#1C1C1E")) // 深色背景
-                setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#3A3A3C")) // 边框
+                if (isDarkMode) {
+                    // 暗色模式：半透明黑色背景，白色边框
+                    setColor(Color.parseColor("#E6000000"))
+                    setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60FFFFFF"))
+                } else {
+                    // 亮色模式：半透明白色背景，黑色边框
+                    setColor(Color.parseColor("#E6FFFFFF"))
+                    setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60000000"))
+                }
             }
             
-            // 创建外层透明背景，用于触摸区域
-            val outerDrawable = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.TRANSPARENT) // 透明背景
-            }
-            
-            // 使用LayerDrawable组合两个drawable
-            val layerDrawable = android.graphics.drawable.LayerDrawable(arrayOf(outerDrawable, ballDrawable))
-            // 设置内层圆球的位置和大小
-            layerDrawable.setLayerInset(1, (touchAreaSize - ballSize) / 2, (touchAreaSize - ballSize) / 2, 
-                (touchAreaSize - ballSize) / 2, (touchAreaSize - ballSize) / 2)
-            
-            background = layerDrawable
+            background = ballDrawable
             
             // 设置阴影效果
-            elevation = 8f
+            elevation = 12f
             
-            // 使用更大的触摸区域，但视觉上仍然是小的圆球
-            layoutParams = FrameLayout.LayoutParams(touchAreaSize, touchAreaSize, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply {
-                topMargin = statusBarHeight + 16 // 状态栏下方16dp
+            layoutParams = FrameLayout.LayoutParams(ballSize, ballSize, Gravity.TOP or Gravity.START).apply {
+                leftMargin = ballX // 使用保存的位置
+                topMargin = ballY
             }
             visibility = View.VISIBLE
-            alpha = 0f
+            alpha = 0.8f // 提高透明度，确保可见性
         }
         
         // 添加到窗口容器
         windowContainerView?.addView(ballView)
         
+        Log.d(TAG, "圆球视图已创建并添加到窗口容器，位置: (${ballX}, ${ballY}), 大小: ${ballSize}x${ballSize}")
+        
         // 显示圆球动画，带有缩放效果
         ballView?.animate()
-            ?.alpha(1f)
+            ?.alpha(0.9f) // 提高透明度，确保可见性
             ?.scaleX(1f)
             ?.scaleY(1f)
             ?.setDuration(400)
@@ -3727,13 +3766,186 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             ?.start()
     }
     
+    // 圆球拖动相关变量
+    private var isDragging = false
+    private var dragStartX = 0f
+    private var dragStartY = 0f
+    private var initialBallX = 0
+    private var initialBallY = 0
+    private var longPressRunnable: Runnable? = null
+    private val longPressDelay = 500L // 长按延迟500ms
+
     /**
-     * 设置圆球点击监听器
+     * 设置圆球点击和拖动监听器
      */
     private fun setupBallClickListener() {
-        ballView?.setOnClickListener {
+        ballView?.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    // 记录初始位置
+                    dragStartX = event.rawX
+                    dragStartY = event.rawY
+                    initialBallX = (view.layoutParams as FrameLayout.LayoutParams).leftMargin
+                    initialBallY = (view.layoutParams as FrameLayout.LayoutParams).topMargin
+                    
+                    // 触摸时提供视觉反馈
+                    ballView?.animate()?.alpha(1f)?.setDuration(100)?.start()
+                    
+                    // 启动长按检测
+                    longPressRunnable = Runnable {
+                        if (!isDragging) {
+                            Log.d(TAG, "长按检测触发，开始拖动")
+                            startDragging()
+                        }
+                    }
+                    uiHandler.postDelayed(longPressRunnable!!, longPressDelay)
+                    
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (isDragging) {
+                        // 拖动模式 - 实时更新位置
+                        val deltaX = event.rawX - dragStartX
+                        val deltaY = event.rawY - dragStartY
+                        
+                        // 计算新位置，确保圆球完全在屏幕内
+                        val ballSize = view.width
+                        val screenWidth = resources.displayMetrics.widthPixels
+                        val screenHeight = resources.displayMetrics.heightPixels
+                        
+                        val newX = (initialBallX + deltaX.toInt()).coerceIn(0, screenWidth - ballSize)
+                        val newY = (initialBallY + deltaY.toInt()).coerceIn(statusBarHeight, screenHeight - ballSize)
+                        
+                        // 直接更新布局参数，确保跟手
+                        val layoutParams = view.layoutParams as FrameLayout.LayoutParams
+                        layoutParams.leftMargin = newX
+                        layoutParams.topMargin = newY
+                        view.layoutParams = layoutParams
+                        
+                        // 记录拖动位置
+                        updateWindowPositionForBall(newX, newY)
+                        
+                        true
+                    } else {
+                        // 检查是否应该开始拖动
+                        val deltaX = Math.abs(event.rawX - dragStartX)
+                        val deltaY = Math.abs(event.rawY - dragStartY)
+                        if (deltaX > 15 || deltaY > 15) { // 增加阈值，避免误触发
+                            // 移动距离超过阈值，取消长按检测
+                            longPressRunnable?.let { uiHandler.removeCallbacks(it) }
+                        }
+                        false
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    // 取消长按检测
+                    longPressRunnable?.let { uiHandler.removeCallbacks(it) }
+                    
+                    if (isDragging) {
+                        // 结束拖动
+                        stopDragging()
+                    } else {
+                        // 检查是否是有效的点击（没有移动太多）
+                        val deltaX = Math.abs(event.rawX - dragStartX)
+                        val deltaY = Math.abs(event.rawY - dragStartY)
+                        if (deltaX < 10 && deltaY < 10) {
+                            // 普通点击 - 恢复灵动岛状态
+                            ballView?.animate()?.alpha(0.9f)?.setDuration(200)?.start()
+                            if (event.action == MotionEvent.ACTION_UP) {
             Log.d(TAG, "圆球被点击，恢复灵动岛状态")
             restoreIslandState()
+                            }
+                        } else {
+                            // 移动距离过大，不是有效点击，只恢复透明度
+                            ballView?.animate()?.alpha(0.9f)?.setDuration(200)?.start()
+                        }
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    /**
+     * 开始拖动模式
+     */
+    private fun startDragging() {
+        isDragging = true
+        Log.d(TAG, "开始拖动圆球")
+        
+        // 拖动时的视觉反馈
+        ballView?.animate()
+            ?.scaleX(1.2f)
+            ?.scaleY(1.2f)
+            ?.alpha(1f) // 拖动时完全不透明
+            ?.setDuration(200)
+            ?.start()
+    }
+
+    /**
+     * 停止拖动模式
+     */
+    private fun stopDragging() {
+        isDragging = false
+        Log.d(TAG, "停止拖动圆球")
+        
+        // 恢复视觉状态
+        ballView?.animate()
+            ?.scaleX(1f)
+            ?.scaleY(1f)
+            ?.alpha(0.9f) // 保持较高的可见性
+            ?.setDuration(200)
+            ?.start()
+        
+        // 保存新位置
+        val layoutParams = ballView?.layoutParams as? FrameLayout.LayoutParams
+        if (layoutParams != null) {
+            settingsManager.setBallPosition(layoutParams.leftMargin, layoutParams.topMargin)
+            Log.d(TAG, "圆球位置已保存: (${layoutParams.leftMargin}, ${layoutParams.topMargin})")
+        }
+    }
+    
+    /**
+     * 更新窗口位置以跟随圆球拖动
+     * 现在窗口是全屏的，只需要更新圆球的位置
+     */
+    private fun updateWindowPositionForBall(ballX: Int, ballY: Int) {
+        // 窗口现在是全屏的，不需要更新窗口位置
+        // 只需要确保圆球位置正确即可
+        Log.d(TAG, "圆球拖动到位置: ($ballX, $ballY)")
+    }
+    
+    /**
+     * 更新圆球主题
+     * 当主题变化时动态更新圆球外观
+     */
+    private fun updateBallTheme() {
+        ballView?.let { ball ->
+            try {
+                // 检测当前主题模式
+                val themedContext = getThemedContext()
+                val isDarkMode = (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+                
+                // 创建新的背景，根据主题动态调整
+                val ballDrawable = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    if (isDarkMode) {
+                        // 暗色模式：半透明黑色背景，白色边框
+                        setColor(Color.parseColor("#E6000000"))
+                        setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60FFFFFF"))
+                    } else {
+                        // 亮色模式：半透明白色背景，黑色边框
+                        setColor(Color.parseColor("#E6FFFFFF"))
+                        setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60000000"))
+                    }
+                }
+                
+                ball.background = ballDrawable
+                Log.d(TAG, "圆球主题已更新: ${if (isDarkMode) "暗色模式" else "亮色模式"}")
+            } catch (e: Exception) {
+                Log.e(TAG, "更新圆球主题失败", e)
+            }
         }
     }
     
@@ -3760,6 +3972,84 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
             else -> false
+        }
+    }
+
+    /**
+     * 优化窗口参数以减少遮挡
+     * 在圆球模式下，让窗口能够容纳圆球的完整移动范围
+     */
+    private fun optimizeWindowForBallMode() {
+        try {
+            val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
+            if (windowParams != null) {
+                // 计算圆球区域
+                val ballSize = (40 * resources.displayMetrics.density).toInt() // 使用新的圆球大小
+                val screenWidth = resources.displayMetrics.widthPixels
+                val screenHeight = resources.displayMetrics.heightPixels
+                
+                // 使用保存的位置或默认位置
+                val savedX = settingsManager.getBallX()
+                val savedY = settingsManager.getBallY()
+                val defaultX = (screenWidth - ballSize) / 2 // 居中
+                val defaultY = statusBarHeight + 20 * resources.displayMetrics.density.toInt()
+                
+                val ballX = if (savedX == -1) defaultX else savedX.coerceIn(0, screenWidth - ballSize)
+                val ballY = if (savedY == -1) defaultY else savedY.coerceIn(statusBarHeight, screenHeight - ballSize)
+                
+                // 设置窗口为全屏，但只在圆球区域接收触摸事件
+                windowParams.width = WindowManager.LayoutParams.MATCH_PARENT
+                windowParams.height = WindowManager.LayoutParams.MATCH_PARENT
+                windowParams.x = 0
+                windowParams.y = 0
+                
+                // 确保窗口可见
+                windowParams.alpha = 1.0f
+                
+                // 保持窗口类型不变，确保剪贴板监听器正常工作
+                // 只添加必要的触摸穿透标志，避免影响屏幕其他区域
+                windowParams.flags = windowParams.flags or 
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                
+                // 更新窗口布局
+                windowManager?.updateViewLayout(windowContainerView, windowParams)
+                
+                Log.d(TAG, "圆球模式窗口优化完成: 全屏模式，圆球位置($ballX, $ballY)")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "优化圆球模式窗口参数失败", e)
+        }
+    }
+
+    /**
+     * 恢复窗口参数到正常状态
+     * 当从圆球模式恢复到正常模式时调用
+     */
+    private fun restoreWindowForNormalMode() {
+        try {
+            val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
+            if (windowParams != null) {
+                // 恢复全屏窗口参数
+                windowParams.width = WindowManager.LayoutParams.MATCH_PARENT
+                windowParams.height = WindowManager.LayoutParams.WRAP_CONTENT
+                windowParams.x = 0
+                windowParams.y = 0
+                
+                // 移除触摸穿透标志，恢复正常触摸处理
+                windowParams.flags = windowParams.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL.inv()
+                
+                // 确保窗口标志正确设置
+                windowParams.flags = windowParams.flags or 
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                
+                // 更新窗口布局
+                windowManager?.updateViewLayout(windowContainerView, windowParams)
+                
+                Log.d(TAG, "窗口参数已恢复到正常状态")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复窗口参数失败", e)
         }
     }
     
@@ -4607,6 +4897,64 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 将文本添加到滚动容器
         scrollView.addView(aiPreviewText)
         
+        // 字体大小控制按钮容器
+        val fontControlContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 8.dpToPx()
+            }
+        }
+        
+        // 字体缩小按钮
+        val fontDecreaseButton = ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                32.dpToPx(),
+                32.dpToPx()
+            ).apply {
+                rightMargin = 8.dpToPx()
+            }
+            setImageResource(android.R.drawable.ic_menu_edit)
+            setColorFilter(Color.parseColor("#4CAF50"))
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#20000000"))
+                shape = GradientDrawable.OVAL
+            }
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            contentDescription = "缩小字体"
+            
+            setOnClickListener {
+                Log.d(TAG, "字体缩小按钮被点击")
+                decreaseFontSize(aiPreviewText)
+            }
+        }
+        
+        // 字体放大按钮
+        val fontIncreaseButton = ImageButton(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                32.dpToPx(),
+                32.dpToPx()
+            ).apply {
+                leftMargin = 8.dpToPx()
+            }
+            setImageResource(android.R.drawable.ic_menu_edit)
+            setColorFilter(Color.parseColor("#4CAF50"))
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#20000000"))
+                shape = GradientDrawable.OVAL
+            }
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            contentDescription = "放大字体"
+            
+            setOnClickListener {
+                Log.d(TAG, "字体放大按钮被点击")
+                increaseFontSize(aiPreviewText)
+            }
+        }
+        
         // 展开/折叠按钮
         val expandButton = ImageButton(this).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -4630,15 +4978,24 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         }
         
+        // 添加字体控制按钮到容器
+        fontControlContainer.addView(fontDecreaseButton)
+        fontControlContainer.addView(fontIncreaseButton)
+        
         // 组装布局
         aiHeaderContainer.addView(aiIcon)
         aiHeaderContainer.addView(aiProviderContainer)
         
         aiResponseContainer.addView(scrollView)
+        aiResponseContainer.addView(fontControlContainer)
         aiResponseContainer.addView(expandButton)
         
         aiContainer.addView(aiHeaderContainer)
         aiContainer.addView(aiResponseContainer)
+        
+        // 设置初始字体大小
+        val initialFontSize = settingsManager.getAIFontSize()
+        aiPreviewText.textSize = initialFontSize
         
         // 异步获取AI回复
         Log.d(TAG, "开始获取AI回复预览")
@@ -4652,6 +5009,26 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var currentAIProvider = "DeepSeek" // 默认AI提供商
     private val aiProviders: List<String>
         get() = getConfiguredAIServices() // 使用已配置API的AI服务
+
+    /**
+     * 增加AI回复字体大小
+     */
+    private fun increaseFontSize(textView: TextView) {
+        val newSize = settingsManager.increaseAIFontSize()
+        textView.textSize = newSize
+        Log.d(TAG, "AI回复字体大小已增加到: $newSize")
+        Toast.makeText(this, "字体大小: ${newSize.toInt()}sp", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 减少AI回复字体大小
+     */
+    private fun decreaseFontSize(textView: TextView) {
+        val newSize = settingsManager.decreaseAIFontSize()
+        textView.textSize = newSize
+        Log.d(TAG, "AI回复字体大小已减少到: $newSize")
+        Toast.makeText(this, "字体大小: ${newSize.toInt()}sp", Toast.LENGTH_SHORT).show()
+    }
     
     /**
      * 获取配置好的AI服务列表（只返回已配置API密钥的AI服务）
@@ -4663,8 +5040,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         settingsManager.forceRefreshAIEngines()
         
         // 获取已启用的AI引擎（移到try块外）
-        val enabledAIEngines = settingsManager.getEnabledAIEngines()
-        Log.d(TAG, "已启用的AI引擎: $enabledAIEngines")
+            val enabledAIEngines = settingsManager.getEnabledAIEngines()
+            Log.d(TAG, "已启用的AI引擎: $enabledAIEngines")
         
         try {
             
@@ -5984,12 +6361,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun restoreIslandState() {
         Log.d(TAG, "恢复灵动岛状态")
         
-        // 隐藏圆球，带有缩放动画
-        ballView?.animate()
+        // 恢复窗口参数到正常状态
+        restoreWindowForNormalMode()
+        
+        // 先显示灵动岛视图（隐藏状态）
+        animatingIslandView?.visibility = View.VISIBLE
+        animatingIslandView?.alpha = 0f
+        animatingIslandView?.scaleX = 0.1f
+        animatingIslandView?.scaleY = 0.1f
+        
+        // 同时进行两个动画：圆球缩小消失，灵动岛放大出现
+        val ballAnimation = ballView?.animate()
+            ?.withLayer()
             ?.alpha(0f)
-            ?.scaleX(0.5f)
-            ?.scaleY(0.5f)
-            ?.setDuration(300)
+            ?.scaleX(0.1f)
+            ?.scaleY(0.1f)
+            ?.setDuration(250)
             ?.setInterpolator(AccelerateInterpolator())
             ?.withEndAction {
                 try {
@@ -5997,20 +6384,19 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 } catch (e: Exception) { /* ignore */ }
                 ballView = null
             }
-            ?.start()
         
-        // 恢复灵动岛视图，带有缩放动画
-        animatingIslandView?.visibility = View.VISIBLE
-        animatingIslandView?.alpha = 0f
-        animatingIslandView?.scaleX = 0.8f
-        animatingIslandView?.scaleY = 0.8f
-        animatingIslandView?.animate()
+        val islandAnimation = animatingIslandView?.animate()
+            ?.withLayer()
             ?.alpha(1f)
             ?.scaleX(1f)
             ?.scaleY(1f)
-            ?.setDuration(400)
-            ?.setInterpolator(OvershootInterpolator(0.8f))
-            ?.start()
+            ?.setDuration(350)
+            ?.setInterpolator(OvershootInterpolator(0.6f))
+            ?.setStartDelay(100) // 稍微延迟，让圆球开始消失后再显示灵动岛
+        
+        // 启动动画
+        ballAnimation?.start()
+        islandAnimation?.start()
     }
     
     /**

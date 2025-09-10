@@ -663,7 +663,10 @@ class AIContactListActivity : AppCompatActivity() {
         try {
             // 从ChatDataManager获取最后的消息
             val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
-            val contactId = "ai_${aiName.lowercase().replace(" ", "_")}"
+            
+            // 使用统一的ID生成方法
+            val settingsManager = SettingsManager.getInstance(this)
+            val contactId = settingsManager.generateAIContactId(aiName)
             
             // 获取对应的AI服务类型
             val serviceType = getAIServiceType(aiName)
@@ -691,7 +694,10 @@ class AIContactListActivity : AppCompatActivity() {
         try {
             // 从ChatDataManager获取最后的时间
             val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
-            val contactId = "ai_${aiName.lowercase().replace(" ", "_")}"
+            
+            // 使用统一的ID生成方法
+            val settingsManager = SettingsManager.getInstance(this)
+            val contactId = settingsManager.generateAIContactId(aiName)
             
             // 获取对应的AI服务类型
             val serviceType = getAIServiceType(aiName)

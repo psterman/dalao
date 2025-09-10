@@ -395,6 +395,103 @@ class SettingsManager private constructor(context: Context) {
         saveEnabledAIEngines(currentEngines)
     }
 
+    /**
+     * 生成统一的AI联系人ID
+     * 确保所有地方使用相同的ID生成逻辑
+     */
+    fun generateAIContactId(aiName: String): String {
+        val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+            // 包含中文字符，直接使用原名称
+            aiName
+        } else {
+            // 英文字符，转换为小写
+            aiName.lowercase()
+        }
+        return "ai_${processedName.replace(" ", "_")}"
+    }
+
+    // AI回复字体大小相关
+    private val defaultFontSize = 12f
+    private val minFontSize = 8f
+    private val maxFontSize = 20f
+    private val fontSizeStep = 1f
+
+    /**
+     * 获取AI回复字体大小
+     */
+    fun getAIFontSize(): Float {
+        return prefs.getFloat("ai_font_size", defaultFontSize)
+    }
+
+    /**
+     * 设置AI回复字体大小
+     */
+    fun setAIFontSize(fontSize: Float) {
+        val clampedSize = fontSize.coerceIn(minFontSize, maxFontSize)
+        prefs.edit().putFloat("ai_font_size", clampedSize).apply()
+        notifyListeners("ai_font_size", clampedSize)
+    }
+
+    /**
+     * 增加AI回复字体大小
+     */
+    fun increaseAIFontSize(): Float {
+        val currentSize = getAIFontSize()
+        val newSize = (currentSize + fontSizeStep).coerceAtMost(maxFontSize)
+        setAIFontSize(newSize)
+        return newSize
+    }
+
+    /**
+     * 减少AI回复字体大小
+     */
+    fun decreaseAIFontSize(): Float {
+        val currentSize = getAIFontSize()
+        val newSize = (currentSize - fontSizeStep).coerceAtLeast(minFontSize)
+        setAIFontSize(newSize)
+        return newSize
+    }
+
+    // 圆球位置相关
+    private val defaultBallX = -1 // -1表示使用默认居中位置
+    private val defaultBallY = -1 // -1表示使用默认位置
+
+    /**
+     * 获取圆球X位置
+     */
+    fun getBallX(): Int {
+        return prefs.getInt("ball_x", defaultBallX)
+    }
+
+    /**
+     * 获取圆球Y位置
+     */
+    fun getBallY(): Int {
+        return prefs.getInt("ball_y", defaultBallY)
+    }
+
+    /**
+     * 设置圆球位置
+     */
+    fun setBallPosition(x: Int, y: Int) {
+        prefs.edit()
+            .putInt("ball_x", x)
+            .putInt("ball_y", y)
+            .apply()
+        notifyListeners("ball_position", Pair(x, y))
+    }
+
+    /**
+     * 重置圆球位置到默认值
+     */
+    fun resetBallPosition() {
+        prefs.edit()
+            .remove("ball_x")
+            .remove("ball_y")
+            .apply()
+        notifyListeners("ball_position", Pair(defaultBallX, defaultBallY))
+    }
+
     // 获取所有已启用的搜索引擎（包括普通搜索引擎和AI搜索引擎）
     fun getAllEnabledEngines(): Set<String> {
         val result = mutableSetOf<String>()

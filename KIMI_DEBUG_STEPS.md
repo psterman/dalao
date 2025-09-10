@@ -103,3 +103,4 @@ DynamicIslandService: 最终配置好的AI服务: [DeepSeek, 智谱AI, Kimi]
 ```
 
 如果看到这个序列，说明Kimi应该能正常显示在灵动岛中。
+
