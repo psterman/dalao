@@ -4503,6 +4503,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 为每个配置好的AI服务创建标签
         configuredAIServices.forEachIndexed { index, aiService ->
+            val isCurrentAI = aiService == currentAIProvider
             val aiProviderLabel = TextView(this).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -4510,12 +4511,23 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 ).apply {
                     if (index > 0) leftMargin = 4.dpToPx()
                 }
-                text = aiService
+                text = if (isCurrentAI) "✓ $aiService" else aiService
                 textSize = 10f
-                setTextColor(if (isDarkMode) Color.parseColor("#4CAF50") else Color.parseColor("#2E7D32"))
+                setTextColor(if (isCurrentAI) {
+                    if (isDarkMode) Color.parseColor("#FFFFFF") else Color.parseColor("#FFFFFF")
+                } else {
+                    if (isDarkMode) Color.parseColor("#4CAF50") else Color.parseColor("#2E7D32")
+                })
                 setPadding(6.dpToPx(), 3.dpToPx(), 6.dpToPx(), 3.dpToPx())
                 background = GradientDrawable().apply {
+                    if (isCurrentAI) {
+                        // 当前AI使用更明显的背景色
+                        setColor(if (isDarkMode) Color.parseColor("#4CAF50") else Color.parseColor("#4CAF50"))
+                        setStroke(1.dpToPx(), if (isDarkMode) Color.parseColor("#FFFFFF") else Color.parseColor("#FFFFFF"))
+                    } else {
+                        // 其他AI使用淡色背景
                     setColor(if (isDarkMode) Color.parseColor("#204CAF50") else Color.parseColor("#E8F5E8"))
+                    }
                     cornerRadius = 6.dpToPx().toFloat()
                 }
                 gravity = Gravity.CENTER
@@ -4638,52 +4650,139 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     
     // AI相关变量
     private var currentAIProvider = "DeepSeek" // 默认AI提供商
-    private val aiProviders = listOf("DeepSeek", "智谱AI", "GPT-4", "Claude", "Gemini", "Kimi", "通义千问", "文心一言", "讯飞星火")
+    private val aiProviders: List<String>
+        get() = getConfiguredAIServices() // 使用已配置API的AI服务
     
     /**
-     * 获取配置好的AI服务列表
+     * 获取配置好的AI服务列表（只返回已配置API密钥的AI服务）
      */
     private fun getConfiguredAIServices(): List<String> {
         val configuredServices = mutableListOf<String>()
         
+        // 强制刷新AI引擎配置，确保Kimi被包含
+        settingsManager.forceRefreshAIEngines()
+        
+        // 获取已启用的AI引擎（移到try块外）
+        val enabledAIEngines = settingsManager.getEnabledAIEngines()
+        Log.d(TAG, "已启用的AI引擎: $enabledAIEngines")
+        
         try {
-            // 获取已启用的AI引擎
-            val enabledAIEngines = settingsManager.getEnabledAIEngines()
-            Log.d(TAG, "已启用的AI引擎: $enabledAIEngines")
             
-            // 将AI引擎名称映射到显示名称
+            // 将AI引擎名称映射到显示名称和API密钥检查
             val aiEngineMapping = mapOf(
-                "DeepSeek (API)" to "DeepSeek",
-                "ChatGPT (Custom)" to "GPT-4",
-                "Claude (Custom)" to "Claude",
-                "Gemini" to "Gemini",
-                "智谱AI (Custom)" to "智谱AI",
-                "通义千问 (Custom)" to "通义千问",
-                "文心一言 (Custom)" to "文心一言",
-                "讯飞星火 (Custom)" to "讯飞星火",
-                "Kimi" to "Kimi"
+                "DeepSeek (API)" to Pair("DeepSeek", "deepseek_api_key"),
+                "ChatGPT (Custom)" to Pair("ChatGPT", "chatgpt_api_key"),
+                "Claude (Custom)" to Pair("Claude", "claude_api_key"),
+                "Gemini" to Pair("Gemini", "gemini_api_key"),
+                "智谱AI (Custom)" to Pair("智谱AI", "zhipu_ai_api_key"),
+                "通义千问 (Custom)" to Pair("通义千问", "qianwen_api_key"),
+                "文心一言 (Custom)" to Pair("文心一言", "wenxin_api_key"),
+                "讯飞星火 (Custom)" to Pair("讯飞星火", "xinghuo_api_key"),
+                "Kimi" to Pair("Kimi", "kimi_api_key")
             )
             
-            // 根据已启用的AI引擎添加对应的显示名称
+            // 根据已启用的AI引擎添加对应的显示名称，并验证API密钥
             enabledAIEngines.forEach { engineName ->
-                val displayName = aiEngineMapping[engineName]
-                if (displayName != null) {
-                    configuredServices.add(displayName)
+                Log.d(TAG, "处理已启用的AI引擎: $engineName")
+                val mapping = aiEngineMapping[engineName]
+                if (mapping != null) {
+                    val (displayName, apiKeyName) = mapping
+                    Log.d(TAG, "找到映射: $engineName -> $displayName, API密钥名: $apiKeyName")
+                    
+                    // 使用正确的方法获取API密钥
+                    val apiKey = when (displayName) {
+                        "DeepSeek" -> settingsManager.getDeepSeekApiKey()
+                        "ChatGPT" -> settingsManager.getString("chatgpt_api_key", "") ?: ""
+                        "Claude" -> settingsManager.getString("claude_api_key", "") ?: ""
+                        "Gemini" -> settingsManager.getGeminiApiKey()
+                        "智谱AI" -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+                        "通义千问" -> settingsManager.getQianwenApiKey()
+                        "文心一言" -> settingsManager.getWenxinApiKey()
+                        "讯飞星火" -> settingsManager.getString("xinghuo_api_key", "") ?: ""
+                        "Kimi" -> {
+                            val kimiKey = settingsManager.getKimiApiKey()
+                            Log.d(TAG, "Kimi API密钥获取: ${if (kimiKey.isNotBlank()) "成功 (${kimiKey.length}字符)" else "失败"}")
+                            kimiKey
+                        }
+                        else -> settingsManager.getString(apiKeyName, "") ?: ""
+                    }
+                    
+                    Log.d(TAG, "检查 $displayName API密钥: ${if (apiKey.isNotBlank()) "已配置 (${apiKey.length}字符)" else "未配置"}")
+                    
+                    // 验证API密钥是否有效
+                    if (isValidApiKey(apiKey, displayName)) {
+                        configuredServices.add(displayName)
+                        Log.d(TAG, "✅ $displayName API密钥已配置，添加到可用列表")
+                    } else {
+                        Log.d(TAG, "❌ $displayName API密钥未配置或无效，跳过")
+                    }
+                } else {
+                    Log.d(TAG, "❌ 未找到AI引擎映射: $engineName")
                 }
             }
             
-            // 如果没有配置任何AI服务，返回默认的DeepSeek
+            // 如果没有配置任何AI服务，返回默认的DeepSeek（如果它有API密钥）
             if (configuredServices.isEmpty()) {
+                val deepSeekApiKey = settingsManager.getDeepSeekApiKey()
+                if (isValidApiKey(deepSeekApiKey, "DeepSeek")) {
                 configuredServices.add("DeepSeek")
+                    Log.d(TAG, "使用默认DeepSeek（API密钥已配置）")
+                } else {
+                    Log.w(TAG, "没有可用的AI服务，所有AI都未配置API密钥")
+                }
             }
             
         } catch (e: Exception) {
             Log.e(TAG, "获取配置好的AI服务失败", e)
-            configuredServices.add("DeepSeek") // 默认返回DeepSeek
+            // 尝试添加DeepSeek作为备用
+            val deepSeekApiKey = settingsManager.getDeepSeekApiKey()
+            if (isValidApiKey(deepSeekApiKey, "DeepSeek")) {
+                configuredServices.add("DeepSeek")
+            }
         }
         
-        Log.d(TAG, "配置好的AI服务: $configuredServices")
+        Log.d(TAG, "最终配置好的AI服务: $configuredServices")
+        
+        // 特别检查Kimi的状态
+        if (configuredServices.contains("Kimi")) {
+            Log.d(TAG, "✅ Kimi已成功添加到配置列表")
+        } else {
+            Log.w(TAG, "❌ Kimi未添加到配置列表，可能的原因：")
+            Log.w(TAG, "1. Kimi未在已启用的AI引擎中")
+            Log.w(TAG, "2. Kimi API密钥未配置或无效")
+            Log.w(TAG, "3. Kimi映射失败")
+            
+            // 直接检查Kimi的配置状态
+            val kimiEnabled = enabledAIEngines.contains("Kimi")
+            val kimiApiKey = settingsManager.getKimiApiKey()
+            val kimiValid = isValidApiKey(kimiApiKey, "Kimi")
+            Log.w(TAG, "Kimi状态检查: 启用=$kimiEnabled, API密钥=${if (kimiApiKey.isNotBlank()) "已配置" else "未配置"}, 有效=$kimiValid")
+        }
+        
         return configuredServices
+    }
+    
+    /**
+     * 验证API密钥是否有效
+     */
+    private fun isValidApiKey(apiKey: String, aiName: String): Boolean {
+        if (apiKey.isBlank()) {
+            return false
+        }
+
+        // 根据不同的AI服务验证API密钥格式
+        return when (aiName.lowercase()) {
+            "deepseek" -> apiKey.startsWith("sk-") && apiKey.length >= 20
+            "chatgpt" -> apiKey.startsWith("sk-") && apiKey.length >= 20
+            "claude" -> apiKey.startsWith("sk-ant-") && apiKey.length >= 20
+            "gemini" -> apiKey.length >= 20 // Google API密钥没有固定前缀
+            "智谱ai", "智谱AI" -> apiKey.contains(".") && apiKey.length >= 20 // 智谱AI API密钥格式：xxxxx.xxxxx
+            "文心一言" -> apiKey.length >= 10 // 百度API密钥
+            "通义千问" -> apiKey.length >= 10 // 阿里云API密钥
+            "讯飞星火" -> apiKey.length >= 10 // 讯飞API密钥
+            "kimi" -> apiKey.length >= 10 // Kimi API密钥
+            else -> apiKey.length >= 10
+        }
     }
     
     /**
@@ -4730,15 +4829,24 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun showAISelectionDialog(clipboardContent: String) {
         try {
-            val items = aiProviders.toTypedArray()
-            val checkedItem = aiProviders.indexOf(currentAIProvider)
+            val configuredAIServices = getConfiguredAIServices()
+            if (configuredAIServices.isEmpty()) {
+                Toast.makeText(this, "没有配置任何AI服务，请先在设置中配置API", Toast.LENGTH_LONG).show()
+                return
+            }
+            
+            val items = configuredAIServices.toTypedArray()
+            val checkedItem = configuredAIServices.indexOf(currentAIProvider).coerceAtLeast(0)
+            
+            Log.d(TAG, "显示AI选择对话框，可用AI服务: $configuredAIServices")
+            Log.d(TAG, "当前选择的AI: $currentAIProvider, 选中索引: $checkedItem")
             
             // 使用Application Context避免Service context问题
             val context = applicationContext
             AlertDialog.Builder(ContextThemeWrapper(context, android.R.style.Theme_Material_Dialog))
                 .setTitle("选择AI助手")
                 .setSingleChoiceItems(items, checkedItem) { dialog, which ->
-                    currentAIProvider = aiProviders[which]
+                    currentAIProvider = configuredAIServices[which]
                     Log.d(TAG, "AI提供商已切换为: $currentAIProvider")
                     dialog.dismiss()
                     
@@ -4754,11 +4862,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         } catch (e: Exception) {
             Log.e(TAG, "显示AI选择对话框失败", e)
             // 降级处理：直接切换到下一个AI
-            val currentIndex = aiProviders.indexOf(currentAIProvider)
-            val nextIndex = (currentIndex + 1) % aiProviders.size
-            currentAIProvider = aiProviders[nextIndex]
+            val configuredAIServices = getConfiguredAIServices()
+            if (configuredAIServices.isNotEmpty()) {
+                val currentIndex = configuredAIServices.indexOf(currentAIProvider)
+                val nextIndex = (currentIndex + 1) % configuredAIServices.size
+                currentAIProvider = configuredAIServices[nextIndex]
             refreshAIResponse(clipboardContent)
             Toast.makeText(this, "已切换到 $currentAIProvider", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "没有可用的AI服务", Toast.LENGTH_SHORT).show()
+            }
         }
     }
     
@@ -4852,6 +4965,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 刷新AI回复
      */
     private fun refreshAIResponse(content: String) {
+        try {
+            Log.d(TAG, "刷新AI回复，当前AI提供商: $currentAIProvider")
+            
+            // 验证当前AI提供商是否在已配置的AI服务中
+            val configuredAIServices = getConfiguredAIServices()
+            if (!configuredAIServices.contains(currentAIProvider)) {
+                Log.w(TAG, "当前AI提供商 $currentAIProvider 不在已配置的AI服务中，切换到第一个可用的AI")
+                currentAIProvider = configuredAIServices.firstOrNull() ?: "DeepSeek"
+                Log.d(TAG, "已切换到: $currentAIProvider")
+            }
+            
         // 查找AI预览文本视图并更新
         islandContentView?.let { container ->
             // 查找AI容器（第二个子视图）
@@ -4870,6 +4994,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     }
                 }
             }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新AI回复失败", e)
         }
     }
     

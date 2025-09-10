@@ -345,6 +345,14 @@ class SettingsManager private constructor(context: Context) {
             return defaultEnabledEngines
         }
 
+        // 确保Kimi在已启用列表中（修复用户配置问题）
+        val updatedEngines = enabledEngines.toMutableSet()
+        if (!updatedEngines.contains("Kimi")) {
+            updatedEngines.add("Kimi")
+            saveEnabledAIEngines(updatedEngines)
+            return updatedEngines
+        }
+
         return enabledEngines
     }
 
@@ -358,6 +366,7 @@ class SettingsManager private constructor(context: Context) {
             "Claude (Custom)",
             "通义千问 (Custom)",
             "智谱AI (Custom)",
+            "Kimi",
             "ChatGPT",
             "Claude",
             "Gemini"
@@ -368,6 +377,22 @@ class SettingsManager private constructor(context: Context) {
     fun saveEnabledAIEngines(enabledEngines: Set<String>) {
         prefs.edit().putStringSet("enabled_ai_engines", enabledEngines).apply()
         notifyListeners("enabled_ai_engines", enabledEngines)
+    }
+
+    // 强制刷新AI引擎配置，确保Kimi被包含
+    fun forceRefreshAIEngines() {
+        val currentEngines = prefs.getStringSet("enabled_ai_engines", null)?.toMutableSet() ?: mutableSetOf()
+        val defaultEngines = getDefaultEnabledAIEngines()
+        
+        // 合并当前配置和默认配置，确保Kimi被包含
+        currentEngines.addAll(defaultEngines)
+        
+        // 特别确保Kimi在列表中
+        if (!currentEngines.contains("Kimi")) {
+            currentEngines.add("Kimi")
+        }
+        
+        saveEnabledAIEngines(currentEngines)
     }
 
     // 获取所有已启用的搜索引擎（包括普通搜索引擎和AI搜索引擎）

@@ -11047,12 +11047,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         return when (serviceType) {
             AIServiceType.CHATGPT -> settingsManager.getString("chatgpt_api_key", "") ?: ""
             AIServiceType.CLAUDE -> settingsManager.getString("claude_api_key", "") ?: ""
-            AIServiceType.GEMINI -> settingsManager.getString("gemini_api_key", "") ?: ""
-            AIServiceType.WENXIN -> settingsManager.getString("wenxin_api_key", "") ?: ""
+            AIServiceType.GEMINI -> settingsManager.getGeminiApiKey()
+            AIServiceType.WENXIN -> settingsManager.getWenxinApiKey()
             AIServiceType.DEEPSEEK -> settingsManager.getDeepSeekApiKey()
-            AIServiceType.QIANWEN -> settingsManager.getString("qianwen_api_key", "") ?: ""
+            AIServiceType.QIANWEN -> settingsManager.getQianwenApiKey()
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
-            AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
+            AIServiceType.KIMI -> settingsManager.getKimiApiKey()
             AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
         }
     }
