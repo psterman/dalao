@@ -743,6 +743,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or 
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // 允许触摸事件穿透到下层
+            // 移除 FLAG_NOT_FOCUSABLE，保持剪贴板监听器工作
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START // Change gravity to START to avoid horizontal conflicts
@@ -786,7 +787,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // 4. 灵动岛现在使用按钮交互，不需要拖拽功能
         
-        // 5. 设置灵动岛的长按监听器
+        // 5. 设置灵动岛的触摸监听器
+        setupIslandTouchListener()
+        
+        // 6. 设置灵动岛的长按监听器
         animatingIslandView?.setOnLongClickListener {
                 if (!isSearchModeActive) {
                 Log.d(TAG, "灵动岛长按，显示搜索面板")
@@ -993,6 +997,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun transitionToCompactState() {
         if (!isSearchModeActive) return
         isSearchModeActive = false
+        
+        // 移除搜索模式的外部点击监听器
+        removeSearchModeTouchListener()
 
         cleanupExpandedViews()
 
@@ -2357,67 +2364,114 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun setupOutsideTouchListener() {
-        windowContainerView?.setOnTouchListener { _, event ->
-            Log.d(TAG, "窗口容器收到触摸事件: action=${event.action}, x=${event.rawX}, y=${event.rawY}")
+        // 移除全局触摸监听器，改为在具体组件上设置监听器
+        // 这样可以避免拦截所有触摸事件，让系统手势和输入法正常工作
+        Log.d(TAG, "使用精确触摸区域检测，不再拦截所有触摸事件")
+    }
+    
+    /**
+     * 为灵动岛设置精确的触摸监听器
+     */
+    private fun setupIslandTouchListener() {
+        animatingIslandView?.setOnTouchListener { _, event ->
+            Log.d(TAG, "灵动岛收到触摸事件: action=${event.action}, x=${event.rawX}, y=${event.rawY}")
             
-            when {
-                // 1. 文本操作菜单显示时，处理触摸事件
-                textActionMenu?.isShowing == true -> {
-                    Log.d(TAG, "文本菜单显示中，隐藏菜单")
-                    hideCustomTextMenu()
-                    return@setOnTouchListener true
-                }
-
-                // 2. 圆球状态下的触摸处理
-                ballView != null && ballView?.visibility == View.VISIBLE -> {
-                    Log.d(TAG, "圆球状态下，处理触摸事件")
-                    val result = handleBallTouchEvent(event)
-                    if (result) {
-                        Log.d(TAG, "圆球区域内触摸，消费事件")
-                        return@setOnTouchListener true
-                    } else {
-                        // 圆球区域外的触摸，让事件穿透
-                        Log.d(TAG, "圆球区域外触摸，让事件穿透到下层应用")
-                        return@setOnTouchListener false
-                    }
-                }
-                
-                // 3. 搜索模式激活时，检查是否在外部区域
-                isSearchModeActive && event.action == MotionEvent.ACTION_DOWN -> {
-                    Log.d(TAG, "搜索模式下，检查外部点击")
-                    if (isTouchOutsideAllViews(event)) {
-                        Log.d(TAG, "外部点击，退出搜索模式")
-                        transitionToCompactState()
-                        return@setOnTouchListener true // 消费掉外部点击事件
-                    } else {
-                        Log.d(TAG, "内部点击，让子视图处理")
-                        return@setOnTouchListener false // 在内部区域，让子视图处理
-                    }
-                }
-                
-                // 4. 紧凑模式下的触摸处理
-                !isSearchModeActive && event.action == MotionEvent.ACTION_DOWN -> {
-                    Log.d(TAG, "紧凑模式下，检查灵动岛点击")
-                    if (isTouchInIslandArea(event)) {
-                        // 在灵动岛区域内，展开搜索模式
-                        Log.d(TAG, "灵动岛区域内点击，展开搜索")
+            // 首先检查是否是系统级侧边滑动返回手势
+            val isSystemGesture = isSystemBackGesture(event)
+            if (isSystemGesture) {
+                Log.d(TAG, "检测到系统侧边滑动返回手势，让事件穿透")
+                return@setOnTouchListener false
+            }
+            
+            // 如果正在检测系统手势，让事件穿透
+            if (isSystemGestureActive) {
+                Log.d(TAG, "正在检测系统手势，让事件穿透")
+                return@setOnTouchListener false
+            }
+            
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    if (!isSearchModeActive) {
+                        // 紧凑模式下，点击灵动岛展开搜索
+                        Log.d(TAG, "紧凑模式下点击灵动岛，展开搜索")
                         expandIsland()
-                        return@setOnTouchListener true
+                        true
                     } else {
-                        // 在灵动岛区域外，让事件穿透
-                        Log.d(TAG, "灵动岛区域外点击，让事件穿透")
-                        return@setOnTouchListener false
+                        // 搜索模式下，让子视图处理
+                        Log.d(TAG, "搜索模式下，让子视图处理触摸事件")
+                        false
                     }
                 }
-                
-                // 5. 其他情况，让事件穿透到下层
-                else -> {
-                    Log.d(TAG, "其他情况，让事件穿透")
-                    false
-                }
+                else -> false
             }
         }
     }
+    
+    /**
+     * 为搜索模式设置外部点击监听器
+     */
+    private fun setupSearchModeTouchListener() {
+        // 在搜索模式下，设置一个透明的覆盖层来处理外部点击
+        val overlayView = View(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+        
+        overlayView.setOnTouchListener { _, event ->
+            // 首先检查是否是系统级侧边滑动返回手势
+            val isSystemGesture = isSystemBackGesture(event)
+            if (isSystemGesture) {
+                Log.d(TAG, "搜索模式下检测到系统侧边滑动返回手势，让事件穿透")
+                return@setOnTouchListener false
+            }
+            
+            // 如果正在检测系统手势，让事件穿透
+            if (isSystemGestureActive) {
+                Log.d(TAG, "搜索模式下正在检测系统手势，让事件穿透")
+                return@setOnTouchListener false
+            }
+            
+            if (isSearchModeActive && event.action == MotionEvent.ACTION_DOWN) {
+                Log.d(TAG, "搜索模式外部点击检测")
+                    if (isTouchOutsideAllViews(event)) {
+                    Log.d(TAG, "确认外部点击，退出搜索模式")
+                        transitionToCompactState()
+                    true
+                    } else {
+                        Log.d(TAG, "内部点击，让子视图处理")
+                    false
+                }
+                    } else {
+                false
+            }
+        }
+        
+        windowContainerView?.addView(overlayView)
+        
+        // 保存覆盖层引用，以便后续移除
+        searchModeOverlay = overlayView
+    }
+    
+    private var searchModeOverlay: View? = null
+    
+    /**
+     * 移除搜索模式的外部点击监听器
+     */
+    private fun removeSearchModeTouchListener() {
+        searchModeOverlay?.let { overlay ->
+            try {
+                windowContainerView?.removeView(overlay)
+                Log.d(TAG, "已移除搜索模式外部点击监听器")
+            } catch (e: Exception) {
+                Log.e(TAG, "移除搜索模式外部点击监听器失败", e)
+            }
+        }
+        searchModeOverlay = null
+    }
+
 
     private fun isTouchOutsideAllViews(event: MotionEvent): Boolean {
         val x = event.rawX.toInt()
@@ -3028,6 +3082,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun expandIsland() {
         if (isSearchModeActive) return
         isSearchModeActive = true
+        
+        // 设置搜索模式的外部点击监听器
+        setupSearchModeTouchListener()
+        
         animateIsland(compactWidth, expandedWidth)
     }
 
@@ -4016,6 +4074,108 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     // 圆球触摸状态跟踪
     private var ballTouchDownInside = false
     
+    // 系统手势检测相关变量
+    private var systemGestureStartX = 0f
+    private var systemGestureStartY = 0f
+    private var systemGestureStartTime = 0L
+    private var isSystemGestureActive = false
+    
+    /**
+     * 检测是否是系统级侧边滑动返回手势
+     * 这个方法确保系统手势不被应用拦截
+     */
+    private fun isSystemBackGesture(event: MotionEvent): Boolean {
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+        val edgeZoneWidth = (50 * resources.displayMetrics.density).toInt()
+        
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                // 检查是否在边缘区域
+                val isInLeftEdge = event.rawX <= edgeZoneWidth
+                val isInRightEdge = event.rawX >= screenWidth - edgeZoneWidth
+                val isInTopEdge = event.rawY <= edgeZoneWidth
+                val isInBottomEdge = event.rawY >= screenHeight - edgeZoneWidth
+                
+                val isEdgeGesture = (isInLeftEdge || isInRightEdge) && !isInTopEdge && !isInBottomEdge
+                
+                if (isEdgeGesture) {
+                    systemGestureStartX = event.rawX
+                    systemGestureStartY = event.rawY
+                    systemGestureStartTime = System.currentTimeMillis()
+                    isSystemGestureActive = true
+                    Log.d(TAG, "开始检测系统边缘手势: x=${event.rawX}, edge=${if (isInLeftEdge) "左" else "右"}")
+                }
+                
+                return false // 不立即消费DOWN事件
+            }
+            
+            MotionEvent.ACTION_MOVE -> {
+                if (!isSystemGestureActive) return false
+                
+                val deltaX = event.rawX - systemGestureStartX
+                val deltaY = event.rawY - systemGestureStartY
+                val deltaTime = System.currentTimeMillis() - systemGestureStartTime
+                
+                // 检查是否是水平滑动（返回手势）
+                val isHorizontalSwipe = kotlin.math.abs(deltaX) > kotlin.math.abs(deltaY) && kotlin.math.abs(deltaX) > 20
+                val isFastEnough = deltaTime > 0 && kotlin.math.abs(deltaX) / deltaTime > 0.5f
+                
+                if (isHorizontalSwipe && isFastEnough) {
+                    Log.d(TAG, "确认系统返回手势: deltaX=${deltaX}, 速度=${kotlin.math.abs(deltaX) / deltaTime}")
+                    // 触发系统返回手势
+                    triggerSystemBackGesture()
+                    return true // 确认是系统返回手势
+                }
+                
+                return false
+            }
+            
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isSystemGestureActive = false
+                return false
+            }
+        }
+        
+        return false
+    }
+    
+    /**
+     * 触发系统返回手势
+     * 通过临时调整窗口标志来支持系统手势
+     */
+    private fun triggerSystemBackGesture() {
+        try {
+            // 临时设置窗口为不可获取焦点，让系统手势穿透
+            val windowParams = windowContainerView?.layoutParams as? WindowManager.LayoutParams
+            if (windowParams != null) {
+                // 备份当前标志
+                val originalFlags = windowParams.flags
+                
+                // 临时添加不可获取焦点标志
+                windowParams.flags = originalFlags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                windowManager?.updateViewLayout(windowContainerView, windowParams)
+                
+                Log.d(TAG, "已临时设置窗口为不可获取焦点，支持系统手势")
+                
+                // 延迟恢复原始标志
+                windowContainerView?.postDelayed({
+                    try {
+                        windowParams.flags = originalFlags
+                        windowManager?.updateViewLayout(windowContainerView, windowParams)
+                        Log.d(TAG, "已恢复窗口焦点设置")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "恢复窗口焦点设置失败", e)
+                    }
+                }, 1000) // 1秒后恢复
+            }
+            
+            Log.d(TAG, "系统返回手势处理已完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "触发系统返回手势失败", e)
+        }
+    }
+    
     /**
      * 处理圆球状态下的触摸事件
      * 重新设计的触摸处理逻辑，确保只有圆球区域内的触摸被处理
@@ -4108,7 +4268,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 // 确保窗口可见
                 windowParams.alpha = 1.0f
                 
-                // 重新设置窗口标志，确保触摸穿透正常工作
+                // 重新设置窗口标志，确保触摸穿透正常工作，同时保持剪贴板监听
                 windowParams.flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
@@ -4138,7 +4298,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 windowParams.x = 0
                 windowParams.y = 0
                 
-                // 重新设置窗口标志，确保触摸穿透正常工作
+                // 重新设置窗口标志，确保触摸穿透正常工作，同时保持剪贴板监听
                 windowParams.flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
