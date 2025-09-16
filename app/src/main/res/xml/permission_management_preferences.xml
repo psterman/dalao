@@ -48,6 +48,13 @@
             app:icon="@drawable/ic_notification_listener"
             app:selectable="true" />
 
+        <Preference
+            app:key="accessibility_service_permission"
+            app:title="无障碍服务权限"
+            app:summary="监听剪贴板变化以自动展开灵动岛"
+            app:icon="@drawable/ic_accessibility"
+            app:selectable="true" />
+
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -84,4 +91,17 @@
 
     </PreferenceCategory>
 
-</PreferenceScreen> 
+    <PreferenceCategory
+        app:title="调试工具"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            app:key="clipboard_test"
+            app:title="剪贴板监听测试"
+            app:summary="测试无障碍服务的剪贴板监听功能"
+            app:icon="@drawable/ic_accessibility"
+            app:selectable="true" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

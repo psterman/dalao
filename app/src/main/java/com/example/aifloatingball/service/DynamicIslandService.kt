@@ -589,13 +589,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var currentPackageName: String? = null
     private var isAutoMinimizeEnabled = true // 是否启用自动缩小功能
     
-    // 剪贴板相关
-    private var clipboardManager: ClipboardManager? = null
-    private var lastClipboardContent: String? = null
-    private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
-    private var isClipboardAutoExpandEnabled = true // 是否启用复制文字自动展开功能
-    private var lastClipboardChangeTime = 0L // 上次剪贴板变化时间
-    private val clipboardChangeDebounceTime = 1000L // 防抖时间：1秒
+    // 剪贴板相关变量已移除，改用无障碍服务监听
+    private var clipboardBroadcastReceiver: BroadcastReceiver? = null
     
     // 最近选中的APP相关
     private var recentAppButton: MaterialButton? = null
@@ -638,8 +633,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 加载最近选中的APP历史
         loadRecentAppsFromPrefs()
         
-        // 初始化剪贴板监听器
-        initClipboardListener()
+        // 初始化剪贴板广播接收器
+        initClipboardBroadcastReceiver()
         
         // 初始化应用切换监听器
         initAppSwitchListener()
@@ -739,11 +734,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             WindowManager.LayoutParams.MATCH_PARENT, // Use full width for the stage
             WindowManager.LayoutParams.WRAP_CONTENT, // Adjust height to content
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or 
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or 
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, // 允许触摸事件穿透到下层
-            // 移除 FLAG_NOT_FOCUSABLE，保持剪贴板监听器工作
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or // 允许触摸事件穿透到下层
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, // 添加此标志以确保穿透性
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START // Change gravity to START to avoid horizontal conflicts
@@ -1527,8 +1522,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         proxyIndicatorAnimator?.cancel()
         savePositionRunnable?.let { uiHandler.removeCallbacks(it) }
         
-        // 清理剪贴板监听器
-        cleanupClipboardListener()
+        // 清理剪贴板广播接收器
+        cleanupClipboardBroadcastReceiver()
         
         // 清理应用切换监听器
         cleanupAppSwitchListener()
@@ -4272,7 +4267,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 windowParams.flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 
                 // 更新窗口布局
                 windowManager?.updateViewLayout(windowContainerView, windowParams)
@@ -4302,7 +4298,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 windowParams.flags = WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 
                 // 更新窗口布局
                 windowManager?.updateViewLayout(windowContainerView, windowParams)
@@ -4395,74 +4392,32 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
-     * 初始化剪贴板监听器
+     * 初始化剪贴板广播接收器
      */
-    private fun initClipboardListener() {
+    private fun initClipboardBroadcastReceiver() {
         try {
-            clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            
-            clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
-                if (isClipboardAutoExpandEnabled) {
-                    handleClipboardChange()
+            clipboardBroadcastReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    if (intent?.action == MyAccessibilityService.ACTION_CLIPBOARD_CHANGED) {
+                        val content = intent.getStringExtra(MyAccessibilityService.EXTRA_CLIPBOARD_CONTENT)
+                        if (!content.isNullOrEmpty()) {
+                            Log.d(TAG, "收到剪贴板变化广播: ${content.take(50)}${if (content.length > 50) "..." else ""}")
+                            autoExpandForClipboard(content)
+                        }
+                    }
                 }
             }
-            
-            clipboardManager?.addPrimaryClipChangedListener(clipboardListener)
-            
-            // 初始化当前剪贴板内容
-            updateLastClipboardContent()
-            
-            Log.d(TAG, "剪贴板监听器已初始化")
+
+            val filter = IntentFilter(MyAccessibilityService.ACTION_CLIPBOARD_CHANGED)
+            LocalBroadcastManager.getInstance(this).registerReceiver(clipboardBroadcastReceiver!!, filter)
+
+            Log.d(TAG, "剪贴板广播接收器已初始化")
         } catch (e: Exception) {
-            Log.e(TAG, "初始化剪贴板监听器失败", e)
+            Log.e(TAG, "初始化剪贴板广播接收器失败", e)
         }
     }
     
-    /**
-     * 处理剪贴板变化
-     */
-    private fun handleClipboardChange() {
-        try {
-            val currentTime = System.currentTimeMillis()
-            
-            // 防抖处理：如果距离上次变化时间太短，忽略
-            if (currentTime - lastClipboardChangeTime < clipboardChangeDebounceTime) {
-                Log.d(TAG, "剪贴板变化过于频繁，忽略此次变化 (${currentTime - lastClipboardChangeTime}ms)")
-                return
-            }
-            
-            val currentContent = getCurrentClipboardContent()
-            
-            // 严格的内容验证
-            if (currentContent != null && 
-                currentContent.isNotEmpty() && 
-                currentContent != lastClipboardContent &&
-                isValidClipboardContent(currentContent) &&
-                isUserGeneratedClipboard(currentContent)) {
-                
-                Log.d(TAG, "检测到有效的剪贴板内容变化: ${currentContent.take(50)}${if (currentContent.length > 50) "..." else ""}")
-                
-                // 更新时间和内容
-                lastClipboardChangeTime = currentTime
-                lastClipboardContent = currentContent
-                
-                // 延迟一小段时间再展开，确保不是系统自动复制
-                windowContainerView?.postDelayed({
-                    // 再次验证内容是否还有效（避免快速变化的剪贴板）
-                    val verifyContent = getCurrentClipboardContent()
-                    if (verifyContent == currentContent) {
-                autoExpandForClipboard(currentContent)
-                    } else {
-                        Log.d(TAG, "剪贴板内容已变化，取消展开")
-                    }
-                }, 200) // 200ms延迟验证
-            } else {
-                Log.d(TAG, "剪贴板内容未通过验证或为重复内容")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "处理剪贴板变化失败", e)
-        }
-    }
+    // handleClipboardChange方法已移除，改用无障碍服务处理
     
     /**
      * 为剪贴板内容自动展开灵动岛
@@ -6160,111 +6115,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
     
-    /**
-     * 检查剪贴板内容是否有效
-     */
-    private fun isValidClipboardContent(content: String): Boolean {
-        // 过滤掉太短的内容（少于2个字符）
-        if (content.length < 2) {
-            Log.d(TAG, "剪贴板内容太短: ${content.length}")
-            return false
-        }
-        
-        // 过滤掉纯数字内容（可能是验证码等）
-        if (content.matches(Regex("^\\d+$"))) {
-            Log.d(TAG, "剪贴板内容为纯数字，可能是验证码")
-            return false
-        }
-        
-        // 过滤掉纯符号内容
-        if (content.matches(Regex("^[^\\p{L}\\p{N}]+$"))) {
-            Log.d(TAG, "剪贴板内容为纯符号")
-            return false
-        }
-        
-        // 过滤掉太长的内容（超过500字符）
-        if (content.length > 500) {
-            Log.d(TAG, "剪贴板内容太长: ${content.length}")
-            return false
-        }
-        
-        // 过滤掉空白字符（空格、换行等）
-        if (content.trim().isEmpty()) {
-            Log.d(TAG, "剪贴板内容为空白字符")
-            return false
-        }
-        
-        return true
-    }
+    // isValidClipboardContent方法已移除，改用无障碍服务处理
     
-    /**
-     * 检查是否为用户主动生成的剪贴板内容
-     * 过滤掉系统自动生成、应用自动复制等情况
-     */
-    private fun isUserGeneratedClipboard(content: String): Boolean {
-        // 过滤掉常见的系统自动复制内容
-        val systemPatterns = listOf(
-            // URL模式（除非是搜索关键词）
-            Regex("^https?://.*"),
-            // 文件路径模式
-            Regex("^[a-zA-Z]:\\\\.*"),
-            Regex("^/.*"),
-            // 包名模式
-            Regex("^[a-z]+\\.[a-z]+\\.[a-z]+.*"),
-            // 系统信息模式
-            Regex(".*Build.*API.*"),
-            Regex(".*Android.*version.*"),
-            // 错误日志模式
-            Regex(".*Exception.*at.*"),
-            Regex(".*Error.*line.*"),
-            // UUID模式
-            Regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
-            // Base64模式
-            Regex("^[A-Za-z0-9+/=]{20,}$")
-        )
-        
-        for (pattern in systemPatterns) {
-            if (pattern.matches(content)) {
-                Log.d(TAG, "剪贴板内容疑似系统自动生成: ${content.take(30)}...")
-                return false
-            }
-        }
-        
-        // 检查是否包含过多的特殊字符（可能是系统生成的token等）
-        val specialCharCount = content.count { !it.isLetterOrDigit() && !it.isWhitespace() && it !in ".,!?;:()[]{}\"'-_" }
-        val specialCharRatio = specialCharCount.toFloat() / content.length
-        if (specialCharRatio > 0.4) {
-            Log.d(TAG, "剪贴板内容包含过多特殊字符，疑似系统生成 (${String.format("%.1f", specialCharRatio * 100)}%)")
-            return false
-        }
-        
-        return true
-    }
+    // isUserGeneratedClipboard方法已移除，改用无障碍服务处理
     
-    /**
-     * 获取当前剪贴板内容
-     */
-    private fun getCurrentClipboardContent(): String? {
-        return try {
-            val clipData = clipboardManager?.primaryClip
-            if (clipData != null && clipData.itemCount > 0) {
-                val item = clipData.getItemAt(0)
-                item.text?.toString()
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "获取剪贴板内容失败", e)
-            null
-        }
-    }
-    
-    /**
-     * 更新最后记录的剪贴板内容
-     */
-    private fun updateLastClipboardContent() {
-        lastClipboardContent = getCurrentClipboardContent()
-    }
+    // getCurrentClipboardContent和updateLastClipboardContent方法已移除，改用无障碍服务处理
     
     /**
      * 自动粘贴剪贴板内容到搜索框（已禁用）
@@ -6300,19 +6155,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
-     * 清理剪贴板监听器
+     * 清理剪贴板广播接收器
      */
-    private fun cleanupClipboardListener() {
+    private fun cleanupClipboardBroadcastReceiver() {
         try {
-            clipboardListener?.let { listener ->
-                clipboardManager?.removePrimaryClipChangedListener(listener)
+            clipboardBroadcastReceiver?.let { receiver ->
+                LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver)
             }
-            clipboardListener = null
-            clipboardManager = null
-            lastClipboardContent = null
-            Log.d(TAG, "剪贴板监听器已清理")
+            clipboardBroadcastReceiver = null
+            Log.d(TAG, "剪贴板广播接收器已清理")
         } catch (e: Exception) {
-            Log.e(TAG, "清理剪贴板监听器失败", e)
+            Log.e(TAG, "清理剪贴板广播接收器失败", e)
         }
     }
     

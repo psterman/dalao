@@ -151,6 +151,18 @@ class PermissionManagementActivity : AppCompatActivity() {
                     android.util.Log.w("PermissionManagementFragment", "找不到notification_listener_permission偏好")
                 }
 
+                // 无障碍服务权限
+                val accessibilityPref = findPreference<Preference>("accessibility_service_permission")
+                if (accessibilityPref != null) {
+                    accessibilityPref.setOnPreferenceClickListener {
+                        requestAccessibilityServicePermission()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置无障碍服务权限偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到accessibility_service_permission偏好")
+                }
+
                 // 自启动权限
                 val autoStartPref = findPreference<Preference>("auto_start_permission")
                 if (autoStartPref != null) {
@@ -185,6 +197,18 @@ class PermissionManagementActivity : AppCompatActivity() {
                     android.util.Log.d("PermissionManagementFragment", "成功设置一键授权偏好")
                 } else {
                     android.util.Log.w("PermissionManagementFragment", "找不到one_click_authorization偏好")
+                }
+
+                // 剪贴板测试
+                val clipboardTestPref = findPreference<Preference>("clipboard_test")
+                if (clipboardTestPref != null) {
+                    clipboardTestPref.setOnPreferenceClickListener {
+                        startClipboardTest()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置剪贴板测试偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到clipboard_test偏好")
                 }
 
                 // 更新权限状态
@@ -240,6 +264,13 @@ class PermissionManagementActivity : AppCompatActivity() {
                 val hasListener = NotificationManagerCompat.getEnabledListenerPackages(context)
                     .contains(context.packageName)
                 listenerPref.summary = if (hasListener) "✓ 已授权" else "✗ 未授权"
+            }
+
+            // 更新无障碍服务权限状态
+            val accessibilityPref = findPreference<Preference>("accessibility_service_permission")
+            if (accessibilityPref != null) {
+                val hasAccessibility = isAccessibilityServiceEnabled(context)
+                accessibilityPref.summary = if (hasAccessibility) "✓ 已授权" else "✗ 未授权"
             }
             
             // 更新电池优化状态
@@ -400,6 +431,18 @@ class PermissionManagementActivity : AppCompatActivity() {
                 }
             }
         }
+
+        private fun startClipboardTest() {
+            android.util.Log.d("PermissionManagementFragment", "启动剪贴板测试")
+            try {
+                val intent = Intent(requireContext(), com.example.aifloatingball.debug.ClipboardTestActivity::class.java)
+                startActivity(intent)
+            } catch (e: Exception) {
+                android.util.Log.e("PermissionManagementFragment", "启动剪贴板测试失败", e)
+                // 显示错误提示
+                Toast.makeText(requireContext(), "启动测试失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
         
         private fun getAutoStartIntent(context: Context): Intent {
             val manufacturer = Build.MANUFACTURER.lowercase()
@@ -469,6 +512,25 @@ class PermissionManagementActivity : AppCompatActivity() {
             return intent
         }
         
+        private fun requestAccessibilityServicePermission() {
+            try {
+                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                startActivity(intent)
+                Toast.makeText(requireContext(), "请在无障碍设置中找到并开启本应用的无障碍服务", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(requireContext(), "无法打开无障碍设置页面", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        private fun isAccessibilityServiceEnabled(context: Context): Boolean {
+            val enabledServices = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            )
+            val serviceName = "${context.packageName}/${context.packageName}.service.MyAccessibilityService"
+            return enabledServices?.contains(serviceName) == true
+        }
+
         override fun onResume() {
             super.onResume()
             // 当从系统设置返回时，更新权限状态
