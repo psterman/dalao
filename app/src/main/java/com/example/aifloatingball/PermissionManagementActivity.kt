@@ -211,6 +211,30 @@ class PermissionManagementActivity : AppCompatActivity() {
                     android.util.Log.w("PermissionManagementFragment", "找不到clipboard_test偏好")
                 }
 
+                // 跨应用剪贴板测试
+                val crossAppTestPref = findPreference<Preference>("cross_app_clipboard_test")
+                if (crossAppTestPref != null) {
+                    crossAppTestPref.setOnPreferenceClickListener {
+                        startCrossAppClipboardTest()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置跨应用剪贴板测试偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到cross_app_clipboard_test偏好")
+                }
+
+                // 后台剪贴板突破测试
+                val backgroundTestPref = findPreference<Preference>("background_clipboard_test")
+                if (backgroundTestPref != null) {
+                    backgroundTestPref.setOnPreferenceClickListener {
+                        startBackgroundClipboardTest()
+                        true
+                    }
+                    android.util.Log.d("PermissionManagementFragment", "成功设置后台剪贴板测试偏好")
+                } else {
+                    android.util.Log.w("PermissionManagementFragment", "找不到background_clipboard_test偏好")
+                }
+
                 // 更新权限状态
                 updatePermissionStatus()
                 android.util.Log.d("PermissionManagementFragment", "权限偏好设置完成")
@@ -439,6 +463,30 @@ class PermissionManagementActivity : AppCompatActivity() {
                 startActivity(intent)
             } catch (e: Exception) {
                 android.util.Log.e("PermissionManagementFragment", "启动剪贴板测试失败", e)
+                // 显示错误提示
+                Toast.makeText(requireContext(), "启动测试失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        private fun startCrossAppClipboardTest() {
+            android.util.Log.d("PermissionManagementFragment", "启动跨应用剪贴板测试")
+            try {
+                val intent = Intent(requireContext(), com.example.aifloatingball.debug.CrossAppClipboardTestActivity::class.java)
+                startActivity(intent)
+            } catch (e: Exception) {
+                android.util.Log.e("PermissionManagementFragment", "启动跨应用剪贴板测试失败", e)
+                // 显示错误提示
+                Toast.makeText(requireContext(), "启动测试失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        private fun startBackgroundClipboardTest() {
+            android.util.Log.d("PermissionManagementFragment", "启动后台剪贴板突破测试")
+            try {
+                val intent = Intent(requireContext(), com.example.aifloatingball.debug.BackgroundClipboardTestActivity::class.java)
+                startActivity(intent)
+            } catch (e: Exception) {
+                android.util.Log.e("PermissionManagementFragment", "启动后台剪贴板测试失败", e)
                 // 显示错误提示
                 Toast.makeText(requireContext(), "启动测试失败: ${e.message}", Toast.LENGTH_SHORT).show()
             }

@@ -82,7 +82,25 @@
                 app:iconSize="14dp"
                 app:iconTint="@color/dynamic_island_button_icon" />
 
-            <!-- 第四个按钮：设置 -->
+            <!-- 第四个按钮：展开 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_expand"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/dynamic_island_expand_button_background"
+                android:contentDescription="展开界面"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_expand_more"
+                app:icon="@drawable/ic_expand_more"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="14dp"
+                app:iconTint="@color/dynamic_island_expand_button_icon" />
+
+            <!-- 第五个按钮：设置 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_settings"
                 style="@style/Widget.Material3.Button.IconButton"
@@ -100,7 +118,7 @@
                 app:iconSize="14dp"
                 app:iconTint="@color/dynamic_island_button_icon" />
 
-            <!-- 第五个按钮：退出关闭 -->
+            <!-- 第六个按钮：退出关闭 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_exit"
                 style="@style/Widget.Material3.Button.IconButton"

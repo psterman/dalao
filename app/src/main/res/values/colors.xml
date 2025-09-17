@@ -290,6 +290,7 @@
     <color name="dynamic_island_input_hint">#888888</color>
     <color name="dynamic_island_text_color">#333333</color>
     <color name="dynamic_island_button_icon">#666666</color>
+    <color name="dynamic_island_expand_button_icon">#4CAF50</color>
     <color name="dynamic_island_preview_background">#0F000000</color>
     <color name="dynamic_island_scrollbar_track">#1A000000</color>
     <color name="dynamic_island_scrollbar_thumb">#66FFFFFF</color>

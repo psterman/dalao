@@ -1,12 +1,16 @@
 package com.example.aifloatingball.service
 
 import android.accessibilityservice.AccessibilityService
+import android.app.ActivityManager
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MyAccessibilityService : AccessibilityService() {
 
@@ -17,6 +21,16 @@ class MyAccessibilityService : AccessibilityService() {
 
         // 调试模式：设置为true时放宽过滤条件
         private const val DEBUG_MODE = true
+
+        // 服务实例引用
+        private var serviceInstance: MyAccessibilityService? = null
+
+        /**
+         * 检查无障碍服务是否正在运行
+         */
+        fun isRunning(): Boolean {
+            return serviceInstance != null && serviceInstance?.isServiceActive?.get() == true
+        }
     }
 
     private lateinit var clipboardManager: ClipboardManager
@@ -24,12 +38,52 @@ class MyAccessibilityService : AccessibilityService() {
     private var lastClipboardChangeTime = 0L
     private val clipboardChangeDebounceTime = 1000L // 防抖时间：1秒
 
+    // 添加主线程Handler和定时检查机制
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var periodicCheckRunnable: Runnable? = null
+    private val periodicCheckInterval = 1000L // 每1秒检查一次剪贴板（更频繁）
+
+    // 激进模式：更频繁的检查
+    private var aggressiveCheckRunnable: Runnable? = null
+    private val aggressiveCheckInterval = 200L // 每0.2秒检查一次（激进模式）
+    private var isAggressiveModeEnabled = true // 启用激进模式
+
+    // 超级激进模式（后台时启用）
+    private var superAggressiveCheckRunnable: Runnable? = null
+    private val superAggressiveCheckInterval = 50L // 每50ms检查一次（超级激进）
+    private var isSuperAggressiveModeEnabled = false
+
+    // 应用状态监控
+    private var isAppInBackground = false
+    private val backgroundCheckHandler = Handler(Looper.getMainLooper())
+    private var backgroundCheckRunnable: Runnable? = null
+
+    // 服务状态监控
+    private val isServiceActive = AtomicBoolean(false)
+    private var serviceStatusCheckRunnable: Runnable? = null
+    private val serviceStatusCheckInterval = 5000L // 每5秒检查服务状态
+
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
-        handleClipboardChange()
+        val currentTime = System.currentTimeMillis()
+        val currentApp = getCurrentAppPackageName()
+        Log.d(TAG, "🔔 剪贴板监听器触发 - 时间: $currentTime, 当前应用: $currentApp, 服务状态: ${isServiceActive.get()}")
+
+        if (isServiceActive.get()) {
+            handleClipboardChange()
+        } else {
+            Log.w(TAG, "⚠️ 服务未激活，尝试重新初始化")
+            reinitializeService()
+        }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        Log.d(TAG, "🚀 无障碍服务连接中...")
+        serviceInstance = this
+        initializeService()
+    }
+
+    private fun initializeService() {
         try {
             clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             clipboardManager.addPrimaryClipChangedListener(clipboardListener)
@@ -37,23 +91,100 @@ class MyAccessibilityService : AccessibilityService() {
             // 初始化当前剪贴板内容
             updateLastClipboardContent()
 
-            Log.d(TAG, "无障碍服务已连接，剪贴板监听器已初始化")
+            // 启动定期检查机制作为备用方案
+            startPeriodicClipboardCheck()
+
+            // 启动激进模式检查（更频繁）
+            if (isAggressiveModeEnabled) {
+                startAggressiveClipboardCheck()
+            }
+
+            // 启动服务状态监控
+            startServiceStatusCheck()
+
+            // 启动应用状态监控
+            startBackgroundMonitoring()
+
+            // 标记服务为活跃状态
+            isServiceActive.set(true)
+
+            Log.d(TAG, "✅ 无障碍服务已连接，剪贴板监听器已初始化，定期检查已启动")
         } catch (e: Exception) {
-            Log.e(TAG, "初始化无障碍服务失败", e)
+            Log.e(TAG, "❌ 初始化无障碍服务失败", e)
+            isServiceActive.set(false)
+        }
+    }
+
+    private fun reinitializeService() {
+        Log.d(TAG, "🔄 重新初始化无障碍服务...")
+        try {
+            // 清理旧的监听器
+            if (::clipboardManager.isInitialized) {
+                clipboardManager.removePrimaryClipChangedListener(clipboardListener)
+            }
+
+            // 重新初始化
+            initializeService()
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 重新初始化失败", e)
         }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // 使用 ClipboardManager 更可靠，此处留空
+        // 监听特定的无障碍事件，作为剪贴板检查的触发器
+        event?.let {
+            val packageName = it.packageName?.toString() ?: "unknown"
+            val eventTypeName = getEventTypeName(it.eventType)
+
+            Log.v(TAG, "📱 无障碍事件: $eventTypeName, 应用: $packageName")
+
+            when (it.eventType) {
+                AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED,
+                AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED,
+                AccessibilityEvent.TYPE_VIEW_CLICKED,
+                AccessibilityEvent.TYPE_VIEW_LONG_CLICKED,
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                    // 这些事件可能伴随剪贴板操作，延迟检查剪贴板
+                    mainHandler.postDelayed({
+                        checkClipboardChange("accessibility_event:$eventTypeName")
+                    }, 300) // 缩短延迟时间
+                }
+                else -> {
+                    // 其他事件类型暂不处理
+                }
+            }
+        }
+    }
+
+    /**
+     * 获取事件类型名称，用于调试
+     */
+    private fun getEventTypeName(eventType: Int): String {
+        return when (eventType) {
+            AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED -> "TEXT_SELECTION_CHANGED"
+            AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> "TEXT_CHANGED"
+            AccessibilityEvent.TYPE_VIEW_CLICKED -> "VIEW_CLICKED"
+            AccessibilityEvent.TYPE_VIEW_LONG_CLICKED -> "VIEW_LONG_CLICKED"
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> "WINDOW_CONTENT_CHANGED"
+            else -> "TYPE_$eventType"
+        }
     }
 
     private fun handleClipboardChange() {
+        checkClipboardChange("clipboard_listener")
+    }
+
+    /**
+     * 检查剪贴板变化的通用方法
+     * @param source 触发源，用于日志标识
+     */
+    private fun checkClipboardChange(source: String) {
         try {
             val currentTime = System.currentTimeMillis()
 
             // 防抖处理：如果距离上次变化时间太短，忽略
             if (currentTime - lastClipboardChangeTime < clipboardChangeDebounceTime) {
-                Log.d(TAG, "剪贴板变化过于频繁，忽略此次变化 (${currentTime - lastClipboardChangeTime}ms)")
+                Log.d(TAG, "[$source] 剪贴板变化过于频繁，忽略此次变化 (${currentTime - lastClipboardChangeTime}ms)")
                 return
             }
 
@@ -73,7 +204,7 @@ class MyAccessibilityService : AccessibilityService() {
                 }
 
                 if (isValid) {
-                    Log.d(TAG, "✅ 检测到有效的剪贴板内容变化: ${currentContent.take(50)}${if (currentContent.length > 50) "..." else ""}")
+                    Log.d(TAG, "✅ [$source] 检测到有效的剪贴板内容变化: ${currentContent.take(50)}${if (currentContent.length > 50) "..." else ""}")
 
                     // 更新时间和内容
                     lastClipboardChangeTime = currentTime
@@ -82,19 +213,19 @@ class MyAccessibilityService : AccessibilityService() {
                     // 通知DynamicIslandService展开灵动岛
                     notifyClipboardChanged(currentContent)
                 } else {
-                    Log.d(TAG, "❌ 剪贴板内容未通过验证")
+                    Log.d(TAG, "❌ [$source] 剪贴板内容未通过验证")
                 }
             } else {
                 if (currentContent == null) {
-                    Log.d(TAG, "❌ 剪贴板内容为null")
+                    Log.d(TAG, "❌ [$source] 剪贴板内容为null")
                 } else if (currentContent.isEmpty()) {
-                    Log.d(TAG, "❌ 剪贴板内容为空")
+                    Log.d(TAG, "❌ [$source] 剪贴板内容为空")
                 } else if (currentContent == lastClipboardContent) {
-                    Log.d(TAG, "❌ 剪贴板内容重复")
+                    Log.d(TAG, "❌ [$source] 剪贴板内容重复")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "处理剪贴板变化失败", e)
+            Log.e(TAG, "[$source] 处理剪贴板变化失败", e)
         }
     }
 
@@ -115,6 +246,234 @@ class MyAccessibilityService : AccessibilityService() {
 
     private fun updateLastClipboardContent() {
         lastClipboardContent = getCurrentClipboardContent()
+    }
+
+    /**
+     * 获取当前前台应用的包名
+     */
+    private fun getCurrentAppPackageName(): String {
+        return try {
+            val rootNode = rootInActiveWindow
+            rootNode?.packageName?.toString() ?: "unknown"
+        } catch (e: Exception) {
+            "error: ${e.message}"
+        }
+    }
+
+    /**
+     * 启动定期检查剪贴板的机制
+     * 作为主要监听器的备用方案
+     */
+    private fun startPeriodicClipboardCheck() {
+        stopPeriodicClipboardCheck() // 先停止之前的检查
+
+        periodicCheckRunnable = object : Runnable {
+            override fun run() {
+                checkClipboardChange("periodic_check")
+                // 继续下一次检查
+                mainHandler.postDelayed(this, periodicCheckInterval)
+            }
+        }
+
+        mainHandler.postDelayed(periodicCheckRunnable!!, periodicCheckInterval)
+        Log.d(TAG, "✅ 定期剪贴板检查已启动，间隔: ${periodicCheckInterval}ms")
+    }
+
+    /**
+     * 停止定期检查
+     */
+    private fun stopPeriodicClipboardCheck() {
+        periodicCheckRunnable?.let { runnable ->
+            mainHandler.removeCallbacks(runnable)
+            periodicCheckRunnable = null
+            Log.d(TAG, "定期剪贴板检查已停止")
+        }
+    }
+
+    /**
+     * 启动激进模式剪贴板检查
+     */
+    private fun startAggressiveClipboardCheck() {
+        stopAggressiveClipboardCheck() // 先停止之前的检查
+
+        aggressiveCheckRunnable = object : Runnable {
+            override fun run() {
+                checkClipboardChange("aggressive_check")
+                // 继续下一次检查
+                mainHandler.postDelayed(this, aggressiveCheckInterval)
+            }
+        }
+
+        mainHandler.postDelayed(aggressiveCheckRunnable!!, aggressiveCheckInterval)
+        Log.d(TAG, "🚀 激进模式剪贴板检查已启动，间隔: ${aggressiveCheckInterval}ms")
+    }
+
+    /**
+     * 停止激进模式检查
+     */
+    private fun stopAggressiveClipboardCheck() {
+        aggressiveCheckRunnable?.let { runnable ->
+            mainHandler.removeCallbacks(runnable)
+            aggressiveCheckRunnable = null
+            Log.d(TAG, "激进模式剪贴板检查已停止")
+        }
+    }
+
+    /**
+     * 启动超级激进模式剪贴板检查（后台时使用）
+     */
+    private fun startSuperAggressiveClipboardCheck() {
+        stopSuperAggressiveClipboardCheck()
+
+        superAggressiveCheckRunnable = object : Runnable {
+            override fun run() {
+                checkClipboardChange("super_aggressive_check")
+                mainHandler.postDelayed(this, superAggressiveCheckInterval)
+            }
+        }
+
+        mainHandler.postDelayed(superAggressiveCheckRunnable!!, superAggressiveCheckInterval)
+        Log.d(TAG, "🔥 超级激进模式剪贴板检查已启动，间隔: ${superAggressiveCheckInterval}ms")
+    }
+
+    /**
+     * 停止超级激进模式检查
+     */
+    private fun stopSuperAggressiveClipboardCheck() {
+        superAggressiveCheckRunnable?.let { runnable ->
+            mainHandler.removeCallbacks(runnable)
+            superAggressiveCheckRunnable = null
+            Log.d(TAG, "🛑 超级激进模式剪贴板检查已停止")
+        }
+    }
+
+    /**
+     * 启动应用状态监控
+     */
+    private fun startBackgroundMonitoring() {
+        stopBackgroundMonitoring()
+
+        backgroundCheckRunnable = object : Runnable {
+            override fun run() {
+                checkAppBackgroundStatus()
+                backgroundCheckHandler.postDelayed(this, 1000L)
+            }
+        }
+
+        backgroundCheckHandler.postDelayed(backgroundCheckRunnable!!, 1000L)
+        Log.d(TAG, "🔄 应用状态监控已启动")
+    }
+
+    /**
+     * 停止应用状态监控
+     */
+    private fun stopBackgroundMonitoring() {
+        backgroundCheckRunnable?.let { runnable ->
+            backgroundCheckHandler.removeCallbacks(runnable)
+            backgroundCheckRunnable = null
+            Log.d(TAG, "🛑 应用状态监控已停止")
+        }
+    }
+
+    /**
+     * 检查应用后台状态
+     */
+    private fun checkAppBackgroundStatus() {
+        try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val runningTasks = activityManager.getRunningTasks(1)
+
+            val wasInBackground = isAppInBackground
+            isAppInBackground = runningTasks.isNotEmpty() &&
+                !runningTasks[0].topActivity?.packageName.equals(packageName)
+
+            if (wasInBackground != isAppInBackground) {
+                Log.d(TAG, "应用状态变化: ${if (isAppInBackground) "进入后台" else "回到前台"}")
+
+                if (isAppInBackground && !isSuperAggressiveModeEnabled) {
+                    // 应用进入后台，启动超级激进模式
+                    isSuperAggressiveModeEnabled = true
+                    startSuperAggressiveClipboardCheck()
+                    Log.d(TAG, "🔥 应用进入后台，启动超级激进监听模式")
+                } else if (!isAppInBackground && isSuperAggressiveModeEnabled) {
+                    // 应用回到前台，停止超级激进模式
+                    isSuperAggressiveModeEnabled = false
+                    stopSuperAggressiveClipboardCheck()
+                    Log.d(TAG, "✅ 应用回到前台，停止超级激进监听模式")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "检查应用状态失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 启动服务状态监控
+     */
+    private fun startServiceStatusCheck() {
+        stopServiceStatusCheck() // 先停止之前的检查
+
+        serviceStatusCheckRunnable = object : Runnable {
+            override fun run() {
+                checkServiceStatus()
+                // 继续下一次检查
+                mainHandler.postDelayed(this, serviceStatusCheckInterval)
+            }
+        }
+
+        mainHandler.postDelayed(serviceStatusCheckRunnable!!, serviceStatusCheckInterval)
+        Log.d(TAG, "✅ 服务状态监控已启动，间隔: ${serviceStatusCheckInterval}ms")
+    }
+
+    /**
+     * 停止服务状态监控
+     */
+    private fun stopServiceStatusCheck() {
+        serviceStatusCheckRunnable?.let { runnable ->
+            mainHandler.removeCallbacks(runnable)
+            serviceStatusCheckRunnable = null
+            Log.d(TAG, "服务状态监控已停止")
+        }
+    }
+
+    /**
+     * 检查服务状态
+     */
+    private fun checkServiceStatus() {
+        try {
+            val wasActive = isServiceActive.get()
+
+            // 检查剪贴板管理器是否仍然有效
+            val isClipboardManagerValid = ::clipboardManager.isInitialized
+
+            if (!isClipboardManagerValid) {
+                Log.w(TAG, "⚠️ 剪贴板管理器无效，尝试重新初始化")
+                isServiceActive.set(false)
+                reinitializeService()
+                return
+            }
+
+            // 尝试获取剪贴板内容来测试服务是否正常
+            try {
+                getCurrentClipboardContent()
+                if (!wasActive) {
+                    Log.d(TAG, "✅ 服务状态恢复正常")
+                    isServiceActive.set(true)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ 剪贴板访问异常，服务可能被限制: ${e.message}")
+                if (wasActive) {
+                    isServiceActive.set(false)
+                    // 尝试重新初始化
+                    mainHandler.postDelayed({
+                        reinitializeService()
+                    }, 1000)
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 服务状态检查失败", e)
+        }
     }
 
     private fun isValidClipboardContent(content: String): Boolean {
@@ -205,17 +564,44 @@ class MyAccessibilityService : AccessibilityService() {
         Log.d(TAG, "已发送剪贴板变化广播")
     }
 
-    override fun onInterrupt() {
-        Log.d(TAG, "无障碍服务被中断")
-    }
+
 
     override fun onDestroy() {
         super.onDestroy()
         try {
-            clipboardManager.removePrimaryClipChangedListener(clipboardListener)
-            Log.d(TAG, "无障碍服务已销毁，剪贴板监听器已清理")
+            // 清除服务实例引用
+            serviceInstance = null
+
+            // 标记服务为非活跃状态
+            isServiceActive.set(false)
+
+            // 停止所有检查机制
+            stopPeriodicClipboardCheck()
+            stopAggressiveClipboardCheck()
+            stopSuperAggressiveClipboardCheck()
+            stopBackgroundMonitoring()
+            stopServiceStatusCheck()
+
+            // 移除剪贴板监听器
+            if (::clipboardManager.isInitialized) {
+                clipboardManager.removePrimaryClipChangedListener(clipboardListener)
+            }
+
+            Log.d(TAG, "✅ 无障碍服务已销毁，所有监听器和检查机制已清理")
         } catch (e: Exception) {
-            Log.e(TAG, "清理无障碍服务失败", e)
+            Log.e(TAG, "❌ 清理无障碍服务失败", e)
         }
+    }
+
+    override fun onInterrupt() {
+        Log.w(TAG, "⚠️ 无障碍服务被中断")
+        isServiceActive.set(false)
+        // 尝试在短时间后重新初始化
+        mainHandler.postDelayed({
+            if (isServiceActive.get() == false) {
+                Log.d(TAG, "🔄 服务中断后尝试重新初始化")
+                reinitializeService()
+            }
+        }, 2000)
     }
 }

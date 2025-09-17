@@ -546,5 +546,258 @@ class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPrefere
             }
             preferenceScreen.addPreference(addEnginePref)
         }
+
+        private fun updateCategoryVisibility(displayMode: String) {
+            findPreference<Preference>("category_floating_ball")?.isVisible = displayMode == "floating_ball"
+            findPreference<Preference>("category_dynamic_island")?.isVisible = displayMode == "dynamic_island"
+            findPreference<Preference>("category_simple_mode")?.isVisible = displayMode == "simple_mode"
+            // AI助手分类在所有模式下都可见
+            findPreference<Preference>("category_ai_assistant")?.isVisible = true
+        }
+
+
+
+        override fun onPreferenceTreeClick(preference: Preference): Boolean {
+
+            when (preference.key) {
+
+                "view_search_history" -> {
+
+                    startActivity(Intent(requireContext(), SearchHistoryActivity::class.java))
+
+                    return true
+
+                }
+
+                "permission_management" -> {
+
+                    startActivity(Intent(requireContext(), PermissionManagementActivity::class.java))
+
+                    return true
+
+                }
+
+                "onboarding_guide" -> {
+
+                    startActivity(Intent(requireContext(), com.example.aifloatingball.ui.onboarding.OnboardingActivity::class.java))
+
+                    return true
+
+                }
+
+                "select_apps_for_notification" -> {
+
+                    startActivity(Intent(requireContext(), com.example.aifloatingball.settings.AppSelectionActivity::class.java))
+
+                    return true
+
+                }
+
+                "test_notification" -> {
+
+                    sendTestNotification()
+
+                    return true
+
+                }
+
+                "app_search_settings" -> {
+
+                    startActivity(Intent(requireContext(), com.example.aifloatingball.settings.AppSearchSettingsActivity::class.java))
+
+                    return true
+
+                }
+
+                "search_engine_settings" -> {
+
+                    startActivity(Intent(requireContext(), SearchEngineSettingsActivity::class.java))
+
+                    return true
+
+                }
+
+                "ai_search_engine_settings" -> {
+
+                    startActivity(Intent(requireContext(), AISearchEngineSettingsActivity::class.java))
+
+                    return true
+
+                }
+
+                "menu_manager" -> {
+
+                    startActivity(Intent(requireContext(), MenuManagerActivity::class.java))
+
+                    return true
+
+                }
+
+                "master_prompt_settings" -> {
+
+                    startActivity(Intent(requireContext(), MasterPromptSettingsActivity::class.java))
+
+                    return true
+
+                }
+
+                "ai_api_settings" -> {
+
+                    startActivity(Intent(requireContext(), AIApiSettingsActivity::class.java))
+
+                    return true
+
+                }
+
+            }
+
+            return super.onPreferenceTreeClick(preference)
+
+        }
+
+
+
+        private fun sendTestNotification() {
+
+            val context = requireContext()
+
+            val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
+
+            val packageName = context.packageName
+
+
+
+            // 1. Temporarily add this app to the notification whitelist
+
+            val originalWhitelist = sharedPreferences.getStringSet("selected_notification_apps", null)
+
+            val newWhitelist = originalWhitelist?.toMutableSet() ?: mutableSetOf()
+
+            val wasInWhitelist = newWhitelist.contains(packageName)
+
+            if (!wasInWhitelist) {
+
+                newWhitelist.add(packageName)
+
+                sharedPreferences.edit().putStringSet("selected_notification_apps", newWhitelist).apply()
+
+            }
+
+            
+
+            // 创建测试通知
+
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            
+
+            // 创建通知渠道 (Android 8.0+)
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+                val channel = NotificationChannel(
+
+                    "test_notification_channel",
+
+                    "测试通知",
+
+                    NotificationManager.IMPORTANCE_LOW
+
+                ).apply {
+
+                    description = "用于测试灵动岛通知功能的通知渠道"
+
+                }
+
+                notificationManager.createNotificationChannel(channel)
+
+            }
+
+            
+
+            // 创建通知内容
+
+            val testMessages = listOf(
+
+                "这是一个测试通知" to "点击可以将此内容作为搜索关键词使用",
+
+                "微信消息" to "张三: 今天天气不错，要不要一起出去玩？",
+
+                "淘宝购物" to "您的订单已发货，预计明天到达，请注意查收",
+
+                "系统提醒" to "您的手机存储空间不足，建议清理缓存文件",
+
+                "新闻推送" to "科技新闻: AI技术在移动应用中的最新应用趋势"
+
+            )
+
+            
+
+            val randomMessage = testMessages.random()
+
+            
+
+            val notification = NotificationCompat.Builder(context, "test_notification_channel")
+
+                .setSmallIcon(R.mipmap.ic_launcher)
+
+                .setContentTitle(randomMessage.first)
+
+                .setContentText(randomMessage.second)
+
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+
+                .setAutoCancel(true)
+
+                .setTimeoutAfter(10000) // 10秒后自动消失
+
+                .build()
+
+            
+
+            // 发送通知
+
+            val notificationId = System.currentTimeMillis().toInt()
+
+            notificationManager.notify(notificationId, notification)
+
+            
+
+            // 显示提示
+
+            Toast.makeText(context, "测试通知已发送，请查看灵动岛显示效果", Toast.LENGTH_SHORT).show()
+
+
+
+            // 2. Restore the original whitelist after a short delay
+
+            Handler(Looper.getMainLooper()).postDelayed({
+
+                if (!wasInWhitelist) {
+
+                    // Only remove if it wasn't there originally
+
+                    val currentWhitelist = sharedPreferences.getStringSet("selected_notification_apps", null)?.toMutableSet()
+
+                    currentWhitelist?.remove(packageName)
+
+                    sharedPreferences.edit().putStringSet("selected_notification_apps", currentWhitelist).apply()
+
+                }
+
+            }, 1000) // 1-second delay is enough for the notification to be processed
+
+            
+
+            // 延迟移除通知以模拟真实场景
+
+            Handler(Looper.getMainLooper()).postDelayed({
+
+                notificationManager.cancel(notificationId)
+
+            }, 15000) // 15秒后移除
+
+        }
+
     }
-} 
+}

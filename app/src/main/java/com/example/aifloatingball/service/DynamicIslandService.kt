@@ -635,6 +635,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 初始化剪贴板广播接收器
         initClipboardBroadcastReceiver()
+
+        // 启动剪贴板前台服务
+        startClipboardForegroundService()
         
         // 初始化应用切换监听器
         initAppSwitchListener()
@@ -1524,7 +1527,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 清理剪贴板广播接收器
         cleanupClipboardBroadcastReceiver()
-        
+
+        // 停止剪贴板前台服务
+        stopClipboardForegroundService()
+
         // 清理应用切换监听器
         cleanupAppSwitchListener()
     }
@@ -4398,22 +4404,71 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         try {
             clipboardBroadcastReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
-                    if (intent?.action == MyAccessibilityService.ACTION_CLIPBOARD_CHANGED) {
-                        val content = intent.getStringExtra(MyAccessibilityService.EXTRA_CLIPBOARD_CONTENT)
-                        if (!content.isNullOrEmpty()) {
-                            Log.d(TAG, "收到剪贴板变化广播: ${content.take(50)}${if (content.length > 50) "..." else ""}")
-                            autoExpandForClipboard(content)
+                    when (intent?.action) {
+                        MyAccessibilityService.ACTION_CLIPBOARD_CHANGED -> {
+                            val content = intent.getStringExtra(MyAccessibilityService.EXTRA_CLIPBOARD_CONTENT)
+                            if (!content.isNullOrEmpty()) {
+                                Log.d(TAG, "收到无障碍服务剪贴板广播: ${content.take(50)}${if (content.length > 50) "..." else ""}")
+                                autoExpandForClipboard(content)
+                            }
+                        }
+                        ClipboardForegroundService.ACTION_CLIPBOARD_DETECTED -> {
+                            val content = intent.getStringExtra(ClipboardForegroundService.EXTRA_CLIPBOARD_CONTENT)
+                            if (!content.isNullOrEmpty()) {
+                                Log.d(TAG, "收到前台服务剪贴板广播: ${content.take(50)}${if (content.length > 50) "..." else ""}")
+                                autoExpandForClipboard(content)
+                            }
                         }
                     }
                 }
             }
 
-            val filter = IntentFilter(MyAccessibilityService.ACTION_CLIPBOARD_CHANGED)
+            val filter = IntentFilter().apply {
+                addAction(MyAccessibilityService.ACTION_CLIPBOARD_CHANGED)
+                addAction(ClipboardForegroundService.ACTION_CLIPBOARD_DETECTED)
+            }
             LocalBroadcastManager.getInstance(this).registerReceiver(clipboardBroadcastReceiver!!, filter)
 
-            Log.d(TAG, "剪贴板广播接收器已初始化")
+            Log.d(TAG, "剪贴板广播接收器已初始化（支持双重监听）")
         } catch (e: Exception) {
             Log.e(TAG, "初始化剪贴板广播接收器失败", e)
+        }
+    }
+
+    /**
+     * 启动剪贴板前台服务
+     */
+    private fun startClipboardForegroundService() {
+        try {
+            val intent = Intent(this, ClipboardForegroundService::class.java).apply {
+                action = ClipboardForegroundService.ACTION_START_MONITORING
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+
+            Log.d(TAG, "✅ 剪贴板前台服务已启动")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 启动剪贴板前台服务失败", e)
+        }
+    }
+
+    /**
+     * 停止剪贴板前台服务
+     */
+    private fun stopClipboardForegroundService() {
+        try {
+            val intent = Intent(this, ClipboardForegroundService::class.java).apply {
+                action = ClipboardForegroundService.ACTION_STOP_MONITORING
+            }
+            startService(intent)
+
+            Log.d(TAG, "✅ 剪贴板前台服务已停止")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 停止剪贴板前台服务失败", e)
         }
     }
     
@@ -7446,6 +7501,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val btnAiAssistant = view.findViewById<MaterialButton>(R.id.btn_ai_assistant)
         val btnApps = view.findViewById<MaterialButton>(R.id.btn_apps)
         val btnSearch = view.findViewById<MaterialButton>(R.id.btn_search)
+        val btnExpand = view.findViewById<MaterialButton>(R.id.btn_expand)
         val btnSettings = view.findViewById<MaterialButton>(R.id.btn_settings)
         val btnExit = view.findViewById<MaterialButton>(R.id.btn_exit)
 
@@ -7473,6 +7529,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             showSearchDialog()
         }
 
+        // 展开按钮 - 手动触发展开界面
+        btnExpand?.setOnClickListener {
+            Log.d(TAG, "展开按钮被点击 - 手动触发展开界面")
+            triggerManualExpansion(view)
+        }
+
         // 设置按钮
         btnSettings?.setOnClickListener {
             Log.d(TAG, "设置按钮被点击")
@@ -7491,6 +7553,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Log.d(TAG, "灵动岛长按，显示扩展菜单")
             showExpandedMenu(view)
             true
+        }
+    }
+
+    /**
+     * 手动触发展开界面 - 显示最近打开的app和AI查询界面
+     */
+    private fun triggerManualExpansion(view: View) {
+        try {
+            Log.d(TAG, "手动触发展开界面")
+
+            // 获取当前剪贴板内容，如果没有则使用默认文本
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val currentClipboard = clipboardManager.primaryClip?.getItemAt(0)?.text?.toString()
+            val displayContent = if (!currentClipboard.isNullOrBlank()) {
+                currentClipboard
+            } else {
+                "点击展开查看最近应用和AI助手"
+            }
+
+            // 使用与剪贴板触发相同的展开逻辑
+            expandIslandForClipboard(displayContent)
+
+            Log.d(TAG, "手动展开界面完成，显示内容: $displayContent")
+        } catch (e: Exception) {
+            Log.e(TAG, "手动触发展开界面失败", e)
         }
 
         // 设置扩展菜单按钮

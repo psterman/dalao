@@ -102,6 +102,20 @@
             app:icon="@drawable/ic_accessibility"
             app:selectable="true" />
 
+        <Preference
+            app:key="cross_app_clipboard_test"
+            app:title="跨应用剪贴板测试"
+            app:summary="测试在其他应用中复制文本时的监听功能"
+            app:icon="@drawable/ic_accessibility"
+            app:selectable="true" />
+
+        <Preference
+            app:key="background_clipboard_test"
+            app:title="🔥 后台剪贴板突破测试"
+            app:summary="专门测试应用在后台时的剪贴板监听能力，突破系统限制"
+            app:icon="@drawable/ic_accessibility"
+            app:selectable="true" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

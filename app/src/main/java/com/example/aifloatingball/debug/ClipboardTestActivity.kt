@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.widget.Button
@@ -24,6 +26,11 @@ class ClipboardTestActivity : Activity() {
     private lateinit var statusText: TextView
     private lateinit var logText: TextView
     private var clipboardReceiver: BroadcastReceiver? = null
+
+    // 添加状态监控
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private var statusCheckRunnable: Runnable? = null
+    private val statusCheckInterval = 3000L // 每3秒检查一次状态
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +62,27 @@ class ClipboardTestActivity : Activity() {
             setOnClickListener { testClipboard() }
         }
         layout.addView(testButton)
+
+        // 测试其他应用剪贴板按钮
+        val testOtherButton = Button(this).apply {
+            text = "模拟其他应用复制"
+            setOnClickListener { simulateOtherAppCopy() }
+        }
+        layout.addView(testOtherButton)
+
+        // 清除日志按钮
+        val clearLogButton = Button(this).apply {
+            text = "清除日志"
+            setOnClickListener { clearLog() }
+        }
+        layout.addView(clearLogButton)
+
+        // 强制检查服务状态按钮
+        val forceCheckButton = Button(this).apply {
+            text = "强制检查服务状态"
+            setOnClickListener { forceCheckServiceStatus() }
+        }
+        layout.addView(forceCheckButton)
         
         // 日志显示
         logText = TextView(this).apply {
@@ -70,9 +98,12 @@ class ClipboardTestActivity : Activity() {
         
         // 检查无障碍服务状态
         checkAccessibilityServiceStatus()
-        
+
         // 注册剪贴板广播接收器
         setupClipboardReceiver()
+
+        // 启动状态监控
+        startStatusMonitoring()
     }
     
     private fun checkAccessibilityServiceStatus() {
@@ -111,9 +142,73 @@ class ClipboardTestActivity : Activity() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         val clip = android.content.ClipData.newPlainText("test", testText)
         clipboard.setPrimaryClip(clip)
-        
-        addLog("已复制测试文本: $testText")
+
+        addLog("✅ 已复制测试文本: $testText")
         Log.d(TAG, "已复制测试文本: $testText")
+    }
+
+    private fun simulateOtherAppCopy() {
+        val testTexts = listOf(
+            "普通文本内容",
+            "这是一段中文测试文本",
+            "Mixed English and 中文 content",
+            "https://www.example.com", // 这个应该被过滤
+            "123456", // 这个应该被过滤
+            "Hello World! 这是一个测试。"
+        )
+
+        val randomText = testTexts.random()
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText("other_app", randomText)
+        clipboard.setPrimaryClip(clip)
+
+        addLog("🔄 模拟其他应用复制: $randomText")
+        Log.d(TAG, "模拟其他应用复制: $randomText")
+    }
+
+    private fun clearLog() {
+        logText.text = "日志已清除\n"
+        addLog("等待剪贴板事件...")
+    }
+
+    private fun forceCheckServiceStatus() {
+        addLog("🔍 强制检查服务状态...")
+        checkAccessibilityServiceStatus()
+
+        // 尝试访问剪贴板来测试服务
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clipData = clipboard.primaryClip
+            val content = if (clipData != null && clipData.itemCount > 0) {
+                clipData.getItemAt(0).text?.toString() ?: "null"
+            } else {
+                "empty"
+            }
+            addLog("📋 当前剪贴板内容: ${content.take(30)}${if (content.length > 30) "..." else ""}")
+        } catch (e: Exception) {
+            addLog("❌ 剪贴板访问失败: ${e.message}")
+        }
+    }
+
+    private fun startStatusMonitoring() {
+        stopStatusMonitoring()
+
+        statusCheckRunnable = object : Runnable {
+            override fun run() {
+                checkAccessibilityServiceStatus()
+                statusHandler.postDelayed(this, statusCheckInterval)
+            }
+        }
+
+        statusHandler.postDelayed(statusCheckRunnable!!, statusCheckInterval)
+        addLog("🔄 状态监控已启动，间隔: ${statusCheckInterval}ms")
+    }
+
+    private fun stopStatusMonitoring() {
+        statusCheckRunnable?.let { runnable ->
+            statusHandler.removeCallbacks(runnable)
+            statusCheckRunnable = null
+        }
     }
     
     private fun setupClipboardReceiver() {
@@ -153,6 +248,7 @@ class ClipboardTestActivity : Activity() {
     
     override fun onDestroy() {
         super.onDestroy()
+        stopStatusMonitoring()
         clipboardReceiver?.let {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
         }

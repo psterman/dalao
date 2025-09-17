@@ -65,6 +65,24 @@
                 app:iconSize="16dp"
                 app:iconTint="@color/dynamic_island_button_icon" />
 
+            <!-- 展开按钮：手动触发展开界面 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_expand"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@drawable/dynamic_island_expand_button_background"
+                android:contentDescription="展开界面"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_expand_more"
+                app:icon="@drawable/ic_expand_more"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_expand_button_icon" />
+
             <!-- 右侧按钮：设置 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_settings"
@@ -72,11 +90,29 @@
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
                 android:background="@drawable/dynamic_island_button_background"
                 android:contentDescription="设置"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_settings"
                 app:icon="@drawable/ic_settings"
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon" />
+
+            <!-- 最右侧按钮：退出/最小化 -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_exit"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:background="@drawable/dynamic_island_button_background"
+                android:contentDescription="最小化"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_minimize"
+                app:icon="@drawable/ic_minimize"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
                 app:iconSize="16dp"
