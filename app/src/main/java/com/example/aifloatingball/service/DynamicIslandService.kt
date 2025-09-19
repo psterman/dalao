@@ -44,6 +44,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.text.InputType
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -3114,11 +3115,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         animator.addListener(object : AnimatorListenerAdapter() {
             override fun onAnimationStart(animation: Animator) {
                 if (toWidth > fromWidth) { // Expanding
-                    // Remove old content, add new content (search box, etc.)
-                    islandContentView = LayoutInflater.from(this@DynamicIslandService)
-                        .inflate(R.layout.dynamic_island_search_content, animatingIslandView, false)
-                    animatingIslandView?.addView(islandContentView)
-                    setupSearchInput(islandContentView!!)
+                    // 不再使用旧的 dynamic_island_search_content.xml
+                    // 展开功能现在由 createClipboardAppHistoryView 处理
                     populateAppSearchIcons()
                 }
             }
@@ -3159,34 +3157,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
-    private fun setupSearchInput(view: View) {
-        searchInput = view.findViewById(R.id.dynamic_island_input)
-        searchButton = view.findViewById(R.id.dynamic_island_send_button)
-
-        searchInput?.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                val query = searchInput?.text.toString().trim()
-                if (query.isNotEmpty()) {
-                    hideKeyboard(searchInput)
-                    val intent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                        putExtra("search_query", query)
-                        putExtra("source", "灵动岛")
-                        putExtra("startTime", System.currentTimeMillis())
-                    }
-                    startService(intent)
-                    collapseIsland()
-                }
-                true
-            } else {
-                false
-            }
-        }
-
-        searchButton?.setOnClickListener {
-            // Trigger the same search action
-            searchInput?.onEditorAction(EditorInfo.IME_ACTION_SEARCH)
-        }
-    }
+    // setupSearchInput 方法已移除，因为现在使用新的展开输入框系统
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -4645,18 +4616,181 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             // 添加应用图标容器到主容器
             mainContainer.addView(appIconsContainer)
-            
+
+            // 添加输入框和发送按钮区域
+            val inputContainer = createInputAndSendButtonContainer(clipboardContent)
+            mainContainer.addView(inputContainer)
+
             // 不再自动添加AI预览部分，改为用户点击AI按钮时才显示
-            
+
             islandContentView = mainContainer
             animatingIslandView?.addView(islandContentView)
-            Log.d(TAG, "剪贴板视图创建完成，包含应用图标、AI预览和退出按钮")
+            Log.d(TAG, "剪贴板视图创建完成，包含应用图标、输入框、发送按钮和退出按钮")
             
         } catch (e: Exception) {
             Log.e(TAG, "创建剪贴板app历史视图失败", e)
         }
     }
     
+    /**
+     * 创建输入框和发送按钮容器
+     */
+    private fun createInputAndSendButtonContainer(clipboardContent: String): View {
+        val inputContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 12.dpToPx()
+            }
+            setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
+        }
+
+        // 创建输入框
+        val inputField = EditText(this).apply {
+            id = View.generateViewId()
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                40.dpToPx(), // 固定高度，更容易点击
+                1f
+            ).apply {
+                rightMargin = 8.dpToPx()
+            }
+            hint = "输入搜索内容..."
+            textSize = 16f // 增大字体
+            maxLines = 1
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            inputType = InputType.TYPE_CLASS_TEXT
+
+            // 设置输入框样式 - 更明显的样式
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#F0FFFFFF")) // 更不透明的白色背景
+                cornerRadius = 12.dpToPx().toFloat() // 更大的圆角
+                setStroke(2.dpToPx(), Color.parseColor("#4CAF50")) // 绿色边框，更明显
+            }
+            setPadding(16.dpToPx(), 10.dpToPx(), 16.dpToPx(), 10.dpToPx()) // 更大的内边距
+            setTextColor(Color.parseColor("#333333")) // 深色文字，更易读
+            setHintTextColor(Color.parseColor("#666666")) // 深色提示文字
+
+            // 预填充剪贴板内容
+            setText(clipboardContent)
+
+            // 设置输入框焦点监听
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    // 获得焦点时显示输入法并改变边框颜色
+                    background = GradientDrawable().apply {
+                        setColor(Color.parseColor("#FFFFFF")) // 完全不透明的白色背景
+                        cornerRadius = 12.dpToPx().toFloat()
+                        setStroke(3.dpToPx(), Color.parseColor("#2196F3")) // 蓝色边框表示焦点
+                    }
+                    uiHandler.postDelayed({
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+                    }, 100)
+                } else {
+                    // 失去焦点时恢复原样
+                    background = GradientDrawable().apply {
+                        setColor(Color.parseColor("#F0FFFFFF"))
+                        cornerRadius = 12.dpToPx().toFloat()
+                        setStroke(2.dpToPx(), Color.parseColor("#4CAF50"))
+                    }
+                }
+            }
+        }
+
+        // 创建发送按钮
+        val sendButton = ImageButton(this).apply {
+            id = View.generateViewId()
+            layoutParams = LinearLayout.LayoutParams(
+                36.dpToPx(),
+                36.dpToPx()
+            )
+            setImageResource(R.drawable.ic_send_plane)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
+            setColorFilter(Color.parseColor("#4CAF50")) // 绿色发送图标
+
+            // 设置按钮背景
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#804CAF50")) // 半透明绿色背景
+                cornerRadius = 8.dpToPx().toFloat()
+                setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 白色边框
+            }
+
+            // 设置点击事件
+            setOnClickListener {
+                val searchText = inputField.text.toString().trim()
+                if (searchText.isNotEmpty()) {
+                    Log.d(TAG, "发送按钮被点击，搜索内容: $searchText")
+                    handleExpandedSearchInput(searchText)
+                } else {
+                    Toast.makeText(this@DynamicIslandService, "请输入搜索内容", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // 添加输入框和发送按钮到容器
+        inputContainer.addView(inputField)
+        inputContainer.addView(sendButton)
+
+        return inputContainer
+    }
+
+    /**
+     * 收起到灵动岛初始状态
+     * 关闭按钮应该返回到紧凑的灵动岛状态，而不是变成白色小球
+     */
+    private fun collapseToInitialState() {
+        try {
+            Log.d(TAG, "收起到灵动岛初始状态")
+
+            // 隐藏输入法
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(windowContainerView?.windowToken, 0)
+
+            // 清理展开的内容
+            animatingIslandView?.removeAllViews()
+
+            // 重新显示紧凑状态的灵动岛
+            showDynamicIsland()
+
+            // 确保搜索模式为非活跃状态
+            isSearchModeActive = false
+
+            Log.d(TAG, "已返回灵动岛初始状态")
+        } catch (e: Exception) {
+            Log.e(TAG, "返回灵动岛初始状态失败", e)
+        }
+    }
+
+    /**
+     * 处理展开状态下的搜索输入
+     */
+    private fun handleExpandedSearchInput(searchText: String) {
+        try {
+            Log.d(TAG, "处理展开状态搜索: $searchText")
+
+            // 隐藏输入法
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(windowContainerView?.windowToken, 0)
+
+            // 显示搜索面板
+            showConfigPanel()
+
+            // 将搜索内容填入搜索面板的输入框
+            uiHandler.postDelayed({
+                searchInput?.setText(searchText)
+                searchInput?.setSelection(searchText.length)
+            }, 300)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理展开状态搜索失败", e)
+        }
+    }
+
     /**
      * 创建AI按钮
      */
@@ -4968,8 +5102,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             // 设置点击事件
             setOnClickListener {
-                Log.d(TAG, "退出按钮被点击，切换到球状态")
-                hideContentAndSwitchToBall()
+                Log.d(TAG, "关闭按钮被点击，返回灵动岛初始状态")
+                collapseToInitialState()
             }
         }
         
@@ -5975,25 +6109,47 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
-     * 处理app图标点击事件
+     * 🎯 处理app图标点击事件 - 新逻辑：自动粘贴获取剪贴板数据
      */
     private fun handleAppIconClick(appInfo: AppInfo, clipboardContent: String) {
         try {
+            Log.d(TAG, "🎯 应用图标点击: ${appInfo.label} - 开始自动粘贴获取剪贴板数据...")
+
             // 立即缩小到球状态，而不是完全收起
             hideContentAndSwitchToBall()
-            
+
+            // 🚨 核心改进：通过自动粘贴获取最新剪贴板数据
+            val latestClipboardContent = getClipboardContentByAutoPaste()
+            val finalContent = when {
+                !latestClipboardContent.isNullOrEmpty() -> {
+                    Log.d(TAG, "✅ 自动粘贴获取成功: ${latestClipboardContent.take(50)}...")
+                    latestClipboardContent
+                }
+                !clipboardContent.isNullOrEmpty() -> {
+                    Log.d(TAG, "✅ 使用展开时的剪贴板内容: ${clipboardContent.take(50)}...")
+                    clipboardContent
+                }
+                else -> {
+                    Log.d(TAG, "⚠️ 无剪贴板内容，使用默认搜索")
+                    "搜索内容"
+                }
+            }
+
+            Log.d(TAG, "🔄 最终搜索内容: ${finalContent.take(50)}...")
+
             // 特殊处理：URL链接使用DualFloatingWebViewService
-            val contentType = contentAnalyzer.analyzeContent(clipboardContent)
+            val contentType = contentAnalyzer.analyzeContent(finalContent)
             if (contentType == ClipboardContentType.URL) {
-                Log.d(TAG, "URL链接，启动DualFloatingWebViewService")
-                startDualFloatingWebViewService(clipboardContent)
+                Log.d(TAG, "🌐 检测到URL链接，启动DualFloatingWebViewService")
+                startDualFloatingWebViewService(finalContent)
                 return
             }
-            
+
             // 判断是否支持URL Scheme搜索
             if (!appInfo.urlScheme.isNullOrEmpty()) {
-                // 支持URL Scheme，使用正确的格式跳转到app搜索页面
-                val encodedContent = Uri.encode(clipboardContent)
+                // 支持URL Scheme，使用最新获取的内容构建搜索URL
+                val encodedContent = Uri.encode(finalContent)
+                Log.d(TAG, "🔗 构建URL Scheme搜索: ${appInfo.urlScheme} - 内容: ${encodedContent.take(50)}...")
                 val intent = when (appInfo.urlScheme) {
                     // 社交类
                     "weixin" -> Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedContent"))
@@ -6078,8 +6234,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 
                 try {
                     startActivity(intent)
-                    Toast.makeText(this, "已在${appInfo.label}中搜索: $clipboardContent", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "通过URL Scheme跳转到${appInfo.label}搜索: ${intent.data}")
+                    Toast.makeText(this, "已在${appInfo.label}中搜索: ${finalContent.take(30)}...", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "🚀 通过URL Scheme跳转到${appInfo.label}搜索: ${intent.data}")
                 } catch (e: ActivityNotFoundException) {
                     // URL Scheme不可用，降级到普通启动
                     Log.w(TAG, "URL Scheme失败，降级到普通启动: ${appInfo.urlScheme}")
@@ -6092,10 +6248,121 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 // 不支持URL Scheme，启动app让用户手动粘贴
                 launchAppForManualPaste(appInfo)
             }
-            
+
         } catch (e: Exception) {
             Log.e(TAG, "处理app图标点击失败", e)
             Toast.makeText(this, "启动应用失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 🎯 核心方法：通过自动粘贴获取剪贴板内容
+     * 为应用图标点击专门设计的剪贴板获取方法
+     */
+    private fun getClipboardContentByAutoPaste(): String? {
+        return try {
+            Log.d(TAG, "🔄 [自动粘贴] 开始为应用图标点击获取剪贴板内容...")
+
+            // 创建隐藏的EditText用于接收粘贴内容
+            val hiddenEditText = EditText(this).apply {
+                layoutParams = ViewGroup.LayoutParams(1, 1)
+                alpha = 0f // 完全透明
+                isFocusable = true
+                isFocusableInTouchMode = true
+                setText("") // 确保初始为空
+            }
+
+            // 创建窗口参数（隐藏在屏幕外）
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val params = WindowManager.LayoutParams(
+                1, 1, // 最小尺寸
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                x = -3000 // 移到屏幕外
+                y = -3000
+            }
+
+            // 添加到窗口管理器
+            windowManager.addView(hiddenEditText, params)
+            Log.d(TAG, "✅ [自动粘贴] 隐藏输入框已创建")
+
+            // 等待视图完全加载
+            Thread.sleep(100)
+
+            // 🚨 执行自动粘贴操作
+            val pastedContent = performAutoPasteOperation(hiddenEditText)
+
+            // 清理资源
+            try {
+                windowManager.removeView(hiddenEditText)
+                Log.d(TAG, "✅ [自动粘贴] 隐藏输入框已清理")
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ [自动粘贴] 清理隐藏输入框失败", e)
+            }
+
+            if (!pastedContent.isNullOrEmpty()) {
+                Log.d(TAG, "✅ [自动粘贴] 成功获取内容，长度: ${pastedContent.length}")
+                return pastedContent
+            } else {
+                Log.d(TAG, "❌ [自动粘贴] 未获取到内容")
+                return null
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ [自动粘贴] 自动粘贴操作异常", e)
+            null
+        }
+    }
+
+    /**
+     * 🎯 执行自动粘贴操作
+     */
+    private fun performAutoPasteOperation(editText: EditText): String? {
+        return try {
+            Log.d(TAG, "🔄 [粘贴操作] 开始执行自动粘贴...")
+
+            // 方法1：通过InputConnection模拟粘贴
+            val inputConnection = editText.onCreateInputConnection(EditorInfo())
+            if (inputConnection != null) {
+                Log.d(TAG, "🔄 [粘贴操作] 尝试通过InputConnection自动粘贴...")
+
+                // 模拟粘贴操作
+                val pasteResult = inputConnection.performContextMenuAction(android.R.id.paste)
+                Log.d(TAG, "🔄 [粘贴操作] 自动粘贴操作结果: $pasteResult")
+
+                // 等待粘贴完成
+                Thread.sleep(300)
+
+                val pastedText = editText.text.toString()
+                if (pastedText.isNotEmpty()) {
+                    Log.d(TAG, "✅ [粘贴操作] InputConnection自动粘贴成功: ${pastedText.take(50)}...")
+                    return pastedText
+                }
+            }
+
+            // 方法2：通过ClipboardManager直接获取（备选）
+            Log.d(TAG, "🔄 [粘贴操作] InputConnection失败，尝试直接获取剪贴板...")
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboardManager.hasPrimaryClip()) {
+                val clipData = clipboardManager.primaryClip
+                if (clipData != null && clipData.itemCount > 0) {
+                    val content = clipData.getItemAt(0)?.text?.toString()
+                    if (!content.isNullOrEmpty()) {
+                        Log.d(TAG, "✅ [粘贴操作] 直接获取剪贴板成功: ${content.take(50)}...")
+                        return content
+                    }
+                }
+            }
+
+            Log.d(TAG, "❌ [粘贴操作] 所有自动粘贴方法都失败")
+            null
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ [粘贴操作] 执行自动粘贴操作异常", e)
+            null
         }
     }
     
