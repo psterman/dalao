@@ -4673,9 +4673,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
         }
 
-        // 创建输入框
-        val inputField = EditText(this).apply {
-            id = View.generateViewId()
+        // 创建输入框容器（包含输入框和清空按钮）
+        val inputFieldContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 0,
                 40.dpToPx(), // 固定高度，更容易点击
@@ -4683,6 +4682,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             ).apply {
                 rightMargin = 8.dpToPx()
             }
+        }
+
+        // 创建输入框
+        var isUserInput = false // 标志：用户是否已经开始输入
+        val inputField = EditText(this).apply {
+            id = View.generateViewId()
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
             hint = "输入搜索内容..."
             textSize = 16f // 增大字体
             maxLines = 1
@@ -4698,12 +4707,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 cornerRadius = 12.dpToPx().toFloat() // 更大的圆角
                 setStroke(2.dpToPx(), Color.parseColor("#4CAF50")) // 绿色边框，更明显
             }
-            setPadding(16.dpToPx(), 10.dpToPx(), 16.dpToPx(), 10.dpToPx()) // 更大的内边距
+            setPadding(16.dpToPx(), 10.dpToPx(), 48.dpToPx(), 10.dpToPx()) // 右边距为清空按钮留空间
             setTextColor(Color.parseColor("#333333")) // 深色文字，更易读
             setHintTextColor(Color.parseColor("#666666")) // 深色提示文字
 
-            // 预填充剪贴板内容
-            setText(clipboardContent)
+            // 预填充剪贴板内容，设置为虚灰色
+            if (clipboardContent.isNotEmpty()) {
+                setText(clipboardContent)
+                setTextColor(Color.parseColor("#999999")) // 虚灰色，表示自动粘贴的内容
+                isUserInput = false // 初始状态为自动粘贴
+            }
 
             // 设置输入框点击监听 - 只在自动激活失败时手动激活
             setOnClickListener {
@@ -4749,7 +4762,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
 
-            // 添加文本变化监听器 - 用户开始输入时提示文本消失
+            // 添加文本变化监听器 - 用户开始输入时提示文本消失，控制清空按钮显示，区分文字颜色
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -4759,13 +4772,87 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     } else if (s.isNullOrEmpty()) {
                         hint = "输入搜索内容..." // 恢复提示文本
                     }
+                    
+                    // 控制清空按钮的显示/隐藏
+                    val clearButton = inputFieldContainer.findViewById<ImageButton>(R.id.clear_button)
+                    if (s.isNullOrEmpty()) {
+                        clearButton?.visibility = View.GONE
+                    } else {
+                        clearButton?.visibility = View.VISIBLE
+                    }
                 }
-                override fun afterTextChanged(s: android.text.Editable?) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    // 检测用户是否开始输入（与初始内容不同）
+                    if (!s.isNullOrEmpty() && !isUserInput) {
+                        val currentText = s.toString()
+                        val initialText = clipboardContent
+                        if (currentText != initialText) {
+                            isUserInput = true
+                            setTextColor(Color.parseColor("#333333")) // 实体颜色，表示用户输入的内容
+                            Log.d(TAG, "检测到用户输入，文字颜色改为实体颜色")
+                        }
+                    }
+                }
             })
 
             // 支持文本操作菜单（考虑悬浮窗特性）
             setupFloatingWindowTextOperations(this)
         }
+
+        // 创建清空按钮
+        val clearButton = ImageButton(this).apply {
+            id = R.id.clear_button
+            layoutParams = FrameLayout.LayoutParams(
+                32.dpToPx(),
+                32.dpToPx()
+            ).apply {
+                gravity = Gravity.CENTER_VERTICAL or Gravity.END
+                rightMargin = 8.dpToPx()
+            }
+            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            setPadding(4.dpToPx(), 4.dpToPx(), 4.dpToPx(), 4.dpToPx())
+            setColorFilter(Color.parseColor("#999999")) // 灰色图标
+            
+            // 设置按钮背景
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#20FFFFFF")) // 半透明白色背景
+                cornerRadius = 16.dpToPx().toFloat()
+                setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF")) // 白色边框
+            }
+            
+            // 初始状态隐藏
+            visibility = if (clipboardContent.isNotEmpty()) View.VISIBLE else View.GONE
+            
+            // 设置点击事件
+            setOnClickListener {
+                Log.d(TAG, "清空按钮被点击")
+                inputField.setText("")
+                inputField.setTextColor(Color.parseColor("#999999")) // 重置为虚灰色
+                isUserInput = false // 重置用户输入标志
+                inputField.requestFocus()
+                // 激活输入法
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.showSoftInput(inputField, InputMethodManager.SHOW_IMPLICIT)
+            }
+            
+            // 设置触摸效果
+            setOnTouchListener { view, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        view.animate().scaleX(0.9f).scaleY(0.9f).setDuration(100).start()
+                    }
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        view.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                    }
+                }
+                false
+            }
+        }
+
+        // 将输入框和清空按钮添加到容器
+        inputFieldContainer.addView(inputField)
+        inputFieldContainer.addView(clearButton)
 
         // 创建发送按钮
         val sendButton = ImageButton(this).apply {
@@ -4798,8 +4885,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
         }
 
-        // 添加输入框和发送按钮到容器
-        inputContainer.addView(inputField)
+        // 添加输入框容器和发送按钮到容器
+        inputContainer.addView(inputFieldContainer)
         inputContainer.addView(sendButton)
 
         return inputContainer
