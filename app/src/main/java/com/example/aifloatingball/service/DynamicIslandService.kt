@@ -1187,9 +1187,19 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
             // 添加FLAG_NOT_TOUCH_MODAL，允许输入法
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            // 确保窗口可以接收输入事件
+            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+            
+            // 对于悬浮窗，还需要确保窗口类型正确
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                params.type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            } else {
+                params.type = WindowManager.LayoutParams.TYPE_PHONE
+            }
+            
             try {
                 windowManager?.updateViewLayout(view, params)
-                Log.d(TAG, "窗口参数已更新以支持输入法")
+                Log.d(TAG, "窗口参数已更新以支持输入法: flags=${params.flags}, type=${params.type}")
             } catch (e: Exception) {
                 Log.e(TAG, "更新窗口参数失败", e)
             }
@@ -3085,6 +3095,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (isSearchModeActive) return
         isSearchModeActive = true
         
+        // 更新状态
+        updateState(IslandState.EXPANDED)
+        
         // 设置搜索模式的外部点击监听器
         setupSearchModeTouchListener()
         
@@ -3095,6 +3108,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         if (!isSearchModeActive) return
         isSearchModeActive = false
         hideKeyboard(searchInput)
+        
+        // 更新状态
+        updateState(IslandState.COMPACT)
+        
         animateIsland(expandedWidth, compactWidth)
     }
 
@@ -3124,9 +3141,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 if (toWidth < fromWidth) { // Collapsing
                     animatingIslandView?.removeAllViews()
                 } else { // Expanding
-                    searchInput?.requestFocus()
-                    val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
+                    // 动画结束时不激活输入法，由视图创建完成后的延迟激活处理
+                    Log.d(TAG, "动画结束，等待视图创建完成后的自动激活")
                 }
             }
         })
@@ -3654,6 +3670,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun hideContentAndSwitchToBall() {
         Log.d(TAG, "隐藏内容并切换到圆球状态")
+        
+        // 更新状态
+        updateState(IslandState.BALL)
         
         // 隐藏搜索面板和配置面板
         hideAppSearchResults()
@@ -4511,11 +4530,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 override fun onAnimationEnd(animation: Animator) {
                     // 动画结束后，重新计算面板位置
                     updatePanelPositions()
-                    // 延迟5秒自动缩小到球状（给用户更多时间选择）
-                    windowContainerView?.postDelayed({
-                        // 缩小到球状，而不是完全收起
-                        hideContentAndSwitchToBall()
-                    }, 5000)
+                    // 移除自动缩小功能，让用户手动控制
+                    Log.d(TAG, "灵动岛展开完成，等待用户操作")
                 }
             })
             animator.start()
@@ -4627,6 +4643,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             animatingIslandView?.addView(islandContentView)
             Log.d(TAG, "剪贴板视图创建完成，包含应用图标、输入框、发送按钮和退出按钮")
             
+            // 延迟激活输入法，确保视图完全创建和显示后再激活
+            uiHandler.postDelayed({
+                searchInput?.let { inputField ->
+                    Log.d(TAG, "开始自动激活输入法")
+                    // 使用更简单但更有效的方法
+                    activateInputMethodForFloatingWindow(inputField)
+                }
+            }, 800) // 延迟800ms确保动画完全完成，避免与动画冲突
+            
         } catch (e: Exception) {
             Log.e(TAG, "创建剪贴板app历史视图失败", e)
         }
@@ -4663,6 +4688,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             maxLines = 1
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             inputType = InputType.TYPE_CLASS_TEXT
+            
+            // 将动态创建的输入框赋值给searchInput变量，确保animateIsland方法能正确访问
+            searchInput = this
 
             // 设置输入框样式 - 更明显的样式
             background = GradientDrawable().apply {
@@ -4677,19 +4705,40 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // 预填充剪贴板内容
             setText(clipboardContent)
 
+            // 设置输入框点击监听 - 只在自动激活失败时手动激活
+            setOnClickListener {
+                Log.d(TAG, "输入框被点击，检查是否需要手动激活输入法")
+                
+                // 检查输入法是否已激活，如果没有则激活
+                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                if (!imm.isActive(this)) {
+                    Log.d(TAG, "输入法未激活，手动激活")
+                    activateInputMethodForFloatingWindow(this)
+                }
+            }
+
+            // 设置输入框触摸监听 - 简化处理
+            setOnTouchListener { _, event ->
+                if (event.action == android.view.MotionEvent.ACTION_DOWN) {
+                    Log.d(TAG, "输入框被触摸，请求焦点")
+                    requestFocus()
+                }
+                false // 不消费事件，让其他监听器继续处理
+            }
+
             // 设置输入框焦点监听
             setOnFocusChangeListener { _, hasFocus ->
                 if (hasFocus) {
-                    // 获得焦点时显示输入法并改变边框颜色
+                    Log.d(TAG, "输入框获得焦点，更新样式")
+
+                    // 获得焦点时改变边框颜色
                     background = GradientDrawable().apply {
                         setColor(Color.parseColor("#FFFFFF")) // 完全不透明的白色背景
                         cornerRadius = 12.dpToPx().toFloat()
                         setStroke(3.dpToPx(), Color.parseColor("#2196F3")) // 蓝色边框表示焦点
                     }
-                    uiHandler.postDelayed({
-                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
-                    }, 100)
+
+                    // 不在这里激活输入法，避免与自动激活冲突
                 } else {
                     // 失去焦点时恢复原样
                     background = GradientDrawable().apply {
@@ -4699,6 +4748,23 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     }
                 }
             }
+
+            // 添加文本变化监听器 - 用户开始输入时提示文本消失
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    // 用户开始输入时，清除提示文本
+                    if (!s.isNullOrEmpty() && hint.isNotEmpty()) {
+                        hint = "" // 清除提示文本
+                    } else if (s.isNullOrEmpty()) {
+                        hint = "输入搜索内容..." // 恢复提示文本
+                    }
+                }
+                override fun afterTextChanged(s: android.text.Editable?) {}
+            })
+
+            // 支持文本操作菜单（考虑悬浮窗特性）
+            setupFloatingWindowTextOperations(this)
         }
 
         // 创建发送按钮
@@ -4754,16 +4820,417 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // 清理展开的内容
             animatingIslandView?.removeAllViews()
 
-            // 重新显示紧凑状态的灵动岛
-            showDynamicIsland()
-
             // 确保搜索模式为非活跃状态
             isSearchModeActive = false
+
+            // 创建紧凑状态的灵动岛内容，而不是重新创建整个视图
+            createCompactIslandContent()
 
             Log.d(TAG, "已返回灵动岛初始状态")
         } catch (e: Exception) {
             Log.e(TAG, "返回灵动岛初始状态失败", e)
         }
+    }
+
+    /**
+     * 创建紧凑状态的灵动岛内容
+     */
+    private fun createCompactIslandContent() {
+        try {
+            // 确保灵动岛视图存在
+            if (animatingIslandView == null) {
+                showDynamicIsland()
+                return
+            }
+
+            // 创建紧凑状态的内容容器
+            val compactContent = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+
+            // 添加一个简单的指示器（类似iPhone Dynamic Island的紧凑状态）
+            val indicator = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    24.dpToPx(),
+                    4.dpToPx()
+                )
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#80FFFFFF"))
+                    cornerRadius = 2.dpToPx().toFloat()
+                }
+            }
+
+            compactContent.addView(indicator)
+            
+            // 设置点击监听器，点击紧凑状态可以展开
+            compactContent.setOnClickListener {
+                Log.d(TAG, "紧凑状态被点击，展开灵动岛")
+                expandIsland()
+            }
+            
+            animatingIslandView?.addView(compactContent)
+
+            // 确保灵动岛可见且处于正确状态
+            animatingIslandView?.visibility = View.VISIBLE
+            animatingIslandView?.alpha = 1f
+
+            Log.d(TAG, "紧凑状态内容创建完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建紧凑状态内容失败", e)
+        }
+    }
+
+    /**
+     * 强制在悬浮窗中显示输入法
+     * 悬浮窗环境需要特殊处理才能确保输入法立即弹出
+     */
+    private fun forceShowInputMethodInFloatingWindow(editText: EditText) {
+        try {
+            Log.d(TAG, "开始强制激活悬浮窗输入法")
+
+            // 1. 首先更新窗口参数以支持输入法
+            updateWindowParamsForInput()
+
+            // 2. 确保EditText可以获取焦点
+            editText.isFocusable = true
+            editText.isFocusableInTouchMode = true
+            editText.isClickable = true
+            editText.isEnabled = true
+
+            // 3. 设置光标位置（有助于输入法激活）
+            editText.setSelection(editText.text.length)
+
+            // 4. 强制请求焦点
+            editText.requestFocus()
+
+            // 5. 获取输入法管理器
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+
+            // 6. 悬浮窗环境下的输入法激活策略
+            // 方法1: 使用SHOW_IMPLICIT（更适合悬浮窗环境）
+            imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
+
+            // 方法2: 延迟使用SHOW_FORCED作为备用
+            uiHandler.postDelayed({
+                try {
+                    if (!imm.isActive(editText)) {
+                        Log.d(TAG, "使用SHOW_FORCED重试激活输入法")
+                        imm.showSoftInput(editText, InputMethodManager.SHOW_FORCED)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "SHOW_FORCED重试失败", e)
+                }
+            }, 100)
+
+            // 方法3: 使用toggleSoftInput作为最后手段
+            uiHandler.postDelayed({
+                try {
+                    if (!imm.isActive(editText)) {
+                        Log.d(TAG, "使用toggleSoftInput激活输入法")
+                        imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT, 0)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "toggleSoftInput激活失败", e)
+                }
+            }, 200)
+
+            // 方法4: 模拟用户点击事件（悬浮窗环境特殊处理）
+            uiHandler.postDelayed({
+                try {
+                    if (!imm.isActive(editText)) {
+                        Log.d(TAG, "模拟点击事件激活输入法")
+                        // 模拟点击事件
+                        val downTime = System.currentTimeMillis()
+                        val eventTime = System.currentTimeMillis()
+                        val x = editText.width / 2f
+                        val y = editText.height / 2f
+                        
+                        val downEvent = android.view.MotionEvent.obtain(
+                            downTime, eventTime, android.view.MotionEvent.ACTION_DOWN, x, y, 0
+                        )
+                        val upEvent = android.view.MotionEvent.obtain(
+                            downTime, eventTime + 10, android.view.MotionEvent.ACTION_UP, x, y, 0
+                        )
+                        
+                        editText.dispatchTouchEvent(downEvent)
+                        editText.dispatchTouchEvent(upEvent)
+                        
+                        downEvent.recycle()
+                        upEvent.recycle()
+                        
+                        // 再次尝试显示输入法
+                        imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "模拟点击事件失败", e)
+                }
+            }, 300)
+
+            // 方法5: 最后的备用方案 - 使用反射调用隐藏方法
+            uiHandler.postDelayed({
+                try {
+                    if (!imm.isActive(editText)) {
+                        Log.d(TAG, "使用反射方法激活输入法")
+                        // 使用反射调用隐藏的showSoftInputUnchecked方法
+                        val method = InputMethodManager::class.java.getDeclaredMethod(
+                            "showSoftInputUnchecked", 
+                            Int::class.java, 
+                            android.os.ResultReceiver::class.java
+                        )
+                        method.isAccessible = true
+                        method.invoke(imm, InputMethodManager.SHOW_IMPLICIT, null)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "反射方法激活失败", e)
+                }
+            }, 400)
+
+            Log.d(TAG, "悬浮窗输入法激活策略已启动")
+        } catch (e: Exception) {
+            Log.e(TAG, "强制激活悬浮窗输入法失败", e)
+        }
+    }
+
+    // 添加一个标志来防止重复激活
+    private var isInputMethodActivating = false
+    
+    // 状态记忆相关变量
+    private enum class IslandState {
+        COMPACT,    // 紧凑状态
+        EXPANDED,   // 展开状态
+        BALL        // 圆球状态
+    }
+    private var previousState: IslandState = IslandState.COMPACT
+    private var currentState: IslandState = IslandState.COMPACT
+
+    /**
+     * 更新状态并记录上一个状态
+     */
+    private fun updateState(newState: IslandState) {
+        previousState = currentState
+        currentState = newState
+        Log.d(TAG, "状态更新: $previousState -> $currentState")
+    }
+
+    /**
+     * 简化的悬浮窗输入法激活方法
+     * 专门针对悬浮窗环境优化，防止重复激活
+     */
+    private fun activateInputMethodForFloatingWindow(editText: EditText) {
+        try {
+            // 防止重复激活
+            if (isInputMethodActivating) {
+                Log.d(TAG, "输入法正在激活中，跳过重复调用")
+                return
+            }
+
+            Log.d(TAG, "开始激活悬浮窗输入法（简化版）")
+            isInputMethodActivating = true
+
+            // 1. 更新窗口参数
+            updateWindowParamsForInput()
+
+            // 2. 确保EditText状态正确
+            editText.isFocusable = true
+            editText.isFocusableInTouchMode = true
+            editText.isClickable = true
+            editText.isEnabled = true
+
+            // 3. 设置光标位置
+            editText.setSelection(editText.text.length)
+
+            // 4. 请求焦点
+            editText.requestFocus()
+
+            // 5. 获取输入法管理器
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+
+            // 6. 使用最简单的方法：直接调用showSoftInput
+            imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
+
+            // 7. 延迟重试（悬浮窗环境需要）
+            uiHandler.postDelayed({
+                if (!imm.isActive(editText)) {
+                    Log.d(TAG, "重试激活输入法")
+                    imm.showSoftInput(editText, InputMethodManager.SHOW_IMPLICIT)
+                }
+                // 重置标志
+                isInputMethodActivating = false
+            }, 300)
+
+            Log.d(TAG, "悬浮窗输入法激活完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "激活悬浮窗输入法失败", e)
+            isInputMethodActivating = false
+        }
+    }
+
+    /**
+     * 为悬浮窗中的EditText设置文本操作功能
+     * 考虑悬浮窗的特殊性，需要特别处理文本选择和操作菜单
+     */
+    private fun setupFloatingWindowTextOperations(editText: EditText) {
+        try {
+            // 启用文本选择功能
+            editText.setTextIsSelectable(true)
+            editText.isLongClickable = true
+
+            // 设置长按监听器
+            editText.setOnLongClickListener { view ->
+                try {
+                    Log.d(TAG, "输入框长按，显示文本操作菜单")
+
+                    // 确保输入框有焦点
+                    if (!editText.hasFocus()) {
+                        editText.requestFocus()
+                    }
+
+                    // 在悬浮窗中显示文本操作菜单
+                    showFloatingTextMenu(editText)
+
+                    true // 消费长按事件
+                } catch (e: Exception) {
+                    Log.e(TAG, "显示文本操作菜单失败", e)
+                    false
+                }
+            }
+
+            // 设置自定义文本选择处理（适配悬浮窗）
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                editText.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
+                    override fun onCreateActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean {
+                        // 添加自定义菜单项
+                        menu?.clear()
+                        menu?.add(0, android.R.id.selectAll, 0, "全选")
+                        menu?.add(0, android.R.id.copy, 1, "复制")
+                        menu?.add(0, android.R.id.cut, 2, "剪切")
+                        menu?.add(0, android.R.id.paste, 3, "粘贴")
+                        return true
+                    }
+
+                    override fun onPrepareActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean {
+                        return false
+                    }
+
+                    override fun onActionItemClicked(mode: android.view.ActionMode?, item: android.view.MenuItem?): Boolean {
+                        return handleTextOperation(editText, item?.itemId ?: 0)
+                    }
+
+                    override fun onDestroyActionMode(mode: android.view.ActionMode?) {
+                        // 清理工作
+                    }
+                }
+            }
+
+            Log.d(TAG, "悬浮窗文本操作功能设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置悬浮窗文本操作功能失败", e)
+        }
+    }
+
+    /**
+     * 在悬浮窗中显示文本操作菜单
+     */
+    private fun showFloatingTextMenu(editText: EditText) {
+        try {
+            // 创建弹出菜单
+            val popupMenu = android.widget.PopupMenu(this, editText)
+
+            // 添加菜单项
+            popupMenu.menu.add(0, android.R.id.selectAll, 0, "全选")
+            popupMenu.menu.add(0, android.R.id.copy, 1, "复制")
+            popupMenu.menu.add(0, android.R.id.cut, 2, "剪切")
+            popupMenu.menu.add(0, android.R.id.paste, 3, "粘贴")
+
+            // 设置菜单项点击监听器
+            popupMenu.setOnMenuItemClickListener { item ->
+                handleTextOperation(editText, item.itemId)
+            }
+
+            // 显示菜单
+            popupMenu.show()
+
+            Log.d(TAG, "悬浮窗文本菜单已显示")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示悬浮窗文本菜单失败", e)
+            // 如果PopupMenu失败，尝试使用系统默认的文本选择
+            try {
+                editText.selectAll()
+            } catch (e2: Exception) {
+                Log.e(TAG, "备用文本选择也失败", e2)
+            }
+        }
+    }
+
+    /**
+     * 处理文本操作
+     */
+    private fun handleTextOperation(editText: EditText, itemId: Int): Boolean {
+        try {
+            when (itemId) {
+                android.R.id.selectAll -> {
+                    editText.selectAll()
+                    Toast.makeText(this, "已全选", Toast.LENGTH_SHORT).show()
+                    return true
+                }
+                android.R.id.copy -> {
+                    val selectedText = if (editText.hasSelection()) {
+                        editText.text.subSequence(editText.selectionStart, editText.selectionEnd)
+                    } else {
+                        editText.text
+                    }
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("text", selectedText)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show()
+                    return true
+                }
+                android.R.id.cut -> {
+                    val selectedText = if (editText.hasSelection()) {
+                        val start = editText.selectionStart
+                        val end = editText.selectionEnd
+                        val text = editText.text.subSequence(start, end)
+                        editText.text.delete(start, end)
+                        text
+                    } else {
+                        val text = editText.text.toString()
+                        editText.setText("")
+                        text
+                    }
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("text", selectedText)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(this, "已剪切", Toast.LENGTH_SHORT).show()
+                    return true
+                }
+                android.R.id.paste -> {
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    if (clipboard.hasPrimaryClip()) {
+                        val clipData = clipboard.primaryClip?.getItemAt(0)?.text
+                        if (clipData != null) {
+                            if (editText.hasSelection()) {
+                                val start = editText.selectionStart
+                                val end = editText.selectionEnd
+                                editText.text.replace(start, end, clipData)
+                            } else {
+                                val cursorPos = editText.selectionStart
+                                editText.text.insert(cursorPos, clipData)
+                            }
+                            Toast.makeText(this, "已粘贴", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理文本操作失败", e)
+        }
+        return false
     }
 
     /**
@@ -5102,8 +5569,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             // 设置点击事件
             setOnClickListener {
-                Log.d(TAG, "关闭按钮被点击，返回灵动岛初始状态")
-                collapseToInitialState()
+                Log.d(TAG, "关闭按钮被点击，切换到圆球状态")
+                hideContentAndSwitchToBall()
             }
         }
         
@@ -6795,7 +7262,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 用户点击圆球后，恢复横条状态
      */
     private fun restoreIslandState() {
-        Log.d(TAG, "恢复灵动岛状态")
+        Log.d(TAG, "恢复灵动岛状态，上一个状态: $previousState")
         
         // 停止透明度渐变定时器
         stopFadeOutTimer()
@@ -6803,39 +7270,128 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 恢复窗口参数到正常状态
         restoreWindowForNormalMode()
         
-        // 先显示灵动岛视图（隐藏状态）
-        animatingIslandView?.visibility = View.VISIBLE
-        animatingIslandView?.alpha = 0f
-        animatingIslandView?.scaleX = 0.1f
-        animatingIslandView?.scaleY = 0.1f
-        
-        // 同时进行两个动画：圆球缩小消失，灵动岛放大出现
-        val ballAnimation = ballView?.animate()
-            ?.withLayer()
-            ?.alpha(0f)
-            ?.scaleX(0.1f)
-            ?.scaleY(0.1f)
-            ?.setDuration(250)
-            ?.setInterpolator(AccelerateInterpolator())
-            ?.withEndAction {
-                try {
-                    windowContainerView?.removeView(ballView)
-                } catch (e: Exception) { /* ignore */ }
-                ballView = null
+        // 根据上一个状态决定恢复什么
+        when (previousState) {
+            IslandState.EXPANDED -> {
+                // 如果上一个状态是展开，直接展开
+                Log.d(TAG, "恢复展开状态")
+                updateState(IslandState.EXPANDED)
+                isSearchModeActive = true
+                setupSearchModeTouchListener()
+                
+                // 确保灵动岛视图存在
+                if (animatingIslandView == null) {
+                    showDynamicIsland()
+                }
+                
+                // 直接展开到展开状态
+                animateIsland(compactWidth, expandedWidth)
             }
-        
-        val islandAnimation = animatingIslandView?.animate()
-            ?.withLayer()
-            ?.alpha(1f)
-            ?.scaleX(1f)
-            ?.scaleY(1f)
-            ?.setDuration(350)
-            ?.setInterpolator(OvershootInterpolator(0.6f))
-            ?.setStartDelay(100) // 稍微延迟，让圆球开始消失后再显示灵动岛
-        
-        // 启动动画
-        ballAnimation?.start()
-        islandAnimation?.start()
+            IslandState.COMPACT -> {
+                // 如果上一个状态是紧凑，恢复紧凑状态
+                Log.d(TAG, "恢复紧凑状态")
+                updateState(IslandState.COMPACT)
+                isSearchModeActive = false
+                
+                // 确保灵动岛视图存在并创建紧凑状态内容
+                if (animatingIslandView == null) {
+                    showDynamicIsland()
+                } else {
+                    // 清理现有内容并创建紧凑状态内容
+                    animatingIslandView?.removeAllViews()
+                    createCompactIslandContent()
+                }
+                
+                // 先显示灵动岛视图（隐藏状态）
+                animatingIslandView?.visibility = View.VISIBLE
+                animatingIslandView?.alpha = 0f
+                animatingIslandView?.scaleX = 0.1f
+                animatingIslandView?.scaleY = 0.1f
+                
+                // 同时进行两个动画：圆球缩小消失，灵动岛放大出现
+                val ballAnimation = ballView?.animate()
+                    ?.withLayer()
+                    ?.alpha(0f)
+                    ?.scaleX(0.1f)
+                    ?.scaleY(0.1f)
+                    ?.setDuration(250)
+                    ?.setInterpolator(AccelerateInterpolator())
+                    ?.withEndAction {
+                        try {
+                            windowContainerView?.removeView(ballView)
+                        } catch (e: Exception) { /* ignore */ }
+                        ballView = null
+                    }
+                
+                val islandAnimation = animatingIslandView?.animate()
+                    ?.withLayer()
+                    ?.alpha(1f)
+                    ?.scaleX(1f)
+                    ?.scaleY(1f)
+                    ?.setDuration(350)
+                    ?.setInterpolator(OvershootInterpolator(0.6f))
+                    ?.setStartDelay(100) // 稍微延迟，让圆球开始消失后再显示灵动岛
+                    ?.withEndAction {
+                        Log.d(TAG, "灵动岛恢复动画完成")
+                    }
+                
+                // 启动动画
+                ballAnimation?.start()
+                islandAnimation?.start()
+            }
+            IslandState.BALL -> {
+                // 如果上一个状态也是圆球，默认恢复紧凑状态
+                Log.d(TAG, "上一个状态是圆球，默认恢复紧凑状态")
+                updateState(IslandState.COMPACT)
+                isSearchModeActive = false
+                
+                // 确保灵动岛视图存在并创建紧凑状态内容
+                if (animatingIslandView == null) {
+                    showDynamicIsland()
+                } else {
+                    // 清理现有内容并创建紧凑状态内容
+                    animatingIslandView?.removeAllViews()
+                    createCompactIslandContent()
+                }
+                
+                // 先显示灵动岛视图（隐藏状态）
+                animatingIslandView?.visibility = View.VISIBLE
+                animatingIslandView?.alpha = 0f
+                animatingIslandView?.scaleX = 0.1f
+                animatingIslandView?.scaleY = 0.1f
+                
+                // 同时进行两个动画：圆球缩小消失，灵动岛放大出现
+                val ballAnimation = ballView?.animate()
+                    ?.withLayer()
+                    ?.alpha(0f)
+                    ?.scaleX(0.1f)
+                    ?.scaleY(0.1f)
+                    ?.setDuration(250)
+                    ?.setInterpolator(AccelerateInterpolator())
+                    ?.withEndAction {
+                        try {
+                            windowContainerView?.removeView(ballView)
+                        } catch (e: Exception) { /* ignore */ }
+                        ballView = null
+                    }
+                
+                val islandAnimation = animatingIslandView?.animate()
+                    ?.withLayer()
+                    ?.alpha(1f)
+                    ?.scaleX(1f)
+                    ?.scaleY(1f)
+                    ?.setDuration(350)
+                    ?.setInterpolator(OvershootInterpolator(0.6f))
+                    ?.setStartDelay(100) // 稍微延迟，让圆球开始消失后再显示灵动岛
+                    ?.withEndAction {
+                        Log.d(TAG, "灵动岛恢复动画完成")
+                    }
+                
+                // 启动动画
+                ballAnimation?.start()
+                islandAnimation?.start()
+            }
+        }
     }
     
     /**
