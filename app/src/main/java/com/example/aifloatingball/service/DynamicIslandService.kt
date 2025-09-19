@@ -7357,128 +7357,84 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 恢复窗口参数到正常状态
         restoreWindowForNormalMode()
         
-        // 根据上一个状态决定恢复什么
-        when (previousState) {
-            IslandState.EXPANDED -> {
-                // 如果上一个状态是展开，直接展开
-                Log.d(TAG, "恢复展开状态")
-                updateState(IslandState.EXPANDED)
-                isSearchModeActive = true
-                setupSearchModeTouchListener()
-                
-                // 确保灵动岛视图存在
-                if (animatingIslandView == null) {
-                    showDynamicIsland()
-                }
-                
-                // 直接展开到展开状态
-                animateIsland(compactWidth, expandedWidth)
-            }
-            IslandState.COMPACT -> {
-                // 如果上一个状态是紧凑，恢复紧凑状态
-                Log.d(TAG, "恢复紧凑状态")
-                updateState(IslandState.COMPACT)
-                isSearchModeActive = false
-                
-                // 确保灵动岛视图存在并创建紧凑状态内容
-                if (animatingIslandView == null) {
-                    showDynamicIsland()
-                } else {
-                    // 清理现有内容并创建紧凑状态内容
-                    animatingIslandView?.removeAllViews()
-                    createCompactIslandContent()
-                }
-                
-                // 先显示灵动岛视图（隐藏状态）
-                animatingIslandView?.visibility = View.VISIBLE
-                animatingIslandView?.alpha = 0f
-                animatingIslandView?.scaleX = 0.1f
-                animatingIslandView?.scaleY = 0.1f
-                
-                // 同时进行两个动画：圆球缩小消失，灵动岛放大出现
-                val ballAnimation = ballView?.animate()
-                    ?.withLayer()
-                    ?.alpha(0f)
-                    ?.scaleX(0.1f)
-                    ?.scaleY(0.1f)
-                    ?.setDuration(250)
-                    ?.setInterpolator(AccelerateInterpolator())
-                    ?.withEndAction {
-                        try {
-                            windowContainerView?.removeView(ballView)
-                        } catch (e: Exception) { /* ignore */ }
-                        ballView = null
-                    }
-                
-                val islandAnimation = animatingIslandView?.animate()
-                    ?.withLayer()
-                    ?.alpha(1f)
-                    ?.scaleX(1f)
-                    ?.scaleY(1f)
-                    ?.setDuration(350)
-                    ?.setInterpolator(OvershootInterpolator(0.6f))
-                    ?.setStartDelay(100) // 稍微延迟，让圆球开始消失后再显示灵动岛
-                    ?.withEndAction {
-                        Log.d(TAG, "灵动岛恢复动画完成")
-                    }
-                
-                // 启动动画
-                ballAnimation?.start()
-                islandAnimation?.start()
-            }
-            IslandState.BALL -> {
-                // 如果上一个状态也是圆球，默认恢复紧凑状态
-                Log.d(TAG, "上一个状态是圆球，默认恢复紧凑状态")
-                updateState(IslandState.COMPACT)
-                isSearchModeActive = false
-                
-                // 确保灵动岛视图存在并创建紧凑状态内容
-                if (animatingIslandView == null) {
-                    showDynamicIsland()
-                } else {
-                    // 清理现有内容并创建紧凑状态内容
-                    animatingIslandView?.removeAllViews()
-                    createCompactIslandContent()
-                }
-                
-                // 先显示灵动岛视图（隐藏状态）
-                animatingIslandView?.visibility = View.VISIBLE
-                animatingIslandView?.alpha = 0f
-                animatingIslandView?.scaleX = 0.1f
-                animatingIslandView?.scaleY = 0.1f
-                
-                // 同时进行两个动画：圆球缩小消失，灵动岛放大出现
-                val ballAnimation = ballView?.animate()
-                    ?.withLayer()
-                    ?.alpha(0f)
-                    ?.scaleX(0.1f)
-                    ?.scaleY(0.1f)
-                    ?.setDuration(250)
-                    ?.setInterpolator(AccelerateInterpolator())
-                    ?.withEndAction {
-                        try {
-                            windowContainerView?.removeView(ballView)
-                        } catch (e: Exception) { /* ignore */ }
-                        ballView = null
-                    }
-                
-                val islandAnimation = animatingIslandView?.animate()
-                    ?.withLayer()
-                    ?.alpha(1f)
-                    ?.scaleX(1f)
-                    ?.scaleY(1f)
-                    ?.setDuration(350)
-                    ?.setInterpolator(OvershootInterpolator(0.6f))
-                    ?.setStartDelay(100) // 稍微延迟，让圆球开始消失后再显示灵动岛
-                    ?.withEndAction {
-                        Log.d(TAG, "灵动岛恢复动画完成")
-                    }
-                
-                // 启动动画
-                ballAnimation?.start()
-                islandAnimation?.start()
-            }
+        // 圆球点击后直接回到初始状态，跳过紧凑状态
+        Log.d(TAG, "圆球点击，直接回到初始状态")
+        updateState(IslandState.COMPACT)
+        isSearchModeActive = false
+        
+        // 确保灵动岛视图存在
+        if (animatingIslandView == null) {
+            showDynamicIsland()
+        } else {
+            // 清理现有内容，重新创建初始状态
+            animatingIslandView?.removeAllViews()
+            
+            // 重新创建初始状态的内容
+            val contextThemeWrapper = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_Light)
+            val inflater = LayoutInflater.from(contextThemeWrapper)
+            islandContentView = inflater.inflate(R.layout.dynamic_island_layout, animatingIslandView, false)
+            islandContentView?.background = ColorDrawable(Color.TRANSPARENT)
+            
+            // 设置islandContentView的布局参数
+            islandContentView?.layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            
+            // 重新设置按钮容器和交互
+            val buttonContainer = islandContentView!!.findViewById<LinearLayout>(R.id.button_container)
+            buttonContainer?.visibility = View.VISIBLE
+            
+            // 重新设置按钮交互
+            setupEnhancedLayoutButtons(islandContentView!!)
+            
+            // 重新设置其他组件
+            notificationIconContainer = islandContentView!!.findViewById(R.id.notification_icon_container)
+            appSearchIconScrollView = islandContentView!!.findViewById(R.id.app_search_icon_scroll_view)
+            appSearchIconContainer = islandContentView!!.findViewById(R.id.app_search_icon_container)
+            
+            // 添加内容到灵动岛视图
+            animatingIslandView?.addView(islandContentView)
+            
+            Log.d(TAG, "重新创建初始状态内容完成")
         }
+        
+        // 先显示灵动岛视图（隐藏状态）
+        animatingIslandView?.visibility = View.VISIBLE
+        animatingIslandView?.alpha = 0f
+        animatingIslandView?.scaleX = 0.1f
+        animatingIslandView?.scaleY = 0.1f
+        
+        // 同时进行两个动画：圆球缩小消失，灵动岛放大出现
+        val ballAnimation = ballView?.animate()
+            ?.withLayer()
+            ?.alpha(0f)
+            ?.scaleX(0.1f)
+            ?.scaleY(0.1f)
+            ?.setDuration(250)
+            ?.setInterpolator(AccelerateInterpolator())
+            ?.withEndAction {
+                try {
+                    windowContainerView?.removeView(ballView)
+                } catch (e: Exception) { /* ignore */ }
+                ballView = null
+            }
+        
+        val islandAnimation = animatingIslandView?.animate()
+            ?.withLayer()
+            ?.alpha(1f)
+            ?.scaleX(1f)
+            ?.scaleY(1f)
+            ?.setDuration(350)
+            ?.setInterpolator(OvershootInterpolator(0.6f))
+            ?.setStartDelay(100) // 稍微延迟，让圆球开始消失后再显示灵动岛
+            ?.withEndAction {
+                Log.d(TAG, "灵动岛恢复动画完成，回到初始状态")
+            }
+        
+        // 启动动画
+        ballAnimation?.start()
+        islandAnimation?.start()
     }
     
     /**
