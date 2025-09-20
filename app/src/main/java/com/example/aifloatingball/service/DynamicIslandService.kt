@@ -7648,15 +7648,18 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // 清除回复按钮
             val btnClearAiResponse = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_clear_ai_response)
             btnClearAiResponse?.setOnClickListener {
+                // 清除所有AI回复卡片
+                clearAIResponseCards()
+                // 重置默认回复文本
                 aiResponseText?.text = "选择AI服务并输入问题获取回复..."
             }
             
             // 发送消息按钮
-            val btnSendAiMessage = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_send_ai_message)
+            val btnSendAiMessage = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_send_ai_message)
             btnSendAiMessage?.setOnClickListener {
                 val query = aiInputText?.text?.toString()?.trim()
                 if (!query.isNullOrEmpty()) {
-                    sendAIMessage(query, aiResponseText)
+                    sendAIMessageToMultipleServices(query)
                     aiInputText?.setText("") // 清空输入框
                 }
             }
@@ -7702,12 +7705,166 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 toggleResponseFold()
             }
             
+            // 切换AI服务按钮
+            val btnSwitchAIService = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_switch_ai_service)
+            btnSwitchAIService?.setOnClickListener {
+                switchAIService()
+            }
+            
             Log.d(TAG, "AI助手面板交互设置完成")
         } catch (e: Exception) {
             Log.e(TAG, "设置AI助手面板交互失败", e)
         }
     }
     
+    
+    /**
+     * 添加AI回复卡片
+     */
+    private fun addAIResponseCard(aiName: String, response: String) {
+        try {
+            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+            if (responseContainer != null) {
+                // 创建新的AI回复卡片
+                val newCard = createAIResponseCard(aiName, response)
+                responseContainer.addView(newCard)
+                
+                // 滚动到最新添加的卡片
+                val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_response_scroll_container)
+                scrollContainer?.post {
+                    scrollContainer.fullScroll(HorizontalScrollView.FOCUS_RIGHT)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "添加AI回复卡片失败", e)
+        }
+    }
+    
+    /**
+     * 创建AI回复卡片
+     */
+    private fun createAIResponseCard(aiName: String, response: String): MaterialCardView {
+        val context = this
+        val card = MaterialCardView(context)
+        
+        // 设置卡片参数
+        val layoutParams = LinearLayout.LayoutParams(
+            280.dpToPx(), // 280dp宽度
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        layoutParams.marginEnd = 12.dpToPx() // 12dp右边距
+        card.layoutParams = layoutParams
+        
+        // 设置卡片样式
+        card.radius = 12.dpToPx().toFloat()
+        card.cardElevation = 1f
+        card.setCardBackgroundColor(getColor(R.color.ai_assistant_ai_bubble_light))
+        card.strokeColor = getColor(R.color.ai_assistant_border_light)
+        card.strokeWidth = 1.dpToPx()
+        
+        // 创建内容布局
+        val scrollView = ScrollView(context)
+        scrollView.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        scrollView.isVerticalScrollBarEnabled = true
+        scrollView.setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 12.dpToPx())
+        
+        val textView = TextView(context)
+        textView.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        textView.text = "$aiName:\n$response"
+        textView.setTextColor(getColor(R.color.ai_assistant_ai_text_light))
+        textView.textSize = 13f
+        textView.setLineSpacing(4.dpToPx().toFloat(), 1f)
+        textView.setTextIsSelectable(true)
+        
+        scrollView.addView(textView)
+        card.addView(scrollView)
+        
+        return card
+    }
+    
+    /**
+     * 清除所有AI回复卡片（保留默认卡片）
+     */
+    private fun clearAIResponseCards() {
+        try {
+            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+            if (responseContainer != null) {
+                // 保留默认卡片，移除其他卡片
+                val childCount = responseContainer.childCount
+                for (i in childCount - 1 downTo 1) { // 从后往前删除，跳过第一个（默认卡片）
+                    responseContainer.removeViewAt(i)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "清除AI回复卡片失败", e)
+        }
+    }
+    
+    
+    /**
+     * 发送消息到多个AI服务
+     */
+    private fun sendAIMessageToMultipleServices(query: String) {
+        try {
+            // 获取当前选择的AI服务列表
+            val selectedAIServices = getSelectedAIServices()
+            
+            if (selectedAIServices.isEmpty()) {
+                Toast.makeText(this, "请先选择AI服务", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 清除之前的回复
+            clearAIResponseCards()
+            
+            // 为每个AI服务发送消息
+            selectedAIServices.forEach { aiService ->
+                sendAIMessageToService(query, aiService)
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送消息到多个AI服务失败", e)
+            Toast.makeText(this, "发送失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 获取当前选择的AI服务列表
+     */
+    private fun getSelectedAIServices(): List<String> {
+        // 这里应该从SharedPreferences或数据库获取用户选择的AI服务
+        // 暂时返回示例服务列表
+        return listOf("DeepSeek", "Kimi", "Claude")
+    }
+    
+    /**
+     * 发送消息到指定AI服务
+     */
+    private fun sendAIMessageToService(query: String, aiService: String) {
+        try {
+            // 模拟AI回复（实际应该调用相应的AI API）
+            val response = when (aiService) {
+                "DeepSeek" -> "DeepSeek回复：这是一个关于\"$query\"的详细回答..."
+                "Kimi" -> "Kimi回复：根据您的问题\"$query\"，我的建议是..."
+                "Claude" -> "Claude回复：关于\"$query\"这个问题，我认为..."
+                else -> "${aiService}回复：正在处理您的问题..."
+            }
+            
+            // 添加AI回复卡片
+            addAIResponseCard(aiService, response)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送消息到${aiService}失败", e)
+            addAIResponseCard(aiService, "抱歉，${aiService} 暂时无法回复")
+        }
+    }
+
     /**
      * 切换AI服务
      */
@@ -7746,7 +7903,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun toggleResponseFold() {
         try {
-            val responseScroll = aiAssistantPanelView?.findViewById<ScrollView>(R.id.ai_response_scroll)
+            val responseScroll = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_response_scroll_container)
             val foldButton = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_fold_response)
             
             if (responseScroll != null && foldButton != null) {

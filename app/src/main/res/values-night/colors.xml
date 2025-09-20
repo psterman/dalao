@@ -430,4 +430,44 @@
 
 
 
+    <!-- =============================================================== -->
+    <!-- =============== AI助手面板专用颜色方案 - 深色模式 ============== -->
+    <!-- =============================================================== -->
+    
+    <!-- 🌿 AI助手面板 - 深色模式 -->
+    <color name="ai_assistant_background_light">#1A1A1A</color>
+    <color name="ai_assistant_surface_light">#2A2A2A</color>
+    <color name="ai_assistant_card_light">#2A2A2A</color>
+    <color name="ai_assistant_primary_light">#10D876</color>
+    <color name="ai_assistant_primary_variant_light">#0EBE68</color>
+    <color name="ai_assistant_secondary_light">#1DE885</color>
+    <color name="ai_assistant_text_primary_light">#FFFFFF</color>
+    <color name="ai_assistant_text_secondary_light">#B8B8B8</color>
+    <color name="ai_assistant_text_hint_light">#888888</color>
+    <color name="ai_assistant_border_light">#404040</color>
+    <color name="ai_assistant_divider_light">#333333</color>
+    <color name="ai_assistant_input_background_light">#2A2A2A</color>
+    <color name="ai_assistant_input_stroke_light">#404040</color>
+    <color name="ai_assistant_input_stroke_focused_light">#10D876</color>
+    <color name="ai_assistant_button_primary_light">#10D876</color>
+    <color name="ai_assistant_button_text_light">#000000</color>
+    <color name="ai_assistant_button_secondary_light">#2A2A2A</color>
+    <color name="ai_assistant_button_text_secondary_light">#10D876</color>
+    <color name="ai_assistant_icon_light">#10D876</color>
+    <color name="ai_assistant_icon_secondary_light">#B8B8B8</color>
+    <color name="ai_assistant_shadow_light">#40000000</color>
+    <color name="ai_assistant_ripple_light">#1A10D876</color>
+    
+    <!-- 🎯 AI助手状态颜色 - 深色模式 -->
+    <color name="ai_assistant_success_light">#10D876</color>
+    <color name="ai_assistant_warning_light">#FFD93D</color>
+    <color name="ai_assistant_error_light">#FF6B6B</color>
+    <color name="ai_assistant_info_light">#64B5F6</color>
+    
+    <!-- 💬 AI对话气泡颜色 - 深色模式 -->
+    <color name="ai_assistant_user_bubble_light">#10D876</color>
+    <color name="ai_assistant_user_text_light">#000000</color>
+    <color name="ai_assistant_ai_bubble_light">#2A2A2A</color>
+    <color name="ai_assistant_ai_text_light">#FFFFFF</color>
+
 </resources>

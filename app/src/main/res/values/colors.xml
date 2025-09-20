@@ -758,4 +758,44 @@
     <color name="chat_contact_group_tag_border_light">#BBDEFB</color>
     <color name="chat_contact_group_tag_border_dark">#42A5F5</color>
 
+    <!-- =============================================================== -->
+    <!-- =============== AI助手面板专用颜色方案 ======================== -->
+    <!-- =============================================================== -->
+    
+    <!-- 🌿 AI助手面板 - 浅色模式 -->
+    <color name="ai_assistant_background_light">#FFFFFF</color>
+    <color name="ai_assistant_surface_light">#F8F9FA</color>
+    <color name="ai_assistant_card_light">#FFFFFF</color>
+    <color name="ai_assistant_primary_light">#07C160</color>
+    <color name="ai_assistant_primary_variant_light">#06AD56</color>
+    <color name="ai_assistant_secondary_light">#10D876</color>
+    <color name="ai_assistant_text_primary_light">#1A1A1A</color>
+    <color name="ai_assistant_text_secondary_light">#666666</color>
+    <color name="ai_assistant_text_hint_light">#999999</color>
+    <color name="ai_assistant_border_light">#E5E5E5</color>
+    <color name="ai_assistant_divider_light">#F0F0F0</color>
+    <color name="ai_assistant_input_background_light">#F5F5F5</color>
+    <color name="ai_assistant_input_stroke_light">#E0E0E0</color>
+    <color name="ai_assistant_input_stroke_focused_light">#07C160</color>
+    <color name="ai_assistant_button_primary_light">#07C160</color>
+    <color name="ai_assistant_button_text_light">#FFFFFF</color>
+    <color name="ai_assistant_button_secondary_light">#F5F5F5</color>
+    <color name="ai_assistant_button_text_secondary_light">#07C160</color>
+    <color name="ai_assistant_icon_light">#07C160</color>
+    <color name="ai_assistant_icon_secondary_light">#666666</color>
+    <color name="ai_assistant_shadow_light">#1A000000</color>
+    <color name="ai_assistant_ripple_light">#1A07C160</color>
+    
+    <!-- 🎯 AI助手状态颜色 - 浅色模式 -->
+    <color name="ai_assistant_success_light">#07C160</color>
+    <color name="ai_assistant_warning_light">#FF9500</color>
+    <color name="ai_assistant_error_light">#FA5151</color>
+    <color name="ai_assistant_info_light">#2196F3</color>
+    
+    <!-- 💬 AI对话气泡颜色 - 浅色模式 -->
+    <color name="ai_assistant_user_bubble_light">#07C160</color>
+    <color name="ai_assistant_user_text_light">#FFFFFF</color>
+    <color name="ai_assistant_ai_bubble_light">#F5F5F5</color>
+    <color name="ai_assistant_ai_text_light">#1A1A1A</color>
+
 </resources>
