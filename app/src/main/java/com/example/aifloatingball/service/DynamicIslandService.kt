@@ -3515,6 +3515,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Triple("com.tencent.wework", "wework", "企业微信"),
             Triple("com.tencent.tim", "tim", "TIM"),
             Triple("com.sina.weibo", "sinaweibo", "微博"),
+            Triple("com.sina.weibo.lite", "sinaweibo", "微博轻享"),
             Triple("com.xingin.xhs", "xhsdiscover", "小红书"),
             Triple("com.douban.frodo", "douban", "豆瓣"),
             Triple("com.twitter.android", "twitter", "Twitter-X"),
@@ -3534,6 +3535,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Triple("tv.danmaku.bili", "bilibili", "哔哩哔哩"),
             Triple("com.tencent.qqlive", "qqlive", "腾讯视频"),
             Triple("com.iqiyi.app", "iqiyi", "爱奇艺"),
+            Triple("com.youku.phone", "youku", "优酷"),
+            Triple("com.smile.gifmaker", "kuaishou", "快手"),
             Triple("com.google.android.youtube", "youtube", "YouTube"),
             
             // 音乐类
@@ -3549,6 +3552,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // 地图导航类
             Triple("com.autonavi.minimap", "androidamap", "高德地图"),
             Triple("com.baidu.BaiduMap", "baidumap", "百度地图"),
+            Triple("com.tencent.map", "tencentmap", "腾讯地图"),
             
             // 浏览器类
             Triple("com.tencent.mtt", "mttbrowser", "QQ浏览器"),
@@ -3556,6 +3560,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Triple("com.android.chrome", "googlechrome", "Chrome"),
             Triple("org.mozilla.firefox", "firefox", "Firefox"),
             Triple("com.quark.browser", "quark", "夸克"),
+            Triple("com.baidu.searchbox", "baiduboxapp", "百度"),
+            Triple("com.sohu.inputmethod.sogou", "sogou", "搜狗"),
+            Triple("com.qihoo.browser", "qihoo", "360浏览器"),
             
             // 金融类
             Triple("cmb.pb", "cmbmobilebank", "招商银行"),
@@ -3581,7 +3588,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Triple("com.fenbi.android.solar", "yuansouti", "小猿搜题"),
             
             // 新闻类
-            Triple("com.netease.nr", "newsapp", "网易新闻")
+            Triple("com.netease.nr", "newsapp", "网易新闻"),
+            Triple("com.ss.android.article.news", "toutiao", "今日头条"),
+            Triple("com.tencent.news", "tencentnews", "腾讯新闻")
         )
         
         for ((packageName, urlScheme, appName) in urlSchemeAppConfigs) {
@@ -3617,7 +3626,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val encodedQuery = Uri.encode(searchQuery)
                 val intent = when (appInfo.urlScheme) {
                     // 社交类
-                    "weixin" -> Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedQuery"))
+                    "weixin" -> {
+                        // 微信不支持搜索URL Scheme，降级到普通启动
+                        Log.d(TAG, "微信不支持搜索URL Scheme，降级到普通启动")
+                        null
+                    }
                     "mqqapi" -> Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=$encodedQuery"))
                     "wework" -> Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=$encodedQuery"))
                     "tim" -> Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=$encodedQuery"))
@@ -3640,6 +3653,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     "bilibili" -> Intent(Intent.ACTION_VIEW, Uri.parse("bilibili://search?keyword=$encodedQuery"))
                     "qqlive" -> Intent(Intent.ACTION_VIEW, Uri.parse("qqlive://search?query=$encodedQuery"))
                     "iqiyi" -> Intent(Intent.ACTION_VIEW, Uri.parse("iqiyi://search?key=$encodedQuery"))
+                    "youku" -> Intent(Intent.ACTION_VIEW, Uri.parse("youku://search?keyword=$encodedQuery"))
+                    "kuaishou" -> Intent(Intent.ACTION_VIEW, Uri.parse("kuaishou://search?keyword=$encodedQuery"))
                     "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("youtube://results?search_query=$encodedQuery"))
                     
                     // 音乐类
@@ -3655,6 +3670,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     // 地图导航类
                     "androidamap" -> Intent(Intent.ACTION_VIEW, Uri.parse("androidamap://poi?sourceApplication=appname&keywords=$encodedQuery"))
                     "baidumap" -> Intent(Intent.ACTION_VIEW, Uri.parse("baidumap://map/place/search?query=$encodedQuery"))
+                    "tencentmap" -> Intent(Intent.ACTION_VIEW, Uri.parse("tencentmap://map/place/search?query=$encodedQuery"))
                     
                     // 浏览器类
                     "mttbrowser" -> Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=$encodedQuery"))
@@ -3662,6 +3678,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     "googlechrome" -> Intent(Intent.ACTION_VIEW, Uri.parse("googlechrome://www.google.com/search?q=$encodedQuery"))
                     "firefox" -> Intent(Intent.ACTION_VIEW, Uri.parse("firefox://search?q=$encodedQuery"))
                     "quark" -> Intent(Intent.ACTION_VIEW, Uri.parse("quark://search?q=$encodedQuery"))
+                    "baiduboxapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("baiduboxapp://searchbox?action=search&query=$encodedQuery"))
+                    "sogou" -> Intent(Intent.ACTION_VIEW, Uri.parse("sogou://search?keyword=$encodedQuery"))
+                    "qihoo" -> Intent(Intent.ACTION_VIEW, Uri.parse("qihoo://search?keyword=$encodedQuery"))
                     
                     // 金融类
                     "cmbmobilebank" -> Intent(Intent.ACTION_VIEW, Uri.parse("cmbmobilebank://search?keyword=$encodedQuery"))
@@ -3688,6 +3707,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     
                     // 新闻类
                     "newsapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("newsapp://search?keyword=$encodedQuery"))
+                    "toutiao" -> Intent(Intent.ACTION_VIEW, Uri.parse("toutiao://search?keyword=$encodedQuery"))
+                    "tencentnews" -> Intent(Intent.ACTION_VIEW, Uri.parse("tencentnews://search?keyword=$encodedQuery"))
                     
                     else -> {
                         // 通用URL scheme格式
@@ -3695,10 +3716,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     }
                 }
                 
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                hideContent()
-                return
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    hideContent()
+                    return
+                } else {
+                    // Intent为null，降级到普通启动
+                    Log.d(TAG, "Intent为null，降级到普通启动: ${appInfo.urlScheme}")
+                }
             }
             
             // 如果没有URL scheme，使用包名启动应用
@@ -7055,29 +7081,41 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
-     * 🎯 处理app图标点击事件 - 新逻辑：自动粘贴获取剪贴板数据
+     * 🎯 处理app图标点击事件 - 新逻辑：优先使用输入框内容，自动粘贴获取剪贴板数据
      */
     private fun handleAppIconClick(appInfo: AppInfo, clipboardContent: String) {
         try {
-            Log.d(TAG, "🎯 应用图标点击: ${appInfo.label} - 开始自动粘贴获取剪贴板数据...")
+            Log.d(TAG, "🎯 应用图标点击: ${appInfo.label} - 开始获取搜索内容...")
 
             // 立即缩小到球状态，而不是完全收起
             hideContentAndSwitchToBall()
 
-            // 🚨 核心改进：通过自动粘贴获取最新剪贴板数据
-            val latestClipboardContent = getClipboardContentByAutoPaste()
+            // 🚨 核心改进：优先获取输入框内容，然后尝试自动粘贴获取剪贴板数据
+            val inputText = searchInput?.text?.toString()?.trim()
             val finalContent = when {
-                !latestClipboardContent.isNullOrEmpty() -> {
-                    Log.d(TAG, "✅ 自动粘贴获取成功: ${latestClipboardContent.take(50)}...")
-                    latestClipboardContent
-                }
-                !clipboardContent.isNullOrEmpty() -> {
-                    Log.d(TAG, "✅ 使用展开时的剪贴板内容: ${clipboardContent.take(50)}...")
-                    clipboardContent
+                !inputText.isNullOrEmpty() -> {
+                    Log.d(TAG, "✅ 使用输入框内容: ${inputText.take(50)}...")
+                    // 将输入框内容复制到剪贴板，确保app能获取到
+                    copyTextToClipboard(inputText)
+                    inputText
                 }
                 else -> {
-                    Log.d(TAG, "⚠️ 无剪贴板内容，使用默认搜索")
-                    "搜索内容"
+                    // 输入框为空，尝试自动粘贴获取剪贴板数据
+                    val latestClipboardContent = getClipboardContentByAutoPaste()
+                    when {
+                        !latestClipboardContent.isNullOrEmpty() -> {
+                            Log.d(TAG, "✅ 自动粘贴获取成功: ${latestClipboardContent.take(50)}...")
+                            latestClipboardContent
+                        }
+                        !clipboardContent.isNullOrEmpty() -> {
+                            Log.d(TAG, "✅ 使用展开时的剪贴板内容: ${clipboardContent.take(50)}...")
+                            clipboardContent
+                        }
+                        else -> {
+                            Log.d(TAG, "⚠️ 无剪贴板内容，使用默认搜索")
+                            "搜索内容"
+                        }
+                    }
                 }
             }
 
@@ -7098,7 +7136,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 Log.d(TAG, "🔗 构建URL Scheme搜索: ${appInfo.urlScheme} - 内容: ${encodedContent.take(50)}...")
                 val intent = when (appInfo.urlScheme) {
                     // 社交类
-                    "weixin" -> Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedContent"))
+                    "weixin" -> {
+                        // 微信不支持搜索URL Scheme，直接降级到普通启动
+                        Log.d(TAG, "微信不支持搜索URL Scheme，降级到普通启动")
+                        null
+                    }
                     "mqqapi" -> Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=$encodedContent"))
                     "wework" -> Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=$encodedContent"))
                     "tim" -> Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=$encodedContent"))
@@ -7174,25 +7216,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         // 通用URL scheme格式
                         Intent(Intent.ACTION_VIEW, Uri.parse("${appInfo.urlScheme}://search?query=$encodedContent"))
                     }
-                }.apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 
-                try {
-                    startActivity(intent)
-                    Toast.makeText(this, "已在${appInfo.label}中搜索: ${finalContent.take(30)}...", Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, "🚀 通过URL Scheme跳转到${appInfo.label}搜索: ${intent.data}")
-                } catch (e: ActivityNotFoundException) {
-                    // URL Scheme不可用，降级到普通启动
-                    Log.w(TAG, "URL Scheme失败，降级到普通启动: ${appInfo.urlScheme}")
-                    launchAppForManualPaste(appInfo)
-                } catch (e: Exception) {
-                    Log.e(TAG, "启动URL Scheme失败", e)
-                    launchAppForManualPaste(appInfo)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    
+                    try {
+                        startActivity(intent)
+                        Toast.makeText(this, "已在${appInfo.label}中搜索: ${finalContent.take(30)}...", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "🚀 通过URL Scheme跳转到${appInfo.label}搜索: ${intent.data}")
+                    } catch (e: ActivityNotFoundException) {
+                        // URL Scheme不可用，降级到普通启动
+                        Log.w(TAG, "URL Scheme失败，降级到普通启动: ${appInfo.urlScheme}")
+                        launchAppForManualPaste(appInfo, finalContent)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "启动URL Scheme失败", e)
+                        launchAppForManualPaste(appInfo, finalContent)
+                    }
+                } else {
+                    // Intent为null，直接降级到普通启动
+                    Log.w(TAG, "Intent为null，降级到普通启动: ${appInfo.urlScheme}")
+                    launchAppForManualPaste(appInfo, finalContent)
                 }
             } else {
                 // 不支持URL Scheme，启动app让用户手动粘贴
-                launchAppForManualPaste(appInfo)
+                launchAppForManualPaste(appInfo, finalContent)
             }
 
         } catch (e: Exception) {
@@ -7209,6 +7257,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         return try {
             Log.d(TAG, "🔄 [自动粘贴] 开始为应用图标点击获取剪贴板内容...")
 
+            // 方法1：直接获取剪贴板内容（最可靠）
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboardManager.hasPrimaryClip()) {
+                val clipData = clipboardManager.primaryClip
+                if (clipData != null && clipData.itemCount > 0) {
+                    val content = clipData.getItemAt(0)?.text?.toString()
+                    if (!content.isNullOrEmpty()) {
+                        Log.d(TAG, "✅ [自动粘贴] 直接获取剪贴板成功: ${content.take(50)}...")
+                        return content
+                    }
+                }
+            }
+
+            // 方法2：通过隐藏EditText模拟粘贴（备选方案）
+            Log.d(TAG, "🔄 [自动粘贴] 直接获取失败，尝试模拟粘贴...")
+            
             // 创建隐藏的EditText用于接收粘贴内容
             val hiddenEditText = EditText(this).apply {
                 layoutParams = ViewGroup.LayoutParams(1, 1)
@@ -7250,10 +7314,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
 
             if (!pastedContent.isNullOrEmpty()) {
-                Log.d(TAG, "✅ [自动粘贴] 成功获取内容，长度: ${pastedContent.length}")
+                Log.d(TAG, "✅ [自动粘贴] 模拟粘贴成功获取内容，长度: ${pastedContent.length}")
                 return pastedContent
             } else {
-                Log.d(TAG, "❌ [自动粘贴] 未获取到内容")
+                Log.d(TAG, "❌ [自动粘贴] 所有方法都未获取到内容")
                 return null
             }
 
@@ -7341,13 +7405,25 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     /**
      * 启动app让用户手动粘贴
      */
-    private fun launchAppForManualPaste(appInfo: AppInfo) {
+    private fun launchAppForManualPaste(appInfo: AppInfo, searchContent: String? = null) {
         try {
+            // 如果有搜索内容，先复制到剪贴板
+            if (!searchContent.isNullOrEmpty()) {
+                copyTextToClipboard(searchContent)
+                Log.d(TAG, "已将搜索内容复制到剪贴板: ${searchContent.take(50)}...")
+            }
+            
             val intent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
             if (intent != null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
-                Toast.makeText(this, "已启动${appInfo.label}，请手动粘贴内容", Toast.LENGTH_LONG).show()
+                
+                val message = if (!searchContent.isNullOrEmpty()) {
+                    "已启动${appInfo.label}，内容已复制到剪贴板，可直接粘贴搜索"
+                } else {
+                    "已启动${appInfo.label}，请手动粘贴内容"
+                }
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 Log.d(TAG, "启动app让用户手动粘贴: ${appInfo.label}")
             } else {
                 Toast.makeText(this, "无法启动${appInfo.label}", Toast.LENGTH_SHORT).show()
@@ -7459,6 +7535,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 设置AI助手面板的交互
         setupAIAssistantPanelInteractions()
         
+        // 更新窗口参数以允许焦点和输入法
+        updateWindowParamsForInput()
+        
         // 添加到窗口并显示动画
         windowContainerView?.addView(aiAssistantPanelView, panelParams)
         aiAssistantPanelView?.apply {
@@ -7470,13 +7549,28 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 .setDuration(350)
                 .setInterpolator(AccelerateDecelerateInterpolator())
                 .withEndAction {
-                    // 面板显示完成，不再自动粘贴剪贴板内容
-                    Log.d(TAG, "AI助手面板显示完成")
+                    // 面板显示完成，自动激活输入法
+                    Log.d(TAG, "AI助手面板显示完成，激活输入法")
+                    val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
+                    aiInputText?.let { inputField ->
+                        // 使用专门的悬浮窗输入法激活方法
+                        activateInputMethodForFloatingWindow(inputField)
+                    }
                 }
                 .start()
         }
         
         Log.d(TAG, "AI助手面板已显示")
+        
+        // 额外的延迟激活输入法，确保面板完全显示后激活
+        uiHandler.postDelayed({
+            val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
+            aiInputText?.let { inputField ->
+                Log.d(TAG, "延迟激活AI助手面板输入法")
+                activateInputMethodForFloatingWindow(inputField)
+            }
+        }, 500)
+        
         } catch (e: Exception) {
             Log.e(TAG, "显示AI助手面板失败", e)
         }
@@ -7526,6 +7620,29 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // AI输入框
             val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
             val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
+            
+            // 设置AI输入框的焦点和输入法激活
+            aiInputText?.let { inputField ->
+                // 设置焦点变化监听器
+                inputField.setOnFocusChangeListener { _, hasFocus ->
+                    if (hasFocus) {
+                        // 当获得焦点时，强制显示输入法
+                        uiHandler.postDelayed({
+                            // 使用专门的悬浮窗输入法激活方法
+                            activateInputMethodForFloatingWindow(inputField)
+                        }, 100)
+                    }
+                }
+                
+                // 设置点击监听器，确保点击时显示输入法
+                inputField.setOnClickListener {
+                    inputField.requestFocus()
+                    uiHandler.postDelayed({
+                        // 使用专门的悬浮窗输入法激活方法
+                        activateInputMethodForFloatingWindow(inputField)
+                    }, 100)
+                }
+            }
             
             // AI设置按钮
             val btnAiSettings = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_ai_settings)
@@ -8187,6 +8304,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             "tv.danmaku.bili" to "bilibili",
             "com.tencent.qqlive" to "qqlive",
             "com.iqiyi.app" to "iqiyi",
+            "com.youku.phone" to "youku",
+            "com.smile.gifmaker" to "kuaishou",
             "com.google.android.youtube" to "youtube",
             
             // 音乐类
@@ -8202,6 +8321,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // 地图导航类
             "com.autonavi.minimap" to "androidamap",
             "com.baidu.BaiduMap" to "baidumap",
+            "com.tencent.map" to "tencentmap",
             
             // 浏览器类
             "com.tencent.mtt" to "mttbrowser",
@@ -8209,6 +8329,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             "com.android.chrome" to "googlechrome",
             "org.mozilla.firefox" to "firefox",
             "com.quark.browser" to "quark",
+            "com.baidu.searchbox" to "baiduboxapp",
+            "com.sohu.inputmethod.sogou" to "sogou",
+            "com.qihoo.browser" to "qihoo",
             
             // 金融类
             "cmb.pb" to "cmbmobilebank",
@@ -8234,7 +8357,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             "com.fenbi.android.solar" to "yuansouti",
             
             // 新闻类
-            "com.netease.nr" to "newsapp"
+            "com.netease.nr" to "newsapp",
+            "com.ss.android.article.news" to "toutiao",
+            "com.tencent.news" to "tencentnews"
         )
         
         return urlSchemeMap[packageName]
@@ -8332,7 +8457,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val encodedQuery = Uri.encode(query)
                 val intent = when (appInfo.urlScheme) {
                     // 社交类
-                    "weixin" -> Intent(Intent.ACTION_VIEW, Uri.parse("weixin://dl/search?query=$encodedQuery"))
+                    "weixin" -> {
+                        // 微信不支持搜索URL Scheme，降级到普通启动
+                        Log.d(TAG, "微信不支持搜索URL Scheme，降级到普通启动")
+                        null
+                    }
                     "mqqapi" -> Intent(Intent.ACTION_VIEW, Uri.parse("mqqapi://search?query=$encodedQuery"))
                     "wework" -> Intent(Intent.ACTION_VIEW, Uri.parse("wework://search?query=$encodedQuery"))
                     "tim" -> Intent(Intent.ACTION_VIEW, Uri.parse("tim://search?query=$encodedQuery"))
@@ -8355,6 +8484,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     "bilibili" -> Intent(Intent.ACTION_VIEW, Uri.parse("bilibili://search?keyword=$encodedQuery"))
                     "qqlive" -> Intent(Intent.ACTION_VIEW, Uri.parse("qqlive://search?query=$encodedQuery"))
                     "iqiyi" -> Intent(Intent.ACTION_VIEW, Uri.parse("iqiyi://search?key=$encodedQuery"))
+                    "youku" -> Intent(Intent.ACTION_VIEW, Uri.parse("youku://search?keyword=$encodedQuery"))
+                    "kuaishou" -> Intent(Intent.ACTION_VIEW, Uri.parse("kuaishou://search?keyword=$encodedQuery"))
                     "youtube" -> Intent(Intent.ACTION_VIEW, Uri.parse("youtube://results?search_query=$encodedQuery"))
                     
                     // 音乐类
@@ -8370,6 +8501,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     // 地图导航类
                     "androidamap" -> Intent(Intent.ACTION_VIEW, Uri.parse("androidamap://poi?sourceApplication=appname&keywords=$encodedQuery"))
                     "baidumap" -> Intent(Intent.ACTION_VIEW, Uri.parse("baidumap://map/place/search?query=$encodedQuery"))
+                    "tencentmap" -> Intent(Intent.ACTION_VIEW, Uri.parse("tencentmap://map/place/search?query=$encodedQuery"))
                     
                     // 浏览器类
                     "mttbrowser" -> Intent(Intent.ACTION_VIEW, Uri.parse("mttbrowser://search?query=$encodedQuery"))
@@ -8377,6 +8509,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     "googlechrome" -> Intent(Intent.ACTION_VIEW, Uri.parse("googlechrome://www.google.com/search?q=$encodedQuery"))
                     "firefox" -> Intent(Intent.ACTION_VIEW, Uri.parse("firefox://search?q=$encodedQuery"))
                     "quark" -> Intent(Intent.ACTION_VIEW, Uri.parse("quark://search?q=$encodedQuery"))
+                    "baiduboxapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("baiduboxapp://searchbox?action=search&query=$encodedQuery"))
+                    "sogou" -> Intent(Intent.ACTION_VIEW, Uri.parse("sogou://search?keyword=$encodedQuery"))
+                    "qihoo" -> Intent(Intent.ACTION_VIEW, Uri.parse("qihoo://search?keyword=$encodedQuery"))
                     
                     // 金融类
                     "cmbmobilebank" -> Intent(Intent.ACTION_VIEW, Uri.parse("cmbmobilebank://search?keyword=$encodedQuery"))
@@ -8403,6 +8538,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     
                     // 新闻类
                     "newsapp" -> Intent(Intent.ACTION_VIEW, Uri.parse("newsapp://search?keyword=$encodedQuery"))
+                    "toutiao" -> Intent(Intent.ACTION_VIEW, Uri.parse("toutiao://search?keyword=$encodedQuery"))
+                    "tencentnews" -> Intent(Intent.ACTION_VIEW, Uri.parse("tencentnews://search?keyword=$encodedQuery"))
                     
                     else -> {
                         // 通用URL scheme格式
@@ -8410,10 +8547,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     }
                 }
 
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-                // 执行搜索动作后退出搜索面板并切换到圆球状态
-                hideContentAndSwitchToBall()
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                    // 执行搜索动作后退出搜索面板并切换到圆球状态
+                    hideContentAndSwitchToBall()
+                } else {
+                    // Intent为null，降级到普通启动
+                    Log.d(TAG, "Intent为null，降级到普通启动: ${appInfo.urlScheme}")
+                    launchAppForManualPaste(appInfo, query)
+                }
                 Toast.makeText(this, "已跳转到${appInfo.label}搜索", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e(TAG, "跳转到APP搜索失败: ${appInfo.label}", e)
