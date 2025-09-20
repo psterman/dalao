@@ -7644,13 +7644,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
             
-            // AI设置按钮
-            val btnAiSettings = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_ai_settings)
-            btnAiSettings?.setOnClickListener {
-                val intent = Intent(this, AIApiConfigActivity::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-            }
             
             // 清除回复按钮
             val btnClearAiResponse = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_clear_ai_response)
@@ -7668,64 +7661,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
             
-            // 复制回复按钮
-            val btnCopyResponse = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_copy_response)
-            btnCopyResponse?.setOnClickListener {
-                val responseText = aiResponseText?.text?.toString()
-                if (!responseText.isNullOrEmpty() && responseText != "选择AI服务并输入问题获取回复...") {
-                    copyTextToClipboard(responseText)
-                    Toast.makeText(this, "回复已复制到剪贴板", Toast.LENGTH_SHORT).show()
-                    
-                    // 如果还没有保存到聊天历史，现在保存
-                    val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-                    val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
-                    val serviceType = when (selectedService) {
-                        "DeepSeek" -> AIServiceType.DEEPSEEK
-                        "智谱AI" -> AIServiceType.ZHIPU_AI
-                        "Kimi" -> AIServiceType.KIMI
-                        "ChatGPT" -> AIServiceType.CHATGPT
-                        "Claude" -> AIServiceType.CLAUDE
-                        "Gemini" -> AIServiceType.GEMINI
-                        "文心一言" -> AIServiceType.WENXIN
-                        "通义千问" -> AIServiceType.QIANWEN
-                        "讯飞星火" -> AIServiceType.XINGHUO
-                        else -> AIServiceType.DEEPSEEK
-                    }
-                    
-                    // 获取用户输入的问题（从输入框或从上下文推断）
-                    val userQuery = aiInputText?.text?.toString()?.trim() ?: "用户问题"
-                    saveToChatHistory(userQuery, responseText, serviceType)
-                }
-            }
-            
-            // 分享回复按钮
-            val btnShareResponse = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_share_response)
-            btnShareResponse?.setOnClickListener {
-                val responseText = aiResponseText?.text?.toString()
-                if (!responseText.isNullOrEmpty() && responseText != "选择AI服务并输入问题获取回复...") {
-                    shareText(responseText)
-                    
-                    // 如果还没有保存到聊天历史，现在保存
-                    val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-                    val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
-                    val serviceType = when (selectedService) {
-                        "DeepSeek" -> AIServiceType.DEEPSEEK
-                        "智谱AI" -> AIServiceType.ZHIPU_AI
-                        "Kimi" -> AIServiceType.KIMI
-                        "ChatGPT" -> AIServiceType.CHATGPT
-                        "Claude" -> AIServiceType.CLAUDE
-                        "Gemini" -> AIServiceType.GEMINI
-                        "文心一言" -> AIServiceType.WENXIN
-                        "通义千问" -> AIServiceType.QIANWEN
-                        "讯飞星火" -> AIServiceType.XINGHUO
-                        else -> AIServiceType.DEEPSEEK
-                    }
-                    
-                    // 获取用户输入的问题（从输入框或从上下文推断）
-                    val userQuery = aiInputText?.text?.toString()?.trim() ?: "用户问题"
-                    saveToChatHistory(userQuery, responseText, serviceType)
-                }
-            }
             
             // 助手选择按钮
             val btnSelectAssistant = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_select_assistant)
