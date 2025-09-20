@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 按下状态：更明显的绿色高亮效果 -->
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#804CAF50" />
+            <stroke android:width="1dp" android:color="#A04CAF50" />
+        </shape>
+    </item>
+    <!-- 聚焦状态：轻微绿色高亮 -->
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <solid android:color="#604CAF50" />
+            <stroke android:width="1dp" android:color="#804CAF50" />
+        </shape>
+    </item>
+    <!-- 默认状态：绿色主题，适配暗色模式 -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#404CAF50" />
+            <stroke android:width="1dp" android:color="#604CAF50" />
+        </shape>
+    </item>
+</selector>

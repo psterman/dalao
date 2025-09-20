@@ -161,9 +161,9 @@ class DynamicIslandIndicatorView @JvmOverloads constructor(
 
         // Update colors based on theme - 修正颜色逻辑，让灵动岛在不同模式下都有良好对比度
         backgroundColor = if (isDarkMode) {
-            Color.parseColor("#F2F2F7")  // 深色模式下用浅色背景，形成对比
+            Color.parseColor("#212121")  // 深色模式下用深色背景
         } else {
-            Color.parseColor("#1C1C1E")  // 浅色模式下用深色背景，形成对比
+            Color.parseColor("#F2F2F7")  // 浅色模式下用浅色背景
         }
 
         glowColor = if (isDarkMode) {

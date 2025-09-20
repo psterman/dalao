@@ -284,7 +284,11 @@
     <!-- =============================================================== -->
     <!-- =============== DYNAMIC ISLAND THEME COLORS =================== -->
     <!-- =============================================================== -->
+    <!-- 灵动岛三个状态的颜色定义 -->
     <color name="dynamic_island_panel_background">#FFFFFF</color>
+    <color name="dynamic_island_compact_background">#F2F2F7</color>  <!-- 初始状态：浅灰色 -->
+    <color name="dynamic_island_expanded_background">#FFFFFF</color>  <!-- 展开状态：白色 -->
+    <color name="dynamic_island_ball_background">#E8E8E8</color>     <!-- 小圆球状态：深灰色 -->
     <color name="dynamic_island_input_background">#F0F0F0</color>
     <color name="dynamic_island_input_text">@android:color/black</color>
     <color name="dynamic_island_input_hint">#888888</color>
@@ -388,6 +392,22 @@
     <color name="dynamic_island_button_stroke_dark">#404040</color>
     <color name="dynamic_island_button_ripple_light">#20000000</color>
     <color name="dynamic_island_button_ripple_dark">#20FFFFFF</color>
+
+    <!-- 灵动岛按钮状态颜色 - 浅色模式 -->
+    <color name="dynamic_island_button_normal_background">#10FFFFFF</color>
+    <color name="dynamic_island_button_normal_stroke">#20FFFFFF</color>
+    <color name="dynamic_island_button_focused_background">#20FFFFFF</color>
+    <color name="dynamic_island_button_focused_stroke">#40FFFFFF</color>
+    <color name="dynamic_island_button_pressed_background">#40FFFFFF</color>
+    <color name="dynamic_island_button_pressed_stroke">#60FFFFFF</color>
+
+    <!-- 灵动岛展开按钮状态颜色 - 浅色模式 -->
+    <color name="dynamic_island_expand_button_normal_background">#204CAF50</color>
+    <color name="dynamic_island_expand_button_normal_stroke">#404CAF50</color>
+    <color name="dynamic_island_expand_button_focused_background">#404CAF50</color>
+    <color name="dynamic_island_expand_button_focused_stroke">#604CAF50</color>
+    <color name="dynamic_island_expand_button_pressed_background">#604CAF50</color>
+    <color name="dynamic_island_expand_button_pressed_stroke">#804CAF50</color>
 
     <!-- 设置按钮特殊颜色 -->
     <color name="dynamic_island_settings_button_background_light">#E3F2FD</color>

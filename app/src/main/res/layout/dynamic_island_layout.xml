@@ -14,7 +14,7 @@
         android:layout_height="@dimen/dynamic_island_height"
         android:minWidth="@dimen/dynamic_island_min_width"
         android:maxWidth="@dimen/dynamic_island_max_width"
-        app:cardBackgroundColor="#CC000000"
+        app:cardBackgroundColor="@color/dynamic_island_compact_background"
         app:cardCornerRadius="@dimen/dynamic_island_corner_radius"
         app:cardElevation="4dp">
 
@@ -162,7 +162,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@android:color/white"
+                android:textColor="@color/dynamic_island_text_color"
                 android:textSize="@dimen/dynamic_island_text_size" />
         </LinearLayout>
 
@@ -209,7 +209,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="已复制"
-                android:textColor="@android:color/white"
+                android:textColor="@color/dynamic_island_text_color"
                 android:textSize="@dimen/dynamic_island_text_size" />
         </LinearLayout>
 

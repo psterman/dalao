@@ -42,10 +42,15 @@
     <!-- =============================================================== -->
     <!-- =============== DYNAMIC ISLAND THEME COLORS =================== -->
     <!-- =============================================================== -->
+    <!-- 灵动岛三个状态的颜色定义 - 暗色模式 -->
     <color name="dynamic_island_panel_background">#1A1A1A</color>
+    <color name="dynamic_island_compact_background">#212121</color>  <!-- 初始状态：深黑色，参考colorDarkPrimaryDark -->
+    <color name="dynamic_island_expanded_background">#121212</color>  <!-- 展开状态：最深黑色，参考elderly_background -->
+    <color name="dynamic_island_ball_background">#2A2A2A</color>     <!-- 小圆球状态：中等深色，参考elderly_card_background -->
     <color name="dynamic_island_input_background">#2C2C2E</color>
-    <color name="dynamic_island_input_text">@android:color/white</color>
-    <color name="dynamic_island_input_hint">#AAAAAA</color>
+    <color name="dynamic_island_input_text">#FFFFFF</color>  <!-- 白色文字，确保在深色背景下可读 -->
+    <color name="dynamic_island_input_hint">#B0B0B0</color>  <!-- 亮色提示文字 -->
+    <color name="dynamic_island_text_color">#FFFFFF</color>  <!-- 主要文字颜色 -->
     <color name="dynamic_island_preview_background">#1AFFFFFF</color>
     <color name="dynamic_island_scrollbar_track">#1AFFFFFF</color>
     <color name="dynamic_island_scrollbar_thumb">#4DFFFFFF</color>
@@ -83,6 +88,28 @@
     <color name="dynamic_island_button_icon_light">@color/dynamic_island_button_icon_dark</color>
     <color name="dynamic_island_button_stroke_light">@color/dynamic_island_button_stroke_dark</color>
     <color name="dynamic_island_button_ripple_light">@color/dynamic_island_button_ripple_dark</color>
+    
+    <!-- 灵动岛按钮颜色 - 暗色模式优化 -->
+    <color name="dynamic_island_button_icon">#E0E0E0</color>  <!-- 亮色图标，确保在深色背景下可见 -->
+    <color name="dynamic_island_expand_button_icon">#4CAF50</color>  <!-- 保持绿色展开按钮 -->
+    <color name="dynamic_island_button_icon_dark">#E0E0E0</color>  <!-- 暗色模式图标颜色 -->
+    <color name="dynamic_island_button_background_dark">#404040</color>  <!-- 暗色模式按钮背景 -->
+
+    <!-- 灵动岛按钮状态颜色 - 深色模式 -->
+    <color name="dynamic_island_button_normal_background">#20FFFFFF</color>  <!-- 半透明白色背景 -->
+    <color name="dynamic_island_button_normal_stroke">#40FFFFFF</color>  <!-- 半透明白色边框 -->
+    <color name="dynamic_island_button_focused_background">#30FFFFFF</color>  <!-- 聚焦时更明显的背景 -->
+    <color name="dynamic_island_button_focused_stroke">#60FFFFFF</color>  <!-- 聚焦时更明显的边框 -->
+    <color name="dynamic_island_button_pressed_background">#50FFFFFF</color>  <!-- 按下时最明显的背景 -->
+    <color name="dynamic_island_button_pressed_stroke">#80FFFFFF</color>  <!-- 按下时最明显的边框 -->
+
+    <!-- 灵动岛展开按钮状态颜色 - 深色模式 -->
+    <color name="dynamic_island_expand_button_normal_background">#304CAF50</color>  <!-- 半透明绿色背景 -->
+    <color name="dynamic_island_expand_button_normal_stroke">#604CAF50</color>  <!-- 半透明绿色边框 -->
+    <color name="dynamic_island_expand_button_focused_background">#404CAF50</color>  <!-- 聚焦时更明显的绿色背景 -->
+    <color name="dynamic_island_expand_button_focused_stroke">#804CAF50</color>  <!-- 聚焦时更明显的绿色边框 -->
+    <color name="dynamic_island_expand_button_pressed_background">#604CAF50</color>  <!-- 按下时最明显的绿色背景 -->
+    <color name="dynamic_island_expand_button_pressed_stroke">#A04CAF50</color>  <!-- 按下时最明显的绿色边框 -->
 
     <!-- 设置按钮特殊颜色 - 夜间模式 -->
     <color name="dynamic_island_settings_button_background_light">@color/dynamic_island_settings_button_background_dark</color>
