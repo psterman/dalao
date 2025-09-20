@@ -286,14 +286,14 @@
     <!-- =============================================================== -->
     <!-- 灵动岛三个状态的颜色定义 -->
     <color name="dynamic_island_panel_background">#FFFFFF</color>
-    <color name="dynamic_island_compact_background">#F2F2F7</color>  <!-- 初始状态：浅灰色 -->
-    <color name="dynamic_island_expanded_background">#FFFFFF</color>  <!-- 展开状态：白色 -->
-    <color name="dynamic_island_ball_background">#E8E8E8</color>     <!-- 小圆球状态：深灰色 -->
+    <color name="dynamic_island_compact_background">#FFFFFF</color>  <!-- 初始状态：纯白色 -->
+    <color name="dynamic_island_expanded_background">#FFFFFF</color>  <!-- 展开状态：纯白色 -->
+    <color name="dynamic_island_ball_background">#FFFFFF</color>     <!-- 小圆球状态：纯白色 -->
     <color name="dynamic_island_input_background">#F0F0F0</color>
     <color name="dynamic_island_input_text">@android:color/black</color>
     <color name="dynamic_island_input_hint">#888888</color>
     <color name="dynamic_island_text_color">#333333</color>
-    <color name="dynamic_island_button_icon">#666666</color>
+    <color name="dynamic_island_button_icon">#333333</color>  <!-- 深色图标，确保在白色背景下可见 -->
     <color name="dynamic_island_expand_button_icon">#4CAF50</color>
     <color name="dynamic_island_preview_background">#0F000000</color>
     <color name="dynamic_island_scrollbar_track">#1A000000</color>

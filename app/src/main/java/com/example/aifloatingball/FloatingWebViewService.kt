@@ -34,6 +34,7 @@ import android.widget.TextView
 import androidx.cardview.widget.CardView
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.SearchEngineShortcut
+import com.example.aifloatingball.SettingsActivity
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream

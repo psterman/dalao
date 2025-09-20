@@ -93,7 +93,7 @@ import android.graphics.drawable.Drawable
 import androidx.annotation.AttrRes
 import android.content.pm.PackageManager
 import com.example.aifloatingball.MasterPromptSettingsActivity
-import com.example.aifloatingball.SettingsActivity as MainSettingsActivity
+import com.example.aifloatingball.SettingsActivity
 import com.google.android.material.button.MaterialButton
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -677,6 +677,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         setupMessageReceiver()
 
         settingsManager.registerOnSharedPreferenceChangeListener(this)
+        
+        // 测试主题切换功能
+        testThemeSwitching()
+        
         appInfoManager = AppInfoManager.getInstance()
         // App list might be already loaded by FloatingWindowService, but this is safe
         appInfoManager.loadApps(this)
@@ -915,7 +919,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun openSettings() {
         try {
-            val intent = Intent(this, MainSettingsActivity::class.java).apply {
+            val intent = Intent(this, SettingsActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
@@ -2401,10 +2405,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
             }
             "theme_mode" -> {
-                Log.d(TAG, "主题模式设置已变更，更新所有状态主题")
-                // 更新所有状态的主题
+                Log.d(TAG, "主题模式设置已变更，立即更新所有状态主题")
+                // 立即更新所有状态的主题，不使用延迟
+                updateAllStatesTheme()
+                
+                // 额外确保UI线程上的刷新
                 uiHandler.post {
-                    updateAllStatesTheme()
+                    forceRefreshAllViews()
+                    // 重新创建所有视图以确保主题完全应用
+                    recreateAllViews()
                 }
             }
         }
@@ -2933,7 +2942,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val isDarkMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         Log.d(TAG, "主题检测: themeMode=$themeMode, nightModeFlags=$nightModeFlags, isDarkMode=$isDarkMode")
 
-        return createConfigurationContext(config)
+        val themedContext = createConfigurationContext(config)
+        
+        // 验证主题上下文是否正确应用
+        val actualDarkMode = (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        Log.d(TAG, "主题上下文验证: 期望深色模式=$isDarkMode, 实际深色模式=$actualDarkMode")
+        
+        return themedContext
+    }
+    
+    /**
+     * 检查当前是否为深色模式
+     */
+    private fun isDarkMode(): Boolean {
+        val themedContext = getThemedContext()
+        return (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     }
 
     private fun recreateAllViews() {
@@ -4591,7 +4614,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             val themedContext = getThemedContext()
             val isDarkMode = (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
             
-            Log.d(TAG, "展开状态主题检测: isDarkMode=$isDarkMode")
+            // 获取当前主题模式设置
+            val themeMode = settingsManager.getThemeMode()
+            val systemDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            
+            Log.d(TAG, "展开状态主题检测: themeMode=$themeMode, systemDarkMode=$systemDarkMode, isDarkMode=$isDarkMode")
             
             // 创建主容器布局（垂直方向）
             val mainContainer = LinearLayout(this).apply {
@@ -4600,15 +4627,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 setPadding(16.dpToPx(), 12.dpToPx(), 16.dpToPx(), 12.dpToPx())
                 
                 // 根据主题设置背景 - 展开状态使用专用颜色
+                val expandedBackgroundColor = if (isDarkMode) {
+                    // 深色模式：直接使用黑色
+                    Color.parseColor("#000000")
+                } else {
+                    // 浅色模式：直接使用白色
+                    Color.parseColor("#FFFFFF")
+                }
+                
                 background = GradientDrawable().apply {
+                    setColor(expandedBackgroundColor)
                     if (isDarkMode) {
-                        setColor(resources.getColor(R.color.dynamic_island_expanded_background, themedContext.theme)) // 深色模式：使用展开状态专用颜色
                         setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF")) // 白色边框
-                        Log.d(TAG, "展开状态: 应用暗色主题 - 展开状态颜色")
+                        Log.d(TAG, "展开状态: 应用暗色主题 - 展开状态颜色: ${Integer.toHexString(expandedBackgroundColor)}")
                     } else {
-                        setColor(resources.getColor(R.color.dynamic_island_expanded_background, themedContext.theme)) // 浅色模式：使用展开状态专用颜色
                         setStroke(1.dpToPx(), Color.parseColor("#40000000")) // 黑色边框
-                        Log.d(TAG, "展开状态: 应用亮色主题 - 展开状态颜色")
+                        Log.d(TAG, "展开状态: 应用亮色主题 - 展开状态颜色: ${Integer.toHexString(expandedBackgroundColor)}")
                     }
                     cornerRadius = 20.dpToPx().toFloat()
                 }
@@ -4766,14 +4800,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             setPadding(16.dpToPx(), 10.dpToPx(), 48.dpToPx(), 10.dpToPx()) // 右边距为清空按钮留空间
             
-            // 根据主题设置文字颜色
-            if (isDarkMode) {
-                setTextColor(Color.parseColor("#FFFFFF")) // 暗色模式：白色文字
-                setHintTextColor(Color.parseColor("#CCCCCC")) // 暗色模式：浅灰色提示文字
-            } else {
-                setTextColor(Color.parseColor("#333333")) // 亮色模式：深色文字
-                setHintTextColor(Color.parseColor("#666666")) // 亮色模式：深灰色提示文字
-            }
+            // 根据主题设置文字颜色 - 使用主题化颜色
+            setTextColor(resources.getColor(R.color.dynamic_island_input_text, themedContext.theme))
+            setHintTextColor(resources.getColor(R.color.dynamic_island_input_hint, themedContext.theme))
 
             // 预填充剪贴板内容，设置为虚灰色
             if (clipboardContent.isNotEmpty()) {
@@ -4860,8 +4889,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         val initialText = clipboardContent
                         if (currentText != initialText) {
                             isUserInput = true
-                            setTextColor(Color.parseColor("#333333")) // 实体颜色，表示用户输入的内容
-                            Log.d(TAG, "检测到用户输入，文字颜色改为实体颜色")
+                            setTextColor(resources.getColor(R.color.dynamic_island_input_text, themedContext.theme)) // 使用主题化颜色
+                            Log.d(TAG, "检测到用户输入，文字颜色改为主题化颜色")
                         }
                     }
                 }
@@ -4885,22 +4914,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(4.dpToPx(), 4.dpToPx(), 4.dpToPx(), 4.dpToPx())
             
-            // 根据主题设置图标颜色
-            if (isDarkMode) {
-                setColorFilter(Color.parseColor("#CCCCCC")) // 暗色模式：浅灰色图标
-            } else {
-                setColorFilter(Color.parseColor("#999999")) // 亮色模式：深灰色图标
-            }
+            // 根据主题设置图标颜色 - 使用主题化颜色
+            setColorFilter(resources.getColor(R.color.dynamic_island_button_icon, themedContext.theme))
             
-            // 设置按钮背景
+            // 设置按钮背景 - 使用主题化颜色
             background = GradientDrawable().apply {
-                if (isDarkMode) {
-                    setColor(Color.parseColor("#20FFFFFF")) // 暗色模式：半透明白色背景
-                    setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF")) // 白色边框
-                } else {
-                    setColor(Color.parseColor("#20FFFFFF")) // 亮色模式：半透明白色背景
-                    setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF")) // 白色边框
-                }
+                setColor(resources.getColor(R.color.dynamic_island_button_normal_background, themedContext.theme))
+                setStroke(1.dpToPx(), resources.getColor(R.color.dynamic_island_button_normal_stroke, themedContext.theme))
                 cornerRadius = 16.dpToPx().toFloat()
             }
             
@@ -4947,17 +4967,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             setImageResource(R.drawable.ic_send_plane)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(8.dpToPx(), 8.dpToPx(), 8.dpToPx(), 8.dpToPx())
-            setColorFilter(Color.parseColor("#4CAF50")) // 绿色发送图标
+            setColorFilter(resources.getColor(R.color.dynamic_island_send_icon_tint, themedContext.theme)) // 使用主题化颜色
 
-            // 设置按钮背景
+            // 设置按钮背景 - 使用主题化颜色
             background = GradientDrawable().apply {
-                if (isDarkMode) {
-                    setColor(Color.parseColor("#804CAF50")) // 暗色模式：半透明绿色背景
-                    setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 白色边框
-                } else {
-                    setColor(Color.parseColor("#804CAF50")) // 亮色模式：半透明绿色背景
-                    setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 白色边框
-                }
+                setColor(resources.getColor(R.color.dynamic_island_expand_button_normal_background, themedContext.theme))
+                setStroke(1.dpToPx(), resources.getColor(R.color.dynamic_island_expand_button_normal_stroke, themedContext.theme))
                 cornerRadius = 8.dpToPx().toFloat()
             }
 
@@ -5209,8 +5224,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Log.d(TAG, "开始更新所有状态的主题")
             
             // 检测当前主题模式
+            val isDarkMode = isDarkMode()
             val themedContext = getThemedContext()
-            val isDarkMode = (themedContext.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
             
             Log.d(TAG, "当前主题模式: ${if (isDarkMode) "暗色" else "亮色"}")
             
@@ -5228,9 +5243,42 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 updateButtonIconColors(contentView, isDarkMode, themedContext)
             }
             
+            // 更新搜索输入框主题
+            updateSearchInputTheme(isDarkMode, themedContext)
+            
+            // 强制刷新所有视图
+            forceRefreshAllViews()
+            
             Log.d(TAG, "所有状态主题更新完成")
         } catch (e: Exception) {
             Log.e(TAG, "更新主题失败", e)
+        }
+    }
+    
+    /**
+     * 强制刷新所有视图
+     */
+    private fun forceRefreshAllViews() {
+        try {
+            // 刷新灵动岛视图
+            animatingIslandView?.invalidate()
+            animatingIslandView?.requestLayout()
+            
+            // 刷新内容视图
+            islandContentView?.invalidate()
+            islandContentView?.requestLayout()
+            
+            // 刷新圆球视图
+            ballView?.invalidate()
+            ballView?.requestLayout()
+            
+            // 刷新配置面板
+            configPanelView?.invalidate()
+            configPanelView?.requestLayout()
+            
+            Log.d(TAG, "所有视图已强制刷新")
+        } catch (e: Exception) {
+            Log.e(TAG, "强制刷新视图失败", e)
         }
     }
 
@@ -5239,9 +5287,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun updateOriginalStateTheme(isDarkMode: Boolean) {
         animatingIslandView?.let { view ->
-            val themedContext = getThemedContext()
-            view.background = GradientDrawable().apply {
-                setColor(resources.getColor(R.color.dynamic_island_compact_background, themedContext.theme))
+            val backgroundColor = if (isDarkMode) {
+                Color.parseColor("#000000") // 深色模式：黑色
+            } else {
+                Color.parseColor("#FFFFFF") // 浅色模式：白色
+            }
+            
+            val backgroundDrawable = GradientDrawable().apply {
+                setColor(backgroundColor)
                 if (isDarkMode) {
                     setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF"))
                 } else {
@@ -5249,6 +5302,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
                 cornerRadius = 20.dpToPx().toFloat()
             }
+            
+            // 立即设置背景并刷新
+            view.background = backgroundDrawable
+            view.invalidate()
+            
+            Log.d(TAG, "原始状态主题已更新: ${if (isDarkMode) "暗色模式" else "亮色模式"}, 颜色: ${Integer.toHexString(backgroundColor)}")
         }
     }
 
@@ -5256,12 +5315,34 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 更新展开状态的主题
      */
     private fun updateExpandedStateTheme(isDarkMode: Boolean) {
-        // 展开状态的主题更新在创建时已经处理
-        // 这里可以添加额外的主题更新逻辑
         try {
+            // 更新展开状态的背景颜色
+            animatingIslandView?.let { view ->
+                val backgroundColor = if (isDarkMode) {
+                    Color.parseColor("#000000") // 深色模式：黑色
+                } else {
+                    Color.parseColor("#FFFFFF") // 浅色模式：白色
+                }
+                
+                val backgroundDrawable = GradientDrawable().apply {
+                    setColor(backgroundColor)
+                    if (isDarkMode) {
+                        setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF"))
+                    } else {
+                        setStroke(1.dpToPx(), Color.parseColor("#40000000"))
+                    }
+                    cornerRadius = 20.dpToPx().toFloat()
+                }
+                
+                // 立即设置背景并刷新
+                view.background = backgroundDrawable
+                view.invalidate()
+                
+                Log.d(TAG, "展开状态主题已更新: ${if (isDarkMode) "暗色模式" else "亮色模式"}, 颜色: ${Integer.toHexString(backgroundColor)}")
+            }
+            
             // 更新内容视图的主题
             applyThemeToContentView(islandContentView, isDarkMode)
-            Log.d(TAG, "展开状态主题已更新: ${if (isDarkMode) "暗色模式" else "亮色模式"}")
         } catch (e: Exception) {
             Log.e(TAG, "更新展开状态主题失败", e)
         }
@@ -5272,16 +5353,25 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun updateBallStateTheme(isDarkMode: Boolean) {
         ballView?.let { ball ->
-            val themedContext = getThemedContext()
-            ball.background = GradientDrawable().apply {
+            val backgroundColor = if (isDarkMode) {
+                Color.parseColor("#000000") // 深色模式：黑色
+            } else {
+                Color.parseColor("#FFFFFF") // 浅色模式：白色
+            }
+            
+            val ballDrawable = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(resources.getColor(R.color.dynamic_island_ball_background, themedContext.theme))
+                setColor(backgroundColor)
                 if (isDarkMode) {
                     setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60FFFFFF"))
                 } else {
                     setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60000000"))
                 }
             }
+            ball.background = ballDrawable
+            ball.invalidate()
+            
+            Log.d(TAG, "圆球状态主题已更新: ${if (isDarkMode) "暗色模式" else "亮色模式"}, 颜色: ${Integer.toHexString(backgroundColor)}")
         }
     }
     
@@ -5304,6 +5394,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 
                 // 更新按钮图标颜色
                 updateButtonIconColors(view, isDarkMode, themedContext)
+                
+                // 强制刷新视图
+                view.invalidate()
                 
                 Log.d(TAG, "内容视图主题已应用: ${if (isDarkMode) "暗色模式" else "亮色模式"}")
             } catch (e: Exception) {
@@ -5339,9 +5432,68 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // 设置展开按钮图标颜色（保持绿色）
             btnExpand?.iconTint = ColorStateList.valueOf(expandButtonIconColor)
             
+            // 强制刷新所有按钮
+            btnAiAssistant?.invalidate()
+            btnApps?.invalidate()
+            btnSearch?.invalidate()
+            btnSettings?.invalidate()
+            btnExit?.invalidate()
+            btnExpand?.invalidate()
+            
             Log.d(TAG, "按钮图标颜色已更新: ${if (isDarkMode) "暗色模式" else "亮色模式"}")
         } catch (e: Exception) {
             Log.e(TAG, "更新按钮图标颜色失败", e)
+        }
+    }
+    
+    /**
+     * 更新搜索输入框主题
+     */
+    private fun updateSearchInputTheme(isDarkMode: Boolean, themedContext: Context) {
+        try {
+            searchInput?.let { input ->
+                // 更新输入框背景颜色
+                val inputBackgroundColor = resources.getColor(R.color.dynamic_island_input_background, themedContext.theme)
+                val inputTextColor = resources.getColor(R.color.dynamic_island_input_text, themedContext.theme)
+                val inputHintColor = resources.getColor(R.color.dynamic_island_input_hint, themedContext.theme)
+                
+                // 设置输入框背景
+                input.setBackgroundColor(inputBackgroundColor)
+                
+                // 设置文字颜色
+                input.setTextColor(inputTextColor)
+                input.setHintTextColor(inputHintColor)
+                
+                // 强制刷新
+                input.invalidate()
+                
+                Log.d(TAG, "搜索输入框主题已更新: ${if (isDarkMode) "暗色模式" else "亮色模式"}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新搜索输入框主题失败", e)
+        }
+    }
+    
+    /**
+     * 测试主题切换功能
+     * 用于验证深色模式切换是否正常工作
+     */
+    private fun testThemeSwitching() {
+        try {
+            Log.d(TAG, "开始测试主题切换功能")
+            
+            val currentThemeMode = settingsManager.getThemeMode()
+            val isCurrentlyDark = isDarkMode()
+            
+            Log.d(TAG, "当前主题模式: $currentThemeMode")
+            Log.d(TAG, "当前是否为深色模式: $isCurrentlyDark")
+            
+            // 强制更新所有状态的主题
+            updateAllStatesTheme()
+            
+            Log.d(TAG, "主题切换测试完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "主题切换测试失败", e)
         }
     }
 
@@ -5590,18 +5742,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 创建AI按钮
      */
     private fun createAIButton(clipboardContent: String): View {
+        // 获取主题化的上下文
+        val themedContext = getThemedContext()
+        
         val aiButton = ImageButton(this).apply {
             id = View.generateViewId()
             setImageResource(R.drawable.ic_chat) // 使用聊天图标
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setPadding(6.dpToPx(), 6.dpToPx(), 6.dpToPx(), 6.dpToPx())
-            setColorFilter(Color.parseColor("#4CAF50")) // 绿色AI图标
+            setColorFilter(resources.getColor(R.color.dynamic_island_send_icon_tint, themedContext.theme)) // 使用主题化颜色
             
-            // 设置按钮背景
+            // 设置按钮背景 - 使用主题化颜色
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#804CAF50")) // 半透明绿色背景
+                setColor(resources.getColor(R.color.dynamic_island_expand_button_normal_background, themedContext.theme))
                 cornerRadius = 12.dpToPx().toFloat()
-                setStroke(1.dpToPx(), Color.parseColor("#60FFFFFF")) // 白色边框
+                setStroke(1.dpToPx(), resources.getColor(R.color.dynamic_island_expand_button_normal_stroke, themedContext.theme))
             }
             
             // 设置按钮大小，与app图标保持一致
@@ -5960,7 +6115,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             layoutParams = LinearLayout.LayoutParams(40.dpToPx(), 40.dpToPx())
             setImageResource(R.drawable.ic_chat) // 使用聊天图标
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setColorFilter(Color.parseColor("#4CAF50")) // 绿色AI图标
+            setColorFilter(resources.getColor(R.color.dynamic_island_send_icon_tint, themedContext.theme)) // 使用主题化颜色
             
             // 添加圆形背景
             background = GradientDrawable().apply {
@@ -6060,20 +6215,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             )
             text = "AI正在分析中..."
             textSize = 12f
-            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            setTextColor(resources.getColor(R.color.dynamic_island_text_color, themedContext.theme))
             // 移除行数限制，让文本可以完全显示
             maxLines = Integer.MAX_VALUE
             setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 12.dpToPx())
             gravity = Gravity.START // 改为左对齐，更符合阅读习惯
             setLineSpacing(4.dpToPx().toFloat(), 1.3f) // 增加行间距
             
-            // 设置背景
+            // 设置背景 - 使用主题化颜色
             background = GradientDrawable().apply {
-                if (isDarkMode) {
-                    setColor(Color.parseColor("#20000000"))
-                } else {
-                    setColor(Color.parseColor("#20FFFFFF"))
-                }
+                setColor(resources.getColor(R.color.dynamic_island_preview_background, themedContext.theme))
                 cornerRadius = 8.dpToPx().toFloat()
             }
             
@@ -6120,7 +6271,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             setImageResource(android.R.drawable.ic_menu_edit)
             setColorFilter(Color.parseColor("#4CAF50"))
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#20000000"))
+                setColor(resources.getColor(R.color.dynamic_island_button_normal_background, themedContext.theme))
                 shape = GradientDrawable.OVAL
             }
             scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -6143,7 +6294,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             setImageResource(android.R.drawable.ic_menu_edit)
             setColorFilter(Color.parseColor("#4CAF50"))
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#20000000"))
+                setColor(resources.getColor(R.color.dynamic_island_button_normal_background, themedContext.theme))
                 shape = GradientDrawable.OVAL
             }
             scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -6167,7 +6318,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             setImageResource(R.drawable.ic_expand_more)
             setColorFilter(Color.parseColor("#4CAF50"))
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#20000000"))
+                setColor(resources.getColor(R.color.dynamic_island_button_normal_background, themedContext.theme))
                 shape = GradientDrawable.OVAL
             }
             scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -7717,7 +7868,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             stopSelf()
             
             // 启动设置页面
-            val intent = Intent(this, MainSettingsActivity::class.java)
+            val intent = Intent(this, SettingsActivity::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
             
@@ -8831,7 +8982,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 显示设置对话框
      */
     private fun showSettingsDialog() {
-        val intent = Intent(this, MainSettingsActivity::class.java).apply {
+        val intent = Intent(this, SettingsActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         startActivity(intent)

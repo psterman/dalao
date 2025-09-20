@@ -44,9 +44,9 @@
     <!-- =============================================================== -->
     <!-- 灵动岛三个状态的颜色定义 - 暗色模式 -->
     <color name="dynamic_island_panel_background">#1A1A1A</color>
-    <color name="dynamic_island_compact_background">#212121</color>  <!-- 初始状态：深黑色，参考colorDarkPrimaryDark -->
-    <color name="dynamic_island_expanded_background">#121212</color>  <!-- 展开状态：最深黑色，参考elderly_background -->
-    <color name="dynamic_island_ball_background">#2A2A2A</color>     <!-- 小圆球状态：中等深色，参考elderly_card_background -->
+    <color name="dynamic_island_compact_background">#000000</color>  <!-- 初始状态：纯黑色 -->
+    <color name="dynamic_island_expanded_background">#000000</color>  <!-- 展开状态：纯黑色 -->
+    <color name="dynamic_island_ball_background">#000000</color>     <!-- 小圆球状态：纯黑色 -->
     <color name="dynamic_island_input_background">#2C2C2E</color>
     <color name="dynamic_island_input_text">#FFFFFF</color>  <!-- 白色文字，确保在深色背景下可读 -->
     <color name="dynamic_island_input_hint">#B0B0B0</color>  <!-- 亮色提示文字 -->
@@ -90,9 +90,9 @@
     <color name="dynamic_island_button_ripple_light">@color/dynamic_island_button_ripple_dark</color>
     
     <!-- 灵动岛按钮颜色 - 暗色模式优化 -->
-    <color name="dynamic_island_button_icon">#E0E0E0</color>  <!-- 亮色图标，确保在深色背景下可见 -->
+    <color name="dynamic_island_button_icon">#FFFFFF</color>  <!-- 纯白色图标，确保在黑色背景下可见 -->
     <color name="dynamic_island_expand_button_icon">#4CAF50</color>  <!-- 保持绿色展开按钮 -->
-    <color name="dynamic_island_button_icon_dark">#E0E0E0</color>  <!-- 暗色模式图标颜色 -->
+    <color name="dynamic_island_button_icon_dark">#FFFFFF</color>  <!-- 暗色模式图标颜色 -->
     <color name="dynamic_island_button_background_dark">#404040</color>  <!-- 暗色模式按钮背景 -->
 
     <!-- 灵动岛按钮状态颜色 - 深色模式 -->

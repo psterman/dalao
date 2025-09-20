@@ -53,6 +53,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.manager.BookmarkManager
 import com.example.aifloatingball.model.*
 import com.example.aifloatingball.service.*
+import com.example.aifloatingball.SettingsActivity
 import com.example.aifloatingball.tab.TabManager
 import com.example.aifloatingball.utils.WebViewHelper
 import com.example.aifloatingball.view.LetterIndexBar

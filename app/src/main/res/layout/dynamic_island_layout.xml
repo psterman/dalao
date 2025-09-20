@@ -14,7 +14,7 @@
         android:layout_height="@dimen/dynamic_island_height"
         android:minWidth="@dimen/dynamic_island_min_width"
         android:maxWidth="@dimen/dynamic_island_max_width"
-        app:cardBackgroundColor="@color/dynamic_island_compact_background"
+        app:cardBackgroundColor="@android:color/transparent"
         app:cardCornerRadius="@dimen/dynamic_island_corner_radius"
         app:cardElevation="4dp">
 

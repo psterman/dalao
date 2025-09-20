@@ -24,6 +24,7 @@ import android.view.WindowManager
 import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.SettingsActivity
 
 class PermissionActivity : AppCompatActivity() {
     

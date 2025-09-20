@@ -1,4 +1,6 @@
 ﻿
+package com.example.aifloatingball
+
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
@@ -32,6 +34,17 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
+import com.example.aifloatingball.R
+import com.example.aifloatingball.SettingsSearchManager
+import com.example.aifloatingball.SettingsManager
+import com.example.aifloatingball.SimpleModeActivity
+import com.example.aifloatingball.SearchHistoryActivity
+import com.example.aifloatingball.PermissionManagementActivity
+import com.example.aifloatingball.SearchEngineSettingsActivity
+import com.example.aifloatingball.AISearchEngineSettingsActivity
+import com.example.aifloatingball.MenuManagerActivity
+import com.example.aifloatingball.MasterPromptSettingsActivity
+import com.example.aifloatingball.AIApiSettingsActivity
 
 class SettingsActivity : AppCompatActivity(), PreferenceFragmentCompat.OnPreferenceStartFragmentCallback, SearchView.OnQueryTextListener, SharedPreferences.OnSharedPreferenceChangeListener {
 
