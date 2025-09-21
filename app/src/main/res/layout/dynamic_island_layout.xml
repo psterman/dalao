@@ -16,7 +16,7 @@
         android:maxWidth="@dimen/dynamic_island_max_width"
         app:cardBackgroundColor="@android:color/transparent"
         app:cardCornerRadius="@dimen/dynamic_island_corner_radius"
-        app:cardElevation="4dp">
+        app:cardElevation="0dp">
 
         <!-- 紧凑状态：显示按钮区域 -->
         <LinearLayout
@@ -25,16 +25,16 @@
             android:layout_height="match_parent"
             android:gravity="center"
             android:orientation="horizontal"
-                    android:paddingStart="8dp"
-        android:paddingEnd="8dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
             android:visibility="visible">
 
             <!-- 第一个按钮：AI助手 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_ai_assistant"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginEnd="4dp"
                 android:background="@drawable/dynamic_island_button_background"
                 android:contentDescription="AI助手"
@@ -43,15 +43,15 @@
                 app:icon="@drawable/ic_chat"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:iconSize="14dp"
-                app:iconTint="@color/dynamic_island_button_icon" />
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon_selector" />
 
             <!-- 第二个按钮：应用程序 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_apps"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
                 android:background="@drawable/dynamic_island_button_background"
@@ -61,15 +61,15 @@
                 app:icon="@drawable/ic_apps"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:iconSize="14dp"
-                app:iconTint="@color/dynamic_island_button_icon" />
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon_selector" />
 
             <!-- 第三个按钮：搜索 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_search"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
                 android:background="@drawable/dynamic_island_button_background"
@@ -79,15 +79,15 @@
                 app:icon="@drawable/ic_search"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:iconSize="14dp"
-                app:iconTint="@color/dynamic_island_button_icon" />
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon_selector" />
 
             <!-- 第四个按钮：展开 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_expand"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
                 android:background="@drawable/dynamic_island_expand_button_background"
@@ -97,15 +97,15 @@
                 app:icon="@drawable/ic_expand_more"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:iconSize="14dp"
+                app:iconSize="16dp"
                 app:iconTint="@color/dynamic_island_expand_button_icon" />
 
             <!-- 第五个按钮：设置 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_settings"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginStart="4dp"
                 android:layout_marginEnd="4dp"
                 android:background="@drawable/dynamic_island_button_background"
@@ -115,15 +115,15 @@
                 app:icon="@drawable/ic_settings"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:iconSize="14dp"
-                app:iconTint="@color/dynamic_island_button_icon" />
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon_selector" />
 
             <!-- 第六个按钮：退出关闭 -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_exit"
                 style="@style/Widget.Material3.Button.IconButton"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginStart="4dp"
                 android:background="@drawable/dynamic_island_button_background"
                 android:contentDescription="退出"
@@ -132,8 +132,8 @@
                 app:icon="@drawable/ic_close"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp"
-                app:iconSize="14dp"
-                app:iconTint="@color/dynamic_island_button_icon" />
+                app:iconSize="16dp"
+                app:iconTint="@color/dynamic_island_button_icon_selector" />
 
         </LinearLayout>
 

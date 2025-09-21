@@ -775,10 +775,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     setStroke(1.dpToPx(), Color.parseColor("#40FFFFFF"))
                     Log.d(TAG, "原始状态: 应用暗色主题 - 初始状态颜色")
                 } else {
-                    // 亮色模式：使用初始状态专用颜色
-                    setColor(resources.getColor(R.color.dynamic_island_compact_background, themedContext.theme))
-                    setStroke(1.dpToPx(), Color.parseColor("#40000000"))
-                    Log.d(TAG, "原始状态: 应用亮色主题 - 初始状态颜色")
+                    // 亮色模式：使用纯白色背景，无阴影
+                    setColor(Color.WHITE)
+                    setStroke(1.dpToPx(), Color.parseColor("#E0E0E0"))
+                    Log.d(TAG, "原始状态: 应用亮色主题 - 纯白色背景")
                 }
                 cornerRadius = 20.dpToPx().toFloat()
             }
@@ -4092,10 +4092,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60FFFFFF"))
                     Log.d(TAG, "圆球状态: 应用暗色主题 - 小圆球状态颜色")
                 } else {
-                    // 亮色模式：使用小圆球状态专用颜色
-                    setColor(resources.getColor(R.color.dynamic_island_ball_background, themedContext.theme))
-                    setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60000000"))
-                    Log.d(TAG, "圆球状态: 应用亮色主题 - 小圆球状态颜色")
+                    // 亮色模式：使用纯白色背景
+                    setColor(Color.WHITE)
+                    setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#E0E0E0"))
+                    Log.d(TAG, "圆球状态: 应用亮色主题 - 纯白色背景")
                 }
             }
             
@@ -4305,9 +4305,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         setColor(resources.getColor(R.color.dynamic_island_ball_background, themedContext.theme))
                         setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60FFFFFF"))
                     } else {
-                        // 亮色模式：使用小圆球状态专用颜色
-                        setColor(resources.getColor(R.color.dynamic_island_ball_background, themedContext.theme))
-                        setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#60000000"))
+                        // 亮色模式：使用纯白色背景
+                        setColor(Color.WHITE)
+                        setStroke((2 * resources.displayMetrics.density).toInt(), Color.parseColor("#E0E0E0"))
                     }
                 }
                 
@@ -7816,12 +7816,34 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             btnToggleAiOptions?.setOnClickListener {
                 isAiOptionsExpanded = !isAiOptionsExpanded
+                
+                // 添加旋转动画
+                val rotation = if (isAiOptionsExpanded) 180f else 0f
+                btnToggleAiOptions.animate()
+                    .rotation(rotation)
+                    .setDuration(300)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
+                
                 if (isAiOptionsExpanded) {
                     aiOptionsContainer?.visibility = View.VISIBLE
-                    btnToggleAiOptions.setImageResource(R.drawable.ic_expand_less)
+                    // 添加淡入动画
+                    aiOptionsContainer?.alpha = 0f
+                    aiOptionsContainer?.animate()
+                        ?.alpha(1f)
+                        ?.setDuration(300)
+                        ?.setInterpolator(android.view.animation.DecelerateInterpolator())
+                        ?.start()
                 } else {
-                    aiOptionsContainer?.visibility = View.GONE
-                    btnToggleAiOptions.setImageResource(R.drawable.ic_expand_more)
+                    // 添加淡出动画
+                    aiOptionsContainer?.animate()
+                        ?.alpha(0f)
+                        ?.setDuration(200)
+                        ?.setInterpolator(android.view.animation.AccelerateInterpolator())
+                        ?.withEndAction {
+                            aiOptionsContainer?.visibility = View.GONE
+                        }
+                        ?.start()
                 }
             }
             
@@ -7900,11 +7922,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 toggleResponseFold()
             }
             
-            // 切换AI服务按钮
-            val btnSwitchAIService = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_switch_ai_service)
-            btnSwitchAIService?.setOnClickListener {
-                switchAIService()
-            }
             
             Log.d(TAG, "AI助手面板交互设置完成")
         } catch (e: Exception) {
