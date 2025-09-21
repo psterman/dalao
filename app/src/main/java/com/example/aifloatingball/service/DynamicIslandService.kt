@@ -7809,13 +7809,20 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             
             
-            // 清除回复按钮
-            val btnClearAiResponse = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_clear_ai_response)
-            btnClearAiResponse?.setOnClickListener {
-                // 清除所有AI回复卡片
-                clearAIResponseCards()
-                // 重置默认回复文本
-                aiResponseText?.text = "选择AI服务并输入问题获取回复..."
+            // 切换AI选项折叠/展开按钮
+            val btnToggleAiOptions = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_toggle_ai_options)
+            val aiOptionsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_options_container)
+            var isAiOptionsExpanded = false
+            
+            btnToggleAiOptions?.setOnClickListener {
+                isAiOptionsExpanded = !isAiOptionsExpanded
+                if (isAiOptionsExpanded) {
+                    aiOptionsContainer?.visibility = View.VISIBLE
+                    btnToggleAiOptions.setImageResource(R.drawable.ic_expand_less)
+                } else {
+                    aiOptionsContainer?.visibility = View.GONE
+                    btnToggleAiOptions.setImageResource(R.drawable.ic_expand_more)
+                }
             }
             
             // 发送消息按钮
@@ -8057,6 +8064,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 val defaultCard = aiAssistantPanelView?.findViewById<MaterialCardView>(R.id.ai_response_card_default)
                 defaultCard?.visibility = View.GONE
             }
+            
+            // 清除AI名称标签
+            val tabsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_name_tabs_container)
+            val tabsScrollView = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_name_tabs_scroll)
+            if (tabsContainer != null && tabsScrollView != null) {
+                tabsContainer.removeAllViews()
+                aiNameTabs.clear()
+                tabsScrollView.visibility = View.GONE
+            }
         } catch (e: Exception) {
             Log.e(TAG, "清除AI回复卡片失败", e)
         }
@@ -8078,6 +8094,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             // 清除之前的回复
             clearAIResponseCards()
+            
+            // 更新AI名称标签栏
+            updateAINameTabs(selectedAIServices)
             
             // 为每个选中的AI服务创建独立的回复卡片
             selectedAIServices.forEach { aiService ->
@@ -8263,6 +8282,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     // 用于存储每个AI服务的累积回复内容
     private val aiResponseAccumulator = mutableMapOf<String, StringBuilder>()
     
+    // 用于存储AI名称标签
+    private val aiNameTabs = mutableMapOf<String, MaterialButton>()
+    private var currentSelectedAiTab: String? = null
+    
     private fun sendAIMessageToServiceAsync(query: String, aiService: String) {
         Log.d(TAG, "开始发送消息到AI服务: $aiService, 问题: $query")
         
@@ -8366,6 +8389,134 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             .replace("\n\n\n", "\n\n") // 减少多余空行
             .replace("\\n", "\n") // 处理转义换行符
             .trim()
+    }
+    
+    /**
+     * 创建AI名称标签
+     */
+    private fun createAINameTab(aiService: String): MaterialButton {
+        val contextThemeWrapper = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_Light)
+        val tab = MaterialButton(contextThemeWrapper)
+        
+        val layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        layoutParams.marginEnd = 8.dpToPx()
+        tab.layoutParams = layoutParams
+        
+        tab.text = aiService
+        tab.textSize = 12f
+        tab.setPadding(16.dpToPx(), 8.dpToPx(), 16.dpToPx(), 8.dpToPx())
+        tab.cornerRadius = 16.dpToPx()
+        
+        // 设置默认样式（未选中）
+        tab.backgroundTintList = getColorStateList(R.color.ai_assistant_button_secondary_light)
+        tab.setTextColor(getColor(R.color.ai_assistant_button_text_secondary_light))
+        tab.strokeColor = getColorStateList(R.color.ai_assistant_border_light)
+        tab.strokeWidth = 1.dpToPx()
+        
+        tab.setOnClickListener {
+            selectAITab(aiService)
+            scrollToAICard(aiService)
+        }
+        
+        return tab
+    }
+    
+    /**
+     * 选择AI标签
+     */
+    private fun selectAITab(aiService: String) {
+        // 重置所有标签样式
+        aiNameTabs.values.forEach { tab ->
+            tab.backgroundTintList = getColorStateList(R.color.ai_assistant_button_secondary_light)
+            tab.setTextColor(getColor(R.color.ai_assistant_button_text_secondary_light))
+        }
+        
+        // 设置选中标签样式
+        aiNameTabs[aiService]?.let { tab ->
+            tab.backgroundTintList = getColorStateList(R.color.ai_assistant_primary_light)
+            tab.setTextColor(getColor(R.color.ai_assistant_button_text_light))
+        }
+        
+        currentSelectedAiTab = aiService
+    }
+    
+    /**
+     * 滚动到指定AI卡片
+     */
+    private fun scrollToAICard(aiService: String) {
+        try {
+            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+            val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_response_scroll_container)
+            
+            if (responseContainer != null && scrollContainer != null) {
+                // 查找对应的AI卡片
+                for (i in 0 until responseContainer.childCount) {
+                    val card = responseContainer.getChildAt(i) as? MaterialCardView
+                    if (card != null) {
+                        val mainContainer = card.getChildAt(0) as? LinearLayout
+                        if (mainContainer != null) {
+                            val subtitleContainer = mainContainer.getChildAt(0) as? LinearLayout
+                            if (subtitleContainer != null) {
+                                val aiNameText = subtitleContainer.getChildAt(0) as? TextView
+                                if (aiNameText?.text.toString() == aiService) {
+                                    // 滚动到该卡片
+                                    val cardLeft = card.left
+                                    val cardWidth = card.width
+                                    val scrollViewWidth = scrollContainer.width
+                                    val scrollX = cardLeft - (scrollViewWidth - cardWidth) / 2
+                                    
+                                    scrollContainer.smoothScrollTo(scrollX, 0)
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "滚动到AI卡片失败", e)
+        }
+    }
+    
+    /**
+     * 更新AI名称标签栏
+     */
+    private fun updateAINameTabs(aiServices: List<String>) {
+        try {
+            val tabsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_name_tabs_container)
+            val tabsScrollView = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_name_tabs_scroll)
+            
+            if (tabsContainer != null && tabsScrollView != null) {
+                // 清除现有标签
+                tabsContainer.removeAllViews()
+                aiNameTabs.clear()
+                
+                if (aiServices.isNotEmpty()) {
+                    // 显示标签栏
+                    tabsScrollView.visibility = View.VISIBLE
+                    
+                    // 创建新标签
+                    aiServices.forEach { aiService ->
+                        val tab = createAINameTab(aiService)
+                        tabsContainer.addView(tab)
+                        aiNameTabs[aiService] = tab
+                    }
+                    
+                    // 默认选择第一个
+                    if (aiServices.isNotEmpty()) {
+                        selectAITab(aiServices[0])
+                    }
+                } else {
+                    // 隐藏标签栏
+                    tabsScrollView.visibility = View.GONE
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新AI名称标签栏失败", e)
+        }
     }
     
     /**
