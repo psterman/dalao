@@ -12,7 +12,7 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- 标题栏卡片 -->
+        <!-- 统一的AI助手版块 -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -23,299 +23,284 @@
             app:strokeColor="@color/ai_assistant_border_light"
             app:strokeWidth="1dp">
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- 标题栏 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <!-- AI助手图标 -->
+                    <ImageView
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:src="@drawable/ic_ai_assistant"
+                        android:background="@drawable/ai_assistant_icon_background"
+                        android:padding="6dp"
+                        app:tint="@color/ai_assistant_icon_light" />
+
+                    <!-- 标题和状态 -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                        android:layout_marginStart="12dp"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                android:text="AI助手"
+                            android:textColor="@color/ai_assistant_text_primary_light"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/ai_status_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="准备就绪"
+                            android:textColor="@color/ai_assistant_text_secondary_light"
+                            android:textSize="12sp"
+                            android:layout_marginTop="2dp" />
+
+                    </LinearLayout>
+
+                    <!-- 关闭按钮 -->
+            <ImageButton
+                android:id="@+id/btn_close_ai_panel"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="@drawable/ai_assistant_button_background"
+                android:contentDescription="关闭"
+                android:src="@drawable/ic_close"
+                        app:tint="@color/ai_assistant_icon_secondary_light" />
+
+                </LinearLayout>
+
+                <!-- 输入消息区域 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="输入消息"
+                        android:textColor="@color/ai_assistant_text_primary_light"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="8dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:background="@drawable/ai_assistant_input_background"
+                        android:padding="4dp">
+
+                        <EditText
+                            android:id="@+id/ai_input_text"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:background="@android:color/transparent"
+                            android:hint="输入问题或指令..."
+                            android:textColor="@color/ai_assistant_text_primary_light"
+                            android:textColorHint="@color/ai_assistant_text_hint_light"
+                            android:textSize="14sp"
+                            android:inputType="textCapSentences|textMultiLine"
+                            android:maxLines="3"
+                            android:padding="12dp"
+                            android:focusable="true"
+                            android:focusableInTouchMode="true"
+                            android:clickable="true" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_send_ai_message"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:layout_marginStart="8dp"
+                            android:backgroundTint="@color/ai_assistant_primary_light"
+                            android:contentDescription="发送"
+                            android:src="@drawable/ic_send_plane"
+                            app:icon="@drawable/ic_send_plane"
+                            app:iconTint="@color/ai_assistant_button_text_light"
+                            app:cornerRadius="12dp"
+                            style="@style/Widget.Material3.Button" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+                <!-- AI配置区域 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="AI配置"
+                        android:textColor="@color/ai_assistant_text_primary_light"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- AI服务选择 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="AI服务："
+                            android:textColor="@color/ai_assistant_text_secondary_light"
+                            android:textSize="12sp" />
+
+        <Spinner
+            android:id="@+id/ai_service_spinner"
+            android:layout_width="0dp"
+                            android:layout_height="40dp"
+            android:layout_weight="1"
+                            android:background="@drawable/ai_assistant_spinner_background"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp" />
+
+        <ImageButton
+            android:id="@+id/btn_clear_ai_response"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/ai_assistant_button_background"
+                            android:contentDescription="清除"
+            android:src="@drawable/ic_close"
+                            app:tint="@color/ai_assistant_icon_secondary_light" />
+
+    </LinearLayout>
+
+                    <!-- 功能按钮区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_select_assistant"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+                            android:layout_marginEnd="4dp"
+                            android:text="选择助手"
+            android:textSize="12sp"
+            android:drawableStart="@drawable/ic_ai_assistant"
+                            android:drawablePadding="6dp"
+                            android:backgroundTint="@color/ai_assistant_button_secondary_light"
+                            android:textColor="@color/ai_assistant_button_text_secondary_light"
+                            app:cornerRadius="10dp"
+                            app:strokeColor="@color/ai_assistant_border_light"
+                            app:strokeWidth="1dp"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_generate_prompt"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+                            android:layout_marginStart="4dp"
+                            android:layout_marginEnd="4dp"
+                            android:text="身份设置"
+            android:textSize="12sp"
+            android:drawableStart="@drawable/ic_person"
+                            android:drawablePadding="6dp"
+                            android:backgroundTint="@color/ai_assistant_button_secondary_light"
+                            android:textColor="@color/ai_assistant_button_text_secondary_light"
+                            app:cornerRadius="10dp"
+                            app:strokeColor="@color/ai_assistant_border_light"
+                            app:strokeWidth="1dp"
+            style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_switch_ai_service"
+                            android:layout_width="0dp"
+                            android:layout_height="40dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="4dp"
+                            android:text="切换AI"
+                            android:textSize="12sp"
+                            android:drawableStart="@drawable/ic_refresh"
+                            android:drawablePadding="6dp"
+                            android:backgroundTint="@color/ai_assistant_primary_light"
+                            android:textColor="@color/ai_assistant_button_text_light"
+                            app:cornerRadius="10dp"
+                            style="@style/Widget.Material3.Button" />
+
+    </LinearLayout>
+
+                </LinearLayout>
+
+    </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- AI回复区域卡片 -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:cardBackgroundColor="@color/ai_assistant_card_light"
+            app:strokeColor="@color/ai_assistant_border_light"
+            app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- 回复区域标题栏 -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:padding="16dp">
-
-                <!-- AI助手图标 -->
-                <ImageView
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@drawable/ic_ai_assistant"
-                    android:background="@drawable/ai_assistant_icon_background"
-                    android:padding="6dp"
-                    app:tint="@color/ai_assistant_icon_light" />
-
-                <!-- 标题和状态 -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="12dp"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="AI助手"
-                        android:textColor="@color/ai_assistant_text_primary_light"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/ai_status_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="准备就绪"
-                        android:textColor="@color/ai_assistant_text_secondary_light"
-                        android:textSize="12sp"
-                        android:layout_marginTop="2dp" />
-
-                </LinearLayout>
-
-                <!-- 关闭按钮 -->
-                <ImageButton
-                    android:id="@+id/btn_close_ai_panel"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:background="@drawable/ai_assistant_button_background"
-                    android:contentDescription="关闭"
-                    android:src="@drawable/ic_close"
-                    app:tint="@color/ai_assistant_icon_secondary_light" />
-
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 输入区域卡片 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/ai_assistant_card_light"
-            app:strokeColor="@color/ai_assistant_border_light"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="输入消息"
-                    android:textColor="@color/ai_assistant_text_primary_light"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:background="@drawable/ai_assistant_input_background"
-                    android:padding="4dp">
-
-                    <EditText
-                        android:id="@+id/ai_input_text"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:background="@android:color/transparent"
-                        android:hint="输入问题或指令..."
-                        android:textColor="@color/ai_assistant_text_primary_light"
-                        android:textColorHint="@color/ai_assistant_text_hint_light"
-                        android:textSize="14sp"
-                        android:inputType="textCapSentences|textMultiLine"
-                        android:maxLines="3"
-                        android:padding="12dp"
-                        android:focusable="true"
-                        android:focusableInTouchMode="true"
-                        android:clickable="true" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_send_ai_message"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:layout_marginStart="8dp"
-                        android:backgroundTint="@color/ai_assistant_primary_light"
-                        android:contentDescription="发送"
-                        android:src="@drawable/ic_send_plane"
-                        app:icon="@drawable/ic_send_plane"
-                        app:iconTint="@color/ai_assistant_button_text_light"
-                        app:cornerRadius="12dp"
-                        style="@style/Widget.Material3.Button" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 功能控制区域 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/ai_assistant_card_light"
-            app:strokeColor="@color/ai_assistant_border_light"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="AI配置"
-                    android:textColor="@color/ai_assistant_text_primary_light"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="8dp" />
-
-                <!-- AI服务选择 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginBottom="8dp">
-
-                    <TextView
-                        android:layout_width="80dp"
-                        android:layout_height="wrap_content"
-                        android:text="AI服务："
-                        android:textColor="@color/ai_assistant_text_secondary_light"
-                        android:textSize="12sp" />
-
-                    <Spinner
-                        android:id="@+id/ai_service_spinner"
-                        android:layout_width="0dp"
-                        android:layout_height="40dp"
-                        android:layout_weight="1"
-                        android:background="@drawable/ai_assistant_spinner_background"
-                        android:paddingStart="8dp"
-                        android:paddingEnd="8dp" />
-
-                    <ImageButton
-                        android:id="@+id/btn_clear_ai_response"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:layout_marginStart="8dp"
-                        android:background="@drawable/ai_assistant_button_background"
-                        android:contentDescription="清除"
-                        android:src="@drawable/ic_close"
-                        app:tint="@color/ai_assistant_icon_secondary_light" />
-
-                </LinearLayout>
-
-                <!-- 功能按钮区域 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_select_assistant"
-                        android:layout_width="0dp"
-                        android:layout_height="40dp"
-                        android:layout_weight="1"
-                        android:layout_marginEnd="4dp"
-                        android:text="选择助手"
-                        android:textSize="12sp"
-                        android:drawableStart="@drawable/ic_ai_assistant"
-                        android:drawablePadding="6dp"
-                        android:backgroundTint="@color/ai_assistant_button_secondary_light"
-                        android:textColor="@color/ai_assistant_button_text_secondary_light"
-                        app:cornerRadius="10dp"
-                        app:strokeColor="@color/ai_assistant_border_light"
-                        app:strokeWidth="1dp"
-                        style="@style/Widget.Material3.Button.OutlinedButton" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_generate_prompt"
-                        android:layout_width="0dp"
-                        android:layout_height="40dp"
-                        android:layout_weight="1"
-                        android:layout_marginStart="4dp"
-                        android:layout_marginEnd="4dp"
-                        android:text="身份设置"
-                        android:textSize="12sp"
-                        android:drawableStart="@drawable/ic_person"
-                        android:drawablePadding="6dp"
-                        android:backgroundTint="@color/ai_assistant_button_secondary_light"
-                        android:textColor="@color/ai_assistant_button_text_secondary_light"
-                        app:cornerRadius="10dp"
-                        app:strokeColor="@color/ai_assistant_border_light"
-                        app:strokeWidth="1dp"
-                        style="@style/Widget.Material3.Button.OutlinedButton" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btn_switch_ai_service"
-                        android:layout_width="0dp"
-                        android:layout_height="40dp"
-                        android:layout_weight="1"
-                        android:layout_marginStart="4dp"
-                        android:text="切换AI"
-                        android:textSize="12sp"
-                        android:drawableStart="@drawable/ic_refresh"
-                        android:drawablePadding="6dp"
-                        android:backgroundTint="@color/ai_assistant_primary_light"
-                        android:textColor="@color/ai_assistant_button_text_light"
-                        app:cornerRadius="10dp"
-                        style="@style/Widget.Material3.Button" />
-
-                </LinearLayout>
-
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- AI回复区域卡片 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:cardBackgroundColor="@color/ai_assistant_card_light"
-            app:strokeColor="@color/ai_assistant_border_light"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <!-- 回复区域标题栏 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
                     android:padding="16dp"
                     android:paddingBottom="8dp">
 
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="AI回复"
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="AI回复"
                         android:textColor="@color/ai_assistant_text_primary_light"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
 
-                    <ImageButton
-                        android:id="@+id/btn_fold_response"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                <ImageButton
+                    android:id="@+id/btn_fold_response"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                         android:background="@drawable/ai_assistant_button_background"
-                        android:contentDescription="折叠/展开"
-                        android:src="@drawable/ic_expand_less"
+                    android:contentDescription="折叠/展开"
+                    android:src="@drawable/ic_expand_less"
                         app:tint="@color/ai_assistant_icon_secondary_light" />
 
                 </LinearLayout>
@@ -349,25 +334,56 @@
                             app:strokeColor="@color/ai_assistant_border_light"
                             app:strokeWidth="1dp">
 
-                            <ScrollView
+                            <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="match_parent"
-                                android:scrollbars="vertical"
-                                android:padding="12dp">
+                                android:orientation="vertical">
 
-                                <TextView
-                                    android:id="@+id/ai_response_text"
+                                <!-- 回复副标题 -->
+                                <LinearLayout
                                     android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:text="选择AI服务并输入问题获取回复..."
-                                    android:textColor="@color/ai_assistant_ai_text_light"
-                                    android:textSize="13sp"
-                                    android:lineSpacingExtra="4dp"
-                                    android:textIsSelectable="true" />
+                                    android:orientation="vertical"
+                                    android:padding="12dp"
+                                    android:paddingBottom="8dp"
+                                    android:background="@color/ai_assistant_ai_bubble_light">
 
-                            </ScrollView>
+                                    <TextView
+                                        android:id="@+id/ai_response_subtitle"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:text="选择AI服务并输入问题获取回复..."
+                                        android:textColor="@color/ai_assistant_text_secondary_light"
+                                        android:textSize="11sp"
+                                        android:maxLines="2"
+                                        android:ellipsize="end" />
 
-                        </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- 回复内容区域 -->
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:scrollbars="vertical"
+                                    android:padding="12dp"
+                                    android:paddingTop="0dp">
+
+                <TextView
+                    android:id="@+id/ai_response_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                                        android:text=""
+                                        android:textColor="@color/ai_assistant_ai_text_light"
+                    android:textSize="13sp"
+                    android:lineSpacingExtra="4dp"
+                    android:textIsSelectable="true" />
+
+            </ScrollView>
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
 
                         <!-- 动态添加的AI回复框将在这里显示 -->
 
@@ -379,6 +395,6 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-    </LinearLayout>
+</LinearLayout>
 
 </ScrollView>

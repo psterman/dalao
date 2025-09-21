@@ -7721,12 +7721,12 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     /**
      * 添加AI回复卡片
      */
-    private fun addAIResponseCard(aiName: String, response: String) {
+    private fun addAIResponseCard(aiName: String, response: String, query: String) {
         try {
             val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
             if (responseContainer != null) {
                 // 创建新的AI回复卡片
-                val newCard = createAIResponseCard(aiName, response)
+                val newCard = createAIResponseCard(aiName, response, query)
                 responseContainer.addView(newCard)
                 
                 // 滚动到最新添加的卡片
@@ -7743,7 +7743,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     /**
      * 创建AI回复卡片
      */
-    private fun createAIResponseCard(aiName: String, response: String): MaterialCardView {
+    private fun createAIResponseCard(aiName: String, response: String, query: String): MaterialCardView {
         val context = this
         val card = MaterialCardView(context)
         
@@ -7762,28 +7762,90 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         card.strokeColor = getColor(R.color.ai_assistant_border_light)
         card.strokeWidth = 1.dpToPx()
         
-        // 创建内容布局
-        val scrollView = ScrollView(context)
-        scrollView.layoutParams = ViewGroup.LayoutParams(
+        // 创建主容器
+        val mainContainer = LinearLayout(context)
+        mainContainer.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
+        mainContainer.orientation = LinearLayout.VERTICAL
+        
+        // 创建副标题区域
+        val subtitleContainer = LinearLayout(context)
+        subtitleContainer.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        subtitleContainer.orientation = LinearLayout.VERTICAL
+        subtitleContainer.setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 8.dpToPx())
+        subtitleContainer.setBackgroundColor(getColor(R.color.ai_assistant_ai_bubble_light))
+        
+        // AI名称
+        val aiNameText = TextView(context)
+        aiNameText.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        aiNameText.text = aiName
+        aiNameText.setTextColor(getColor(R.color.ai_assistant_primary_light))
+        aiNameText.textSize = 12f
+        aiNameText.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        
+        // 回复时间
+        val timeText = TextView(context)
+        timeText.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        val currentTime = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        timeText.text = "回复时间: $currentTime"
+        timeText.setTextColor(getColor(R.color.ai_assistant_text_secondary_light))
+        timeText.textSize = 10f
+        
+        // 最后回复的问题
+        val queryText = TextView(context)
+        queryText.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        queryText.text = "问题: $query"
+        queryText.setTextColor(getColor(R.color.ai_assistant_text_secondary_light))
+        queryText.textSize = 10f
+        queryText.maxLines = 2
+        queryText.ellipsize = android.text.TextUtils.TruncateAt.END
+        
+        subtitleContainer.addView(aiNameText)
+        subtitleContainer.addView(timeText)
+        subtitleContainer.addView(queryText)
+        
+        // 创建回复内容区域
+        val scrollView = ScrollView(context)
+        val scrollViewParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0
+        )
+        scrollViewParams.weight = 1f
+        scrollView.layoutParams = scrollViewParams
         scrollView.isVerticalScrollBarEnabled = true
-        scrollView.setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 12.dpToPx())
+        scrollView.setPadding(12.dpToPx(), 0, 12.dpToPx(), 12.dpToPx())
         
         val textView = TextView(context)
         textView.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
-        textView.text = "$aiName:\n$response"
+        textView.text = response
         textView.setTextColor(getColor(R.color.ai_assistant_ai_text_light))
         textView.textSize = 13f
         textView.setLineSpacing(4.dpToPx().toFloat(), 1f)
         textView.setTextIsSelectable(true)
         
         scrollView.addView(textView)
-        card.addView(scrollView)
+        
+        // 组装卡片
+        mainContainer.addView(subtitleContainer)
+        mainContainer.addView(scrollView)
+        card.addView(mainContainer)
         
         return card
     }
@@ -7857,11 +7919,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             
             // 添加AI回复卡片
-            addAIResponseCard(aiService, response)
+            addAIResponseCard(aiService, response, query)
             
         } catch (e: Exception) {
             Log.e(TAG, "发送消息到${aiService}失败", e)
-            addAIResponseCard(aiService, "抱歉，${aiService} 暂时无法回复")
+            addAIResponseCard(aiService, "抱歉，${aiService} 暂时无法回复", query)
         }
     }
 
