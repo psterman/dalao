@@ -771,7 +771,6 @@
     <color name="ai_assistant_secondary_light">#10D876</color>
     <color name="ai_assistant_text_primary_light">#1A1A1A</color>
     <color name="ai_assistant_text_secondary_light">#666666</color>
-    <color name="ai_assistant_text_disabled_light">#BDBDBD</color>
     <color name="ai_assistant_text_hint_light">#999999</color>
     <color name="ai_assistant_border_light">#E5E5E5</color>
     <color name="ai_assistant_divider_light">#F0F0F0</color>

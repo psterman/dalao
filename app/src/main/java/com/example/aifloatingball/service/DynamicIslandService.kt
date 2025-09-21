@@ -1177,8 +1177,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun showDeepSeekResponse(text: String) {
-        // 已移除默认的ai_response_text，现在使用动态生成的卡片
-        Log.d(TAG, "showDeepSeekResponse: $text")
+        // 优先使用AI助手面板中的响应文本视图
+        val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
+            ?: configPanelView?.findViewById<TextView>(R.id.ai_response_text)
+        aiResponseText?.text = text
     }
 
     private fun callDeepSeekAPI(query: String) {
@@ -1192,8 +1194,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             callback = object : AIApiManager.StreamingCallback {
                 override fun onChunkReceived(chunk: String) {
                     uiHandler.post {
-                        // 已移除默认的ai_response_text，现在使用动态生成的卡片
-                        Log.d(TAG, "DeepSeek chunk received: $chunk")
+                        val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
+                            ?: configPanelView?.findViewById<TextView>(R.id.ai_response_text)
+                        val currentText = aiResponseText?.text?.toString() ?: ""
+                        aiResponseText?.text = currentText + chunk
                     }
                 }
                 
@@ -1303,25 +1307,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         layoutParams.marginEnd = 4.dpToPx()
         checkBox.layoutParams = layoutParams
         
-        // 检查API密钥是否配置
-        val hasApiKey = checkApiKeyConfigured(serviceName)
-        
         checkBox.text = serviceName
         checkBox.textSize = 10f
         
+        // 检查API密钥是否配置
+        val hasApiKey = checkApiKeyConfigured(serviceName)
         if (hasApiKey) {
-            // 已配置API密钥，正常显示
             checkBox.setTextColor(getColor(R.color.ai_assistant_text_primary_light))
             checkBox.buttonTintList = getColorStateList(R.color.ai_assistant_primary_light)
-            checkBox.isEnabled = true
-            checkBox.isChecked = aiServiceSelectionManager.isSelected(serviceName)
         } else {
-            // 未配置API密钥，显示为灰色
-            checkBox.setTextColor(getColor(R.color.ai_assistant_text_disabled_light))
-            checkBox.buttonTintList = getColorStateList(R.color.ai_assistant_text_disabled_light)
-            checkBox.isEnabled = false
-            checkBox.isChecked = false
+            checkBox.setTextColor(getColor(R.color.ai_assistant_text_secondary_light))
+            checkBox.buttonTintList = getColorStateList(R.color.ai_assistant_text_secondary_light)
         }
+        
+        checkBox.isChecked = aiServiceSelectionManager.isSelected(serviceName) && hasApiKey
+        checkBox.isEnabled = hasApiKey
         
         checkBox.setOnCheckedChangeListener { _, isChecked ->
             if (hasApiKey) {
@@ -1329,59 +1329,50 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 updateAIServiceStatus()
                 Log.d(TAG, "AI服务选择变更: $serviceName = $isChecked")
             } else {
-                // 未配置API密钥，显示设置提示
-                showApiKeySetupDialog(serviceName)
+                // 如果API密钥未配置，提示用户配置
+                Toast.makeText(this, "$serviceName 需要先配置API密钥", Toast.LENGTH_SHORT).show()
+                checkBox.isChecked = false
             }
-        }
-        
-        // 添加长按监听器，即使未配置API密钥也可以长按跳转设置
-        checkBox.setOnLongClickListener {
-            showApiKeySetupDialog(serviceName)
-            true
         }
         
         return checkBox
     }
     
     /**
-     * 检查AI服务的API密钥是否已配置
+     * 检查API密钥是否已配置
      */
     private fun checkApiKeyConfigured(serviceName: String): Boolean {
         return when (serviceName) {
-            "DeepSeek" -> settingsManager.getDeepSeekApiKey().isNotBlank()
-            "智谱AI" -> settingsManager.getZhipuAiApiKey().isNotBlank()
-            "Kimi" -> settingsManager.getKimiApiKey().isNotBlank()
-            "ChatGPT" -> settingsManager.getChatGPTApiKey().isNotBlank()
-            "Claude" -> settingsManager.getClaudeApiKey().isNotBlank()
-            "Gemini" -> settingsManager.getGeminiApiKey().isNotBlank()
-            "文心一言" -> settingsManager.getWenxinApiKey().isNotBlank()
-            "通义千问" -> settingsManager.getQianwenApiKey().isNotBlank()
-            "讯飞星火" -> false // 暂未实现讯飞星火API密钥检查
+            "DeepSeek" -> (settingsManager.getString("deepseek_api_key", "") ?: "").isNotBlank()
+            "智谱AI" -> (settingsManager.getString("zhipu_ai_api_key", "") ?: "").isNotBlank()
+            "Kimi" -> (settingsManager.getString("kimi_api_key", "") ?: "").isNotBlank()
+            "ChatGPT" -> (settingsManager.getString("openai_api_key", "") ?: "").isNotBlank()
+            "Claude" -> (settingsManager.getString("claude_api_key", "") ?: "").isNotBlank()
+            "Gemini" -> (settingsManager.getString("gemini_api_key", "") ?: "").isNotBlank()
+            "文心一言" -> (settingsManager.getString("wenxin_api_key", "") ?: "").isNotBlank()
+            "通义千问" -> (settingsManager.getString("qianwen_api_key", "") ?: "").isNotBlank()
+            "讯飞星火" -> (settingsManager.getString("xinghuo_api_key", "") ?: "").isNotBlank()
             else -> false
         }
     }
     
     /**
-     * 显示API密钥设置对话框
+     * 打开API密钥配置页面
      */
-    private fun showApiKeySetupDialog(serviceName: String) {
+    private fun openApiKeyConfigPage() {
         try {
-            val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-            builder.setTitle("配置API密钥")
-            builder.setMessage("$serviceName 的API密钥未配置，是否前往设置页面进行配置？")
+            // 隐藏AI助手面板
+            hideAIAssistantPanel()
             
-            builder.setPositiveButton("前往设置") { _, _ ->
-                // 跳转到设置页面
-                val intent = Intent(this, SettingsActivity::class.java)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                startActivity(intent)
-            }
+            // 启动AI API设置Activity
+            val intent = Intent(this, AIApiConfigActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            startActivity(intent)
             
-            builder.setNegativeButton("取消", null)
-            builder.show()
+            Toast.makeText(this, "请配置AI服务的API密钥", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
-            Log.e(TAG, "显示API密钥设置对话框失败", e)
-            Toast.makeText(this, "无法打开设置页面", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "打开API配置页面失败", e)
+            Toast.makeText(this, "无法打开配置页面", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -7792,6 +7783,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             // AI输入框
             val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
+            val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
             
             // 设置AI输入框的焦点和输入法激活
             aiInputText?.let { inputField ->
@@ -7822,6 +7814,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             btnClearAiResponse?.setOnClickListener {
                 // 清除所有AI回复卡片
                 clearAIResponseCards()
+                // 重置默认回复文本
+                aiResponseText?.text = "选择AI服务并输入问题获取回复..."
             }
             
             // 发送消息按钮
@@ -7832,6 +7826,30 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     sendAIMessageToMultipleServices(query)
                     aiInputText?.setText("") // 清空输入框
                 }
+            }
+            
+            // 发送按钮长按功能
+            btnSendAiMessage?.setOnLongClickListener {
+                val query = aiInputText?.text?.toString()?.trim()
+                if (!query.isNullOrEmpty()) {
+                    // 显示确认对话框
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle("清空输入")
+                        .setMessage("确定要清空输入框吗？")
+                        .setPositiveButton("确定") { _, _ ->
+                            aiInputText?.setText("")
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
+                true // 返回true表示消费了长按事件
+            }
+            
+            // AI配置按钮
+            val btnAiConfig = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_ai_config)
+            btnAiConfig?.setOnClickListener {
+                // 跳转到API密钥配置页面
+                openApiKeyConfigPage()
             }
             
             
@@ -8023,15 +8041,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
-     * 清除所有AI回复卡片（包括默认卡片）
+     * 清除所有AI回复卡片（保留默认卡片）
      */
     private fun clearAIResponseCards() {
         try {
             val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
             if (responseContainer != null) {
-                // 清除所有卡片，包括默认的空卡片
-                responseContainer.removeAllViews()
-                Log.d(TAG, "已清除所有AI回复卡片")
+                // 保留默认卡片，移除其他卡片
+                val childCount = responseContainer.childCount
+                for (i in childCount - 1 downTo 1) { // 从后往前删除，跳过第一个（默认卡片）
+                    responseContainer.removeViewAt(i)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "清除AI回复卡片失败", e)
