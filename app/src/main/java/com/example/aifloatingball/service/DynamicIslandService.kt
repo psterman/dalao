@@ -8041,17 +8041,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
     
     /**
-     * 清除所有AI回复卡片（保留默认卡片）
+     * 清除所有AI回复卡片（隐藏默认卡片）
      */
     private fun clearAIResponseCards() {
         try {
             val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
             if (responseContainer != null) {
-                // 保留默认卡片，移除其他卡片
+                // 移除所有动态创建的卡片
                 val childCount = responseContainer.childCount
-                for (i in childCount - 1 downTo 1) { // 从后往前删除，跳过第一个（默认卡片）
+                for (i in childCount - 1 downTo 0) {
                     responseContainer.removeViewAt(i)
                 }
+                
+                // 隐藏默认卡片
+                val defaultCard = aiAssistantPanelView?.findViewById<MaterialCardView>(R.id.ai_response_card_default)
+                defaultCard?.visibility = View.GONE
             }
         } catch (e: Exception) {
             Log.e(TAG, "清除AI回复卡片失败", e)
@@ -8256,31 +8260,22 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     /**
      * 异步发送消息到指定AI服务
      */
+    // 用于存储每个AI服务的累积回复内容
+    private val aiResponseAccumulator = mutableMapOf<String, StringBuilder>()
+    
     private fun sendAIMessageToServiceAsync(query: String, aiService: String) {
         Log.d(TAG, "开始发送消息到AI服务: $aiService, 问题: $query")
         
-        // 先显示模拟回复进行测试
+        // 初始化累积器
+        aiResponseAccumulator[aiService] = StringBuilder()
+        
+        // 显示连接状态
         uiHandler.post {
             updateAIResponseCard(aiService, "正在连接${aiService}...", false)
         }
         
-        // 延迟2秒后显示模拟回复
         Thread {
             try {
-                Thread.sleep(2000) // 模拟网络延迟
-                
-                // 先显示模拟回复进行测试
-                uiHandler.post {
-                    val mockResponse = when (aiService) {
-                        "DeepSeek" -> "DeepSeek回复：关于您的问题\"$query\"，我的分析如下：\n\n这是一个很好的问题，让我从多个角度来回答...\n\n1. 首先，从技术角度来看...\n2. 其次，从实际应用角度...\n3. 最后，从未来发展角度...\n\n希望这个回答对您有帮助！"
-                        "Kimi" -> "Kimi回复：根据您的问题\"$query\"，我的建议是：\n\n让我为您详细分析这个问题...\n\n• 关键点一：...\n• 关键点二：...\n• 关键点三：...\n\n如果您需要更深入的分析，请告诉我！"
-                        "Claude" -> "Claude回复：关于\"$query\"这个问题，我认为：\n\n这是一个值得深入思考的问题。让我从以下几个维度来回答：\n\n1. 理论层面\n2. 实践层面\n3. 未来展望\n\n每个维度都有其独特的价值..."
-                        else -> "${aiService}回复：正在处理您的问题\"$query\"...\n\n这是一个很有趣的问题，让我仔细思考一下...\n\n基于我的分析，我认为...\n\n如果您有其他问题，随时可以问我！"
-                    }
-                    updateAIResponseCard(aiService, mockResponse, true)
-                }
-                
-                return@Thread // 暂时跳过真实API调用，先测试UI更新
                 
                 // 将显示名称映射到AIServiceType
                 val serviceType = when (aiService) {
@@ -8312,14 +8307,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         override fun onChunkReceived(chunk: String) {
                             Log.d(TAG, "收到${aiService}的流式回复: ${chunk.length}字符")
                             uiHandler.post {
-                                updateAIResponseCard(aiService, chunk, false)
+                                // 累积流式回复内容
+                                aiResponseAccumulator[aiService]?.append(chunk)
+                                val accumulatedContent = aiResponseAccumulator[aiService]?.toString() ?: ""
+                                updateAIResponseCard(aiService, accumulatedContent, false)
                             }
                         }
                         
                         override fun onComplete(fullResponse: String) {
                             Log.d(TAG, "${aiService}回复完成: ${fullResponse.length}字符")
                             uiHandler.post {
-                                updateAIResponseCard(aiService, fullResponse, true)
+                                // 格式化完整回复
+                                val formattedResponse = formatMarkdownResponse(fullResponse)
+                                updateAIResponseCard(aiService, formattedResponse, true)
+                                // 清理累积器
+                                aiResponseAccumulator.remove(aiService)
                                 // 保存到聊天历史
                                 saveToChatHistory(query, fullResponse, serviceType)
                             }
@@ -8328,7 +8330,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         override fun onError(error: String) {
                             Log.e(TAG, "${aiService}回复错误: $error")
                             uiHandler.post {
-                                updateAIResponseCard(aiService, "错误：$error\n\n请检查API密钥配置是否正确。", true)
+                                updateAIResponseCard(aiService, "❌ 错误：$error\n\n请检查API密钥配置是否正确。", true)
+                                // 清理累积器
+                                aiResponseAccumulator.remove(aiService)
                             }
                         }
                     }
@@ -8337,10 +8341,31 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             } catch (e: Exception) {
                 Log.e(TAG, "发送消息到${aiService}失败", e)
                 uiHandler.post {
-                    updateAIResponseCard(aiService, "抱歉，${aiService} 暂时无法回复：${e.message}", true)
+                    updateAIResponseCard(aiService, "❌ 抱歉，${aiService} 暂时无法回复：${e.message}", true)
+                    // 清理累积器
+                    aiResponseAccumulator.remove(aiService)
                 }
             }
         }.start()
+    }
+    
+    /**
+     * 格式化Markdown响应
+     */
+    private fun formatMarkdownResponse(response: String): String {
+        return response
+            .replace("```", "") // 移除代码块标记
+            .replace("**", "") // 移除粗体标记
+            .replace("*", "") // 移除斜体标记
+            .replace("#", "") // 移除标题标记
+            .replace("`", "") // 移除行内代码标记
+            .replace("---", "—") // 替换分隔线
+            .replace("###", "•") // 替换三级标题为项目符号
+            .replace("##", "•") // 替换二级标题为项目符号
+            .replace("#", "•") // 替换一级标题为项目符号
+            .replace("\n\n\n", "\n\n") // 减少多余空行
+            .replace("\\n", "\n") // 处理转义换行符
+            .trim()
     }
     
     /**
@@ -8396,9 +8421,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         loadingContainer.visibility = View.GONE
                         scrollView?.visibility = View.VISIBLE
                     }
-                    // 追加内容
-                    val currentText = textView?.text?.toString() ?: ""
-                    textView?.text = currentText + content
+                    // 流式回复直接设置内容（API已经处理了累积）
+                    textView?.text = content
                 }
             }
         } catch (e: Exception) {
