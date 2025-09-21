@@ -159,41 +159,104 @@
                         android:textStyle="bold"
                         android:layout_marginBottom="8dp" />
 
-                    <!-- AI服务选择 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
+                    <!-- AI服务多选区域 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
                         android:layout_marginBottom="8dp">
 
-                        <TextView
-                            android:layout_width="80dp"
+                        <LinearLayout
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="AI服务："
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="8dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="选择AI服务（可多选）"
+                                android:textColor="@color/ai_assistant_text_primary_light"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <ImageButton
+                                android:id="@+id/btn_clear_ai_response"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:background="@drawable/ai_assistant_button_background"
+                                android:contentDescription="清除回复"
+                                android:src="@drawable/ic_close"
+                                app:tint="@color/ai_assistant_icon_secondary_light" />
+
+                        </LinearLayout>
+
+                        <!-- AI服务CheckBox容器 -->
+                        <LinearLayout
+                            android:id="@+id/ai_services_checkbox_container"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="4dp">
+
+                            <!-- 动态添加CheckBox -->
+
+                        </LinearLayout>
+
+                        <!-- 全选/清空控制按钮 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="4dp">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_select_all_ai"
+                                android:layout_width="0dp"
+                                android:layout_height="28dp"
+                                android:layout_weight="1"
+                                android:layout_marginEnd="4dp"
+                                android:text="全选"
+                                android:textSize="10sp"
+                                android:backgroundTint="@color/ai_assistant_button_secondary_light"
+                                android:textColor="@color/ai_assistant_button_text_secondary_light"
+                                app:cornerRadius="6dp"
+                                app:strokeColor="@color/ai_assistant_border_light"
+                                app:strokeWidth="1dp"
+                                style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_clear_all_ai"
+                                android:layout_width="0dp"
+                                android:layout_height="28dp"
+                                android:layout_weight="1"
+                                android:layout_marginStart="4dp"
+                                android:text="清空"
+                                android:textSize="10sp"
+                                android:backgroundTint="@color/ai_assistant_button_secondary_light"
+                                android:textColor="@color/ai_assistant_button_text_secondary_light"
+                                app:cornerRadius="6dp"
+                                app:strokeColor="@color/ai_assistant_border_light"
+                                app:strokeWidth="1dp"
+                                style="@style/Widget.Material3.Button.OutlinedButton" />
+
+                        </LinearLayout>
+
+                        <!-- 选择状态显示 -->
+                        <TextView
+                            android:id="@+id/ai_selection_status"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="已选择: DeepSeek"
                             android:textColor="@color/ai_assistant_text_secondary_light"
-                            android:textSize="12sp" />
+                            android:textSize="10sp"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center" />
 
-        <Spinner
-            android:id="@+id/ai_service_spinner"
-            android:layout_width="0dp"
-                            android:layout_height="40dp"
-            android:layout_weight="1"
-                            android:background="@drawable/ai_assistant_spinner_background"
-                            android:paddingStart="8dp"
-                            android:paddingEnd="8dp" />
-
-        <ImageButton
-            android:id="@+id/btn_clear_ai_response"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-                            android:layout_marginStart="8dp"
-                            android:background="@drawable/ai_assistant_button_background"
-                            android:contentDescription="清除"
-            android:src="@drawable/ic_close"
-                            app:tint="@color/ai_assistant_icon_secondary_light" />
-
-    </LinearLayout>
+                    </LinearLayout>
 
                     <!-- 功能按钮区域 -->
     <LinearLayout

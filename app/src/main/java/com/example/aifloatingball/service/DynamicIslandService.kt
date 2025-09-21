@@ -47,7 +47,9 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.text.InputType
 import android.widget.ArrayAdapter
+import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -62,6 +64,7 @@ import com.example.aifloatingball.HomeActivity
 import com.example.aifloatingball.R
 import com.example.aifloatingball.activity.AIApiConfigActivity
 import com.example.aifloatingball.manager.AIApiManager
+import com.example.aifloatingball.manager.AIServiceSelectionManager
 import com.example.aifloatingball.manager.AIServiceType
 import com.example.aifloatingball.data.ChatDataManager
 import java.net.URLEncoder
@@ -396,6 +399,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private lateinit var windowManager: WindowManager
     private lateinit var appSearchSettings: AppSearchSettings
     private lateinit var settingsManager: SettingsManager
+    private lateinit var aiServiceSelectionManager: AIServiceSelectionManager
     private lateinit var chatDataManager: ChatDataManager
     
     private var windowContainerView: FrameLayout? = null // The stage
@@ -650,6 +654,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 测试增强版灵动岛功能
         testEnhancedIslandFeatures()
         settingsManager = SettingsManager.getInstance(this) // Initialize SettingsManager
+        aiServiceSelectionManager = AIServiceSelectionManager(this)
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         showDynamicIsland()
@@ -1238,36 +1243,145 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
     }
 
-    private fun setupAIServiceSpinner(spinner: Spinner?) {
-        spinner?.let { sp ->
-            val aiServices = listOf(
-                "DeepSeek",
-                "智谱AI", 
-                "Kimi",
-                "ChatGPT",
-                "Claude",
-                "Gemini",
-                "文心一言",
-                "通义千问",
-                "讯飞星火"
-            )
+    /**
+     * 设置AI服务多选界面
+     */
+    private fun setupAIServiceMultiSelect() {
+        try {
+            val container = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_services_checkbox_container)
+            container?.removeAllViews()
             
-            val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, aiServices)
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            sp.adapter = adapter
+            // 创建CheckBox网格布局（3列）
+            val rowCount = (aiServiceSelectionManager.availableServices.size + 2) / 3
+            for (row in 0 until rowCount) {
+                val rowLayout = LinearLayout(this)
+                rowLayout.orientation = LinearLayout.HORIZONTAL
+                rowLayout.layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                
+                for (col in 0 until 3) {
+                    val serviceIndex = row * 3 + col
+                    if (serviceIndex < aiServiceSelectionManager.availableServices.size) {
+                        val serviceName = aiServiceSelectionManager.availableServices[serviceIndex]
+                        val checkBox = createAIServiceCheckBox(serviceName)
+                        rowLayout.addView(checkBox)
+                    } else {
+                        // 添加空白占位
+                        val spacer = View(this)
+                        spacer.layoutParams = LinearLayout.LayoutParams(
+                            0,
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            1f
+                        )
+                        rowLayout.addView(spacer)
+                    }
+                }
+                
+                container?.addView(rowLayout)
+            }
             
-            // 设置默认选择
-            sp.setSelection(0)
+            // 设置控制按钮
+            setupAIServiceControlButtons()
+            
+            // 更新状态显示
+            updateAIServiceStatus()
+            
+            Log.d(TAG, "AI服务多选界面设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置AI服务多选界面失败", e)
         }
+    }
+    
+    /**
+     * 创建AI服务CheckBox
+     */
+    private fun createAIServiceCheckBox(serviceName: String): CheckBox {
+        val checkBox = CheckBox(this)
+        val layoutParams = LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+        layoutParams.marginEnd = 4.dpToPx()
+        checkBox.layoutParams = layoutParams
+        
+        checkBox.text = serviceName
+        checkBox.textSize = 10f
+        checkBox.setTextColor(getColor(R.color.ai_assistant_text_primary_light))
+        checkBox.isChecked = aiServiceSelectionManager.isSelected(serviceName)
+        
+        // 设置CheckBox样式
+        checkBox.buttonTintList = getColorStateList(R.color.ai_assistant_primary_light)
+        
+        checkBox.setOnCheckedChangeListener { _, isChecked ->
+            aiServiceSelectionManager.setServiceSelected(serviceName, isChecked)
+            updateAIServiceStatus()
+            Log.d(TAG, "AI服务选择变更: $serviceName = $isChecked")
+        }
+        
+        return checkBox
+    }
+    
+    /**
+     * 设置AI服务控制按钮
+     */
+    private fun setupAIServiceControlButtons() {
+        // 全选按钮
+        val btnSelectAll = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_select_all_ai)
+        btnSelectAll?.setOnClickListener {
+            aiServiceSelectionManager.selectAll()
+            refreshAIServiceCheckBoxes()
+            updateAIServiceStatus()
+            Toast.makeText(this, "已全选所有AI服务", Toast.LENGTH_SHORT).show()
+        }
+        
+        // 清空按钮
+        val btnClearAll = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_clear_all_ai)
+        btnClearAll?.setOnClickListener {
+            aiServiceSelectionManager.clearAll()
+            refreshAIServiceCheckBoxes()
+            updateAIServiceStatus()
+            Toast.makeText(this, "已清空所有选择", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 刷新AI服务CheckBox状态
+     */
+    private fun refreshAIServiceCheckBoxes() {
+        val container = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_services_checkbox_container)
+        container?.let { containerView ->
+            for (i in 0 until containerView.childCount) {
+                val rowLayout = containerView.getChildAt(i) as? LinearLayout
+                rowLayout?.let { row ->
+                    for (j in 0 until row.childCount) {
+                        val child = row.getChildAt(j)
+                        if (child is CheckBox) {
+                            val serviceName = child.text.toString()
+                            child.isChecked = aiServiceSelectionManager.isSelected(serviceName)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 更新AI服务选择状态显示
+     */
+    private fun updateAIServiceStatus() {
+        val statusText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_selection_status)
+        statusText?.text = aiServiceSelectionManager.getSelectedServicesText()
     }
 
     private fun sendAIMessage(query: String, responseTextView: TextView?) {
         responseTextView?.text = "正在思考中..."
         
-        // 获取当前选择的AI服务，优先使用AI助手面板中的选择器
-        val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-            ?: configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-        val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
+        // 获取当前选择的AI服务，使用多选管理器
+        val selectedServices = aiServiceSelectionManager.getSelectedServices()
+        val selectedService = if (selectedServices.isNotEmpty()) selectedServices.first() else "DeepSeek"
         
         // 将显示名称映射到AIServiceType
         val serviceType = when (selectedService) {
@@ -6770,9 +6884,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             dialog.show()
             
             // 获取当前选择的AI服务
-            val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-                ?: configPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-            val selectedService = spinner?.selectedItem?.toString() ?: "DeepSeek"
+            val selectedServices = aiServiceSelectionManager.getSelectedServices()
+            val selectedService = if (selectedServices.isNotEmpty()) selectedServices.first() else "DeepSeek"
             
             // 将显示名称映射到AIServiceType
             val serviceType = when (selectedService) {
@@ -7613,9 +7726,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 hideAIAssistantPanel()
             }
             
-            // AI服务选择器
-            val aiServiceSpinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-            setupAIServiceSpinner(aiServiceSpinner)
+            // AI服务多选界面
+            setupAIServiceMultiSelect()
             
             // AI输入框
             val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
@@ -7744,7 +7856,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 创建AI回复卡片
      */
     private fun createAIResponseCard(aiName: String, response: String, query: String): MaterialCardView {
-        val context = this
+        // 使用MaterialComponents主题创建MaterialCardView
+        val contextThemeWrapper = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_Light)
+        val context = contextThemeWrapper
         val card = MaterialCardView(context)
         
         // 设置卡片参数
@@ -7885,9 +7999,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             // 清除之前的回复
             clearAIResponseCards()
             
-            // 为每个AI服务发送消息
+            // 为每个选中的AI服务创建独立的回复卡片
             selectedAIServices.forEach { aiService ->
-                sendAIMessageToService(query, aiService)
+                createAILoadingCard(aiService, query)
+                sendAIMessageToServiceAsync(query, aiService)
             }
             
         } catch (e: Exception) {
@@ -7900,30 +8015,318 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 获取当前选择的AI服务列表
      */
     private fun getSelectedAIServices(): List<String> {
-        // 这里应该从SharedPreferences或数据库获取用户选择的AI服务
-        // 暂时返回示例服务列表
-        return listOf("DeepSeek", "Kimi", "Claude")
+        return aiServiceSelectionManager.getSelectedServices()
     }
     
     /**
-     * 发送消息到指定AI服务
+     * 创建AI加载卡片
      */
-    private fun sendAIMessageToService(query: String, aiService: String) {
-        try {
-            // 模拟AI回复（实际应该调用相应的AI API）
-            val response = when (aiService) {
-                "DeepSeek" -> "DeepSeek回复：这是一个关于\"$query\"的详细回答..."
-                "Kimi" -> "Kimi回复：根据您的问题\"$query\"，我的建议是..."
-                "Claude" -> "Claude回复：关于\"$query\"这个问题，我认为..."
-                else -> "${aiService}回复：正在处理您的问题..."
+    private fun createAILoadingCard(aiService: String, query: String): MaterialCardView {
+        // 使用MaterialComponents主题创建MaterialCardView
+        val contextThemeWrapper = ContextThemeWrapper(this, com.google.android.material.R.style.Theme_MaterialComponents_Light)
+        val card = MaterialCardView(contextThemeWrapper)
+        
+        // 设置卡片参数
+        val layoutParams = LinearLayout.LayoutParams(
+            280.dpToPx(), // 280dp宽度
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        layoutParams.marginEnd = 12.dpToPx() // 12dp右边距
+        card.layoutParams = layoutParams
+        
+        // 设置卡片样式
+        card.radius = 12.dpToPx().toFloat()
+        card.cardElevation = 1f
+        card.setCardBackgroundColor(getColor(R.color.ai_assistant_ai_bubble_light))
+        card.strokeColor = getColor(R.color.ai_assistant_border_light)
+        card.strokeWidth = 1.dpToPx()
+        
+        // 设置唯一ID用于后续更新
+        card.id = View.generateViewId()
+        
+        // 创建主容器
+        val mainContainer = LinearLayout(contextThemeWrapper)
+        mainContainer.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        mainContainer.orientation = LinearLayout.VERTICAL
+        
+        // 创建副标题区域
+        val subtitleContainer = LinearLayout(contextThemeWrapper)
+        subtitleContainer.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        subtitleContainer.orientation = LinearLayout.VERTICAL
+        subtitleContainer.setPadding(12.dpToPx(), 12.dpToPx(), 12.dpToPx(), 8.dpToPx())
+        subtitleContainer.setBackgroundColor(getColor(R.color.ai_assistant_ai_bubble_light))
+        
+        // AI名称
+        val aiNameText = TextView(contextThemeWrapper)
+        aiNameText.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        aiNameText.text = aiService
+        aiNameText.setTextColor(getColor(R.color.ai_assistant_primary_light))
+        aiNameText.textSize = 12f
+        aiNameText.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        
+        // 回复时间
+        val timeText = TextView(contextThemeWrapper)
+        timeText.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        val currentTime = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        timeText.text = "开始时间: $currentTime"
+        timeText.setTextColor(getColor(R.color.ai_assistant_text_secondary_light))
+        timeText.textSize = 10f
+        
+        // 问题
+        val queryText = TextView(contextThemeWrapper)
+        queryText.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        queryText.text = "问题: $query"
+        queryText.setTextColor(getColor(R.color.ai_assistant_text_secondary_light))
+        queryText.textSize = 10f
+        queryText.maxLines = 2
+        queryText.ellipsize = android.text.TextUtils.TruncateAt.END
+        
+        subtitleContainer.addView(aiNameText)
+        subtitleContainer.addView(timeText)
+        subtitleContainer.addView(queryText)
+        
+        // 创建加载状态区域
+        val loadingContainer = LinearLayout(contextThemeWrapper)
+        val loadingParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0
+        )
+        loadingParams.weight = 1f
+        loadingContainer.layoutParams = loadingParams
+        loadingContainer.orientation = LinearLayout.VERTICAL
+        loadingContainer.gravity = Gravity.CENTER
+        loadingContainer.setPadding(12.dpToPx(), 20.dpToPx(), 12.dpToPx(), 20.dpToPx())
+        
+        // 加载进度条
+        val progressBar = ProgressBar(contextThemeWrapper, null, android.R.attr.progressBarStyle)
+        progressBar.isIndeterminate = true
+        progressBar.layoutParams = LinearLayout.LayoutParams(
+            32.dpToPx(),
+            32.dpToPx()
+        )
+        
+        // 加载文本
+        val loadingText = TextView(contextThemeWrapper)
+        loadingText.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        loadingText.text = "$aiService 正在思考中..."
+        loadingText.setTextColor(getColor(R.color.ai_assistant_text_secondary_light))
+        loadingText.textSize = 12f
+        loadingText.gravity = Gravity.CENTER
+        
+        loadingContainer.addView(progressBar)
+        loadingContainer.addView(loadingText)
+        
+        // 创建回复内容区域（初始隐藏）
+        val scrollView = ScrollView(contextThemeWrapper)
+        val scrollViewParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0
+        )
+        scrollViewParams.weight = 1f
+        scrollView.layoutParams = scrollViewParams
+        scrollView.isVerticalScrollBarEnabled = true
+        scrollView.setPadding(12.dpToPx(), 0, 12.dpToPx(), 12.dpToPx())
+        scrollView.visibility = View.GONE
+        
+        val textView = TextView(contextThemeWrapper)
+        textView.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        textView.setTextColor(getColor(R.color.ai_assistant_ai_text_light))
+        textView.textSize = 13f
+        textView.setLineSpacing(4.dpToPx().toFloat(), 1f)
+        textView.setTextIsSelectable(true)
+        
+        scrollView.addView(textView)
+        
+        // 组装卡片
+        mainContainer.addView(subtitleContainer)
+        mainContainer.addView(loadingContainer)
+        mainContainer.addView(scrollView)
+        card.addView(mainContainer)
+        
+        // 添加到回复容器
+        val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+        responseContainer?.addView(card)
+        
+        // 滚动到最新添加的卡片
+        val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_response_scroll_container)
+        scrollContainer?.post {
+            scrollContainer.fullScroll(HorizontalScrollView.FOCUS_RIGHT)
+        }
+        
+        return card
+    }
+    
+    /**
+     * 异步发送消息到指定AI服务
+     */
+    private fun sendAIMessageToServiceAsync(query: String, aiService: String) {
+        Log.d(TAG, "开始发送消息到AI服务: $aiService, 问题: $query")
+        
+        // 先显示模拟回复进行测试
+        uiHandler.post {
+            updateAIResponseCard(aiService, "正在连接${aiService}...", false)
+        }
+        
+        // 延迟2秒后显示模拟回复
+        Thread {
+            try {
+                Thread.sleep(2000) // 模拟网络延迟
+                
+                // 先显示模拟回复进行测试
+                uiHandler.post {
+                    val mockResponse = when (aiService) {
+                        "DeepSeek" -> "DeepSeek回复：关于您的问题\"$query\"，我的分析如下：\n\n这是一个很好的问题，让我从多个角度来回答...\n\n1. 首先，从技术角度来看...\n2. 其次，从实际应用角度...\n3. 最后，从未来发展角度...\n\n希望这个回答对您有帮助！"
+                        "Kimi" -> "Kimi回复：根据您的问题\"$query\"，我的建议是：\n\n让我为您详细分析这个问题...\n\n• 关键点一：...\n• 关键点二：...\n• 关键点三：...\n\n如果您需要更深入的分析，请告诉我！"
+                        "Claude" -> "Claude回复：关于\"$query\"这个问题，我认为：\n\n这是一个值得深入思考的问题。让我从以下几个维度来回答：\n\n1. 理论层面\n2. 实践层面\n3. 未来展望\n\n每个维度都有其独特的价值..."
+                        else -> "${aiService}回复：正在处理您的问题\"$query\"...\n\n这是一个很有趣的问题，让我仔细思考一下...\n\n基于我的分析，我认为...\n\n如果您有其他问题，随时可以问我！"
+                    }
+                    updateAIResponseCard(aiService, mockResponse, true)
+                }
+                
+                return@Thread // 暂时跳过真实API调用，先测试UI更新
+                
+                // 将显示名称映射到AIServiceType
+                val serviceType = when (aiService) {
+                    "DeepSeek" -> AIServiceType.DEEPSEEK
+                    "智谱AI" -> AIServiceType.ZHIPU_AI
+                    "Kimi" -> AIServiceType.KIMI
+                    "ChatGPT" -> AIServiceType.CHATGPT
+                    "Claude" -> AIServiceType.CLAUDE
+                    "Gemini" -> AIServiceType.GEMINI
+                    "文心一言" -> AIServiceType.WENXIN
+                    "通义千问" -> AIServiceType.QIANWEN
+                    "讯飞星火" -> AIServiceType.XINGHUO
+                    else -> AIServiceType.DEEPSEEK
+                }
+                
+                Log.d(TAG, "AI服务类型映射: $aiService -> $serviceType")
+                
+                // 创建AI API管理器
+                val aiApiManager = AIApiManager(this)
+                
+                Log.d(TAG, "开始调用AI API: $aiService")
+                
+                // 调用真实API
+                aiApiManager.sendMessage(
+                    serviceType = serviceType,
+                    message = query,
+                    conversationHistory = emptyList(),
+                    callback = object : AIApiManager.StreamingCallback {
+                        override fun onChunkReceived(chunk: String) {
+                            Log.d(TAG, "收到${aiService}的流式回复: ${chunk.length}字符")
+                            uiHandler.post {
+                                updateAIResponseCard(aiService, chunk, false)
+                            }
+                        }
+                        
+                        override fun onComplete(fullResponse: String) {
+                            Log.d(TAG, "${aiService}回复完成: ${fullResponse.length}字符")
+                            uiHandler.post {
+                                updateAIResponseCard(aiService, fullResponse, true)
+                                // 保存到聊天历史
+                                saveToChatHistory(query, fullResponse, serviceType)
+                            }
+                        }
+                        
+                        override fun onError(error: String) {
+                            Log.e(TAG, "${aiService}回复错误: $error")
+                            uiHandler.post {
+                                updateAIResponseCard(aiService, "错误：$error\n\n请检查API密钥配置是否正确。", true)
+                            }
+                        }
+                    }
+                )
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "发送消息到${aiService}失败", e)
+                uiHandler.post {
+                    updateAIResponseCard(aiService, "抱歉，${aiService} 暂时无法回复：${e.message}", true)
+                }
             }
-            
-            // 添加AI回复卡片
-            addAIResponseCard(aiService, response, query)
-            
+        }.start()
+    }
+    
+    /**
+     * 更新AI回复卡片
+     */
+    private fun updateAIResponseCard(aiService: String, content: String, isComplete: Boolean) {
+        try {
+            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+            if (responseContainer != null) {
+                // 查找对应的AI卡片
+                for (i in 0 until responseContainer.childCount) {
+                    val card = responseContainer.getChildAt(i) as? MaterialCardView
+                    if (card != null) {
+                        val mainContainer = card.getChildAt(0) as? LinearLayout
+                        if (mainContainer != null) {
+                            val subtitleContainer = mainContainer.getChildAt(0) as? LinearLayout
+                            if (subtitleContainer != null) {
+                                val aiNameText = subtitleContainer.getChildAt(0) as? TextView
+                                if (aiNameText?.text.toString() == aiService) {
+                                    // 找到对应的卡片，更新内容
+                                    updateCardContent(card, content, isComplete)
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "发送消息到${aiService}失败", e)
-            addAIResponseCard(aiService, "抱歉，${aiService} 暂时无法回复", query)
+            Log.e(TAG, "更新AI回复卡片失败", e)
+        }
+    }
+    
+    /**
+     * 更新卡片内容
+     */
+    private fun updateCardContent(card: MaterialCardView, content: String, isComplete: Boolean) {
+        try {
+            val mainContainer = card.getChildAt(0) as? LinearLayout
+            if (mainContainer != null) {
+                val loadingContainer = mainContainer.getChildAt(1) as? LinearLayout
+                val scrollView = mainContainer.getChildAt(2) as? ScrollView
+                val textView = scrollView?.getChildAt(0) as? TextView
+                
+                if (isComplete) {
+                    // 完成时隐藏加载状态，显示回复内容
+                    loadingContainer?.visibility = View.GONE
+                    scrollView?.visibility = View.VISIBLE
+                    textView?.text = content
+                } else {
+                    // 流式更新时，如果还在加载状态，先显示内容区域
+                    if (loadingContainer?.visibility == View.VISIBLE) {
+                        loadingContainer.visibility = View.GONE
+                        scrollView?.visibility = View.VISIBLE
+                    }
+                    // 追加内容
+                    val currentText = textView?.text?.toString() ?: ""
+                    textView?.text = currentText + content
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新卡片内容失败", e)
         }
     }
 
@@ -7932,31 +8335,42 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun switchAIService() {
         try {
-            val spinner = aiAssistantPanelView?.findViewById<Spinner>(R.id.ai_service_spinner)
-            if (spinner != null) {
-                val currentPosition = spinner.selectedItemPosition
-                val itemCount = spinner.adapter?.count ?: 0
-                
-                if (itemCount > 1) {
-                    // 切换到下一个AI服务
-                    val nextPosition = (currentPosition + 1) % itemCount
-                    spinner.setSelection(nextPosition)
-                    
-                    val selectedService = spinner.selectedItem?.toString() ?: "未知"
-                    Log.d(TAG, "AI服务已切换到: $selectedService")
-                    
-                    // 显示切换提示
-                    Toast.makeText(this, "已切换到: $selectedService", Toast.LENGTH_SHORT).show()
-                } else {
-                    Log.w(TAG, "没有可切换的AI服务")
-                    Toast.makeText(this, "没有可切换的AI服务", Toast.LENGTH_SHORT).show()
+            val selectedServices = aiServiceSelectionManager.getSelectedServices()
+            val availableServices = aiServiceSelectionManager.availableServices
+            
+            if (selectedServices.isEmpty()) {
+                // 如果没有选中的服务，选择第一个
+                if (availableServices.isNotEmpty()) {
+                    aiServiceSelectionManager.setServiceSelected(availableServices.first(), true)
+                    refreshAIServiceCheckBoxes()
+                    updateAIServiceStatus()
+                    Toast.makeText(this, "已选择: ${availableServices.first()}", Toast.LENGTH_SHORT).show()
                 }
+            } else if (selectedServices.size == 1) {
+                // 如果只选中一个，切换到下一个
+                val currentService = selectedServices.first()
+                val currentIndex = availableServices.indexOf(currentService)
+                val nextIndex = (currentIndex + 1) % availableServices.size
+                val nextService = availableServices[nextIndex]
+                
+                aiServiceSelectionManager.clearAll()
+                aiServiceSelectionManager.setServiceSelected(nextService, true)
+                refreshAIServiceCheckBoxes()
+                updateAIServiceStatus()
+                Toast.makeText(this, "已切换到: $nextService", Toast.LENGTH_SHORT).show()
             } else {
-                Log.w(TAG, "找不到AI服务选择器")
+                // 如果选中多个，清空后选择第一个
+                aiServiceSelectionManager.clearAll()
+                if (availableServices.isNotEmpty()) {
+                    aiServiceSelectionManager.setServiceSelected(availableServices.first(), true)
+                }
+                refreshAIServiceCheckBoxes()
+                updateAIServiceStatus()
+                Toast.makeText(this, "已清空多选，选择: ${availableServices.first()}", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, "切换AI服务失败", e)
-            Toast.makeText(this, "切换AI服务失败", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "切换失败", Toast.LENGTH_SHORT).show()
         }
     }
     
