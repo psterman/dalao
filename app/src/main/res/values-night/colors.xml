@@ -469,5 +469,6 @@
     <color name="ai_assistant_user_text_light">#000000</color>
     <color name="ai_assistant_ai_bubble_light">#2A2A2A</color>
     <color name="ai_assistant_ai_text_light">#FFFFFF</color>
+    <color name="ai_assistant_text_disabled_light">#666666</color>
 
 </resources>
