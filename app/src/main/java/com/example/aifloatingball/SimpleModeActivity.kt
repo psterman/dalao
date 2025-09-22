@@ -26,6 +26,7 @@ import android.text.TextWatcher
 import android.util.Log
 import android.widget.Toast
 import android.view.GestureDetector
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -2868,8 +2869,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 弹出对话框询问用户是否要恢复之前的页面
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("恢复未关闭的页面")
-                .setMessage("检测到您有 ${savedUrls.size} 个未关闭的页面，是否要恢复这些页面？")
-                .setPositiveButton("恢复") { _, _ ->
+                .setMessage("检测到您有 ${savedUrls.size} 个未关闭的页面，请选择操作：")
+                .setPositiveButton("恢复所有页面") { _, _ ->
+                    Log.d(TAG, "用户选择：恢复所有页面")
                     // 恢复保存的卡片
                     gestureCardWebViewManager?.restoreCardsState()
                     // 延迟刷新UI状态，等待卡片恢复完成
@@ -2877,14 +2879,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         forceRefreshUIState()
                     }, 500)
                 }
-                .setNegativeButton("不恢复") { _, _ ->
+                .setNegativeButton("清除所有页面") { _, _ ->
+                    Log.d(TAG, "用户选择：清除所有页面")
                     // 清除保存的状态
                     sharedPreferences.edit().remove("floating_card_urls").apply()
-                    // 立即刷新UI状态
+                    // 不调用restoreCardsState，直接刷新UI状态
                     forceRefreshUIState()
                 }
                 .setNeutralButton("稍后决定") { _, _ ->
-                    // 暂时不处理，保持当前状态
+                    Log.d(TAG, "用户选择：稍后决定")
+                    // 暂时不处理，保持当前状态，不调用restoreCardsState
                     forceRefreshUIState()
                 }
                 .setCancelable(false)
@@ -2956,8 +2960,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
-        // 初始化搜索tab图标
+        // 初始化搜索tab图标和徽标
         updateSearchTabIcon()
+        updateSearchTabBadge()
 
         // 检测语音支持情况并隐藏语音tab（如果不支持）
         updateVoiceTabVisibility()
@@ -2967,6 +2972,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 创建底部tab手势指示器
         createTabSwipeGestureIndicator()
+
+        // 设置tab区域之间的滑动切换
+        setupTabAreaSwipeForWebPageSwitch()
+
+        // 创建tab滑动指示器
+        createTabSwipeIndicator()
 
         // 创建对话tab横滑指示器
         createChatTabSwipeIndicator()
@@ -3058,6 +3069,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 更新搜索tab的徽标 - 显示后台已开启的网页数量
+     */
+    private fun updateSearchTabBadge() {
+        val searchTab = findViewById<LinearLayout>(R.id.tab_search)
+        val searchTabBadge = searchTab?.findViewById<TextView>(R.id.search_tab_badge)
+
+        if (searchTabBadge != null) {
+            // 获取当前打开的网页数量
+            val cardCount = gestureCardWebViewManager?.getAllCards()?.size ?: 0
+            
+            if (cardCount > 0) {
+                searchTabBadge.text = cardCount.toString()
+                searchTabBadge.visibility = View.VISIBLE
+            } else {
+                searchTabBadge.visibility = View.GONE
+            }
+        }
+    }
+
+    /**
      * 设置搜索引擎RecyclerView
      */
     private fun setupSearchEngineRecyclerView() {
@@ -3065,9 +3096,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 设置LayoutManager
             browserPreviewEngineList.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
 
+            // 完全移除搜索引擎列表，不显示任何搜索引擎
+            val emptyEngines = emptyList<com.example.aifloatingball.model.SearchEngine>()
+
             // 初始化适配器
             draggableEngineAdapter = com.example.aifloatingball.adapter.DraggableSearchEngineAdapter(
-                engines = mutableListOf(),
+                engines = emptyEngines.toMutableList(),
                 onEngineClick = { engine ->
                     // 点击搜索引擎时的处理
                     val searchText = browserSearchInput.text.toString().trim()
@@ -4259,6 +4293,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 关键修复：确保ViewPager2可见
                 showViewPager2()
 
+                // 更新搜索tab徽标
+                updateSearchTabBadge()
+
                 Log.d(TAG, "添加卡片: ${cardData.title}，ViewPager2已显示")
             }
 
@@ -4267,6 +4304,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 if (gestureCardWebViewManager?.getAllCards()?.isEmpty() == true) {
                     showBrowserHome()
                 }
+
+                // 更新搜索tab徽标
+                updateSearchTabBadge()
 
                 Log.d(TAG, "移除卡片: ${cardData.title}")
             }
@@ -4337,6 +4377,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 隐藏悬浮卡片预览
                 stackedCardPreview?.visibility = View.GONE
 
+                // 更新搜索tab徽标
+                updateSearchTabBadge()
+
                 // 显示提示信息
                 Toast.makeText(this@SimpleModeActivity, "所有标签页已关闭", Toast.LENGTH_SHORT).show()
             }
@@ -4400,8 +4443,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置卡片预览功能
         setupCardPreviewFeature()
         
-        // 恢复悬浮卡片状态
-        gestureCardWebViewManager?.restoreCardsState()
+        // 注意：不在这里自动恢复卡片状态，让用户通过对话框选择
 
         // 设置手势提示功能
         setupGestureHintFeature()
@@ -4909,6 +4951,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 隐藏悬浮卡片预览
                 stackedCardPreview?.visibility = View.GONE
 
+                // 更新搜索tab徽标
+                updateSearchTabBadge()
+
                 // 显示提示信息
                 Toast.makeText(this@SimpleModeActivity, "所有标签页已关闭", Toast.LENGTH_SHORT).show()
             }
@@ -4966,31 +5011,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun setupBrowserShortcuts() {
         browserShortcutsGrid.layoutManager = GridLayoutManager(this, 4)
 
-        // 创建快捷方式数据 - 修复移动端适配和错误网址
-        val shortcuts = listOf(
-            BrowserShortcut("百度", "https://m.baidu.com", R.drawable.ic_baidu),
-            BrowserShortcut("谷歌", "https://www.google.com", R.drawable.ic_google),
-            BrowserShortcut("必应", "https://cn.bing.com", R.drawable.ic_bing),
-            BrowserShortcut("知乎", "https://www.zhihu.com", R.drawable.ic_zhihu),
-            BrowserShortcut("微博", "https://m.weibo.cn", R.drawable.ic_weibo),
-            BrowserShortcut("淘宝", "https://m.taobao.com", R.drawable.ic_taobao),
-            BrowserShortcut("京东", "https://m.jd.com", R.drawable.ic_jd),
-            BrowserShortcut("B站", "https://m.bilibili.com", R.drawable.ic_bilibili),
-            BrowserShortcut("豆瓣", "https://m.douban.com/home_guide", R.drawable.ic_douban),
-            BrowserShortcut("小红书", "https://www.xiaohongshu.com", R.drawable.ic_xiaohongshu),
-            BrowserShortcut("腾讯新闻", "https://xw.qq.com", R.drawable.ic_toutiao),
-            BrowserShortcut("新浪新闻", "https://news.sina.cn", R.drawable.ic_weibo),
-            BrowserShortcut("网易新闻", "https://3g.163.com/news", R.drawable.ic_web_default),
-            BrowserShortcut("搜狐新闻", "https://m.sohu.com", R.drawable.ic_web_default),
-            BrowserShortcut("人民网", "https://wap.people.com.cn", R.drawable.ic_web_default),
-            BrowserShortcut("新华网", "https://m.xinhuanet.com", R.drawable.ic_web_default),
-            BrowserShortcut("知网", "https://i.cnki.net/newHome.html", R.drawable.ic_web_default),
-            BrowserShortcut("万方", "https://m.wanfangdata.com.cn", R.drawable.ic_web_default),
-            BrowserShortcut("维普", "https://m.cqvip.com", R.drawable.ic_web_default),
-            BrowserShortcut("美团", "https://i.meituan.com", R.drawable.ic_web_default),
-            BrowserShortcut("CSDN", "https://m.csdn.net", R.drawable.ic_web_default),
-            BrowserShortcut("稀土掘金", "https://juejin.cn", R.drawable.ic_web_default)
-        )
+        // 完全移除网站快捷方式，不显示任何网站图标
+        val shortcuts = emptyList<BrowserShortcut>()
 
         // 设置适配器
         val adapter = BrowserShortcutAdapter(shortcuts) { shortcut ->
@@ -5497,6 +5519,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 先隐藏所有覆盖层
             hideAllOverlays()
+            clearAllOverlays()
 
             // 尝试使用MobileCardManager，如果失败则使用原有的管理器
             var newCard: GestureCardWebViewManager.WebViewCardData? = null
@@ -5588,6 +5611,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             override fun onAllCardsRemoved() {
                 // 所有卡片都被移除，显示主页
                 showBrowserHome()
+                
+                // 更新搜索tab徽标
+                updateSearchTabBadge()
+                
                 Log.d(TAG, "所有手机卡片已移除")
             }
         })
@@ -14462,6 +14489,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var searchTabSwipeIndicator: View? = null
     private var lastSearchTabSwipeTime = 0L
 
+    // Tab区域滑动相关
+    private var tabSwipeIndicator: View? = null
+    private var lastTabSwipeTime = 0L
+    private val tabSwipeDebounceDelay = 300L
+
     // 对话tab横滑手势相关
     private var chatTabSwipeGestureDetector: GestureDetectorCompat? = null
     private var chatTabSwipeIndicator: View? = null
@@ -15611,26 +15643,54 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showSearchTabSwipeIndicator(action: String = "滑动切换") {
         searchTabSwipeIndicator?.apply {
-            // 更新提示文字 - 查找LinearLayout中的TextView
+            // 更新提示文字和箭头 - 查找LinearLayout中的TextView
             val frameLayout = this as FrameLayout
             val container = frameLayout.getChildAt(0) as? LinearLayout
+            val leftArrow = container?.getChildAt(0) as? TextView
             val hintText = container?.getChildAt(1) as? TextView // 中间的提示文字
-            hintText?.text = when (action) {
-                "上一页" -> "◀ 上一页"
-                "下一页" -> "下一页 ▶"
-                else -> "左右滑动切换页面"
+            val rightArrow = container?.getChildAt(2) as? TextView
+
+            // 更新文字和箭头显示
+            when (action) {
+                "上一页" -> {
+                    hintText?.text = "上一页"
+                    leftArrow?.visibility = View.VISIBLE
+                    rightArrow?.visibility = View.GONE
+                    leftArrow?.text = "◀"
+                }
+                "下一页" -> {
+                    hintText?.text = "下一页"
+                    leftArrow?.visibility = View.GONE
+                    rightArrow?.visibility = View.VISIBLE
+                    rightArrow?.text = "▶"
+                }
+                else -> {
+                    hintText?.text = "左右滑动切换页面"
+                    leftArrow?.visibility = View.VISIBLE
+                    rightArrow?.visibility = View.VISIBLE
+                    leftArrow?.text = "◀"
+                    rightArrow?.text = "▶"
+                }
             }
 
             visibility = View.VISIBLE
             alpha = 0f
             scaleX = 0.8f
             scaleY = 0.8f
+            translationY = 20f
 
+            // Material风格的动画
             animate()
                 .alpha(1f)
                 .scaleX(1f)
                 .scaleY(1f)
-                .setDuration(200)
+                .translationY(0f)
+                .setDuration(300)
+                .setInterpolator(android.view.animation.DecelerateInterpolator(2f))
+                .withEndAction {
+                    // 添加箭头动画
+                    animateArrows(leftArrow, rightArrow, action)
+                }
                 .start()
 
             // 2秒后自动隐藏
@@ -15648,11 +15708,378 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             ?.alpha(0f)
             ?.scaleX(0.8f)
             ?.scaleY(0.8f)
+            ?.translationY(20f)
             ?.setDuration(200)
+            ?.setInterpolator(android.view.animation.AccelerateInterpolator(2f))
             ?.withEndAction {
                 searchTabSwipeIndicator?.visibility = View.GONE
             }
             ?.start()
+    }
+
+    /**
+     * 动画箭头
+     */
+    private fun animateArrows(leftArrow: TextView?, rightArrow: TextView?, action: String) {
+        when (action) {
+            "上一页" -> {
+                leftArrow?.let { arrow ->
+                    // 左箭头向右移动的动画
+                    arrow.animate()
+                        .translationX(10f)
+                        .setDuration(200)
+                        .withEndAction {
+                            arrow.animate()
+                                .translationX(0f)
+                                .setDuration(200)
+                                .start()
+                        }
+                        .start()
+                }
+            }
+            "下一页" -> {
+                rightArrow?.let { arrow ->
+                    // 右箭头向左移动的动画
+                    arrow.animate()
+                        .translationX(-10f)
+                        .setDuration(200)
+                        .withEndAction {
+                            arrow.animate()
+                                .translationX(0f)
+                                .setDuration(200)
+                                .start()
+                        }
+                        .start()
+                }
+            }
+            else -> {
+                // 左右箭头交替动画
+                leftArrow?.let { left ->
+                    left.animate()
+                        .translationX(5f)
+                        .setDuration(300)
+                        .withEndAction {
+                            left.animate()
+                                .translationX(0f)
+                                .setDuration(300)
+                                .start()
+                        }
+                        .start()
+                }
+                rightArrow?.let { right ->
+                    right.animate()
+                        .translationX(-5f)
+                        .setDuration(300)
+                        .withEndAction {
+                            right.animate()
+                                .translationX(0f)
+                                .setDuration(300)
+                                .start()
+                        }
+                        .start()
+                }
+            }
+        }
+    }
+
+    /**
+     * 设置tab区域之间的滑动切换网页功能
+     */
+    private fun setupTabAreaSwipeForWebPageSwitch() {
+        try {
+            // 创建tab区域滑动手势检测器
+            val tabSwipeDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onFling(
+                    e1: MotionEvent?,
+                    e2: MotionEvent,
+                    velocityX: Float,
+                    velocityY: Float
+                ): Boolean {
+                    if (e1 == null) return false
+
+                    // 防抖处理
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastTabSwipeTime < tabSwipeDebounceDelay) {
+                        return false
+                    }
+
+                    val deltaX = e2.x - e1.x
+                    val deltaY = e2.y - e1.y
+
+                    // 确保是水平滑动且滑动距离足够
+                    if (abs(deltaX) > abs(deltaY) && abs(deltaX) > 120) {
+                        lastTabSwipeTime = currentTime
+
+                        if (deltaX > 0) {
+                            // 向右滑动，切换到上一个网页
+                            switchToPreviousWebPage()
+                            showTabSwipeIndicator("上一个标签")
+                        } else {
+                            // 向左滑动，切换到下一个网页
+                            switchToNextWebPage()
+                            showTabSwipeIndicator("下一个标签")
+                        }
+                        return true
+                    }
+                    return false
+                }
+
+                override fun onDown(e: MotionEvent): Boolean {
+                    // 显示手势提示
+                    showTabSwipeIndicator("左右滑动切换网页")
+                    return true
+                }
+            })
+
+            // 为底部导航栏设置手势监听
+            val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
+            bottomNav?.setOnTouchListener { _, event ->
+                // 只有在搜索tab时才处理网页切换手势
+                if (getCurrentTabIndex() == 1) {
+                    tabSwipeDetector.onTouchEvent(event)
+                } else {
+                    false
+                }
+            }
+
+            Log.d(TAG, "Tab区域滑动切换网页功能设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置tab区域滑动切换网页功能失败", e)
+        }
+    }
+
+    /**
+     * 创建tab滑动指示器
+     */
+    private fun createTabSwipeIndicator() {
+        try {
+            // 创建指示器容器
+            val indicatorContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(24, 16, 24, 16)
+            }
+
+            // 左箭头
+            val leftArrow = TextView(this).apply {
+                text = "◀"
+                textSize = 20f
+                setTextColor(ContextCompat.getColor(this@SimpleModeActivity, R.color.material_green_500))
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginEnd = 8
+                }
+            }
+
+            // 提示文字
+            val hintText = TextView(this).apply {
+                text = "左右滑动切换网页"
+                textSize = 16f
+                setTextColor(ContextCompat.getColor(this@SimpleModeActivity, R.color.material_grey_800))
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginStart = 8
+                    marginEnd = 8
+                }
+            }
+
+            // 右箭头
+            val rightArrow = TextView(this).apply {
+                text = "▶"
+                textSize = 20f
+                setTextColor(ContextCompat.getColor(this@SimpleModeActivity, R.color.material_green_500))
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    marginStart = 8
+                }
+            }
+
+            indicatorContainer.addView(leftArrow)
+            indicatorContainer.addView(hintText)
+            indicatorContainer.addView(rightArrow)
+
+            // 创建指示器背景
+            tabSwipeIndicator = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = android.view.Gravity.CENTER_HORIZONTAL or android.view.Gravity.TOP
+                    topMargin = 150 // 在tab区域上方显示
+                }
+
+                // 设置背景
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(ContextCompat.getColor(this@SimpleModeActivity, R.color.material_grey_100))
+                    cornerRadius = 24f
+                    setStroke(2, ContextCompat.getColor(this@SimpleModeActivity, R.color.material_green_500))
+                }
+
+                addView(indicatorContainer)
+                visibility = View.GONE
+            }
+
+            // 添加到主布局
+            val rootLayout = findViewById<FrameLayout>(android.R.id.content)
+            rootLayout.addView(tabSwipeIndicator)
+
+            Log.d(TAG, "Tab滑动指示器创建完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "创建tab滑动指示器失败", e)
+        }
+    }
+
+    /**
+     * 显示tab滑动指示器
+     */
+    private fun showTabSwipeIndicator(action: String = "左右滑动切换网页") {
+        tabSwipeIndicator?.apply {
+            // 更新提示文字和箭头
+            val frameLayout = this as FrameLayout
+            val container = frameLayout.getChildAt(0) as? LinearLayout
+            val leftArrow = container?.getChildAt(0) as? TextView
+            val hintText = container?.getChildAt(1) as? TextView
+            val rightArrow = container?.getChildAt(2) as? TextView
+
+            // 更新文字和箭头显示
+            when (action) {
+                "上一个标签" -> {
+                    hintText?.text = "上一个标签"
+                    leftArrow?.visibility = View.VISIBLE
+                    rightArrow?.visibility = View.GONE
+                    leftArrow?.text = "◀"
+                }
+                "下一个标签" -> {
+                    hintText?.text = "下一个标签"
+                    leftArrow?.visibility = View.GONE
+                    rightArrow?.visibility = View.VISIBLE
+                    rightArrow?.text = "▶"
+                }
+                else -> {
+                    hintText?.text = "左右滑动切换网页"
+                    leftArrow?.visibility = View.VISIBLE
+                    rightArrow?.visibility = View.VISIBLE
+                    leftArrow?.text = "◀"
+                    rightArrow?.text = "▶"
+                }
+            }
+
+            visibility = View.VISIBLE
+            alpha = 0f
+            scaleX = 0.8f
+            scaleY = 0.8f
+            translationY = 20f
+
+            // Material风格的动画
+            animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .translationY(0f)
+                .setDuration(300)
+                .setInterpolator(android.view.animation.DecelerateInterpolator(2f))
+                .withEndAction {
+                    // 添加箭头动画
+                    animateTabArrows(leftArrow, rightArrow, action)
+                }
+                .start()
+
+            // 2秒后自动隐藏
+            postDelayed({
+                hideTabSwipeIndicator()
+            }, 2000)
+        }
+    }
+
+    /**
+     * 隐藏tab滑动指示器
+     */
+    private fun hideTabSwipeIndicator() {
+        tabSwipeIndicator?.animate()
+            ?.alpha(0f)
+            ?.scaleX(0.8f)
+            ?.scaleY(0.8f)
+            ?.translationY(20f)
+            ?.setDuration(200)
+            ?.setInterpolator(android.view.animation.AccelerateInterpolator(2f))
+            ?.withEndAction {
+                tabSwipeIndicator?.visibility = View.GONE
+            }
+            ?.start()
+    }
+
+    /**
+     * 动画tab箭头
+     */
+    private fun animateTabArrows(leftArrow: TextView?, rightArrow: TextView?, action: String) {
+        when (action) {
+            "上一个标签" -> {
+                leftArrow?.let { arrow ->
+                    // 左箭头向右移动的动画
+                    arrow.animate()
+                        .translationX(10f)
+                        .setDuration(200)
+                        .withEndAction {
+                            arrow.animate()
+                                .translationX(0f)
+                                .setDuration(200)
+                                .start()
+                        }
+                        .start()
+                }
+            }
+            "下一个标签" -> {
+                rightArrow?.let { arrow ->
+                    // 右箭头向左移动的动画
+                    arrow.animate()
+                        .translationX(-10f)
+                        .setDuration(200)
+                        .withEndAction {
+                            arrow.animate()
+                                .translationX(0f)
+                                .setDuration(200)
+                                .start()
+                        }
+                        .start()
+                }
+            }
+            else -> {
+                // 左右箭头交替动画
+                leftArrow?.let { left ->
+                    left.animate()
+                        .translationX(5f)
+                        .setDuration(300)
+                        .withEndAction {
+                            left.animate()
+                                .translationX(0f)
+                                .setDuration(300)
+                                .start()
+                        }
+                        .start()
+                }
+                rightArrow?.let { right ->
+                    right.animate()
+                        .translationX(-5f)
+                        .setDuration(300)
+                        .withEndAction {
+                            right.animate()
+                                .translationX(0f)
+                                .setDuration(300)
+                                .start()
+                        }
+                        .start()
+                }
+            }
+        }
     }
 
     /**

@@ -45,17 +45,8 @@ class MaterialSearchEngineSelector @JvmOverloads constructor(
         }
     }
 
-    // 默认搜索引擎列表
-    private val searchEngines = listOf(
-        SearchEngine("百度", "百度", "https://www.baidu.com", R.drawable.ic_baidu),
-        SearchEngine("Google", "谷歌", "https://www.google.com", R.drawable.ic_google),
-        SearchEngine("必应", "必应", "https://cn.bing.com", R.drawable.ic_bing),
-        SearchEngine("知乎", "知乎", "https://www.zhihu.com", R.drawable.ic_zhihu),
-        SearchEngine("微博", "微博", "https://weibo.com", R.drawable.ic_weibo),
-        SearchEngine("DeepSeek", "DeepSeek对话", "https://chat.deepseek.com", R.drawable.ic_deepseek),
-        SearchEngine("ChatGPT", "ChatGPT对话", "https://chat.openai.com", R.drawable.ic_chatgpt),
-        SearchEngine("文心一言", "文心一言", "https://yiyan.baidu.com", R.drawable.ic_wenxin)
-    )
+    // 默认搜索引擎列表 - 已移除所有搜索引擎图标
+    private val searchEngines = emptyList<SearchEngine>()
 
     // 点击监听器
     private var onEngineClickListener: OnEngineClickListener? = null
