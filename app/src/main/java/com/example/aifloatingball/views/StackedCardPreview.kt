@@ -128,6 +128,7 @@ class StackedCardPreview @JvmOverloads constructor(
     private var onCardSelectedListener: ((Int) -> Unit)? = null
     private var onCardCloseListener: ((Int) -> Unit)? = null
     private var onCardRefreshListener: ((Int) -> Unit)? = null
+    private var onNewCardRequestedListener: (() -> Unit)? = null
     
     // 底部导航栏高度获取回调
     private var bottomNavHeightProvider: (() -> Int)? = null
@@ -364,11 +365,17 @@ class StackedCardPreview @JvmOverloads constructor(
                         // 垂直滑动结束，检查是否需要关闭卡片
                         handleVerticalDragEnd()
                     } else {
-                        // 如果是点击操作，则立即打开卡片
+                        // 如果是点击操作，检查是否点击了新建卡片按钮
                         if (isClick) {
-                            Log.d("StackedCardPreview", "检测到点击操作，立即打开当前中心卡片")
-                            selectCurrentCardWithFadeIn()
-                            vibrate(VibrationType.BASIC) // 基本操作震动
+                            if (isNewCardButtonClicked(event.x, event.y)) {
+                                Log.d("StackedCardPreview", "检测到新建卡片按钮点击")
+                                onNewCardRequestedListener?.invoke()
+                                vibrate(VibrationType.IMPORTANT) // 重要操作震动
+                            } else {
+                                Log.d("StackedCardPreview", "检测到点击操作，立即打开当前中心卡片")
+                                selectCurrentCardWithFadeIn()
+                                vibrate(VibrationType.BASIC) // 基本操作震动
+                            }
                         }
                     }
 
@@ -1102,6 +1109,13 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
+     * 设置新建卡片请求监听器
+     */
+    fun setOnNewCardRequestedListener(listener: () -> Unit) {
+        onNewCardRequestedListener = listener
+    }
+
+    /**
      * 刷新当前中心卡片
      */
     private fun refreshCurrentCard() {
@@ -1225,6 +1239,108 @@ class StackedCardPreview @JvmOverloads constructor(
             val titleY = indicatorY - 40f
             canvas.drawText(title, indicatorCenterX, titleY, titlePaint)
         }
+
+        // 绘制新建卡片按钮（在指示器右侧）
+        drawNewCardButton(canvas, viewWidth, viewHeight, indicatorY)
+    }
+
+    /**
+     * 检查是否点击了新建卡片按钮
+     */
+    private fun isNewCardButtonClicked(x: Float, y: Float): Boolean {
+        val buttonSize = 70f
+        val buttonMargin = 50f
+        val buttonX = width - buttonMargin - buttonSize / 2f
+        val buttonY = height / 2f - baseCardHeight / 2f - 60f // 与指示器位置一致
+
+        val distance = sqrt((x - buttonX) * (x - buttonX) + (y - buttonY) * (y - buttonY))
+        return distance <= buttonSize / 2f
+    }
+
+    /**
+     * 绘制新建卡片按钮
+     */
+    private fun drawNewCardButton(canvas: Canvas, viewWidth: Float, viewHeight: Float, indicatorY: Float) {
+        val buttonSize = 70f
+        val buttonMargin = 50f
+        val buttonX = viewWidth - buttonMargin - buttonSize / 2f
+        val buttonY = indicatorY
+
+        // 绘制按钮阴影
+        val shadowPaint = Paint().apply {
+            color = Color.parseColor("#40000000")
+            isAntiAlias = true
+        }
+        canvas.drawCircle(buttonX + 3f, buttonY + 3f, buttonSize / 2f, shadowPaint)
+
+        // 绘制按钮背景（渐变效果）
+        val buttonBackgroundPaint = Paint().apply {
+            color = Color.parseColor("#FF4081") // 粉色背景
+            isAntiAlias = true
+        }
+
+        canvas.drawCircle(buttonX, buttonY, buttonSize / 2f, buttonBackgroundPaint)
+
+        // 绘制按钮边框（更粗的边框）
+        val buttonBorderPaint = Paint().apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            isAntiAlias = true
+        }
+
+        canvas.drawCircle(buttonX, buttonY, buttonSize / 2f - 3f, buttonBorderPaint)
+
+        // 绘制加号图标（更粗更明显）
+        val plusPaint = Paint().apply {
+            color = Color.WHITE
+            strokeWidth = 5f
+            isAntiAlias = true
+            strokeCap = Paint.Cap.ROUND
+        }
+
+        val plusSize = buttonSize * 0.35f
+        // 水平线
+        canvas.drawLine(
+            buttonX - plusSize / 2f,
+            buttonY,
+            buttonX + plusSize / 2f,
+            buttonY,
+            plusPaint
+        )
+        // 垂直线
+        canvas.drawLine(
+            buttonX,
+            buttonY - plusSize / 2f,
+            buttonX,
+            buttonY + plusSize / 2f,
+            plusPaint
+        )
+
+        // 绘制按钮文字（更大更清晰）
+        val textPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 28f
+            isAntiAlias = true
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            setShadowLayer(3f, 0f, 2f, Color.parseColor("#80000000"))
+        }
+
+        val textY = buttonY + buttonSize / 2f + 35f
+        canvas.drawText("新建", buttonX, textY, textPaint)
+
+        // 绘制提示文字（在按钮下方）
+        val hintPaint = Paint().apply {
+            color = Color.parseColor("#CCFFFFFF")
+            textSize = 20f
+            isAntiAlias = true
+            textAlign = Paint.Align.CENTER
+            setShadowLayer(2f, 0f, 1f, Color.parseColor("#80000000"))
+        }
+
+        val hintY = textY + 25f
+        canvas.drawText("点击添加", buttonX, hintY, hintPaint)
     }
 
     /**

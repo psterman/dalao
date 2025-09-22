@@ -1,3 +1,4 @@
+
 package com.example.aifloatingball
 
 import android.Manifest
@@ -98,6 +99,9 @@ import com.example.aifloatingball.service.FloatingWindowService
 import com.example.aifloatingball.service.DynamicIslandService
 import com.example.aifloatingball.service.DualFloatingWebViewService
 import com.example.aifloatingball.voice.VoicePromptBranchManager
+import com.example.aifloatingball.dialog.NewCardSelectionDialog
+import com.example.aifloatingball.model.HistoryEntry
+import com.example.aifloatingball.model.BookmarkEntry
 import com.example.aifloatingball.webview.MultiPageWebViewManager
 import com.example.aifloatingball.webview.CardWebViewManager
 import com.example.aifloatingball.webview.GestureCardWebViewManager
@@ -5275,6 +5279,86 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 显示新建卡片预览（集成到预览卡片系统）
+     */
+    private fun showNewCardPreview() {
+        try {
+            Log.d(TAG, "显示新建卡片预览")
+
+            // 合并所有管理器的卡片
+            val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+            val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
+            val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+
+            allCards.addAll(gestureCards)
+            allCards.addAll(mobileCards)
+
+            Log.d(TAG, "新建卡片预览 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 总计: ${allCards.size}")
+
+            if (allCards.isNotEmpty()) {
+                // 使用层叠卡片预览系统显示新建的卡片
+                stackedCardPreview?.apply {
+                    // 转换为StackedCardPreview的数据格式
+                    val stackedCards = allCards.map { card ->
+                        com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
+                            title = card.title,
+                            url = card.url,
+                            favicon = card.favicon,
+                            screenshot = card.webView?.let { webView ->
+                                // 尝试获取WebView截图
+                                try {
+                                    val bitmap = Bitmap.createBitmap(
+                                        webView.width,
+                                        webView.height,
+                                        Bitmap.Config.ARGB_8888
+                                    )
+                                    val canvas = Canvas(bitmap)
+                                    webView.draw(canvas)
+                                    bitmap
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "获取WebView截图失败", e)
+                                    null
+                                }
+                            }
+                        )
+                    }
+
+                    // 设置卡片数据
+                    setWebViewCards(stackedCards)
+
+                    // 重置为层叠模式
+                    resetToStackedMode()
+
+                    // 启用交互
+                    enableStackedInteraction()
+
+                    // 显示预览，使用淡入动画
+                    alpha = 0f
+                    visibility = View.VISIBLE
+                    animate()
+                        .alpha(1f)
+                        .setDuration(300)
+                        .start()
+
+                    Log.d(TAG, "层叠卡片预览已显示，包含 ${stackedCards.size} 张卡片")
+                }
+
+                // 给用户操作提示（简化版本，避免过长）
+                val message = "新卡片已创建！左右滑动查看，上滑关闭，点击打开"
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
+            } else {
+                Log.w(TAG, "没有卡片可以预览")
+                Toast.makeText(this, "没有卡片可以预览", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示新建卡片预览失败", e)
+            Toast.makeText(this, "显示卡片预览失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
      * 显示手势提示
      */
     private fun showGestureHint() {
@@ -5515,7 +5599,120 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun performCreateNewCard() {
         try {
-            Log.d(TAG, "开始创建新卡片")
+            Log.d(TAG, "显示新建卡片选择弹窗")
+
+            // 先隐藏所有覆盖层
+            hideAllOverlays()
+            clearAllOverlays()
+
+            // 显示新建卡片选择弹窗
+            showNewCardSelectionDialog()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示新建卡片弹窗时发生错误", e)
+            Toast.makeText(this, "显示新建卡片弹窗时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示新建卡片选择弹窗
+     */
+    private fun showNewCardSelectionDialog() {
+        try {
+            NewCardSelectionDialog.show(
+                context = this,
+                fragmentManager = supportFragmentManager,
+                onHistoryItemSelected = { historyEntry ->
+                    // 从历史记录创建新卡片
+                    createNewCardFromUrl(historyEntry.url, historyEntry.title)
+                },
+                onBookmarkItemSelected = { bookmarkEntry ->
+                    // 从收藏创建新卡片
+                    createNewCardFromUrl(bookmarkEntry.url, bookmarkEntry.title)
+                },
+                onCreateBlankCard = {
+                    // 创建空白卡片
+                    createNewBlankCard()
+                },
+                onDismiss = {
+                    Log.d(TAG, "新建卡片弹窗已关闭")
+                }
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "显示新建卡片弹窗失败", e)
+            Toast.makeText(this, "显示新建卡片弹窗失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 从URL创建新卡片
+     */
+    private fun createNewCardFromUrl(url: String, title: String) {
+        try {
+            Log.d(TAG, "从URL创建新卡片: $url, 标题: $title")
+
+            // 先隐藏所有覆盖层
+            hideAllOverlays()
+            clearAllOverlays()
+
+            // 尝试使用MobileCardManager，如果失败则使用原有的管理器
+            var newCard: GestureCardWebViewManager.WebViewCardData? = null
+
+            try {
+                // 初始化MobileCardManager（如果还没有）
+                if (mobileCardManager == null) {
+                    setupMobileCardManager()
+                }
+
+                // 创建新卡片
+                newCard = mobileCardManager?.addNewCard(url)
+            } catch (e: Exception) {
+                Log.w(TAG, "MobileCardManager创建卡片失败，使用原有管理器", e)
+
+                // 确保原有管理器已初始化
+                if (gestureCardWebViewManager == null) {
+                    setupBrowserWebView()
+                }
+
+                // 使用原有管理器创建卡片
+                newCard = gestureCardWebViewManager?.addNewCard(url)
+            }
+
+            if (newCard != null) {
+                Log.d(TAG, "新卡片创建成功: ${newCard.id}")
+
+                // 检查卡片总数
+                val mobileCardCount = mobileCardManager?.getAllCards()?.size ?: 0
+                val gestureCardCount = gestureCardWebViewManager?.getAllCards()?.size ?: 0
+                Log.d(TAG, "当前卡片数量 - 手机卡片: $mobileCardCount, 手势卡片: $gestureCardCount")
+
+                // 显示成功提示
+                Toast.makeText(this, "新卡片已创建: $title", Toast.LENGTH_SHORT).show()
+
+                // 创建卡片后自动显示预览卡片系统
+                showNewCardPreview()
+
+                // 确保UI状态正确切换
+                browserLayout.post {
+                    forceRefreshUIState()
+                }
+            } else {
+                Log.e(TAG, "新卡片创建失败")
+                Toast.makeText(this, "创建卡片失败", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "从URL创建新卡片时发生错误", e)
+            Toast.makeText(this, "创建卡片时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 创建空白卡片
+     */
+    private fun createNewBlankCard() {
+        try {
+            Log.d(TAG, "创建空白卡片")
 
             // 先隐藏所有覆盖层
             hideAllOverlays()
@@ -5545,7 +5742,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             if (newCard != null) {
-                Log.d(TAG, "新卡片创建成功: ${newCard.id}")
+                Log.d(TAG, "空白卡片创建成功: ${newCard.id}")
 
                 // 检查卡片总数
                 val mobileCardCount = mobileCardManager?.getAllCards()?.size ?: 0
@@ -5553,20 +5750,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "当前卡片数量 - 手机卡片: $mobileCardCount, 手势卡片: $gestureCardCount")
 
                 // 显示成功提示
-                Toast.makeText(this, "新卡片已创建 (总计: ${mobileCardCount + gestureCardCount})", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "空白卡片已创建 (总计: ${mobileCardCount + gestureCardCount})", Toast.LENGTH_SHORT).show()
+
+                // 创建卡片后自动显示预览卡片系统
+                showNewCardPreview()
 
                 // 确保UI状态正确切换
                 browserLayout.post {
                     forceRefreshUIState()
                 }
             } else {
-                Log.e(TAG, "新卡片创建失败")
-                Toast.makeText(this, "创建卡片失败", Toast.LENGTH_SHORT).show()
+                Log.e(TAG, "空白卡片创建失败")
+                Toast.makeText(this, "创建空白卡片失败", Toast.LENGTH_SHORT).show()
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "创建新卡片时发生错误", e)
-            Toast.makeText(this, "创建卡片时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "创建空白卡片时发生错误", e)
+            Toast.makeText(this, "创建空白卡片时发生错误: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -14784,6 +14984,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 setOnCardRefreshListener { cardIndex ->
                     // 刷新指定的webview卡片
                     refreshWebViewCard(cardIndex)
+                }
+
+                // 设置新建卡片请求监听器
+                setOnNewCardRequestedListener {
+                    // 显示新建卡片选择弹窗
+                    showNewCardSelectionDialog()
                 }
             }
 
