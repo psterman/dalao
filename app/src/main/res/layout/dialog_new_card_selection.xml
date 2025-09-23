@@ -92,6 +92,7 @@
                 android:layout_height="wrap_content"
                 android:hint="输入网址或搜索内容"
                 android:inputType="textUri"
+                android:imeOptions="actionGo"
                 android:textSize="14sp" />
 
         </com.google.android.material.textfield.TextInputLayout>
