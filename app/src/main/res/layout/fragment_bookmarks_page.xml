@@ -14,7 +14,7 @@
         app:hintTextColor="@color/primary_green"
         app:startIconDrawable="@drawable/ic_search"
         app:startIconTint="@color/primary_green"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/et_search_bookmarks"

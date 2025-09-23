@@ -5619,28 +5619,118 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showNewCardSelectionDialog() {
         try {
-            NewCardSelectionDialog.show(
-                context = this,
-                fragmentManager = supportFragmentManager,
-                onHistoryItemSelected = { historyEntry ->
-                    // 从历史记录创建新卡片
-                    createNewCardFromUrl(historyEntry.url, historyEntry.title)
-                },
-                onBookmarkItemSelected = { bookmarkEntry ->
-                    // 从收藏创建新卡片
-                    createNewCardFromUrl(bookmarkEntry.url, bookmarkEntry.title)
-                },
-                onCreateBlankCard = {
-                    // 创建空白卡片
-                    createNewBlankCard()
-                },
-                onDismiss = {
-                    Log.d(TAG, "新建卡片弹窗已关闭")
-                }
-            )
+            Log.d(TAG, "开始显示新建卡片选择弹窗")
+            
+            // 检查Activity状态
+            if (isFinishing || isDestroyed) {
+                Log.w(TAG, "Activity正在结束或已销毁，跳过显示新建卡片弹窗")
+                return
+            }
+            
+            // 检查FragmentManager状态
+            if (supportFragmentManager.isStateSaved) {
+                Log.w(TAG, "FragmentManager状态已保存，跳过显示新建卡片弹窗")
+                return
+            }
+            
+            // 尝试显示复杂的新建卡片弹窗
+            try {
+                NewCardSelectionDialog.show(
+                    context = this,
+                    fragmentManager = supportFragmentManager,
+                    onHistoryItemSelected = { historyEntry ->
+                        // 从历史记录创建新卡片
+                        createNewCardFromUrl(historyEntry.url, historyEntry.title)
+                    },
+                    onBookmarkItemSelected = { bookmarkEntry ->
+                        // 从收藏创建新卡片
+                        createNewCardFromUrl(bookmarkEntry.url, bookmarkEntry.title)
+                    },
+                    onCreateBlankCard = {
+                        // 创建空白卡片
+                        createNewBlankCard()
+                    },
+                    onDismiss = {
+                        Log.d(TAG, "新建卡片弹窗已关闭")
+                    }
+                )
+                
+                Log.d(TAG, "新建卡片选择弹窗显示成功")
+            } catch (e: Exception) {
+                Log.w(TAG, "复杂新建卡片弹窗失败，使用简化版本", e)
+                // 如果复杂弹窗失败，使用简化的新建卡片弹窗
+                showSimpleNewCardDialog()
+            }
+            
         } catch (e: Exception) {
             Log.e(TAG, "显示新建卡片弹窗失败", e)
-            Toast.makeText(this, "显示新建卡片弹窗失败", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "显示新建卡片弹窗失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示简化的新建卡片弹窗
+     */
+    private fun showSimpleNewCardDialog() {
+        try {
+            Log.d(TAG, "显示简化的新建卡片弹窗")
+            
+            val options = arrayOf("新建空白卡片", "输入网址", "取消")
+            
+            val builder = android.app.AlertDialog.Builder(this)
+                .setTitle("新建卡片")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> {
+                            // 新建空白卡片
+                            createNewBlankCard()
+                        }
+                        1 -> {
+                            // 输入网址
+                            showUrlInputDialog()
+                        }
+                        2 -> {
+                            // 取消
+                            Log.d(TAG, "用户取消新建卡片")
+                        }
+                    }
+                }
+                .setCancelable(true)
+            
+            builder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示简化新建卡片弹窗失败", e)
+            Toast.makeText(this, "显示新建卡片弹窗失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示网址输入对话框
+     */
+    private fun showUrlInputDialog() {
+        try {
+            val input = android.widget.EditText(this).apply {
+                hint = "输入网址或搜索内容"
+                setText("https://")
+            }
+            
+            val builder = android.app.AlertDialog.Builder(this)
+                .setTitle("输入网址")
+                .setView(input)
+                .setPositiveButton("确定") { _, _ ->
+                    val url = input.text.toString().trim()
+                    if (url.isNotEmpty()) {
+                        createNewCardFromUrl(url, "新页面")
+                    }
+                }
+                .setNegativeButton("取消", null)
+            
+            builder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示网址输入对话框失败", e)
+            Toast.makeText(this, "输入网址失败: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -5676,6 +5766,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 使用原有管理器创建卡片
                 newCard = gestureCardWebViewManager?.addNewCard(url)
+                
+                // 如果原有管理器也失败，记录错误
+                if (newCard == null) {
+                    Log.e(TAG, "所有卡片管理器都无法创建卡片")
+                    Toast.makeText(this, "无法创建卡片，请检查系统状态", Toast.LENGTH_SHORT).show()
+                    return
+                }
             }
 
             if (newCard != null) {
@@ -5739,6 +5836,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 使用原有管理器创建卡片
                 newCard = gestureCardWebViewManager?.addNewCard("about:blank")
+                
+                // 如果原有管理器也失败，记录错误
+                if (newCard == null) {
+                    Log.e(TAG, "所有卡片管理器都无法创建空白卡片")
+                    Toast.makeText(this, "无法创建空白卡片，请检查系统状态", Toast.LENGTH_SHORT).show()
+                    return
+                }
             }
 
             if (newCard != null) {
@@ -5774,12 +5878,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置新的手机卡片管理器
      */
     private fun setupMobileCardManager() {
-        Log.d(TAG, "开始设置手机卡片管理器")
+        try {
+            Log.d(TAG, "开始设置手机卡片管理器")
 
-        mobileCardManager = MobileCardManager(
-            context = this,
-            container = browserWebViewContainer
-        )
+            // 检查容器是否已初始化
+            if (!::browserWebViewContainer.isInitialized) {
+                Log.e(TAG, "browserWebViewContainer未初始化，无法设置手机卡片管理器")
+                throw IllegalStateException("browserWebViewContainer未初始化")
+            }
+
+            mobileCardManager = MobileCardManager(
+                context = this,
+                container = browserWebViewContainer
+            )
 
         // 设置卡片变化监听器
         mobileCardManager?.setOnCardChangeListener(object : MobileCardManager.OnCardChangeListener {
@@ -5820,6 +5931,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         })
 
         Log.d(TAG, "手机卡片管理器设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置手机卡片管理器失败", e)
+            throw e
+        }
     }
 
     /**
@@ -15085,9 +15200,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun updateWaveTrackerCards() {
         try {
-            gestureCardWebViewManager?.let { manager ->
-                val allCards = manager.getAllCards()
+            // 合并所有管理器的卡片
+            val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+            val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
+            val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
 
+            allCards.addAll(gestureCards)
+            allCards.addAll(mobileCards)
+
+            Log.d(TAG, "更新卡片预览器 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 总计: ${allCards.size}")
+
+            if (allCards.isNotEmpty()) {
                 // 为MaterialWaveTracker准备数据
                 val waveTrackerCardDataList = allCards.map { cardData ->
                     com.example.aifloatingball.views.MaterialWaveTracker.WebViewCardData(
@@ -15142,6 +15265,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 materialWaveTracker?.updateWebViewCards(waveTrackerCardDataList)
                 stackedCardPreview?.setWebViewCards(stackedCardDataList)
                 Log.d(TAG, "✅ 更新了 ${stackedCardDataList.size} 个卡片到预览器")
+            } else {
+                Log.d(TAG, "没有卡片需要更新到预览器")
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 更新卡片预览器数据失败", e)
@@ -16725,50 +16850,50 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             Log.d(TAG, "长按搜索tab，激活层叠卡片预览")
 
-            // 检查是否有webview卡片
-            gestureCardWebViewManager?.let { manager ->
-                val allCards = manager.getAllCards()
-                if (allCards.isEmpty()) {
-                    Toast.makeText(this, "没有打开的网页卡片", Toast.LENGTH_SHORT).show()
-                    return
-                }
+            // 合并所有管理器的卡片
+            val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+            val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
+            val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
 
-                Log.d(TAG, "找到 ${allCards.size} 个webview卡片，显示层叠预览")
+            allCards.addAll(gestureCards)
+            allCards.addAll(mobileCards)
 
-                // 显示层叠卡片预览
-                stackedCardPreview?.apply {
-                    // 确保重置为层叠模式（不是悬浮模式）
-                    resetToStackedMode()
+            Log.d(TAG, "激活层叠卡片预览 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 总计: ${allCards.size}")
 
-                    // 更新卡片数据
-                    updateWaveTrackerCards()
-
-                    // 启用层叠预览模式的交互
-                    enableStackedInteraction()
-
-                    // 显示预览器
-                    visibility = View.VISIBLE
-
-                    Log.d(TAG, "层叠卡片预览已激活，显示 ${allCards.size} 张卡片，交互已启用")
-                }
-
-                // 给用户详细的操作提示
-                val message = """
-                    已显示 ${allCards.size} 张网页卡片
-
-                    操作说明：
-                    • 长按并左右滑动：切换卡片
-                    • 长按并向上滑动：关闭卡片
-                    • 长按后松开：打开当前卡片
-                    • 快速滑动：惯性滚动
-                """.trimIndent()
-
-                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-
-            } ?: run {
-                Log.w(TAG, "gestureCardWebViewManager 为 null")
-                Toast.makeText(this, "卡片管理器未初始化", Toast.LENGTH_SHORT).show()
+            if (allCards.isEmpty()) {
+                Toast.makeText(this, "没有打开的网页卡片", Toast.LENGTH_SHORT).show()
+                return
             }
+
+            // 显示层叠卡片预览
+            stackedCardPreview?.apply {
+                // 确保重置为层叠模式（不是悬浮模式）
+                resetToStackedMode()
+
+                // 更新卡片数据
+                updateWaveTrackerCards()
+
+                // 启用层叠预览模式的交互
+                enableStackedInteraction()
+
+                // 显示预览器
+                visibility = View.VISIBLE
+
+                Log.d(TAG, "层叠卡片预览已激活，显示 ${allCards.size} 张卡片，交互已启用")
+            }
+
+            // 给用户详细的操作提示
+            val message = """
+                已显示 ${allCards.size} 张网页卡片
+
+                操作说明：
+                • 长按并左右滑动：切换卡片
+                • 长按并向上滑动：关闭卡片
+                • 长按后松开：打开当前卡片
+                • 快速滑动：惯性滚动
+            """.trimIndent()
+
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             Log.e(TAG, "激活层叠卡片预览失败", e)
             Toast.makeText(this, "激活卡片预览失败", Toast.LENGTH_SHORT).show()

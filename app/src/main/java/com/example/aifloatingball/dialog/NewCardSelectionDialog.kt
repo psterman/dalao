@@ -37,17 +37,28 @@ class NewCardSelectionDialog(
     private lateinit var btnClose: ImageButton
     private lateinit var btnCancel: MaterialButton
     private lateinit var btnCreateBlank: MaterialButton
+    private lateinit var etUrlInput: com.google.android.material.textfield.TextInputEditText
+    private lateinit var btnClearInput: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         try {
+            android.util.Log.d("NewCardSelectionDialog", "开始创建Dialog")
+            
             val view = LayoutInflater.from(context).inflate(R.layout.dialog_new_card_selection, null)
             setContentView(view)
             
+            android.util.Log.d("NewCardSelectionDialog", "布局加载成功")
+            
             initViews(view)
+            android.util.Log.d("NewCardSelectionDialog", "视图初始化成功")
+            
             setupViewPager()
+            android.util.Log.d("NewCardSelectionDialog", "ViewPager设置成功")
+            
             setupClickListeners()
+            android.util.Log.d("NewCardSelectionDialog", "点击监听器设置成功")
             
             // 设置Dialog属性
             window?.setLayout(
@@ -56,19 +67,76 @@ class NewCardSelectionDialog(
             )
             window?.setBackgroundDrawableResource(android.R.color.transparent)
             
+            android.util.Log.d("NewCardSelectionDialog", "Dialog创建完成")
+            
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "Dialog创建失败", e)
-            throw e
+            // 不抛出异常，而是显示一个简单的错误对话框
+            showErrorDialog(e.message ?: "未知错误")
+        }
+    }
+    
+    /**
+     * 显示错误对话框
+     */
+    private fun showErrorDialog(message: String) {
+        try {
+            val errorDialog = android.app.AlertDialog.Builder(context)
+                .setTitle("错误")
+                .setMessage("新建卡片弹窗加载失败: $message")
+                .setPositiveButton("确定") { _, _ -> dismiss() }
+                .create()
+            errorDialog.show()
+        } catch (e: Exception) {
+            android.util.Log.e("NewCardSelectionDialog", "显示错误对话框失败", e)
         }
     }
 
     private fun initViews(view: View) {
         try {
+            android.util.Log.d("NewCardSelectionDialog", "开始初始化视图")
+            
             tabLayout = view.findViewById(R.id.tab_layout)
+            if (tabLayout == null) {
+                android.util.Log.e("NewCardSelectionDialog", "tabLayout未找到")
+                throw IllegalStateException("tabLayout未找到")
+            }
+            
             contentContainer = view.findViewById(R.id.view_pager)
+            if (contentContainer == null) {
+                android.util.Log.e("NewCardSelectionDialog", "contentContainer未找到")
+                throw IllegalStateException("contentContainer未找到")
+            }
+            
             btnClose = view.findViewById(R.id.btn_close_dialog)
+            if (btnClose == null) {
+                android.util.Log.e("NewCardSelectionDialog", "btnClose未找到")
+                throw IllegalStateException("btnClose未找到")
+            }
+            
             btnCancel = view.findViewById(R.id.btn_cancel)
+            if (btnCancel == null) {
+                android.util.Log.e("NewCardSelectionDialog", "btnCancel未找到")
+                throw IllegalStateException("btnCancel未找到")
+            }
+            
             btnCreateBlank = view.findViewById(R.id.btn_create_blank)
+            if (btnCreateBlank == null) {
+                android.util.Log.e("NewCardSelectionDialog", "btnCreateBlank未找到")
+                throw IllegalStateException("btnCreateBlank未找到")
+            }
+            
+            etUrlInput = view.findViewById(R.id.et_url_input)
+            if (etUrlInput == null) {
+                android.util.Log.e("NewCardSelectionDialog", "etUrlInput未找到")
+                throw IllegalStateException("etUrlInput未找到")
+            }
+            
+            btnClearInput = view.findViewById(R.id.btn_clear_input)
+            if (btnClearInput == null) {
+                android.util.Log.e("NewCardSelectionDialog", "btnClearInput未找到")
+                throw IllegalStateException("btnClearInput未找到")
+            }
             
             android.util.Log.d("NewCardSelectionDialog", "视图初始化成功")
         } catch (e: Exception) {
@@ -104,7 +172,16 @@ class NewCardSelectionDialog(
             contentContainer.removeAllViews()
             
             // 创建历史记录列表
-            val historyView = LayoutInflater.from(context).inflate(R.layout.fragment_history_page, contentContainer, false)
+            val historyView = try {
+                LayoutInflater.from(context).inflate(R.layout.fragment_history_page, contentContainer, false)
+            } catch (e: Exception) {
+                android.util.Log.e("NewCardSelectionDialog", "加载历史页面布局失败", e)
+                // 创建简单的错误布局
+                val errorView = createSimpleHistoryLayout()
+                contentContainer.addView(errorView)
+                return
+            }
+            
             val recyclerView = historyView.findViewById<RecyclerView>(R.id.rv_history)
             val emptyLayout = historyView.findViewById<LinearLayout>(R.id.layout_empty_history)
         
@@ -179,7 +256,16 @@ class NewCardSelectionDialog(
             contentContainer.removeAllViews()
             
             // 创建收藏列表
-            val bookmarksView = LayoutInflater.from(context).inflate(R.layout.fragment_bookmarks_page, contentContainer, false)
+            val bookmarksView = try {
+                LayoutInflater.from(context).inflate(R.layout.fragment_bookmarks_page, contentContainer, false)
+            } catch (e: Exception) {
+                android.util.Log.e("NewCardSelectionDialog", "加载收藏页面布局失败", e)
+                // 创建简单的错误布局
+                val errorView = createSimpleBookmarksLayout()
+                contentContainer.addView(errorView)
+                return
+            }
+            
             val recyclerView = bookmarksView.findViewById<RecyclerView>(R.id.rv_bookmarks)
             val emptyLayout = bookmarksView.findViewById<LinearLayout>(R.id.layout_empty_bookmarks)
         
@@ -263,6 +349,59 @@ class NewCardSelectionDialog(
             onCreateBlankCard()
             dismiss()
         }
+
+        btnClearInput.setOnClickListener {
+            etUrlInput.setText("")
+            etUrlInput.clearFocus()
+        }
+
+        // 输入框回车事件
+        etUrlInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO) {
+                val inputText = etUrlInput.text.toString().trim()
+                if (inputText.isNotEmpty()) {
+                    // 创建新卡片
+                    createCardFromInput(inputText)
+                }
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    /**
+     * 从输入框创建卡片
+     */
+    private fun createCardFromInput(input: String) {
+        try {
+            // 判断输入的是URL还是搜索内容
+            val url = if (input.startsWith("http://") || input.startsWith("https://")) {
+                input
+            } else if (input.contains(".") && !input.contains(" ")) {
+                // 可能是域名，添加https://
+                "https://$input"
+            } else {
+                // 搜索内容，使用Google搜索
+                "https://www.google.com/search?q=${java.net.URLEncoder.encode(input, "UTF-8")}"
+            }
+
+            // 创建历史记录条目
+            val historyEntry = HistoryEntry(
+                id = System.currentTimeMillis().toString(),
+                title = if (input.startsWith("http")) input else "搜索: $input",
+                url = url,
+                visitTime = java.util.Date()
+            )
+
+            // 调用历史记录选择回调
+            onHistoryItemSelected(historyEntry)
+            dismiss()
+
+        } catch (e: Exception) {
+            android.util.Log.e("NewCardSelectionDialog", "从输入创建卡片失败", e)
+            android.widget.Toast.makeText(context, "创建卡片失败: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showHistoryMoreMenu(@Suppress("UNUSED_PARAMETER") entry: HistoryEntry) {
@@ -273,6 +412,60 @@ class NewCardSelectionDialog(
     private fun showBookmarkMoreMenu(@Suppress("UNUSED_PARAMETER") entry: BookmarkEntry) {
         // TODO: 实现收藏更多操作菜单
         // 可以包括：删除、编辑、移动文件夹等
+    }
+
+    /**
+     * 创建简单的历史布局（当XML布局加载失败时使用）
+     */
+    private fun createSimpleHistoryLayout(): View {
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+        }
+
+        val title = TextView(context).apply {
+            text = "历史记录"
+            textSize = 18f
+            setTextColor(android.graphics.Color.BLACK)
+            setPadding(0, 0, 0, 16)
+        }
+        layout.addView(title)
+
+        val message = TextView(context).apply {
+            text = "历史记录功能暂时不可用，请稍后再试"
+            textSize = 14f
+            setTextColor(android.graphics.Color.GRAY)
+        }
+        layout.addView(message)
+
+        return layout
+    }
+
+    /**
+     * 创建简单的收藏布局（当XML布局加载失败时使用）
+     */
+    private fun createSimpleBookmarksLayout(): View {
+        val layout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+        }
+
+        val title = TextView(context).apply {
+            text = "收藏页面"
+            textSize = 18f
+            setTextColor(android.graphics.Color.BLACK)
+            setPadding(0, 0, 0, 16)
+        }
+        layout.addView(title)
+
+        val message = TextView(context).apply {
+            text = "收藏页面功能暂时不可用，请稍后再试"
+            textSize = 14f
+            setTextColor(android.graphics.Color.GRAY)
+        }
+        layout.addView(message)
+
+        return layout
     }
 
     override fun dismiss() {

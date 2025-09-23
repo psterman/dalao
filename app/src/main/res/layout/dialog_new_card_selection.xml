@@ -65,11 +65,53 @@
 
     </com.google.android.material.tabs.TabLayout>
 
+    <!-- 输入区域 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp"
+        android:padding="12dp"
+        android:background="@drawable/input_background">
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            app:boxStrokeColor="@color/primary_green"
+            app:hintTextColor="@color/primary_green"
+            app:startIconDrawable="@drawable/ic_search"
+            app:startIconTint="@color/primary_green"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_url_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="输入网址或搜索内容"
+                android:inputType="textUri"
+                android:textSize="14sp" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_clear_input"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="清空"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
     <!-- 内容区域 -->
     <LinearLayout
         android:id="@+id/view_pager"
         android:layout_width="match_parent"
-        android:layout_height="400dp"
+        android:layout_height="350dp"
         android:layout_marginBottom="16dp"
         android:orientation="vertical" />
 
@@ -83,19 +125,21 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_cancel"
-            style="@style/Widget.Material3.Button.TextButton"
+            style="@style/Widget.MaterialComponents.Button.TextButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="取消"
+            android:textSize="16sp"
             android:textColor="@color/text_secondary"
             android:layout_marginEnd="8dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_create_blank"
-            style="@style/Widget.Material3.Button"
+            style="@style/Widget.MaterialComponents.Button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="新建空白卡片"
+            android:textSize="16sp"
             android:backgroundTint="@color/primary_green"
             android:textColor="@android:color/white" />
 

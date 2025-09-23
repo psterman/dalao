@@ -1273,9 +1273,9 @@ class StackedCardPreview @JvmOverloads constructor(
         }
         canvas.drawCircle(buttonX + 3f, buttonY + 3f, buttonSize / 2f, shadowPaint)
 
-        // 绘制按钮背景（渐变效果）
+        // 绘制按钮背景（绿色背景）
         val buttonBackgroundPaint = Paint().apply {
-            color = Color.parseColor("#FF4081") // 粉色背景
+            color = Color.parseColor("#4CAF50") // 绿色背景
             isAntiAlias = true
         }
 
@@ -1320,26 +1320,26 @@ class StackedCardPreview @JvmOverloads constructor(
         // 绘制按钮文字（更大更清晰）
         val textPaint = Paint().apply {
             color = Color.WHITE
-            textSize = 28f
+            textSize = 32f
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
             typeface = Typeface.DEFAULT_BOLD
             setShadowLayer(3f, 0f, 2f, Color.parseColor("#80000000"))
         }
 
-        val textY = buttonY + buttonSize / 2f + 35f
+        val textY = buttonY + buttonSize / 2f + 40f
         canvas.drawText("新建", buttonX, textY, textPaint)
 
         // 绘制提示文字（在按钮下方）
         val hintPaint = Paint().apply {
             color = Color.parseColor("#CCFFFFFF")
-            textSize = 20f
+            textSize = 24f
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
             setShadowLayer(2f, 0f, 1f, Color.parseColor("#80000000"))
         }
 
-        val hintY = textY + 25f
+        val hintY = textY + 30f
         canvas.drawText("点击添加", buttonX, hintY, hintPaint)
     }
 
