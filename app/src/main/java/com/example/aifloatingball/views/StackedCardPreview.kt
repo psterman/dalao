@@ -129,6 +129,7 @@ class StackedCardPreview @JvmOverloads constructor(
     private var onCardCloseListener: ((Int) -> Unit)? = null
     private var onCardRefreshListener: ((Int) -> Unit)? = null
     private var onNewCardRequestedListener: (() -> Unit)? = null
+    private var onAllCardsRemovedListener: (() -> Unit)? = null
     
     // 底部导航栏高度获取回调
     private var bottomNavHeightProvider: (() -> Int)? = null
@@ -321,12 +322,14 @@ class StackedCardPreview @JvmOverloads constructor(
 
                     // 直接处理滑动
                     // 检测是否开始滑动
-                    if (!isLongPressSliding && !isVerticalDragging && distance > 30f) {
+                    if (!isLongPressSliding && !isVerticalDragging && distance > 15f) {
                         // 判断是水平还是垂直滑动
-                        if (abs(deltaX) > abs(deltaY)) {
+                        if (abs(deltaX) > abs(deltaY) * 1.5f) {
+                            // 水平滑动需要更明显的水平移动
                             isLongPressSliding = true
                             Log.d("StackedCardPreview", "开始水平滑动")
-                        } else {
+                        } else if (abs(deltaY) > abs(deltaX) * 1.2f) {
+                            // 垂直滑动更容易触发
                             isVerticalDragging = true
                             Log.d("StackedCardPreview", "开始垂直拖拽（关闭卡片）")
                         }
@@ -595,8 +598,9 @@ class StackedCardPreview @JvmOverloads constructor(
 
         // 调整当前卡片索引
         if (webViewCards.isEmpty()) {
-            // 没有卡片了，隐藏预览
+            // 没有卡片了，隐藏预览并通知外部
             visibility = View.GONE
+            onAllCardsRemovedListener?.invoke()
         } else {
             if (currentCardIndex >= webViewCards.size) {
                 currentCardIndex = webViewCards.size - 1
@@ -1106,6 +1110,13 @@ class StackedCardPreview @JvmOverloads constructor(
      */
     fun setOnCardRefreshListener(listener: (Int) -> Unit) {
         onCardRefreshListener = listener
+    }
+
+    /**
+     * 设置所有卡片移除监听器
+     */
+    fun setOnAllCardsRemovedListener(listener: () -> Unit) {
+        onAllCardsRemovedListener = listener
     }
 
     /**

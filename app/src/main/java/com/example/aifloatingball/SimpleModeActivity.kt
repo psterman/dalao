@@ -3512,21 +3512,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
-            // 如果有WebView卡片且可以返回，则返回上一页
-            val currentCard = gestureCardWebViewManager?.getCurrentCard()
-            if (currentCard?.webView?.canGoBack() == true) {
-                currentCard.webView.goBack()
-                return
-            }
-
-            // 如果有WebView卡片但无法返回，显示主页
-            if (gestureCardWebViewManager?.getAllCards()?.isNotEmpty() == true) {
-                showBrowserHome()
-                return
-            }
-
-            // 如果在主页，返回任务选择页面
-            showTaskSelection()
+            // 使用统一的返回逻辑
+            performUnifiedWebViewBack("系统返回键")
             return
         }
 
@@ -4304,9 +4291,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             override fun onCardRemoved(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
-                // 如果没有卡片了，显示主页
+                // 如果没有卡片了，返回搜索tab主页
                 if (gestureCardWebViewManager?.getAllCards()?.isEmpty() == true) {
+                    // 确保切换到搜索tab
+                    switchToSearchTab()
+                    // 显示搜索tab主页
                     showBrowserHome()
+                    Log.d(TAG, "最后一个卡片已关闭，返回搜索tab主页")
                 }
 
                 // 更新搜索tab徽标
@@ -4558,8 +4549,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
 
                 override fun onBack() {
-                    // 智能返回逻辑
-                    handleBrowserBackButtonClick(false)
+                    // 使用统一的返回逻辑
+                    performUnifiedWebViewBack("圆弧操作栏")
                     Log.d(TAG, "四分之一圆弧操作栏: 执行返回操作")
                 }
 
@@ -4700,14 +4691,159 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     handled
                 } ?: false
             } else {
-                // 正常模式下，处理原有的浏览器手势（双击等）
-                browserGestureDetector.onTouchEvent(event)
-                false
+                // 正常模式下，处理边缘侧滑和原有手势
+                val edgeHandled = handleEdgeSwipeGesture(event)
+                if (edgeHandled) {
+                    // 边缘侧滑已处理，直接返回
+                    return@setOnTouchListener true
+                }
+                
+                // 处理其他手势
+                val gestureHandled = browserGestureDetector.onTouchEvent(event)
+                
+                // 如果边缘侧滑或手势检测处理了事件，就消费掉
+                edgeHandled || gestureHandled
             }
         }
 
         // 设置全局触摸监听
         setupGlobalTouchListener()
+    }
+
+    /**
+     * 处理边缘侧滑手势
+     */
+    private fun handleEdgeSwipeGesture(event: MotionEvent): Boolean {
+        // 检查是否在边缘区域
+        val screenWidth = resources.displayMetrics.widthPixels
+        val edgeThreshold = 50 // 边缘检测阈值，50dp
+        
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> {
+                edgeSwipeStartX = event.x
+                edgeSwipeStartY = event.y
+                edgeSwipeStartTime = System.currentTimeMillis()
+                return false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val isInLeftEdge = edgeSwipeStartX < edgeThreshold
+                val isInRightEdge = edgeSwipeStartX > screenWidth - edgeThreshold
+                
+                if (isInLeftEdge || isInRightEdge) {
+                    val deltaX = event.x - edgeSwipeStartX
+                    val deltaY = event.y - edgeSwipeStartY
+                    
+                    // 检查是否为水平滑动且速度足够
+                    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+                        // 左边缘向右滑动或右边缘向左滑动
+                        val isSwipeBack = (isInLeftEdge && deltaX > 0) || (isInRightEdge && deltaX < 0)
+                        
+                        if (isSwipeBack) {
+                            // 在搜索tab中执行网页后退，其他tab中消费事件防止系统处理
+                            if (currentState == UIState.BROWSER) {
+                                showBrowserGestureHint("边缘滑动检测")
+                            }
+                            return true
+                        }
+                    }
+                }
+                return false
+            }
+            MotionEvent.ACTION_UP -> {
+                val currentTime = System.currentTimeMillis()
+                val deltaTime = currentTime - edgeSwipeStartTime
+                val deltaX = event.x - edgeSwipeStartX
+                val deltaY = event.y - edgeSwipeStartY
+                
+                // 检查是否为有效的边缘侧滑
+                if (deltaTime < 500 && Math.abs(deltaX) > 100 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                    val isInLeftEdge = edgeSwipeStartX < edgeThreshold
+                    val isInRightEdge = edgeSwipeStartX > screenWidth - edgeThreshold
+                    
+                    val isSwipeBack = (isInLeftEdge && deltaX > 0) || (isInRightEdge && deltaX < 0)
+                    
+                    if (isSwipeBack) {
+                        if (currentState == UIState.BROWSER) {
+                            // 在搜索tab中执行网页后退
+                            performWebViewBack()
+                        } else {
+                            // 在其他tab中消费事件，防止系统处理导致应用退出
+                            Log.d(TAG, "边缘侧滑在其他tab中，消费事件防止系统处理")
+                        }
+                        return true
+                    }
+                }
+                return false
+            }
+        }
+        return false
+    }
+    
+    // 边缘侧滑相关变量
+    private var edgeSwipeStartX = 0f
+    private var edgeSwipeStartY = 0f
+    private var edgeSwipeStartTime = 0L
+    
+    /**
+     * 统一的WebView后退处理方法
+     * 被系统返回键、圆弧操作栏、边缘侧滑等所有返回操作调用
+     */
+    private fun performUnifiedWebViewBack(source: String) {
+        Log.d(TAG, "执行统一WebView后退操作，来源: $source")
+        
+        var handled = false
+
+        // 优先检查MobileCardManager
+        val mobileCurrentCard = mobileCardManager?.getCurrentCard()
+        if (mobileCurrentCard?.webView?.canGoBack() == true) {
+            mobileCurrentCard.webView.goBack()
+            if (source == "边缘侧滑") {
+                showBrowserGestureHint("网页后退")
+            }
+            handled = true
+            Log.d(TAG, "$source：手机卡片返回上一页")
+        }
+
+        // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
+        if (!handled) {
+            val gestureCurrentCard = gestureCardWebViewManager?.getCurrentCard()
+            if (gestureCurrentCard?.webView?.canGoBack() == true) {
+                gestureCurrentCard.webView.goBack()
+                if (source == "边缘侧滑") {
+                    showBrowserGestureHint("网页后退")
+                }
+                handled = true
+                Log.d(TAG, "$source：手势卡片返回上一页")
+            }
+        }
+
+        // 如果都没有处理，检查MultiPageWebViewManager
+        if (!handled) {
+            if (multiPageWebViewManager?.canGoBack() == true) {
+                multiPageWebViewManager?.goBack()
+                if (source == "边缘侧滑") {
+                    showBrowserGestureHint("网页后退")
+                }
+                handled = true
+                Log.d(TAG, "$source：多页面管理器返回上一页")
+            }
+        }
+
+        // 如果没有可返回的页面，返回搜索tab首页
+        if (!handled) {
+            showBrowserHome()
+            if (source == "边缘侧滑") {
+                showBrowserGestureHint("返回搜索首页")
+            }
+            Log.d(TAG, "$source：无可返回页面，显示搜索tab首页")
+        }
+    }
+
+    /**
+     * 执行WebView后退操作（边缘侧滑专用）
+     */
+    private fun performWebViewBack() {
+        performUnifiedWebViewBack("边缘侧滑")
     }
 
     /**
@@ -5190,7 +5326,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 if (remainingCards.isNotEmpty()) {
                     cardPreviewOverlay.show(remainingCards)
                 } else {
+                    // 没有卡片了，隐藏预览并返回搜索tab
                     cardPreviewOverlay.hide()
+                    
+                    // 切换到搜索tab
+                    browserLayout.postDelayed({
+                        switchToSearchTab()
+                        Log.d(TAG, "最后一个卡片已关闭，返回搜索tab")
+                    }, 300) // 等待隐藏动画完成
                 }
 
                 Log.d(TAG, "关闭卡片: ${cardData.title}")
@@ -5784,10 +5927,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "当前卡片数量 - 手机卡片: $mobileCardCount, 手势卡片: $gestureCardCount")
 
                 // 显示成功提示
-                Toast.makeText(this, "新卡片已创建: $title", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "新卡片已在后台创建: $title", Toast.LENGTH_SHORT).show()
 
-                // 创建卡片后自动显示预览卡片系统
-                showNewCardPreview()
+                // 不立即显示预览，让卡片在后台加载
+                // showNewCardPreview()
 
                 // 确保UI状态正确切换
                 browserLayout.post {
@@ -15031,18 +15174,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             return true
                         }
                         1 -> { // 1 = BROWSER (搜索tab)
-                            if (deltaX > 0) {
-                                // 向右滑动，切换到上一个webview卡片
-                                switchToPreviousWebPage()
-                                showSearchTabSwipeIndicator("上一页")
-                                Log.d(TAG, "✅ 底部tab右滑成功 - 切换到上一个webview卡片")
+                            // 检查是否有活动的WebView
+                            val hasActiveWebView = gestureCardWebViewManager?.getCurrentCard()?.webView != null
+                            if (hasActiveWebView) {
+                                if (deltaX > 0) {
+                                    // 向右滑动，网页后退
+                                    goBackInCurrentWebView()
+                                    showSearchTabSwipeIndicator("后退")
+                                    Log.d(TAG, "✅ 底部tab右滑成功 - 网页后退")
+                                } else {
+                                    // 向左滑动，网页前进
+                                    goForwardInCurrentWebView()
+                                    showSearchTabSwipeIndicator("前进")
+                                    Log.d(TAG, "✅ 底部tab左滑成功 - 网页前进")
+                                }
+                                return true
                             } else {
-                                // 向左滑动，切换到下一个webview卡片
-                                switchToNextWebPage()
-                                showSearchTabSwipeIndicator("下一页")
-                                Log.d(TAG, "✅ 底部tab左滑成功 - 切换到下一个webview卡片")
+                                // 没有活动的WebView，消费事件防止系统处理
+                                Log.d(TAG, "⚠️ 搜索tab没有活动的WebView，消费侧滑手势防止系统处理")
+                                return true
                             }
-                            return true
                         }
                         else -> {
                             // 其他tab暂不支持横滑功能
@@ -15099,6 +15250,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 setOnCardRefreshListener { cardIndex ->
                     // 刷新指定的webview卡片
                     refreshWebViewCard(cardIndex)
+                }
+
+                // 设置所有卡片移除监听器
+                setOnAllCardsRemovedListener {
+                    // 所有卡片都被移除了，返回搜索tab
+                    browserLayout.postDelayed({
+                        switchToSearchTab()
+                        Log.d(TAG, "所有卡片已移除，返回搜索tab")
+                    }, 300)
                 }
 
                 // 设置新建卡片请求监听器
@@ -15315,6 +15475,23 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                     // 更新卡片数据
                     updateWaveTrackerCards()
+                    
+                    // 检查是否还有卡片
+                    val remainingCards = manager.getAllCards()
+                    if (remainingCards.isEmpty()) {
+                        // 没有卡片了，隐藏预览并返回搜索tab
+                        stackedCardPreview?.visibility = View.GONE
+                        // 清理所有预览器的卡片数据
+                        materialWaveTracker?.updateWebViewCards(emptyList())
+                        stackedCardPreview?.setWebViewCards(emptyList())
+                        browserLayout.postDelayed({
+                            switchToSearchTab()
+                            Log.d(TAG, "最后一个卡片已关闭，返回搜索tab")
+                        }, 300)
+                    } else {
+                        // 还有卡片，继续显示预览
+                        Log.d(TAG, "还有 ${remainingCards.size} 个卡片")
+                    }
                 } else {
                     Log.w(TAG, "⚠️ 无效的卡片索引: $cardIndex")
                 }
@@ -15573,6 +15750,65 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             3 -> showVoice()
             4 -> showAppSearch()
             5 -> showSettings()
+        }
+    }
+
+    /**
+     * 切换到搜索tab
+     */
+    private fun switchToSearchTab() {
+        try {
+            deactivateStackedCardPreview()
+            showBrowser()
+            // 确保显示搜索tab主页
+            showBrowserHome()
+            Log.d(TAG, "切换到搜索tab并显示主页")
+        } catch (e: Exception) {
+            Log.e(TAG, "切换到搜索tab失败", e)
+        }
+    }
+
+    /**
+     * 当前WebView后退
+     */
+    private fun goBackInCurrentWebView() {
+        try {
+            gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                    Log.d(TAG, "WebView后退成功")
+                } else {
+                    Log.d(TAG, "WebView无法后退")
+                    Toast.makeText(this, "无法后退", Toast.LENGTH_SHORT).show()
+                }
+            } ?: run {
+                Log.d(TAG, "没有活动的WebView")
+                Toast.makeText(this, "没有活动的网页", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "WebView后退失败", e)
+        }
+    }
+
+    /**
+     * 当前WebView前进
+     */
+    private fun goForwardInCurrentWebView() {
+        try {
+            gestureCardWebViewManager?.getCurrentCard()?.webView?.let { webView ->
+                if (webView.canGoForward()) {
+                    webView.goForward()
+                    Log.d(TAG, "WebView前进成功")
+                } else {
+                    Log.d(TAG, "WebView无法前进")
+                    Toast.makeText(this, "无法前进", Toast.LENGTH_SHORT).show()
+                }
+            } ?: run {
+                Log.d(TAG, "没有活动的WebView")
+                Toast.makeText(this, "没有活动的网页", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "WebView前进失败", e)
         }
     }
 

@@ -360,6 +360,27 @@ class GestureCardWebViewManager(
                         Log.d(TAG, "拦截广告URL: $url")
                         true
                     }
+                    // 处理外部链接，创建新卡片
+                    url.startsWith("http://") || url.startsWith("https://") -> {
+                        // 检查是否是外部链接（不是当前域名）
+                        val currentUrl = cardData.url
+                        if (currentUrl != null && currentUrl.startsWith("http")) {
+                            try {
+                                val currentDomain = java.net.URL(currentUrl).host
+                                val newDomain = java.net.URL(url).host
+                                
+                                // 如果是不同域名的链接，创建新卡片
+                                if (currentDomain != newDomain) {
+                                    Log.d(TAG, "检测到外部链接，创建新卡片: $url")
+                                    createNewCardForUrl(url)
+                                    return true
+                                }
+                            } catch (e: Exception) {
+                                Log.w(TAG, "解析URL域名失败", e)
+                            }
+                        }
+                        false
+                    }
                     else -> false
                 }
             }
@@ -380,6 +401,22 @@ class GestureCardWebViewManager(
                 cardData.favicon = icon
                 Log.d(TAG, "接收到卡片图标")
             }
+        }
+    }
+
+    /**
+     * 为外部链接创建新卡片
+     */
+    private fun createNewCardForUrl(url: String) {
+        try {
+            // 创建新卡片
+            val newCard = addNewCard(url)
+            Log.d(TAG, "为外部链接创建新卡片: $url")
+            
+            // 通知监听器
+            onPageChangeListener?.onCardAdded(newCard, webViewCards.size - 1)
+        } catch (e: Exception) {
+            Log.e(TAG, "创建新卡片失败", e)
         }
     }
 

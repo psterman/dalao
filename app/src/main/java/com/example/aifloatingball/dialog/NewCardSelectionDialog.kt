@@ -377,9 +377,13 @@ class NewCardSelectionDialog(
                 visitTime = java.util.Date()
             )
 
-            // 调用历史记录选择回调
+            // 调用历史记录选择回调，在后台创建卡片
             onHistoryItemSelected(historyEntry)
-            dismiss()
+            
+            // 延迟关闭对话框，让用户看到卡片创建过程
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                dismiss()
+            }, 500)
 
         } catch (e: Exception) {
             android.util.Log.e("NewCardSelectionDialog", "从输入创建卡片失败", e)
