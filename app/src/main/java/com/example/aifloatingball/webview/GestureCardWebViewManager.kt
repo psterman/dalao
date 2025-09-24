@@ -50,6 +50,9 @@ class GestureCardWebViewManager(
     
     // 页面变化监听器
     private var onPageChangeListener: OnPageChangeListener? = null
+
+    // WebView创建监听器
+    private var onWebViewCreatedListener: ((android.webkit.WebView) -> Unit)? = null
     
     // SharedPreferences用于保存悬浮卡片状态
     private val sharedPreferences by lazy {
@@ -247,6 +250,13 @@ class GestureCardWebViewManager(
     }
 
     /**
+     * 设置WebView创建监听器
+     */
+    fun setOnWebViewCreatedListener(listener: (android.webkit.WebView) -> Unit) {
+        onWebViewCreatedListener = listener
+    }
+
+    /**
      * 创建WebView
      */
     private fun createWebView(): WebView {
@@ -299,6 +309,9 @@ class GestureCardWebViewManager(
 
             // 设置高级触摸处理
             setupAdvancedTouchHandling(this)
+
+            // 通知WebView创建监听器
+            onWebViewCreatedListener?.invoke(this)
         }
     }
 

@@ -41,6 +41,9 @@ class MobileCardManager(
 
     // 监听器
     private var cardChangeListener: OnCardChangeListener? = null
+
+    // WebView创建监听器
+    private var onWebViewCreatedListener: ((android.webkit.WebView) -> Unit)? = null
     
     /**
      * 卡片变化监听器
@@ -149,8 +152,13 @@ class MobileCardManager(
         Log.d(TAG, "上下文菜单管理器设置完成")
     }
 
+    /**
+     * 设置WebView创建监听器
+     */
+    fun setOnWebViewCreatedListener(listener: (android.webkit.WebView) -> Unit) {
+        onWebViewCreatedListener = listener
+    }
 
-    
     /**
      * 添加新卡片
      */
@@ -227,6 +235,9 @@ class MobileCardManager(
 
             // 设置高级触摸处理
             setupAdvancedTouchHandling(this)
+
+            // 通知WebView创建监听器
+            onWebViewCreatedListener?.invoke(this)
         }
     }
     

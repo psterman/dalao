@@ -1848,12 +1848,14 @@
 
             <!-- 工具栏 -->
             <LinearLayout
+                android:id="@+id/browser_toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
                 android:background="@color/simple_mode_header_background_light"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:paddingHorizontal="16dp">
+                android:paddingHorizontal="16dp"
+                android:elevation="4dp">
 
                 <!-- 返回按钮 -->
                 <ImageButton
@@ -1965,12 +1967,17 @@
 
                 </LinearLayout>
 
-                <!-- 多页面WebView容器 -->
-                <FrameLayout
-                    android:id="@+id/browser_webview_container"
+                <!-- 多页面WebView容器 - 添加下拉刷新支持 -->
+                <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+                    android:id="@+id/browser_swipe_refresh"
                     android:layout_width="match_parent"
                     android:layout_height="0dp"
                     android:layout_weight="1">
+
+                    <FrameLayout
+                        android:id="@+id/browser_webview_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent">
 
                     <!-- 主页内容 -->
                     <ScrollView
@@ -2349,7 +2356,9 @@
                         android:textColor="@android:color/white"
                         android:visibility="gone" />
 
-                </FrameLayout>
+                    </FrameLayout>
+
+                </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
             </LinearLayout>
 

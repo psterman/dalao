@@ -48,6 +48,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.viewpager2.widget.ViewPager2
 import androidx.core.view.GravityCompat
 import androidx.core.view.GestureDetectorCompat
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -275,6 +276,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserTabBar: WebViewTabBar
     private lateinit var browserNewTabButton: ImageButton
 
+    // Safari风格功能组件
+    private lateinit var browserToolbar: LinearLayout
+    private lateinit var browserSwipeRefresh: SwipeRefreshLayout
+    private lateinit var browserBtnClear: ImageButton
+    private lateinit var browserBtnAi: ImageButton
+
+    // 震动反馈管理器
+    private var vibrator: android.os.Vibrator? = null
+
     // 多页面WebView管理器
     private var multiPageWebViewManager: MultiPageWebViewManager? = null
 
@@ -336,6 +346,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 手势状态跟踪
     private var isLongPressDetected = false
     private var isDoubleTapDetected = false
+
+    // Safari风格功能状态
+    private var isToolbarVisible = true
+    private var lastScrollY = 0
+    private var toolbarAnimator: android.animation.ValueAnimator? = null
+    private val toolbarHideThreshold = 100 // 滚动多少像素后隐藏工具栏
+    private val toolbarShowThreshold = 50  // 向上滚动多少像素后显示工具栏
 
     // 浏览器功能相关
     private lateinit var browserGestureDetector: GestureDetectorCompat
@@ -454,6 +471,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 应用UI颜色
         updateUIColors()
+
+        // 初始化震动管理器
+        initializeVibrator()
 
         initializeViews()
         setupTaskSelection()
@@ -1165,6 +1185,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserTabContainer = findViewById(R.id.browser_tab_container)
         browserTabBar = findViewById(R.id.browser_tab_bar)
         browserNewTabButton = findViewById(R.id.browser_new_tab_button)
+
+        // Safari风格功能组件初始化
+        browserToolbar = findViewById(R.id.browser_toolbar)
+        browserSwipeRefresh = findViewById<SwipeRefreshLayout>(R.id.browser_swipe_refresh)
+        browserBtnClear = findViewById(R.id.browser_btn_clear)
+        browserBtnAi = findViewById(R.id.browser_btn_ai)
         browserShortcutsGrid = findViewById(R.id.browser_shortcuts_grid)
 
         // 开始浏览按钮
@@ -4337,7 +4363,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 更新搜索tab徽标
                 updateSearchTabBadge()
 
-                Log.d(TAG, "添加卡片: ${cardData.title}，ViewPager2已显示")
+                // 同步所有卡片系统数据
+                syncAllCardSystems()
+
+                Log.d(TAG, "添加卡片: ${cardData.title}，ViewPager2已显示，数据已同步")
             }
 
             override fun onCardRemoved(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {
@@ -4352,6 +4381,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                 // 更新搜索tab徽标
                 updateSearchTabBadge()
+
+                // 同步所有卡片系统数据
+                syncAllCardSystems()
 
                 Log.d(TAG, "移除卡片: ${cardData.title}")
             }
@@ -4524,8 +4556,299 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 设置四分之一圆弧操作栏
         setupQuarterArcOperationBar()
 
+        // 设置Safari风格功能
+        setupSafariStyleFeatures()
+
         // 初始显示主页内容
         showBrowserHome()
+    }
+
+    /**
+     * 设置Safari风格功能
+     */
+    private fun setupSafariStyleFeatures() {
+        try {
+            Log.d(TAG, "开始设置Safari风格功能")
+
+            // 设置下拉刷新
+            setupPullToRefresh()
+
+            // 设置工具栏自动隐藏
+            setupToolbarAutoHide()
+
+            // 设置搜索框按钮功能
+            setupSearchInputButtons()
+
+            Log.d(TAG, "Safari风格功能设置完成")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "设置Safari风格功能失败", e)
+        }
+    }
+
+    /**
+     * 设置下拉刷新功能
+     */
+    private fun setupPullToRefresh() {
+        try {
+            // 设置下拉刷新的颜色
+            browserSwipeRefresh.setColorSchemeResources(
+                android.R.color.holo_blue_bright,
+                android.R.color.holo_green_light,
+                android.R.color.holo_orange_light,
+                android.R.color.holo_red_light
+            )
+
+            // 设置下拉刷新监听器
+            browserSwipeRefresh.setOnRefreshListener {
+                Log.d(TAG, "用户下拉刷新页面")
+                refreshCurrentWebPage()
+
+                // 延迟停止刷新动画
+                Handler(Looper.getMainLooper()).postDelayed({
+                    browserSwipeRefresh.isRefreshing = false
+                }, 1000)
+
+                showMaterialToast("🔄 页面已刷新")
+            }
+
+            // 设置下拉刷新的条件 - 只有在页面顶部才能触发
+            browserSwipeRefresh.setOnChildScrollUpCallback { parent, child ->
+                // 检查当前WebView是否可以向上滚动
+                getCurrentWebViewForScrollCheck()?.canScrollVertically(-1) ?: false
+            }
+
+            Log.d(TAG, "下拉刷新功能设置完成")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "设置下拉刷新功能失败", e)
+        }
+    }
+
+    /**
+     * 获取当前WebView用于滚动检查
+     */
+    private fun getCurrentWebViewForScrollCheck(): android.webkit.WebView? {
+        return try {
+            // 优先使用MobileCardManager
+            mobileCardManager?.getCurrentCard()?.webView
+                ?: gestureCardWebViewManager?.getCurrentCard()?.webView
+        } catch (e: Exception) {
+            Log.e(TAG, "获取当前WebView失败", e)
+            null
+        }
+    }
+
+    /**
+     * 设置工具栏自动隐藏功能
+     */
+    private fun setupToolbarAutoHide() {
+        try {
+            // 为WebView容器中的所有WebView添加滚动监听
+            setupWebViewScrollListener()
+
+            Log.d(TAG, "工具栏自动隐藏功能设置完成")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "设置工具栏自动隐藏功能失败", e)
+        }
+    }
+
+    /**
+     * 设置WebView滚动监听器
+     */
+    private fun setupWebViewScrollListener() {
+        try {
+            // 为现有的WebView管理器设置回调，在WebView创建时添加滚动监听
+            gestureCardWebViewManager?.setOnWebViewCreatedListener { webView ->
+                addScrollListenerToWebView(webView)
+            }
+
+            mobileCardManager?.setOnWebViewCreatedListener { webView ->
+                addScrollListenerToWebView(webView)
+            }
+
+            // 为当前已存在的WebView添加滚动监听器
+            addScrollListenerToExistingWebViews()
+
+            Log.d(TAG, "WebView滚动监听器设置完成")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "设置WebView滚动监听器失败", e)
+        }
+    }
+
+    /**
+     * 为现有的WebView添加滚动监听器
+     */
+    private fun addScrollListenerToExistingWebViews() {
+        try {
+            // 为GestureCardWebViewManager中的现有WebView添加监听器
+            gestureCardWebViewManager?.getAllCards()?.forEach { card ->
+                addScrollListenerToWebView(card.webView)
+            }
+
+            // 为MobileCardManager中的现有WebView添加监听器
+            mobileCardManager?.getAllCards()?.forEach { card ->
+                addScrollListenerToWebView(card.webView)
+            }
+
+            Log.d(TAG, "为现有WebView添加滚动监听器完成")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "为现有WebView添加滚动监听器失败", e)
+        }
+    }
+
+    /**
+     * 为WebView添加滚动监听器
+     */
+    private fun addScrollListenerToWebView(webView: android.webkit.WebView) {
+        try {
+            webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+                val deltaY = scrollY - oldScrollY
+
+                // 只有在滚动距离足够大时才处理，并且确保不在遮罩层激活状态
+                if (Math.abs(deltaY) > 5 && !isSearchTabGestureOverlayActive) {
+                    handleWebViewScroll(deltaY, scrollY)
+                }
+            }
+
+            Log.d(TAG, "为WebView添加滚动监听器成功")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "为WebView添加滚动监听器失败", e)
+        }
+    }
+
+    /**
+     * 处理WebView滚动事件
+     */
+    private fun handleWebViewScroll(deltaY: Int, scrollY: Int) {
+        try {
+            // 向下滚动且滚动距离超过阈值时隐藏工具栏
+            if (deltaY > toolbarHideThreshold && isToolbarVisible && scrollY > toolbarHideThreshold) {
+                hideToolbar()
+            }
+            // 向上滚动且滚动距离超过阈值时显示工具栏
+            else if (deltaY < -toolbarShowThreshold && !isToolbarVisible) {
+                showToolbar()
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理WebView滚动事件失败", e)
+        }
+    }
+
+    /**
+     * 隐藏工具栏
+     */
+    private fun hideToolbar() {
+        if (!isToolbarVisible) return
+
+        try {
+            isToolbarVisible = false
+
+            // 取消之前的动画
+            toolbarAnimator?.cancel()
+
+            // 获取工具栏高度
+            val toolbarHeight = browserToolbar.height.toFloat()
+            if (toolbarHeight <= 0) {
+                Log.w(TAG, "工具栏高度为0，无法执行隐藏动画")
+                return
+            }
+
+            // 创建隐藏动画 - 向上移动工具栏高度的距离
+            toolbarAnimator = android.animation.ValueAnimator.ofFloat(0f, -toolbarHeight).apply {
+                duration = 300
+                interpolator = android.view.animation.DecelerateInterpolator()
+
+                addUpdateListener { animator ->
+                    val translationY = animator.animatedValue as Float
+                    browserToolbar.translationY = translationY
+                }
+
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        Log.d(TAG, "工具栏隐藏动画完成，translationY: ${browserToolbar.translationY}")
+                    }
+                })
+
+                start()
+            }
+
+            Log.d(TAG, "开始隐藏工具栏，高度: $toolbarHeight")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏工具栏失败", e)
+        }
+    }
+
+    /**
+     * 显示工具栏
+     */
+    private fun showToolbar() {
+        if (isToolbarVisible) return
+
+        try {
+            isToolbarVisible = true
+
+            // 取消之前的动画
+            toolbarAnimator?.cancel()
+
+            // 获取当前位置
+            val currentTranslationY = browserToolbar.translationY
+
+            // 创建显示动画 - 从当前位置移动到0
+            toolbarAnimator = android.animation.ValueAnimator.ofFloat(currentTranslationY, 0f).apply {
+                duration = 300
+                interpolator = android.view.animation.DecelerateInterpolator()
+
+                addUpdateListener { animator ->
+                    val translationY = animator.animatedValue as Float
+                    browserToolbar.translationY = translationY
+                }
+
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        Log.d(TAG, "工具栏显示动画完成，translationY: ${browserToolbar.translationY}")
+                    }
+                })
+
+                start()
+            }
+
+            Log.d(TAG, "开始显示工具栏，从位置: $currentTranslationY")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示工具栏失败", e)
+        }
+    }
+
+    /**
+     * 设置搜索框按钮功能
+     */
+    private fun setupSearchInputButtons() {
+        try {
+            // 清空按钮功能已在之前实现
+            // AI按钮功能已在之前实现
+
+            // 监听搜索框文本变化，控制清空按钮显示
+            browserSearchInput.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    // 有文本时显示清空按钮，无文本时隐藏
+                    browserBtnClear.visibility = if (s?.isNotEmpty() == true) View.VISIBLE else View.GONE
+                }
+            })
+
+            Log.d(TAG, "搜索框按钮功能设置完成")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "设置搜索框按钮功能失败", e)
+        }
     }
 
     /**
@@ -5114,12 +5437,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         cardPreviewOverlay.hide()
                     }
 
-                    // 延迟显示手势指南
-                    browserLayout.postDelayed({
-                        if (!isFinishing && !isDestroyed) {
-                            showGestureHint()
-                        }
-                    }, 100)
+                    // 立即显示手势指南，不需要延迟
+                    showGestureHint()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "手势指南按钮点击处理失败", e)
@@ -5475,10 +5794,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             hideGestureHint()
         }
 
-        // 点击覆盖层关闭提示
-        browserGestureOverlay.setOnClickListener {
-            hideGestureHint()
+        // 点击覆盖层背景区域关闭提示（但不包括卡片内容）
+        browserGestureOverlay.setOnClickListener { view ->
+            // 只有点击的是覆盖层本身（不是卡片内容）才关闭
+            if (view == browserGestureOverlay) {
+                hideGestureHint()
+            }
         }
+
+        // 注意：点击卡片内容不会关闭弹窗，只有点击背景区域或关闭按钮才会关闭
 
         // 首次使用时显示手势提示
         val sharedPrefs = getSharedPreferences("gesture_hints", MODE_PRIVATE)
@@ -5499,21 +5823,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示卡片预览
      */
     private fun showCardPreview() {
-        // 合并所有管理器的卡片
-        val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
-        val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
-        val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+        // 使用统一的卡片数据获取方法
+        val allCards = getAllUnifiedCards()
 
-        allCards.addAll(gestureCards)
-        allCards.addAll(mobileCards)
-
-        Log.d(TAG, "卡片预览 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 总计: ${allCards.size}")
+        Log.d(TAG, "左上角卡片预览 - 总计: ${allCards.size}")
 
         if (allCards.isNotEmpty()) {
             // 确保卡片预览覆盖层在最前面
             cardPreviewOverlay.bringToFront()
             cardPreviewOverlay.show(allCards)
-            Log.d(TAG, "显示卡片预览，卡片数: ${allCards.size}")
+            Log.d(TAG, "显示左上角卡片预览，卡片数: ${allCards.size}")
         } else {
             Toast.makeText(this, "暂无卡片", Toast.LENGTH_SHORT).show()
         }
@@ -5616,19 +5935,34 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
+            // 停止任何正在进行的动画
+            browserGestureOverlay.clearAnimation()
+
             // 确保手势提示覆盖层在最前面
             browserGestureOverlay.bringToFront()
             browserGestureOverlay.visibility = View.VISIBLE
             browserGestureOverlay.alpha = 0f
+
+            // 使用更稳定的动画方式
             browserGestureOverlay.animate()
                 .alpha(1f)
-                .setDuration(300)
-                .withStartAction {
-                    Log.d(TAG, "开始显示手势提示动画")
-                }
-                .withEndAction {
-                    Log.d(TAG, "手势提示动画完成")
-                }
+                .setDuration(500)  // 增加动画时间，让用户有足够时间看到
+                .setListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationStart(animation: android.animation.Animator) {
+                        Log.d(TAG, "开始显示手势提示动画")
+                    }
+
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        Log.d(TAG, "手势提示动画完成，弹窗已稳定显示")
+                        // 确保最终状态正确
+                        browserGestureOverlay.alpha = 1f
+                        browserGestureOverlay.visibility = View.VISIBLE
+                    }
+
+                    override fun onAnimationCancel(animation: android.animation.Animator) {
+                        Log.d(TAG, "手势提示动画被取消")
+                    }
+                })
                 .start()
 
             Log.d(TAG, "显示手势提示")
@@ -5655,17 +5989,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
+            // 检查当前是否真的在显示
+            if (browserGestureOverlay.visibility != View.VISIBLE) {
+                Log.d(TAG, "手势提示已经隐藏，无需重复操作")
+                return
+            }
+
+            // 停止任何正在进行的动画
+            browserGestureOverlay.clearAnimation()
+
             browserGestureOverlay.animate()
                 .alpha(0f)
-                .setDuration(200)
+                .setDuration(300)  // 稍微增加隐藏动画时间
                 .setListener(object : android.animation.AnimatorListenerAdapter() {
                     override fun onAnimationStart(animation: android.animation.Animator) {
                         Log.d(TAG, "开始隐藏手势提示动画")
                     }
 
                     override fun onAnimationEnd(animation: android.animation.Animator) {
-                        browserGestureOverlay.visibility = View.GONE
-                        Log.d(TAG, "手势提示动画完成并隐藏")
+                        if (!isFinishing && !isDestroyed) {
+                            browserGestureOverlay.visibility = View.GONE
+                            browserGestureOverlay.alpha = 0f
+                            Log.d(TAG, "手势提示动画完成并隐藏")
+                        }
+                    }
+
+                    override fun onAnimationCancel(animation: android.animation.Animator) {
+                        Log.d(TAG, "隐藏手势提示动画被取消")
                     }
                 })
                 .start()
@@ -5674,6 +6024,113 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         } catch (e: Exception) {
             Log.e(TAG, "隐藏手势提示时发生错误", e)
+        }
+    }
+
+    /**
+     * 获取所有统一的卡片数据
+     * 确保两个卡片系统使用相同的数据源
+     */
+    private fun getAllUnifiedCards(): List<GestureCardWebViewManager.WebViewCardData> {
+        val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+        val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
+        val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+
+        // 先添加手势卡片
+        allCards.addAll(gestureCards)
+
+        // 再添加手机卡片，避免重复
+        mobileCards.forEach { mobileCard ->
+            // 检查是否已存在相同的卡片（通过URL或ID判断）
+            val isDuplicate = allCards.any { existingCard ->
+                existingCard.id == mobileCard.id ||
+                (existingCard.url == mobileCard.url && existingCard.url?.isNotEmpty() == true)
+            }
+            if (!isDuplicate) {
+                allCards.add(mobileCard)
+            }
+        }
+
+        Log.d(TAG, "统一卡片数据 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 去重后总计: ${allCards.size}")
+
+        return allCards
+    }
+
+    /**
+     * 同步更新所有卡片系统的数据
+     */
+    private fun syncAllCardSystems() {
+        try {
+            // 更新卡片预览器数据
+            updateWaveTrackerCards()
+
+            // 如果卡片预览覆盖层正在显示，也更新它
+            if (::cardPreviewOverlay.isInitialized && cardPreviewOverlay.visibility == View.VISIBLE) {
+                val allCards = getAllUnifiedCards()
+                if (allCards.isNotEmpty()) {
+                    cardPreviewOverlay.show(allCards)
+                } else {
+                    cardPreviewOverlay.hide()
+                }
+            }
+
+            Log.d(TAG, "所有卡片系统数据已同步")
+        } catch (e: Exception) {
+            Log.e(TAG, "同步卡片系统数据失败", e)
+        }
+    }
+
+    /**
+     * 初始化震动管理器
+     */
+    private fun initializeVibrator() {
+        try {
+            vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            }
+            Log.d(TAG, "震动管理器初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化震动管理器失败", e)
+            vibrator = null
+        }
+    }
+
+    /**
+     * 执行手势震动反馈
+     * @param type 震动类型：light(轻微), medium(中等), heavy(重)
+     */
+    private fun performGestureVibration(type: String) {
+        try {
+            vibrator?.let { vib ->
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    val effect = when (type) {
+                        "light" -> android.os.VibrationEffect.createOneShot(50, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                        "medium" -> android.os.VibrationEffect.createOneShot(100, 128)
+                        "heavy" -> android.os.VibrationEffect.createOneShot(150, 255)
+                        "double" -> android.os.VibrationEffect.createWaveform(longArrayOf(0, 80, 50, 80), -1)
+                        "swipe" -> android.os.VibrationEffect.createWaveform(longArrayOf(0, 30, 20, 30, 20, 30), -1)
+                        else -> android.os.VibrationEffect.createOneShot(50, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                    }
+                    vib.vibrate(effect)
+                } else {
+                    @Suppress("DEPRECATION")
+                    when (type) {
+                        "light" -> vib.vibrate(50)
+                        "medium" -> vib.vibrate(100)
+                        "heavy" -> vib.vibrate(150)
+                        "double" -> vib.vibrate(longArrayOf(0, 80, 50, 80), -1)
+                        "swipe" -> vib.vibrate(longArrayOf(0, 30, 20, 30, 20, 30), -1)
+                        else -> vib.vibrate(50)
+                    }
+                }
+                Log.d(TAG, "执行${type}震动反馈")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "执行震动反馈失败", e)
         }
     }
 
@@ -6141,7 +6598,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 browserTabContainer.visibility = View.GONE
                 showViewPager2()
 
-                Log.d(TAG, "手机卡片已添加: ${card.title}")
+                // 同步所有卡片系统数据
+                syncAllCardSystems()
+
+                Log.d(TAG, "手机卡片已添加: ${card.title}，数据已同步")
             }
 
             override fun onCardRemoved(card: GestureCardWebViewManager.WebViewCardData, position: Int) {
@@ -6150,7 +6610,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     showBrowserHome()
                 }
 
-                Log.d(TAG, "手机卡片已移除: ${card.title}")
+                // 同步所有卡片系统数据
+                syncAllCardSystems()
+
+                Log.d(TAG, "手机卡片已移除: ${card.title}，数据已同步")
             }
 
             override fun onCardSwitched(card: GestureCardWebViewManager.WebViewCardData, position: Int) {
@@ -15458,15 +15921,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun updateWaveTrackerCards() {
         try {
-            // 合并所有管理器的卡片
-            val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
-            val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
-            val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+            // 使用统一的卡片数据获取方法
+            val allCards = getAllUnifiedCards()
 
-            allCards.addAll(gestureCards)
-            allCards.addAll(mobileCards)
-
-            Log.d(TAG, "更新卡片预览器 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 总计: ${allCards.size}")
+            Log.d(TAG, "更新卡片预览器 - 总计: ${allCards.size}")
 
             if (allCards.isNotEmpty()) {
                 // 为MaterialWaveTracker准备数据
@@ -17183,17 +17641,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun activateStackedCardPreview() {
         try {
-            Log.d(TAG, "长按搜索tab，激活层叠卡片预览")
+            Log.d(TAG, "搜索tab激活层叠卡片预览")
 
-            // 合并所有管理器的卡片
-            val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
-            val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
-            val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+            // 使用统一的卡片数据获取方法
+            val allCards = getAllUnifiedCards()
 
-            allCards.addAll(gestureCards)
-            allCards.addAll(mobileCards)
-
-            Log.d(TAG, "激活层叠卡片预览 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 总计: ${allCards.size}")
+            Log.d(TAG, "搜索tab激活层叠卡片预览 - 总计: ${allCards.size}")
 
             if (allCards.isEmpty()) {
                 Toast.makeText(this, "没有打开的网页卡片", Toast.LENGTH_SHORT).show()
@@ -17629,6 +18082,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             Log.d(TAG, "激活搜索tab手势遮罩区")
 
+            // 激活震动反馈
+            performGestureVibration("heavy")
+
             // 显示激活提示
             showMaterialToast("🎯 长按搜索tab激活遮罩层成功！现在可以使用手势操作")
 
@@ -17705,6 +18161,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             0 -> {
                                 // 单击对话tab - 退出遮罩层并进入对话页面
                                 Log.d(TAG, "遮罩层中单击对话tab，退出遮罩层并进入对话页面")
+                                performGestureVibration("light") // tab切换震动反馈
                                 deactivateSearchTabGestureOverlay()
                                 showChat()
                                 showMaterialToast("💬 已切换到对话页面")
@@ -17713,6 +18170,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             1 -> {
                                 // 在遮罩层中单击搜索tab - 激活多卡片系统
                                 Log.d(TAG, "遮罩层中单击搜索tab，激活多卡片系统")
+                                performGestureVibration("medium") // 激活多卡片系统震动反馈
                                 activateStackedCardPreview()
                                 showMaterialToast("📱 多卡片系统已激活")
                                 return true // 消费事件
@@ -17720,6 +18178,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             2 -> {
                                 // 单击任务tab - 退出遮罩层并进入任务页面
                                 Log.d(TAG, "遮罩层中单击任务tab，退出遮罩层并进入任务页面")
+                                performGestureVibration("light") // tab切换震动反馈
                                 deactivateSearchTabGestureOverlay()
                                 showTaskSelection()
                                 showMaterialToast("📋 已切换到任务页面")
@@ -17731,6 +18190,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 if (voiceTab?.visibility == View.VISIBLE) {
                                     // 语音tab可见，正常切换
                                     Log.d(TAG, "遮罩层中单击语音tab，退出遮罩层并进入语音页面")
+                                    performGestureVibration("light") // tab切换震动反馈
                                     deactivateSearchTabGestureOverlay()
                                     showVoice()
                                     showMaterialToast("🎤 已切换到语音页面")
@@ -17744,6 +18204,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             4 -> {
                                 // 单击软件tab - 退出遮罩层并进入软件页面
                                 Log.d(TAG, "遮罩层中单击软件tab，退出遮罩层并进入软件页面")
+                                performGestureVibration("light") // tab切换震动反馈
                                 deactivateSearchTabGestureOverlay()
                                 showAppSearch()
                                 showMaterialToast("📱 已切换到软件页面")
@@ -17752,6 +18213,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             5 -> {
                                 // 单击设置tab - 退出遮罩层并进入设置页面
                                 Log.d(TAG, "遮罩层中单击设置tab，退出遮罩层并进入设置页面")
+                                performGestureVibration("light") // tab切换震动反馈
                                 deactivateSearchTabGestureOverlay()
                                 showSettings()
                                 showMaterialToast("⚙️ 已切换到设置页面")
@@ -17886,6 +18348,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             Log.d(TAG, "退出搜索tab手势遮罩区")
 
+            // 退出震动反馈
+            performGestureVibration("light")
+
             // 显示退出提示
             showMaterialToast("👋 长按搜索tab退出遮罩层成功！")
 
@@ -17981,11 +18446,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     if (deltaX > 30) { // 降低距离要求
                         // 向右滑动 - 切换到下一个页面卡片
                         Log.d(TAG, "向右滑动")
+                        performGestureVibration("swipe") // 滑动震动反馈
                         handleNextPageCardGesture()
                         return true
                     } else if (deltaX < -30) {
                         // 向左滑动 - 切换到上一个页面卡片
                         Log.d(TAG, "向左滑动")
+                        performGestureVibration("swipe") // 滑动震动反馈
                         handlePreviousPageCardGesture()
                         return true
                     } else {
@@ -18012,6 +18479,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             Log.d(TAG, "遮罩区长按手势 - 刷新当前页面")
 
+            // 长按震动反馈
+            performGestureVibration("medium")
+
             // 刷新当前页面
             refreshCurrentWebPage()
 
@@ -18032,6 +18502,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun handleDoubleTapGesture(e: MotionEvent) {
         try {
             Log.d(TAG, "遮罩区双击手势 - 关闭当前页面")
+
+            // 双击震动反馈
+            performGestureVibration("double")
 
             // 关闭当前页面
             closeCurrentWebPage()
@@ -18586,6 +19059,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "显示滑动动画失败", e)
         }
     }
+
+
 
     /**
      * 创建遮罩层背景（模糊效果 + 绿色边框）
