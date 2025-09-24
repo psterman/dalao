@@ -331,6 +331,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var searchTabGestureOverlay: FrameLayout? = null
     private var isSearchTabGestureOverlayActive = false
     private var gestureDetectorForOverlay: GestureDetectorCompat? = null
+    private var hasShownGestureInstructions = false // 标记是否已显示过手势操作指南
 
     // 手势状态跟踪
     private var isLongPressDetected = false
@@ -2938,9 +2939,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setOnClickListener {
                 deactivateStackedCardPreview()
                 showBrowser()
-                // 激活搜索tab手势遮罩区
-                activateSearchTabGestureOverlay()
+                // 单击搜索tab时，如果遮罩层已激活，则激活多卡片系统
+                if (isSearchTabGestureOverlayActive) {
+                    activateStackedCardPreview()
+                }
+                // 如果遮罩层未激活，则正常切换到搜索tab（不激活遮罩层）
             }
+
+            // 设置长按监听器 - 长按激活/退出遮罩层
+            setOnLongClickListener {
+                Log.d(TAG, "搜索tab长按事件触发，当前遮罩层状态: $isSearchTabGestureOverlayActive")
+
+                if (isSearchTabGestureOverlayActive) {
+                    // 如果遮罩层已激活，长按退出遮罩层
+                    Log.d(TAG, "长按搜索tab退出遮罩层")
+                    deactivateSearchTabGestureOverlay()
+                } else {
+                    // 如果遮罩层未激活，长按激活遮罩层
+                    Log.d(TAG, "长按搜索tab激活遮罩层")
+                    deactivateStackedCardPreview()
+                    showBrowser()
+                    activateSearchTabGestureOverlay()
+                }
+                true // 消费长按事件
+            }
+
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
@@ -4419,12 +4442,40 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
-        // 添加文本变化监听器，检测"app"关键词自动切换到应用搜索
+        // 设置清空按钮
+        val browserBtnClear = findViewById<ImageButton>(R.id.browser_btn_clear)
+        browserBtnClear?.setOnClickListener {
+            browserSearchInput.setText("")
+            browserBtnClear.visibility = View.GONE
+            showMaterialToast("🗑️ 搜索框已清空")
+        }
+
+        // 设置AI机器人按钮
+        val browserBtnAi = findViewById<ImageButton>(R.id.browser_btn_ai)
+        browserBtnAi?.setOnClickListener {
+            val query = browserSearchInput.text.toString().trim()
+            if (query.isNotEmpty()) {
+                // 如果有输入内容，使用AI搜索
+                showMaterialToast("🤖 正在使用AI搜索: $query")
+                performAISearch(query)
+            } else {
+                // 如果没有输入内容，打开AI助手
+                showMaterialToast("🤖 打开AI助手")
+                openAIAssistant()
+            }
+        }
+
+        // 添加文本变化监听器，检测"app"关键词自动切换到应用搜索，并控制清空按钮显示
         browserSearchInput.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 val query = s?.toString()?.trim()?.lowercase() ?: ""
+
+                // 控制清空按钮的显示/隐藏
+                val clearButton = findViewById<ImageButton>(R.id.browser_btn_clear)
+                clearButton?.visibility = if (s?.isNotEmpty() == true) View.VISIBLE else View.GONE
+
                 // 当用户输入"app"时，自动切换到应用搜索界面
                 if (query == "app") {
                     Log.d(TAG, "检测到用户输入'app'，自动切换到应用搜索界面")
@@ -4434,7 +4485,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             switchToAppSearchWithQuery(null)
                             // 清空浏览器搜索框
                             browserSearchInput.setText("")
-                            Toast.makeText(this@SimpleModeActivity, "已切换到应用搜索", Toast.LENGTH_SHORT).show()
+                            showMaterialToast("📱 已切换到应用搜索")
                         }
                     }, 500) // 500ms延迟，给用户时间完成输入
                 }
@@ -5036,23 +5087,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 手势指南按钮
         findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_gesture_guide_button)?.setOnClickListener {
-            Log.d(TAG, "用户点击手势指南按钮")
+            try {
+                Log.d(TAG, "用户点击手势指南按钮")
 
-            // 检查当前状态
-            if (browserGestureOverlay.visibility == View.VISIBLE) {
-                Log.d(TAG, "手势指南已显示，隐藏它")
-                hideGestureHint()
-            } else {
-                Log.d(TAG, "显示手势指南")
-                // 先隐藏其他覆盖层（但不包括手势指南本身）
-                if (::cardPreviewOverlay.isInitialized && cardPreviewOverlay.visibility == View.VISIBLE) {
-                    cardPreviewOverlay.hide()
+                // 检查Activity状态
+                if (isFinishing || isDestroyed) {
+                    Log.w(TAG, "Activity正在结束或已销毁，跳过手势指南操作")
+                    return@setOnClickListener
                 }
 
-                // 延迟显示手势指南
-                browserLayout.postDelayed({
-                    showGestureHint()
-                }, 100)
+                // 检查组件是否已初始化
+                if (!::browserGestureOverlay.isInitialized) {
+                    Log.e(TAG, "browserGestureOverlay未初始化，无法操作手势指南")
+                    showMaterialToast("❌ 手势指南功能暂时不可用")
+                    return@setOnClickListener
+                }
+
+                // 检查当前状态
+                if (browserGestureOverlay.visibility == View.VISIBLE) {
+                    Log.d(TAG, "手势指南已显示，隐藏它")
+                    hideGestureHint()
+                } else {
+                    Log.d(TAG, "显示手势指南")
+                    // 先隐藏其他覆盖层（但不包括手势指南本身）
+                    if (::cardPreviewOverlay.isInitialized && cardPreviewOverlay.visibility == View.VISIBLE) {
+                        cardPreviewOverlay.hide()
+                    }
+
+                    // 延迟显示手势指南
+                    browserLayout.postDelayed({
+                        if (!isFinishing && !isDestroyed) {
+                            showGestureHint()
+                        }
+                    }, 100)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "手势指南按钮点击处理失败", e)
+                showMaterialToast("❌ 手势指南功能出现错误")
             }
         }
 
@@ -15146,8 +15217,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val bottomNav = findViewById<LinearLayout>(R.id.bottom_navigation)
         bottomNav?.setOnLongClickListener {
             if (getCurrentTabIndex() == 1) {
-                // 调试：强制显示层叠卡片预览
-                debugShowStackedCards()
+                // 调试：测试新的手势机制
+                testNewGestureMechanism()
             } else {
                 Toast.makeText(this@SimpleModeActivity, "请先切换到搜索tab再测试", Toast.LENGTH_SHORT).show()
             }
@@ -17243,6 +17314,64 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 测试新的手势机制
+     */
+    private fun testNewGestureMechanism() {
+        try {
+            Log.d(TAG, "🧪 开始测试新的手势机制")
+
+            val message = StringBuilder()
+            message.append("🎯 新手势机制测试说明：\n\n")
+            message.append("1️⃣ 长按搜索tab图标 → 激活/退出遮罩层\n")
+            message.append("2️⃣ 遮罩层中单击搜索tab → 激活多卡片系统\n")
+            message.append("3️⃣ 遮罩层中单击其他tab → 退出遮罩层并切换页面\n")
+            message.append("4️⃣ 遮罩层中左右滑动 → 切换网页页面\n")
+            message.append("5️⃣ 遮罩层中双击 → 关闭当前页面\n\n")
+
+            // 检查当前状态
+            if (isSearchTabGestureOverlayActive) {
+                message.append("✅ 遮罩层已激活\n")
+                message.append("💡 现在可以测试遮罩层内的手势操作")
+            } else {
+                message.append("⚠️ 遮罩层未激活\n")
+                message.append("💡 请长按搜索tab激活遮罩层")
+            }
+
+            // 检查网页卡片数量
+            val cardCount = gestureCardWebViewManager?.getAllCards()?.size ?: 0
+            message.append("\n📊 当前网页卡片数量: $cardCount")
+
+            if (cardCount == 0) {
+                message.append("\n💡 建议先打开一些网页进行测试")
+            }
+
+            AlertDialog.Builder(this)
+                .setTitle("🧪 新手势机制测试")
+                .setMessage(message.toString())
+                .setPositiveButton("测试长按激活") { _, _ ->
+                    // 提示用户长按搜索tab
+                    Toast.makeText(this, "请长按搜索tab图标来激活/退出遮罩层", Toast.LENGTH_LONG).show()
+                }
+                .setNeutralButton("自动激活") { _, _ ->
+                    // 如果遮罩层未激活，自动激活
+                    if (!isSearchTabGestureOverlayActive) {
+                        activateSearchTabGestureOverlay()
+                    } else {
+                        Toast.makeText(this, "遮罩层已激活，请测试手势操作", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+
+            Log.d(TAG, "新手势机制测试对话框已显示")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "测试新手势机制失败", e)
+            Toast.makeText(this, "测试失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
      * 调试：强制显示层叠卡片预览
      */
     private fun debugShowStackedCards() {
@@ -17501,7 +17630,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "激活搜索tab手势遮罩区")
 
             // 显示激活提示
-            Toast.makeText(this, "搜索tab手势遮罩区已激活", Toast.LENGTH_SHORT).show()
+            showMaterialToast("🎯 长按搜索tab激活遮罩层成功！现在可以使用手势操作")
+
+            // 只在第一次进入时显示详细操作说明
+            if (!hasShownGestureInstructions) {
+                handler.postDelayed({
+                    showGestureInstructions()
+                    hasShownGestureInstructions = true // 标记已显示过
+                }, 1500)
+            }
 
             // 获取底部导航栏容器
             val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation)
@@ -17535,11 +17672,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
 
                 override fun onLongPress(e: MotionEvent) {
-                    Log.d(TAG, "检测到长按手势")
-                    isLongPressDetected = true
-                    // 长按手势 - 刷新页面
-                    handleLongPressGesture(e)
-                    // 注意：onLongPress 没有返回值，但会被手势检测器记录
+                    Log.d(TAG, "检测到长按手势，但不处理以避免与搜索tab长按冲突")
+                    // 移除长按刷新功能，让长按事件穿透到搜索tab处理退出操作
+                    // 这样用户可以通过长按搜索tab来退出遮罩层
+                    isLongPressDetected = false // 不标记为已处理，让事件穿透
                 }
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
@@ -17551,8 +17687,79 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
 
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    // 单击确认 - 穿透处理
+                    // 单击确认 - 检查是否点击tab区域
                     Log.d(TAG, "遮罩区单击确认: x=${e.x}, y=${e.y}")
+
+                    // 检测点击的tab区域
+                    val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation)
+                    if (bottomNavigation != null) {
+                        val location = IntArray(2)
+                        bottomNavigation.getLocationOnScreen(location)
+                        val relativeX = e.rawX - location[0]
+                        val tabWidth = bottomNavigation.width / 6
+                        val tabIndex = (relativeX / tabWidth).toInt()
+
+                        Log.d(TAG, "遮罩层中单击tab，tabIndex=$tabIndex")
+
+                        when (tabIndex) {
+                            0 -> {
+                                // 单击对话tab - 退出遮罩层并进入对话页面
+                                Log.d(TAG, "遮罩层中单击对话tab，退出遮罩层并进入对话页面")
+                                deactivateSearchTabGestureOverlay()
+                                showChat()
+                                showMaterialToast("💬 已切换到对话页面")
+                                return true // 消费事件
+                            }
+                            1 -> {
+                                // 在遮罩层中单击搜索tab - 激活多卡片系统
+                                Log.d(TAG, "遮罩层中单击搜索tab，激活多卡片系统")
+                                activateStackedCardPreview()
+                                showMaterialToast("📱 多卡片系统已激活")
+                                return true // 消费事件
+                            }
+                            2 -> {
+                                // 单击任务tab - 退出遮罩层并进入任务页面
+                                Log.d(TAG, "遮罩层中单击任务tab，退出遮罩层并进入任务页面")
+                                deactivateSearchTabGestureOverlay()
+                                showTaskSelection()
+                                showMaterialToast("📋 已切换到任务页面")
+                                return true // 消费事件
+                            }
+                            3 -> {
+                                // 单击语音tab - 检查语音tab是否可见
+                                val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
+                                if (voiceTab?.visibility == View.VISIBLE) {
+                                    // 语音tab可见，正常切换
+                                    Log.d(TAG, "遮罩层中单击语音tab，退出遮罩层并进入语音页面")
+                                    deactivateSearchTabGestureOverlay()
+                                    showVoice()
+                                    showMaterialToast("🎤 已切换到语音页面")
+                                    return true // 消费事件
+                                } else {
+                                    // 语音tab被隐藏，不处理此点击
+                                    Log.d(TAG, "语音tab已隐藏，忽略点击事件")
+                                    return false // 不消费事件
+                                }
+                            }
+                            4 -> {
+                                // 单击软件tab - 退出遮罩层并进入软件页面
+                                Log.d(TAG, "遮罩层中单击软件tab，退出遮罩层并进入软件页面")
+                                deactivateSearchTabGestureOverlay()
+                                showAppSearch()
+                                showMaterialToast("📱 已切换到软件页面")
+                                return true // 消费事件
+                            }
+                            5 -> {
+                                // 单击设置tab - 退出遮罩层并进入设置页面
+                                Log.d(TAG, "遮罩层中单击设置tab，退出遮罩层并进入设置页面")
+                                deactivateSearchTabGestureOverlay()
+                                showSettings()
+                                showMaterialToast("⚙️ 已切换到设置页面")
+                                return true // 消费事件
+                            }
+                        }
+                    }
+
                     return false // 不消费事件，保持穿透
                 }
 
@@ -17598,8 +17805,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 记录遮罩层接收到的触摸事件
                         Log.d(TAG, "遮罩层接收到触摸事件: action=${event.action}, x=${event.x}, y=${event.y}")
 
-                        // 检测点击的tab区域（只在ACTION_DOWN时检测）
-                        var shouldExitOverlay = false
+                        // 检测点击的tab区域
+                        var isSearchTabTouch = false
                         if (event.action == MotionEvent.ACTION_DOWN) {
                             val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation)
                             if (bottomNavigation != null) {
@@ -17609,36 +17816,42 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 val tabWidth = bottomNavigation.width / 6
                                 val tabIndex = (relativeX / tabWidth).toInt()
 
-                                Log.d(TAG, "遮罩层检测到tab点击: tabIndex=$tabIndex, relativeX=$relativeX")
+                                Log.d(TAG, "遮罩层检测到tab触摸: tabIndex=$tabIndex, relativeX=$relativeX")
 
-                                // 如果点击的不是搜索tab，则准备退出遮罩区
-                                if (tabIndex != 1 && tabIndex >= 0 && tabIndex < 6) {
-                                    Log.d(TAG, "遮罩层检测到其他tab点击，将在底层处理后退出遮罩区")
-                                    shouldExitOverlay = true
+                                when (tabIndex) {
+                                    1 -> {
+                                        // 触摸搜索tab - 可能是单击或长按
+                                        isSearchTabTouch = true
+                                        Log.d(TAG, "遮罩层检测到搜索tab触摸，将穿透处理")
+                                    }
+                                    in 0..5 -> {
+                                        // 触摸其他tab - 将由手势检测器处理单击事件
+                                        Log.d(TAG, "遮罩层检测到其他tab触摸，将由手势检测器处理")
+                                    }
                                 }
                             }
+                        }
+
+                        // 如果是搜索tab的触摸，让事件直接穿透，不进行手势检测
+                        if (isSearchTabTouch) {
+                            Log.d(TAG, "搜索tab触摸，直接穿透到底层处理长按/单击")
+                            return@setOnTouchListener false // 直接穿透
                         }
 
                         // 让手势检测器处理手势，获取处理结果
                         val gestureHandled = gestureDetectorForOverlay?.onTouchEvent(event) ?: false
                         Log.d(TAG, "手势检测器处理结果: $gestureHandled")
 
-                        // 检查是否有手势被识别（包括长按）
-                        val anyGestureDetected = gestureHandled || isLongPressDetected || isDoubleTapDetected
-                        Log.d(TAG, "手势状态: gestureHandled=$gestureHandled, longPress=$isLongPressDetected, doubleTap=$isDoubleTapDetected")
+                        // 检查是否有手势被识别（双击，但不包括长按）
+                        // 长按事件需要穿透到搜索tab处理退出操作
+                        val anyGestureDetected = gestureHandled || isDoubleTapDetected
+                        Log.d(TAG, "手势状态: gestureHandled=$gestureHandled, longPress=$isLongPressDetected(穿透), doubleTap=$isDoubleTapDetected")
 
                         // 如果有手势被处理了，消费事件；否则穿透到底层
                         if (anyGestureDetected) {
                             Log.d(TAG, "手势被处理，消费事件")
                             true // 消费事件
                         } else {
-                            // 如果需要退出遮罩区，延迟处理以确保底层先接收到事件
-                            if (shouldExitOverlay) {
-                                handler.postDelayed({
-                                    deactivateSearchTabGestureOverlay()
-                                }, 50)
-                            }
-
                             Log.d(TAG, "手势未被处理，穿透事件")
                             false // 穿透到底层
                         }
@@ -17674,7 +17887,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "退出搜索tab手势遮罩区")
 
             // 显示退出提示
-            Toast.makeText(this, "搜索tab手势遮罩区已退出", Toast.LENGTH_SHORT).show()
+            showMaterialToast("👋 长按搜索tab退出遮罩层成功！")
 
             // 移除遮罩层
             searchTabGestureOverlay?.let { overlay ->
@@ -17694,6 +17907,41 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         } catch (e: Exception) {
             Log.e(TAG, "退出搜索tab手势遮罩区失败", e)
+        }
+    }
+
+    /**
+     * 显示手势操作说明
+     */
+    private fun showGestureInstructions() {
+        try {
+            val instructions = """
+                🎮 遮罩层手势操作说明：
+
+                📱 单击搜索tab → 激活多卡片系统
+                💬 单击对话tab → 退出遮罩层并进入对话页面
+                📋 单击任务tab → 退出遮罩层并进入任务页面
+                🎤 单击语音tab → 退出遮罩层并进入语音页面
+                📱 单击软件tab → 退出遮罩层并进入软件页面
+                ⚙️ 单击设置tab → 退出遮罩层并进入设置页面
+                ↔️ 左右滑动 → 切换网页页面
+                👆👆 双击遮罩层 → 关闭当前页面
+                🚪 长按搜索tab → 退出遮罩层
+
+                💡 提示：单击任意tab都可快速切换页面
+            """.trimIndent()
+
+            AlertDialog.Builder(this)
+                .setTitle("🎯 遮罩层已激活")
+                .setMessage(instructions)
+                .setPositiveButton("开始使用", null)
+                .setNegativeButton("退出遮罩层") { _, _ ->
+                    deactivateSearchTabGestureOverlay()
+                }
+                .show()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "显示手势说明失败", e)
         }
     }
 
@@ -18047,41 +18295,137 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 显示Material风格的Toast提示
+     * 执行AI搜索
      */
-    private fun showMaterialToast(message: String, color: Int) {
+    private fun performAISearch(query: String) {
+        try {
+            Log.d(TAG, "执行AI搜索: $query")
+
+            // 使用默认AI搜索引擎进行搜索
+            val aiSearchUrl = "https://www.perplexity.ai/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}"
+
+            // 获取当前WebView
+            val currentCard = gestureCardWebViewManager?.getCurrentCard() ?: mobileCardManager?.getCurrentCard()
+            if (currentCard?.webView != null) {
+                currentCard.webView.loadUrl(aiSearchUrl)
+                showMaterialToast("🤖 AI搜索: $query")
+            } else {
+                // 如果没有当前WebView，创建新的
+                createNewWebPage()
+                // 等待WebView创建完成后加载URL
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val newCard = gestureCardWebViewManager?.getCurrentCard() ?: mobileCardManager?.getCurrentCard()
+                    newCard?.webView?.loadUrl(aiSearchUrl)
+                }, 100)
+                showMaterialToast("🤖 新建AI搜索页面: $query")
+            }
+
+            // 清空搜索框
+            browserSearchInput.setText("")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "AI搜索失败", e)
+            showMaterialToast("❌ AI搜索失败，请重试")
+        }
+    }
+
+    /**
+     * 打开AI助手
+     */
+    private fun openAIAssistant() {
+        try {
+            Log.d(TAG, "打开AI助手")
+
+            // 切换到对话tab，激活AI助手功能
+            showChat()
+            showMaterialToast("🤖 AI助手已激活")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "打开AI助手失败", e)
+            showMaterialToast("❌ 无法打开AI助手")
+        }
+    }
+
+    /**
+     * 显示自定义样式的Toast提示 - 支持暗色/亮色模式，绿色边框，显示在页面正上方
+     */
+    private fun showMaterialToast(message: String, color: Int = android.graphics.Color.GREEN) {
         try {
             runOnUiThread {
+                // 检测当前主题模式
+                val isDarkMode = (resources.configuration.uiMode and
+                    android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                    android.content.res.Configuration.UI_MODE_NIGHT_YES
+
                 // 创建自定义Toast布局
-                val inflater = layoutInflater
-                val layout = inflater.inflate(android.R.layout.simple_list_item_1, null)
+                val layout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    setPadding(32, 20, 32, 20)
+                    background = GradientDrawable().apply {
+                        // 根据主题设置背景色
+                        val backgroundColor = if (isDarkMode) {
+                            android.graphics.Color.parseColor("#2D2D2D") // 暗色模式：深灰色背景
+                        } else {
+                            android.graphics.Color.parseColor("#FFFFFF") // 亮色模式：白色背景
+                        }
+                        setColor(backgroundColor)
+                        setStroke(6, android.graphics.Color.parseColor("#4CAF50")) // 绿色边框
+                        cornerRadius = 28f
+                    }
+                    elevation = 12f
+                }
 
-                val textView = layout.findViewById<TextView>(android.R.id.text1)
-                textView.text = message
-                textView.setTextColor(android.graphics.Color.WHITE)
-                textView.setBackgroundColor(color)
-                textView.setPadding(32, 16, 32, 16)
-                textView.gravity = android.view.Gravity.CENTER
+                // 添加图标
+                val icon = ImageView(this).apply {
+                    setImageResource(android.R.drawable.ic_dialog_info)
+                    setColorFilter(android.graphics.Color.parseColor("#4CAF50")) // 绿色图标
+                    layoutParams = LinearLayout.LayoutParams(56, 56).apply {
+                        setMargins(0, 0, 20, 0)
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                    }
+                }
 
-                // 设置圆角背景
-                val drawable = android.graphics.drawable.GradientDrawable()
-                drawable.setColor(color)
-                drawable.cornerRadius = 24f
-                textView.background = drawable
+                // 添加文本
+                val textView = TextView(this).apply {
+                    text = message
+                    // 根据主题设置文字颜色
+                    val textColor = if (isDarkMode) {
+                        android.graphics.Color.parseColor("#FFFFFF") // 暗色模式：白色文字
+                    } else {
+                        android.graphics.Color.parseColor("#2E7D32") // 亮色模式：深绿色文字
+                    }
+                    setTextColor(textColor)
+                    textSize = 16f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                    }
+                }
 
-                val toast = Toast(this)
-                toast.duration = Toast.LENGTH_SHORT
-                toast.view = layout
-                toast.setGravity(android.view.Gravity.CENTER, 0, 0)
+                layout.addView(icon)
+                layout.addView(textView)
+
+                // 创建并显示Toast - 显示在页面正上方
+                val toast = Toast(this).apply {
+                    view = layout
+                    duration = Toast.LENGTH_SHORT
+                    // 设置位置：页面正上方，距离顶部200px
+                    setGravity(android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL, 0, 200)
+                }
+
                 toast.show()
-
-                Log.d(TAG, "显示Material Toast: $message")
+                Log.d(TAG, "显示自定义Toast: $message (${if (isDarkMode) "暗色" else "亮色"}模式)")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "显示Material Toast失败", e)
+            Log.e(TAG, "显示自定义Toast失败", e)
             // 回退到普通Toast
             runOnUiThread {
-                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).apply {
+                    setGravity(android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL, 0, 200)
+                }.show()
             }
         }
     }

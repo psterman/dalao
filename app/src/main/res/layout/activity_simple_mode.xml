@@ -1865,21 +1865,57 @@
                     android:contentDescription="返回"
                     app:tint="@color/simple_mode_header_icon_light" />
 
-                <!-- 搜索框 -->
-                <EditText
-                    android:id="@+id/browser_search_input"
+                <!-- 搜索框容器 -->
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="40dp"
                     android:layout_weight="1"
                     android:layout_marginHorizontal="12dp"
                     android:background="@drawable/search_input_background"
-                    android:hint="搜索或输入网址"
-                    android:paddingHorizontal="16dp"
-                    android:textSize="16sp"
-                    android:textColor="@color/simple_mode_text_primary_light"
-                    android:textColorHint="@color/simple_mode_text_secondary_light"
-                    android:imeOptions="actionSearch"
-                    android:inputType="textUri" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <!-- 搜索输入框 -->
+                    <EditText
+                        android:id="@+id/browser_search_input"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@android:color/transparent"
+                        android:hint="搜索或输入网址"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="8dp"
+                        android:textSize="16sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:textColorHint="@color/simple_mode_text_secondary_light"
+                        android:imeOptions="actionSearch"
+                        android:inputType="textUri"
+                        android:gravity="center_vertical" />
+
+                    <!-- 清空按钮 -->
+                    <ImageButton
+                        android:id="@+id/browser_btn_clear"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginEnd="4dp"
+                        android:src="@drawable/ic_clear"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="清空"
+                        android:visibility="gone"
+                        app:tint="@color/simple_mode_text_secondary_light" />
+
+                    <!-- 机器人按钮 -->
+                    <ImageButton
+                        android:id="@+id/browser_btn_ai"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_marginEnd="8dp"
+                        android:src="@drawable/ic_smart_toy"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="AI助手"
+                        app:tint="@color/simple_mode_accent_light" />
+
+                </LinearLayout>
 
                 <!-- 菜单按钮 -->
                 <ImageButton
@@ -2109,6 +2145,81 @@
                                     android:layout_height="wrap_content"
                                     android:orientation="vertical">
 
+                                    <!-- 遮罩层激活 -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="12dp">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="🔍 长按搜索tab"
+                                            android:textSize="16sp"
+                                            android:textColor="@color/material_grey_800" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="激活/退出遮罩层"
+                                            android:textSize="14sp"
+                                            android:textColor="@color/simple_mode_text_secondary_light" />
+
+                                    </LinearLayout>
+
+                                    <!-- 遮罩层tab切换 -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="12dp">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="📱 单击其他tab"
+                                            android:textSize="16sp"
+                                            android:textColor="@color/material_grey_800" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="快速切换页面"
+                                            android:textSize="14sp"
+                                            android:textColor="@color/simple_mode_text_secondary_light" />
+
+                                    </LinearLayout>
+
+                                    <!-- 多卡片激活 -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="12dp">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="🔍 单击搜索tab"
+                                            android:textSize="16sp"
+                                            android:textColor="@color/material_grey_800" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="激活多卡片系统"
+                                            android:textSize="14sp"
+                                            android:textColor="@color/simple_mode_text_secondary_light" />
+
+                                    </LinearLayout>
+
                                     <!-- 左右滑动 -->
                                     <LinearLayout
                                         android:layout_width="match_parent"
@@ -2128,13 +2239,38 @@
                                         <TextView
                                             android:layout_width="wrap_content"
                                             android:layout_height="wrap_content"
-                                            android:text="切换卡片"
+                                            android:text="切换网页页面"
                                             android:textSize="14sp"
                                             android:textColor="@color/simple_mode_text_secondary_light" />
 
                                     </LinearLayout>
 
-                                    <!-- 上滑 -->
+                                    <!-- 双击关闭 -->
+                                    <LinearLayout
+                                        android:layout_width="match_parent"
+                                        android:layout_height="wrap_content"
+                                        android:orientation="horizontal"
+                                        android:gravity="center_vertical"
+                                        android:layout_marginBottom="12dp">
+
+                                        <TextView
+                                            android:layout_width="0dp"
+                                            android:layout_height="wrap_content"
+                                            android:layout_weight="1"
+                                            android:text="👆👆 双击遮罩层"
+                                            android:textSize="16sp"
+                                            android:textColor="@color/material_grey_800" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:text="关闭当前页面"
+                                            android:textSize="14sp"
+                                            android:textColor="@color/simple_mode_text_secondary_light" />
+
+                                    </LinearLayout>
+
+                                    <!-- 上滑预览 -->
                                     <LinearLayout
                                         android:layout_width="match_parent"
                                         android:layout_height="wrap_content"
@@ -2159,32 +2295,7 @@
 
                                     </LinearLayout>
 
-                                    <!-- 下滑 -->
-                                    <LinearLayout
-                                        android:layout_width="match_parent"
-                                        android:layout_height="wrap_content"
-                                        android:orientation="horizontal"
-                                        android:gravity="center_vertical"
-                                        android:layout_marginBottom="12dp">
-
-                                        <TextView
-                                            android:layout_width="0dp"
-                                            android:layout_height="wrap_content"
-                                            android:layout_weight="1"
-                                            android:text="↓ 下滑"
-                                            android:textSize="16sp"
-                                            android:textColor="@color/material_grey_800" />
-
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:text="退出预览模式"
-                                            android:textSize="14sp"
-                                            android:textColor="@color/simple_mode_text_secondary_light" />
-
-                                    </LinearLayout>
-
-                                    <!-- 双击 -->
+                                    <!-- 双击操作栏 -->
                                     <LinearLayout
                                         android:layout_width="match_parent"
                                         android:layout_height="wrap_content"
@@ -2196,7 +2307,7 @@
                                             android:layout_width="0dp"
                                             android:layout_height="wrap_content"
                                             android:layout_weight="1"
-                                            android:text="双击"
+                                            android:text="双击网页"
                                             android:textSize="16sp"
                                             android:textColor="@color/material_grey_800" />
 
