@@ -12,6 +12,9 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.voice.VoiceInputManager
@@ -323,6 +326,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserGestureOverlay: FrameLayout
     private lateinit var browserGestureHintClose: MaterialButton
     private lateinit var cardPreviewOverlay: CardPreviewOverlay
+
+    // 搜索tab手势遮罩区相关
+    private var searchTabGestureOverlay: FrameLayout? = null
+    private var isSearchTabGestureOverlayActive = false
+    private var gestureDetectorForOverlay: GestureDetectorCompat? = null
+
+    // 手势状态跟踪
+    private var isLongPressDetected = false
+    private var isDoubleTapDetected = false
 
     // 浏览器功能相关
     private lateinit var browserGestureDetector: GestureDetectorCompat
@@ -2915,15 +2927,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setOnClickListener {
                 deactivateStackedCardPreview()
                 showChat()
+                // 退出搜索tab手势遮罩区
+                deactivateSearchTabGestureOverlay()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
         // 搜索tab (第二位)
         findViewById<LinearLayout>(R.id.tab_search)?.apply {
-            setOnClickListener { 
+            setOnClickListener {
                 deactivateStackedCardPreview()
-                showBrowser() 
+                showBrowser()
+                // 激活搜索tab手势遮罩区
+                activateSearchTabGestureOverlay()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -2933,6 +2949,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setOnClickListener {
                 deactivateStackedCardPreview()
                 showTaskSelection()
+                // 退出搜索tab手势遮罩区
+                deactivateSearchTabGestureOverlay()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -2942,6 +2960,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setOnClickListener {
                 deactivateStackedCardPreview()
                 showVoice()
+                // 退出搜索tab手势遮罩区
+                deactivateSearchTabGestureOverlay()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -2951,6 +2971,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setOnClickListener {
                 deactivateStackedCardPreview()
                 showAppSearch()
+                // 退出搜索tab手势遮罩区
+                deactivateSearchTabGestureOverlay()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -2960,6 +2982,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setOnClickListener {
                 deactivateStackedCardPreview()
                 showSettings()
+                // 退出搜索tab手势遮罩区
+                deactivateSearchTabGestureOverlay()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -4210,6 +4234,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "清理应用搜索适配器资源失败", e)
         }
+
+        // 清理搜索tab手势遮罩区
+        deactivateSearchTabGestureOverlay()
 
         // 移除所有延迟任务
         handler.removeCallbacksAndMessages(null)
@@ -15538,6 +15565,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun setupTabGestureDetection(tabView: LinearLayout, gestureDetector: GestureDetector) {
         tabView.setOnTouchListener { view, event ->
+            // 如果搜索tab手势遮罩区激活，且这是搜索tab，则优先处理原有的多卡片激活机制
+            val isSearchTab = view.id == R.id.tab_search
+            val isCurrentlyInSearchTab = getCurrentTabIndex() == 1
+
             // 检查是否有悬浮卡片预览正在显示
             val isStackedPreviewVisible = stackedCardPreview?.visibility == View.VISIBLE
 
@@ -15575,9 +15606,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
 
             // 只有当前已经在搜索tab且点击的是搜索tab时，才显示层叠卡片预览效果
-            val isSearchTab = view.id == R.id.tab_search
-            val isCurrentlyInSearchTab = getCurrentTabIndex() == 1
-            
             if (isSearchTab && isCurrentlyInSearchTab) {
                 // 搜索tab - 显示层叠卡片预览效果
                 when (event.action) {
@@ -17455,13 +17483,775 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "刷新当前标签页显示失败", e)
         }
     }
-    
 
-    
+    // ==================== 搜索tab手势遮罩区功能 ====================
 
-    
+    /**
+     * 激活搜索tab手势遮罩区
+     * 在整个tab区域创建一个模糊遮罩层，支持手势操作和穿透点击
+     */
+    private fun activateSearchTabGestureOverlay() {
+        try {
+            // 如果已经激活，直接返回
+            if (isSearchTabGestureOverlayActive) {
+                Log.d(TAG, "搜索tab手势遮罩区已激活，跳过重复激活")
+                return
+            }
 
-    
+            Log.d(TAG, "激活搜索tab手势遮罩区")
 
+            // 显示激活提示
+            Toast.makeText(this, "搜索tab手势遮罩区已激活", Toast.LENGTH_SHORT).show()
+
+            // 获取底部导航栏容器
+            val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation)
+            if (bottomNavigation == null) {
+                Log.e(TAG, "底部导航栏未找到，无法创建手势遮罩区")
+                return
+            }
+
+            // 创建手势检测器 - 网页浏览手势操作
+            // 创建手势监听器
+            val gestureListener = object : GestureDetector.SimpleOnGestureListener(), GestureDetector.OnDoubleTapListener {
+                override fun onDown(e: MotionEvent): Boolean {
+                    // 重置手势状态
+                    isLongPressDetected = false
+                    isDoubleTapDetected = false
+                    Log.d(TAG, "手势开始: x=${e.x}, y=${e.y}")
+                    return true // 返回true表示我们想要处理后续事件
+                }
+
+                override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+                    Log.d(TAG, "检测到滑动手势: velocityX=$velocityX, velocityY=$velocityY")
+                    // 如果已经检测到长按或双击，不处理滑动
+                    if (isLongPressDetected || isDoubleTapDetected) {
+                        Log.d(TAG, "已检测到其他手势，跳过滑动处理")
+                        return false
+                    }
+                    // 网页浏览手势操作
+                    val handled = handleWebBrowsingGesture(e1, e2, velocityX, velocityY)
+                    Log.d(TAG, "滑动手势处理结果: $handled")
+                    return handled // 只有成功处理时才消费事件
+                }
+
+                override fun onLongPress(e: MotionEvent) {
+                    Log.d(TAG, "检测到长按手势")
+                    isLongPressDetected = true
+                    // 长按手势 - 刷新页面
+                    handleLongPressGesture(e)
+                    // 注意：onLongPress 没有返回值，但会被手势检测器记录
+                }
+
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    Log.d(TAG, "检测到双击手势")
+                    isDoubleTapDetected = true
+                    // 双击手势 - 关闭当前页面
+                    handleDoubleTapGesture(e)
+                    return true // 消费双击事件
+                }
+
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    // 单击确认 - 穿透处理
+                    Log.d(TAG, "遮罩区单击确认: x=${e.x}, y=${e.y}")
+                    return false // 不消费事件，保持穿透
+                }
+
+                // DoubleTapListener 方法
+                override fun onDoubleTapEvent(e: MotionEvent): Boolean {
+                    Log.d(TAG, "双击事件: action=${e.action}")
+                    return false
+                }
+
+                override fun onSingleTapUp(e: MotionEvent): Boolean {
+                    Log.d(TAG, "单击抬起: x=${e.x}, y=${e.y}")
+                    return false // 不消费，让双击检测器处理
+                }
+            }
+
+            gestureDetectorForOverlay = GestureDetectorCompat(this, gestureListener)
+            // 启用双击检测
+            gestureDetectorForOverlay?.setOnDoubleTapListener(gestureListener)
+            // 确保长按检测启用
+            gestureDetectorForOverlay?.setIsLongpressEnabled(true)
+            Log.d(TAG, "手势检测器配置完成，双击和长按检测已启用")
+
+            // 创建手势遮罩层
+            searchTabGestureOverlay = FrameLayout(this).apply {
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    bottomNavigation.height
+                ).apply {
+                    gravity = android.view.Gravity.BOTTOM
+                }
+
+                // 设置模糊背景和绿色边框
+                background = createOverlayBackground()
+
+                // 关键：设置为不可点击，但可以接收触摸事件用于检测
+                isClickable = false
+                isFocusable = false
+                isFocusableInTouchMode = false
+
+                // 设置触摸监听器 - 处理手势检测和穿透
+                setOnTouchListener { view, event ->
+                    try {
+                        // 记录遮罩层接收到的触摸事件
+                        Log.d(TAG, "遮罩层接收到触摸事件: action=${event.action}, x=${event.x}, y=${event.y}")
+
+                        // 检测点击的tab区域（只在ACTION_DOWN时检测）
+                        var shouldExitOverlay = false
+                        if (event.action == MotionEvent.ACTION_DOWN) {
+                            val bottomNavigation = findViewById<LinearLayout>(R.id.bottom_navigation)
+                            if (bottomNavigation != null) {
+                                val location = IntArray(2)
+                                bottomNavigation.getLocationOnScreen(location)
+                                val relativeX = event.rawX - location[0]
+                                val tabWidth = bottomNavigation.width / 6
+                                val tabIndex = (relativeX / tabWidth).toInt()
+
+                                Log.d(TAG, "遮罩层检测到tab点击: tabIndex=$tabIndex, relativeX=$relativeX")
+
+                                // 如果点击的不是搜索tab，则准备退出遮罩区
+                                if (tabIndex != 1 && tabIndex >= 0 && tabIndex < 6) {
+                                    Log.d(TAG, "遮罩层检测到其他tab点击，将在底层处理后退出遮罩区")
+                                    shouldExitOverlay = true
+                                }
+                            }
+                        }
+
+                        // 让手势检测器处理手势，获取处理结果
+                        val gestureHandled = gestureDetectorForOverlay?.onTouchEvent(event) ?: false
+                        Log.d(TAG, "手势检测器处理结果: $gestureHandled")
+
+                        // 检查是否有手势被识别（包括长按）
+                        val anyGestureDetected = gestureHandled || isLongPressDetected || isDoubleTapDetected
+                        Log.d(TAG, "手势状态: gestureHandled=$gestureHandled, longPress=$isLongPressDetected, doubleTap=$isDoubleTapDetected")
+
+                        // 如果有手势被处理了，消费事件；否则穿透到底层
+                        if (anyGestureDetected) {
+                            Log.d(TAG, "手势被处理，消费事件")
+                            true // 消费事件
+                        } else {
+                            // 如果需要退出遮罩区，延迟处理以确保底层先接收到事件
+                            if (shouldExitOverlay) {
+                                handler.postDelayed({
+                                    deactivateSearchTabGestureOverlay()
+                                }, 50)
+                            }
+
+                            Log.d(TAG, "手势未被处理，穿透事件")
+                            false // 穿透到底层
+                        }
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "遮罩层触摸处理失败", e)
+                        false
+                    }
+                }
+            }
+
+            // 将遮罩层添加到根布局
+            val rootLayout = findViewById<FrameLayout>(android.R.id.content)
+            rootLayout.addView(searchTabGestureOverlay)
+
+            isSearchTabGestureOverlayActive = true
+            Log.d(TAG, "搜索tab手势遮罩区激活成功")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "激活搜索tab手势遮罩区失败", e)
+        }
+    }
+
+    /**
+     * 退出搜索tab手势遮罩区
+     */
+    private fun deactivateSearchTabGestureOverlay() {
+        try {
+            if (!isSearchTabGestureOverlayActive) {
+                return
+            }
+
+            Log.d(TAG, "退出搜索tab手势遮罩区")
+
+            // 显示退出提示
+            Toast.makeText(this, "搜索tab手势遮罩区已退出", Toast.LENGTH_SHORT).show()
+
+            // 移除遮罩层
+            searchTabGestureOverlay?.let { overlay ->
+                val rootLayout = findViewById<FrameLayout>(android.R.id.content)
+                rootLayout.removeView(overlay)
+            }
+
+            searchTabGestureOverlay = null
+            gestureDetectorForOverlay = null
+            isSearchTabGestureOverlayActive = false
+
+            // 重置手势状态
+            isLongPressDetected = false
+            isDoubleTapDetected = false
+
+            Log.d(TAG, "搜索tab手势遮罩区已退出")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "退出搜索tab手势遮罩区失败", e)
+        }
+    }
+
+    /**
+     * 处理搜索tab手势遮罩区的触摸事件（简化版本，主要逻辑已移到触摸监听器中）
+     */
+    private fun handleSearchTabGestureOverlayTouch(event: MotionEvent) {
+        // 这个方法现在主要用于兼容性，实际处理逻辑在触摸监听器中
+        Log.d(TAG, "handleSearchTabGestureOverlayTouch called: x=${event.x}, y=${event.y}")
+    }
+
+    /**
+     * 处理网页浏览手势操作
+     * @return true 如果手势被成功处理，false 如果手势未被识别
+     */
+    private fun handleWebBrowsingGesture(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+        try {
+            if (e1 == null) return false
+
+            val deltaX = e2.x - e1.x
+            val deltaY = e2.y - e1.y
+            val absVelocityX = kotlin.math.abs(velocityX)
+            val absVelocityY = kotlin.math.abs(velocityY)
+            val absDeltaX = kotlin.math.abs(deltaX)
+            val absDeltaY = kotlin.math.abs(deltaY)
+
+            Log.d(TAG, "网页浏览手势分析: deltaX=$deltaX, deltaY=$deltaY, velocityX=$velocityX, velocityY=$velocityY")
+            Log.d(TAG, "速度分析: absVelocityX=$absVelocityX, absVelocityY=$absVelocityY")
+            Log.d(TAG, "距离分析: absDeltaX=$absDeltaX, absDeltaY=$absDeltaY")
+
+            // 判断手势方向和速度（优化识别逻辑）
+            when {
+                // 水平滑动 - 页面卡片切换
+                // 条件：水平距离大于垂直距离 且 (水平速度大于阈值 或 水平距离足够大)
+                absDeltaX > absDeltaY && (absVelocityX > 300 || absDeltaX > 80) -> {
+                    Log.d(TAG, "检测到水平滑动手势")
+                    if (deltaX > 30) { // 降低距离要求
+                        // 向右滑动 - 切换到下一个页面卡片
+                        Log.d(TAG, "向右滑动")
+                        handleNextPageCardGesture()
+                        return true
+                    } else if (deltaX < -30) {
+                        // 向左滑动 - 切换到上一个页面卡片
+                        Log.d(TAG, "向左滑动")
+                        handlePreviousPageCardGesture()
+                        return true
+                    } else {
+                        Log.d(TAG, "滑动距离不足: deltaX=$deltaX")
+                        return false
+                    }
+                }
+                else -> {
+                    Log.d(TAG, "未识别的手势或不符合水平滑动条件")
+                    return false
+                }
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理网页浏览手势失败", e)
+            return false
+        }
+    }
+
+    /**
+     * 处理长按手势 - 刷新当前页面
+     */
+    private fun handleLongPressGesture(e: MotionEvent) {
+        try {
+            Log.d(TAG, "遮罩区长按手势 - 刷新当前页面")
+
+            // 刷新当前页面
+            refreshCurrentWebPage()
+
+            // 显示Material风格动效
+            showGestureAnimation(e.x, e.y, "刷新", R.drawable.ic_refresh, android.graphics.Color.GREEN)
+
+            // Toast提示
+            showMaterialToast("页面已刷新", android.graphics.Color.GREEN)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理长按手势失败", e)
+        }
+    }
+
+    /**
+     * 处理双击手势 - 关闭当前页面
+     */
+    private fun handleDoubleTapGesture(e: MotionEvent) {
+        try {
+            Log.d(TAG, "遮罩区双击手势 - 关闭当前页面")
+
+            // 关闭当前页面
+            closeCurrentWebPage()
+
+            // 显示Material风格动效
+            showGestureAnimation(e.x, e.y, "关闭", R.drawable.ic_close, android.graphics.Color.GREEN)
+
+            // Toast提示
+            showMaterialToast("页面已关闭", android.graphics.Color.GREEN)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理双击手势失败", e)
+        }
+    }
+
+    /**
+     * 处理下一个页面卡片手势
+     */
+    private fun handleNextPageCardGesture() {
+        try {
+            var handled = false
+
+            // 优先检查MobileCardManager
+            val mobileCards = mobileCardManager?.getAllCards()
+            if (!mobileCards.isNullOrEmpty() && mobileCards.size > 1) {
+                val currentCard = mobileCardManager?.getCurrentCard()
+                val currentIndex = mobileCards.indexOf(currentCard)
+                val nextIndex = if (currentIndex >= 0 && currentIndex < mobileCards.size - 1) {
+                    currentIndex + 1
+                } else {
+                    0 // 循环到第一个
+                }
+
+                mobileCardManager?.switchToCard(nextIndex)
+                val nextCard = mobileCards[nextIndex]
+                showMaterialToast("切换到: ${nextCard.title ?: "下一页"}", android.graphics.Color.GREEN)
+                // 显示滑动动画效果
+                showSwipeAnimation(true) // true表示向右滑动
+                handled = true
+                Log.d(TAG, "手势遮罩区：手机卡片切换到下一个页面")
+            }
+
+            // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
+            if (!handled) {
+                val gestureCards = gestureCardWebViewManager?.getAllCards()
+                if (!gestureCards.isNullOrEmpty() && gestureCards.size > 1) {
+                    val currentCard = gestureCardWebViewManager?.getCurrentCard()
+                    val currentIndex = gestureCards.indexOf(currentCard)
+                    val nextIndex = if (currentIndex >= 0 && currentIndex < gestureCards.size - 1) {
+                        currentIndex + 1
+                    } else {
+                        0 // 循环到第一个
+                    }
+
+                    gestureCardWebViewManager?.switchToCard(nextIndex)
+                    val nextCard = gestureCards[nextIndex]
+                    showMaterialToast("切换到: ${nextCard.title ?: "下一页"}", android.graphics.Color.GREEN)
+                    // 显示滑动动画效果
+                    showSwipeAnimation(true) // true表示向右滑动
+                    handled = true
+                    Log.d(TAG, "手势遮罩区：手势卡片切换到下一个页面")
+                }
+            }
+
+            if (!handled) {
+                showMaterialToast("没有其他页面", android.graphics.Color.GREEN)
+                Log.d(TAG, "手势遮罩区：没有其他页面可切换")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理下一个页面卡片手势失败", e)
+        }
+    }
+
+    /**
+     * 处理上一个页面卡片手势
+     */
+    private fun handlePreviousPageCardGesture() {
+        try {
+            var handled = false
+
+            // 优先检查MobileCardManager
+            val mobileCards = mobileCardManager?.getAllCards()
+            if (!mobileCards.isNullOrEmpty() && mobileCards.size > 1) {
+                val currentCard = mobileCardManager?.getCurrentCard()
+                val currentIndex = mobileCards.indexOf(currentCard)
+                val prevIndex = if (currentIndex > 0) {
+                    currentIndex - 1
+                } else {
+                    mobileCards.size - 1 // 循环到最后一个
+                }
+
+                mobileCardManager?.switchToCard(prevIndex)
+                val prevCard = mobileCards[prevIndex]
+                showMaterialToast("切换到: ${prevCard.title ?: "上一页"}", android.graphics.Color.GREEN)
+                // 显示滑动动画效果
+                showSwipeAnimation(false) // false表示向左滑动
+                handled = true
+                Log.d(TAG, "手势遮罩区：手机卡片切换到上一个页面")
+            }
+
+            // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
+            if (!handled) {
+                val gestureCards = gestureCardWebViewManager?.getAllCards()
+                if (!gestureCards.isNullOrEmpty() && gestureCards.size > 1) {
+                    val currentCard = gestureCardWebViewManager?.getCurrentCard()
+                    val currentIndex = gestureCards.indexOf(currentCard)
+                    val prevIndex = if (currentIndex > 0) {
+                        currentIndex - 1
+                    } else {
+                        gestureCards.size - 1 // 循环到最后一个
+                    }
+
+                    gestureCardWebViewManager?.switchToCard(prevIndex)
+                    val prevCard = gestureCards[prevIndex]
+                    showMaterialToast("切换到: ${prevCard.title ?: "上一页"}", android.graphics.Color.GREEN)
+                    // 显示滑动动画效果
+                    showSwipeAnimation(false) // false表示向左滑动
+                    handled = true
+                    Log.d(TAG, "手势遮罩区：手势卡片切换到上一个页面")
+                }
+            }
+
+            if (!handled) {
+                showMaterialToast("没有其他页面", android.graphics.Color.GREEN)
+                Log.d(TAG, "手势遮罩区：没有其他页面可切换")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理上一个页面卡片手势失败", e)
+        }
+    }
+
+    /**
+     * 关闭当前网页页面
+     */
+    private fun closeCurrentWebPage() {
+        try {
+            var handled = false
+
+            // 优先检查MobileCardManager
+            val mobileCards = mobileCardManager?.getAllCards()
+            if (!mobileCards.isNullOrEmpty()) {
+                val currentCard = mobileCardManager?.getCurrentCard()
+                val currentIndex = mobileCards.indexOf(currentCard)
+                if (currentIndex >= 0) {
+                    mobileCardManager?.removeCard(currentIndex)
+                    handled = true
+                    Log.d(TAG, "手势遮罩区：关闭手机卡片页面")
+                }
+            }
+
+            // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
+            if (!handled) {
+                val gestureCards = gestureCardWebViewManager?.getAllCards()
+                if (!gestureCards.isNullOrEmpty()) {
+                    val currentCard = gestureCardWebViewManager?.getCurrentCard()
+                    val currentIndex = gestureCards.indexOf(currentCard)
+                    if (currentIndex >= 0) {
+                        gestureCardWebViewManager?.removeCard(currentIndex)
+                        handled = true
+                        Log.d(TAG, "手势遮罩区：关闭手势卡片页面")
+                    }
+                }
+            }
+
+            if (!handled) {
+                showMaterialToast("没有可关闭的页面", android.graphics.Color.GREEN)
+                Log.d(TAG, "手势遮罩区：没有可关闭的页面")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭当前网页页面失败", e)
+        }
+    }
+
+
+
+    /**
+     * 刷新当前网页
+     */
+    private fun refreshCurrentWebPage() {
+        try {
+            var handled = false
+
+            // 优先检查MobileCardManager
+            val mobileCurrentCard = mobileCardManager?.getCurrentCard()
+            if (mobileCurrentCard?.webView != null) {
+                mobileCurrentCard.webView.reload()
+                handled = true
+                Log.d(TAG, "手势遮罩区：手机卡片页面已刷新")
+            }
+
+            // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
+            if (!handled) {
+                val gestureCurrentCard = gestureCardWebViewManager?.getCurrentCard()
+                if (gestureCurrentCard?.webView != null) {
+                    gestureCurrentCard.webView.reload()
+                    handled = true
+                    Log.d(TAG, "手势遮罩区：手势卡片页面已刷新")
+                }
+            }
+
+            if (!handled) {
+                showMaterialToast("没有可刷新的页面", android.graphics.Color.GREEN)
+                Log.d(TAG, "手势遮罩区：没有可刷新的页面")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新当前网页失败", e)
+        }
+    }
+
+    /**
+     * 创建新网页（一次只能创建一个）
+     */
+    private fun createNewWebPage() {
+        try {
+            var created = false
+
+            // 检查是否已经有多个页面，如果有则不创建新页面
+            val mobileCards = mobileCardManager?.getAllCards()
+            val gestureCards = gestureCardWebViewManager?.getAllCards()
+
+            val totalCards = (mobileCards?.size ?: 0) + (gestureCards?.size ?: 0)
+            if (totalCards >= 5) { // 限制最多5个页面
+                showMaterialToast("页面数量已达上限", android.graphics.Color.GREEN)
+                Log.d(TAG, "页面数量已达上限，无法创建新页面")
+                return
+            }
+
+            // 优先使用MobileCardManager
+            if (mobileCardManager != null) {
+                val newCard = mobileCardManager?.addNewCard("about:blank")
+                if (newCard != null) {
+                    created = true
+                    showMaterialToast("已打开新页面", android.graphics.Color.GREEN)
+                    Log.d(TAG, "使用MobileCardManager创建新页面")
+                }
+            }
+
+            // 如果MobileCardManager不可用，使用GestureCardWebViewManager
+            if (!created && gestureCardWebViewManager != null) {
+                val newCard = gestureCardWebViewManager?.addNewCard("about:blank")
+                if (newCard != null) {
+                    created = true
+                    showMaterialToast("已打开新页面", android.graphics.Color.GREEN)
+                    Log.d(TAG, "使用GestureCardWebViewManager创建新页面")
+                }
+            }
+
+            if (!created) {
+                showMaterialToast("无法创建新页面", android.graphics.Color.GREEN)
+                Log.w(TAG, "创建新页面失败")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "创建新网页失败", e)
+            showMaterialToast("创建页面失败", android.graphics.Color.GREEN)
+        }
+    }
+
+    /**
+     * 显示Material风格的Toast提示
+     */
+    private fun showMaterialToast(message: String, color: Int) {
+        try {
+            runOnUiThread {
+                // 创建自定义Toast布局
+                val inflater = layoutInflater
+                val layout = inflater.inflate(android.R.layout.simple_list_item_1, null)
+
+                val textView = layout.findViewById<TextView>(android.R.id.text1)
+                textView.text = message
+                textView.setTextColor(android.graphics.Color.WHITE)
+                textView.setBackgroundColor(color)
+                textView.setPadding(32, 16, 32, 16)
+                textView.gravity = android.view.Gravity.CENTER
+
+                // 设置圆角背景
+                val drawable = android.graphics.drawable.GradientDrawable()
+                drawable.setColor(color)
+                drawable.cornerRadius = 24f
+                textView.background = drawable
+
+                val toast = Toast(this)
+                toast.duration = Toast.LENGTH_SHORT
+                toast.view = layout
+                toast.setGravity(android.view.Gravity.CENTER, 0, 0)
+                toast.show()
+
+                Log.d(TAG, "显示Material Toast: $message")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示Material Toast失败", e)
+            // 回退到普通Toast
+            runOnUiThread {
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * 显示手势动画效果 - Material Design风格
+     */
+    private fun showGestureAnimation(x: Float, y: Float, actionText: String, iconRes: Int, color: Int) {
+        try {
+            runOnUiThread {
+                // 创建动画容器
+                val animationContainer = FrameLayout(this)
+
+                // 创建背景圆圈
+                val backgroundCircle = android.view.View(this)
+                val circleDrawable = android.graphics.drawable.GradientDrawable()
+                circleDrawable.shape = android.graphics.drawable.GradientDrawable.OVAL
+                circleDrawable.setColor(android.graphics.Color.argb(80, 0, 255, 0)) // 半透明绿色
+                backgroundCircle.background = circleDrawable
+
+                // 创建图标视图
+                val iconView = ImageView(this)
+                iconView.setImageResource(android.R.drawable.ic_menu_rotate) // 使用系统图标作为占位符
+                iconView.setColorFilter(color)
+
+                // 设置布局参数
+                val circleSize = 120
+                val iconSize = 48
+
+                val circleParams = FrameLayout.LayoutParams(circleSize, circleSize)
+                circleParams.gravity = android.view.Gravity.CENTER
+                backgroundCircle.layoutParams = circleParams
+
+                val iconParams = FrameLayout.LayoutParams(iconSize, iconSize)
+                iconParams.gravity = android.view.Gravity.CENTER
+                iconView.layoutParams = iconParams
+
+                // 添加视图到容器
+                animationContainer.addView(backgroundCircle)
+                animationContainer.addView(iconView)
+
+                // 设置容器位置
+                val containerParams = FrameLayout.LayoutParams(circleSize, circleSize)
+                animationContainer.layoutParams = containerParams
+                animationContainer.x = x - circleSize / 2
+                animationContainer.y = y - circleSize / 2
+
+                // 设置初始状态
+                animationContainer.alpha = 0f
+                animationContainer.scaleX = 0.3f
+                animationContainer.scaleY = 0.3f
+
+                // 添加到遮罩层
+                searchTabGestureOverlay?.addView(animationContainer)
+
+                // Material Design风格动画
+                // 第一阶段：快速放大并显示
+                animationContainer.animate()
+                    .alpha(1f)
+                    .scaleX(1.1f)
+                    .scaleY(1.1f)
+                    .setDuration(150)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .withEndAction {
+                        // 第二阶段：轻微回弹
+                        animationContainer.animate()
+                            .scaleX(1.0f)
+                            .scaleY(1.0f)
+                            .setDuration(100)
+                            .setInterpolator(android.view.animation.OvershootInterpolator())
+                            .withEndAction {
+                                // 第三阶段：保持一段时间后淡出
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    animationContainer.animate()
+                                        .alpha(0f)
+                                        .scaleX(0.8f)
+                                        .scaleY(0.8f)
+                                        .setDuration(200)
+                                        .setInterpolator(android.view.animation.AccelerateInterpolator())
+                                        .withEndAction {
+                                            searchTabGestureOverlay?.removeView(animationContainer)
+                                        }
+                                        .start()
+                                }, 500) // 保持500ms
+                            }
+                            .start()
+                    }
+                    .start()
+
+                Log.d(TAG, "显示Material风格手势动画: $actionText")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示手势动画失败", e)
+        }
+    }
+
+    /**
+     * 显示滑动动画效果 - Material Design风格
+     */
+    private fun showSwipeAnimation(isRightSwipe: Boolean) {
+        try {
+            runOnUiThread {
+                val overlay = searchTabGestureOverlay ?: return@runOnUiThread
+
+                // 创建滑动指示器
+                val swipeIndicator = android.view.View(this)
+                val indicatorDrawable = android.graphics.drawable.GradientDrawable()
+                indicatorDrawable.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                indicatorDrawable.setColor(android.graphics.Color.argb(120, 0, 255, 0)) // 半透明绿色
+                indicatorDrawable.cornerRadius = 8f
+                swipeIndicator.background = indicatorDrawable
+
+                // 设置指示器大小和位置
+                val indicatorWidth = 100
+                val indicatorHeight = 8
+                val layoutParams = FrameLayout.LayoutParams(indicatorWidth, indicatorHeight)
+                layoutParams.gravity = android.view.Gravity.CENTER
+                swipeIndicator.layoutParams = layoutParams
+
+                // 设置初始位置
+                val centerX = overlay.width / 2f
+                val centerY = overlay.height / 2f
+                val startOffset = if (isRightSwipe) -50f else 50f
+
+                swipeIndicator.x = centerX + startOffset - indicatorWidth / 2
+                swipeIndicator.y = centerY - indicatorHeight / 2
+                swipeIndicator.alpha = 0f
+
+                // 添加到遮罩层
+                overlay.addView(swipeIndicator)
+
+                // 执行滑动动画
+                val endOffset = if (isRightSwipe) 50f else -50f
+                swipeIndicator.animate()
+                    .alpha(1f)
+                    .setDuration(100)
+                    .withEndAction {
+                        swipeIndicator.animate()
+                            .translationX(endOffset)
+                            .setDuration(300)
+                            .setInterpolator(android.view.animation.DecelerateInterpolator())
+                            .withEndAction {
+                                swipeIndicator.animate()
+                                    .alpha(0f)
+                                    .setDuration(200)
+                                    .withEndAction {
+                                        overlay.removeView(swipeIndicator)
+                                    }
+                                    .start()
+                            }
+                            .start()
+                    }
+                    .start()
+
+                Log.d(TAG, "显示滑动动画: ${if (isRightSwipe) "向右" else "向左"}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示滑动动画失败", e)
+        }
+    }
+
+    /**
+     * 创建遮罩层背景（模糊效果 + 绿色边框）
+     */
+    private fun createOverlayBackground(): android.graphics.drawable.Drawable {
+        return android.graphics.drawable.GradientDrawable().apply {
+            setColor(android.graphics.Color.argb(120, 255, 255, 255)) // 半透明白色模糊效果
+            setStroke(4, android.graphics.Color.GREEN) // 绿色边框
+            cornerRadius = 8f // 圆角
+        }
+    }
 
 }
