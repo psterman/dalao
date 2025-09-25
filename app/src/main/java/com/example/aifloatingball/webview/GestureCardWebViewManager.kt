@@ -15,6 +15,7 @@ import android.widget.FrameLayout
 import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.R
 import com.example.aifloatingball.adapter.GestureCardAdapter
+import com.example.aifloatingball.webview.EnhancedWebViewTouchHandler
 
 
 /**
@@ -47,7 +48,10 @@ class GestureCardWebViewManager(
     
     // 手势检测器
     private var gestureDetector: GestureDetector? = null
-    
+
+    // 增强的触摸处理器
+    private var touchHandler: EnhancedWebViewTouchHandler? = null
+
     // 页面变化监听器
     private var onPageChangeListener: OnPageChangeListener? = null
 
@@ -117,8 +121,8 @@ class GestureCardWebViewManager(
                 this@GestureCardWebViewManager.adapter = cardAdapter
             }
             
-            // 禁用ViewPager的横滑功能，改为在tab区域处理
-            isUserInputEnabled = false
+            // 动态控制ViewPager的横滑功能，根据触摸方向智能切换
+            isUserInputEnabled = true
 
             // 设置页面切换监听器
             registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
@@ -319,6 +323,9 @@ class GestureCardWebViewManager(
      * 设置WebView回调
      */
     private fun setupWebViewCallbacks(webView: WebView, cardData: WebViewCardData) {
+        // 创建增强的触摸处理器
+        touchHandler = EnhancedWebViewTouchHandler(context, webView, viewPager)
+        touchHandler?.setupWebViewTouchHandling()
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
@@ -742,8 +749,11 @@ class GestureCardWebViewManager(
 
     /**
      * 设置高级触摸处理，严格区分单指和双指操作
+     * 已被EnhancedWebViewTouchHandler替代，保留作为备用
      */
     private fun setupAdvancedTouchHandling(webView: WebView) {
+        // 注释掉旧的触摸处理，使用新的EnhancedWebViewTouchHandler
+        /*
         var pointerCount = 0
         var isZooming = false
         var initialDistance = 0f
@@ -794,6 +804,7 @@ class GestureCardWebViewManager(
             }
             false
         }
+        */
     }
 
     /**

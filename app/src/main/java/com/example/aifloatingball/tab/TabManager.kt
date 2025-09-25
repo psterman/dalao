@@ -28,8 +28,8 @@ class TabManager(private val context: Context) {
         
         // 设置ViewPager触摸事件处理
         viewPager.apply {
-            // 禁用ViewPager2的嵌套滑动，防止与WebView的触摸事件冲突
-            isUserInputEnabled = false
+            // 启用ViewPager2的用户输入，通过智能触摸处理器管理冲突
+            isUserInputEnabled = true
             
             // 设置页面转换动画
             setPageTransformer { page, position ->

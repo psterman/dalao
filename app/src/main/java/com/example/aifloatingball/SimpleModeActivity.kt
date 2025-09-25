@@ -46,6 +46,7 @@ import android.widget.ArrayAdapter
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.viewpager2.widget.ViewPager2
+import com.example.aifloatingball.gesture.TouchConflictResolver
 import androidx.core.view.GravityCompat
 import androidx.core.view.GestureDetectorCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -372,6 +373,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 层叠卡片预览器
     private var stackedCardPreview: com.example.aifloatingball.views.StackedCardPreview? = null
 
+    // 触摸冲突解决器
+    private var touchConflictResolver: TouchConflictResolver? = null
+
 
 
     // 隐藏的组件用于兼容性
@@ -441,7 +445,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
-        
+
+        // 初始化触摸冲突解决器
+        touchConflictResolver = TouchConflictResolver(this)
+
         // 初始化统一群聊管理器
         unifiedGroupChatManager = UnifiedGroupChatManager.getInstance(this)
         
