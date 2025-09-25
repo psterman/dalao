@@ -137,6 +137,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val KEY_VOICE_INTERACTION_MODE = "voice_interaction_mode"
         // 用于保存当前界面状态的键
         private const val KEY_CURRENT_STATE = "current_state"
+        // 手势指南显示控制
+        private const val PREF_GESTURE_GUIDE_SHOWN = "gesture_guide_shown"
         // 系统语音输入请求码
         private const val SYSTEM_VOICE_REQUEST_CODE = 1002
         // 联系人数据持久化相关
@@ -350,7 +352,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var searchTabGestureOverlay: FrameLayout? = null
     private var isSearchTabGestureOverlayActive = false
     private var gestureDetectorForOverlay: GestureDetectorCompat? = null
-    private var hasShownGestureInstructions = false // 标记是否已显示过手势操作指南
+
+
 
     // 手势状态跟踪
     private var isLongPressDetected = false
@@ -526,6 +529,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         if (savedState != null) {
             Log.d(TAG, "Restoring saved state: $savedState")
             restoreState(savedState)
+
+            // 恢复额外的状态信息
+            handler.postDelayed({
+                try {
+                    // 恢复手势区状态
+                    val gestureOverlayActive = savedInstanceState.getBoolean("gesture_overlay_active", false)
+                    if (gestureOverlayActive && currentState == UIState.BROWSER) {
+                        Log.d(TAG, "恢复手势区激活状态")
+                        activateSearchTabGestureOverlay()
+                    }
+
+                    // 恢复多卡片预览状态
+                    val stackedPreviewVisible = savedInstanceState.getBoolean("stacked_preview_visible", false)
+                    if (stackedPreviewVisible && currentState == UIState.BROWSER) {
+                        Log.d(TAG, "恢复多卡片预览状态")
+                        activateStackedCardPreview()
+                    }
+
+                    // 恢复WebView滚动位置
+                    val savedUrl = savedInstanceState.getString("current_webview_url")
+                    val scrollX = savedInstanceState.getInt("current_webview_scroll_x", 0)
+                    val scrollY = savedInstanceState.getInt("current_webview_scroll_y", 0)
+
+                    if (savedUrl != null && (scrollX != 0 || scrollY != 0)) {
+                        val currentCard = gestureCardWebViewManager?.getCurrentCard()
+                        val currentWebView = currentCard?.webView
+                        if (currentWebView?.url == savedUrl) {
+                            currentWebView.scrollTo(scrollX, scrollY)
+                            Log.d(TAG, "恢复WebView滚动位置: scrollX=$scrollX, scrollY=$scrollY")
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "恢复额外状态失败", e)
+                }
+            }, 500) // 延迟确保UI完全初始化
+
         } else {
             // 检查是否有保存的悬浮卡片状态
             val sharedPreferences = getSharedPreferences("gesture_cards_state", MODE_PRIVATE)
@@ -553,8 +593,53 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        // 配置变化时重新应用颜色
-        updateUIColors()
+
+        Log.d(TAG, "配置变化: orientation=${newConfig.orientation}")
+
+        try {
+            // 保存当前WebView状态
+            val currentCard = gestureCardWebViewManager?.getCurrentCard()
+            val currentWebView = currentCard?.webView
+            val currentUrl = currentWebView?.url
+            val scrollX = currentWebView?.scrollX ?: 0
+            val scrollY = currentWebView?.scrollY ?: 0
+
+            Log.d(TAG, "屏幕旋转前保存状态: url=$currentUrl, scrollX=$scrollX, scrollY=$scrollY")
+
+            // 配置变化时重新应用UI样式，但不刷新内容
+            updateUIColors()
+            updateTabColors()
+
+            // 重新调整布局，但保持WebView内容
+            handler.postDelayed({
+                try {
+                    // 恢复WebView滚动位置
+                    if (currentUrl != null && currentWebView != null) {
+                        currentWebView.scrollTo(scrollX, scrollY)
+                        Log.d(TAG, "屏幕旋转后恢复滚动位置: scrollX=$scrollX, scrollY=$scrollY")
+                    }
+
+                    // 重新调整手势区布局（如果激活）
+                    if (isSearchTabGestureOverlayActive) {
+                        // 重新计算手势区布局
+                        searchTabGestureOverlay?.requestLayout()
+                    }
+
+                    // 重新调整多卡片预览布局（如果激活）
+                    stackedCardPreview?.let { preview ->
+                        if (preview.visibility == View.VISIBLE) {
+                            preview.requestLayout()
+                        }
+                    }
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "屏幕旋转后恢复状态失败", e)
+                }
+            }, 100) // 短暂延迟确保布局完成
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理配置变化失败", e)
+        }
     }
 
     override fun onNewIntent(intent: Intent?) {
@@ -570,9 +655,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        // 保存当前界面状态
-        outState.putString(KEY_CURRENT_STATE, currentState.name)
-        Log.d(TAG, "Saving state: ${currentState.name}")
+
+        try {
+            // 保存当前界面状态
+            outState.putString(KEY_CURRENT_STATE, currentState.name)
+
+            // 保存手势区激活状态
+            outState.putBoolean("gesture_overlay_active", isSearchTabGestureOverlayActive)
+
+            // 保存当前WebView的URL和滚动位置
+            val currentCard = gestureCardWebViewManager?.getCurrentCard()
+            val currentWebView = currentCard?.webView
+            currentWebView?.let { webView ->
+                outState.putString("current_webview_url", webView.url)
+                outState.putInt("current_webview_scroll_x", webView.scrollX)
+                outState.putInt("current_webview_scroll_y", webView.scrollY)
+            }
+
+            // 保存多卡片预览状态
+            stackedCardPreview?.let { preview ->
+                outState.putBoolean("stacked_preview_visible", preview.visibility == View.VISIBLE)
+            }
+
+            Log.d(TAG, "保存状态: ${currentState.name}, 手势区激活: $isSearchTabGestureOverlayActive")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "保存实例状态失败", e)
+        }
     }
 
     /**
@@ -882,6 +991,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             it.reset()
             Log.d(TAG, "悬浮卡片预览已停用")
         }
+
+        // 确保tab颜色状态正确更新
+        updateTabColors()
     }
 
     /**
@@ -5493,20 +5605,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     return@setOnClickListener
                 }
 
-                // 检查当前状态
-                if (browserGestureOverlay.visibility == View.VISIBLE) {
-                    Log.d(TAG, "手势指南已显示，隐藏它")
-                    hideGestureHint()
-                } else {
-                    Log.d(TAG, "显示手势指南")
-                    // 先隐藏其他覆盖层（但不包括手势指南本身）
-                    if (::cardPreviewOverlay.isInitialized && cardPreviewOverlay.visibility == View.VISIBLE) {
-                        cardPreviewOverlay.hide()
-                    }
-
-                    // 立即显示手势指南，不需要延迟
-                    showGestureHint()
-                }
+                // 显示手势操作指南对话框
+                showGestureInstructions()
             } catch (e: Exception) {
                 Log.e(TAG, "手势指南按钮点击处理失败", e)
                 showMaterialToast("❌ 手势指南功能出现错误")
@@ -17817,6 +17917,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             """.trimIndent()
 
             Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+
+            // 确保搜索tab保持选中状态（绿色主题）
+            updateTabColors()
+
         } catch (e: Exception) {
             Log.e(TAG, "激活层叠卡片预览失败", e)
             Toast.makeText(this, "激活卡片预览失败", Toast.LENGTH_SHORT).show()
@@ -18252,13 +18356,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             performGestureVibration("heavy")
 
             // 显示激活提示
-            showMaterialToast("🎯 长按搜索tab激活遮罩层成功！现在可以使用手势操作")
+            showMaterialToast("🎯 手势区已激活！可使用快捷手势操作")
 
-            // 只在第一次进入时显示详细操作说明
-            if (!hasShownGestureInstructions) {
+            // 只在首次安装后第一次激活时显示详细操作说明
+            val sharedPrefs = getSharedPreferences("app_settings", MODE_PRIVATE)
+            val hasShownGuide = sharedPrefs.getBoolean(PREF_GESTURE_GUIDE_SHOWN, false)
+
+            if (!hasShownGuide) {
                 handler.postDelayed({
                     showGestureInstructions()
-                    hasShownGestureInstructions = true // 标记已显示过
+                    // 标记已显示过，以后不再自动显示
+                    sharedPrefs.edit().putBoolean(PREF_GESTURE_GUIDE_SHOWN, true).apply()
                 }, 1500)
             }
 
@@ -18318,72 +18426,93 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         val location = IntArray(2)
                         bottomNavigation.getLocationOnScreen(location)
                         val relativeX = e.rawX - location[0]
-                        val tabWidth = bottomNavigation.width / 6
+
+                        // 动态计算tab数量（考虑语音tab的可见性）
+                        val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
+                        val totalTabs = if (voiceTab?.visibility == View.VISIBLE) 6 else 5
+                        val tabWidth = bottomNavigation.width.toFloat() / totalTabs
                         val tabIndex = (relativeX / tabWidth).toInt()
 
-                        Log.d(TAG, "遮罩层中单击tab，tabIndex=$tabIndex")
+                        Log.d(TAG, "遮罩层中单击tab，tabIndex=$tabIndex, totalTabs=$totalTabs, voiceTabVisible=${voiceTab?.visibility == View.VISIBLE}")
+
+                        // 根据语音tab的可见性调整索引处理
+                        val isVoiceTabVisible = voiceTab?.visibility == View.VISIBLE
 
                         when (tabIndex) {
                             0 -> {
                                 // 单击对话tab - 退出遮罩层并进入对话页面
                                 Log.d(TAG, "遮罩层中单击对话tab，退出遮罩层并进入对话页面")
-                                performGestureVibration("light") // tab切换震动反馈
+                                performGestureVibration("light")
                                 deactivateSearchTabGestureOverlay()
                                 showChat()
                                 showMaterialToast("💬 已切换到对话页面")
-                                return true // 消费事件
+                                return true
                             }
                             1 -> {
                                 // 在遮罩层中单击搜索tab - 激活多卡片系统
                                 Log.d(TAG, "遮罩层中单击搜索tab，激活多卡片系统")
-                                performGestureVibration("medium") // 激活多卡片系统震动反馈
+                                performGestureVibration("medium")
                                 activateStackedCardPreview()
                                 showMaterialToast("📱 多卡片系统已激活")
-                                return true // 消费事件
+                                return true
                             }
                             2 -> {
                                 // 单击任务tab - 退出遮罩层并进入任务页面
                                 Log.d(TAG, "遮罩层中单击任务tab，退出遮罩层并进入任务页面")
-                                performGestureVibration("light") // tab切换震动反馈
+                                performGestureVibration("light")
                                 deactivateSearchTabGestureOverlay()
                                 showTaskSelection()
                                 showMaterialToast("📋 已切换到任务页面")
-                                return true // 消费事件
+                                return true
                             }
                             3 -> {
-                                // 单击语音tab - 检查语音tab是否可见
-                                val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
-                                if (voiceTab?.visibility == View.VISIBLE) {
-                                    // 语音tab可见，正常切换
+                                if (isVoiceTabVisible) {
+                                    // 语音tab可见，单击语音tab
                                     Log.d(TAG, "遮罩层中单击语音tab，退出遮罩层并进入语音页面")
-                                    performGestureVibration("light") // tab切换震动反馈
+                                    performGestureVibration("light")
                                     deactivateSearchTabGestureOverlay()
                                     showVoice()
                                     showMaterialToast("🎤 已切换到语音页面")
-                                    return true // 消费事件
+                                    return true
                                 } else {
-                                    // 语音tab被隐藏，不处理此点击
-                                    Log.d(TAG, "语音tab已隐藏，忽略点击事件")
-                                    return false // 不消费事件
+                                    // 语音tab隐藏，这是软件tab
+                                    Log.d(TAG, "遮罩层中单击软件tab（语音tab隐藏），退出遮罩层并进入软件页面")
+                                    performGestureVibration("light")
+                                    deactivateSearchTabGestureOverlay()
+                                    showAppSearch()
+                                    showMaterialToast("📱 已切换到软件页面")
+                                    return true
                                 }
                             }
                             4 -> {
-                                // 单击软件tab - 退出遮罩层并进入软件页面
-                                Log.d(TAG, "遮罩层中单击软件tab，退出遮罩层并进入软件页面")
-                                performGestureVibration("light") // tab切换震动反馈
-                                deactivateSearchTabGestureOverlay()
-                                showAppSearch()
-                                showMaterialToast("📱 已切换到软件页面")
-                                return true // 消费事件
+                                if (isVoiceTabVisible) {
+                                    // 语音tab可见，这是软件tab
+                                    Log.d(TAG, "遮罩层中单击软件tab，退出遮罩层并进入软件页面")
+                                    performGestureVibration("light")
+                                    deactivateSearchTabGestureOverlay()
+                                    showAppSearch()
+                                    showMaterialToast("📱 已切换到软件页面")
+                                    return true
+                                } else {
+                                    // 语音tab隐藏，这是设置tab
+                                    Log.d(TAG, "遮罩层中单击设置tab（语音tab隐藏），退出遮罩层并进入设置页面")
+                                    performGestureVibration("light")
+                                    deactivateSearchTabGestureOverlay()
+                                    showSettings()
+                                    showMaterialToast("⚙️ 已切换到设置页面")
+                                    return true
+                                }
                             }
                             5 -> {
-                                // 单击设置tab - 退出遮罩层并进入设置页面
-                                Log.d(TAG, "遮罩层中单击设置tab，退出遮罩层并进入设置页面")
-                                performGestureVibration("light") // tab切换震动反馈
-                                deactivateSearchTabGestureOverlay()
-                                showSettings()
-                                showMaterialToast("⚙️ 已切换到设置页面")
-                                return true // 消费事件
+                                // 只有语音tab可见时才有第5个索引（设置tab）
+                                if (isVoiceTabVisible) {
+                                    Log.d(TAG, "遮罩层中单击设置tab，退出遮罩层并进入设置页面")
+                                    performGestureVibration("light")
+                                    deactivateSearchTabGestureOverlay()
+                                    showSettings()
+                                    showMaterialToast("⚙️ 已切换到设置页面")
+                                    return true
+                                }
                             }
                         }
                     }
@@ -18441,10 +18570,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 val location = IntArray(2)
                                 bottomNavigation.getLocationOnScreen(location)
                                 val relativeX = event.rawX - location[0]
-                                val tabWidth = bottomNavigation.width / 6
+
+                                // 动态计算tab数量（考虑语音tab的可见性）
+                                val voiceTab = findViewById<LinearLayout>(R.id.tab_voice)
+                                val totalTabs = if (voiceTab?.visibility == View.VISIBLE) 6 else 5
+                                val tabWidth = bottomNavigation.width.toFloat() / totalTabs
                                 val tabIndex = (relativeX / tabWidth).toInt()
 
-                                Log.d(TAG, "遮罩层检测到tab触摸: tabIndex=$tabIndex, relativeX=$relativeX")
+                                Log.d(TAG, "遮罩层检测到tab触摸: tabIndex=$tabIndex, relativeX=$relativeX, totalTabs=$totalTabs")
 
                                 when (tabIndex) {
                                     1 -> {
@@ -18498,6 +18631,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             isSearchTabGestureOverlayActive = true
             Log.d(TAG, "搜索tab手势遮罩区激活成功")
 
+            // 确保搜索tab保持选中状态（绿色主题）
+            updateTabColors()
+
         } catch (e: Exception) {
             Log.e(TAG, "激活搜索tab手势遮罩区失败", e)
         }
@@ -18518,7 +18654,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             performGestureVibration("light")
 
             // 显示退出提示
-            showMaterialToast("👋 长按搜索tab退出遮罩层成功！")
+            showMaterialToast("👋 手势区已关闭")
 
             // 移除遮罩层
             searchTabGestureOverlay?.let { overlay ->
@@ -18536,6 +18672,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             Log.d(TAG, "搜索tab手势遮罩区已退出")
 
+            // 确保tab颜色状态正确更新
+            updateTabColors()
+
         } catch (e: Exception) {
             Log.e(TAG, "退出搜索tab手势遮罩区失败", e)
         }
@@ -18547,26 +18686,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showGestureInstructions() {
         try {
             val instructions = """
-                🎮 遮罩层手势操作说明：
+                🎯 手势区已激活！
 
-                📱 单击搜索tab → 激活多卡片系统
-                💬 单击对话tab → 退出遮罩层并进入对话页面
-                📋 单击任务tab → 退出遮罩层并进入任务页面
-                🎤 单击语音tab → 退出遮罩层并进入语音页面
-                📱 单击软件tab → 退出遮罩层并进入软件页面
-                ⚙️ 单击设置tab → 退出遮罩层并进入设置页面
-                ↔️ 左右滑动 → 切换网页页面
-                👆👆 双击遮罩层 → 关闭当前页面
-                🚪 长按搜索tab → 退出遮罩层
+                🔥 激活方式：
+                长按搜索tab → 开启/关闭手势区
 
-                💡 提示：单击任意tab都可快速切换页面
+                ⚡ 快捷操作：
+                • 点击搜索tab → 多卡片管理
+                • 点击其他tab → 快速切换页面
+                • 左右滑动 → 切换网页
+                • 双击 → 关闭当前网页
+
+                💡 随时长按搜索tab可退出手势区
             """.trimIndent()
 
             AlertDialog.Builder(this)
-                .setTitle("🎯 遮罩层已激活")
+                .setTitle("🎮 手势操作指南")
                 .setMessage(instructions)
                 .setPositiveButton("开始使用", null)
-                .setNegativeButton("退出遮罩层") { _, _ ->
+                .setNegativeButton("关闭手势区") { _, _ ->
                     deactivateSearchTabGestureOverlay()
                 }
                 .show()
