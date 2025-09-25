@@ -200,6 +200,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // 会话级别的恢复对话框标记，防止重复弹出
     private var hasShownRestoreDialog = false
 
+    // 记录上次检查恢复对话框的时间，避免短时间内重复弹出
+    private var lastRestoreCheckTime = 0L
+    private val RESTORE_CHECK_INTERVAL = 3000L // 3秒间隔
+
     // UI组件
     private lateinit var chatLayout: LinearLayout
     private lateinit var taskSelectionLayout: LinearLayout
@@ -284,6 +288,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 震动反馈管理器
     private var vibrator: android.os.Vibrator? = null
+
+    // 防重复点击保护
+    private var lastSearchTabClickTime = 0L
+    private val SEARCH_TAB_CLICK_INTERVAL = 500L // 500ms防重复点击间隔
 
     // 多页面WebView管理器
     private var multiPageWebViewManager: MultiPageWebViewManager? = null
@@ -2857,25 +2865,39 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun showBrowser() {
-        currentState = UIState.BROWSER
-        chatLayout.visibility = View.GONE
-        taskSelectionLayout.visibility = View.GONE
-        stepGuidanceLayout.visibility = View.GONE
-        promptPreviewLayout.visibility = View.GONE
-        voiceLayout.visibility = View.GONE
-        appSearchLayout.visibility = View.GONE
-        settingsLayout.visibility = View.GONE
-        browserLayout.visibility = View.VISIBLE
+        try {
+            // 检查Activity状态
+            if (isFinishing || isDestroyed) {
+                Log.w(TAG, "Activity正在销毁，跳过显示浏览器")
+                return
+            }
 
-        // 确保手势卡片式WebView管理器已正确初始化
-        if (gestureCardWebViewManager == null) {
-            setupBrowserWebView()
+            Log.d(TAG, "显示浏览器界面")
+
+            currentState = UIState.BROWSER
+            chatLayout.visibility = View.GONE
+            taskSelectionLayout.visibility = View.GONE
+            stepGuidanceLayout.visibility = View.GONE
+            promptPreviewLayout.visibility = View.GONE
+            voiceLayout.visibility = View.GONE
+            appSearchLayout.visibility = View.GONE
+            settingsLayout.visibility = View.GONE
+            browserLayout.visibility = View.VISIBLE
+
+            // 确保手势卡片式WebView管理器已正确初始化
+            if (gestureCardWebViewManager == null) {
+                setupBrowserWebView()
+            }
+
+            // 检查是否有保存的卡片状态并弹出提示
+            checkAndPromptForSavedCards()
+
+            updateTabColors()
+
+            Log.d(TAG, "浏览器界面显示完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示浏览器界面异常", e)
         }
-
-        // 检查是否有保存的卡片状态并弹出提示
-        checkAndPromptForSavedCards()
-
-        updateTabColors()
     }
 
     /**
@@ -2889,10 +2911,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             forceRefreshUIState()
             return
         }
-        
-        // 如果本次会话已经显示过恢复对话框，则不再显示
-        if (hasShownRestoreDialog) {
-            Log.d(TAG, "checkAndPromptForSavedCards: 本次会话已显示过恢复对话框，跳过")
+
+        // 检查时间间隔，避免短时间内重复弹出
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastRestoreCheckTime < RESTORE_CHECK_INTERVAL) {
+            Log.d(TAG, "checkAndPromptForSavedCards: 距离上次检查时间过短，跳过 (${currentTime - lastRestoreCheckTime}ms < ${RESTORE_CHECK_INTERVAL}ms)")
+            forceRefreshUIState()
+            return
+        }
+
+        // 检查当前是否已有卡片，如果有则不显示恢复对话框
+        val currentCards = getAllUnifiedCards()
+        if (currentCards.isNotEmpty()) {
+            Log.d(TAG, "checkAndPromptForSavedCards: 当前已有 ${currentCards.size} 个卡片，跳过恢复提示")
             forceRefreshUIState()
             return
         }
@@ -2906,8 +2937,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         if (savedUrls.isNotEmpty()) {
             Log.d(TAG, "checkAndPromptForSavedCards: 发现保存的卡片，显示恢复对话框")
-            // 标记已显示恢复对话框
-            hasShownRestoreDialog = true
+            // 更新检查时间
+            lastRestoreCheckTime = currentTime
             
             // 弹出对话框询问用户是否要恢复之前的页面
             androidx.appcompat.app.AlertDialog.Builder(this)
@@ -2956,6 +2987,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showChat()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
+                // 重置恢复对话框检查状态，允许下次进入搜索tab时重新检查
+                resetRestoreDialogState()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -2963,29 +2996,50 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 搜索tab (第二位)
         findViewById<LinearLayout>(R.id.tab_search)?.apply {
             setOnClickListener {
-                deactivateStackedCardPreview()
-                showBrowser()
-                // 单击搜索tab时，如果遮罩层已激活，则激活多卡片系统
-                if (isSearchTabGestureOverlayActive) {
-                    activateStackedCardPreview()
+                // 防重复点击保护
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastSearchTabClickTime < SEARCH_TAB_CLICK_INTERVAL) {
+                    Log.d(TAG, "搜索tab点击过于频繁，忽略此次点击")
+                    return@setOnClickListener
                 }
-                // 如果遮罩层未激活，则正常切换到搜索tab（不激活遮罩层）
+                lastSearchTabClickTime = currentTime
+
+                Log.d(TAG, "搜索tab被点击，当前遮罩层状态: $isSearchTabGestureOverlayActive")
+
+                try {
+                    deactivateStackedCardPreview()
+                    showBrowser()
+
+                    // 单击搜索tab时，如果遮罩层已激活，则激活多卡片系统
+                    if (isSearchTabGestureOverlayActive) {
+                        Log.d(TAG, "遮罩层已激活，激活多卡片系统")
+                        activateStackedCardPreview()
+                    } else {
+                        Log.d(TAG, "遮罩层未激活，正常切换到搜索tab")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "搜索tab点击处理异常", e)
+                }
             }
 
             // 设置长按监听器 - 长按激活/退出遮罩层
             setOnLongClickListener {
                 Log.d(TAG, "搜索tab长按事件触发，当前遮罩层状态: $isSearchTabGestureOverlayActive")
 
-                if (isSearchTabGestureOverlayActive) {
-                    // 如果遮罩层已激活，长按退出遮罩层
-                    Log.d(TAG, "长按搜索tab退出遮罩层")
-                    deactivateSearchTabGestureOverlay()
-                } else {
-                    // 如果遮罩层未激活，长按激活遮罩层
-                    Log.d(TAG, "长按搜索tab激活遮罩层")
-                    deactivateStackedCardPreview()
-                    showBrowser()
-                    activateSearchTabGestureOverlay()
+                try {
+                    if (isSearchTabGestureOverlayActive) {
+                        // 如果遮罩层已激活，长按退出遮罩层
+                        Log.d(TAG, "长按搜索tab退出遮罩层")
+                        deactivateSearchTabGestureOverlay()
+                    } else {
+                        // 如果遮罩层未激活，长按激活遮罩层
+                        Log.d(TAG, "长按搜索tab激活遮罩层")
+                        deactivateStackedCardPreview()
+                        showBrowser()
+                        activateSearchTabGestureOverlay()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "搜索tab长按处理异常", e)
                 }
                 true // 消费长按事件
             }
@@ -3000,6 +3054,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showTaskSelection()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
+                // 重置恢复对话框检查状态
+                resetRestoreDialogState()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -3011,6 +3067,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showVoice()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
+                // 重置恢复对话框检查状态
+                resetRestoreDialogState()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -3022,6 +3080,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 showAppSearch()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
+                // 重置恢复对话框检查状态
+                resetRestoreDialogState()
             }
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
@@ -5709,8 +5769,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置卡片预览按钮点击事件
         browserPreviewCardsButton.setOnClickListener {
+            Log.d(TAG, "左上角卡片预览按钮被点击")
+
+            // 先强制同步所有卡片系统数据
+            syncAllCardSystems()
+
             // 先隐藏其他覆盖层
             hideAllOverlays()
+
             // 延迟显示卡片预览，确保其他覆盖层完全隐藏
             browserLayout.postDelayed({
                 showCardPreview()
@@ -5823,19 +5889,46 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示卡片预览
      */
     private fun showCardPreview() {
+        Log.d(TAG, "=== 左上角卡片预览开始 ===")
+
+        // 检查管理器状态
+        val gestureManager = gestureCardWebViewManager
+        val mobileManager = mobileCardManager
+
+        Log.d(TAG, "管理器状态 - 手势管理器: ${gestureManager != null}, 手机管理器: ${mobileManager != null}")
+
+        if (gestureManager != null) {
+            val gestureCards = gestureManager.getAllCards()
+            Log.d(TAG, "手势管理器卡片数: ${gestureCards.size}")
+            gestureCards.forEachIndexed { index, card ->
+                Log.d(TAG, "  手势卡片[$index]: ${card.title} - ${card.url}")
+            }
+        }
+
+        if (mobileManager != null) {
+            val mobileCards = mobileManager.getAllCards()
+            Log.d(TAG, "手机管理器卡片数: ${mobileCards.size}")
+            mobileCards.forEachIndexed { index, card ->
+                Log.d(TAG, "  手机卡片[$index]: ${card.title} - ${card.url}")
+            }
+        }
+
         // 使用统一的卡片数据获取方法
         val allCards = getAllUnifiedCards()
 
-        Log.d(TAG, "左上角卡片预览 - 总计: ${allCards.size}")
+        Log.d(TAG, "左上角卡片预览 - 统一后总计: ${allCards.size}")
 
         if (allCards.isNotEmpty()) {
             // 确保卡片预览覆盖层在最前面
             cardPreviewOverlay.bringToFront()
             cardPreviewOverlay.show(allCards)
-            Log.d(TAG, "显示左上角卡片预览，卡片数: ${allCards.size}")
+            Log.d(TAG, "✅ 显示左上角卡片预览，卡片数: ${allCards.size}")
         } else {
-            Toast.makeText(this, "暂无卡片", Toast.LENGTH_SHORT).show()
+            Log.w(TAG, "⚠️ 没有找到任何卡片，显示提示")
+            Toast.makeText(this, "没有打开的页面", Toast.LENGTH_SHORT).show()
         }
+
+        Log.d(TAG, "=== 左上角卡片预览结束 ===")
     }
 
     /**
@@ -6032,28 +6125,57 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 确保两个卡片系统使用相同的数据源
      */
     private fun getAllUnifiedCards(): List<GestureCardWebViewManager.WebViewCardData> {
-        val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
-        val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
-        val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
+        try {
+            val gestureCards = gestureCardWebViewManager?.getAllCards() ?: emptyList()
+            val mobileCards = mobileCardManager?.getAllCards() ?: emptyList()
+            val allCards = mutableListOf<GestureCardWebViewManager.WebViewCardData>()
 
-        // 先添加手势卡片
-        allCards.addAll(gestureCards)
+            Log.d(TAG, "=== 统一卡片数据获取开始 ===")
+            Log.d(TAG, "手势管理器状态: ${gestureCardWebViewManager != null}")
+            Log.d(TAG, "手机管理器状态: ${mobileCardManager != null}")
+            Log.d(TAG, "手势卡片数量: ${gestureCards.size}")
+            Log.d(TAG, "手机卡片数量: ${mobileCards.size}")
 
-        // 再添加手机卡片，避免重复
-        mobileCards.forEach { mobileCard ->
-            // 检查是否已存在相同的卡片（通过URL或ID判断）
-            val isDuplicate = allCards.any { existingCard ->
-                existingCard.id == mobileCard.id ||
-                (existingCard.url == mobileCard.url && existingCard.url?.isNotEmpty() == true)
+            // 先添加手势卡片
+            allCards.addAll(gestureCards)
+            Log.d(TAG, "添加手势卡片后总数: ${allCards.size}")
+
+            // 再添加手机卡片，避免重复
+            var duplicateCount = 0
+            mobileCards.forEach { mobileCard ->
+                // 检查是否已存在相同的卡片（通过URL或ID判断）
+                val isDuplicate = allCards.any { existingCard ->
+                    existingCard.id == mobileCard.id ||
+                    (existingCard.url == mobileCard.url && existingCard.url?.isNotEmpty() == true)
+                }
+                if (!isDuplicate) {
+                    allCards.add(mobileCard)
+                    Log.d(TAG, "添加手机卡片: ${mobileCard.title} - ${mobileCard.url}")
+                } else {
+                    duplicateCount++
+                    Log.d(TAG, "跳过重复卡片: ${mobileCard.title} - ${mobileCard.url}")
+                }
             }
-            if (!isDuplicate) {
-                allCards.add(mobileCard)
-            }
+
+            Log.d(TAG, "统一卡片数据 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 重复: $duplicateCount, 去重后总计: ${allCards.size}")
+            Log.d(TAG, "=== 统一卡片数据获取结束 ===")
+
+            return allCards
+        } catch (e: Exception) {
+            Log.e(TAG, "获取统一卡片数据异常", e)
+            return emptyList()
         }
+    }
 
-        Log.d(TAG, "统一卡片数据 - 手势卡片: ${gestureCards.size}, 手机卡片: ${mobileCards.size}, 去重后总计: ${allCards.size}")
-
-        return allCards
+    /**
+     * 重置恢复对话框检查状态
+     * 当用户切换到其他tab时调用，允许下次进入搜索tab时重新检查恢复对话框
+     */
+    private fun resetRestoreDialogState() {
+        Log.d(TAG, "重置恢复对话框检查状态")
+        // 重置时间戳，允许下次检查
+        lastRestoreCheckTime = 0L
+        // 注意：不重置hasShownRestoreDialog，避免同一会话中重复弹出相同的恢复对话框
     }
 
     /**
@@ -17593,27 +17715,27 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 显示卡片预览对话框
      */
     private fun showCardPreviewDialog() {
-        Log.d(TAG, "showCardPreviewDialog 被调用")
+        Log.d(TAG, "=== 搜索tab卡片预览按钮被点击 ===")
         try {
-            gestureCardWebViewManager?.let { manager ->
-                val allCards = manager.getAllCards()
-                val totalPages = allCards.size
+            // 先强制同步所有卡片系统数据
+            syncAllCardSystems()
 
-                Log.d(TAG, "当前卡片数量: $totalPages")
+            // 使用统一的卡片数据获取方法
+            val allCards = getAllUnifiedCards()
+            val totalPages = allCards.size
 
-                if (totalPages == 0) {
-                    Toast.makeText(this, "没有打开的页面", Toast.LENGTH_SHORT).show()
-                    return
-                }
+            Log.d(TAG, "搜索tab卡片预览 - 统一数据源卡片数量: $totalPages")
 
-                // 激活搜索tab首页的卡片预览窗口
-                activateSearchTabCardPreview()
-
-                Log.d(TAG, "激活搜索tab卡片预览窗口，共 $totalPages 个页面")
-            } ?: run {
-                Log.w(TAG, "gestureCardWebViewManager 为 null")
-                Toast.makeText(this, "卡片管理器未初始化", Toast.LENGTH_SHORT).show()
+            if (totalPages == 0) {
+                Log.w(TAG, "没有找到任何卡片")
+                Toast.makeText(this, "没有打开的页面", Toast.LENGTH_SHORT).show()
+                return
             }
+
+            // 激活搜索tab首页的卡片预览窗口
+            activateSearchTabCardPreview()
+
+            Log.d(TAG, "✅ 激活搜索tab卡片预览窗口，共 $totalPages 个页面")
         } catch (e: Exception) {
             Log.e(TAG, "激活搜索tab卡片预览窗口失败", e)
             // 降级到简单预览
@@ -17641,6 +17763,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun activateStackedCardPreview() {
         try {
+            // 检查Activity状态
+            if (isFinishing || isDestroyed) {
+                Log.w(TAG, "Activity正在销毁，跳过层叠卡片预览激活")
+                return
+            }
+
             Log.d(TAG, "搜索tab激活层叠卡片预览")
 
             // 使用统一的卡片数据获取方法
@@ -17881,27 +18009,38 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     /**
      * 显示简单的卡片预览对话框（降级方案）
      */
-    private fun showSimpleCardPreviewDialog(
-        manager: GestureCardWebViewManager? = gestureCardWebViewManager,
-        totalPages: Int = manager?.getAllCards()?.size ?: 0,
-        currentIndex: Int = manager?.getAllCards()?.indexOf(manager.getCurrentCard()) ?: 0
-    ) {
+    private fun showSimpleCardPreviewDialog() {
         try {
-            if (manager == null || totalPages == 0) {
+            Log.d(TAG, "=== 显示简单卡片预览对话框 ===")
+
+            // 使用统一的卡片数据获取方法
+            val allCards = getAllUnifiedCards()
+            val totalPages = allCards.size
+
+            Log.d(TAG, "简单卡片预览 - 统一数据源卡片数量: $totalPages")
+
+            if (totalPages == 0) {
                 Toast.makeText(this, "没有打开的页面", Toast.LENGTH_SHORT).show()
                 return
             }
 
-            val allCards = manager.getAllCards()
+            // 获取当前卡片索引
+            val currentCard = gestureCardWebViewManager?.getCurrentCard() ?: mobileCardManager?.getCurrentCard()
+            val currentIndex = if (currentCard != null) {
+                allCards.indexOfFirst { it.id == currentCard.id }
+            } else {
+                0
+            }
 
             // 获取所有页面信息
             val pageItems = mutableListOf<String>()
             for (i in allCards.indices) {
                 val card = allCards[i]
-                val title = card.webView.title ?: "页面 ${i + 1}"
-                val url = card.webView.url ?: "未知地址"
+                val title = card.title ?: card.webView?.title ?: "页面 ${i + 1}"
+                val url = card.url ?: card.webView?.url ?: "未知地址"
                 val status = if (i == currentIndex) " [当前]" else ""
                 pageItems.add("${i + 1}. $title$status\n$url")
+                Log.d(TAG, "卡片[$i]: $title - $url")
             }
 
             // 创建选择对话框
@@ -17909,13 +18048,33 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 .setTitle("页面卡片预览 ($totalPages 个页面)")
                 .setItems(pageItems.toTypedArray()) { _, which ->
                     // 切换到选中的页面
-                    manager.switchToCard(which)
-                    showPageSwitchAnimation("切换到", which + 1, totalPages)
+                    try {
+                        // 优先使用手势管理器，如果失败则使用手机管理器
+                        var switched = false
+                        if (gestureCardWebViewManager != null) {
+                            gestureCardWebViewManager?.switchToCard(which)
+                            switched = true
+                            Log.d(TAG, "使用手势管理器切换到卡片: $which")
+                        } else if (mobileCardManager != null) {
+                            mobileCardManager?.switchToCard(which)
+                            switched = true
+                            Log.d(TAG, "使用手机管理器切换到卡片: $which")
+                        }
+
+                        if (switched) {
+                            showPageSwitchAnimation("切换到", which + 1, totalPages)
+                        } else {
+                            Toast.makeText(this@SimpleModeActivity, "切换失败", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "切换卡片失败", e)
+                        Toast.makeText(this@SimpleModeActivity, "切换失败", Toast.LENGTH_SHORT).show()
+                    }
                 }
                 .setNegativeButton("关闭", null)
                 .show()
 
-            Log.d(TAG, "显示简单卡片预览对话框，共 $totalPages 个页面")
+            Log.d(TAG, "✅ 显示简单卡片预览对话框，共 $totalPages 个页面")
         } catch (e: Exception) {
             Log.e(TAG, "显示简单卡片预览对话框失败", e)
             Toast.makeText(this, "无法显示页面预览", Toast.LENGTH_SHORT).show()
