@@ -1207,6 +1207,11 @@ class SearchActivity : AppCompatActivity() {
             // Update adapter when search mode changes
             updateEngineAdapter()
         }
+        
+        // 监听主题模式变化
+        settingsManager.registerOnSettingChangeListener<Int>("theme_mode") { _, value ->
+            updateTheme()
+        }
     }
     
     private fun updateEngineAdapter() {

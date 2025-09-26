@@ -128,3 +128,7 @@ android:background="@color/ai_assistant_center_background_light"
 - 确保所有引用的颜色资源存在
 - 建议在不同设备上测试兼容性
 - 注意ScrollView的滚动性能，必要时可以优化内容结构
+
+
+
+

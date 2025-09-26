@@ -629,6 +629,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         
+        // 监听主题模式变化
+        settingsManager.registerOnSettingChangeListener<Int>("theme_mode") { _, value ->
+            updateAllStatesTheme()
+        }
+        
         // 初始化聊天数据管理器
         chatDataManager = ChatDataManager.getInstance(this)
         appSearchSettings = AppSearchSettings.getInstance(this)

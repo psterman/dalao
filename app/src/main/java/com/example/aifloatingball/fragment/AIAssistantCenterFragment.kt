@@ -166,6 +166,27 @@ class PersonalizationFragment : AIAssistantCenterFragment() {
                 else -> "auto"
             }
             settingsManager.setThemeModeFromString(theme)
+            
+            // 立即应用主题变化
+            val themeMode = when (theme) {
+                "light" -> SettingsManager.THEME_MODE_LIGHT
+                "dark" -> SettingsManager.THEME_MODE_DARK
+                "auto" -> SettingsManager.THEME_MODE_SYSTEM
+                else -> SettingsManager.THEME_MODE_SYSTEM
+            }
+            
+            // 应用主题到当前Activity
+            val targetNightMode = when (themeMode) {
+                SettingsManager.THEME_MODE_LIGHT -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                SettingsManager.THEME_MODE_DARK -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+                else -> androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+            }
+            
+            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(targetNightMode)
+            
+            // 重新创建Activity以应用主题变化
+            activity?.recreate()
+            
             android.widget.Toast.makeText(requireContext(), "主题设置已保存", android.widget.Toast.LENGTH_SHORT).show()
         }
         

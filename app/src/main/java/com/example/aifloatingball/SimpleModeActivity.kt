@@ -779,10 +779,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "Applying theme change: $currentNightMode -> $targetNightMode")
             AppCompatDelegate.setDefaultNightMode(targetNightMode)
 
-            // 延迟更新UI颜色，确保主题已经应用
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            // 立即更新UI颜色，减少延迟
+            updateUIColors()
+            
+            // 强制刷新所有视图以确保主题立即生效
+            window.decorView.post {
                 updateUIColors()
-            }, 100)
+            }
         } else {
             Log.d(TAG, "Theme mode unchanged: $targetNightMode")
             // 即使主题模式没有改变，也要更新UI颜色以确保正确显示
@@ -1611,10 +1614,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     Log.d(TAG, "Theme mode changed from $currentTheme to $selectedTheme")
                     settingsManager.setThemeMode(selectedTheme)
 
-                    // 应用新主题（Activity会自动保存和恢复状态）
+                    // 立即应用新主题
                     applyTheme()
+                    
+                    // 强制刷新UI以确保主题立即生效
+                    window.decorView.post {
+                        updateUIColors()
+                    }
                 } else {
                     Log.d(TAG, "Theme mode unchanged: $selectedTheme")
+                    // 即使主题没有改变，也确保UI颜色正确显示
+                    updateUIColors()
                 }
             }
             override fun onNothingSelected(parent: AdapterView<*>) {}

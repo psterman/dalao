@@ -64,3 +64,7 @@ AI助手tab的AI指令标签下对应的页面内容被固定了，无法上下�
 - `overScrollMode="never"`：禁用过度滚动效果，避免滚动冲突
 - `isUserInputEnabled = true`：确保用户输入事件正确处理
 - `offscreenPageLimit = 1`：优化页面预加载，提升滚动性能
+
+
+
+

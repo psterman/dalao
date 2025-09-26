@@ -127,3 +127,7 @@ private fun enableScrollingForCurrentFragment() {
 - 建议在不同设备上测试滚动性能
 - 注意检查是否有其他ViewPager2嵌套导致类似问题
 - 确保所有相关的Fragment布局都使用NestedScrollView
+
+
+
+

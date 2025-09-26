@@ -191,6 +191,11 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         settingsManager.registerOnSettingChangeListener<Boolean>("right_handed_mode") { _, value ->
             updateDrawerGravity()
         }
+        
+        // 监听主题模式变化
+        settingsManager.registerOnSettingChangeListener<Int>("theme_mode") { _, value ->
+            updateTheme()
+        }
 
         // 初始化标签页管理
         initTabManagement()

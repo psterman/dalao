@@ -129,3 +129,7 @@ viewPager.offscreenPageLimit = 1
 - 确保所有Fragment都有适当的错误处理
 - 建议在不同设备上测试稳定性
 - 注意ViewPager2嵌套时的生命周期管理
+
+
+
+
