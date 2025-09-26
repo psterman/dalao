@@ -927,6 +927,49 @@ class SettingsManager private constructor(context: Context) {
         prefs.edit().putString(KEY_SEARCH_ENGINE_GROUPS, json).apply()
     }
 
+    // 个性化设置相关方法
+    fun getThemeModeString(): String = prefs.getString("theme_mode_string", "auto") ?: "auto"
+    fun setThemeModeString(theme: String) = prefs.edit().putString("theme_mode_string", theme).apply()
+    
+    // 主题模式转换方法
+    fun getThemeModeAsString(): String {
+        val themeMode = getThemeMode()
+        return when (themeMode) {
+            THEME_MODE_LIGHT -> "light"
+            THEME_MODE_DARK -> "dark"
+            THEME_MODE_SYSTEM -> "auto"
+            else -> "auto"
+        }
+    }
+    
+    fun setThemeModeFromString(theme: String) {
+        val themeMode = when (theme) {
+            "light" -> THEME_MODE_LIGHT
+            "dark" -> THEME_MODE_DARK
+            "auto" -> THEME_MODE_SYSTEM
+            else -> THEME_MODE_SYSTEM
+        }
+        setThemeMode(themeMode)
+    }
+    
+    fun getFontSize(): Int = prefs.getInt("font_size", 1)
+    fun setFontSize(size: Int) = prefs.edit().putInt("font_size", size).apply()
+    
+    fun getPushNotificationEnabled(): Boolean = prefs.getBoolean("push_notification_enabled", true)
+    fun setPushNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("push_notification_enabled", enabled).apply()
+    
+    fun getSoundNotificationEnabled(): Boolean = prefs.getBoolean("sound_notification_enabled", false)
+    fun setSoundNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("sound_notification_enabled", enabled).apply()
+    
+    fun getVibrationNotificationEnabled(): Boolean = prefs.getBoolean("vibration_notification_enabled", true)
+    fun setVibrationNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("vibration_notification_enabled", enabled).apply()
+    
+    fun getDataCollectionEnabled(): Boolean = prefs.getBoolean("data_collection_enabled", true)
+    fun setDataCollectionEnabled(enabled: Boolean) = prefs.edit().putBoolean("data_collection_enabled", enabled).apply()
+    
+    fun getAnonymizationEnabled(): Boolean = prefs.getBoolean("anonymization_enabled", true)
+    fun setAnonymizationEnabled(enabled: Boolean) = prefs.edit().putBoolean("anonymization_enabled", enabled).apply()
+
     fun getSearchEngineGroups(): MutableList<SearchEngineGroup> {
         val json = prefs.getString(KEY_SEARCH_ENGINE_GROUPS, null)
         return if (json != null) {

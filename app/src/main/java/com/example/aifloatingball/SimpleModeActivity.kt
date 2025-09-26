@@ -186,6 +186,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private enum class UIState {
         CHAT,              // 对话页面
         BROWSER,           // 搜索页面
+        AI_ASSISTANT_CENTER, // AI助手中心页面
         TASK_SELECTION,    // 任务选择页面
         STEP_GUIDANCE,     // 步骤引导页面
         PROMPT_PREVIEW,    // 提示预览页面
@@ -194,7 +195,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         SETTINGS           // 设置页面
     }
 
-    private var currentState = UIState.TASK_SELECTION
+    private var currentState = UIState.AI_ASSISTANT_CENTER
     private var currentTemplate: PromptTemplate? = null
     private var currentStepIndex = 0
     private lateinit var userPromptData: UserPromptData
@@ -209,6 +210,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // UI组件
     private lateinit var chatLayout: LinearLayout
+    private lateinit var aiAssistantCenterLayout: LinearLayout
     private lateinit var taskSelectionLayout: LinearLayout
     private lateinit var stepGuidanceLayout: LinearLayout
     private lateinit var promptPreviewLayout: LinearLayout
@@ -217,6 +219,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var browserLayout: androidx.drawerlayout.widget.DrawerLayout
     private lateinit var settingsLayout: ScrollView
     // private lateinit var modeSwitchWidget: ModeSwitchWidget  // 暂时禁用
+
+    // AI助手中心组件
+    private lateinit var aiCenterViewPager: androidx.viewpager2.widget.ViewPager2
+    private lateinit var aiCenterTabLayout: com.google.android.material.tabs.TabLayout
+    private lateinit var aiCenterPagerAdapter: com.example.aifloatingball.adapter.AIAssistantCenterPagerAdapter
+    private lateinit var createProfileButton: com.google.android.material.button.MaterialButton
+    private lateinit var aiCenterBackButton: ImageButton
+    private lateinit var aiCenterAddButton: ImageButton
 
     // 任务选择页面组件
     private lateinit var taskRecyclerView: RecyclerView
@@ -494,6 +504,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         initializeVibrator()
 
         initializeViews()
+        setupAIAssistantCenter()
         setupTaskSelection()
         setupChat()
 
@@ -533,6 +544,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 恢复额外的状态信息
             handler.postDelayed({
                 try {
+                    // 检查Activity状态
+                    if (isFinishing || isDestroyed) {
+                        Log.w(TAG, "Activity正在销毁，跳过状态恢复")
+                        return@postDelayed
+                    }
+
                     // 恢复手势区状态
                     val gestureOverlayActive = savedInstanceState.getBoolean("gesture_overlay_active", false)
                     if (gestureOverlayActive && currentState == UIState.BROWSER) {
@@ -613,6 +630,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 重新调整布局，但保持WebView内容
             handler.postDelayed({
                 try {
+                    // 检查Activity状态
+                    if (isFinishing || isDestroyed) {
+                        Log.w(TAG, "Activity正在销毁，跳过屏幕旋转后的状态恢复")
+                        return@postDelayed
+                    }
+
                     // 恢复WebView滚动位置
                     if (currentUrl != null && currentWebView != null) {
                         currentWebView.scrollTo(scrollX, scrollY)
@@ -694,23 +717,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             when (state) {
                 UIState.CHAT -> showChat()
+                UIState.AI_ASSISTANT_CENTER -> showAIAssistantCenter()
                 UIState.TASK_SELECTION -> showTaskSelection()
                 UIState. STEP_GUIDANCE -> {
                     // 如果有保存的任务数据，恢复到步骤引导页面
-                    // 否则回到任务选择页面
+                    // 否则回到AI助手中心页面
                     if (::userPromptData.isInitialized) {
                         showStepGuidance()
                     } else {
-                        showTaskSelection()
+                        showAIAssistantCenter()
                     }
                 }
                 UIState.PROMPT_PREVIEW -> {
                     // 如果有保存的提示词数据，恢复到预览页面
-                    // 否则回到任务选择页面
+                    // 否则回到AI助手中心页面
                     if (::userPromptData.isInitialized) {
                         showPromptPreview()
                     } else {
-                        showTaskSelection()
+                        showAIAssistantCenter()
                     }
                 }
                 UIState.VOICE -> showVoice()
@@ -1077,7 +1101,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val isSelected = when (tabView.id) {
                 R.id.tab_chat -> currentState == UIState.CHAT
                 R.id.tab_search -> currentState == UIState.BROWSER
-                R.id.tab_home -> currentState == UIState.TASK_SELECTION
+                R.id.tab_home -> currentState == UIState.AI_ASSISTANT_CENTER
                 R.id.tab_voice -> currentState == UIState.VOICE
                 R.id.tab_app_search -> currentState == UIState.APP_SEARCH
                 R.id.tab_settings -> currentState == UIState.SETTINGS
@@ -1210,6 +1234,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             // 主要布局 - 使用安全的findViewById
             chatLayout = findViewById<LinearLayout>(R.id.chat_layout)
+            aiAssistantCenterLayout = findViewById<LinearLayout>(R.id.ai_assistant_center_layout)
             taskSelectionLayout = findViewById<LinearLayout>(R.id.task_selection_layout)
             stepGuidanceLayout = findViewById<LinearLayout>(R.id.step_guidance_layout)
             promptPreviewLayout = findViewById<LinearLayout>(R.id.prompt_preview_layout)
@@ -1224,6 +1249,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             throw e
         }
         // modeSwitchWidget = findViewById(R.id.mode_switch_widget)  // 暂时禁用
+
+        // AI助手中心
+        try {
+            aiCenterViewPager = findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.ai_center_view_pager)
+            aiCenterTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.ai_center_tab_layout)
+            createProfileButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.create_profile_button)
+            aiCenterBackButton = findViewById<ImageButton>(R.id.ai_center_back_button)
+            aiCenterAddButton = findViewById<ImageButton>(R.id.ai_center_add_button)
+            Log.d(TAG, "AI助手中心组件初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化AI助手中心组件失败", e)
+        }
 
         // 任务选择页面
         try {
@@ -2159,6 +2196,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showVoice() {
         currentState = UIState.VOICE
         chatLayout.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -2180,6 +2218,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showAppSearch() {
         currentState = UIState.APP_SEARCH
         chatLayout.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -2948,6 +2987,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showSettings() {
         currentState = UIState.SETTINGS
         chatLayout.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -2995,6 +3035,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             currentState = UIState.BROWSER
             chatLayout.visibility = View.GONE
+            aiAssistantCenterLayout.visibility = View.GONE
             taskSelectionLayout.visibility = View.GONE
             stepGuidanceLayout.visibility = View.GONE
             promptPreviewLayout.visibility = View.GONE
@@ -3126,6 +3167,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "搜索tab被点击，当前遮罩层状态: $isSearchTabGestureOverlayActive")
 
                 try {
+                    // 检查Activity状态
+                    if (isFinishing || isDestroyed) {
+                        Log.w(TAG, "Activity正在销毁，忽略搜索tab点击")
+                        return@setOnClickListener
+                    }
+
                     deactivateStackedCardPreview()
                     showBrowser()
 
@@ -3166,11 +3213,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setupTabGestureDetection(this, webViewCardSwipeDetector)
         }
 
-        // 任务tab (第三位，原首页)
+        // AI助手中心tab (第三位，原任务tab)
         findViewById<LinearLayout>(R.id.tab_home)?.apply {
             setOnClickListener {
                 deactivateStackedCardPreview()
-                showTaskSelection()
+                showAIAssistantCenter()
                 // 退出搜索tab手势遮罩区
                 deactivateSearchTabGestureOverlay()
                 // 重置恢复对话框检查状态
@@ -3260,9 +3307,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 voiceTab?.visibility = View.GONE
                 Log.d(TAG, "设备不支持语音输入，隐藏语音tab")
 
-                // 如果当前正在语音页面，切换到任务页面
+                // 如果当前正在语音页面，切换到AI助手中心页面
                 if (currentState == UIState.VOICE) {
-                    showTaskSelection()
+                    showAIAssistantCenter()
                 }
             }
 
@@ -3431,6 +3478,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
 
+    private fun setupAIAssistantCenter() {
+        try {
+            // 设置ViewPager2适配器
+            aiCenterPagerAdapter = com.example.aifloatingball.adapter.AIAssistantCenterPagerAdapter(this)
+            aiCenterViewPager.adapter = aiCenterPagerAdapter
+            
+            // 设置TabLayout与ViewPager2的联动
+            com.google.android.material.tabs.TabLayoutMediator(aiCenterTabLayout, aiCenterViewPager) { tab, position ->
+                when (position) {
+                    0 -> tab.text = "基础信息"
+                    1 -> tab.text = "AI配置"
+                    2 -> tab.text = "个性化"
+                    3 -> tab.text = "任务"
+                }
+            }.attach()
+            
+            // 设置按钮点击事件
+            createProfileButton.setOnClickListener {
+                // TODO: 实现新建档案功能
+                Toast.makeText(this, "新建档案功能开发中", Toast.LENGTH_SHORT).show()
+            }
+            
+            aiCenterBackButton.setOnClickListener {
+                // 返回上一页或关闭AI助手中心
+                onBackPressed()
+            }
+            
+            aiCenterAddButton.setOnClickListener {
+                // TODO: 实现添加功能
+                Toast.makeText(this, "添加功能开发中", Toast.LENGTH_SHORT).show()
+            }
+            
+            Log.d(TAG, "AI助手中心设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置AI助手中心失败", e)
+        }
+    }
+
     private fun setupTaskSelection() {
         taskAdapter = TaskTemplateAdapter(SimpleTaskTemplates.templates) { template ->
             selectTask(template)
@@ -3448,8 +3533,43 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun showChat() {
-        currentState = UIState.CHAT
-        chatLayout.visibility = View.VISIBLE
+        try {
+            currentState = UIState.CHAT
+            chatLayout.visibility = View.VISIBLE
+            aiAssistantCenterLayout.visibility = View.GONE
+            taskSelectionLayout.visibility = View.GONE
+            stepGuidanceLayout.visibility = View.GONE
+            promptPreviewLayout.visibility = View.GONE
+            voiceLayout.visibility = View.GONE
+            appSearchLayout.visibility = View.GONE
+            browserLayout.visibility = View.GONE
+            settingsLayout.visibility = View.GONE
+
+            // 同步群聊数据，确保显示最新的群聊列表
+            try {
+                if (::unifiedGroupChatManager.isInitialized) {
+                    syncGroupChatsFromUnifiedManager()
+                    // 刷新当前显示的联系人列表
+                    chatContactAdapter?.updateContacts(allContacts)
+                    Log.d(TAG, "showChat: 已同步群聊数据并刷新显示")
+                } else {
+                    Log.w(TAG, "showChat: unifiedGroupChatManager未初始化，跳过数据同步")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "showChat: 同步群聊数据失败", e)
+            }
+
+            // 更新Tab颜色状态
+            updateTabColors()
+        } catch (e: Exception) {
+            Log.e(TAG, "showChat: 显示聊天界面失败", e)
+        }
+    }
+
+    private fun showAIAssistantCenter() {
+        currentState = UIState.AI_ASSISTANT_CENTER
+        chatLayout.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.VISIBLE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -3458,23 +3578,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
 
-        // 同步群聊数据，确保显示最新的群聊列表
-        try {
-            syncGroupChatsFromUnifiedManager()
-            // 刷新当前显示的联系人列表
-            chatContactAdapter?.updateContacts(allContacts)
-            Log.d(TAG, "showChat: 已同步群聊数据并刷新显示")
-        } catch (e: Exception) {
-            Log.e(TAG, "showChat: 同步群聊数据失败", e)
-        }
-
-        // 更新Tab颜色状态
+        // 更新tab颜色
         updateTabColors()
     }
 
     private fun showTaskSelection() {
         currentState = UIState.TASK_SELECTION
         chatLayout.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.VISIBLE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.GONE
@@ -3490,6 +3601,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showStepGuidance() {
         currentState = UIState.STEP_GUIDANCE
         chatLayout.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.VISIBLE
         promptPreviewLayout.visibility = View.GONE
@@ -3506,6 +3618,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun showPromptPreview() {
         currentState = UIState.PROMPT_PREVIEW
         chatLayout.visibility = View.GONE
+        aiAssistantCenterLayout.visibility = View.GONE
         taskSelectionLayout.visibility = View.GONE
         stepGuidanceLayout.visibility = View.GONE
         promptPreviewLayout.visibility = View.VISIBLE
@@ -3617,9 +3730,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "返回到步骤: $currentStepIndex")
                 setupCurrentStep()
             } else {
-                // 如果是第一步，返回首页
-                Log.d(TAG, "已是第一步，返回任务选择页面")
-                showTaskSelection()
+                // 如果是第一步，返回AI助手中心页面
+                Log.d(TAG, "已是第一步，返回AI助手中心页面")
+                showAIAssistantCenter()
             }
         }
 
@@ -3700,7 +3813,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
 
         backToTasksButton.setOnClickListener {
-            showTaskSelection()
+            showAIAssistantCenter()
         }
     }
 
@@ -3776,8 +3889,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 currentStepIndex--
                 setupCurrentStep()
             } else {
-                // 如果是第一步，返回任务选择页面
-                showTaskSelection()
+                // 如果是第一步，返回AI助手中心页面
+                showAIAssistantCenter()
             }
             return
         }
@@ -4385,6 +4498,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     override fun onDestroy() {
         super.onDestroy()
 
+        Log.d(TAG, "Activity正在销毁，清理所有资源")
+
+        // 立即清理所有延迟任务，防止在Activity销毁后执行
+        try {
+            handler.removeCallbacksAndMessages(null)
+            longPressHandler.removeCallbacksAndMessages(null)
+            fileSyncHandler?.removeCallbacksAndMessages(null)
+            periodicSyncHandler?.removeCallbacksAndMessages(null)
+            Log.d(TAG, "所有Handler延迟任务已清理")
+        } catch (e: Exception) {
+            Log.e(TAG, "清理Handler延迟任务失败", e)
+        }
+
         // 注销API密钥同步广播接收器
         try {
             apiKeySyncReceiver?.let {
@@ -4466,9 +4592,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         // 清理搜索tab手势遮罩区
         deactivateSearchTabGestureOverlay()
 
-        // 移除所有延迟任务
-        handler.removeCallbacksAndMessages(null)
-        longPressHandler.removeCallbacksAndMessages(null)
+        Log.d(TAG, "Activity销毁完成")
     }
 
     /**
@@ -5483,7 +5607,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 2秒后隐藏提示
         handler.postDelayed({
-            browserGestureHint.visibility = View.GONE
+            if (!isFinishing && !isDestroyed) {
+                browserGestureHint.visibility = View.GONE
+            }
         }, 2000)
     }
 
@@ -5984,8 +6110,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         if (!hasShownHint) {
             // 延迟3秒显示手势提示
             handler.postDelayed({
-                showGestureHint()
-                sharedPrefs.edit().putBoolean("has_shown_gesture_hint", true).apply()
+                if (!isFinishing && !isDestroyed) {
+                    showGestureHint()
+                    sharedPrefs.edit().putBoolean("has_shown_gesture_hint", true).apply()
+                }
             }, 3000)
         }
 
@@ -9024,6 +9152,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showAllUserAIContacts() {
         try {
+            // 检查allContacts是否已初始化
+            if (allContacts.isEmpty()) {
+                Log.w(TAG, "allContacts为空，无法显示全部用户AI联系人")
+                return
+            }
+
             // 收集所有AI联系人
             val aiContacts = mutableListOf<ChatContact>()
             this.allContacts.forEach { category ->
@@ -9042,8 +9176,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 从UnifiedGroupChatManager获取群聊数据
             val groupChatContacts = mutableListOf<ChatContact>()
             try {
-                val groupChats = unifiedGroupChatManager.getAllGroupChats()
-                groupChats.forEach { groupChat ->
+                if (::unifiedGroupChatManager.isInitialized) {
+                    val groupChats = unifiedGroupChatManager.getAllGroupChats()
+                    groupChats.forEach { groupChat ->
                     val groupChatContact = ChatContact(
                         id = groupChat.id,
                         name = groupChat.name,
@@ -9061,6 +9196,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         aiMembers = groupChat.members.filter { member -> member.type == MemberType.AI }.map { member -> member.name }
                     )
                     groupChatContacts.add(groupChatContact)
+                }
+                } else {
+                    Log.w(TAG, "unifiedGroupChatManager未初始化，跳过群聊数据收集")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "从统一管理器获取群聊数据失败", e)
@@ -9106,6 +9244,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun showAIAssistantGroup() {
         try {
+            // 检查allContacts是否已初始化
+            if (allContacts.isEmpty()) {
+                Log.w(TAG, "allContacts为空，无法显示AI助手分组")
+                return
+            }
+
             // 查找"AI助手"分组
             val aiAssistantCategory = allContacts.find { it.name == "AI助手" }
 
@@ -9181,6 +9325,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         } catch (e: Exception) {
             Log.e(TAG, "执行标签内容切换失败", e)
+            // 发生异常时，尝试显示默认的"全部"标签页
+            try {
+                showAllUserAIContacts()
+                Log.d(TAG, "异常恢复：切换到全部标签页")
+            } catch (recoveryException: Exception) {
+                Log.e(TAG, "异常恢复失败", recoveryException)
+            }
         }
     }
 
@@ -10023,6 +10174,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun syncGroupChatsFromUnifiedManager() {
         try {
+            // 检查unifiedGroupChatManager是否已初始化
+            if (!::unifiedGroupChatManager.isInitialized) {
+                Log.w(TAG, "unifiedGroupChatManager未初始化，跳过群聊数据同步")
+                return
+            }
+
             val groupChats = unifiedGroupChatManager.getAllGroupChats()
             if (groupChats.isEmpty()) {
                 Log.d(TAG, "UnifiedGroupChatManager中没有群聊数据")
@@ -16532,7 +16689,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         when (tabIndex) {
             0 -> showChat()
             1 -> showBrowser()
-            2 -> showTaskSelection()
+            2 -> showAIAssistantCenter()
             3 -> showVoice()
             4 -> showAppSearch()
             5 -> showSettings()
@@ -18364,9 +18521,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             if (!hasShownGuide) {
                 handler.postDelayed({
-                    showGestureInstructions()
-                    // 标记已显示过，以后不再自动显示
-                    sharedPrefs.edit().putBoolean(PREF_GESTURE_GUIDE_SHOWN, true).apply()
+                    if (!isFinishing && !isDestroyed) {
+                        showGestureInstructions()
+                        // 标记已显示过，以后不再自动显示
+                        sharedPrefs.edit().putBoolean(PREF_GESTURE_GUIDE_SHOWN, true).apply()
+                    }
                 }, 1500)
             }
 
@@ -18458,11 +18617,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             }
                             2 -> {
                                 // 单击任务tab - 退出遮罩层并进入任务页面
-                                Log.d(TAG, "遮罩层中单击任务tab，退出遮罩层并进入任务页面")
+                                Log.d(TAG, "遮罩层中单击AI助手tab，退出遮罩层并进入AI助手中心页面")
                                 performGestureVibration("light")
                                 deactivateSearchTabGestureOverlay()
-                                showTaskSelection()
-                                showMaterialToast("📋 已切换到任务页面")
+                                showAIAssistantCenter()
+                                showMaterialToast("🤖 已切换到AI助手中心页面")
                                 return true
                             }
                             3 -> {

@@ -470,4 +470,57 @@
     <color name="ai_assistant_ai_bubble_light">#2A2A2A</color>
     <color name="ai_assistant_ai_text_light">#FFFFFF</color>
 
+    <!-- =============================================================== -->
+    <!-- =============== AI助手中心专用颜色方案 - 暗色模式 ============== -->
+    <!-- =============================================================== -->
+    
+    <!-- 🌿 AI助手中心 - 暗色模式 -->
+    <color name="ai_assistant_center_background_light">#0F0F0F</color>
+    <color name="ai_assistant_center_surface_light">#1A1A1A</color>
+    <color name="ai_assistant_center_card_light">#1E1E1E</color>
+    
+    <!-- 头部颜色 - 暗色模式 -->
+    <color name="ai_assistant_header_background">#0EBE68</color>
+    <color name="ai_assistant_banner_background">#10D876</color>
+    
+    <!-- 主色调 - 暗色模式 -->
+    <color name="ai_assistant_primary">#10D876</color>
+    <color name="ai_assistant_primary_variant">#0EBE68</color>
+    <color name="ai_assistant_secondary">#1DE885</color>
+    
+    <!-- 文本颜色 - 暗色模式 -->
+    <color name="ai_assistant_text_primary">#FFFFFF</color>
+    <color name="ai_assistant_text_secondary">#B8B8B8</color>
+    <color name="ai_assistant_text_hint">#888888</color>
+    
+    <!-- 标签颜色 - 暗色模式 -->
+    <color name="ai_assistant_tab_selected">#10D876</color>
+    <color name="ai_assistant_tab_unselected">#888888</color>
+    
+    <!-- 边框和分割线 - 暗色模式 -->
+    <color name="ai_assistant_border">#404040</color>
+    <color name="ai_assistant_divider">#333333</color>
+    
+    <!-- 输入框颜色 - 暗色模式 -->
+    <color name="ai_assistant_input_background">#2A2A2A</color>
+    <color name="ai_assistant_input_stroke">#404040</color>
+    <color name="ai_assistant_input_stroke_focused">#10D876</color>
+    
+    <!-- 按钮颜色 - 暗色模式 -->
+    <color name="ai_assistant_button_primary">#10D876</color>
+    <color name="ai_assistant_button_text">#000000</color>
+    <color name="ai_assistant_button_secondary">#2A2A2A</color>
+    <color name="ai_assistant_button_text_secondary">#10D876</color>
+    
+    <!-- 图标颜色 - 暗色模式 -->
+    <color name="ai_assistant_icon">#10D876</color>
+    <color name="ai_assistant_icon_secondary">#B8B8B8</color>
+    
+    <!-- 阴影和波纹效果 - 暗色模式 -->
+    <color name="ai_assistant_shadow">#40000000</color>
+    <color name="ai_assistant_ripple">#1A10D876</color>
+    
+    <!-- 卡片背景 - 暗色模式 -->
+    <color name="ai_assistant_card_background">#1E1E1E</color>
+
 </resources>

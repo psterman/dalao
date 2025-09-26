@@ -11,6 +11,7 @@ import androidx.fragment.app.activityViewModels
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.PromptProfile
 import com.example.aifloatingball.viewmodel.SettingsViewModel
+import com.example.aifloatingball.utils.ThemeUtils
 import com.google.android.material.textfield.TextInputEditText
 
 class CoreInstructionsFragment : Fragment() {
@@ -33,6 +34,10 @@ class CoreInstructionsFragment : Fragment() {
             val view = inflater.inflate(R.layout.fragment_core_instructions, container, false)
             android.util.Log.d("CoreInstructionsFragment", "成功加载布局")
 
+            // 应用当前主题
+            applyTheme(view)
+            android.util.Log.d("CoreInstructionsFragment", "成功应用主题")
+
             setupViews(view)
             android.util.Log.d("CoreInstructionsFragment", "成功设置视图")
 
@@ -46,6 +51,11 @@ class CoreInstructionsFragment : Fragment() {
             // 返回一个简单的错误视图
             createErrorView(inflater, container, e.message ?: "未知错误")
         }
+    }
+    
+    private fun applyTheme(view: View) {
+        // 使用主题工具类应用AI助手中心主题
+        ThemeUtils.applyAIAssistantTheme(view, requireContext())
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {

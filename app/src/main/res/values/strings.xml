@@ -94,7 +94,7 @@
 
     <!-- AI Assistant Center -->
     <string name="title_ai_assistant_center">AI 助手中心</string>
-    <string name="subtitle_ai_assistant_center">创建个性化AI助手，让对话更贴心</string>
+    <string name="subtitle_ai_assistant_center"></string>
     <string name="title_master_prompt_settings">AI 指令中心</string>
     <string name="summary_master_prompt_settings">设置您的个人信息与偏好，让AI更懂你</string>
 

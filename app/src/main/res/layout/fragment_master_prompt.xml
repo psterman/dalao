@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ai_assistant_center_background_light"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- 档案选择区域 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            app:cardElevation="2dp"
+            app:cardCornerRadius="16dp"
+            app:cardBackgroundColor="@color/ai_assistant_card_background">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_person"
+                        android:layout_marginEnd="8dp"
+                        app:tint="@color/ai_assistant_primary" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="选择助手档案"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/ai_assistant_text_primary" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_add_profile"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:text="新建档案"
+                        android:textSize="12sp"
+                        android:backgroundTint="@color/ai_assistant_primary"
+                        android:textColor="@color/ai_assistant_button_text"
+                        app:icon="@drawable/ic_add"
+                        app:iconSize="16dp"
+                        app:iconTint="@color/ai_assistant_button_text"
+                        style="@style/Widget.MaterialComponents.Button" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/profiles_recycler_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                    android:clipToPadding="false" />
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 配置标签页 -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tabs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            app:tabMode="scrollable"
+            app:tabGravity="start"
+            app:tabIndicatorFullWidth="false"
+            app:tabIndicatorGravity="bottom"
+            app:tabIndicatorHeight="3dp"
+            app:tabIndicatorColor="@color/ai_assistant_primary"
+            app:tabTextColor="@color/ai_assistant_text_secondary"
+            app:tabSelectedTextColor="@color/ai_assistant_primary"
+            app:tabRippleColor="@color/ai_assistant_primary"
+            android:background="@android:color/transparent"
+            style="@style/Widget.MaterialComponents.TabLayout" />
+
+        <!-- 内容区域 -->
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/view_pager"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:nestedScrollingEnabled="true"
+            android:overScrollMode="never" />
+
+        <!-- 保存按钮 -->
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+            android:id="@+id/fab_save"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_margin="16dp"
+            android:text="保存档案"
+            android:backgroundTint="@color/ai_assistant_primary"
+            android:textColor="@color/ai_assistant_button_text"
+            app:icon="@drawable/ic_save"
+            app:iconSize="20dp"
+            app:iconTint="@color/ai_assistant_button_text" />
+
+    </LinearLayout>
+
+</androidx.core.widget.NestedScrollView>

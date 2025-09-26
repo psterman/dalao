@@ -12,6 +12,7 @@ import androidx.fragment.app.activityViewModels
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.PromptProfile
 import com.example.aifloatingball.viewmodel.SettingsViewModel
+import com.example.aifloatingball.utils.ThemeUtils
 
 class PersonalizationFragment : Fragment() {
     private val viewModel: SettingsViewModel by activityViewModels()
@@ -43,53 +44,67 @@ class PersonalizationFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View {
+    ): View? {
         return try {
-            inflater.inflate(R.layout.fragment_personalization, container, false)
+            val view = inflater.inflate(R.layout.fragment_personalization, container, false)
+            // 应用当前主题
+            applyTheme(view)
+            view
         } catch (e: Exception) {
             android.util.Log.e("PersonalizationFragment", "Error in onCreateView", e)
-            // 返回一个简单的错误视图
-            val errorView = TextView(requireContext())
-            errorView.text = "个性化配置加载失败，请重试"
-            errorView.gravity = android.view.Gravity.CENTER
-            errorView
+            // 返回null让系统处理错误
+            null
         }
+    }
+    
+    private fun applyTheme(view: View) {
+        // 使用主题工具类应用AI助手中心主题
+        ThemeUtils.applyAIAssistantTheme(view, requireContext())
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        initializeViews(view)
-        setupDropdowns()
-        
-        viewModel.selectedProfile.observe(viewLifecycleOwner) { profile ->
-            updateUI(profile)
+        try {
+            initializeViews(view)
+            setupDropdowns()
+            
+            viewModel.selectedProfile.observe(viewLifecycleOwner) { profile ->
+                updateUI(profile)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("PersonalizationFragment", "Error in onViewCreated", e)
         }
     }
 
     private fun initializeViews(view: View) {
-        // 基本信息
-        genderDropdown = view.findViewById(R.id.gender_dropdown)
-        ageGroupDropdown = view.findViewById(R.id.age_group_dropdown)
-        
-        // 职业信息
-        occupationDropdown = view.findViewById(R.id.occupation_dropdown)
-        occupationInterestDropdown = view.findViewById(R.id.occupation_interest_dropdown)
-        educationDropdown = view.findViewById(R.id.education_dropdown)
-        
-        // 兴趣与偏好
-        entertainmentDropdown = view.findViewById(R.id.entertainment_dropdown)
-        shoppingDropdown = view.findViewById(R.id.shopping_dropdown)
-        nicheDropdown = view.findViewById(R.id.niche_dropdown)
-        
-        // 观念与取向
-        orientationDropdown = view.findViewById(R.id.orientation_dropdown)
-        valuesDropdown = view.findViewById(R.id.values_dropdown)
-        
-        // 健康信息
-        diagnosedDropdown = view.findViewById(R.id.diagnosed_dropdown)
-        dietaryDropdown = view.findViewById(R.id.dietary_dropdown)
-        sleepDropdown = view.findViewById(R.id.sleep_dropdown)
+        try {
+            // 基本信息
+            genderDropdown = view.findViewById(R.id.gender_dropdown) ?: throw NullPointerException("gender_dropdown not found")
+            ageGroupDropdown = view.findViewById(R.id.age_group_dropdown) ?: throw NullPointerException("age_group_dropdown not found")
+            
+            // 职业信息
+            occupationDropdown = view.findViewById(R.id.occupation_dropdown) ?: throw NullPointerException("occupation_dropdown not found")
+            occupationInterestDropdown = view.findViewById(R.id.occupation_interest_dropdown) ?: throw NullPointerException("occupation_interest_dropdown not found")
+            educationDropdown = view.findViewById(R.id.education_dropdown) ?: throw NullPointerException("education_dropdown not found")
+            
+            // 兴趣与偏好
+            entertainmentDropdown = view.findViewById(R.id.entertainment_dropdown) ?: throw NullPointerException("entertainment_dropdown not found")
+            shoppingDropdown = view.findViewById(R.id.shopping_dropdown) ?: throw NullPointerException("shopping_dropdown not found")
+            nicheDropdown = view.findViewById(R.id.niche_dropdown) ?: throw NullPointerException("niche_dropdown not found")
+            
+            // 观念与取向
+            orientationDropdown = view.findViewById(R.id.orientation_dropdown) ?: throw NullPointerException("orientation_dropdown not found")
+            valuesDropdown = view.findViewById(R.id.values_dropdown) ?: throw NullPointerException("values_dropdown not found")
+            
+            // 健康信息
+            diagnosedDropdown = view.findViewById(R.id.diagnosed_dropdown) ?: throw NullPointerException("diagnosed_dropdown not found")
+            dietaryDropdown = view.findViewById(R.id.dietary_dropdown) ?: throw NullPointerException("dietary_dropdown not found")
+            sleepDropdown = view.findViewById(R.id.sleep_dropdown) ?: throw NullPointerException("sleep_dropdown not found")
+        } catch (e: Exception) {
+            android.util.Log.e("PersonalizationFragment", "Error initializing views", e)
+            throw e
+        }
     }
 
     private fun setupDropdowns() {

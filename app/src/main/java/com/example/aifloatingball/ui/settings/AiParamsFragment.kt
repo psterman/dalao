@@ -13,6 +13,7 @@ import androidx.fragment.app.activityViewModels
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.PromptProfile
 import com.example.aifloatingball.viewmodel.SettingsViewModel
+import com.example.aifloatingball.utils.ThemeUtils
 import com.google.android.material.switchmaterial.SwitchMaterial
 
 class AiParamsFragment : Fragment() {
@@ -34,7 +35,10 @@ class AiParamsFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         return try {
-            inflater.inflate(R.layout.fragment_ai_params, container, false)
+            val view = inflater.inflate(R.layout.fragment_ai_params, container, false)
+            // 应用当前主题
+            applyTheme(view)
+            view
         } catch (e: Exception) {
             android.util.Log.e("AiParamsFragment", "Error in onCreateView", e)
             // 返回一个简单的错误视图
@@ -63,6 +67,11 @@ class AiParamsFragment : Fragment() {
         } catch (e: Exception) {
             android.util.Log.e("AiParamsFragment", "Error in onViewCreated", e)
         }
+    }
+    
+    private fun applyTheme(view: View) {
+        // 使用主题工具类应用AI助手中心主题
+        ThemeUtils.applyAIAssistantTheme(view, requireContext())
     }
 
     private fun setupViews(view: View) {

@@ -1,0 +1,28 @@
+package com.example.aifloatingball.adapter
+
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentActivity
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.example.aifloatingball.fragment.*
+
+/**
+ * AI助手中心ViewPager2适配器
+ */
+class AIAssistantCenterPagerAdapter(fragmentActivity: FragmentActivity) : FragmentStateAdapter(fragmentActivity) {
+    
+    private val fragments = listOf(
+        BasicInfoFragment(),
+        AIConfigFragment(),      // AI配置（合并AI指令中心和API设置）
+        PersonalizationFragment(),
+        TaskFragment()
+    )
+    
+    override fun getItemCount(): Int = fragments.size
+    
+    override fun createFragment(position: Int): Fragment = fragments[position]
+    
+    /**
+     * 获取指定位置的Fragment
+     */
+    fun getFragment(position: Int): Fragment = fragments[position]
+}

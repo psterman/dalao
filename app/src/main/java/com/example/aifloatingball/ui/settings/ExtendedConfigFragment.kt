@@ -13,6 +13,7 @@ import androidx.fragment.app.activityViewModels
 import com.example.aifloatingball.R
 import com.example.aifloatingball.model.PromptProfile
 import com.example.aifloatingball.viewmodel.SettingsViewModel
+import com.example.aifloatingball.utils.ThemeUtils
 
 class ExtendedConfigFragment : Fragment() {
     private val viewModel: SettingsViewModel by activityViewModels()
@@ -31,6 +32,8 @@ class ExtendedConfigFragment : Fragment() {
     ): View? {
         return try {
             val view = inflater.inflate(R.layout.fragment_extended_config, container, false)
+            // 应用当前主题
+            applyTheme(view)
             setupViews(view)
             setupDropdowns()
             setupSeekBarListeners()
@@ -50,6 +53,11 @@ class ExtendedConfigFragment : Fragment() {
         viewModel.selectedProfile.observe(viewLifecycleOwner) { profile ->
             displayProfile(profile)
         }
+    }
+    
+    private fun applyTheme(view: View) {
+        // 使用主题工具类应用AI助手中心主题
+        ThemeUtils.applyAIAssistantTheme(view, requireContext())
     }
 
     private fun setupViews(view: View) {

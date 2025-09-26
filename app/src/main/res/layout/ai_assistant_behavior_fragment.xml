@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ai_assistant_center_background_light"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- AI行为标题 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="24dp">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_business"
+                android:tint="@color/ai_assistant_primary"
+                android:layout_marginEnd="12dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="AI 行为"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/ai_assistant_text_primary" />
+        </LinearLayout>
+
+        <!-- 响应模式 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="响应模式"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/ai_assistant_text_primary"
+                    android:layout_marginBottom="16dp" />
+
+                <RadioGroup
+                    android:id="@+id/response_mode_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <RadioButton
+                        android:id="@+id/quick_response_radio"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="快速响应"
+                        android:textSize="14sp"
+                        android:textColor="@color/ai_assistant_text_primary"
+                        android:checked="true"
+                        android:buttonTint="@color/ai_assistant_primary"
+                        android:layout_marginBottom="8dp" />
+
+                    <RadioButton
+                        android:id="@+id/balanced_response_radio"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="平衡模式"
+                        android:textSize="14sp"
+                        android:textColor="@color/ai_assistant_text_primary"
+                        android:buttonTint="@color/ai_assistant_primary"
+                        android:layout_marginBottom="8dp" />
+
+                    <RadioButton
+                        android:id="@+id/detailed_response_radio"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="详细分析"
+                        android:textSize="14sp"
+                        android:textColor="@color/ai_assistant_text_primary"
+                        android:buttonTint="@color/ai_assistant_primary" />
+                </RadioGroup>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 交互偏好 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="交互偏好"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/ai_assistant_text_primary"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- 主动提问 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="主动提问"
+                            android:textSize="14sp"
+                            android:textColor="@color/ai_assistant_text_primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="主动询问更多细节"
+                            android:textSize="12sp"
+                            android:textColor="@color/ai_assistant_text_secondary" />
+                    </LinearLayout>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/active_questioning_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        app:thumbTint="@color/ai_assistant_primary"
+                        app:trackTint="@color/ai_assistant_primary" />
+                </LinearLayout>
+
+                <!-- 提供建议 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="提供建议"
+                            android:textSize="14sp"
+                            android:textColor="@color/ai_assistant_text_primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="主动提供相关建议"
+                            android:textSize="12sp"
+                            android:textColor="@color/ai_assistant_text_secondary" />
+                    </LinearLayout>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/suggestion_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        app:thumbTint="@color/ai_assistant_primary"
+                        app:trackTint="@color/ai_assistant_primary" />
+                </LinearLayout>
+
+                <!-- 情感表达 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="情感表达"
+                            android:textSize="14sp"
+                            android:textColor="@color/ai_assistant_text_primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="使用情感化表达"
+                            android:textSize="12sp"
+                            android:textColor="@color/ai_assistant_text_secondary" />
+                    </LinearLayout>
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/emotion_switch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="false"
+                        app:thumbTint="@color/ai_assistant_primary"
+                        app:trackTint="@color/ai_assistant_primary" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 专业领域 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="专业领域"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/ai_assistant_text_primary"
+                    android:layout_marginBottom="16dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="选择AI助手的专业领域，将影响回答的专业性和深度"
+                    android:textSize="12sp"
+                    android:textColor="@color/ai_assistant_text_secondary"
+                    android:layout_marginBottom="12dp" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/expertise_chip_group"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:chipSpacingHorizontal="8dp"
+                    app:chipSpacingVertical="8dp">
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/tech_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="技术"
+                        android:checkable="true"
+                        app:chipBackgroundColor="@color/ai_assistant_primary"
+                        app:chipStrokeColor="@color/ai_assistant_primary"
+                        android:textColor="@color/white" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/business_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="商业"
+                        android:checkable="true"
+                        app:chipBackgroundColor="@color/ai_assistant_primary"
+                        app:chipStrokeColor="@color/ai_assistant_primary"
+                        android:textColor="@color/white" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/education_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="教育"
+                        android:checkable="true"
+                        app:chipBackgroundColor="@color/ai_assistant_primary"
+                        app:chipStrokeColor="@color/ai_assistant_primary"
+                        android:textColor="@color/white" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/creative_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="创意"
+                        android:checkable="true"
+                        app:chipBackgroundColor="@color/ai_assistant_primary"
+                        app:chipStrokeColor="@color/ai_assistant_primary"
+                        android:textColor="@color/white" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/health_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="健康"
+                        android:checkable="true"
+                        app:chipBackgroundColor="@color/ai_assistant_primary"
+                        app:chipStrokeColor="@color/ai_assistant_primary"
+                        android:textColor="@color/white" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/lifestyle_chip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="生活"
+                        android:checkable="true"
+                        app:chipBackgroundColor="@color/ai_assistant_primary"
+                        app:chipStrokeColor="@color/ai_assistant_primary"
+                        android:textColor="@color/white" />
+                </com.google.android.material.chip.ChipGroup>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+    </LinearLayout>
+
+</ScrollView>

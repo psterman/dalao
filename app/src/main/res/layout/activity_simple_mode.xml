@@ -90,14 +90,179 @@
 
     </LinearLayout>
 
-    <!-- 任务选择页面 -->
+    <!-- AI助手中心页面 -->
+    <LinearLayout
+        android:id="@+id/ai_assistant_center_layout"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:background="@color/ai_assistant_center_background_light">
+
+        <!-- 头部 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:background="@color/ai_assistant_header_background"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <ImageButton
+                android:id="@+id/ai_center_back_button"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_arrow_back"
+                android:contentDescription="返回"
+                android:tint="@color/white" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="AI 助手中心"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/white"
+                android:gravity="center" />
+
+            <ImageButton
+                android:id="@+id/ai_center_add_button"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:background="@android:color/transparent"
+                android:src="@drawable/ic_add"
+                android:contentDescription="新建"
+                android:tint="@color/white" />
+        </LinearLayout>
+
+        <!-- 横幅 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/ai_assistant_banner_background"
+            android:orientation="horizontal"
+            android:padding="16dp"
+            android:gravity="center_vertical">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_ai_assistant"
+                android:tint="@color/white"
+                android:layout_marginEnd="12dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text=""
+                android:textSize="14sp"
+                android:textColor="@color/white" />
+        </LinearLayout>
+
+        <!-- 助手档案选择 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:gravity="center_vertical">
+
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_person"
+                    android:tint="@color/ai_assistant_primary"
+                    android:layout_marginEnd="12dp" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="选择助手档案"
+                    android:textSize="16sp"
+                    android:textColor="@color/simple_mode_text_primary_light" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/create_profile_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="新建档案"
+                    android:textSize="12sp"
+                    android:backgroundTint="@color/ai_assistant_primary"
+                    android:textColor="@color/white"
+                    app:cornerRadius="18dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- 标签导航 -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/ai_center_tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginBottom="8dp"
+            app:tabTextColor="@color/ai_assistant_tab_unselected"
+            app:tabSelectedTextColor="@color/ai_assistant_primary"
+            app:tabIndicatorColor="@color/ai_assistant_primary"
+            app:tabIndicatorHeight="2dp"
+            app:tabMode="scrollable"
+            app:tabGravity="fill">
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="基础信息"
+                android:icon="@drawable/ic_edit" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AI配置"
+                android:icon="@drawable/ic_assistant" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="个性化"
+                android:icon="@drawable/ic_person" />
+
+            <com.google.android.material.tabs.TabItem
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="任务"
+                android:icon="@drawable/ic_home" />
+        </com.google.android.material.tabs.TabLayout>
+
+        <!-- 内容区域 -->
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/ai_center_view_pager"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:nestedScrollingEnabled="true"
+            android:overScrollMode="never" />
+
+    </LinearLayout>
+
+    <!-- 任务选择页面 (迁移到AI助手中心的"任务"标签中) -->
     <LinearLayout
         android:id="@+id/task_selection_layout"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="24dp"
+        android:visibility="gone">
 
         <!-- 搜索框 -->
         <LinearLayout
@@ -2116,7 +2281,7 @@
                         android:id="@+id/browser_gesture_overlay"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:background="#88000000"
+                        android:background="@color/ai_assistant_shadow"
                         android:visibility="gone"
                         android:clickable="true">
 
@@ -2528,7 +2693,7 @@
                 android:layout_marginTop="4dp" />
         </LinearLayout>
 
-        <!-- 任务tab (第三位，原首页) -->
+        <!-- AI助手中心tab (第三位，原任务tab) -->
         <LinearLayout
             android:id="@+id/tab_home"
             android:layout_width="0dp"
@@ -2543,13 +2708,13 @@
             <ImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:src="@drawable/ic_home"
+                android:src="@drawable/ic_ai_assistant"
                 app:tint="@color/simple_mode_tab_icon_normal_light" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="任务"
+                android:text="AI助手"
                 android:textColor="@color/simple_mode_tab_text_normal_light"
                 android:textSize="12sp"
                 android:layout_marginTop="4dp" />
