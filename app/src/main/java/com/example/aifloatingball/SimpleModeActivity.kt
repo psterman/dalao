@@ -18835,7 +18835,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             gestureDetectorForOverlay?.setIsLongpressEnabled(true)
             Log.d(TAG, "手势检测器配置完成，双击和长按检测已启用")
 
-            // 创建手势遮罩层
+            // 创建手势遮罩层 - 只覆盖底部导航栏区域
             searchTabGestureOverlay = FrameLayout(this).apply {
                 layoutParams = FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -18852,9 +18852,44 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 isFocusable = false
                 isFocusableInTouchMode = false
 
-                // 设置触摸监听器 - 处理手势检测和穿透
-                setOnTouchListener { view, event ->
-                    try {
+                // 重要：设置触摸事件穿透，让WebView可以正常接收触摸
+                setOnTouchListener { _, event ->
+                    // 只处理底部导航栏区域的触摸事件
+                    val bottomNavLocation = IntArray(2)
+                    bottomNavigation.getLocationOnScreen(bottomNavLocation)
+                    val relativeY = event.rawY - bottomNavLocation[1]
+                    
+                    // 如果触摸在底部导航栏区域内，进行手势检测
+                    if (relativeY >= 0 && relativeY <= bottomNavigation.height) {
+                        handleGestureOverlayTouch(event)
+                    } else {
+                        // 触摸在WebView区域，直接穿透
+                        false
+                    }
+                }
+
+            }
+
+            // 将遮罩层添加到根布局
+            val rootLayout = findViewById<FrameLayout>(android.R.id.content)
+            rootLayout.addView(searchTabGestureOverlay)
+
+            isSearchTabGestureOverlayActive = true
+            Log.d(TAG, "搜索tab手势遮罩区激活成功")
+
+            // 确保搜索tab保持选中状态（绿色主题）
+            updateTabColors()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "激活搜索tab手势遮罩区失败", e)
+        }
+    }
+
+    /**
+     * 处理手势遮罩层的触摸事件
+     */
+    private fun handleGestureOverlayTouch(event: MotionEvent): Boolean {
+        return try {
                         // 记录遮罩层接收到的触摸事件
                         Log.d(TAG, "遮罩层接收到触摸事件: action=${event.action}, x=${event.x}, y=${event.y}")
 
@@ -18892,7 +18927,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 如果是搜索tab的触摸，让事件直接穿透，不进行手势检测
                         if (isSearchTabTouch) {
                             Log.d(TAG, "搜索tab触摸，直接穿透到底层处理长按/单击")
-                            return@setOnTouchListener false // 直接穿透
+                return false // 直接穿透
                         }
 
                         // 让手势检测器处理手势，获取处理结果
@@ -18916,22 +18951,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     } catch (e: Exception) {
                         Log.e(TAG, "遮罩层触摸处理失败", e)
                         false
-                    }
-                }
-            }
-
-            // 将遮罩层添加到根布局
-            val rootLayout = findViewById<FrameLayout>(android.R.id.content)
-            rootLayout.addView(searchTabGestureOverlay)
-
-            isSearchTabGestureOverlayActive = true
-            Log.d(TAG, "搜索tab手势遮罩区激活成功")
-
-            // 确保搜索tab保持选中状态（绿色主题）
-            updateTabColors()
-
-        } catch (e: Exception) {
-            Log.e(TAG, "激活搜索tab手势遮罩区失败", e)
         }
     }
 

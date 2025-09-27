@@ -1215,11 +1215,11 @@ class AIApiManager(private val context: Context) {
             val cleanedResponse = if (aiResponse.isNotEmpty()) {
                 aiResponse
             } else {
-                // 移除HTML标签和多余的空白字符
+            // 移除HTML标签和多余的空白字符
                 response
-                    .replace(Regex("<[^>]*>"), "") // 移除HTML标签
-                    .replace(Regex("\\s+"), " ") // 合并多个空白字符
-                    .trim()
+                .replace(Regex("<[^>]*>"), "") // 移除HTML标签
+                .replace(Regex("\\s+"), " ") // 合并多个空白字符
+                .trim()
             }
             
             Log.d(TAG, "清理后响应长度: ${cleanedResponse.length}")

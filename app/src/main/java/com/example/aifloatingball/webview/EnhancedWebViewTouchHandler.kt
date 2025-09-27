@@ -130,30 +130,50 @@ class EnhancedWebViewTouchHandler(
             // 单指移动，分析滑动方向
             val result = touchConflictResolver.analyzeTouchEvent(event)
             
+            // 额外的保护机制：检查滑动距离和方向的一致性
+            val deltaX = event.x - (touchConflictResolver.getInitialX() ?: event.x)
+            val deltaY = event.y - (touchConflictResolver.getInitialY() ?: event.y)
+            val absX = abs(deltaX)
+            val absY = abs(deltaY)
+            
             when (result.direction) {
-                TouchConflictResolver.SwipeDirection.HORIZONTAL -> {
-                    // 水平滑动，可能是tab切换
-                    viewPager?.isUserInputEnabled = true
-                    view.parent?.requestDisallowInterceptTouchEvent(false)
-                    Log.d(TAG, "检测到水平滑动，允许ViewPager处理")
+                TouchConflictResolver.SwipeDirection.TWO_FINGER_HORIZONTAL -> {
+                    // 两指横滑，允许WebView切换
+                    if (viewPager?.scrollState == ViewPager2.SCROLL_STATE_IDLE) {
+                        viewPager?.isUserInputEnabled = true
+                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        Log.d(TAG, "确认两指横滑，允许ViewPager处理: deltaX=$deltaX, deltaY=$deltaY")
+                    } else {
+                        Log.d(TAG, "ViewPager正在滚动中，保持当前状态")
+                    }
                     return false // 不消费，让ViewPager处理
+                }
+                TouchConflictResolver.SwipeDirection.HORIZONTAL -> {
+                    // 单指水平滑动被禁用，按垂直滑动处理
+                    viewPager?.isUserInputEnabled = false
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                    Log.d(TAG, "单指水平滑动被禁用，按垂直滑动处理: deltaX=$deltaX, deltaY=$deltaY")
+                    return false
                 }
                 TouchConflictResolver.SwipeDirection.VERTICAL -> {
                     // 垂直滑动，WebView页面滚动
                     viewPager?.isUserInputEnabled = false
                     view.parent?.requestDisallowInterceptTouchEvent(true)
-                    Log.d(TAG, "检测到垂直滑动，让WebView处理")
+                    Log.d(TAG, "检测到垂直滑动，让WebView处理: deltaX=$deltaX, deltaY=$deltaY")
                     return false // 不消费，让WebView处理
                 }
                 TouchConflictResolver.SwipeDirection.DIAGONAL -> {
                     // 对角线滑动，优先让WebView处理
                     viewPager?.isUserInputEnabled = false
                     view.parent?.requestDisallowInterceptTouchEvent(true)
-                    Log.d(TAG, "检测到对角线滑动，优先让WebView处理")
+                    Log.d(TAG, "检测到对角线滑动，优先让WebView处理: deltaX=$deltaX, deltaY=$deltaY")
                     return false
                 }
                 else -> {
-                    // 未确定方向，保持当前状态
+                    // 未确定方向，优先让WebView处理
+                    viewPager?.isUserInputEnabled = false
+                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                    Log.d(TAG, "未确定方向，优先让WebView处理: deltaX=$deltaX, deltaY=$deltaY")
                     return false
                 }
             }

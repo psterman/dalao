@@ -126,18 +126,31 @@ class GestureCardWebViewManager(
 
             // 设置页面切换监听器
             registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+                private var isScrolling = false
+                private var lastScrollTime = 0L
+                
                 override fun onPageScrollStateChanged(state: Int) {
                     super.onPageScrollStateChanged(state)
                     when (state) {
                         ViewPager2.SCROLL_STATE_DRAGGING -> {
+                            isScrolling = true
+                            lastScrollTime = System.currentTimeMillis()
                             // 开始拖拽时显示预览指示器
                             if (webViewCards.size > 1) {
                                 showSwipePreviewIndicator()
                             }
+                            Log.d(TAG, "开始拖拽切换")
+                        }
+                        ViewPager2.SCROLL_STATE_SETTLING -> {
+                            isScrolling = true
+                            lastScrollTime = System.currentTimeMillis()
+                            Log.d(TAG, "正在切换中")
                         }
                         ViewPager2.SCROLL_STATE_IDLE -> {
+                            isScrolling = false
                             // 拖拽结束时隐藏预览指示器
                             hideSwipePreviewIndicator()
+                            Log.d(TAG, "切换完成")
                         }
                     }
                 }
@@ -158,6 +171,13 @@ class GestureCardWebViewManager(
                         onPageChangeListener?.onCardSwitched(cardData, position)
                         Log.d(TAG, "切换到卡片: ${cardData.title}")
                     }
+                }
+                
+                /**
+                 * 检查是否正在滚动
+                 */
+                fun isCurrentlyScrolling(): Boolean {
+                    return isScrolling || (System.currentTimeMillis() - lastScrollTime) < 500
                 }
             })
         }
@@ -280,6 +300,14 @@ class GestureCardWebViewManager(
 
                 // 优化缩放设置，减少手势冲突
                 minimumFontSize = 8 // 最小字体大小
+                
+                // 滚动性能优化
+                setRenderPriority(android.webkit.WebSettings.RenderPriority.HIGH)
+                setDatabaseEnabled(true)
+                setGeolocationEnabled(true)
+                setJavaScriptCanOpenWindowsAutomatically(true)
+                setSupportMultipleWindows(false)
+                setLayoutAlgorithm(android.webkit.WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING)
 
                 // 暗色模式支持
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -310,9 +338,18 @@ class GestureCardWebViewManager(
 
             // 设置初始缩放比例
             setInitialScale(100) // 100% 初始缩放
+            
+            // 启用硬件加速，提升滚动性能
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
 
-            // 设置高级触摸处理
-            setupAdvancedTouchHandling(this)
+        // 设置高级触摸处理
+        setupAdvancedTouchHandling(this)
+        
+        // 确保WebView可以接收触摸事件，即使在遮罩层激活时
+        setOnTouchListener { _, event ->
+            // 直接让WebView处理触摸事件，不进行拦截
+            false
+        }
 
             // 通知WebView创建监听器
             onWebViewCreatedListener?.invoke(this)
@@ -344,8 +381,31 @@ class GestureCardWebViewManager(
                 cardData.url = url ?: "about:blank"
                 onPageChangeListener?.onPageLoadingStateChanged(cardData, false)
                 Log.d(TAG, "卡片加载完成: $url")
-
-
+                
+                // 页面加载完成后优化滚动性能
+                view?.evaluateJavascript("""
+                    (function() {
+                        // 优化滚动性能
+                        document.body.style.webkitOverflowScrolling = 'touch';
+                        document.body.style.overflow = 'auto';
+                        
+                        // 优化触摸事件
+                        document.addEventListener('touchstart', function(e) {
+                            e.stopPropagation();
+                        }, { passive: true });
+                        
+                        document.addEventListener('touchmove', function(e) {
+                            e.stopPropagation();
+                        }, { passive: true });
+                        
+                        // 优化滚动容器
+                        var scrollContainer = document.body;
+                        if (scrollContainer) {
+                            scrollContainer.style.webkitTransform = 'translateZ(0)';
+                            scrollContainer.style.transform = 'translateZ(0)';
+                        }
+                    })();
+                """.trimIndent(), null)
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -653,7 +713,49 @@ class GestureCardWebViewManager(
      */
     fun switchToCard(index: Int) {
         if (index >= 0 && index < webViewCards.size) {
-            viewPager?.setCurrentItem(index, true)
+            try {
+                // 检查ViewPager2是否正在滚动
+                if (viewPager?.scrollState != ViewPager2.SCROLL_STATE_IDLE) {
+                    Log.w(TAG, "ViewPager2正在滚动中，延迟切换")
+                    // 延迟切换，避免冲突
+                    viewPager?.post {
+                        safeSwitchToCard(index)
+                    }
+                } else {
+                    safeSwitchToCard(index)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "切换卡片失败", e)
+            }
+        }
+    }
+
+    /**
+     * 安全的卡片切换方法
+     */
+    private fun safeSwitchToCard(index: Int) {
+        try {
+            // 确保ViewPager2处于可操作状态
+            if (viewPager?.isAttachedToWindow == true) {
+                // 先禁用用户输入，避免冲突
+                viewPager?.isUserInputEnabled = false
+                
+                // 执行切换
+                viewPager?.setCurrentItem(index, true)
+                
+                // 延迟恢复用户输入
+                viewPager?.postDelayed({
+                    viewPager?.isUserInputEnabled = true
+                }, 300)
+                
+                Log.d(TAG, "安全切换到卡片: $index")
+            } else {
+                Log.w(TAG, "ViewPager2未附加到窗口，无法切换")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "安全切换卡片失败", e)
+            // 恢复用户输入
+            viewPager?.isUserInputEnabled = true
         }
     }
 
@@ -666,7 +768,8 @@ class GestureCardWebViewManager(
         val currentPosition = viewPager?.currentItem ?: 0
         val nextPosition = (currentPosition + 1) % webViewCards.size
 
-        viewPager?.setCurrentItem(nextPosition, true)
+        // 使用安全的切换方法
+        switchToCard(nextPosition)
         Log.d(TAG, "切换到下一个卡片: $nextPosition")
     }
 
