@@ -19,6 +19,7 @@ import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.voice.VoiceInputManager
 import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
+import com.example.aifloatingball.adapter.ProfileSelectorAdapter
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -72,6 +73,7 @@ import com.example.aifloatingball.data.SimpleTaskTemplates
 import com.example.aifloatingball.model.PromptTemplate
 import com.example.aifloatingball.model.PromptField
 import com.example.aifloatingball.model.FieldType
+import com.example.aifloatingball.model.PromptProfile
 import com.example.aifloatingball.model.UserPromptData
 import com.example.aifloatingball.model.ChatContact
 import com.example.aifloatingball.model.ContactType
@@ -4795,20 +4797,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             showMaterialToast("🗑️ 搜索框已清空")
         }
 
-        // 设置AI机器人按钮
-        val browserBtnAi = findViewById<ImageButton>(R.id.browser_btn_ai)
+        // 设置AI助手按钮点击监听
         browserBtnAi?.setOnClickListener {
-            val query = browserSearchInput.text.toString().trim()
-            if (query.isNotEmpty()) {
-                // 如果有输入内容，使用AI搜索
-                showMaterialToast("🤖 正在使用AI搜索: $query")
-                performAISearch(query)
-            } else {
-                // 如果没有输入内容，打开AI助手
-                showMaterialToast("🤖 打开AI助手")
-                openAIAssistant()
-            }
+            Log.d(TAG, "简易模式AI助手按钮被点击")
+            showBrowserTabAIProfileSelector()
         }
+
 
         // 添加文本变化监听器，检测"app"关键词自动切换到应用搜索，并控制清空按钮显示
         browserSearchInput.addTextChangedListener(object : TextWatcher {
@@ -19543,6 +19537,174 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             setColor(android.graphics.Color.argb(120, 255, 255, 255)) // 半透明白色模糊效果
             setStroke(4, android.graphics.Color.GREEN) // 绿色边框
             cornerRadius = 8f // 圆角
+        }
+    }
+
+    /**
+     * 显示简易模式浏览器tab的AI助手档案选择器
+     */
+    private fun showBrowserTabAIProfileSelector() {
+        try {
+            val profiles = settingsManager.getPromptProfiles()
+            Log.d(TAG, "简易模式浏览器tab获取到的档案列表大小: ${profiles.size}")
+            
+            if (profiles.isEmpty()) {
+                Toast.makeText(this, "没有可用的档案，请先在设置中创建档案", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            val currentProfileId = settingsManager.getActivePromptProfileId()
+            val currentProfile = profiles.find { it.id == currentProfileId } ?: profiles.firstOrNull()
+            
+            val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_profile_selector, null)
+            
+            // 更新当前档案显示
+            val currentProfileText = dialogView.findViewById<TextView>(R.id.current_profile_text)
+            currentProfileText?.text = "当前档案: ${currentProfile?.name ?: "未选择"}"
+            
+            // 设置RecyclerView
+            val recyclerView = dialogView.findViewById<RecyclerView>(R.id.profiles_recycler_view)
+            recyclerView?.layoutManager = LinearLayoutManager(this)
+            
+            // 获取预览区域组件
+            val previewContainer = dialogView.findViewById<LinearLayout>(R.id.preview_container)
+            val previewText = dialogView.findViewById<TextView>(R.id.preview_text)
+            
+            var selectedProfile = currentProfile
+            val adapter = ProfileSelectorAdapter(profiles, currentProfileId) { profile ->
+                selectedProfile = profile
+                Log.d(TAG, "简易模式浏览器tab选择了档案: ${profile.name}")
+                
+                // 显示预设资料预览
+                try {
+                    val generatedPrompt = settingsManager.generateMasterPrompt(profile)
+                    previewText?.text = generatedPrompt
+                    previewContainer?.visibility = View.VISIBLE
+                } catch (e: Exception) {
+                    Log.e(TAG, "生成预设资料预览失败", e)
+                    previewText?.text = "无法生成预览，请检查档案配置"
+                    previewContainer?.visibility = View.VISIBLE
+                }
+            }
+            recyclerView?.adapter = adapter
+            
+            // 初始化时显示当前档案的预览
+            currentProfile?.let { profile ->
+                try {
+                    val generatedPrompt = settingsManager.generateMasterPrompt(profile)
+                    previewText?.text = generatedPrompt
+                    previewContainer?.visibility = View.VISIBLE
+                } catch (e: Exception) {
+                    Log.e(TAG, "生成当前档案预览失败", e)
+                }
+            }
+            
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setView(dialogView)
+                .create()
+            
+            // 设置按钮点击事件
+            dialogView.findViewById<View>(R.id.btn_cancel)?.setOnClickListener {
+                Log.d(TAG, "简易模式浏览器tab取消选择档案")
+                dialog.dismiss()
+            }
+            
+            dialogView.findViewById<View>(R.id.btn_confirm)?.setOnClickListener {
+                try {
+                    selectedProfile?.let { profile ->
+                        Log.d(TAG, "简易模式浏览器tab确认选择档案: ${profile.name}")
+                        
+                        // 切换档案
+                        settingsManager.setActivePromptProfileId(profile.id)
+                        
+                        // 生成并插入提示词到浏览器搜索输入框
+                        val generatedPrompt = settingsManager.generateMasterPrompt(profile)
+                        val currentText = browserSearchInput.text.toString()
+                        
+                        // 智能粘贴逻辑：如果输入框为空，直接插入；如果有内容，询问用户
+                        if (currentText.isBlank()) {
+                            // 输入框为空，直接插入预设资料
+                            browserSearchInput.setText(generatedPrompt)
+                            browserSearchInput.setSelection(browserSearchInput.text.length)
+                            Toast.makeText(this, "已切换到档案: ${profile.name} 并插入预设资料", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // 输入框有内容，询问用户如何处理
+                            showBrowserPromptInsertionDialog(browserSearchInput, currentText, generatedPrompt, profile.name)
+                        }
+                        
+                        Log.d(TAG, "简易模式浏览器tab档案切换完成")
+                    } ?: run {
+                        Toast.makeText(this, "请选择一个档案", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "简易模式浏览器tab确认选择档案失败", e)
+                    Toast.makeText(this, "档案选择失败", Toast.LENGTH_SHORT).show()
+                }
+                dialog.dismiss()
+            }
+            
+            dialog.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "简易模式浏览器tab显示AI助手档案选择器失败", e)
+            Toast.makeText(this, "无法显示档案选择器", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 显示简易模式浏览器tab的提示词插入对话框，让用户选择如何处理现有内容
+     */
+    private fun showBrowserPromptInsertionDialog(
+        searchInput: EditText,
+        currentText: String,
+        generatedPrompt: String,
+        profileName: String
+    ) {
+        try {
+            val options = arrayOf(
+                "替换现有内容",
+                "追加到现有内容",
+                "插入到开头",
+                "取消"
+            )
+            
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("档案预设资料插入")
+                .setMessage("输入框中已有内容，请选择如何处理档案「${profileName}」的预设资料：")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> {
+                            // 替换现有内容
+                            searchInput.setText(generatedPrompt)
+                            searchInput.setSelection(searchInput.text.length)
+                            Toast.makeText(this, "已替换为档案预设资料", Toast.LENGTH_SHORT).show()
+                        }
+                        1 -> {
+                            // 追加到现有内容
+                            val newText = "$currentText\n\n$generatedPrompt"
+                            searchInput.setText(newText)
+                            searchInput.setSelection(searchInput.text.length)
+                            Toast.makeText(this, "已追加档案预设资料", Toast.LENGTH_SHORT).show()
+                        }
+                        2 -> {
+                            // 插入到开头
+                            val newText = "$generatedPrompt\n\n$currentText"
+                            searchInput.setText(newText)
+                            searchInput.setSelection(generatedPrompt.length)
+                            Toast.makeText(this, "已插入档案预设资料到开头", Toast.LENGTH_SHORT).show()
+                        }
+                        3 -> {
+                            // 取消
+                            Toast.makeText(this, "已取消插入", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+                
+        } catch (e: Exception) {
+            Log.e(TAG, "显示简易模式浏览器tab提示词插入对话框失败", e)
+            Toast.makeText(this, "显示选项失败", Toast.LENGTH_SHORT).show()
         }
     }
 

@@ -32,7 +32,7 @@
                 android:layout_width="0dp"
                 android:layout_height="36dp"
                 android:layout_weight="1"
-                android:layout_marginEnd="12dp"
+                android:layout_marginEnd="8dp"
                 app:cardCornerRadius="18dp"
                 app:cardElevation="0dp"
                 app:cardBackgroundColor="@color/chat_search_background_light">
@@ -53,6 +53,18 @@
                     android:focusableInTouchMode="false" />
 
             </androidx.cardview.widget.CardView>
+
+            <!-- AI助手按钮 -->
+            <ImageButton
+                android:id="@+id/chat_ai_assistant_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_ai_assistant"
+                android:contentDescription="AI助手档案"
+                android:scaleType="fitCenter"
+                app:tint="@color/chat_add_button_light" />
 
             <ImageButton
                 android:id="@+id/chat_add_contact_button"
@@ -2071,15 +2083,15 @@
                         android:visibility="gone"
                         app:tint="@color/simple_mode_text_secondary_light" />
 
-                    <!-- 机器人按钮 -->
+                    <!-- AI助手按钮 -->
                     <ImageButton
                         android:id="@+id/browser_btn_ai"
                         android:layout_width="32dp"
                         android:layout_height="32dp"
                         android:layout_marginEnd="8dp"
-                        android:src="@drawable/ic_smart_toy"
+                        android:src="@drawable/ic_ai_assistant"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="AI助手"
+                        android:contentDescription="AI助手档案"
                         app:tint="@color/simple_mode_accent_light" />
 
                 </LinearLayout>

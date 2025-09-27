@@ -85,6 +85,18 @@
 
                     </com.google.android.material.textfield.TextInputLayout>
 
+                    <!-- AI助手按钮 -->
+                    <ImageButton
+                        android:id="@+id/ai_assistant_button"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/ic_ai_assistant"
+                        android:contentDescription="AI助手档案"
+                        android:scaleType="fitCenter"
+                        app:tint="@color/simple_mode_accent_light" />
+
                 </LinearLayout>
 
                 <!-- 提示文本 -->
