@@ -183,6 +183,7 @@ class AIContactListActivity : AppCompatActivity() {
         
         // 定义所有可用的AI助手
         val availableAIs = listOf(
+            "临时专线",
             "DeepSeek",
             "ChatGPT",
             "Claude",
@@ -195,12 +196,14 @@ class AIContactListActivity : AppCompatActivity() {
         )
 
         availableAIs.forEach { aiName ->
-            val apiKey = getApiKeyForAI(aiName)
-            val isConfigured = apiKey.isNotEmpty()
+            val isTempService = aiName == "临时专线"
+            val apiKey = if (isTempService) "" else getApiKeyForAI(aiName)
+            val isConfigured = isTempService || apiKey.isNotEmpty()
 
             // 获取真实的最后对话内容
             val lastChatMessage = getLastChatMessage(aiName)
             val displayMessage = when {
+                isTempService -> "免费AI服务，无需配置"
                 !isConfigured -> "点击配置API密钥"
                 lastChatMessage.isNotEmpty() -> lastChatMessage
                 else -> "开始新对话"
@@ -220,7 +223,8 @@ class AIContactListActivity : AppCompatActivity() {
                     "api_url" to getDefaultApiUrl(aiName),
                     "api_key" to apiKey,
                     "model" to getDefaultModel(aiName),
-                    "is_configured" to isConfigured.toString()
+                    "is_configured" to isConfigured.toString(),
+                    "is_temp_service" to isTempService.toString()
                 )
             )
             contacts.add(contact)
@@ -235,7 +239,14 @@ class AIContactListActivity : AppCompatActivity() {
     private fun showApiKeyConfigDialog(contact: ChatContact) {
         try {
             val aiName = contact.name
+            val isTempService = contact.customData["is_temp_service"] == "true"
             val isConfigured = contact.customData["is_configured"] == "true"
+            
+            if (isTempService) {
+                // 临时专线不需要配置API密钥
+                Toast.makeText(this, "临时专线是免费服务，无需配置API密钥", Toast.LENGTH_SHORT).show()
+                return
+            }
             
             if (isConfigured) {
                 // 如果已配置，显示修改对话框
@@ -628,6 +639,7 @@ class AIContactListActivity : AppCompatActivity() {
 
     private fun getDefaultApiUrl(aiName: String): String {
         return when (aiName.lowercase()) {
+            "临时专线" -> "https://818233.xyz/"
             "deepseek" -> "https://api.deepseek.com/v1/chat/completions"
             "chatgpt" -> "https://api.openai.com/v1/chat/completions"
             "claude" -> "https://api.anthropic.com/v1/messages"
@@ -643,6 +655,7 @@ class AIContactListActivity : AppCompatActivity() {
 
     private fun getDefaultModel(aiName: String): String {
         return when (aiName.lowercase()) {
+            "临时专线" -> "gpt-oss-20b"
             "deepseek" -> "deepseek-chat"
             "chatgpt" -> "gpt-3.5-turbo"
             "claude" -> "claude-3-sonnet-20240229"

@@ -629,6 +629,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         
+        // 初始化SettingsManager
+        settingsManager = SettingsManager.getInstance(this)
+        
         // 监听主题模式变化
         settingsManager.registerOnSettingChangeListener<Int>("theme_mode") { _, value ->
             updateAllStatesTheme()
@@ -658,7 +661,6 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 测试增强版灵动岛功能
         testEnhancedIslandFeatures()
-        settingsManager = SettingsManager.getInstance(this) // Initialize SettingsManager
         aiServiceSelectionManager = AIServiceSelectionManager(this)
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -1442,6 +1444,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 将显示名称映射到AIServiceType
         val serviceType = when (selectedService) {
+            "临时专线" -> AIServiceType.TEMP_SERVICE
             "DeepSeek" -> AIServiceType.DEEPSEEK
             "智谱AI" -> AIServiceType.ZHIPU_AI
             "Kimi" -> AIServiceType.KIMI
@@ -6592,6 +6595,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             Log.d(TAG, "已启用的AI引擎: $enabledAIEngines")
         
         try {
+            // 首先添加临时专线（总是可用，无需API密钥）
+            configuredServices.add("临时专线")
+            Log.d(TAG, "添加临时专线到配置的AI服务列表")
             
             // 将AI引擎名称映射到显示名称和API密钥检查
             val aiEngineMapping = mapOf(
@@ -6820,6 +6826,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 将显示名称映射到AIServiceType
         val serviceType = when (selectedService) {
+            "临时专线" -> AIServiceType.TEMP_SERVICE
             "DeepSeek" -> AIServiceType.DEEPSEEK
             "智谱AI" -> AIServiceType.ZHIPU_AI
             "Kimi" -> AIServiceType.KIMI
@@ -8324,6 +8331,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 
                 // 将显示名称映射到AIServiceType
                 val serviceType = when (aiService) {
+                    "临时专线" -> AIServiceType.TEMP_SERVICE
                     "DeepSeek" -> AIServiceType.DEEPSEEK
                     "智谱AI" -> AIServiceType.ZHIPU_AI
                     "Kimi" -> AIServiceType.KIMI

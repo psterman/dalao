@@ -28,7 +28,8 @@ enum class AIServiceType {
     QIANWEN,
     XINGHUO,
     KIMI,
-    ZHIPU_AI
+    ZHIPU_AI,
+    TEMP_SERVICE
 }
 
 /**
@@ -209,6 +210,16 @@ class AIApiManager(private val context: Context) {
                     )
                 } else null
             }
+            AIServiceType.TEMP_SERVICE -> {
+                // 临时专线不需要API密钥，直接返回配置
+                AIServiceConfig(
+                    type = type,
+                    name = "临时专线",
+                    apiUrl = "https://818233.xyz/",
+                    apiKey = "", // 临时专线不需要API密钥
+                    model = "gpt-oss-20b"
+                )
+            }
         }
     }
     
@@ -249,6 +260,10 @@ class AIApiManager(private val context: Context) {
                     AIServiceType.ZHIPU_AI -> {
                         Log.d(TAG, "调用智谱AI API")
                         sendToZhupu(config, message, conversationHistory, callback)
+                    }
+                    AIServiceType.TEMP_SERVICE -> {
+                        Log.d(TAG, "调用临时专线API")
+                        sendToTempService(config, message, conversationHistory, callback)
                     }
                 }
             } catch (e: Exception) {
@@ -986,6 +1001,304 @@ class AIApiManager(private val context: Context) {
     /**
      * 发送到智谱AI
      */
+    private suspend fun sendToTempService(
+        config: AIServiceConfig,
+        message: String,
+        conversationHistory: List<Map<String, String>>,
+        callback: StreamingCallback
+    ) {
+        try {
+            // 临时专线使用GET请求，将问题直接拼接到URL路径中
+            // 按照服务介绍：https://818233.xyz/问题内容
+            val processedMessage = processMessageForTempService(message)
+            val url = URL("${config.apiUrl}$processedMessage")
+            val connection = url.openConnection() as HttpURLConnection
+            
+            connection.apply {
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+                setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                connectTimeout = 15000
+                readTimeout = 45000
+            }
+            
+            Log.d(TAG, "临时专线请求URL: $url")
+            Log.d(TAG, "原始消息: $message")
+            Log.d(TAG, "处理后消息: $processedMessage")
+            
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val inputStream = connection.inputStream
+                val response = inputStream.bufferedReader().use { it.readText() }
+                
+                Log.d(TAG, "临时专线响应成功，长度: ${response.length}")
+                Log.d(TAG, "临时专线响应内容: ${response.take(300)}...")
+                
+                // 处理响应文本，实现流式回复并去除广告
+                processTempServiceResponseStreaming(response, callback)
+            } else {
+                val errorStream = connection.errorStream
+                val errorResponse = errorStream?.bufferedReader()?.use { it.readText() } ?: "HTTP $responseCode"
+                Log.e(TAG, "临时专线请求失败: $responseCode, $errorResponse")
+                callback.onError("请求失败: HTTP $responseCode")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "临时专线API调用失败", e)
+            callback.onError("临时专线服务暂时不可用: ${e.message}")
+        }
+    }
+    
+    /**
+     * 处理消息以适配临时专线服务
+     * 按照服务介绍：空格用+替换，+用++替换，/用//替换
+     */
+    private fun processMessageForTempService(message: String): String {
+        return try {
+            // 先处理特殊字符，避免冲突
+            val processed = message
+                .replace("+", "++")  // + 用 ++ 替换
+                .replace("/", "//")  // / 用 // 替换
+                .replace(" ", "+")   // 空格用 + 替换
+            
+            // URL编码处理其他特殊字符
+            java.net.URLEncoder.encode(processed, "UTF-8")
+        } catch (e: Exception) {
+            Log.e(TAG, "处理临时专线消息失败", e)
+            // 如果处理失败，使用简单的空格替换
+            message.replace(" ", "+")
+        }
+    }
+
+    /**
+     * 处理临时专线响应文本，实现流式回复并去除广告
+     */
+    private fun processTempServiceResponseStreaming(response: String, callback: StreamingCallback) {
+        try {
+            Log.d(TAG, "开始处理临时专线流式响应，原始长度: ${response.length}")
+            
+            // 提取AI回复内容
+            val aiResponse = extractAIResponseFromHtml(response)
+            
+            // 如果提取失败，尝试简单的HTML清理
+            val cleanedResponse = if (aiResponse.isNotEmpty()) {
+                aiResponse
+            } else {
+                // 移除HTML标签和多余的空白字符
+                response
+                    .replace(Regex("<[^>]*>"), "") // 移除HTML标签
+                    .replace(Regex("\\s+"), " ") // 合并多个空白字符
+                    .trim()
+            }
+            
+            Log.d(TAG, "清理后响应长度: ${cleanedResponse.length}")
+            Log.d(TAG, "清理后响应内容: ${cleanedResponse.take(200)}...")
+            
+            // 如果响应为空或太短，返回默认消息
+            if (cleanedResponse.isEmpty() || cleanedResponse.length < 3) {
+                callback.onComplete("抱歉，临时专线服务暂时无法提供回复，请稍后再试。")
+                return
+            }
+            
+            // 去除广告文本
+            val adFreeResponse = removeAdvertisementText(cleanedResponse)
+            
+            // 格式化响应文本
+            val formattedResponse = formatResponseText(adFreeResponse)
+            
+            // 限制响应长度，避免过长的回复
+            val maxLength = 2000
+            val finalResponse = if (formattedResponse.length > maxLength) {
+                formattedResponse.take(maxLength) + "..."
+            } else {
+                formattedResponse
+            }
+            
+            // 模拟流式回复，将文本分块发送
+            simulateStreamingResponse(finalResponse, callback)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "处理临时专线流式响应失败", e)
+            callback.onError("抱歉，处理回复时出现错误，请稍后再试。")
+        }
+    }
+
+    /**
+     * 去除广告文本
+     */
+    private fun removeAdvertisementText(text: String): String {
+        return try {
+            // 去除常见的广告文本模式
+            val adPatterns = listOf(
+                Regex("LLM from URL.*?818233\\.xyz.*?free service.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("LLM from URL.*?A free AI chat completion service.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("LLM from URL.*?https://818233\\.xyz.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("free service.*?free as in freedom.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("buymeacoffee\\.com.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("Contact:.*?hi@818233\\.xyz.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("Disclaimer:.*?not guaranteed.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("Privacy policy:.*?NEVER be stored.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("Fair use policy:.*?IP ban.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("Usage:.*?web browser.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("Example:.*?wget.*?curl.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("LLM in use:.*?gpt-oss-20b.*", RegexOption.DOT_MATCHES_ALL),
+                Regex("Limit:.*?No chat history.*", RegexOption.DOT_MATCHES_ALL)
+            )
+            
+            var cleanedText = text
+            for (pattern in adPatterns) {
+                cleanedText = cleanedText.replace(pattern, "")
+            }
+            
+            // 清理多余的空行和空白字符
+            cleanedText
+                .replace(Regex("\\n\\s*\\n\\s*\\n"), "\n\n") // 合并多个空行
+                .replace(Regex("\\s+"), " ") // 合并多个空格
+                .trim()
+                
+        } catch (e: Exception) {
+            Log.e(TAG, "去除广告文本失败", e)
+            text
+        }
+    }
+
+    /**
+     * 模拟流式回复
+     */
+    private fun simulateStreamingResponse(text: String, callback: StreamingCallback) {
+        try {
+            // 将文本按句子分割，实现更自然的流式效果
+            val sentences = text.split(Regex("[。！？\\.!?]"))
+            var fullResponse = ""
+            
+            for (i in sentences.indices) {
+                val sentence = sentences[i].trim()
+                if (sentence.isNotEmpty()) {
+                    // 添加标点符号（除了最后一个句子）
+                    val chunk = if (i < sentences.size - 1) {
+                        sentence + if (text.contains(sentence + "。")) "。" else if (text.contains(sentence + "！")) "！" else if (text.contains(sentence + "？")) "？" else "。"
+                    } else {
+                        sentence
+                    }
+                    
+                    fullResponse += chunk
+                    
+                    // 发送流式数据
+                    callback.onChunkReceived(chunk)
+                    
+                    // 添加小延迟，模拟真实流式效果
+                    Thread.sleep(50)
+                }
+            }
+            
+            // 完成流式回复
+            callback.onComplete(fullResponse)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "模拟流式回复失败", e)
+            callback.onComplete(text)
+        }
+    }
+
+    /**
+     * 处理临时专线响应文本（保留原方法用于兼容）
+     */
+    private fun processTempServiceResponse(response: String): String {
+        try {
+            Log.d(TAG, "开始处理临时专线响应，原始长度: ${response.length}")
+            
+            // 提取AI回复内容
+            val aiResponse = extractAIResponseFromHtml(response)
+            
+            // 如果提取失败，尝试简单的HTML清理
+            val cleanedResponse = if (aiResponse.isNotEmpty()) {
+                aiResponse
+            } else {
+                // 移除HTML标签和多余的空白字符
+                response
+                    .replace(Regex("<[^>]*>"), "") // 移除HTML标签
+                    .replace(Regex("\\s+"), " ") // 合并多个空白字符
+                    .trim()
+            }
+            
+            Log.d(TAG, "清理后响应长度: ${cleanedResponse.length}")
+            Log.d(TAG, "清理后响应内容: ${cleanedResponse.take(200)}...")
+            
+            // 如果响应为空或太短，返回默认消息
+            if (cleanedResponse.isEmpty() || cleanedResponse.length < 3) {
+                return "抱歉，临时专线服务暂时无法提供回复，请稍后再试。"
+            }
+            
+            // 去除广告文本
+            val adFreeResponse = removeAdvertisementText(cleanedResponse)
+            
+            // 格式化响应文本
+            val formattedResponse = formatResponseText(adFreeResponse)
+            
+            // 限制响应长度，避免过长的回复
+            val maxLength = 2000
+            return if (formattedResponse.length > maxLength) {
+                formattedResponse.take(maxLength) + "..."
+            } else {
+                formattedResponse
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理临时专线响应失败", e)
+            return "抱歉，处理回复时出现错误，请稍后再试。"
+        }
+    }
+
+    /**
+     * 从HTML响应中提取AI回复内容
+     */
+    private fun extractAIResponseFromHtml(html: String): String {
+        return try {
+            // 尝试提取主要内容区域
+            val patterns = listOf(
+                Regex("<main[^>]*>(.*?)</main>", RegexOption.DOT_MATCHES_ALL),
+                Regex("<div[^>]*class=\"[^\"]*content[^\"]*\"[^>]*>(.*?)</div>", RegexOption.DOT_MATCHES_ALL),
+                Regex("<div[^>]*class=\"[^\"]*response[^\"]*\"[^>]*>(.*?)</div>", RegexOption.DOT_MATCHES_ALL),
+                Regex("<p[^>]*>(.*?)</p>", RegexOption.DOT_MATCHES_ALL)
+            )
+            
+            for (pattern in patterns) {
+                val match = pattern.find(html)
+                if (match != null) {
+                    val content = match.groupValues[1]
+                    if (content.length > 10) { // 确保内容足够长
+                        return content
+                            .replace(Regex("<[^>]*>"), "")
+                            .replace(Regex("\\s+"), " ")
+                            .trim()
+                    }
+                }
+            }
+            
+            // 如果没有找到特定模式，返回空字符串
+            ""
+        } catch (e: Exception) {
+            Log.e(TAG, "提取AI响应失败", e)
+            ""
+        }
+    }
+
+    /**
+     * 格式化响应文本
+     */
+    private fun formatResponseText(text: String): String {
+        return try {
+            // 基本的文本格式化
+            text
+                .replace(Regex("\\n\\s*\\n"), "\n\n") // 合并多个空行
+                .replace(Regex("\\s+"), " ") // 合并多个空格
+                .trim()
+        } catch (e: Exception) {
+            Log.e(TAG, "格式化响应文本失败", e)
+            text
+        }
+    }
+
     private suspend fun sendToZhupu(
         config: AIServiceConfig,
         message: String,

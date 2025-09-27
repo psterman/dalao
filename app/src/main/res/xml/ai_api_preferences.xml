@@ -198,4 +198,25 @@
 
     </PreferenceCategory>
 
+    <PreferenceCategory
+        app:key="temp_service_settings"
+        app:title="临时专线设置">
+
+        <Preference
+            app:key="temp_service_info"
+            app:title="临时专线"
+            app:summary="免费AI服务，无需API密钥配置"
+            app:enabled="false"/>
+
+        <EditTextPreference
+            app:key="temp_service_api_url"
+            app:title="API地址"
+            app:summary="临时专线API地址"
+            app:dialogTitle="临时专线API地址"
+            android:inputType="textUri"
+            android:defaultValue="https://818233.xyz/"
+            android:enabled="false"/>
+
+    </PreferenceCategory>
+
 </PreferenceScreen>

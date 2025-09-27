@@ -65,6 +65,10 @@ object AITagManager {
         val lowerName = aiName.lowercase()
         
         return when {
+            // 临时专线直接分类到AI助手
+            lowerName.contains("临时专线") || lowerName.contains("tempservice") || 
+            lowerName.contains("temp_service") -> "ai_assistant"
+            
             // 编程相关
             lowerName.contains("chatgpt") || lowerName.contains("claude") || 
             lowerName.contains("gemini") || lowerName.contains("copilot") -> "custom_1"

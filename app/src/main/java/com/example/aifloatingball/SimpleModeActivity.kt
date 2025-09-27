@@ -8303,9 +8303,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 获取AI服务类型
                 val serviceType = getAIServiceType(aiContact)
                 if (serviceType != null) {
-                    // 检查是否有API密钥配置
-                    val apiKey = getApiKeyForService(serviceType)
-                    if (apiKey.isNotBlank()) {
+                    // 临时专线不需要API密钥验证
+                    val isTempService = serviceType == AIServiceType.TEMP_SERVICE
+                    val apiKey = if (isTempService) "" else getApiKeyForService(serviceType)
+                    
+                    if (isTempService || apiKey.isNotBlank()) {
                         // 准备对话历史（这里可以加载已有的聊天记录）
                         val conversationHistory = listOf(
                             mapOf("role" to "user", "content" to query)
@@ -8465,6 +8467,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun getAIServiceTypeFromName(aiName: String): AIServiceType? {
         return when (aiName) {
+            "临时专线" -> AIServiceType.TEMP_SERVICE
             "DeepSeek" -> AIServiceType.DEEPSEEK
             "ChatGPT" -> AIServiceType.CHATGPT
             "Claude" -> AIServiceType.CLAUDE
@@ -9058,6 +9061,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 获取AI服务类型
             val serviceType = getAIServiceType(contact)
             if (serviceType != null) {
+                // 临时专线不需要API密钥验证
+                if (serviceType == AIServiceType.TEMP_SERVICE) {
+                    return true
+                }
                 // 从SettingsManager获取API密钥
                 val apiKey = getApiKeyForService(serviceType)
                 apiKey.isNotBlank() && apiKey.length > 10
@@ -9127,6 +9134,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun isAIContact(contact: ChatContact): Boolean {
         return when (contact.name.lowercase()) {
+            "临时专线", "tempservice", "temp_service",
             "chatgpt", "gpt", "claude", "gemini", "文心一言", "wenxin",
             "deepseek", "通义千问", "qianwen", "讯飞星火", "xinghuo",
             "kimi", "智谱ai", "zhipuai" -> true
@@ -9165,16 +9173,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 收集所有AI联系人
             val aiContacts = mutableListOf<ChatContact>()
             this.allContacts.forEach { category ->
-                if (category.name != "全部") {
-                    val validAIContacts = category.contacts.filter { contact ->
-                        contact.type == ContactType.AI &&
-                        !contact.id.contains("hint") &&
-                        !contact.id.contains("empty") &&
-                        contact.name != "暂无AI助手" &&
-                        contact.name != "AI助手分组为空"
-                    }
-                    aiContacts.addAll(validAIContacts)
+                // 包含所有分类中的AI联系人，包括"全部"分类
+                val validAIContacts = category.contacts.filter { contact ->
+                    contact.type == ContactType.AI &&
+                    !contact.id.contains("hint") &&
+                    !contact.id.contains("empty") &&
+                    contact.name != "暂无AI助手" &&
+                    contact.name != "AI助手分组为空"
                 }
+                aiContacts.addAll(validAIContacts)
             }
             
             // 从UnifiedGroupChatManager获取群聊数据
@@ -10150,6 +10157,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (savedContacts.isNotEmpty()) {
                 allContacts = savedContacts.toMutableList()
                 
+                // 确保临时专线始终存在于联系人列表中
+                ensureTempServiceInContacts()
+                
                 // 使用统一群聊管理器同步群聊数据
                 try {
                     syncGroupChatsFromUnifiedManager()
@@ -10247,6 +10257,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 定义所有可用的AI助手
             val availableAIs = listOf(
+                "临时专线" to "免费AI服务 (无需API密钥)",
                 "DeepSeek" to "DeepSeek的AI助手",
                 "ChatGPT" to "OpenAI的AI助手",
                 "Claude" to "Anthropic的AI助手",
@@ -10261,9 +10272,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val aiContacts = mutableListOf<ChatContact>()
 
             // 检查每个AI是否有有效的API密钥配置，只添加有配置的AI
+            // 临时专线作为固定常驻AI，始终显示
             availableAIs.forEach { (aiName, description) ->
-                val apiKey = getApiKeyForAI(aiName)
-                if (isValidApiKey(apiKey, aiName)) {
+                val isTempService = aiName == "临时专线"
+                val apiKey = if (isTempService) "" else getApiKeyForAI(aiName)
+                // 临时专线始终显示，其他AI需要有效API密钥
+                if (isTempService || isValidApiKey(apiKey, aiName)) {
                     // 有有效API密钥配置，添加到联系人列表
                     // 获取真实的最后聊天消息
                     val lastChatMessage = getLastChatMessageFromHistory(aiName)
@@ -10294,7 +10308,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         customData = mapOf(
                             "api_url" to getDefaultApiUrl(aiName),
                             "api_key" to apiKey,
-                            "model" to getDefaultModel(aiName)
+                            "model" to getDefaultModel(aiName),
+                            "is_temp_service" to isTempService.toString()
                         ),
                         aiMembers = emptyList()
                     )
@@ -11572,6 +11587,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 验证API密钥是否有效
      */
     private fun isValidApiKey(apiKey: String, aiName: String): Boolean {
+        // 临时专线不需要API密钥，始终返回true
+        if (aiName == "临时专线") {
+            return true
+        }
+        
         if (apiKey.isBlank()) {
             return false
         }
@@ -11598,6 +11618,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             val settingsManager = SettingsManager.getInstance(this)
             val keyName = when (aiName.lowercase()) {
+                "临时专线", "tempservice", "temp_service" -> "" // 临时专线不需要API密钥
                 "deepseek" -> "deepseek_api_key"
                 "chatgpt" -> "chatgpt_api_key"
                 "claude" -> "claude_api_key"
@@ -11609,7 +11630,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 "kimi" -> "kimi_api_key"
                 else -> "${aiName.lowercase()}_api_key"
             }
-            return settingsManager.getString(keyName, "") ?: ""
+            return if (keyName.isEmpty()) "" else settingsManager.getString(keyName, "") ?: ""
         } catch (e: Exception) {
             Log.e(TAG, "获取API密钥失败", e)
             return ""
@@ -11776,6 +11797,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun getDefaultApiUrl(aiName: String): String {
         return when (aiName.lowercase()) {
+            "临时专线" -> "https://818233.xyz/"
             "deepseek" -> "https://api.deepseek.com/v1/chat/completions"
             "chatgpt" -> "https://api.openai.com/v1/chat/completions"
             "claude" -> "https://api.anthropic.com/v1/messages"
@@ -11794,6 +11816,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun getDefaultModel(aiName: String): String {
         return when (aiName.lowercase()) {
+            "临时专线" -> "gpt-oss-20b"
             "deepseek" -> "deepseek-chat"
             "chatgpt" -> "gpt-3.5-turbo"
             "claude" -> "claude-3-sonnet-20240229"
@@ -11860,6 +11883,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
             // 定义AI模型选项
             val aiModels = listOf(
+                "临时专线" to "免费AI服务 (无需API密钥)",
                 "DeepSeek" to "DeepSeek的AI助手",
                 "ChatGPT" to "OpenAI的AI助手",
                 "Claude" to "Anthropic的AI助手",
@@ -11889,6 +11913,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     apiUrlInput.setText(getDefaultApiUrl(modelName))
                     modelInput.setText(getDefaultModel(modelName))
 
+                    // 如果是临时专线，禁用API密钥输入并清空
+                    if (modelName == "临时专线") {
+                        apiKeyInput.isEnabled = false
+                        apiKeyInput.setText("")
+                        apiKeyInput.hint = "临时专线无需API密钥"
+                        apiKeyInput.setHintTextColor(getColor(R.color.dialog_hint_text_light))
+                    } else {
+                        apiKeyInput.isEnabled = true
+                        apiKeyInput.hint = "请输入API密钥"
+                        apiKeyInput.setHintTextColor(getColor(R.color.dialog_hint_text_light))
+                    }
+
                     Log.d(TAG, "选择AI模型: $modelName")
                 }
 
@@ -11899,6 +11935,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         nameInput.setText(defaultModel.first)
                         apiUrlInput.setText(getDefaultApiUrl(defaultModel.first))
                         modelInput.setText(getDefaultModel(defaultModel.first))
+                        
+                        // 处理临时专线的特殊情况
+                        if (defaultModel.first == "临时专线") {
+                            apiKeyInput.isEnabled = false
+                            apiKeyInput.setText("")
+                            apiKeyInput.hint = "临时专线无需API密钥"
+                            apiKeyInput.setHintTextColor(getColor(R.color.dialog_hint_text_light))
+                        } else {
+                            apiKeyInput.isEnabled = true
+                            apiKeyInput.hint = "请输入API密钥"
+                            apiKeyInput.setHintTextColor(getColor(R.color.dialog_hint_text_light))
+                        }
                     }
                 }
             }
@@ -11913,16 +11961,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                     Log.d(TAG, "用户输入: name=$name, apiUrl=$apiUrl, model=$model, apiKey=${if (apiKey.isNotEmpty()) "已填写" else "未填写"}")
 
-                    if (name.isNotEmpty() && apiUrl.isNotEmpty() && apiKey.isNotEmpty()) {
-                        // 保存API密钥到SettingsManager
-                        saveApiKeyForAI(name, apiKey)
+                    // 临时专线不需要API密钥验证
+                    val isTempService = name == "临时专线"
+                    val isValidInput = if (isTempService) {
+                        name.isNotEmpty() && apiUrl.isNotEmpty()
+                    } else {
+                        name.isNotEmpty() && apiUrl.isNotEmpty() && apiKey.isNotEmpty()
+                    }
+
+                    if (isValidInput) {
+                        if (!isTempService) {
+                            // 保存API密钥到SettingsManager（临时专线不需要）
+                            saveApiKeyForAI(name, apiKey)
+                        }
 
                         // 创建新的AI联系人
                         val newContact = ChatContact(
                             id = "custom_ai_${System.currentTimeMillis()}",
                             name = name,
                             type = ContactType.AI,
-                            description = "自定义AI助手",
+                            description = if (isTempService) "免费AI服务 (无需API密钥)" else "自定义AI助手",
                             isOnline = true,
                             lastMessage = "你好！我是$name，有什么可以帮助你的吗？",
                             lastMessageTime = System.currentTimeMillis(),
@@ -11930,8 +11988,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             isPinned = true, // 自定义API的AI优先显示
                             customData = mapOf(
                                 "api_url" to apiUrl,
-                                "api_key" to apiKey,
-                                "model" to model.ifEmpty { "default" }
+                                "api_key" to if (isTempService) "" else apiKey,
+                                "model" to model.ifEmpty { "default" },
+                                "is_temp_service" to isTempService.toString()
                             ),
                             aiMembers = emptyList()
                         )
@@ -11939,10 +11998,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 添加到联系人列表
                         addContactToList(newContact)
                         dialog.dismiss()
-                        Toast.makeText(this, "AI助手 $name 添加成功，API密钥已保存", Toast.LENGTH_SHORT).show()
+                        val successMsg = if (isTempService) {
+                            "AI助手 $name 添加成功 (免费服务)"
+                        } else {
+                            "AI助手 $name 添加成功，API密钥已保存"
+                        }
+                        Toast.makeText(this, successMsg, Toast.LENGTH_SHORT).show()
                         Log.d(TAG, "添加自定义API AI联系人成功: $name")
                     } else {
-                        val errorMsg = "请填写API密钥"
+                        val errorMsg = if (isTempService) {
+                            "请填写AI助手名称和API地址"
+                        } else {
+                            "请填写API密钥"
+                        }
                         Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show()
                         Log.d(TAG, "用户输入不完整: $errorMsg")
                     }
@@ -12198,6 +12266,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "从存储中重新加载了 ${savedContacts.size} 个联系人分类")
             }
             
+            // 确保临时专线始终存在于联系人列表中
+            ensureTempServiceInContacts()
+            
             // 重新加载群聊数据并添加到联系人列表
             try {
                 val groupChats = unifiedGroupChatManager.getAllGroupChats()
@@ -12297,6 +12368,66 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "加载保存的联系人数据失败", e)
             emptyList()
+        }
+    }
+
+    /**
+     * 确保临时专线始终存在于联系人列表中
+     */
+    private fun ensureTempServiceInContacts() {
+        try {
+            // 检查是否已存在临时专线
+            val tempServiceExists = allContacts.any { category ->
+                category.contacts.any { contact ->
+                    contact.name == "临时专线" && contact.type == ContactType.AI
+                }
+            }
+            
+            if (!tempServiceExists) {
+                Log.d(TAG, "临时专线不存在于联系人列表中，正在添加...")
+                
+                // 创建临时专线联系人
+                val tempServiceContact = ChatContact(
+                    id = "ai_临时专线",
+                    name = "临时专线",
+                    type = ContactType.AI,
+                    description = "免费AI服务 (无需API密钥)",
+                    isOnline = true,
+                    lastMessage = "你好！我是临时专线，有什么可以帮助你的吗？",
+                    lastMessageTime = System.currentTimeMillis(),
+                    unreadCount = 0,
+                    isPinned = true, // 置顶显示
+                    customData = mapOf(
+                        "api_url" to getDefaultApiUrl("临时专线"),
+                        "api_key" to "",
+                        "model" to getDefaultModel("临时专线"),
+                        "is_temp_service" to "true"
+                    ),
+                    aiMembers = emptyList()
+                )
+                
+                // 添加到"全部"分类或创建新分类
+                val allCategoryIndex = allContacts.indexOfFirst { it.name == "全部" || it.name == "全部联系人" }
+                if (allCategoryIndex != -1) {
+                    // 添加到现有分类
+                    val category = allContacts[allCategoryIndex]
+                    val updatedContacts = category.contacts.toMutableList()
+                    updatedContacts.add(0, tempServiceContact) // 添加到顶部
+                    allContacts[allCategoryIndex] = category.copy(contacts = updatedContacts)
+                    Log.d(TAG, "临时专线已添加到现有分类")
+                } else {
+                    // 创建新分类
+                    allContacts.add(0, ContactCategory("全部", mutableListOf(tempServiceContact)))
+                    Log.d(TAG, "临时专线已添加到新创建的分类")
+                }
+                
+                // 保存更新后的联系人数据
+                saveContacts()
+            } else {
+                Log.d(TAG, "临时专线已存在于联系人列表中")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "确保临时专线存在于联系人列表中失败", e)
         }
     }
 
@@ -12462,6 +12593,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun getAIServiceType(contact: ChatContact): AIServiceType? {
         return when (contact.name.lowercase()) {
+            "临时专线", "tempservice", "temp_service" -> AIServiceType.TEMP_SERVICE
             "chatgpt", "gpt" -> AIServiceType.CHATGPT
             "claude" -> AIServiceType.CLAUDE
             "gemini" -> AIServiceType.GEMINI
@@ -12490,6 +12622,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             AIServiceType.KIMI -> settingsManager.getKimiApiKey()
             AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+            AIServiceType.TEMP_SERVICE -> "" // 临时专线不需要API密钥
         }
     }
 

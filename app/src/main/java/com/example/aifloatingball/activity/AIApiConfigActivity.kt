@@ -96,6 +96,15 @@ class AIApiConfigActivity : AppCompatActivity() {
         // 添加预设AI配置
         val presetAIs = listOf(
             AIConfigItem(
+                name = "临时专线",
+                displayName = "临时专线",
+                description = "免费AI服务 (无需API密钥)",
+                apiKeyKey = "",
+                apiUrlKey = "",
+                defaultApiUrl = "https://818233.xyz/",
+                isConfigured = true // 临时专线总是显示为已配置
+            ),
+            AIConfigItem(
                 name = "DeepSeek",
                 displayName = "DeepSeek",
                 description = "DeepSeek AI助手",
@@ -205,6 +214,11 @@ class AIApiConfigActivity : AppCompatActivity() {
     }
     
     private fun openApiSettings(aiName: String) {
+        if (aiName == "临时专线") {
+            Toast.makeText(this, "临时专线是免费服务，无需配置API密钥", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         val intent = Intent(this, com.example.aifloatingball.AIApiSettingsActivity::class.java)
         intent.putExtra("ai_name", aiName)
         startActivityForResult(intent, REQUEST_CODE_API_SETTINGS)
@@ -216,11 +230,12 @@ class AIApiConfigActivity : AppCompatActivity() {
             return
         }
         
-        val apiKey = settingsManager.getString(aiConfig.apiKeyKey, "") ?: ""
+        val isTempService = aiConfig.name == "临时专线"
+        val apiKey = if (isTempService) "" else settingsManager.getString(aiConfig.apiKeyKey, "") ?: ""
         val apiUrl = settingsManager.getString(aiConfig.apiUrlKey, aiConfig.defaultApiUrl) ?: aiConfig.defaultApiUrl
         val model = getDefaultModel(aiConfig.name)
         
-        if (apiKey.isEmpty()) {
+        if (!isTempService && apiKey.isEmpty()) {
             Toast.makeText(this, "API密钥为空，请先配置", Toast.LENGTH_SHORT).show()
             return
         }
@@ -252,6 +267,7 @@ class AIApiConfigActivity : AppCompatActivity() {
     
     private fun getDefaultModel(aiName: String): String {
         return when (aiName.lowercase()) {
+            "临时专线" -> "gpt-oss-20b"
             "deepseek" -> "deepseek-chat"
             "chatgpt", "openai" -> "gpt-3.5-turbo"
             "claude" -> "claude-3-sonnet-20240229"

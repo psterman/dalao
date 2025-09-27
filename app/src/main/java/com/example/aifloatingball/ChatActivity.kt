@@ -500,6 +500,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         Log.d(TAG, "getAIServiceType - 联系人名称: ${contact.name}, 小写: $lowerName")
         
         val serviceType = when (lowerName) {
+            "临时专线", "tempservice", "temp_service" -> AIServiceType.TEMP_SERVICE
             "chatgpt", "gpt" -> AIServiceType.CHATGPT
             "claude" -> AIServiceType.CLAUDE
             "gemini" -> AIServiceType.GEMINI
@@ -561,9 +562,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         // 获取AI服务类型
                         val serviceType = getAIServiceType(contact)
                         if (serviceType != null) {
-                            // 检查是否有API密钥配置
+                            // 获取API密钥（临时专线返回空字符串）
                             val apiKey = getApiKeyForService(serviceType)
-                            if (apiKey.isBlank()) {
+                            
+                            // 临时专线不需要API密钥验证
+                            if (serviceType != AIServiceType.TEMP_SERVICE && apiKey.isBlank()) {
                                 // 没有API密钥，提示用户配置
                                 val errorMessage = "请先在设置中配置${contact.name}的API密钥"
                                 val errorMsg = ChatMessage(errorMessage, false, System.currentTimeMillis())
@@ -1030,6 +1033,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             AIServiceType.XINGHUO -> settingsManager.getString("xinghuo_api_key", "") ?: ""
             AIServiceType.KIMI -> settingsManager.getString("kimi_api_key", "") ?: ""
             AIServiceType.ZHIPU_AI -> settingsManager.getString("zhipu_ai_api_key", "") ?: ""
+            AIServiceType.TEMP_SERVICE -> "" // 临时专线不需要API密钥
         }
     }
 
@@ -1322,9 +1326,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     // 获取AI服务类型
                     val serviceType = getAIServiceType(contact)
                     if (serviceType != null) {
-                        // 检查是否有API密钥配置
+                        // 获取API密钥（临时专线返回空字符串）
                         val apiKey = getApiKeyForService(serviceType)
-                        if (apiKey.isBlank()) {
+                        
+                        // 临时专线不需要API密钥验证
+                        if (serviceType != AIServiceType.TEMP_SERVICE && apiKey.isBlank()) {
                             // 没有API密钥，提示用户配置
                             val errorMessage = "请先在设置中配置${contact.name}的API密钥"
                             val errorMsg = ChatMessage(errorMessage, false, System.currentTimeMillis())
@@ -1734,9 +1740,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     // 获取AI服务类型
                     val serviceType = getAIServiceType(contact)
                     if (serviceType != null) {
-                        // 检查是否有API密钥配置
+                        // 获取API密钥（临时专线返回空字符串）
                         val apiKey = getApiKeyForService(serviceType)
-                        if (apiKey.isBlank()) {
+                        
+                        // 临时专线不需要API密钥验证
+                        if (serviceType != AIServiceType.TEMP_SERVICE && apiKey.isBlank()) {
                             // 没有API密钥，提示用户配置
                             val errorMessage = "请先在设置中配置${contact.name}的API密钥"
                             val errorMsg = ChatMessage(errorMessage, false, System.currentTimeMillis())

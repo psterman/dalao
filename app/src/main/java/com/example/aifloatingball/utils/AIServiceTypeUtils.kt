@@ -121,6 +121,7 @@ object AIServiceTypeUtils {
             AIServiceType.XINGHUO -> "讯飞星火"
             AIServiceType.KIMI -> "Kimi"
             AIServiceType.ZHIPU_AI -> "智谱AI" // 统一使用"智谱AI"
+            AIServiceType.TEMP_SERVICE -> "临时专线"
         }
     }
     

@@ -103,3 +103,5 @@ setupAppSearchInput()
 3. 是否有布局文件中的点击事件覆盖
 4. 检查是否有其他Activity或Fragment影响
 
+
+
