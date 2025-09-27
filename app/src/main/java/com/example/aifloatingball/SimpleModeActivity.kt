@@ -19541,6 +19541,751 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
+     * 内联编辑数据结构
+     */
+    data class InlineEditData(
+        // 基础信息
+        var profileName: String = "默认画像",
+        var persona: String = "一个乐于助人的通用AI助手",
+        var domain: String = "通用领域",
+        
+        // 扩展配置
+        var systemRole: String = "AI助手",
+        var techParams: String = "标准配置",
+        var format: String = "使用Markdown格式",
+        
+        // AI行为
+        var tone: String = "友好、清晰、简洁",
+        var formality: String = "适中",
+        var length: String = "适中",
+        var responseMode: String = "平衡模式",
+        
+        // 个性化 - 基本信息
+        var gender: String = "未设置",
+        var ageGroup: String = "未设置",
+        
+        // 个性化 - 职业信息
+        var occupation: String = "未设置",
+        var occupationInterest: String = "未设置",
+        var education: String = "未设置",
+        
+        // 个性化 - 兴趣与偏好
+        var entertainment: String = "未设置",
+        var shopping: String = "未设置",
+        var niche: String = "未设置",
+        
+        // 个性化 - 观念与取向
+        var orientation: String = "不愿透露",
+        var values: String = "未设置",
+        
+        // 个性化 - 健康信息
+        var diagnosed: String = "无上述疾病",
+        var dietary: String = "未设置",
+        var sleep: String = "未设置",
+        
+        // 个性化 - 其他设置
+        var language: String = "中文",
+        var preferences: String = "标准偏好",
+        var customization: String = "默认定制"
+    )
+
+    /**
+     * 预设选项配置
+     */
+    // 基础信息选项
+    private val profileNameOptions = listOf(
+        "默认画像",
+        "学习助手",
+        "工作伙伴",
+        "创意助手",
+        "技术顾问",
+        "写作助手",
+        "翻译助手",
+        "客服助手"
+    )
+
+    private val personaOptions = listOf(
+        "一个乐于助人的通用AI助手",
+        "专业的技术顾问",
+        "友好的客服代表",
+        "严谨的学术导师",
+        "创意写作助手",
+        "数据分析专家",
+        "编程助手",
+        "翻译专家"
+    )
+
+    private val domainOptions = listOf(
+        "通用领域",
+        "技术开发",
+        "学术研究",
+        "商业管理",
+        "创意设计",
+        "教育培训",
+        "医疗健康",
+        "法律咨询"
+    )
+
+    // 扩展配置选项
+    private val systemRoleOptions = listOf(
+        "AI助手",
+        "专业顾问",
+        "学习导师",
+        "创意伙伴",
+        "技术专家",
+        "客服代表",
+        "翻译专家",
+        "数据分析师"
+    )
+
+    private val techParamsOptions = listOf(
+        "标准配置",
+        "高性能模式",
+        "节能模式",
+        "快速响应",
+        "深度分析",
+        "平衡模式",
+        "定制配置"
+    )
+
+    private val formatOptions = listOf(
+        "使用Markdown格式",
+        "纯文本格式",
+        "HTML格式",
+        "JSON格式",
+        "XML格式",
+        "自定义格式"
+    )
+
+    // AI行为选项
+    private val toneOptions = listOf(
+        "友好、清晰、简洁",
+        "专业、严谨、详细",
+        "轻松、幽默、有趣",
+        "正式、权威、专业",
+        "温和、耐心、细致",
+        "直接、高效、实用"
+    )
+
+    private val formalityOptions = listOf(
+        "非常正式",
+        "正式",
+        "适中",
+        "非正式",
+        "非常随意"
+    )
+
+    private val lengthOptions = listOf(
+        "非常简短",
+        "简短",
+        "适中",
+        "详细",
+        "非常详细"
+    )
+
+    private val responseModeOptions = listOf(
+        "平衡模式",
+        "快速模式",
+        "深度模式",
+        "创意模式",
+        "分析模式",
+        "对话模式"
+    )
+
+    // 个性化选项 - 基本信息
+    private val genderOptions = listOf(
+        "未设置",
+        "男",
+        "女",
+        "其他"
+    )
+
+    private val ageGroupOptions = listOf(
+        "未设置",
+        "90后 (1990-1999)",
+        "80后 (1980-1989)",
+        "70后 (1970-1979)",
+        "60后 (1960-1969)",
+        "其他"
+    )
+
+    // 个性化选项 - 职业信息
+    private val occupationOptions = listOf(
+        "未设置",
+        "学生",
+        "信息技术/互联网",
+        "医疗/健康",
+        "教育/科研",
+        "金融/法律/咨询",
+        "艺术/设计/媒体",
+        "销售/市场/运营",
+        "建筑/房地产",
+        "制造业/物流",
+        "自由职业/创业者",
+        "政府/非营利组织",
+        "其他"
+    )
+
+    private val occupationInterestOptions = listOf(
+        "未设置",
+        "人工智能/数据科学",
+        "产品管理",
+        "市场营销",
+        "用户体验(UX)设计",
+        "新能源/环保",
+        "生物技术",
+        "短视频/直播",
+        "电子商务"
+    )
+
+    private val educationOptions = listOf(
+        "未设置",
+        "高中及以下",
+        "大专",
+        "本科",
+        "硕士",
+        "博士"
+    )
+
+    // 个性化选项 - 兴趣与偏好
+    private val entertainmentOptions = listOf(
+        "未设置",
+        "电影/剧集",
+        "音乐",
+        "阅读",
+        "电子游戏",
+        "动漫",
+        "综艺/脱口秀",
+        "播客"
+    )
+
+    private val shoppingOptions = listOf(
+        "未设置",
+        "数码产品",
+        "服饰美妆",
+        "图书文创",
+        "家居生活",
+        "汽车"
+    )
+
+    private val nicheOptions = listOf(
+        "未设置",
+        "徒步/露营",
+        "潜水/冲浪",
+        "滑雪",
+        "手办/模型",
+        "咖啡/茶艺",
+        "烘焙/烹饪",
+        "天文学",
+        "历史"
+    )
+
+    // 个性化选项 - 观念与取向
+    private val orientationOptions = listOf(
+        "不愿透露",
+        "异性恋",
+        "同性恋",
+        "双性恋",
+        "泛性恋",
+        "无性恋"
+    )
+
+    private val valuesOptions = listOf(
+        "未设置",
+        "实用主义",
+        "理想主义",
+        "集体主义",
+        "个人主义",
+        "环保主义",
+        "科技乐观主义"
+    )
+
+    // 个性化选项 - 健康信息
+    private val diagnosedOptions = listOf(
+        "无上述疾病",
+        "高血压",
+        "糖尿病",
+        "心脏病",
+        "胃病",
+        "偏头痛"
+    )
+
+    private val dietaryOptions = listOf(
+        "未设置",
+        "忌辛辣",
+        "忌生冷",
+        "忌油腻",
+        "低盐",
+        "低糖/无糖",
+        "素食",
+        "纯素",
+        "对海鲜过敏",
+        "对坚果过敏"
+    )
+
+    private val sleepOptions = listOf(
+        "未设置",
+        "早睡早起型",
+        "夜猫子型",
+        "不规律型",
+        "短睡眠型",
+        "长睡眠型"
+    )
+
+    // 个性化选项 - 其他设置
+    private val languageOptions = listOf(
+        "中文",
+        "English",
+        "中文+English",
+        "自动检测",
+        "多语言支持"
+    )
+
+    private val preferencesOptions = listOf(
+        "标准偏好",
+        "简洁偏好",
+        "详细偏好",
+        "专业偏好",
+        "创意偏好",
+        "学习偏好"
+    )
+
+    private val customizationOptions = listOf(
+        "默认定制",
+        "个性化定制",
+        "专业定制",
+        "创意定制",
+        "学习定制",
+        "工作定制"
+    )
+
+    /**
+     * 显示选项选择对话框
+     */
+    private fun showOptionSelectionDialog(
+        title: String,
+        options: List<String>,
+        currentValue: String,
+        onSelected: (String) -> Unit
+    ) {
+        val currentIndex = options.indexOf(currentValue)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setSingleChoiceItems(options.toTypedArray(), currentIndex) { _, which ->
+                onSelected(options[which])
+            }
+            .setPositiveButton("确定", null)
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 生成实时预览内容
+     */
+    private fun generateRealtimePreview(editData: InlineEditData): String {
+        return buildString {
+            appendLine("**SYSTEM_RULE:** This is a system-level instruction that defines your behavior. Adhere to these guidelines in all subsequent responses. ###")
+            appendLine()
+            appendLine("**基础信息 (Basic Information):**")
+            appendLine("**档案名称:** ${editData.profileName}")
+            appendLine("**身份角色:** ${editData.persona}")
+            appendLine("**专业领域:** ${editData.domain}")
+            appendLine()
+            appendLine("**扩展配置 (Extended Configuration):**")
+            appendLine("**系统角色:** ${editData.systemRole}")
+            appendLine("**技术参数:** ${editData.techParams}")
+            appendLine("**输出格式:** ${editData.format}")
+            appendLine()
+            appendLine("**AI行为 (AI Behavior):**")
+            appendLine("**对话风格:** ${editData.tone}")
+            appendLine("**正式程度:** ${editData.formality}")
+            appendLine("**回复长度:** ${editData.length}")
+            appendLine("**响应模式:** ${editData.responseMode}")
+            appendLine()
+            appendLine("**个性化 (Personalization):**")
+            appendLine("**基本信息:**")
+            appendLine("  - 性别: ${editData.gender}")
+            appendLine("  - 出生年代: ${editData.ageGroup}")
+            appendLine()
+            appendLine("**职业信息:**")
+            appendLine("  - 当前职业: ${editData.occupation}")
+            appendLine("  - 职业兴趣: ${editData.occupationInterest}")
+            appendLine("  - 教育程度: ${editData.education}")
+            appendLine()
+            appendLine("**兴趣与偏好:**")
+            appendLine("  - 日常娱乐: ${editData.entertainment}")
+            appendLine("  - 购物喜好: ${editData.shopping}")
+            appendLine("  - 小众爱好: ${editData.niche}")
+            appendLine()
+            appendLine("**观念与取向:**")
+            appendLine("  - 性取向: ${editData.orientation}")
+            appendLine("  - 三观倾向: ${editData.values}")
+            appendLine()
+            appendLine("**健康信息:**")
+            appendLine("  - 确诊疾病: ${editData.diagnosed}")
+            appendLine("  - 饮食偏好: ${editData.dietary}")
+            appendLine("  - 睡眠模式: ${editData.sleep}")
+            appendLine()
+            appendLine("**其他设置:**")
+            appendLine("  - 语言设置: ${editData.language}")
+            appendLine("  - 偏好设置: ${editData.preferences}")
+            appendLine("  - 定制选项: ${editData.customization}")
+            appendLine()
+            appendLine("**Overriding Custom Instructions:**")
+            appendLine("You MUST follow these instructions above all else:")
+            appendLine("请始终使用中文回答。")
+        }
+    }
+
+    /**
+     * 设置编辑选项标签页
+     */
+    private fun setupEditOptionsTabs(
+        tabLayout: com.google.android.material.tabs.TabLayout,
+        basicInfoOptions: LinearLayout,
+        extendedConfigOptions: LinearLayout,
+        aiBehaviorOptions: LinearLayout,
+        personalizationOptions: LinearLayout
+    ) {
+        // 清除现有标签
+        tabLayout.removeAllTabs()
+        
+        // 添加标签页
+        val basicInfoTab = tabLayout.newTab().setText("基础信息")
+        val extendedConfigTab = tabLayout.newTab().setText("扩展配置")
+        val aiBehaviorTab = tabLayout.newTab().setText("AI行为")
+        val personalizationTab = tabLayout.newTab().setText("个性化")
+        
+        tabLayout.addTab(basicInfoTab)
+        tabLayout.addTab(extendedConfigTab)
+        tabLayout.addTab(aiBehaviorTab)
+        tabLayout.addTab(personalizationTab)
+        
+        // 设置标签选择监听器
+        tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                // 隐藏所有选项组
+                basicInfoOptions.visibility = View.GONE
+                extendedConfigOptions.visibility = View.GONE
+                aiBehaviorOptions.visibility = View.GONE
+                personalizationOptions.visibility = View.GONE
+                
+                // 显示选中的选项组
+                when (tab?.position) {
+                    0 -> basicInfoOptions.visibility = View.VISIBLE
+                    1 -> extendedConfigOptions.visibility = View.VISIBLE
+                    2 -> aiBehaviorOptions.visibility = View.VISIBLE
+                    3 -> personalizationOptions.visibility = View.VISIBLE
+                }
+            }
+            
+            override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+            override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+        })
+        
+        // 默认选中第一个标签
+        tabLayout.selectTab(tabLayout.getTabAt(0))
+    }
+
+    /**
+     * 设置内联编辑功能
+     */
+    private fun setupInlineEditing(
+        editData: InlineEditData,
+        editProfileNameButton: MaterialButton,
+        editPersonaButton: MaterialButton,
+        editDomainButton: MaterialButton,
+        editSystemRoleButton: MaterialButton,
+        editTechParamsButton: MaterialButton,
+        editFormatButton: MaterialButton,
+        editToneButton: MaterialButton,
+        editFormalityButton: MaterialButton,
+        editLengthButton: MaterialButton,
+        editResponseModeButton: MaterialButton,
+        // 个性化选项按钮
+        editGenderButton: MaterialButton,
+        editAgeGroupButton: MaterialButton,
+        editOccupationButton: MaterialButton,
+        editOccupationInterestButton: MaterialButton,
+        editEducationButton: MaterialButton,
+        editEntertainmentButton: MaterialButton,
+        editShoppingButton: MaterialButton,
+        editNicheButton: MaterialButton,
+        editOrientationButton: MaterialButton,
+        editValuesButton: MaterialButton,
+        editDiagnosedButton: MaterialButton,
+        editDietaryButton: MaterialButton,
+        editSleepButton: MaterialButton,
+        editLanguageButton: MaterialButton,
+        editPreferencesButton: MaterialButton,
+        editCustomizationButton: MaterialButton,
+        previewText: TextView
+    ) {
+        // 基础信息编辑
+        editProfileNameButton.setOnClickListener {
+            showOptionSelectionDialog("选择档案名称", profileNameOptions, editData.profileName) { selected ->
+                editData.profileName = selected
+                editProfileNameButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editPersonaButton.setOnClickListener {
+            showOptionSelectionDialog("选择身份角色", personaOptions, editData.persona) { selected ->
+                editData.persona = selected
+                editPersonaButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editDomainButton.setOnClickListener {
+            showOptionSelectionDialog("选择专业领域", domainOptions, editData.domain) { selected ->
+                editData.domain = selected
+                editDomainButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        // 扩展配置编辑
+        editSystemRoleButton.setOnClickListener {
+            showOptionSelectionDialog("选择系统角色", systemRoleOptions, editData.systemRole) { selected ->
+                editData.systemRole = selected
+                editSystemRoleButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editTechParamsButton.setOnClickListener {
+            showOptionSelectionDialog("选择技术参数", techParamsOptions, editData.techParams) { selected ->
+                editData.techParams = selected
+                editTechParamsButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editFormatButton.setOnClickListener {
+            showOptionSelectionDialog("选择输出格式", formatOptions, editData.format) { selected ->
+                editData.format = selected
+                editFormatButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        // AI行为编辑
+        editToneButton.setOnClickListener {
+            showOptionSelectionDialog("选择对话风格", toneOptions, editData.tone) { selected ->
+                editData.tone = selected
+                editToneButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editFormalityButton.setOnClickListener {
+            showOptionSelectionDialog("选择正式程度", formalityOptions, editData.formality) { selected ->
+                editData.formality = selected
+                editFormalityButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editLengthButton.setOnClickListener {
+            showOptionSelectionDialog("选择回复长度", lengthOptions, editData.length) { selected ->
+                editData.length = selected
+                editLengthButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editResponseModeButton.setOnClickListener {
+            showOptionSelectionDialog("选择响应模式", responseModeOptions, editData.responseMode) { selected ->
+                editData.responseMode = selected
+                editResponseModeButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        // 个性化编辑 - 基本信息
+        editGenderButton.setOnClickListener {
+            showOptionSelectionDialog("选择性别", genderOptions, editData.gender) { selected ->
+                editData.gender = selected
+                editGenderButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editAgeGroupButton.setOnClickListener {
+            showOptionSelectionDialog("选择出生年代", ageGroupOptions, editData.ageGroup) { selected ->
+                editData.ageGroup = selected
+                editAgeGroupButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        // 个性化编辑 - 职业信息
+        editOccupationButton.setOnClickListener {
+            showOptionSelectionDialog("选择当前职业", occupationOptions, editData.occupation) { selected ->
+                editData.occupation = selected
+                editOccupationButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editOccupationInterestButton.setOnClickListener {
+            showOptionSelectionDialog("选择职业兴趣", occupationInterestOptions, editData.occupationInterest) { selected ->
+                editData.occupationInterest = selected
+                editOccupationInterestButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editEducationButton.setOnClickListener {
+            showOptionSelectionDialog("选择教育程度", educationOptions, editData.education) { selected ->
+                editData.education = selected
+                editEducationButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        // 个性化编辑 - 兴趣与偏好
+        editEntertainmentButton.setOnClickListener {
+            showOptionSelectionDialog("选择日常娱乐", entertainmentOptions, editData.entertainment) { selected ->
+                editData.entertainment = selected
+                editEntertainmentButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editShoppingButton.setOnClickListener {
+            showOptionSelectionDialog("选择购物喜好", shoppingOptions, editData.shopping) { selected ->
+                editData.shopping = selected
+                editShoppingButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editNicheButton.setOnClickListener {
+            showOptionSelectionDialog("选择小众爱好", nicheOptions, editData.niche) { selected ->
+                editData.niche = selected
+                editNicheButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        // 个性化编辑 - 观念与取向
+        editOrientationButton.setOnClickListener {
+            showOptionSelectionDialog("选择性取向", orientationOptions, editData.orientation) { selected ->
+                editData.orientation = selected
+                editOrientationButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editValuesButton.setOnClickListener {
+            showOptionSelectionDialog("选择三观倾向", valuesOptions, editData.values) { selected ->
+                editData.values = selected
+                editValuesButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        // 个性化编辑 - 健康信息
+        editDiagnosedButton.setOnClickListener {
+            showOptionSelectionDialog("选择确诊疾病", diagnosedOptions, editData.diagnosed) { selected ->
+                editData.diagnosed = selected
+                editDiagnosedButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editDietaryButton.setOnClickListener {
+            showOptionSelectionDialog("选择饮食偏好", dietaryOptions, editData.dietary) { selected ->
+                editData.dietary = selected
+                editDietaryButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editSleepButton.setOnClickListener {
+            showOptionSelectionDialog("选择睡眠模式", sleepOptions, editData.sleep) { selected ->
+                editData.sleep = selected
+                editSleepButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        // 个性化编辑 - 其他设置
+        editLanguageButton.setOnClickListener {
+            showOptionSelectionDialog("选择语言", languageOptions, editData.language) { selected ->
+                editData.language = selected
+                editLanguageButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editPreferencesButton.setOnClickListener {
+            showOptionSelectionDialog("选择偏好设置", preferencesOptions, editData.preferences) { selected ->
+                editData.preferences = selected
+                editPreferencesButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+
+        editCustomizationButton.setOnClickListener {
+            showOptionSelectionDialog("选择定制选项", customizationOptions, editData.customization) { selected ->
+                editData.customization = selected
+                editCustomizationButton.text = selected
+                previewText.text = generateRealtimePreview(editData)
+            }
+        }
+    }
+
+    /**
+     * 设置档案标签页
+     */
+    private fun setupProfileTabs(
+        tabLayout: com.google.android.material.tabs.TabLayout,
+        profiles: List<PromptProfile>,
+        currentProfileId: String?,
+        onProfileSelected: (PromptProfile) -> Unit
+    ) {
+        try {
+            // 清除现有标签
+            tabLayout.removeAllTabs()
+            
+            // 为每个档案创建标签
+            profiles.forEach { profile ->
+                val tab = tabLayout.newTab().setText(profile.name)
+                tab.tag = profile
+                tabLayout.addTab(tab)
+            }
+            
+            // 设置当前选中的标签
+            val currentIndex = profiles.indexOfFirst { it.id == currentProfileId }
+            if (currentIndex >= 0) {
+                tabLayout.selectTab(tabLayout.getTabAt(currentIndex))
+            }
+            
+            // 设置标签选择监听器
+            tabLayout.addOnTabSelectedListener(object : com.google.android.material.tabs.TabLayout.OnTabSelectedListener {
+                override fun onTabSelected(tab: com.google.android.material.tabs.TabLayout.Tab?) {
+                    tab?.tag?.let { profile ->
+                        if (profile is PromptProfile) {
+                            onProfileSelected(profile)
+                        }
+                    }
+                }
+                
+                override fun onTabUnselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+                override fun onTabReselected(tab: com.google.android.material.tabs.TabLayout.Tab?) {}
+            })
+            
+            Log.d(TAG, "档案标签页设置完成，共${profiles.size}个档案")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置档案标签页失败", e)
+        }
+    }
+
+    /**
      * 显示简易模式浏览器tab的AI助手档案选择器
      */
     private fun showBrowserTabAIProfileSelector() {
@@ -19566,27 +20311,245 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val recyclerView = dialogView.findViewById<RecyclerView>(R.id.profiles_recycler_view)
             recyclerView?.layoutManager = LinearLayoutManager(this)
             
+            // 获取标签页组件
+            val profileTabs = dialogView.findViewById<com.google.android.material.tabs.TabLayout>(R.id.profile_tabs)
+            
             // 获取预览区域组件
             val previewContainer = dialogView.findViewById<LinearLayout>(R.id.preview_container)
             val previewText = dialogView.findViewById<TextView>(R.id.preview_text)
+            
+            // 获取编辑选项标签页和内容区域
+            val editOptionsTabs = dialogView.findViewById<com.google.android.material.tabs.TabLayout>(R.id.edit_options_tabs)
+            val basicInfoOptions = dialogView.findViewById<LinearLayout>(R.id.basic_info_options)
+            val extendedConfigOptions = dialogView.findViewById<LinearLayout>(R.id.extended_config_options)
+            val aiBehaviorOptions = dialogView.findViewById<LinearLayout>(R.id.ai_behavior_options)
+            val personalizationOptions = dialogView.findViewById<LinearLayout>(R.id.personalization_options)
+            
+            // 获取所有编辑按钮组件
+            val editProfileNameButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_profile_name)
+            val editPersonaButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_persona)
+            val editDomainButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_domain)
+            val editSystemRoleButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_system_role)
+            val editTechParamsButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_tech_params)
+            val editFormatButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_format)
+            val editToneButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_tone)
+            val editFormalityButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_formality)
+            val editLengthButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_length)
+            val editResponseModeButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_response_mode)
+            // 个性化选项按钮
+            val editGenderButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_gender)
+            val editAgeGroupButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_age_group)
+            val editOccupationButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_occupation)
+            val editOccupationInterestButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_occupation_interest)
+            val editEducationButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_education)
+            val editEntertainmentButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_entertainment)
+            val editShoppingButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_shopping)
+            val editNicheButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_niche)
+            val editOrientationButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_orientation)
+            val editValuesButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_values)
+            val editDiagnosedButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_diagnosed)
+            val editDietaryButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_dietary)
+            val editSleepButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_sleep)
+            val editLanguageButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_language)
+            val editPreferencesButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_preferences)
+            val editCustomizationButton = dialogView.findViewById<MaterialButton>(R.id.btn_edit_customization)
+            
+            // 初始化内联编辑数据
+            val editData = InlineEditData()
+            
+            // 设置编辑选项标签页
+            setupEditOptionsTabs(
+                editOptionsTabs!!,
+                basicInfoOptions!!,
+                extendedConfigOptions!!,
+                aiBehaviorOptions!!,
+                personalizationOptions!!
+            )
+            
+            // 设置内联编辑功能
+            setupInlineEditing(
+                editData,
+                editProfileNameButton!!,
+                editPersonaButton!!,
+                editDomainButton!!,
+                editSystemRoleButton!!,
+                editTechParamsButton!!,
+                editFormatButton!!,
+                editToneButton!!,
+                editFormalityButton!!,
+                editLengthButton!!,
+                editResponseModeButton!!,
+                // 个性化选项按钮
+                editGenderButton!!,
+                editAgeGroupButton!!,
+                editOccupationButton!!,
+                editOccupationInterestButton!!,
+                editEducationButton!!,
+                editEntertainmentButton!!,
+                editShoppingButton!!,
+                editNicheButton!!,
+                editOrientationButton!!,
+                editValuesButton!!,
+                editDiagnosedButton!!,
+                editDietaryButton!!,
+                editSleepButton!!,
+                editLanguageButton!!,
+                editPreferencesButton!!,
+                editCustomizationButton!!,
+                previewText!!
+            )
             
             var selectedProfile = currentProfile
             val adapter = ProfileSelectorAdapter(profiles, currentProfileId) { profile ->
                 selectedProfile = profile
                 Log.d(TAG, "简易模式浏览器tab选择了档案: ${profile.name}")
                 
-                // 显示预设资料预览
-                try {
-                    val generatedPrompt = settingsManager.generateMasterPrompt(profile)
-                    previewText?.text = generatedPrompt
-                    previewContainer?.visibility = View.VISIBLE
-                } catch (e: Exception) {
-                    Log.e(TAG, "生成预设资料预览失败", e)
-                    previewText?.text = "无法生成预览，请检查档案配置"
-                    previewContainer?.visibility = View.VISIBLE
+                // 更新内联编辑数据
+                editData.profileName = profile.name
+                editData.persona = profile.persona ?: "一个乐于助人的通用AI助手"
+                editData.domain = "通用领域"
+                editData.systemRole = "AI助手"
+                editData.techParams = "标准配置"
+                editData.format = "使用Markdown格式"
+                editData.tone = "友好、清晰、简洁"
+                editData.formality = "适中"
+                editData.length = "适中"
+                editData.responseMode = "平衡模式"
+                // 个性化选项
+                editData.gender = profile.gender ?: "未设置"
+                editData.ageGroup = when {
+                    profile.dateOfBirth.contains("199") -> "90后 (1990-1999)"
+                    profile.dateOfBirth.contains("198") -> "80后 (1980-1989)"
+                    profile.dateOfBirth.contains("197") -> "70后 (1970-1979)"
+                    profile.dateOfBirth.contains("196") -> "60后 (1960-1969)"
+                    profile.dateOfBirth.isBlank() || profile.dateOfBirth == "未设置" -> "未设置"
+                    else -> "其他"
                 }
+                editData.occupation = profile.occupation ?: "未设置"
+                editData.occupationInterest = "未设置"
+                editData.education = profile.education ?: "未设置"
+                editData.entertainment = "未设置"
+                editData.shopping = "未设置"
+                editData.niche = "未设置"
+                editData.orientation = "不愿透露"
+                editData.values = "未设置"
+                editData.diagnosed = if (profile.healthInfo.isNotBlank() && profile.healthInfo != "未设置") profile.healthInfo else "无上述疾病"
+                editData.dietary = "未设置"
+                editData.sleep = "未设置"
+                editData.language = "中文"
+                editData.preferences = "标准偏好"
+                editData.customization = "默认定制"
+                
+                // 更新按钮显示
+                editProfileNameButton.text = editData.profileName
+                editPersonaButton.text = editData.persona
+                editDomainButton.text = editData.domain
+                editSystemRoleButton.text = editData.systemRole
+                editTechParamsButton.text = editData.techParams
+                editFormatButton.text = editData.format
+                editToneButton.text = editData.tone
+                editFormalityButton.text = editData.formality
+                editLengthButton.text = editData.length
+                editResponseModeButton.text = editData.responseMode
+                // 个性化选项按钮
+                editGenderButton.text = editData.gender
+                editAgeGroupButton.text = editData.ageGroup
+                editOccupationButton.text = editData.occupation
+                editOccupationInterestButton.text = editData.occupationInterest
+                editEducationButton.text = editData.education
+                editEntertainmentButton.text = editData.entertainment
+                editShoppingButton.text = editData.shopping
+                editNicheButton.text = editData.niche
+                editOrientationButton.text = editData.orientation
+                editValuesButton.text = editData.values
+                editDiagnosedButton.text = editData.diagnosed
+                editDietaryButton.text = editData.dietary
+                editSleepButton.text = editData.sleep
+                editLanguageButton.text = editData.language
+                editPreferencesButton.text = editData.preferences
+                editCustomizationButton.text = editData.customization
+                
+                // 显示预设资料预览
+                previewText.text = generateRealtimePreview(editData)
+                previewContainer?.visibility = View.VISIBLE
             }
             recyclerView?.adapter = adapter
+            
+            // 设置标签页
+            setupProfileTabs(profileTabs, profiles, currentProfileId) { profile ->
+                selectedProfile = profile
+                // 更新RecyclerView选择状态
+                adapter.updateProfiles(profiles, profile.id)
+                
+                // 更新内联编辑数据
+                editData.profileName = profile.name
+                editData.persona = profile.persona ?: "一个乐于助人的通用AI助手"
+                editData.domain = "通用领域"
+                editData.systemRole = "AI助手"
+                editData.techParams = "标准配置"
+                editData.format = "使用Markdown格式"
+                editData.tone = "友好、清晰、简洁"
+                editData.formality = "适中"
+                editData.length = "适中"
+                editData.responseMode = "平衡模式"
+                // 个性化选项
+                editData.gender = profile.gender ?: "未设置"
+                editData.ageGroup = when {
+                    profile.dateOfBirth.contains("199") -> "90后 (1990-1999)"
+                    profile.dateOfBirth.contains("198") -> "80后 (1980-1989)"
+                    profile.dateOfBirth.contains("197") -> "70后 (1970-1979)"
+                    profile.dateOfBirth.contains("196") -> "60后 (1960-1969)"
+                    profile.dateOfBirth.isBlank() || profile.dateOfBirth == "未设置" -> "未设置"
+                    else -> "其他"
+                }
+                editData.occupation = profile.occupation ?: "未设置"
+                editData.occupationInterest = "未设置"
+                editData.education = profile.education ?: "未设置"
+                editData.entertainment = "未设置"
+                editData.shopping = "未设置"
+                editData.niche = "未设置"
+                editData.orientation = "不愿透露"
+                editData.values = "未设置"
+                editData.diagnosed = if (profile.healthInfo.isNotBlank() && profile.healthInfo != "未设置") profile.healthInfo else "无上述疾病"
+                editData.dietary = "未设置"
+                editData.sleep = "未设置"
+                editData.language = "中文"
+                editData.preferences = "标准偏好"
+                editData.customization = "默认定制"
+                
+                // 更新按钮显示
+                editProfileNameButton.text = editData.profileName
+                editPersonaButton.text = editData.persona
+                editDomainButton.text = editData.domain
+                editSystemRoleButton.text = editData.systemRole
+                editTechParamsButton.text = editData.techParams
+                editFormatButton.text = editData.format
+                editToneButton.text = editData.tone
+                editFormalityButton.text = editData.formality
+                editLengthButton.text = editData.length
+                editResponseModeButton.text = editData.responseMode
+                // 个性化选项按钮
+                editGenderButton.text = editData.gender
+                editAgeGroupButton.text = editData.ageGroup
+                editOccupationButton.text = editData.occupation
+                editOccupationInterestButton.text = editData.occupationInterest
+                editEducationButton.text = editData.education
+                editEntertainmentButton.text = editData.entertainment
+                editShoppingButton.text = editData.shopping
+                editNicheButton.text = editData.niche
+                editOrientationButton.text = editData.orientation
+                editValuesButton.text = editData.values
+                editDiagnosedButton.text = editData.diagnosed
+                editDietaryButton.text = editData.dietary
+                editSleepButton.text = editData.sleep
+                editLanguageButton.text = editData.language
+                editPreferencesButton.text = editData.preferences
+                editCustomizationButton.text = editData.customization
+                
+                // 显示预设资料预览
+                previewText.text = generateRealtimePreview(editData)
+                previewContainer?.visibility = View.VISIBLE
+            }
             
             // 初始化时显示当前档案的预览
             currentProfile?.let { profile ->
@@ -19603,6 +20566,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 .setView(dialogView)
                 .create()
             
+            
+            // 设置管理档案按钮点击事件
+            dialogView.findViewById<View>(R.id.btn_manage_profiles)?.setOnClickListener {
+                Log.d(TAG, "简易模式浏览器tab跳转到档案管理")
+                val intent = Intent(this, MasterPromptSettingsActivity::class.java)
+                startActivity(intent)
+                dialog.dismiss()
+            }
+            
             // 设置按钮点击事件
             dialogView.findViewById<View>(R.id.btn_cancel)?.setOnClickListener {
                 Log.d(TAG, "简易模式浏览器tab取消选择档案")
@@ -19617,8 +20589,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         // 切换档案
                         settingsManager.setActivePromptProfileId(profile.id)
                         
-                        // 生成并插入提示词到浏览器搜索输入框
-                        val generatedPrompt = settingsManager.generateMasterPrompt(profile)
+                        // 使用内联编辑的数据生成提示词
+                        val generatedPrompt = generateRealtimePreview(editData)
                         val currentText = browserSearchInput.text.toString()
                         
                         // 智能粘贴逻辑：如果输入框为空，直接插入；如果有内容，询问用户
@@ -19626,7 +20598,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                             // 输入框为空，直接插入预设资料
                             browserSearchInput.setText(generatedPrompt)
                             browserSearchInput.setSelection(browserSearchInput.text.length)
-                            Toast.makeText(this, "已切换到档案: ${profile.name} 并插入预设资料", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, "已切换到档案: ${profile.name} 并插入自定义预设资料", Toast.LENGTH_SHORT).show()
                         } else {
                             // 输入框有内容，询问用户如何处理
                             showBrowserPromptInsertionDialog(browserSearchInput, currentText, generatedPrompt, profile.name)

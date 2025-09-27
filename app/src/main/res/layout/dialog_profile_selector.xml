@@ -26,6 +26,15 @@
         android:layout_marginBottom="16dp"
         android:textColor="@color/primary" />
 
+    <!-- 档案标签页 -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/profile_tabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp"
+        app:tabMode="scrollable"
+        app:tabGravity="fill" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/profiles_recycler_view"
         android:layout_width="match_parent"
@@ -33,7 +42,7 @@
         android:maxHeight="300dp"
         android:overScrollMode="never" />
 
-    <!-- 预设资料预览区域 -->
+    <!-- 预设资料编辑区域 -->
     <LinearLayout
         android:id="@+id/preview_container"
         android:layout_width="match_parent"
@@ -47,16 +56,841 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="预设资料预览："
+            android:text="预设资料编辑："
             android:textSize="14sp"
             android:textStyle="bold"
             android:textColor="?android:attr/textColorPrimary"
-            android:layout_marginBottom="8dp" />
+            android:layout_marginBottom="12dp" />
 
+        <!-- 编辑选项分类标签页 -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/edit_options_tabs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:tabMode="scrollable"
+            app:tabGravity="fill" />
+
+        <!-- 编辑选项内容区域 -->
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:maxHeight="120dp">
+            android:maxHeight="200dp">
+
+            <LinearLayout
+                android:id="@+id/edit_options_content"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- 基础信息选项 -->
+                <LinearLayout
+                    android:id="@+id/basic_info_options"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="visible">
+
+                    <!-- 档案名称编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="档案名称："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_profile_name"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="默认画像"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 身份角色编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="身份角色："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_persona"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="一个乐于助人的通用AI助手"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 专业领域编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="专业领域："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_domain"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="通用领域"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- 扩展配置选项 -->
+                <LinearLayout
+                    android:id="@+id/extended_config_options"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <!-- 系统角色编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="系统角色："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_system_role"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="AI助手"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 技术参数编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="技术参数："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_tech_params"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="标准配置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 输出格式编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="输出格式："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_format"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="使用Markdown格式"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- AI行为选项 -->
+                <LinearLayout
+                    android:id="@+id/ai_behavior_options"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <!-- 对话风格编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="对话风格："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_tone"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="友好、清晰、简洁"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 正式程度编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="正式程度："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_formality"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="适中"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 回复长度编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="回复长度："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_length"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="适中"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 响应模式编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="响应模式："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_response_mode"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="平衡模式"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+                <!-- 个性化选项 -->
+                <LinearLayout
+                    android:id="@+id/personalization_options"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <!-- 基本信息 -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="基本信息"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:layout_marginBottom="8dp"
+                        android:layout_marginTop="4dp" />
+
+                    <!-- 性别选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="性别："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_gender"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 出生年代选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="出生年代："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_age_group"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 职业信息 -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="职业信息"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:layout_marginBottom="8dp"
+                        android:layout_marginTop="8dp" />
+
+                    <!-- 当前职业选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="当前职业："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_occupation"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 感兴趣的职业方向选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="职业兴趣："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_occupation_interest"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 教育程度选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="教育程度："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_education"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 兴趣与偏好 -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="兴趣与偏好"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:layout_marginBottom="8dp"
+                        android:layout_marginTop="8dp" />
+
+                    <!-- 日常娱乐选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="日常娱乐："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_entertainment"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 购物喜好选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="购物喜好："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_shopping"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 小众爱好选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="小众爱好："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_niche"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 观念与取向 -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="观念与取向"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:layout_marginBottom="8dp"
+                        android:layout_marginTop="8dp" />
+
+                    <!-- 性取向选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="性取向："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_orientation"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="不愿透露"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 三观倾向选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="三观倾向："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_values"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 健康信息 -->
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="健康信息"
+                        android:textStyle="bold"
+                        android:textSize="14sp"
+                        android:textColor="?android:attr/textColorPrimary"
+                        android:layout_marginBottom="8dp"
+                        android:layout_marginTop="8dp" />
+
+                    <!-- 确诊疾病选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="确诊疾病："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_diagnosed"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="无上述疾病"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 饮食偏好选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="饮食偏好："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_dietary"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 睡眠模式选择 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="睡眠模式："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_sleep"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="未设置"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 语言设置编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="语言："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_language"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="中文"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 偏好设置编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="偏好设置："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_preferences"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="标准偏好"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                    <!-- 定制选项编辑 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="80dp"
+                            android:layout_height="wrap_content"
+                            android:text="定制选项："
+                            android:textSize="12sp"
+                            android:textColor="?android:attr/textColorSecondary" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btn_edit_customization"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="默认定制"
+                            android:textSize="12sp"
+                            android:textAlignment="textStart"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </ScrollView>
+
+        <!-- 实时预览区域 -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxHeight="120dp"
+            android:background="@android:color/transparent"
+            android:layout_marginTop="8dp">
 
             <TextView
                 android:id="@+id/preview_text"
