@@ -3464,6 +3464,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun sendToManus(query: String) {
         val possiblePackages = listOf(
+            "com.manus.im.app", // 真实包名
+            "tech.butterfly.app",
             "com.manus.search",
             "com.manus.app",
             "com.manus.ai",
@@ -3509,10 +3511,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun sendToIma(query: String) {
         val possiblePackages = listOf(
+            "com.tencent.ima", // 真实包名
+            "com.tencent.ima.copilot",
             "com.ima.ai",
             "com.ima.app",
             "com.ima.mobile",
-            "com.tencent.ima",
             "com.ima.android",
             "com.ima.ai.app"
         )
@@ -3524,11 +3527,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun sendToNano(query: String) {
         val possiblePackages = listOf(
+            "com.qihoo.namiso", // 真实包名
+            "com.qihoo.nanoai",
+            "com.360.nanoai",
             "com.nanoai.app",
             "com.nano.ai",
             "com.nanoai.mobile",
-            "com.qihoo.nanoai",
-            "com.360.nanoai",
             "com.nanoai.android"
         )
         launchAIAppUniversal("纳米AI", possiblePackages, query)

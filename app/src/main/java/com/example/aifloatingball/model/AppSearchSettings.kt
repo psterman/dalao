@@ -793,7 +793,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "manus",
                 appName = "Manus",
-                packageName = "com.manus.search",
+                packageName = "com.manus.im.app", // 真实包名
                 isEnabled = true,
                 order = 57,
                 iconResId = R.drawable.ic_manus,
@@ -829,7 +829,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "ima",
                 appName = "IMA",
-                packageName = "com.ima.ai",
+                packageName = "com.tencent.ima", // 真实包名
                 isEnabled = true,
                 order = 60,
                 iconResId = R.drawable.ic_ima,
@@ -841,7 +841,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "nano_ai",
                 appName = "纳米AI",
-                packageName = "com.nanoai.app",
+                packageName = "com.qihoo.namiso", // 真实包名
                 isEnabled = true,
                 order = 61,
                 iconResId = R.drawable.ic_nano_ai,
