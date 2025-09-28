@@ -3382,8 +3382,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun sendToGrok(query: String) {
         val possiblePackages = listOf(
+            "ai.x.grok", // 真实包名
             "com.xai.grok",
-            "ai.x.grok",
             "com.xai.grok.app",
             "com.xai.grok.android"
         )
@@ -3395,10 +3395,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun sendToPerplexity(query: String) {
         val possiblePackages = listOf(
+            "ai.perplexity.app.android", // 真实包名
             "ai.perplexity.app",
             "com.perplexity.app",
             "ai.perplexity.mobile",
-            "ai.perplexity.app.android",
             "com.perplexity.app.android"
         )
         launchAIAppUniversal("Perplexity", possiblePackages, query)
@@ -3494,10 +3494,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun sendToPoe(query: String) {
         val possiblePackages = listOf(
+            "com.poe.android", // 真实包名
             "com.quora.poe",
             "com.poe.app",
             "com.poe.mobile",
-            "com.poe.android",
             "com.quora.poe.android"
         )
         launchAIAppUniversal("Poe", possiblePackages, query)

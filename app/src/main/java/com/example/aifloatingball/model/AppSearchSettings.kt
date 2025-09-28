@@ -769,7 +769,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "grok",
                 appName = "Grok",
-                packageName = "com.xai.grok",
+                packageName = "ai.x.grok", // 真实包名
                 isEnabled = true,
                 order = 55,
                 iconResId = R.drawable.ic_grok,
@@ -781,7 +781,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "perplexity",
                 appName = "Perplexity",
-                packageName = "ai.perplexity.app",
+                packageName = "ai.perplexity.app.android", // 真实包名
                 isEnabled = true,
                 order = 56,
                 iconResId = R.drawable.ic_perplexity,
@@ -817,7 +817,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "poe",
                 appName = "Poe",
-                packageName = "com.quora.poe",
+                packageName = "com.poe.android", // 真实包名
                 isEnabled = true,
                 order = 59,
                 iconResId = R.drawable.ic_poe,
