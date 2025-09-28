@@ -54,7 +54,7 @@ class AppSearchSettings(context: Context) {
         private const val KEY_APP_CONFIGS = "app_configs"
         private const val KEY_LAST_ORDER = "last_order"
         private const val KEY_CONFIG_VERSION = "config_version"
-        private const val CURRENT_CONFIG_VERSION = 2 // 增加版本号以触发配置更新
+        private const val CURRENT_CONFIG_VERSION = 4 // 增加版本号以触发配置更新
 
         @Volatile
         private var instance: AppSearchSettings? = null
@@ -716,6 +716,162 @@ class AppSearchSettings(context: Context) {
                 searchUrl = "https://play.google.com/store/apps/details?id=com.tencent.hunyuan.app.chat",
                 category = AppCategory.AI,
                 description = "腾讯元宝AI助手搜索"
+            ),
+            // 讯飞星火
+            AppSearchConfig(
+                appId = "xinghuo",
+                appName = "讯飞星火",
+                packageName = "com.iflytek.spark",
+                isEnabled = true,
+                order = 51,
+                iconResId = R.drawable.ic_xinghuo,
+                searchUrl = "iflytek://spark?query={q}",
+                category = AppCategory.AI,
+                description = "讯飞星火AI助手搜索"
+            ),
+            // 智谱清言
+            AppSearchConfig(
+                appId = "zhipu_qingyan",
+                appName = "智谱清言",
+                packageName = "com.zhipuai.qingyan",
+                isEnabled = true,
+                order = 52,
+                iconResId = R.drawable.ic_zhipu_qingyan,
+                searchUrl = "zhipuai://qingyan?query={q}",
+                category = AppCategory.AI,
+                description = "智谱清言AI助手搜索"
+            ),
+            // 通义千问
+            AppSearchConfig(
+                appId = "tongyi",
+                appName = "通义千问",
+                packageName = "com.aliyun.tongyi",
+                isEnabled = true,
+                order = 53,
+                iconResId = R.drawable.ic_tongyi,
+                searchUrl = "tongyi://aliyun?query={q}",
+                category = AppCategory.AI,
+                description = "通义千问AI助手搜索"
+            ),
+            // 文小言
+            AppSearchConfig(
+                appId = "wenxiaoyan",
+                appName = "文小言",
+                packageName = "com.baidu.wenxiaoyan",
+                isEnabled = true,
+                order = 54,
+                iconResId = R.drawable.ic_wenxiaoyan,
+                searchUrl = "wenxiaoyan://app?query={q}",
+                category = AppCategory.AI,
+                description = "文小言AI助手搜索"
+            ),
+            // Grok
+            AppSearchConfig(
+                appId = "grok",
+                appName = "Grok",
+                packageName = "com.xai.grok",
+                isEnabled = true,
+                order = 55,
+                iconResId = R.drawable.ic_grok,
+                searchUrl = "grok://xai?query={q}",
+                category = AppCategory.AI,
+                description = "Grok AI助手搜索"
+            ),
+            // Perplexity
+            AppSearchConfig(
+                appId = "perplexity",
+                appName = "Perplexity",
+                packageName = "ai.perplexity.app",
+                isEnabled = true,
+                order = 56,
+                iconResId = R.drawable.ic_perplexity,
+                searchUrl = "perplexity://ai?query={q}",
+                category = AppCategory.AI,
+                description = "Perplexity AI助手搜索"
+            ),
+            // Manus
+            AppSearchConfig(
+                appId = "manus",
+                appName = "Manus",
+                packageName = "com.manus.app",
+                isEnabled = true,
+                order = 57,
+                iconResId = R.drawable.ic_manus,
+                searchUrl = "manus://app?query={q}",
+                category = AppCategory.AI,
+                description = "Manus AI助手搜索"
+            ),
+            // 秘塔AI搜索
+            AppSearchConfig(
+                appId = "mita_ai",
+                appName = "秘塔AI搜索",
+                packageName = "com.mita.ai",
+                isEnabled = true,
+                order = 58,
+                iconResId = R.drawable.ic_mita_ai,
+                searchUrl = "mita://ai?query={q}",
+                category = AppCategory.AI,
+                description = "秘塔AI搜索助手"
+            ),
+            // Poe
+            AppSearchConfig(
+                appId = "poe",
+                appName = "Poe",
+                packageName = "com.poe.app",
+                isEnabled = true,
+                order = 59,
+                iconResId = R.drawable.ic_poe,
+                searchUrl = "poe://app?query={q}",
+                category = AppCategory.AI,
+                description = "Poe AI聊天助手"
+            ),
+            // IMA
+            AppSearchConfig(
+                appId = "ima",
+                appName = "IMA",
+                packageName = "com.ima.app",
+                isEnabled = true,
+                order = 60,
+                iconResId = R.drawable.ic_ima,
+                searchUrl = "ima://app?query={q}",
+                category = AppCategory.AI,
+                description = "IMA AI助手"
+            ),
+            // 纳米AI
+            AppSearchConfig(
+                appId = "nano_ai",
+                appName = "纳米AI",
+                packageName = "com.nano.ai",
+                isEnabled = true,
+                order = 61,
+                iconResId = R.drawable.ic_nano_ai,
+                searchUrl = "nano://ai?query={q}",
+                category = AppCategory.AI,
+                description = "纳米AI助手"
+            ),
+            // Gemini
+            AppSearchConfig(
+                appId = "gemini",
+                appName = "Gemini",
+                packageName = "com.google.android.apps.gemini",
+                isEnabled = true,
+                order = 62,
+                iconResId = R.drawable.ic_gemini,
+                searchUrl = "gemini://google?query={q}",
+                category = AppCategory.AI,
+                description = "Gemini AI助手搜索"
+            ),
+            // Copilot
+            AppSearchConfig(
+                appId = "copilot",
+                appName = "Copilot",
+                packageName = "com.microsoft.copilot",
+                isEnabled = true,
+                order = 63,
+                iconResId = R.drawable.ic_copilot,
+                searchUrl = "copilot://microsoft?query={q}",
+                category = AppCategory.AI,
+                description = "Copilot AI助手搜索"
             )
         )
     }

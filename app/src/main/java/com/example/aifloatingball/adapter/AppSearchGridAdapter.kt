@@ -142,7 +142,12 @@ class AppSearchGridAdapter(
     private fun isAppInstalled(packageName: String): Boolean {
         return try {
             // 特别关注AI应用的检测
-            val isAIApp = packageName in listOf("com.deepseek.chat", "com.openai.chatgpt", "com.larus.nova", "com.moonshot.kimichat", "com.tencent.hunyuan.app.chat")
+            val isAIApp = packageName in listOf(
+                "com.deepseek.chat", "com.openai.chatgpt", "com.larus.nova", "com.moonshot.kimichat", 
+                "com.tencent.hunyuan.app.chat", "com.baidu.wenxiaoyan", "com.xai.grok", 
+                "ai.perplexity.app", "com.manus.app", "com.mita.ai", "com.poe.app", 
+                "com.ima.app", "com.nano.ai", "com.google.android.apps.gemini", "com.microsoft.copilot"
+            )
             if (isAIApp) {
                 android.util.Log.e("APP_DETECTION", "🚨 检测AI应用: $packageName")
             }

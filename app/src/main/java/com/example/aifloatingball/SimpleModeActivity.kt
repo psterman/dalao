@@ -6,6 +6,9 @@ import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.Context
@@ -2926,18 +2929,24 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun handleAppSearch(appConfig: AppSearchConfig, query: String) {
         try {
             if (query.isNotEmpty()) {
-                // 有搜索内容时，使用应用内搜索
-                val searchUrl = appConfig.getSearchUrl(query)
-                val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    setPackage(appConfig.packageName)
+                // 检查是否为AI应用
+                if (isAIApp(appConfig)) {
+                    // AI应用：使用直接提问功能
+                    handleAIDirectQuestion(appConfig, query)
+                } else {
+                    // 普通应用：使用应用内搜索
+                    val searchUrl = appConfig.getSearchUrl(query)
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        setPackage(appConfig.packageName)
+                    }
+
+                    startActivity(intent)
+                    Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
+
+                    // 保存搜索历史
+                    searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
                 }
-
-                startActivity(intent)
-                Toast.makeText(this, "正在打开${appConfig.appName}搜索：$query", Toast.LENGTH_SHORT).show()
-
-                // 保存搜索历史
-                searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
             } else {
                 // 没有搜索内容时，直接启动应用
                 val launchIntent = packageManager.getLaunchIntentForPackage(appConfig.packageName)
@@ -2973,6 +2982,623 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.e(TAG, "备用启动方案也失败: ${fallbackException.message}")
                 Toast.makeText(this, "启动${appConfig.appName}失败", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    /**
+     * 判断是否为AI应用
+     */
+    private fun isAIApp(appConfig: AppSearchConfig): Boolean {
+        return appConfig.category == AppCategory.AI || 
+               appConfig.appId in listOf(
+                   "deepseek", "doubao", "chatgpt", "kimi", "tencent_yuanbao",
+                   "xinghuo", "zhipu_qingyan", "tongyi", "wenxiaoyan", 
+                   "grok", "perplexity", "manus", "mita_ai", "poe", "ima", "nano_ai", "gemini", "copilot"
+               )
+    }
+
+    /**
+     * 处理AI应用直接提问
+     */
+    private fun handleAIDirectQuestion(appConfig: AppSearchConfig, query: String) {
+        try {
+            Log.d(TAG, "处理AI应用直接提问: ${appConfig.appName}, 问题: $query")
+            
+            when (appConfig.appId) {
+                "deepseek" -> sendToDeepSeek(query)
+                "doubao" -> sendToDouBao(query)
+                "chatgpt" -> sendToChatGPT(query)
+                "kimi" -> sendToKimi(query)
+                "tencent_yuanbao" -> sendToYuanBao(query)
+                "xinghuo" -> sendToXingHuo(query)
+                "zhipu_qingyan" -> sendToZhipuQingyan(query)
+                "tongyi" -> sendToTongyi(query)
+                "wenxiaoyan" -> sendToWenxiaoyan(query)
+                "grok" -> sendToGrok(query)
+                "perplexity" -> sendToPerplexity(query)
+                "manus" -> sendToManus(query)
+                "mita_ai" -> sendToMita(query)
+                "poe" -> sendToPoe(query)
+                "ima" -> sendToIma(query)
+                "nano_ai" -> sendToNano(query)
+                "gemini" -> sendToGemini(query)
+                "copilot" -> sendToCopilot(query)
+                else -> {
+                    // 通用方法：尝试通过Intent发送文本
+                    sendTextToApp(appConfig.packageName, query, appConfig.appName)
+                }
+            }
+            
+            // 保存搜索历史
+            searchHistoryManager.addSearchHistory(query, appConfig.appName, appConfig.packageName)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "AI直接提问失败: ${appConfig.appName}", e)
+            handleAIError(appConfig, e)
+        }
+    }
+
+    /**
+     * 发送文本到DeepSeek
+     */
+    private fun sendToDeepSeek(query: String) {
+        try {
+            // 方案1：尝试通过Intent直接发送
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.deepseek.chat")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向DeepSeek发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "DeepSeek Intent发送成功")
+                return
+            }
+            
+            // 方案2：如果Intent失败，使用剪贴板方案
+            sendQuestionViaClipboard("com.deepseek.chat", query, "DeepSeek")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "DeepSeek发送失败", e)
+            sendQuestionViaClipboard("com.deepseek.chat", query, "DeepSeek")
+        }
+    }
+
+    /**
+     * 发送文本到豆包
+     */
+    private fun sendToDouBao(query: String) {
+        try {
+            // 方案1：尝试通过Intent直接发送
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.larus.nova")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向豆包发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "豆包Intent发送成功")
+                return
+            }
+            
+            // 方案2：如果Intent失败，使用剪贴板方案
+            sendQuestionViaClipboard("com.larus.nova", query, "豆包")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "豆包发送失败", e)
+            sendQuestionViaClipboard("com.larus.nova", query, "豆包")
+        }
+    }
+
+    /**
+     * 发送文本到ChatGPT
+     */
+    private fun sendToChatGPT(query: String) {
+        try {
+            // 方案1：尝试通过Intent直接发送
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.openai.chatgpt")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向ChatGPT发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "ChatGPT Intent发送成功")
+                return
+            }
+            
+            // 方案2：如果Intent失败，使用剪贴板方案
+            sendQuestionViaClipboard("com.openai.chatgpt", query, "ChatGPT")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "ChatGPT发送失败", e)
+            sendQuestionViaClipboard("com.openai.chatgpt", query, "ChatGPT")
+        }
+    }
+
+    /**
+     * 发送文本到Kimi
+     */
+    private fun sendToKimi(query: String) {
+        try {
+            // 方案1：尝试通过Intent直接发送
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.moonshot.kimichat")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向Kimi发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Kimi Intent发送成功")
+                return
+            }
+            
+            // 方案2：如果Intent失败，使用剪贴板方案
+            sendQuestionViaClipboard("com.moonshot.kimichat", query, "Kimi")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Kimi发送失败", e)
+            sendQuestionViaClipboard("com.moonshot.kimichat", query, "Kimi")
+        }
+    }
+
+    /**
+     * 发送文本到腾讯元宝
+     */
+    private fun sendToYuanBao(query: String) {
+        try {
+            // 方案1：尝试通过Intent直接发送
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.tencent.hunyuan.app.chat")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向腾讯元宝发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "腾讯元宝Intent发送成功")
+                return
+            }
+            
+            // 方案2：如果Intent失败，使用剪贴板方案
+            sendQuestionViaClipboard("com.tencent.hunyuan.app.chat", query, "腾讯元宝")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "腾讯元宝发送失败", e)
+            sendQuestionViaClipboard("com.tencent.hunyuan.app.chat", query, "腾讯元宝")
+        }
+    }
+
+    /**
+     * 发送文本到讯飞星火
+     */
+    private fun sendToXingHuo(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.iflytek.voiceassistant")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向讯飞星火发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "讯飞星火Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.iflytek.voiceassistant", query, "讯飞星火")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "讯飞星火发送失败", e)
+            sendQuestionViaClipboard("com.iflytek.voiceassistant", query, "讯飞星火")
+        }
+    }
+
+    /**
+     * 发送文本到智谱清言
+     */
+    private fun sendToZhipuQingyan(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.zhipuai.qingyan")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向智谱清言发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "智谱清言Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.zhipuai.qingyan", query, "智谱清言")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "智谱清言发送失败", e)
+            sendQuestionViaClipboard("com.zhipuai.qingyan", query, "智谱清言")
+        }
+    }
+
+    /**
+     * 发送文本到通义千问
+     */
+    private fun sendToTongyi(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.alibaba.damo.tongyi")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向通义千问发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "通义千问Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.alibaba.damo.tongyi", query, "通义千问")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "通义千问发送失败", e)
+            sendQuestionViaClipboard("com.alibaba.damo.tongyi", query, "通义千问")
+        }
+    }
+
+    /**
+     * 发送文本到文小言
+     */
+    private fun sendToWenxiaoyan(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.baidu.wenxiaoyan")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向文小言发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "文小言Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.baidu.wenxiaoyan", query, "文小言")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "文小言发送失败", e)
+            sendQuestionViaClipboard("com.baidu.wenxiaoyan", query, "文小言")
+        }
+    }
+
+    /**
+     * 发送文本到Grok
+     */
+    private fun sendToGrok(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.xai.grok")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向Grok发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Grok Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.xai.grok", query, "Grok")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Grok发送失败", e)
+            sendQuestionViaClipboard("com.xai.grok", query, "Grok")
+        }
+    }
+
+    /**
+     * 发送文本到Perplexity
+     */
+    private fun sendToPerplexity(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("ai.perplexity.app")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向Perplexity发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Perplexity Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("ai.perplexity.app", query, "Perplexity")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Perplexity发送失败", e)
+            sendQuestionViaClipboard("ai.perplexity.app", query, "Perplexity")
+        }
+    }
+
+
+    /**
+     * 发送文本到Gemini
+     */
+    private fun sendToGemini(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.google.android.apps.bard")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向Gemini发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Gemini Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.google.android.apps.bard", query, "Gemini")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Gemini发送失败", e)
+            sendQuestionViaClipboard("com.google.android.apps.bard", query, "Gemini")
+        }
+    }
+
+    /**
+     * 发送文本到Copilot
+     */
+    private fun sendToCopilot(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.microsoft.copilot")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向Copilot发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Copilot Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.microsoft.copilot", query, "Copilot")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Copilot发送失败", e)
+            sendQuestionViaClipboard("com.microsoft.copilot", query, "Copilot")
+        }
+    }
+
+    /**
+     * 发送文本到Manus
+     */
+    private fun sendToManus(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.manus.app")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向Manus发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Manus Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.manus.app", query, "Manus")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Manus发送失败", e)
+            sendQuestionViaClipboard("com.manus.app", query, "Manus")
+        }
+    }
+
+    /**
+     * 发送文本到秘塔AI搜索
+     */
+    private fun sendToMita(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.mita.ai")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向秘塔AI搜索发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "秘塔AI搜索 Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.mita.ai", query, "秘塔AI搜索")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "秘塔AI搜索发送失败", e)
+            sendQuestionViaClipboard("com.mita.ai", query, "秘塔AI搜索")
+        }
+    }
+
+    /**
+     * 发送文本到Poe
+     */
+    private fun sendToPoe(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.poe.app")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向Poe发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "Poe Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.poe.app", query, "Poe")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Poe发送失败", e)
+            sendQuestionViaClipboard("com.poe.app", query, "Poe")
+        }
+    }
+
+    /**
+     * 发送文本到IMA
+     */
+    private fun sendToIma(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.ima.app")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向IMA发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "IMA Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.ima.app", query, "IMA")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "IMA发送失败", e)
+            sendQuestionViaClipboard("com.ima.app", query, "IMA")
+        }
+    }
+
+    /**
+     * 发送文本到纳米AI
+     */
+    private fun sendToNano(query: String) {
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage("com.nano.ai")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向纳米AI发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "纳米AI Intent发送成功")
+                return
+            }
+            
+            sendQuestionViaClipboard("com.nano.ai", query, "纳米AI")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "纳米AI发送失败", e)
+            sendQuestionViaClipboard("com.nano.ai", query, "纳米AI")
+        }
+    }
+
+    /**
+     * 通用方法：发送文本到指定应用
+     */
+    private fun sendTextToApp(packageName: String, query: String, appName: String) {
+        try {
+            // 方案1：尝试通过ACTION_SEND发送
+            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage(packageName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (sendIntent.resolveActivity(packageManager) != null) {
+                startActivity(sendIntent)
+                Toast.makeText(this, "正在向${appName}发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "${appName} Intent发送成功")
+                return
+            }
+            
+            // 方案2：如果Intent失败，使用剪贴板方案
+            sendQuestionViaClipboard(packageName, query, appName)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "发送文本到${appName}失败", e)
+            sendQuestionViaClipboard(packageName, query, appName)
+        }
+    }
+
+    /**
+     * 通过剪贴板传递问题到AI应用
+     */
+    private fun sendQuestionViaClipboard(packageName: String, query: String, appName: String) {
+        try {
+            // 将问题复制到剪贴板
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("AI问题", query)
+            clipboard.setPrimaryClip(clip)
+            
+            // 启动AI应用
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Toast.makeText(this, "已复制问题到剪贴板，请粘贴到${appName}的输入框中", Toast.LENGTH_LONG).show()
+                Log.d(TAG, "剪贴板传递成功: ${appName}")
+            } else {
+                Toast.makeText(this, "无法启动${appName}，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "剪贴板传递失败: ${appName}", e)
+            Toast.makeText(this, "传递失败，请手动输入问题", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 处理AI应用错误
+     */
+    private fun handleAIError(appConfig: AppSearchConfig, e: Exception) {
+        Log.e(TAG, "AI应用操作失败: ${appConfig.appName}", e)
+        when {
+            e is SecurityException -> Toast.makeText(this, "权限不足，请检查应用权限", Toast.LENGTH_SHORT).show()
+            e is ActivityNotFoundException -> Toast.makeText(this, "应用未安装或无法启动", Toast.LENGTH_SHORT).show()
+            else -> Toast.makeText(this, "发送失败，请手动打开${appConfig.appName}", Toast.LENGTH_SHORT).show()
         }
     }
 
