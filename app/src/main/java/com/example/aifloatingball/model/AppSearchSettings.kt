@@ -757,7 +757,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "wenxiaoyan",
                 appName = "文小言",
-                packageName = "com.baidu.wenxiaoyan",
+                packageName = "com.baidu.newapp",
                 isEnabled = true,
                 order = 54,
                 iconResId = R.drawable.ic_wenxiaoyan,
@@ -793,7 +793,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "manus",
                 appName = "Manus",
-                packageName = "com.manus.app",
+                packageName = "com.manus.search",
                 isEnabled = true,
                 order = 57,
                 iconResId = R.drawable.ic_manus,
@@ -805,7 +805,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "mita_ai",
                 appName = "秘塔AI搜索",
-                packageName = "com.mita.ai",
+                packageName = "com.metaso",
                 isEnabled = true,
                 order = 58,
                 iconResId = R.drawable.ic_mita_ai,
@@ -817,7 +817,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "poe",
                 appName = "Poe",
-                packageName = "com.poe.app",
+                packageName = "com.quora.poe",
                 isEnabled = true,
                 order = 59,
                 iconResId = R.drawable.ic_poe,
@@ -829,7 +829,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "ima",
                 appName = "IMA",
-                packageName = "com.ima.app",
+                packageName = "com.ima.ai",
                 isEnabled = true,
                 order = 60,
                 iconResId = R.drawable.ic_ima,
@@ -841,7 +841,7 @@ class AppSearchSettings(context: Context) {
             AppSearchConfig(
                 appId = "nano_ai",
                 appName = "纳米AI",
-                packageName = "com.nano.ai",
+                packageName = "com.nanoai.app",
                 isEnabled = true,
                 order = 61,
                 iconResId = R.drawable.ic_nano_ai,

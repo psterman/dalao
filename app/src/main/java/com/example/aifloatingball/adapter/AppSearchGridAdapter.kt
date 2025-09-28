@@ -141,13 +141,19 @@ class AppSearchGridAdapter(
      */
     private fun isAppInstalled(packageName: String): Boolean {
         return try {
-            // 特别关注AI应用的检测
-            val isAIApp = packageName in listOf(
+            // 特别关注AI应用的检测 - 支持多种可能的包名
+            val aiAppPackages = listOf(
                 "com.deepseek.chat", "com.openai.chatgpt", "com.larus.nova", "com.moonshot.kimichat", 
                 "com.tencent.hunyuan.app.chat", "com.baidu.wenxiaoyan", "com.xai.grok", 
                 "ai.perplexity.app", "com.manus.app", "com.mita.ai", "com.poe.app", 
-                "com.ima.app", "com.nano.ai", "com.google.android.apps.gemini", "com.microsoft.copilot"
+                "com.ima.app", "com.nano.ai", "com.google.android.apps.gemini", "com.microsoft.copilot",
+                // 添加更多可能的包名变体
+                "com.baidu.wenxiaoyan.app", "com.xai.grok.app", "ai.perplexity.app.android",
+                "com.manus.app.android", "com.mita.ai.search", "com.poe.app.android",
+                "com.ima.app.android", "com.nano.ai.app", "com.google.android.apps.gemini.app",
+                "com.microsoft.copilot.app", "com.aliyun.tongyi", "com.tencent.yuanbao"
             )
+            val isAIApp = packageName in aiAppPackages
             if (isAIApp) {
                 android.util.Log.e("APP_DETECTION", "🚨 检测AI应用: $packageName")
             }
@@ -371,6 +377,27 @@ class AppSearchGridAdapter(
      */
     private fun getCustomIconResourceId(appId: String): Int {
         return when (appId) {
+            // AI应用图标
+            "deepseek" -> R.drawable.ic_deepseek
+            "doubao" -> R.drawable.ic_doubao
+            "chatgpt" -> R.drawable.ic_chatgpt
+            "kimi" -> R.drawable.ic_kimi
+            "tencent_yuanbao" -> R.drawable.ic_yuanbao
+            "xinghuo" -> R.drawable.ic_xinghuo
+            "zhipu_qingyan" -> R.drawable.ic_zhipu_qingyan
+            "tongyi" -> R.drawable.ic_tongyi
+            "wenxiaoyan" -> R.drawable.ic_wenxiaoyan
+            "grok" -> R.drawable.ic_grok
+            "perplexity" -> R.drawable.ic_perplexity
+            "manus" -> R.drawable.ic_manus
+            "mita_ai" -> R.drawable.ic_mita_ai
+            "poe" -> R.drawable.ic_poe
+            "ima" -> R.drawable.ic_ima
+            "nano_ai" -> R.drawable.ic_nano_ai
+            "gemini" -> R.drawable.ic_gemini
+            "copilot" -> R.drawable.ic_copilot
+            
+            // 其他应用图标
             "qqmusic" -> R.drawable.ic_qqmusic
             "netease_music" -> R.drawable.ic_netease_music
             "eleme" -> R.drawable.ic_eleme

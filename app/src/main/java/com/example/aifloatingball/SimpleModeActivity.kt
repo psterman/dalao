@@ -11,6 +11,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -184,6 +185,123 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "启动$activityName 失败", e)
             Toast.makeText(this, "启动$activityName 失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * 检测AI应用是否已安装
+     */
+    private fun isAIAppInstalled(packageName: String): Boolean {
+        return try {
+            packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+
+    /**
+     * 获取已安装的AI应用包名
+     */
+    private fun getInstalledAIPackageName(possiblePackages: List<String>): String? {
+        for (packageName in possiblePackages) {
+            if (isAIAppInstalled(packageName)) {
+                Log.d(TAG, "找到已安装的AI应用: $packageName")
+                return packageName
+            }
+        }
+        return null
+    }
+
+    /**
+     * 通用AI应用跳转方法
+     */
+    private fun launchAIAppWithFallback(
+        appName: String,
+        possiblePackages: List<String>,
+        query: String,
+        fallbackPackage: String = possiblePackages.firstOrNull() ?: ""
+    ) {
+        try {
+            Log.d(TAG, "尝试启动$appName，查询: $query")
+            
+            // 首先检测已安装的应用
+            val installedPackage = getInstalledAIPackageName(possiblePackages)
+            if (installedPackage != null) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(installedPackage)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Toast.makeText(this, "正在启动$appName...", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "${appName}直接启动成功，包名: $installedPackage")
+                    
+                    // 延迟发送文本到剪贴板
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        sendQuestionViaClipboard(installedPackage, query, appName)
+                    }, 2000)
+                    return
+                }
+            }
+            
+            // 如果检测失败，尝试所有包名
+            for (packageName in possiblePackages) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launchIntent)
+                    Toast.makeText(this, "正在启动$appName...", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "${appName}直接启动成功，包名: $packageName")
+                    
+                    // 延迟发送文本到剪贴板
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        sendQuestionViaClipboard(packageName, query, appName)
+                    }, 2000)
+                    return
+                }
+            }
+            
+            // 方法2: 尝试Intent发送
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage(fallbackPackage)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向${appName}发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "${appName} Intent发送成功")
+                return
+            }
+            
+            // 方法3: 尝试其他可能的包名
+            for (pkg in possiblePackages) {
+                try {
+                    val altIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, query)
+                        setPackage(pkg)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    if (altIntent.resolveActivity(packageManager) != null) {
+                        startActivity(altIntent)
+                        Toast.makeText(this, "正在向${appName}发送问题...", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "${appName}备用包名发送成功: $pkg")
+                        return
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "${appName}备用包名失败: $pkg", e)
+                }
+            }
+            
+            // 方法4: 使用剪贴板备用方案
+            sendQuestionViaClipboard(fallbackPackage, query, appName)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "${appName}发送失败", e)
+            Toast.makeText(this, "${appName}启动失败，请检查应用是否已安装", Toast.LENGTH_LONG).show()
+            sendQuestionViaClipboard(fallbackPackage, query, appName)
         }
     }
 
@@ -2897,33 +3015,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 检查应用是否已安装
-     */
-    private fun isAppInstalled(packageName: String): Boolean {
-        return try {
-            packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
-        }
-
-        // 实时更新搜索关键词
-        appSearchInput.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                val query = s?.toString()?.trim() ?: ""
-                appSearchAdapter.updateSearchQuery(query)
-                if (query.isNotEmpty()) {
-                    appSearchHint.text = "输入关键词：$query，点击应用图标进行搜索"
-                } else {
-                    appSearchHint.text = "选择${currentAppCategory.displayName}应用进行搜索"
-                }
-            }
-        })
-    }
-
-    /**
      * 处理应用搜索
      */
     private fun handleAppSearch(appConfig: AppSearchConfig, query: String) {
@@ -3003,6 +3094,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun handleAIDirectQuestion(appConfig: AppSearchConfig, query: String) {
         try {
             Log.d(TAG, "处理AI应用直接提问: ${appConfig.appName}, 问题: $query")
+            
+            // 首先检查应用是否已安装
+            if (!isAppInstalled(appConfig.packageName)) {
+                Log.w(TAG, "AI应用未安装: ${appConfig.appName} (${appConfig.packageName})")
+                showAppNotInstalledDialog(appConfig)
+                return
+            }
             
             when (appConfig.appId) {
                 "deepseek" -> sendToDeepSeek(query)
@@ -3268,81 +3366,42 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 发送文本到文小言
      */
     private fun sendToWenxiaoyan(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.baidu.wenxiaoyan")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向文小言发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "文小言Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("com.baidu.wenxiaoyan", query, "文小言")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "文小言发送失败", e)
-            sendQuestionViaClipboard("com.baidu.wenxiaoyan", query, "文小言")
-        }
+        val possiblePackages = listOf(
+            "com.baidu.newapp", // 文小言真实包名
+            "com.baidu.wenxiaoyan", // 备用包名
+            "com.volcengine.doubao", // 豆包海外版
+            "com.larus.nova", // 豆包
+            "com.volcengine.ark", // 豆包
+            "com.volcengine.arklite" // 豆包轻量版
+        )
+        launchAIAppUniversal("文小言", possiblePackages, query)
     }
 
     /**
      * 发送文本到Grok
      */
     private fun sendToGrok(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.xai.grok")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向Grok发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "Grok Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("com.xai.grok", query, "Grok")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Grok发送失败", e)
-            sendQuestionViaClipboard("com.xai.grok", query, "Grok")
-        }
+        val possiblePackages = listOf(
+            "com.xai.grok",
+            "ai.x.grok",
+            "com.xai.grok.app",
+            "com.xai.grok.android"
+        )
+        launchAIAppUniversal("Grok", possiblePackages, query)
     }
 
     /**
      * 发送文本到Perplexity
      */
     private fun sendToPerplexity(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("ai.perplexity.app")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向Perplexity发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "Perplexity Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("ai.perplexity.app", query, "Perplexity")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Perplexity发送失败", e)
-            sendQuestionViaClipboard("ai.perplexity.app", query, "Perplexity")
-        }
+        val possiblePackages = listOf(
+            "ai.perplexity.app",
+            "com.perplexity.app",
+            "ai.perplexity.mobile",
+            "ai.perplexity.app.android",
+            "com.perplexity.app.android"
+        )
+        launchAIAppUniversal("Perplexity", possiblePackages, query)
     }
 
 
@@ -3404,136 +3463,77 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 发送文本到Manus
      */
     private fun sendToManus(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.manus.app")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向Manus发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "Manus Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("com.manus.app", query, "Manus")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Manus发送失败", e)
-            sendQuestionViaClipboard("com.manus.app", query, "Manus")
-        }
+        val possiblePackages = listOf(
+            "com.manus.search",
+            "com.manus.app",
+            "com.manus.ai",
+            "com.manus.openai",
+            "com.manus.mobile"
+        )
+        launchAIAppUniversal("Manus", possiblePackages, query)
     }
 
     /**
      * 发送文本到秘塔AI搜索
      */
     private fun sendToMita(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.mita.ai")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向秘塔AI搜索发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "秘塔AI搜索 Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("com.mita.ai", query, "秘塔AI搜索")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "秘塔AI搜索发送失败", e)
-            sendQuestionViaClipboard("com.mita.ai", query, "秘塔AI搜索")
-        }
+        val possiblePackages = listOf(
+            "com.metaso", // 秘塔AI搜索真实包名
+            "com.mita.ai", // 备用包名
+            "com.metaso.search",
+            "com.mita.search",
+            "com.metaso.ai",
+            "com.mita.ai.search"
+        )
+        launchAIAppUniversal("秘塔AI搜索", possiblePackages, query)
     }
+
 
     /**
      * 发送文本到Poe
      */
     private fun sendToPoe(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.poe.app")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向Poe发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "Poe Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("com.poe.app", query, "Poe")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Poe发送失败", e)
-            sendQuestionViaClipboard("com.poe.app", query, "Poe")
-        }
+        val possiblePackages = listOf(
+            "com.quora.poe",
+            "com.poe.app",
+            "com.poe.mobile",
+            "com.poe.android",
+            "com.quora.poe.android"
+        )
+        launchAIAppUniversal("Poe", possiblePackages, query)
     }
+
 
     /**
      * 发送文本到IMA
      */
     private fun sendToIma(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.ima.app")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向IMA发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "IMA Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("com.ima.app", query, "IMA")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "IMA发送失败", e)
-            sendQuestionViaClipboard("com.ima.app", query, "IMA")
-        }
+        val possiblePackages = listOf(
+            "com.ima.ai",
+            "com.ima.app",
+            "com.ima.mobile",
+            "com.tencent.ima",
+            "com.ima.android",
+            "com.ima.ai.app"
+        )
+        launchAIAppUniversal("IMA", possiblePackages, query)
     }
 
     /**
      * 发送文本到纳米AI
      */
     private fun sendToNano(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.nano.ai")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向纳米AI发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "纳米AI Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("com.nano.ai", query, "纳米AI")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "纳米AI发送失败", e)
-            sendQuestionViaClipboard("com.nano.ai", query, "纳米AI")
-        }
+        val possiblePackages = listOf(
+            "com.nanoai.app",
+            "com.nano.ai",
+            "com.nanoai.mobile",
+            "com.qihoo.nanoai",
+            "com.360.nanoai",
+            "com.nanoai.android"
+        )
+        launchAIAppUniversal("纳米AI", possiblePackages, query)
     }
+
 
     /**
      * 通用方法：发送文本到指定应用
@@ -3595,10 +3595,195 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun handleAIError(appConfig: AppSearchConfig, e: Exception) {
         Log.e(TAG, "AI应用操作失败: ${appConfig.appName}", e)
-        when {
-            e is SecurityException -> Toast.makeText(this, "权限不足，请检查应用权限", Toast.LENGTH_SHORT).show()
-            e is ActivityNotFoundException -> Toast.makeText(this, "应用未安装或无法启动", Toast.LENGTH_SHORT).show()
-            else -> Toast.makeText(this, "发送失败，请手动打开${appConfig.appName}", Toast.LENGTH_SHORT).show()
+        
+        // 根据错误类型提供不同的提示
+        val errorMessage = when {
+            e is SecurityException -> "权限不足，请检查应用权限设置"
+            e is ActivityNotFoundException -> "${appConfig.appName}未安装或无法启动"
+            e.message?.contains("NameNotFoundException") == true -> 
+                "${appConfig.appName}未安装，请先安装该应用"
+            e.message?.contains("SecurityException") == true -> 
+                "没有权限启动${appConfig.appName}，请检查应用权限设置"
+            else -> "启动${appConfig.appName}失败: ${e.message}"
+        }
+        
+        Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show()
+        
+        // 尝试使用剪贴板备用方案
+        sendQuestionViaClipboard(appConfig.packageName, "", appConfig.appName)
+    }
+    
+    /**
+     * 显示应用未安装对话框
+     */
+    private fun showAppNotInstalledDialog(appConfig: AppSearchConfig) {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("应用未安装")
+            .setMessage("${appConfig.appName}尚未安装，是否要：\n\n1. 打开应用商店安装\n2. 使用剪贴板备用方案\n3. 取消")
+            .setPositiveButton("打开应用商店") { _, _ ->
+                openAppStore(appConfig.packageName, appConfig.appName)
+            }
+            .setNeutralButton("剪贴板方案") { _, _ ->
+                sendQuestionViaClipboard(appConfig.packageName, "", appConfig.appName)
+                Toast.makeText(this, "问题已复制到剪贴板，请手动粘贴到${appConfig.appName}", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("取消", null)
+            .create()
+        
+        dialog.show()
+    }
+    
+    /**
+     * 打开应用商店
+     */
+    private fun openAppStore(packageName: String, appName: String) {
+        try {
+            // 尝试打开Google Play Store
+            val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName"))
+            if (playStoreIntent.resolveActivity(packageManager) != null) {
+                startActivity(playStoreIntent)
+                Toast.makeText(this, "正在打开应用商店安装$appName", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 备用方案：打开网页版应用商店
+            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName"))
+            startActivity(webIntent)
+            Toast.makeText(this, "正在打开网页版应用商店", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "打开应用商店失败", e)
+            Toast.makeText(this, "无法打开应用商店，请手动搜索安装$appName", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    /**
+     * 检查应用是否已安装（增强版）
+     */
+    private fun isAppInstalled(packageName: String): Boolean {
+        return try {
+            // 方法1: 使用getPackageInfo
+            packageManager.getPackageInfo(packageName, 0)
+            Log.d(TAG, "✅ 应用已安装 (getPackageInfo): $packageName")
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            try {
+                // 方法2: 使用getApplicationInfo
+                packageManager.getApplicationInfo(packageName, 0)
+                Log.d(TAG, "✅ 应用已安装 (getApplicationInfo): $packageName")
+                true
+            } catch (e2: PackageManager.NameNotFoundException) {
+                // 方法3: 尝试启动Intent
+                val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    Log.d(TAG, "✅ 应用已安装 (getLaunchIntent): $packageName")
+                    true
+                } else {
+                    Log.d(TAG, "❌ 应用未安装: $packageName")
+                    false
+                }
+            }
+        }
+    }
+
+    /**
+     * 检查AI应用是否已安装（支持多个可能的包名）
+     */
+    private fun isAIAppInstalledWithAlternatives(possiblePackages: List<String>): String? {
+        for (packageName in possiblePackages) {
+            if (isAppInstalled(packageName)) {
+                Log.d(TAG, "🎯 找到已安装的AI应用: $packageName")
+                return packageName
+            }
+        }
+        Log.w(TAG, "⚠️ 未找到任何已安装的包名: ${possiblePackages.joinToString(", ")}")
+        return null
+    }
+
+    /**
+     * 通用AI应用启动方法（支持多重备用方案）
+     */
+    private fun launchAIAppUniversal(appName: String, possiblePackages: List<String>, query: String) {
+        try {
+            Log.d(TAG, "🚀 尝试启动$appName，查询: $query")
+
+            // 第一步：检查是否有已安装的应用
+            val installedPackage = isAIAppInstalledWithAlternatives(possiblePackages)
+
+            if (installedPackage != null) {
+                // 方案1：尝试Intent发送
+                if (tryIntentSend(installedPackage, query, appName)) return
+
+                // 方案2：直接启动应用并使用剪贴板
+                if (tryDirectLaunchWithClipboard(installedPackage, query, appName)) return
+            }
+
+            // 方案3：尝试所有可能的包名
+            for (packageName in possiblePackages) {
+                if (tryIntentSend(packageName, query, appName)) return
+            }
+
+            // 方案4：使用剪贴板备用方案
+            sendQuestionViaClipboard(possiblePackages.first(), query, appName)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "$appName 启动失败", e)
+            Toast.makeText(this, "$appName 启动失败，请检查应用是否已安装", Toast.LENGTH_LONG).show()
+            sendQuestionViaClipboard(possiblePackages.first(), query, appName)
+        }
+    }
+
+    /**
+     * 尝试通过Intent发送文本
+     */
+    private fun tryIntentSend(packageName: String, query: String, appName: String): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, query)
+                setPackage(packageName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Toast.makeText(this, "正在向$appName 发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ $appName Intent发送成功: $packageName")
+                true
+            } else {
+                Log.d(TAG, "❌ $appName Intent发送失败: $packageName")
+                false
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "$appName Intent发送异常: $packageName", e)
+            false
+        }
+    }
+
+    /**
+     * 尝试直接启动应用并使用剪贴板
+     */
+    private fun tryDirectLaunchWithClipboard(packageName: String, query: String, appName: String): Boolean {
+        return try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Toast.makeText(this, "正在启动$appName...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ $appName 直接启动成功: $packageName")
+
+                // 延迟发送文本到剪贴板
+                Handler(Looper.getMainLooper()).postDelayed({
+                    sendQuestionViaClipboard(packageName, query, appName)
+                }, 2000)
+                true
+            } else {
+                Log.d(TAG, "❌ $appName 直接启动失败: $packageName")
+                false
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "$appName 直接启动异常: $packageName", e)
+            false
         }
     }
 

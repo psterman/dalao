@@ -196,3 +196,4 @@ private fun isAIApp(appConfig: AppSearchConfig): Boolean {
 - **用户提示**：清晰说明当前使用的方案
 
 通过这些优化，软件tab的AI分类现在支持智能的直接提问功能，大大提升了用户体验，让用户能够快速向AI应用发送问题，无需重新输入。
+
