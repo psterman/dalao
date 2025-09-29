@@ -24,6 +24,7 @@ import androidx.appcompat.app.AlertDialog
 import com.example.aifloatingball.voice.VoiceInputManager
 import com.example.aifloatingball.adapter.AppSelectionDialogAdapter
 import com.example.aifloatingball.adapter.ProfileSelectorAdapter
+import com.example.aifloatingball.service.MyAccessibilityService
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -3140,29 +3141,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 发送文本到DeepSeek
      */
     private fun sendToDeepSeek(query: String) {
-        try {
-            // 方案1：尝试通过Intent直接发送
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.deepseek.chat")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向DeepSeek发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "DeepSeek Intent发送成功")
-                return
-            }
-            
-            // 方案2：如果Intent失败，使用剪贴板方案
-            sendQuestionViaClipboard("com.deepseek.chat", query, "DeepSeek")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "DeepSeek发送失败", e)
-            sendQuestionViaClipboard("com.deepseek.chat", query, "DeepSeek")
-        }
+        val possiblePackages = listOf(
+            "com.deepseek.chat", // 主要包名
+            "com.deepseek.ai",
+            "ai.deepseek.chat",
+            "com.deepseek.mobile"
+        )
+        launchAIAppWithAutoPaste("DeepSeek", possiblePackages, query)
     }
 
     /**
@@ -3243,12 +3228,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
             
-            // 方案2：如果Intent失败，使用剪贴板方案
-            sendQuestionViaClipboard("com.moonshot.kimichat", query, "Kimi")
+            // 方案2：尝试启动应用并使用自动化粘贴
+            launchAppWithAutoPaste("com.moonshot.kimichat", query, "Kimi")
             
         } catch (e: Exception) {
             Log.e(TAG, "Kimi发送失败", e)
-            sendQuestionViaClipboard("com.moonshot.kimichat", query, "Kimi")
+            launchAppWithAutoPaste("com.moonshot.kimichat", query, "Kimi")
         }
     }
 
@@ -3312,27 +3297,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 发送文本到智谱清言
      */
     private fun sendToZhipuQingyan(query: String) {
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_TEXT, query)
-                setPackage("com.zhipuai.qingyan")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            
-            if (intent.resolveActivity(packageManager) != null) {
-                startActivity(intent)
-                Toast.makeText(this, "正在向智谱清言发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "智谱清言Intent发送成功")
-                return
-            }
-            
-            sendQuestionViaClipboard("com.zhipuai.qingyan", query, "智谱清言")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "智谱清言发送失败", e)
-            sendQuestionViaClipboard("com.zhipuai.qingyan", query, "智谱清言")
-        }
+        val possiblePackages = listOf(
+            "com.zhipuai.qingyan", // 主要包名
+            "com.zhipuai.chat",
+            "cn.zhipuai.qingyan",
+            "com.zhipuai.mobile",
+            "com.zhipuai.app"
+        )
+        launchAIAppWithAutoPaste("智谱清言", possiblePackages, query)
     }
 
     /**
@@ -3387,7 +3359,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "com.xai.grok.app",
             "com.xai.grok.android"
         )
-        launchAIAppUniversal("Grok", possiblePackages, query)
+        launchAIAppWithAutoPaste("Grok", possiblePackages, query)
     }
 
     /**
@@ -3464,15 +3436,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun sendToManus(query: String) {
         val possiblePackages = listOf(
-            "com.manus.im.app", // 真实包名
-            "tech.butterfly.app",
+            "tech.butterfly.app", // 真实包名
+            "com.manus.im.app",
             "com.manus.search",
             "com.manus.app",
             "com.manus.ai",
             "com.manus.openai",
-            "com.manus.mobile"
+            "com.manus.mobile",
+            "com.manus.butterfly"
         )
-        launchAIAppUniversal("Manus", possiblePackages, query)
+        launchAIAppWithAutoPaste("Manus", possiblePackages, query)
     }
 
     /**
@@ -3502,7 +3475,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "com.poe.mobile",
             "com.quora.poe.android"
         )
-        launchAIAppUniversal("Poe", possiblePackages, query)
+        launchAIAppWithAutoPaste("Poe", possiblePackages, query)
     }
 
 
@@ -3533,9 +3506,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             "com.nanoai.app",
             "com.nano.ai",
             "com.nanoai.mobile",
-            "com.nanoai.android"
+            "com.nanoai.android",
+            "com.nanoai.chat"
         )
-        launchAIAppUniversal("纳米AI", possiblePackages, query)
+        launchAIAppWithAutoPaste("纳米AI", possiblePackages, query)
     }
 
 
@@ -21644,6 +21618,131 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "显示简易模式浏览器tab提示词插入对话框失败", e)
             Toast.makeText(this, "显示选项失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 启动应用并使用自动化粘贴
+     */
+    private fun launchAppWithAutoPaste(packageName: String, query: String, appName: String) {
+        try {
+            Log.d(TAG, "启动应用并使用自动化粘贴: $appName, 问题: $query")
+            
+            // 将问题复制到剪贴板
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("AI问题", query)
+            clipboard.setPrimaryClip(clip)
+            
+            // 启动AI应用
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Toast.makeText(this, "正在启动${appName}...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "${appName}启动成功")
+                
+                // 延迟显示悬浮窗
+                Handler(Looper.getMainLooper()).postDelayed({
+                    showAIAppOverlay(packageName, query, appName)
+                }, 2000) // 等待2秒让应用完全加载
+                
+            } else {
+                Toast.makeText(this, "无法启动${appName}，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动应用并自动粘贴失败: ${appName}", e)
+            // 回退到剪贴板方案
+            sendQuestionViaClipboard(packageName, query, appName)
+        }
+    }
+
+    /**
+     * 通用AI应用启动并自动粘贴
+     */
+    private fun launchAIAppWithAutoPaste(appName: String, possiblePackages: List<String>, query: String) {
+        try {
+            Log.d(TAG, "尝试启动${appName}并自动粘贴，查询: $query")
+            
+            // 首先检测已安装的应用
+            val installedPackage = getInstalledAIPackageName(possiblePackages)
+            if (installedPackage != null) {
+                launchAppWithAutoPaste(installedPackage, query, appName)
+                return
+            }
+            
+            // 如果检测失败，尝试所有包名
+            for (packageName in possiblePackages) {
+                val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    launchAppWithAutoPaste(packageName, query, appName)
+                    return
+                }
+            }
+            
+            // 如果都失败，回退到剪贴板方案
+            val fallbackPackage = possiblePackages.firstOrNull() ?: ""
+            sendQuestionViaClipboard(fallbackPackage, query, appName)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "${appName}启动并自动粘贴失败", e)
+            val fallbackPackage = possiblePackages.firstOrNull() ?: ""
+            sendQuestionViaClipboard(fallbackPackage, query, appName)
+        }
+    }
+
+    /**
+     * 显示AI应用悬浮窗
+     */
+    private fun showAIAppOverlay(packageName: String, query: String, appName: String) {
+        try {
+            Log.d(TAG, "🎯 显示AI应用悬浮窗: $appName")
+            
+            val intent = Intent(this, com.example.aifloatingball.service.AIAppOverlayService::class.java).apply {
+                action = com.example.aifloatingball.service.AIAppOverlayService.ACTION_SHOW_OVERLAY
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_APP_NAME, appName)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_QUERY, query)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_PACKAGE_NAME, packageName)
+            }
+            startService(intent)
+            
+            Log.d(TAG, "📤 已启动AI应用悬浮窗服务: $appName")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 显示AI应用悬浮窗失败: $appName", e)
+            // 回退到自动粘贴方案
+            triggerAutoPaste(packageName, query, appName)
+        }
+    }
+
+    /**
+     * 触发自动粘贴
+     */
+    private fun triggerAutoPaste(packageName: String, query: String, appName: String) {
+        try {
+            Log.d(TAG, "🎯 触发自动粘贴: $appName, 包名: $packageName, 查询: $query")
+            
+            // 检查无障碍服务是否可用
+            val accessibilityService = MyAccessibilityService.getInstance()
+            if (accessibilityService == null) {
+                Log.w(TAG, "无障碍服务不可用，使用剪贴板方案")
+                sendQuestionViaClipboard(packageName, query, appName)
+                return
+            }
+            
+            // 发送自动粘贴请求到无障碍服务
+            val intent = Intent("com.example.aifloatingball.AUTO_PASTE").apply {
+                putExtra("package_name", packageName)
+                putExtra("query", query)
+                putExtra("app_name", appName)
+            }
+            sendBroadcast(intent)
+            
+            Log.d(TAG, "📤 已发送自动粘贴广播: $appName")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 触发自动粘贴失败: $appName", e)
+            // 回退到剪贴板方案
+            sendQuestionViaClipboard(packageName, query, appName)
         }
     }
 

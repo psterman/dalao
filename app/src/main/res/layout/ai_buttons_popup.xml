@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/ai_popup_background"
+    android:padding="12dp"
+    android:elevation="8dp">
+
+    <!-- 标题栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_ai"
+            android:layout_marginEnd="8dp"
+            app:tint="?attr/colorPrimary" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="AI助手中心"
+            android:textSize="14sp"
+            android:textColor="?attr/colorOnSurface"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/ai_count_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="5个可用"
+            android:textSize="10sp"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:background="@drawable/ai_count_background"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <!-- AI按钮1 -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="3dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/ai_button_1"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="12dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp"
+                android:text="ChatGPT"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:backgroundTint="?attr/colorSurface"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_chatgpt"
+                app:iconPadding="6dp"
+                app:iconSize="16dp"
+                app:strokeColor="?attr/colorPrimary"
+                app:strokeWidth="1.5dp"
+                app:rippleColor="?attr/colorPrimary"
+                android:elevation="1dp" />
+
+            <!-- 状态指示器 -->
+            <View
+                android:id="@+id/ai_status_1"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/ai_status_indicator"
+                android:layout_marginTop="2dp"
+                android:layout_marginEnd="2dp" />
+
+        </FrameLayout>
+
+        <!-- AI按钮2 -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="3dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/ai_button_2"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="12dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp"
+                android:text="Kimi"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:backgroundTint="?attr/colorSurface"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_kimi"
+                app:iconPadding="6dp"
+                app:iconSize="16dp"
+                app:strokeColor="?attr/colorPrimary"
+                app:strokeWidth="1.5dp"
+                app:rippleColor="?attr/colorPrimary"
+                android:elevation="1dp" />
+
+            <!-- 状态指示器 -->
+            <View
+                android:id="@+id/ai_status_2"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/ai_status_indicator"
+                android:layout_marginTop="2dp"
+                android:layout_marginEnd="2dp" />
+
+        </FrameLayout>
+
+        <!-- AI按钮3 -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="3dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/ai_button_3"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="12dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp"
+                android:text="DeepSeek"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:backgroundTint="?attr/colorSurface"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_deepseek"
+                app:iconPadding="6dp"
+                app:iconSize="16dp"
+                app:strokeColor="?attr/colorPrimary"
+                app:strokeWidth="1.5dp"
+                app:rippleColor="?attr/colorPrimary"
+                android:elevation="1dp" />
+
+            <!-- 状态指示器 -->
+            <View
+                android:id="@+id/ai_status_3"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/ai_status_indicator"
+                android:layout_marginTop="2dp"
+                android:layout_marginEnd="2dp" />
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <!-- AI按钮4 -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="3dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/ai_button_4"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="12dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp"
+                android:text="Gemini"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:backgroundTint="?attr/colorSurface"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_gemini"
+                app:iconPadding="6dp"
+                app:iconSize="16dp"
+                app:strokeColor="?attr/colorPrimary"
+                app:strokeWidth="1.5dp"
+                app:rippleColor="?attr/colorPrimary"
+                android:elevation="1dp" />
+
+            <!-- 状态指示器 -->
+            <View
+                android:id="@+id/ai_status_4"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/ai_status_indicator"
+                android:layout_marginTop="2dp"
+                android:layout_marginEnd="2dp" />
+
+        </FrameLayout>
+
+        <!-- AI按钮5 -->
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="3dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/ai_button_5"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="12dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp"
+                android:text="Claude"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                app:backgroundTint="?attr/colorSurface"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_claude"
+                app:iconPadding="6dp"
+                app:iconSize="16dp"
+                app:strokeColor="?attr/colorPrimary"
+                app:strokeWidth="1.5dp"
+                app:rippleColor="?attr/colorPrimary"
+                android:elevation="1dp" />
+
+            <!-- 状态指示器 -->
+            <View
+                android:id="@+id/ai_status_5"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_gravity="top|end"
+                android:background="@drawable/ai_status_indicator"
+                android:layout_marginTop="2dp"
+                android:layout_marginEnd="2dp" />
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

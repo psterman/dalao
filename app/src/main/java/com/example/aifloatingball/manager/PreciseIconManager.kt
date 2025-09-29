@@ -198,7 +198,7 @@ class PreciseIconManager(private val context: Context) {
         "ai.x.grok" to "grok",
         "ai.perplexity.app" to "perplexity",
         "ai.perplexity.app.android" to "perplexity",
-        "com.manus.app" to "manus",
+        "tech.butterfly.app" to "manus",
         "com.mita.ai" to "mita_ai",
         "com.poe.app" to "poe",
         "com.poe.android" to "poe",

@@ -77,7 +77,7 @@ class AIAppIconEnhancer(private val context: Context) {
         "com.baidu.wenxiaoyan" to "wenxiaoyan",
         "com.xai.grok" to "grok",
         "ai.perplexity.app" to "perplexity",
-        "com.manus.app" to "manus",
+        "tech.butterfly.app" to "manus",
         "com.mita.ai" to "mita_ai",
         "com.poe.app" to "poe",
         "com.ima.app" to "ima",

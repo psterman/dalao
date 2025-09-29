@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/ai_overlay_background"
+    android:padding="12dp"
+    android:elevation="12dp">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="选择AI助手"
+        android:textColor="#FF000000"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="8dp" />
+
+    <!-- AI图标网格 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center">
+
+        <!-- 第一行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- Grok -->
+            <LinearLayout
+                android:id="@+id/ai_menu_grok"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_grok_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_grok"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Grok"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- Perplexity -->
+            <LinearLayout
+                android:id="@+id/ai_menu_perplexity"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_perplexity_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_perplexity"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Perplexity"
+                    android:textColor="#FF000000"
+                    android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- Poe -->
+            <LinearLayout
+                android:id="@+id/ai_menu_poe"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_poe_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_poe"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Poe"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第二行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- Manus -->
+            <LinearLayout
+                android:id="@+id/ai_menu_manus"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_manus_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_manus"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Manus"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- IMA -->
+            <LinearLayout
+                android:id="@+id/ai_menu_ima"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_ima_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_ima"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="纳米AI"
+                    android:textColor="#FF000000"
+                    android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 关闭按钮 -->
+    <Button
+        android:id="@+id/ai_menu_close"
+        android:layout_width="wrap_content"
+        android:layout_height="28dp"
+        android:text="关闭"
+        android:textSize="10sp"
+        android:textColor="#FF000000"
+        android:background="@drawable/ai_overlay_button_background"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:minWidth="60dp" />
+
+</LinearLayout>

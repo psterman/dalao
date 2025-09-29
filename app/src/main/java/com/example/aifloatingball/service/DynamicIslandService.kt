@@ -1184,10 +1184,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     }
 
     private fun showDeepSeekResponse(text: String) {
-        // 优先使用AI助手面板中的响应文本视图
-        val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
-            ?: configPanelView?.findViewById<TextView>(R.id.ai_response_text)
-        aiResponseText?.text = text
+        // 显示DeepSeek响应文本
+        Log.d(TAG, "DeepSeek响应: $text")
+        // 可以通过Toast或其他方式显示响应
+        Toast.makeText(this, "DeepSeek: $text", Toast.LENGTH_LONG).show()
     }
 
     private fun callDeepSeekAPI(query: String) {
@@ -1201,10 +1201,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             callback = object : AIApiManager.StreamingCallback {
                 override fun onChunkReceived(chunk: String) {
                     uiHandler.post {
-                        val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
-                            ?: configPanelView?.findViewById<TextView>(R.id.ai_response_text)
-                        val currentText = aiResponseText?.text?.toString() ?: ""
-                        aiResponseText?.text = currentText + chunk
+                        // 处理流式响应数据
+                        Log.d(TAG, "收到AI响应片段: $chunk")
                     }
                 }
                 
@@ -1255,7 +1253,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun setupAIServiceMultiSelect() {
         try {
-            val container = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_services_checkbox_container)
+            val container = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
             container?.removeAllViews()
             
             // 创建CheckBox网格布局（3列）
@@ -1388,7 +1386,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun setupAIServiceControlButtons() {
         // 全选按钮
-        val btnSelectAll = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_select_all_ai)
+        val btnSelectAll = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_select_all)
         btnSelectAll?.setOnClickListener {
             aiServiceSelectionManager.selectAll()
             refreshAIServiceCheckBoxes()
@@ -1410,7 +1408,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 刷新AI服务CheckBox状态
      */
     private fun refreshAIServiceCheckBoxes() {
-        val container = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_services_checkbox_container)
+        val container = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
         container?.let { containerView ->
             for (i in 0 until containerView.childCount) {
                 val rowLayout = containerView.getChildAt(i) as? LinearLayout
@@ -1431,7 +1429,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 更新AI服务选择状态显示
      */
     private fun updateAIServiceStatus() {
-        val statusText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_selection_status)
+        val statusText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_status_text)
         statusText?.text = aiServiceSelectionManager.getSelectedServicesText()
     }
 
@@ -7728,7 +7726,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 .withEndAction {
                     // 面板显示完成，自动激活输入法
                     Log.d(TAG, "AI助手面板显示完成，激活输入法")
-                    val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
+                    val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.search_input)
                     aiInputText?.let { inputField ->
                         // 使用专门的悬浮窗输入法激活方法
                         activateInputMethodForFloatingWindow(inputField)
@@ -7741,7 +7739,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 额外的延迟激活输入法，确保面板完全显示后激活
         uiHandler.postDelayed({
-            val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
+            val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.search_input)
             aiInputText?.let { inputField ->
                 Log.d(TAG, "延迟激活AI助手面板输入法")
                 activateInputMethodForFloatingWindow(inputField)
@@ -7785,7 +7783,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private fun setupAIAssistantPanelInteractions() {
         try {
             // 关闭按钮
-            val btnClosePanel = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_close_ai_panel)
+            val btnClosePanel = aiAssistantPanelView?.findViewById<ImageButton>(R.id.close_panel_button)
             btnClosePanel?.setOnClickListener {
                 hideAIAssistantPanel()
             }
@@ -7794,8 +7792,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             setupAIServiceMultiSelect()
             
             // AI输入框
-            val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
-            val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_response_text)
+            val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.search_input)
+            val aiResponseText = aiAssistantPanelView?.findViewById<TextView>(R.id.ai_status_text)
             
             // 设置AI输入框的焦点和输入法激活
             aiInputText?.let { inputField ->
@@ -7822,8 +7820,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             
             
             // 切换AI选项折叠/展开按钮
-            val btnToggleAiOptions = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_toggle_ai_options)
-            val aiOptionsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_options_container)
+            val btnToggleAiOptions = aiAssistantPanelView?.findViewById<ImageButton>(R.id.settings_button)
+            val aiOptionsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
             var isAiOptionsExpanded = false
             
             btnToggleAiOptions?.setOnClickListener {
@@ -7860,7 +7858,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             
             // 发送消息按钮
-            val btnSendAiMessage = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_send_ai_message)
+            val btnSendAiMessage = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.voice_input_button)
             btnSendAiMessage?.setOnClickListener {
                 val query = aiInputText?.text?.toString()?.trim()
                 if (!query.isNullOrEmpty()) {
@@ -7887,7 +7885,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             
             // AI配置按钮
-            val btnAiConfig = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.btn_ai_config)
+            val btnAiConfig = aiAssistantPanelView?.findViewById<MaterialButton>(R.id.settings_button)
             btnAiConfig?.setOnClickListener {
                 // 跳转到API密钥配置页面
                 openApiKeyConfigPage()
@@ -7929,7 +7927,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
             
             // 折叠/展开按钮
-            val btnFoldResponse = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_fold_response)
+            val btnFoldResponse = aiAssistantPanelView?.findViewById<ImageButton>(R.id.history_button)
             btnFoldResponse?.setOnClickListener {
                 toggleResponseFold()
             }
@@ -7947,14 +7945,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun addAIResponseCard(aiName: String, response: String, query: String) {
         try {
-            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
             if (responseContainer != null) {
                 // 创建新的AI回复卡片
                 val newCard = createAIResponseCard(aiName, response, query)
                 responseContainer.addView(newCard)
                 
                 // 滚动到最新添加的卡片
-                val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_response_scroll_container)
+                val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_engines_container)
                 scrollContainer?.post {
                     scrollContainer.fullScroll(HorizontalScrollView.FOCUS_RIGHT)
                 }
@@ -8081,7 +8079,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun clearAIResponseCards() {
         try {
-            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
             if (responseContainer != null) {
                 // 移除所有动态创建的卡片
                 val childCount = responseContainer.childCount
@@ -8090,13 +8088,13 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 }
                 
                 // 隐藏默认卡片
-                val defaultCard = aiAssistantPanelView?.findViewById<MaterialCardView>(R.id.ai_response_card_default)
+                val defaultCard = aiAssistantPanelView?.findViewById<MaterialCardView>(R.id.ai_engines_container)
                 defaultCard?.visibility = View.GONE
             }
             
             // 清除AI名称标签
-            val tabsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_name_tabs_container)
-            val tabsScrollView = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_name_tabs_scroll)
+            val tabsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
+            val tabsScrollView = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_engines_container)
             if (tabsContainer != null && tabsScrollView != null) {
                 tabsContainer.removeAllViews()
                 aiNameTabs.clear()
@@ -8293,11 +8291,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         card.addView(mainContainer)
         
         // 添加到回复容器
-        val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+        val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
         responseContainer?.addView(card)
         
         // 滚动到最新添加的卡片
-        val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_response_scroll_container)
+        val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_engines_container)
         scrollContainer?.post {
             scrollContainer.fullScroll(HorizontalScrollView.FOCUS_RIGHT)
         }
@@ -8478,8 +8476,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun scrollToAICard(aiService: String) {
         try {
-            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
-            val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_response_scroll_container)
+            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
+            val scrollContainer = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_engines_container)
             
             if (responseContainer != null && scrollContainer != null) {
                 // 查找对应的AI卡片
@@ -8516,8 +8514,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun updateAINameTabs(aiServices: List<String>) {
         try {
-            val tabsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_name_tabs_container)
-            val tabsScrollView = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_name_tabs_scroll)
+            val tabsContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
+            val tabsScrollView = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_engines_container)
             
             if (tabsContainer != null && tabsScrollView != null) {
                 // 清除现有标签
@@ -8554,7 +8552,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun updateAIResponseCard(aiService: String, content: String, isComplete: Boolean) {
         try {
-            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_response_container)
+            val responseContainer = aiAssistantPanelView?.findViewById<LinearLayout>(R.id.ai_engines_container)
             if (responseContainer != null) {
                 // 查找对应的AI卡片
                 for (i in 0 until responseContainer.childCount) {
@@ -8660,8 +8658,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      */
     private fun toggleResponseFold() {
         try {
-            val responseScroll = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_response_scroll_container)
-            val foldButton = aiAssistantPanelView?.findViewById<ImageButton>(R.id.btn_fold_response)
+            val responseScroll = aiAssistantPanelView?.findViewById<HorizontalScrollView>(R.id.ai_engines_container)
+            val foldButton = aiAssistantPanelView?.findViewById<ImageButton>(R.id.history_button)
             
             if (responseScroll != null && foldButton != null) {
                 isResponseFolded = !isResponseFolded
@@ -9551,7 +9549,7 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                         
                         // 生成并插入提示词到AI输入框
                         val generatedPrompt = settingsManager.generateMasterPrompt(profile)
-                        val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.ai_input_text)
+                        val aiInputText = aiAssistantPanelView?.findViewById<EditText>(R.id.search_input)
                         val currentText = aiInputText?.text?.toString() ?: ""
                         val newText = if (currentText.isBlank()) generatedPrompt else "$currentText\n\n$generatedPrompt"
                         

@@ -2,13 +2,16 @@ package com.example.aifloatingball.service
 
 import android.accessibilityservice.AccessibilityService
 import android.app.ActivityManager
+import android.content.BroadcastReceiver
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -18,12 +21,20 @@ class MyAccessibilityService : AccessibilityService() {
         const val TAG = "MyAccessibilityService"
         const val ACTION_CLIPBOARD_CHANGED = "com.example.aifloatingball.ACTION_CLIPBOARD_CHANGED"
         const val EXTRA_CLIPBOARD_CONTENT = "clipboard_content"
+        const val ACTION_AUTO_PASTE = "com.example.aifloatingball.AUTO_PASTE"
 
         // 调试模式：设置为true时放宽过滤条件
         private const val DEBUG_MODE = true
 
         // 服务实例引用
         private var serviceInstance: MyAccessibilityService? = null
+
+        /**
+         * 获取服务实例
+         */
+        fun getInstance(): MyAccessibilityService? {
+            return serviceInstance
+        }
 
         /**
          * 检查无障碍服务是否正在运行
@@ -47,6 +58,21 @@ class MyAccessibilityService : AccessibilityService() {
     private var aggressiveCheckRunnable: Runnable? = null
     private val aggressiveCheckInterval = 200L // 每0.2秒检查一次（激进模式）
     private var isAggressiveModeEnabled = true // 启用激进模式
+
+    // 自动粘贴相关变量
+    private var autoPasteReceiver: BroadcastReceiver? = null
+    private var pendingAutoPaste: AutoPasteRequest? = null
+    private var autoPasteRetryCount = 0
+    private val maxAutoPasteRetries = 5
+    private val autoPasteDelay = 2000L // 2秒延迟
+
+    // 自动粘贴请求数据类
+    data class AutoPasteRequest(
+        val packageName: String,
+        val query: String,
+        val appName: String,
+        val timestamp: Long = System.currentTimeMillis()
+    )
 
     // 超级激进模式（后台时启用）
     private var superAggressiveCheckRunnable: Runnable? = null
@@ -98,6 +124,9 @@ class MyAccessibilityService : AccessibilityService() {
             if (isAggressiveModeEnabled) {
                 startAggressiveClipboardCheck()
             }
+
+            // 注册自动粘贴广播接收器
+            registerAutoPasteReceiver()
 
             // 启动服务状态监控
             startServiceStatusCheck()
@@ -569,6 +598,8 @@ class MyAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         try {
+            Log.d(TAG, "🔚 无障碍服务销毁中...")
+            
             // 清除服务实例引用
             serviceInstance = null
 
@@ -587,6 +618,9 @@ class MyAccessibilityService : AccessibilityService() {
                 clipboardManager.removePrimaryClipChangedListener(clipboardListener)
             }
 
+            // 取消注册自动粘贴广播接收器
+            unregisterAutoPasteReceiver()
+
             Log.d(TAG, "✅ 无障碍服务已销毁，所有监听器和检查机制已清理")
         } catch (e: Exception) {
             Log.e(TAG, "❌ 清理无障碍服务失败", e)
@@ -603,5 +637,256 @@ class MyAccessibilityService : AccessibilityService() {
                 reinitializeService()
             }
         }, 2000)
+    }
+
+
+    /**
+     * 注册自动粘贴广播接收器
+     */
+    private fun registerAutoPasteReceiver() {
+        try {
+            autoPasteReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    if (intent?.action == ACTION_AUTO_PASTE) {
+                        val packageName = intent.getStringExtra("package_name") ?: ""
+                        val query = intent.getStringExtra("query") ?: ""
+                        val appName = intent.getStringExtra("app_name") ?: ""
+                        
+                        Log.d(TAG, "收到自动粘贴请求: $appName ($packageName) - $query")
+                        
+                        // 创建自动粘贴请求
+                        pendingAutoPaste = AutoPasteRequest(packageName, query, appName)
+                        autoPasteRetryCount = 0
+                        
+                        // 延迟执行自动粘贴
+                        mainHandler.postDelayed({
+                            performAutoPaste()
+                        }, autoPasteDelay)
+                    }
+                }
+            }
+            
+            val filter = IntentFilter(ACTION_AUTO_PASTE)
+            registerReceiver(autoPasteReceiver, filter)
+            Log.d(TAG, "✅ 自动粘贴广播接收器注册成功")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 注册自动粘贴广播接收器失败", e)
+        }
+    }
+
+    /**
+     * 取消注册自动粘贴广播接收器
+     */
+    private fun unregisterAutoPasteReceiver() {
+        try {
+            autoPasteReceiver?.let {
+                unregisterReceiver(it)
+                autoPasteReceiver = null
+                Log.d(TAG, "✅ 自动粘贴广播接收器已取消注册")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 取消注册自动粘贴广播接收器失败", e)
+        }
+    }
+
+    /**
+     * 执行自动粘贴
+     */
+    private fun performAutoPaste() {
+        val request = pendingAutoPaste ?: return
+        
+        try {
+            Log.d(TAG, "开始执行自动粘贴: ${request.appName}")
+            
+            // 检查当前应用是否为目标应用
+            val currentPackage = getCurrentPackageName()
+            if (currentPackage != request.packageName) {
+                Log.w(TAG, "当前应用($currentPackage)不是目标应用(${request.packageName})，等待中...")
+                
+                // 重试机制
+                if (autoPasteRetryCount < maxAutoPasteRetries) {
+                    autoPasteRetryCount++
+                    mainHandler.postDelayed({
+                        performAutoPaste()
+                    }, autoPasteDelay)
+                    return
+                } else {
+                    Log.e(TAG, "自动粘贴失败：超过最大重试次数")
+                    pendingAutoPaste = null
+                    return
+                }
+            }
+            
+            // 查找输入框并粘贴文本
+            val rootNode = rootInActiveWindow
+            if (rootNode != null) {
+                val success = findAndPasteText(rootNode, request.query)
+                if (success) {
+                    Log.d(TAG, "✅ 自动粘贴成功: ${request.appName}")
+                    pendingAutoPaste = null
+                } else {
+                    Log.w(TAG, "❌ 自动粘贴失败: 未找到输入框")
+                    // 重试
+                    if (autoPasteRetryCount < maxAutoPasteRetries) {
+                        autoPasteRetryCount++
+                        mainHandler.postDelayed({
+                            performAutoPaste()
+                        }, autoPasteDelay)
+                    } else {
+                        pendingAutoPaste = null
+                    }
+                }
+            } else {
+                Log.w(TAG, "❌ 无法获取根节点")
+                pendingAutoPaste = null
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 执行自动粘贴异常", e)
+            pendingAutoPaste = null
+        }
+    }
+
+    /**
+     * 查找输入框并粘贴文本
+     */
+    private fun findAndPasteText(node: AccessibilityNodeInfo, text: String): Boolean {
+        try {
+            Log.d(TAG, "🔍 开始查找输入框，目标文本: $text")
+            
+            // 方法1：查找EditText类型的输入框
+            val editTextNodes = node.findAccessibilityNodeInfosByText("")
+                .filter { it.isEditable && it.className == "android.widget.EditText" }
+            
+            if (editTextNodes.isNotEmpty()) {
+                val editText = editTextNodes.first()
+                Log.d(TAG, "📝 找到EditText输入框: ${editText.text}")
+                
+                // 点击输入框获得焦点
+                editText.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                Thread.sleep(200) // 等待焦点切换
+                
+                // 设置文本
+                val arguments = android.os.Bundle()
+                arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                val success = editText.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                
+                if (success) {
+                    Log.d(TAG, "✅ 文本已粘贴到EditText输入框: $text")
+                    return true
+                }
+            }
+            
+            // 方法2：查找所有可编辑的节点
+            val editableNodes = node.findAccessibilityNodeInfosByText("")
+                .filter { it.isEditable }
+            
+            if (editableNodes.isNotEmpty()) {
+                val editableNode = editableNodes.first()
+                Log.d(TAG, "📝 找到可编辑节点: ${editableNode.className}")
+                
+                editableNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                Thread.sleep(200) // 等待焦点切换
+                
+                val arguments = android.os.Bundle()
+                arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                val success = editableNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                
+                if (success) {
+                    Log.d(TAG, "✅ 文本已粘贴到可编辑节点: $text")
+                    return true
+                }
+            }
+            
+            // 方法3：查找包含特定关键词的输入框（针对AI应用）
+            val aiInputKeywords = listOf("输入", "问题", "消息", "聊天", "搜索", "query", "message", "input")
+            for (keyword in aiInputKeywords) {
+                val keywordNodes = node.findAccessibilityNodeInfosByText(keyword)
+                    .filter { it.isEditable || it.parent?.isEditable == true }
+                
+                if (keywordNodes.isNotEmpty()) {
+                    val targetNode = if (keywordNodes.first().isEditable) {
+                        keywordNodes.first()
+                    } else {
+                        keywordNodes.first().parent
+                    }
+                    
+                    if (targetNode != null) {
+                        Log.d(TAG, "📝 通过关键词'$keyword'找到输入框: ${targetNode.className}")
+                        
+                        targetNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        Thread.sleep(200)
+                        
+                        val arguments = android.os.Bundle()
+                        arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                        val success = targetNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                        
+                        if (success) {
+                            Log.d(TAG, "✅ 文本已粘贴到关键词输入框: $text")
+                            return true
+                        }
+                    }
+                }
+            }
+            
+            // 方法4：查找具有特定contentDescription的输入框
+            val inputNodes = node.findAccessibilityNodeInfosByText("")
+                .filter { 
+                    it.contentDescription?.toString()?.contains("输入", ignoreCase = true) == true ||
+                    it.contentDescription?.toString()?.contains("问题", ignoreCase = true) == true ||
+                    it.contentDescription?.toString()?.contains("消息", ignoreCase = true) == true
+                }
+                .filter { it.isEditable || it.parent?.isEditable == true }
+            
+            if (inputNodes.isNotEmpty()) {
+                val targetNode = if (inputNodes.first().isEditable) {
+                    inputNodes.first()
+                } else {
+                    inputNodes.first().parent
+                }
+                
+                if (targetNode != null) {
+                    Log.d(TAG, "📝 通过contentDescription找到输入框: ${targetNode.contentDescription}")
+                    
+                    targetNode.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    Thread.sleep(200)
+                    
+                    val arguments = android.os.Bundle()
+                    arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                    val success = targetNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+                    
+                    if (success) {
+                        Log.d(TAG, "✅ 文本已粘贴到contentDescription输入框: $text")
+                        return true
+                    }
+                }
+            }
+            
+            Log.w(TAG, "❌ 未找到合适的输入框")
+            return false
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 查找并粘贴文本失败", e)
+            return false
+        }
+    }
+
+    /**
+     * 获取当前应用包名
+     */
+    private fun getCurrentPackageName(): String? {
+        return try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val runningTasks = activityManager.getRunningTasks(1)
+            if (runningTasks.isNotEmpty()) {
+                runningTasks[0].topActivity?.packageName
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "获取当前应用包名失败", e)
+            null
+        }
     }
 }

@@ -7,6 +7,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.BroadcastReceiver
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -41,6 +43,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.example.aifloatingball.R
 import com.example.aifloatingball.SettingsActivity
 import com.example.aifloatingball.SettingsManager
@@ -62,7 +68,6 @@ import com.example.aifloatingball.ui.text.TextSelectionManager
 import android.text.Editable
 import android.text.TextWatcher
 import android.content.ClipDescription
-import android.content.ClipboardManager
 import android.os.Looper
 import com.example.aifloatingball.utils.BitmapUtils
 import android.graphics.BitmapFactory
@@ -106,10 +111,12 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
     private val notificationHideHandler = Handler(Looper.getMainLooper())
     private var notificationHideRunnable: Runnable? = null
 
-    // 新增：用于处理粘贴按钮的 Handler 和 Runnable
-    private var pasteButtonView: View? = null
-    private val pasteButtonHandler = Handler(Looper.getMainLooper())
-    private var hidePasteButtonRunnable: Runnable? = null
+    // 新增：用于处理AI按钮的 Handler 和 Runnable
+    private var aiButtonView: View? = null
+    private var aiPopupView: View? = null
+    private var aiAssistantPanelView: View? = null
+    private val aiButtonHandler = Handler(Looper.getMainLooper())
+    private var hideAiButtonRunnable: Runnable? = null
 
     // 新增: 用于处理长按事件的 Handler 和 Runnable
     private val longPressHandler = Handler(android.os.Looper.getMainLooper())
@@ -273,7 +280,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         settingsManager.unregisterOnSharedPreferenceChangeListener(this)
         idleHandler.removeCallbacksAndMessages(null) // Clean up handler
         notificationHideHandler.removeCallbacksAndMessages(null)
-        hidePasteButton()
+        hideAIButton()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(notificationReceiver)
         // Unregister position update receiver
         unregisterReceiver(positionUpdateReceiver)
@@ -567,16 +574,16 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         searchInput?.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) {
                 // Delay showing the button slightly to allow keyboard animation to start
-                pasteButtonHandler.postDelayed({ showPasteButton() }, 100)
+                aiButtonHandler.postDelayed({ showAIButton() }, 100)
             } else {
-                hidePasteButton()
+                hideAIButton()
             }
         }
         searchInput?.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 // Hide the button as soon as the user starts typing
-                hidePasteButton()
+                hideAIButton()
                 val query = s.toString()
                 if (query.isNotEmpty()) {
                     val appResults = appInfoManager.search(query)
@@ -920,7 +927,7 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
             autoPaste(searchInput)
         }
         showKeyboard()
-        showPasteButton()
+        showAIButton()
         setupSearchInputListener() // Add listener when menu is shown
     }
 
@@ -1426,35 +1433,23 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         }
     }
 
-    private fun showPasteButton() {
+    private fun showAIButton() {
         val input = searchInput ?: return
         if (!input.isShown) return // Don't show if the input field itself is not visible
 
-        // Check clipboard for text
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        if (!clipboard.hasPrimaryClip() || clipboard.primaryClipDescription?.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN) != true) {
-            return // No text on clipboard, do nothing
-        }
-
-        if (pasteButtonView == null) {
+        if (aiButtonView == null) {
             // Use themedContext to inflate the view, which is crucial
             val context = themedContext ?: this
             val inflater = LayoutInflater.from(context)
-            pasteButtonView = inflater.inflate(R.layout.paste_button, null)
+            aiButtonView = inflater.inflate(R.layout.ai_button, null)
 
-            pasteButtonView?.setOnClickListener {
-                val pasteData = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
-                if (!pasteData.isNullOrEmpty()) {
-                    val selectionStart = input.selectionStart
-                    val selectionEnd = input.selectionEnd
-                    input.text.replace(selectionStart.coerceAtMost(selectionEnd), selectionStart.coerceAtLeast(selectionEnd), pasteData, 0, pasteData.length)
-                }
-                hidePasteButton()
+            aiButtonView?.setOnClickListener {
+                showAIPopup()
             }
         }
 
         // Ensure the view is not already added
-        if (pasteButtonView?.parent != null) {
+        if (aiButtonView?.parent != null) {
             return
         }
 
@@ -1462,13 +1457,13 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
         // ensuring the coordinates are for its final position.
         input.post {
             // Re-check if the button has been added or hidden in the meantime
-            if (pasteButtonView?.parent != null || !input.isShown) {
+            if (aiButtonView?.parent != null || !input.isShown) {
                 return@post
             }
 
-            // Measure the paste button to get its width for centering
-            pasteButtonView?.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-            val pasteButtonWidth = pasteButtonView?.measuredWidth ?: 0
+            // Measure the AI button to get its width for centering
+            aiButtonView?.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val aiButtonWidth = aiButtonView?.measuredWidth ?: 0
 
             val locationOnScreen = IntArray(2)
             input.getLocationOnScreen(locationOnScreen)
@@ -1484,33 +1479,516 @@ class FloatingWindowService : Service(), SharedPreferences.OnSharedPreferenceCha
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                x = inputX + (inputWidth - pasteButtonWidth) / 2 // Center the button horizontally
+                x = inputX + (inputWidth - aiButtonWidth) / 2 // Center the button horizontally
                 y = inputY + input.height // Position directly below the input field
             }
 
             try {
-                windowManager.addView(pasteButtonView, params)
+                windowManager.addView(aiButtonView, params)
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to add paste button", e)
+                Log.e(TAG, "Failed to add AI button", e)
             }
 
             // Schedule to hide
-            hidePasteButtonRunnable = Runnable { hidePasteButton() }
-            pasteButtonHandler.postDelayed(hidePasteButtonRunnable!!, 5000)
+            hideAiButtonRunnable = Runnable { hideAIButton() }
+            aiButtonHandler.postDelayed(hideAiButtonRunnable!!, 10000) // Show for 10 seconds
         }
     }
 
-    private fun hidePasteButton() {
-        hidePasteButtonRunnable?.let { pasteButtonHandler.removeCallbacks(it) }
-        hidePasteButtonRunnable = null
-        if (pasteButtonView?.parent != null) {
+    private fun hideAIButton() {
+        hideAiButtonRunnable?.let { aiButtonHandler.removeCallbacks(it) }
+        hideAiButtonRunnable = null
+        if (aiButtonView?.parent != null) {
             try {
-                windowManager.removeView(pasteButtonView)
+                windowManager.removeView(aiButtonView)
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to remove paste button", e)
+                Log.e(TAG, "Failed to remove AI button", e)
             }
         }
-        // Don't null out pasteButtonView here, so it can be reused
+        // Don't null out aiButtonView here, so it can be reused
+    }
+
+    /**
+     * 显示AI按钮弹出菜单
+     */
+    private fun showAIPopup() {
+        hideAIButton() // 先隐藏AI按钮
+        
+        // 检查是否应该显示增强面板
+        if (shouldShowEnhancedPanel()) {
+            showEnhancedAIPanel()
+            return
+        }
+        
+        if (aiPopupView == null) {
+            val context = themedContext ?: this
+            val inflater = LayoutInflater.from(context)
+            aiPopupView = inflater.inflate(R.layout.ai_buttons_popup, null)
+            
+            // 设置AI按钮点击事件
+            setupAIButtons()
+        }
+        
+        if (aiPopupView?.parent != null) {
+            return
+        }
+        
+        val input = searchInput ?: return
+        input.post {
+            if (aiPopupView?.parent != null || !input.isShown) {
+                return@post
+            }
+            
+            // 测量弹出菜单尺寸
+            aiPopupView?.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val popupWidth = aiPopupView?.measuredWidth ?: 0
+            val popupHeight = aiPopupView?.measuredHeight ?: 0
+            
+            val locationOnScreen = IntArray(2)
+            input.getLocationOnScreen(locationOnScreen)
+            val inputX = locationOnScreen[0]
+            val inputY = locationOnScreen[1]
+            val inputWidth = input.width
+            
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = inputX + (inputWidth - popupWidth) / 2 // 居中显示
+                y = inputY + input.height + 10 // 在输入框下方10dp处显示
+            }
+            
+            try {
+                windowManager.addView(aiPopupView, params)
+                
+                // 3秒后自动隐藏
+                aiButtonHandler.postDelayed({
+                    hideAIPopup()
+                }, 3000)
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to add AI popup", e)
+            }
+        }
+    }
+    
+    /**
+     * 判断是否应该显示增强面板
+     */
+    private fun shouldShowEnhancedPanel(): Boolean {
+        // 可以根据用户设置或使用频率来决定
+        return false // 暂时使用简单弹出菜单
+    }
+    
+    /**
+     * 显示增强的AI助手面板
+     */
+    private fun showEnhancedAIPanel() {
+        hideAIButton() // 先隐藏AI按钮
+        
+        if (aiAssistantPanelView == null) {
+            val context = themedContext ?: this
+            val inflater = LayoutInflater.from(context)
+            aiAssistantPanelView = inflater.inflate(R.layout.ai_assistant_panel, null)
+            
+            // 设置面板按钮点击事件
+            setupAIAssistantPanel()
+        }
+        
+        if (aiAssistantPanelView?.parent != null) {
+            return
+        }
+        
+        val input = searchInput ?: return
+        input.post {
+            if (aiAssistantPanelView?.parent != null || !input.isShown) {
+                return@post
+            }
+            
+            // 测量面板尺寸
+            aiAssistantPanelView?.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+            val panelWidth = aiAssistantPanelView?.measuredWidth ?: 0
+            val panelHeight = aiAssistantPanelView?.measuredHeight ?: 0
+            
+            val locationOnScreen = IntArray(2)
+            input.getLocationOnScreen(locationOnScreen)
+            val inputX = locationOnScreen[0]
+            val inputY = locationOnScreen[1]
+            val inputWidth = input.width
+            
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = inputX + (inputWidth - panelWidth) / 2 // 居中显示
+                y = inputY + input.height + 10 // 在输入框下方10dp处显示
+            }
+            
+            try {
+                windowManager.addView(aiAssistantPanelView, params)
+                
+                // 5秒后自动隐藏
+                aiButtonHandler.postDelayed({
+                    hideEnhancedAIPanel()
+                }, 5000)
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to add AI assistant panel", e)
+            }
+        }
+    }
+    
+    /**
+     * 隐藏增强的AI助手面板
+     */
+    private fun hideEnhancedAIPanel() {
+        if (aiAssistantPanelView?.parent != null) {
+            try {
+                windowManager.removeView(aiAssistantPanelView)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to remove AI assistant panel", e)
+            }
+        }
+    }
+    
+    /**
+     * 设置AI助手面板的按钮事件
+     */
+    private fun setupAIAssistantPanel() {
+        // 设置关闭按钮
+        aiAssistantPanelView?.findViewById<ImageButton>(R.id.close_panel_button)?.setOnClickListener {
+            hideEnhancedAIPanel()
+        }
+        
+        // 设置快速操作按钮
+        aiAssistantPanelView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.voice_input_button)?.setOnClickListener {
+            // 启动语音输入
+            Toast.makeText(this, "语音输入功能", Toast.LENGTH_SHORT).show()
+        }
+        
+        aiAssistantPanelView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.history_button)?.setOnClickListener {
+            // 显示历史记录
+            Toast.makeText(this, "历史记录功能", Toast.LENGTH_SHORT).show()
+        }
+        
+        aiAssistantPanelView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.settings_button)?.setOnClickListener {
+            // 打开设置
+            Toast.makeText(this, "AI设置功能", Toast.LENGTH_SHORT).show()
+        }
+        
+        // 设置AI应用按钮
+        val aiAppIds = listOf(R.id.ai_app_1, R.id.ai_app_2, R.id.ai_app_3, R.id.ai_app_4, R.id.ai_app_5)
+        val aiStatusIds = listOf(R.id.ai_status_1, R.id.ai_status_2, R.id.ai_status_3, R.id.ai_status_4, R.id.ai_status_5)
+        
+        // 获取常用AI配置
+        val favoriteAIManager = com.example.aifloatingball.manager.FavoriteAIManager.getInstance(this)
+        val appSearchSettings = com.example.aifloatingball.model.AppSearchSettings.getInstance(this)
+        val allConfigs = appSearchSettings.getAppConfigs()
+        val favoriteAIs = favoriteAIManager.getFavoriteAIConfigs(allConfigs)
+        
+        // 默认AI配置
+        val defaultAIs = listOf(
+            Triple("chatgpt", "ChatGPT", "com.openai.chatgpt"),
+            Triple("kimi", "Kimi", "com.moonshot.kimichat"), 
+            Triple("deepseek", "DeepSeek", "com.deepseek.chat"),
+            Triple("gemini", "Gemini", "com.google.android.apps.gemini"),
+            Triple("claude", "Claude", "com.anthropic.claude")
+        )
+        
+        val displayAIs = mutableListOf<Triple<String, String, String>>()
+        favoriteAIs.take(5).forEach { config ->
+            displayAIs.add(Triple(config.appId, config.appName, config.packageName))
+        }
+        if (displayAIs.size < 5) {
+            val usedAppIds = displayAIs.map { it.first }.toSet()
+            defaultAIs.filter { it.first !in usedAppIds }
+                .take(5 - displayAIs.size)
+                .forEach { displayAIs.add(it) }
+        }
+        
+        aiAppIds.forEachIndexed { index, buttonId ->
+            val button = aiAssistantPanelView?.findViewById<com.google.android.material.button.MaterialButton>(buttonId)
+            val statusView = aiAssistantPanelView?.findViewById<View>(aiStatusIds[index])
+            
+            if (index < displayAIs.size) {
+                val (appId, appName, packageName) = displayAIs[index]
+                button?.text = appName
+                button?.visibility = View.VISIBLE
+                button?.setOnClickListener {
+                    hideEnhancedAIPanel()
+                    launchAIApp(packageName, appName)
+                }
+                
+                // 设置状态指示器
+                val isInstalled = isAppInstalled(packageName)
+                statusView?.setBackgroundResource(
+                    if (isInstalled) R.drawable.ai_status_indicator 
+                    else R.drawable.ai_status_indicator_offline
+                )
+                statusView?.visibility = View.VISIBLE
+                
+            } else {
+                button?.visibility = View.GONE
+                statusView?.visibility = View.GONE
+            }
+        }
+        
+        // 更多按钮
+        aiAssistantPanelView?.findViewById<com.google.android.material.button.MaterialButton>(R.id.more_ai_button)?.setOnClickListener {
+            Toast.makeText(this, "更多AI应用", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 隐藏AI弹出菜单
+     */
+    private fun hideAIPopup() {
+        if (aiPopupView?.parent != null) {
+            try {
+                windowManager.removeView(aiPopupView)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to remove AI popup", e)
+            }
+        }
+    }
+    
+    /**
+     * 设置AI按钮点击事件
+     */
+    private fun setupAIButtons() {
+        val context = themedContext ?: this
+        
+        // 获取常用AI配置
+        val favoriteAIManager = com.example.aifloatingball.manager.FavoriteAIManager.getInstance(context)
+        val appSearchSettings = com.example.aifloatingball.model.AppSearchSettings.getInstance(context)
+        val allConfigs = appSearchSettings.getAppConfigs()
+        val favoriteAIs = favoriteAIManager.getFavoriteAIConfigs(allConfigs)
+        
+        // 默认AI配置（如果常用AI不足5个，用这些补充）
+        val defaultAIs = listOf(
+            Triple("chatgpt", "ChatGPT", "com.openai.chatgpt"),
+            Triple("kimi", "Kimi", "com.moonshot.kimichat"), 
+            Triple("deepseek", "DeepSeek", "com.deepseek.chat"),
+            Triple("gemini", "Gemini", "com.google.android.apps.gemini"),
+            Triple("claude", "Claude", "com.anthropic.claude")
+        )
+        
+        // 合并常用AI和默认AI，最多显示5个
+        val displayAIs = mutableListOf<Triple<String, String, String>>()
+        
+        // 先添加常用AI
+        favoriteAIs.take(5).forEach { config ->
+            displayAIs.add(Triple(config.appId, config.appName, config.packageName))
+        }
+        
+        // 如果不足5个，添加默认AI
+        if (displayAIs.size < 5) {
+            val usedAppIds = displayAIs.map { it.first }.toSet()
+            defaultAIs.filter { it.first !in usedAppIds }
+                .take(5 - displayAIs.size)
+                .forEach { displayAIs.add(it) }
+        }
+        
+        // 设置按钮
+        val buttonIds = listOf(R.id.ai_button_1, R.id.ai_button_2, R.id.ai_button_3, R.id.ai_button_4, R.id.ai_button_5)
+        val statusIds = listOf(R.id.ai_status_1, R.id.ai_status_2, R.id.ai_status_3, R.id.ai_status_4, R.id.ai_status_5)
+        
+        // 更新AI数量显示
+        val aiCountText = aiPopupView?.findViewById<TextView>(R.id.ai_count_text)
+        aiCountText?.text = "${displayAIs.size}个可用"
+        
+        buttonIds.forEachIndexed { index, buttonId ->
+            val button = aiPopupView?.findViewById<com.google.android.material.button.MaterialButton>(buttonId)
+            val statusView = aiPopupView?.findViewById<View>(statusIds[index])
+            
+            if (index < displayAIs.size) {
+                val (appId, appName, packageName) = displayAIs[index]
+                button?.text = appName
+                button?.visibility = View.VISIBLE
+                button?.setOnClickListener {
+                    hideAIPopup()
+                    launchAIApp(packageName, appName)
+                }
+                
+                // 设置状态指示器
+                val isInstalled = isAppInstalled(packageName)
+                statusView?.setBackgroundResource(
+                    if (isInstalled) R.drawable.ai_status_indicator 
+                    else R.drawable.ai_status_indicator_offline
+                )
+                statusView?.visibility = View.VISIBLE
+                
+                // 异步加载AI应用图标
+                loadAIIconAsync(appId, appName, packageName, button, isInstalled)
+                
+            } else {
+                button?.visibility = View.GONE
+                statusView?.visibility = View.GONE
+            }
+        }
+    }
+    
+    /**
+     * 启动AI应用
+     */
+    private fun launchAIApp(packageName: String, appName: String) {
+        try {
+            val query = searchInput?.text?.toString()?.trim() ?: ""
+            
+            // 将查询内容复制到剪贴板
+            if (query.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("AI问题", query)
+                clipboard.setPrimaryClip(clip)
+            }
+            
+            // 启动AI应用
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Toast.makeText(this, "正在启动$appName...", Toast.LENGTH_SHORT).show()
+                
+                // 延迟显示悬浮窗提示
+                aiButtonHandler.postDelayed({
+                    showAIAppOverlay(packageName, query, appName)
+                }, 2000)
+                
+            } else {
+                Toast.makeText(this, "$appName 未安装", Toast.LENGTH_SHORT).show()
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "启动AI应用失败: $appName", e)
+            Toast.makeText(this, "启动失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示AI应用悬浮窗
+     */
+    private fun showAIAppOverlay(packageName: String, query: String, appName: String) {
+        try {
+            val intent = Intent(this, com.example.aifloatingball.service.AIAppOverlayService::class.java).apply {
+                action = com.example.aifloatingball.service.AIAppOverlayService.ACTION_SHOW_OVERLAY
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_APP_NAME, appName)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_QUERY, query)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_PACKAGE_NAME, packageName)
+            }
+            startService(intent)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "显示AI应用悬浮窗失败: $appName", e)
+        }
+    }
+    
+    /**
+     * 检查应用是否已安装
+     */
+    private fun isAppInstalled(packageName: String): Boolean {
+        return try {
+            packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+    
+    /**
+     * 异步加载AI应用图标 - 参考软件tab的实现
+     */
+    private fun loadAIIconAsync(appId: String, appName: String, packageName: String, button: com.google.android.material.button.MaterialButton?, isInstalled: Boolean) {
+        if (button == null) return
+        
+        // 使用协程异步加载图标
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                // 1. 优先使用已安装应用的真实图标
+                if (isInstalled) {
+                    try {
+                        val realIcon = packageManager.getApplicationIcon(packageName)
+                        val iconResId = getCustomIconResourceId(appId)
+                        if (iconResId != 0) {
+                            button.setIconResource(iconResId)
+                        } else {
+                            // 使用真实图标
+                            button.icon = realIcon
+                        }
+                        return@launch
+                    } catch (e: Exception) {
+                        // 继续尝试其他方法
+                    }
+                }
+                
+                // 2. 尝试使用预设的高质量图标资源
+                val iconResId = getCustomIconResourceId(appId)
+                if (iconResId != 0) {
+                    button.setIconResource(iconResId)
+                    return@launch
+                }
+                
+                // 3. 尝试从在线获取图标
+                val onlineIcon = withContext(Dispatchers.IO) {
+                    getOnlineAIIcon(appName, packageName)
+                }
+                if (onlineIcon != null) {
+                    button.icon = onlineIcon
+                    return@launch
+                }
+                
+                // 4. 使用默认AI图标
+                button.setIconResource(R.drawable.ic_ai)
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "加载AI图标失败: $appName", e)
+                button.setIconResource(R.drawable.ic_ai)
+            }
+        }
+    }
+    
+    /**
+     * 根据应用ID获取自定义图标资源ID
+     */
+    private fun getCustomIconResourceId(appId: String): Int {
+        return when (appId.lowercase()) {
+            "chatgpt", "gpt" -> R.drawable.ic_chatgpt
+            "kimi" -> R.drawable.ic_kimi
+            "deepseek" -> R.drawable.ic_deepseek
+            "gemini" -> R.drawable.ic_gemini
+            "claude" -> R.drawable.ic_claude
+            "chatglm" -> R.drawable.ic_chatglm
+            "perplexity" -> R.drawable.ic_perplexity
+            "copilot" -> R.drawable.ic_copilot
+            "manus" -> R.drawable.ic_manus
+            "ima" -> R.drawable.ic_ima
+            else -> 0
+        }
+    }
+    
+    /**
+     * 从在线获取AI图标
+     */
+    private suspend fun getOnlineAIIcon(appName: String, packageName: String): android.graphics.drawable.Drawable? {
+        return try {
+            // 使用PreciseIconManager获取精准图标
+            val preciseIconManager = com.example.aifloatingball.manager.PreciseIconManager(this)
+            preciseIconManager.getPreciseIcon(
+                packageName, 
+                appName, 
+                com.example.aifloatingball.manager.PreciseIconManager.IconType.AI_APP
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "从在线获取AI图标失败: $appName", e)
+            null
+        }
     }
 
     private fun autoPaste(editText: EditText?) {

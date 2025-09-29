@@ -24,6 +24,7 @@ import com.example.aifloatingball.model.AppCategory
 import com.example.aifloatingball.model.AppSearchSettings
 import com.example.aifloatingball.manager.AppIconManager
 import com.example.aifloatingball.manager.IconPreloader
+import com.example.aifloatingball.manager.FavoriteAIManager
 import com.example.aifloatingball.utils.IconProcessor
 import kotlinx.coroutines.*
 
@@ -42,6 +43,7 @@ class AppSearchGridAdapter(
     private val iconManager = AppIconManager.getInstance(context)
     private val iconPreloader = IconPreloader.getInstance(context)
     private val iconProcessor = IconProcessor(context)
+    private val favoriteAIManager = FavoriteAIManager.getInstance(context)
     private val adapterScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     class AppViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
@@ -117,7 +119,24 @@ class AppSearchGridAdapter(
      * 更新应用配置列表
      */
     fun updateAppConfigs(newConfigs: List<AppSearchConfig>) {
-        appConfigs = newConfigs
+        // 对AI应用按常用AI排序
+        val sortedConfigs = newConfigs.map { config ->
+            if (config.category == AppCategory.AI) {
+                // 对AI应用列表进行排序
+                val aiConfigs = newConfigs.filter { it.category == AppCategory.AI }
+                val sortedAIConfigs = favoriteAIManager.sortAIAppsByFavorites(aiConfigs)
+                val aiIndex = aiConfigs.indexOf(config)
+                if (aiIndex >= 0 && aiIndex < sortedAIConfigs.size) {
+                    sortedAIConfigs[aiIndex]
+                } else {
+                    config
+                }
+            } else {
+                config
+            }
+        }
+        
+        appConfigs = sortedConfigs
         notifyDataSetChanged()
     }
     
@@ -145,7 +164,7 @@ class AppSearchGridAdapter(
             val aiAppPackages = listOf(
                 "com.deepseek.chat", "com.openai.chatgpt", "com.larus.nova", "com.moonshot.kimichat", 
                 "com.tencent.hunyuan.app.chat", "com.baidu.wenxiaoyan", "com.xai.grok", 
-                "ai.perplexity.app", "com.manus.app", "com.mita.ai", "com.poe.app", 
+                "ai.perplexity.app", "tech.butterfly.app", "com.mita.ai", "com.poe.app", 
                 "com.ima.app", "com.nano.ai", "com.google.android.apps.gemini", "com.microsoft.copilot",
                 // 添加更多可能的包名变体
                 "com.baidu.wenxiaoyan.app", "com.xai.grok.app", "ai.perplexity.app.android",
@@ -740,6 +759,16 @@ class AppSearchGridAdapter(
         val menuItems = mutableListOf<String>()
         menuItems.add("查看应用信息")
 
+        // 如果是AI应用，添加常用AI选项
+        if (appConfig.category == AppCategory.AI) {
+            val isFavorite = favoriteAIManager.isFavorite(appConfig.appId)
+            if (isFavorite) {
+                menuItems.add("从常用AI中移除")
+            } else {
+                menuItems.add("设为常用AI")
+            }
+        }
+
         if (isInstalled) {
             menuItems.add("添加到自定义分类")
         }
@@ -755,13 +784,32 @@ class AppSearchGridAdapter(
                 when (which) {
                     0 -> showAppInfo(appConfig, isInstalled)
                     1 -> {
-                        if (isInstalled) {
+                        if (appConfig.category == AppCategory.AI) {
+                            // 处理常用AI选项
+                            val isFavorite = favoriteAIManager.isFavorite(appConfig.appId)
+                            if (isFavorite) {
+                                favoriteAIManager.removeFromFavorites(appConfig.appId)
+                                Toast.makeText(context, "已从常用AI中移除", Toast.LENGTH_SHORT).show()
+                            } else {
+                                favoriteAIManager.addToFavorites(appConfig.appId)
+                                Toast.makeText(context, "已设为常用AI", Toast.LENGTH_SHORT).show()
+                            }
+                            // 通知适配器更新排序
+                            notifyDataSetChanged()
+                        } else if (isInstalled) {
                             addToCustomCategory(appConfig)
                         } else if (appConfig.category == AppCategory.CUSTOM) {
                             removeFromCustomCategory(appConfig)
                         }
                     }
-                    2 -> if (appConfig.category == AppCategory.CUSTOM) removeFromCustomCategory(appConfig)
+                    2 -> {
+                        if (isInstalled && appConfig.category != AppCategory.AI) {
+                            addToCustomCategory(appConfig)
+                        } else if (appConfig.category == AppCategory.CUSTOM) {
+                            removeFromCustomCategory(appConfig)
+                        }
+                    }
+                    3 -> if (appConfig.category == AppCategory.CUSTOM) removeFromCustomCategory(appConfig)
                 }
             }
             .show()

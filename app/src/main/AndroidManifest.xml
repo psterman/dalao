@@ -401,6 +401,11 @@
             </intent-filter>
         </service>
 
+        <service
+            android:name=".service.AIAppOverlayService"
+            android:enabled="true"
+            android:exported="false" />
+
         <receiver android:name=".widget.SearchWidgetProvider"
             android:exported="true"
             android:enabled="true"
