@@ -48,31 +48,20 @@
             tools:text="当前助手: 论文助手"
             tools:visibility="visible" />
 
-        <!-- App Search Results Preview (Moved to top) -->
+        <!-- 常用应用图标区域 (保留在上方) -->
         <FrameLayout
-            android:id="@+id/app_search_results_container"
+            android:id="@+id/common_apps_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="8dp"
-            android:background="@android:color/transparent"
-            android:visibility="gone">
+            android:background="@android:color/transparent">
 
             <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/app_search_results_recycler_view"
+                android:id="@+id/common_apps_recycler_view"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:overScrollMode="never" />
-
-            <ImageButton
-                android:id="@+id/close_app_search_button"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_gravity="top|end"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="关闭应用建议"
-                android:src="@drawable/ic_close"
-                app:tint="?android:attr/textColorSecondary" />
         </FrameLayout>
 
         <!-- Input Area with App Button Outside -->
@@ -144,6 +133,34 @@
                     app:tint="@color/dynamic_island_send_icon_tint" />
             </LinearLayout>
         </LinearLayout>
+
+        <!-- 搜索匹配应用图标区域 (新增在输入框下方) -->
+        <FrameLayout
+            android:id="@+id/app_search_results_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:background="@android:color/transparent"
+            android:visibility="gone">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/app_search_results_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:overScrollMode="never" />
+
+            <ImageButton
+                android:id="@+id/close_app_search_button"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="top|end"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="关闭应用建议"
+                android:src="@drawable/ic_close"
+                app:tint="?android:attr/textColorSecondary" />
+        </FrameLayout>
 
         <!-- Slot Container -->
         <LinearLayout

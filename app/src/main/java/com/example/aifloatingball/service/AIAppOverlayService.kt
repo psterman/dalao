@@ -53,6 +53,8 @@ class AIAppOverlayService : Service() {
     private var appName: String = ""
     private var query: String = ""
     private var packageName: String = ""
+    private var isSimpleMode: Boolean = false
+    private var isOverlayMode: Boolean = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -62,10 +64,24 @@ class AIAppOverlayService : Service() {
                 appName = intent.getStringExtra(EXTRA_APP_NAME) ?: ""
                 query = intent.getStringExtra(EXTRA_QUERY) ?: ""
                 packageName = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: ""
+                isSimpleMode = intent.getBooleanExtra("mode", false) || intent.getStringExtra("mode") == "simple"
                 showOverlay()
             }
             ACTION_HIDE_OVERLAY -> {
                 hideOverlay()
+            }
+            else -> {
+                // 处理从DynamicIslandService传来的参数
+                appName = intent?.getStringExtra("app_name") ?: ""
+                query = intent?.getStringExtra("query") ?: ""
+                packageName = intent?.getStringExtra("package_name") ?: ""
+                val modeString = intent?.getStringExtra("mode") ?: ""
+                isSimpleMode = intent?.getBooleanExtra("mode", false) == true || modeString == "simple"
+                // overlay模式：显示简易样式但不切换到简易模式
+                isOverlayMode = modeString == "overlay"
+
+                Log.d(TAG, "显示悬浮窗: $appName, 简易模式: $isSimpleMode")
+                showOverlay()
             }
         }
         return START_STICKY
@@ -124,36 +140,82 @@ class AIAppOverlayService : Service() {
      */
     private fun createOverlayView(): View {
         val inflater = LayoutInflater.from(this)
-        val overlayView = inflater.inflate(R.layout.ai_app_overlay, null)
+        val overlayView = if (isSimpleMode || isOverlayMode) {
+            // 简易模式或overlay模式：创建简化的悬浮窗
+            createSimpleOverlayView(inflater)
+        } else {
+            // 完整模式：使用原有布局
+            inflater.inflate(R.layout.ai_app_overlay, null)
+        }
         
-        // 设置应用名称
+        // 设置应用名称（仅在完整模式下）
         val appNameText = overlayView.findViewById<TextView>(R.id.overlay_app_name)
-        appNameText.text = appName
+        appNameText?.text = appName
         
-        // 设置返回按钮
-        val backButton = overlayView.findViewById<Button>(R.id.overlay_back_button)
-        backButton.setOnClickListener {
-            Log.d(TAG, "返回按钮被点击")
-            hideOverlay()
-            // 启动主应用
-            val intent = Intent(this, com.example.aifloatingball.SimpleModeActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        if (isSimpleMode) {
+            // 简易模式的按钮设置
+            val backButton = overlayView.findViewById<Button>(R.id.overlay_back_button)
+            backButton?.setOnClickListener {
+                Log.d(TAG, "返回按钮被点击")
+                returnToDynamicIsland()
             }
-            startActivity(intent)
-        }
-        
-        // 设置AI按钮
-        val aiButton = overlayView.findViewById<Button>(R.id.overlay_ai_button)
-        aiButton.setOnClickListener {
-            Log.d(TAG, "AI按钮被点击")
-            showAIMenu()
-        }
-        
-        // 设置关闭按钮
-        val closeButton = overlayView.findViewById<Button>(R.id.overlay_close_button)
-        closeButton.setOnClickListener {
-            Log.d(TAG, "关闭按钮被点击")
-            hideOverlay()
+
+            val closeButton = overlayView.findViewById<Button>(R.id.overlay_close_button)
+            closeButton?.setOnClickListener {
+                Log.d(TAG, "关闭按钮被点击")
+                hideOverlay()
+                stopSelf()
+            }
+
+            val aiButton = overlayView.findViewById<Button>(R.id.overlay_ai_button)
+            aiButton?.setOnClickListener {
+                Log.d(TAG, "AI按钮被点击")
+                showAIMenu()
+            }
+        } else if (isOverlayMode) {
+            // overlay模式的按钮设置（简易样式但不切换到简易模式）
+            val backButton = overlayView.findViewById<Button>(R.id.overlay_back_button)
+            backButton?.setOnClickListener {
+                Log.d(TAG, "返回按钮被点击")
+                returnToDynamicIsland()
+            }
+
+            val closeButton = overlayView.findViewById<Button>(R.id.overlay_close_button)
+            closeButton?.setOnClickListener {
+                Log.d(TAG, "关闭按钮被点击")
+                hideOverlay()
+                stopSelf()
+            }
+
+            val aiButton = overlayView.findViewById<Button>(R.id.overlay_ai_button)
+            aiButton?.setOnClickListener {
+                Log.d(TAG, "AI按钮被点击")
+                showAIMenu()
+            }
+        } else {
+            // 完整模式的按钮设置
+            val backButton = overlayView.findViewById<Button>(R.id.overlay_back_button)
+            backButton?.setOnClickListener {
+                Log.d(TAG, "返回按钮被点击")
+                hideOverlay()
+                // 启动主应用
+                val intent = Intent(this, com.example.aifloatingball.SimpleModeActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                startActivity(intent)
+            }
+
+            val aiButton = overlayView.findViewById<Button>(R.id.overlay_ai_button)
+            aiButton?.setOnClickListener {
+                Log.d(TAG, "AI按钮被点击")
+                showAIMenu()
+            }
+
+            val closeButton = overlayView.findViewById<Button>(R.id.overlay_close_button)
+            closeButton?.setOnClickListener {
+                Log.d(TAG, "关闭按钮被点击")
+                hideOverlay()
+            }
         }
         
         // 设置悬浮窗可拖拽
@@ -596,5 +658,114 @@ class AIAppOverlayService : Service() {
         hideOverlay()
         hideAIMenu()
         Log.d(TAG, "AI应用悬浮窗服务已销毁")
+    }
+
+    /**
+     * 创建简易模式悬浮窗视图
+     */
+    private fun createSimpleOverlayView(inflater: LayoutInflater): View {
+        // 创建主容器
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(12, 8, 12, 8)
+
+            // 设置背景
+            val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            background = GradientDrawable().apply {
+                if (isDarkMode) {
+                    setColor(Color.parseColor("#FF2C2C2C"))
+                    setStroke(1, Color.parseColor("#FF555555"))
+                } else {
+                    setColor(Color.WHITE)
+                    setStroke(1, Color.parseColor("#FFE0E0E0"))
+                }
+                cornerRadius = 20f
+            }
+        }
+
+        // AI按钮
+        val aiButton = Button(this).apply {
+            id = R.id.overlay_ai_button
+            text = "AI"
+            textSize = 12f
+            setTextColor(if ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES) Color.WHITE else Color.BLACK)
+            background = createButtonBackground()
+            setPadding(24, 8, 24, 8)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 36.dpToPx()).apply {
+                marginEnd = 8.dpToPx()
+            }
+        }
+
+        // 返回按钮
+        val backButton = Button(this).apply {
+            id = R.id.overlay_back_button
+            text = "返回"
+            textSize = 12f
+            setTextColor(if ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES) Color.WHITE else Color.BLACK)
+            background = createButtonBackground()
+            setPadding(24, 8, 24, 8)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 36.dpToPx()).apply {
+                marginEnd = 8.dpToPx()
+            }
+        }
+
+        // 关闭按钮
+        val closeButton = Button(this).apply {
+            id = R.id.overlay_close_button
+            text = "关闭"
+            textSize = 12f
+            setTextColor(if ((resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES) Color.WHITE else Color.BLACK)
+            background = createButtonBackground()
+            setPadding(24, 8, 24, 8)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, 36.dpToPx())
+        }
+
+        // 添加按钮到容器
+        container.addView(aiButton)
+        container.addView(backButton)
+        container.addView(closeButton)
+
+        return container
+    }
+
+    /**
+     * 创建按钮背景
+     */
+    private fun createButtonBackground(): GradientDrawable {
+        return GradientDrawable().apply {
+            val isDarkMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+            setColor(if (isDarkMode) Color.parseColor("#FF404040") else Color.parseColor("#FFF5F5F5"))
+            cornerRadius = 6f
+        }
+    }
+
+    /**
+     * dp转px
+     */
+    private fun Int.dpToPx(): Int {
+        return (this * resources.displayMetrics.density).toInt()
+    }
+
+    /**
+     * 返回到灵动岛输入界面
+     */
+    private fun returnToDynamicIsland() {
+        try {
+            Log.d(TAG, "返回到灵动岛输入界面")
+
+            // 启动灵动岛服务并显示输入面板
+            val intent = Intent(this, com.example.aifloatingball.service.DynamicIslandService::class.java).apply {
+                action = "SHOW_INPUT_PANEL"
+            }
+            startService(intent)
+
+            // 隐藏当前悬浮窗
+            hideOverlay()
+            stopSelf()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "返回灵动岛失败", e)
+        }
     }
 }

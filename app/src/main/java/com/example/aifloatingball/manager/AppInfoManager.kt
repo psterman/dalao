@@ -23,19 +23,22 @@ class AppInfoManager private constructor() {
     private val searchCache = mutableMapOf<String, List<AppInfo>>() // 搜索结果缓存
     private val TAG = "AppInfoManager"
 
-    fun loadApps(context: Context) {
-        if (isLoaded) return
+    fun loadApps(context: Context, onLoadComplete: (() -> Unit)? = null) {
+        if (isLoaded) {
+            onLoadComplete?.invoke()
+            return
+        }
         CoroutineScope(Dispatchers.IO).launch {
             val pm = context.packageManager
             val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
                 addCategory(Intent.CATEGORY_LAUNCHER)
             }
             val resolvedInfos = pm.queryIntentActivities(mainIntent, 0)
-            
+
             val loadedApps = resolvedInfos.map { resolvedInfo ->
                 val packageName = resolvedInfo.activityInfo.packageName
                 val urlScheme = getUrlScheme(pm, packageName)
-                
+
                 // 使用与简易模式相同的图标加载策略
                 val icon = try {
                     // 首先尝试从PackageManager直接加载应用图标
@@ -51,7 +54,7 @@ class AppInfoManager private constructor() {
                         pm.getDefaultActivityIcon()
                     }
                 }
-                
+
                 AppInfo(
                     label = resolvedInfo.loadLabel(pm).toString(),
                     packageName = packageName,
@@ -59,10 +62,12 @@ class AppInfoManager private constructor() {
                     urlScheme = urlScheme
                 )
             }.sortedBy { it.label }
-            
+
             withContext(Dispatchers.Main) {
                 appList = loadedApps
                 isLoaded = true
+                Log.d(TAG, "应用列表加载完成，共 ${loadedApps.size} 个应用")
+                onLoadComplete?.invoke()
             }
         }
     }
@@ -127,16 +132,26 @@ class AppInfoManager private constructor() {
      */
     private fun performSimpleSearch(query: String): List<AppInfo> {
         val queryLower = query.lowercase()
-        val results = mutableListOf<AppInfo>()
-        
+        val exactMatches = mutableListOf<AppInfo>()
+        val prefixMatches = mutableListOf<AppInfo>()
+        val containsMatches = mutableListOf<AppInfo>()
+
         appList.forEach { app ->
             val appNameLower = app.label.lowercase()
-            if (appNameLower.contains(queryLower)) {
-                results.add(app)
+            when {
+                appNameLower == queryLower -> exactMatches.add(app)
+                appNameLower.startsWith(queryLower) -> prefixMatches.add(app)
+                appNameLower.contains(queryLower) -> containsMatches.add(app)
             }
         }
-        
-        return results.sortedBy { it.label }.take(20) // 限制结果数量
+
+        // 按优先级返回结果：精确匹配 > 前缀匹配 > 包含匹配
+        val results = mutableListOf<AppInfo>()
+        results.addAll(exactMatches.sortedBy { it.label })
+        results.addAll(prefixMatches.sortedBy { it.label })
+        results.addAll(containsMatches.sortedBy { it.label })
+
+        return results.take(20) // 限制结果数量
     }
     
     /**

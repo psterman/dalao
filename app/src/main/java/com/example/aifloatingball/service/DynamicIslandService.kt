@@ -586,6 +586,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     private var appSearchAdapter: AppSearchAdapter? = null
     private var appSearchResultsContainer: View? = null
     private var closeAppSearchButton: View? = null
+
+    // 新增：常用应用图标相关
+    private var commonAppsContainer: FrameLayout? = null
+    private var commonAppsRecyclerView: RecyclerView? = null
+    private var commonAppsAdapter: AppSearchAdapter? = null
     private var ballView: View? = null // 圆球状态视图
     
     // 应用切换监听相关
@@ -1153,8 +1158,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         }
 
         if (appResults.isNotEmpty()) {
-            // 找到匹配的APP，显示搜索结果
-            Log.d(TAG, "显示应用搜索结果: ${appResults.map { it.label }}")
+            // 找到匹配的APP，显示搜索结果供用户选择
+            Log.d(TAG, "显示匹配应用搜索结果: ${appResults.map { it.label }}")
             showAppSearchResults(appResults)
         } else {
             // 没有找到匹配的APP，显示支持URL scheme的APP图标
@@ -1164,12 +1169,40 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // 复制搜索文本到剪贴板
         copyTextToClipboard(query)
-        
+
         // 显示提示
-        Toast.makeText(this, "已复制搜索文本，请在APP中粘贴", Toast.LENGTH_SHORT).show()
-        
-        // 收起灵动岛
-        transitionToCompactState()
+        Toast.makeText(this, "已复制搜索文本，请选择应用进行搜索", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun getDefaultSearchApp(): AppInfo? {
+        // 优先使用百度作为默认搜索应用
+        val defaultSearchApps = listOf(
+            "com.baidu.searchbox" to "baiduboxapp", // 百度
+            "com.google.android.googlequicksearchbox" to "googlechrome", // Google
+            "com.qihoo.browser" to "qihoo", // 360浏览器
+            "com.UCMobile" to "ucbrowser", // UC浏览器
+            "com.tencent.mtt" to "mttbrowser" // QQ浏览器
+        )
+
+        val pm = packageManager
+        for ((packageName, urlScheme) in defaultSearchApps) {
+            try {
+                val appInfo = pm.getApplicationInfo(packageName, 0)
+                val icon = pm.getApplicationIcon(packageName)
+                val label = pm.getApplicationLabel(appInfo).toString()
+
+                return AppInfo(
+                    label = label,
+                    packageName = packageName,
+                    icon = icon,
+                    urlScheme = urlScheme
+                )
+            } catch (e: Exception) {
+                // 应用未安装，继续尝试下一个
+                continue
+            }
+        }
+        return null
     }
 
     private fun copyTextToClipboard(text: String) {
@@ -1723,7 +1756,17 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density + 0.5f).toInt()
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            "SHOW_INPUT_PANEL" -> {
+                Log.d(TAG, "收到显示输入面板请求")
+                uiHandler.post {
+                    showConfigPanel()
+                }
+            }
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         super.onDestroy()
@@ -1788,8 +1831,21 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         searchInput = configPanelView?.findViewById(R.id.search_input)
         searchButton = configPanelView?.findViewById(R.id.search_button)
         selectedAssistantTextView = configPanelView?.findViewById(R.id.selected_assistant_text)
+
+        // 初始化常用应用图标组件
+        commonAppsContainer = configPanelView?.findViewById(R.id.common_apps_container)
+        commonAppsRecyclerView = configPanelView?.findViewById(R.id.common_apps_recycler_view)
+
+        // 初始化搜索结果组件
+        appSearchResultsContainer = configPanelView?.findViewById(R.id.app_search_results_container)
+        appSearchRecyclerView = configPanelView?.findViewById(R.id.app_search_results_recycler_view)
+        closeAppSearchButton = configPanelView?.findViewById(R.id.close_app_search_button)
+
         setupSearchListeners()
         initSearchInputListener()
+
+        // 显示常用应用图标
+        showCommonAppIcons()
 
         // Setup App Search Results Views
         appSearchResultsContainer = configPanelView?.findViewById(R.id.app_search_results_container)
@@ -3483,19 +3539,25 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     // 确保AppInfoManager已加载
                     val appInfoManager = AppInfoManager.getInstance()
                     if (!appInfoManager.isLoaded()) {
-                        appInfoManager.loadApps(this@DynamicIslandService)
                         showLoadingIndicator()
+                        appInfoManager.loadApps(this@DynamicIslandService) {
+                            // 加载完成后重新执行搜索
+                            val currentQuery = searchInput?.text.toString().trim()
+                            if (currentQuery.isNotEmpty() && currentQuery == query) {
+                                performRealTimeSearch(currentQuery, appInfoManager)
+                            }
+                        }
                         return@afterTextChanged
                     }
                     
-                    // 使用防抖机制，延迟300ms执行搜索
+                    // 使用防抖机制，延迟100ms执行搜索（优化响应速度）
                     searchRunnable = Runnable {
                         performRealTimeSearch(query, appInfoManager)
                     }
-                    searchRunnable?.let { searchHandler.postDelayed(it, 300) }
+                    searchRunnable?.let { searchHandler.postDelayed(it, 100) }
                 } else {
-                    // 输入框为空时，显示常用APP图标
-                    showDefaultAppIcons()
+                    // 输入框为空时，隐藏搜索结果，保持常用APP图标显示
+                    hideAppSearchResults()
                 }
             }
         })
@@ -3505,14 +3567,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 执行实时搜索
      */
     private fun performRealTimeSearch(query: String, appInfoManager: AppInfoManager) {
-                    val appResults = appInfoManager.search(query)
-                    
-                    if (appResults.isNotEmpty()) {
-                        showAppSearchResults(appResults)
-                    } else {
-                        // 没有匹配的APP时，显示支持URL scheme的APP图标
-                        showUrlSchemeAppIcons()
-                    }
+        val appResults = appInfoManager.search(query)
+
+        if (appResults.isNotEmpty()) {
+            showAppSearchResults(appResults)
+        } else {
+            // 没有匹配的APP时，显示支持URL scheme的APP图标
+            showUrlSchemeAppIcons()
+        }
     }
     
     /**
@@ -3549,8 +3611,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         
         // 每次都重新创建适配器，确保点击监听器正确设置
             appSearchAdapter = AppSearchAdapter(results, isHorizontal = true) { appInfo ->
-            // 选中应用，但不执行搜索动作
-            selectAppForSearch(appInfo)
+            // 点击图标时，使用当前输入框的文字直接跳转到应用搜索
+            val searchQuery = searchInput?.text?.toString()?.trim() ?: ""
+            if (searchQuery.isNotEmpty()) {
+                Log.d(TAG, "点击应用图标，执行搜索: ${appInfo.label}, 搜索内容: $searchQuery")
+                handleSearchWithSelectedApp(searchQuery, appInfo)
+            } else {
+                // 如果输入框为空，选中应用等待用户输入
+                selectAppForSearch(appInfo)
+            }
             }
             appSearchRecyclerView?.apply {
                 layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
@@ -3561,12 +3630,16 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         appSearchResultsContainer?.visibility = View.VISIBLE
     }
 
+    /**
+     * 隐藏应用搜索结果
+     */
     private fun hideAppSearchResults() {
         if (appSearchResultsContainer?.visibility == View.VISIBLE) {
             appSearchResultsContainer?.visibility = View.GONE
             // Cleanup adapter to avoid holding references
             appSearchRecyclerView?.adapter = null
             appSearchAdapter = null
+            Log.d(TAG, "隐藏应用搜索结果")
         }
     }
     
@@ -3624,6 +3697,80 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         val defaultApps = createDefaultAppList()
         if (defaultApps.isNotEmpty()) {
             showAppSearchResults(defaultApps)
+        }
+    }
+
+    /**
+     * 显示常用应用图标（在输入框上方）
+     */
+    private fun showCommonAppIcons() {
+        Log.d(TAG, "显示常用应用图标")
+
+        // 创建常用APP列表
+        val commonApps = createDefaultAppList()
+        if (commonApps.isNotEmpty()) {
+            // 每次都重新创建适配器
+            commonAppsAdapter = AppSearchAdapter(commonApps, isHorizontal = true) { appInfo ->
+                // 点击常用应用图标，加载到搜索图标内
+                loadAppToSearchIcon(appInfo)
+            }
+
+            commonAppsRecyclerView?.apply {
+                layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+                adapter = commonAppsAdapter
+                overScrollMode = View.OVER_SCROLL_NEVER
+            }
+
+            commonAppsContainer?.visibility = View.VISIBLE
+            Log.d(TAG, "常用应用图标显示完成，共 ${commonApps.size} 个")
+        } else {
+            commonAppsContainer?.visibility = View.GONE
+            Log.d(TAG, "没有常用应用可显示")
+        }
+    }
+
+    /**
+     * 将应用加载到搜索图标内
+     */
+    private fun loadAppToSearchIcon(appInfo: AppInfo) {
+        Log.d(TAG, "加载应用到搜索图标: ${appInfo.label}")
+
+        // 添加到最近选中的APP列表
+        addToRecentApps(appInfo)
+        // 更新最近APP按钮图标
+        updateRecentAppButton(appInfo)
+        // 设置当前选中的APP
+        currentSelectedApp = appInfo
+
+        // 设置提示信息，等待用户输入搜索关键词
+        searchInput?.hint = "已选中 ${appInfo.label}，请输入搜索内容"
+
+        // 显示选中提示
+        Toast.makeText(this, "已选中 ${appInfo.label}，请输入搜索内容", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 显示简易模式的AI悬浮窗
+     */
+    private fun showSimpleAIOverlay(packageName: String, appName: String, forceSimpleMode: Boolean = true) {
+        try {
+            Log.d(TAG, "显示AI悬浮窗: $appName, 简易模式: $forceSimpleMode")
+
+            // 启动AI悬浮窗服务
+            val intent = Intent(this, com.example.aifloatingball.service.AIAppOverlayService::class.java).apply {
+                putExtra("package_name", packageName)
+                putExtra("app_name", appName)
+                if (forceSimpleMode) {
+                    putExtra("mode", "simple") // 简易模式
+                } else {
+                    putExtra("mode", "overlay") // 普通悬浮窗模式，但显示简易样式
+                }
+            }
+            startService(intent)
+
+            Log.d(TAG, "AI悬浮窗服务已启动")
+        } catch (e: Exception) {
+            Log.e(TAG, "启动AI悬浮窗服务失败", e)
         }
     }
     
@@ -9399,6 +9546,11 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     startActivity(intent)
                     // 执行搜索动作后退出搜索面板并切换到圆球状态
                     hideContentAndSwitchToBall()
+
+                    // 延迟显示AI悬浮窗
+                    uiHandler.postDelayed({
+                        showSimpleAIOverlay(appInfo.packageName, appInfo.label)
+                    }, 2000)
                 } else {
                     // Intent为null，降级到普通启动
                     Log.d(TAG, "Intent为null，降级到普通启动: ${appInfo.urlScheme}")
@@ -9436,9 +9588,14 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                 
                 // 显示提示信息
                 Toast.makeText(this, "已复制「$query」到剪贴板，请在${appInfo.label}中粘贴搜索", Toast.LENGTH_LONG).show()
-                
+
                 // 执行搜索动作后退出搜索面板并切换到圆球状态
                 hideContentAndSwitchToBall()
+
+                // 延迟显示AI悬浮窗
+                uiHandler.postDelayed({
+                    showSimpleAIOverlay(appInfo.packageName, appInfo.label)
+                }, 2000)
             } else {
                 Toast.makeText(this, "无法启动该应用", Toast.LENGTH_SHORT).show()
             }
