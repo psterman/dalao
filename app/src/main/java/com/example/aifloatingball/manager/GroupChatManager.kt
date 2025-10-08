@@ -669,9 +669,9 @@ class GroupChatManager private constructor(private val context: Context) {
     }
     
     /**
-     * 添加消息到群聊
+     * 添加消息到群聊（公开方法）
      */
-    private fun addMessageToGroup(groupId: String, message: GroupChatMessage) {
+    fun addMessageToGroup(groupId: String, message: GroupChatMessage) {
         val messages = groupMessages.getOrPut(groupId) { mutableListOf() }
         messages.add(message)
         

@@ -4292,10 +4292,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 设置TabLayout与ViewPager2的联动
             com.google.android.material.tabs.TabLayoutMediator(aiCenterTabLayout, aiCenterViewPager) { tab, position ->
                 when (position) {
-                    0 -> tab.text = "基础信息"
-                    1 -> tab.text = "AI配置"
-                    2 -> tab.text = "个性化"
-                    3 -> tab.text = "任务"
+                    0 -> tab.text = "任务"
+                    1 -> tab.text = "基础信息"
+                    2 -> tab.text = "AI配置"
+                    3 -> tab.text = "个性化"
                 }
             }.attach()
             
