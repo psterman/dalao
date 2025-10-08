@@ -138,6 +138,189 @@ class GroupChatMessageAdapter(
         messages.addAll(0, newMessages)
         notifyItemRangeInserted(0, newMessages.size)
     }
+    
+    /**
+     * 格式化AI回复内容 - 增强版文本排版
+     */
+    private fun formatAIContent(content: String): String {
+        var formatted = content
+        
+        // 清理HTML标签
+        formatted = cleanHtmlTags(formatted)
+        
+        // 去掉表情符号
+        formatted = formatted.replace("[\uD83C-\uDBFF\uDC00-\uDFFF]+".toRegex(), "")
+        
+        // 格式化标题
+        formatted = formatHeadings(formatted)
+        
+        // 格式化列表
+        formatted = formatLists(formatted)
+        
+        // 格式化代码块
+        formatted = formatCodeBlocks(formatted)
+        
+        // 格式化强调
+        formatted = formatEmphasis(formatted)
+        
+        // 格式化段落
+        formatted = formatParagraphs(formatted)
+        
+        // 格式化特殊结构
+        formatted = formatSpecialStructures(formatted)
+        
+        // 最终清理
+        formatted = finalCleanup(formatted)
+        
+        return formatted
+    }
+    
+    /**
+     * 清理HTML标签
+     */
+    private fun cleanHtmlTags(content: String): String {
+        var cleaned = content
+        
+        // 处理常见的HTML标签
+        cleaned = cleaned.replace("<p[^>]*>".toRegex(), "")
+        cleaned = cleaned.replace("</p>".toRegex(), "\n\n")
+        cleaned = cleaned.replace("<br[^>]*>".toRegex(), "\n")
+        cleaned = cleaned.replace("<strong[^>]*>(.*?)</strong>".toRegex(), "【$1】")
+        cleaned = cleaned.replace("<b[^>]*>(.*?)</b>".toRegex(), "【$1】")
+        cleaned = cleaned.replace("<em[^>]*>(.*?)</em>".toRegex(), "$1")
+        cleaned = cleaned.replace("<i[^>]*>(.*?)</i>".toRegex(), "$1")
+        cleaned = cleaned.replace("<code[^>]*>(.*?)</code>".toRegex(), "「$1」")
+        cleaned = cleaned.replace("<pre[^>]*>(.*?)</pre>".toRegex(RegexOption.DOT_MATCHES_ALL), "\n「$1」\n")
+        cleaned = cleaned.replace("<h[1-6][^>]*>(.*?)</h[1-6]>".toRegex(), "\n■ $1\n")
+        cleaned = cleaned.replace("<ul[^>]*>".toRegex(), "")
+        cleaned = cleaned.replace("</ul>".toRegex(), "\n")
+        cleaned = cleaned.replace("<ol[^>]*>".toRegex(), "")
+        cleaned = cleaned.replace("</ol>".toRegex(), "\n")
+        cleaned = cleaned.replace("<li[^>]*>(.*?)</li>".toRegex(), "• $1\n")
+        cleaned = cleaned.replace("<a[^>]*>(.*?)</a>".toRegex(), "$1")
+        cleaned = cleaned.replace("<div[^>]*>".toRegex(), "")
+        cleaned = cleaned.replace("</div>".toRegex(), "\n")
+        cleaned = cleaned.replace("<span[^>]*>(.*?)</span>".toRegex(), "$1")
+        cleaned = cleaned.replace("<[^>]+>".toRegex(), "")
+        
+        // 解码HTML实体
+        cleaned = cleaned.replace("&amp;".toRegex(), "&")
+        cleaned = cleaned.replace("&lt;".toRegex(), "<")
+        cleaned = cleaned.replace("&gt;".toRegex(), ">")
+        cleaned = cleaned.replace("&quot;".toRegex(), "\"")
+        cleaned = cleaned.replace("&#39;".toRegex(), "'")
+        cleaned = cleaned.replace("&nbsp;".toRegex(), " ")
+        
+        return cleaned
+    }
+    
+    /**
+     * 格式化标题
+     */
+    private fun formatHeadings(content: String): String {
+        var formatted = content
+        
+        formatted = formatted.replace("^#{6}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
+        formatted = formatted.replace("^#{5}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
+        formatted = formatted.replace("^#{4}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
+        formatted = formatted.replace("^#{3}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
+        formatted = formatted.replace("^#{2}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▪ $1\n")
+        formatted = formatted.replace("^#{1}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n■ $1\n")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化列表
+     */
+    private fun formatLists(content: String): String {
+        var formatted = content
+        
+        formatted = formatted.replace("^\\s*(\\d+)\\.\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  $1. $2")
+        formatted = formatted.replace("^\\s*[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  • $1")
+        formatted = formatted.replace("^\\s{2,4}[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "    ◦ $1")
+        formatted = formatted.replace("^\\s{6,8}[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "      ▪ $1")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化代码块
+     */
+    private fun formatCodeBlocks(content: String): String {
+        var formatted = content
+        
+        formatted = formatted.replace("```([\\s\\S]*?)```".toRegex()) { matchResult ->
+            val code = matchResult.groupValues[1].trim()
+            "\n┌─ 代码块 ─┐\n$code\n└─────────┘\n"
+        }
+        
+        formatted = formatted.replace("`([^`]+)`".toRegex(), "「$1」")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化强调
+     */
+    private fun formatEmphasis(content: String): String {
+        var formatted = content
+        
+        formatted = formatted.replace("\\*\\*(.*?)\\*\\*".toRegex(), "【$1】")
+        formatted = formatted.replace("__(.*?)__".toRegex(), "【$1】")
+        formatted = formatted.replace("\\*(.*?)\\*".toRegex(), "$1")
+        formatted = formatted.replace("_(.*?)_".toRegex(), "$1")
+        formatted = formatted.replace("~~(.*?)~~".toRegex(), "~~$1~~")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化段落
+     */
+    private fun formatParagraphs(content: String): String {
+        var formatted = content
+        
+        formatted = formatted.replace("([。！？])\\s*([A-Z0-9一-龯])".toRegex(), "$1\n\n$2")
+        formatted = formatted.replace("([：:])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
+        formatted = formatted.replace("([；;])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
+        formatted = formatted.replace("\\n\\s*\\n\\s*\\n+".toRegex(), "\n\n")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化特殊结构
+     */
+    private fun formatSpecialStructures(content: String): String {
+        var formatted = content
+        
+        formatted = formatted.replace("^问[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n❓ 问：$1\n")
+        formatted = formatted.replace("^答[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n💡 答：$1\n")
+        formatted = formatted.replace("^步骤\\s*(\\d+)[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📋 步骤$1：$2\n")
+        formatted = formatted.replace("^第\\s*(\\d+)\\s*步[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📋 第$1步：$2\n")
+        formatted = formatted.replace("^要点\\s*(\\d+)[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n🔹 要点$1：$2\n")
+        formatted = formatted.replace("^注意[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n⚠️ 注意：$1\n")
+        formatted = formatted.replace("^提示[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n💡 提示：$1\n")
+        formatted = formatted.replace("^总结[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📝 总结：$1\n")
+        formatted = formatted.replace("^结论[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📝 结论：$1\n")
+        
+        return formatted
+    }
+    
+    /**
+     * 最终清理
+     */
+    private fun finalCleanup(content: String): String {
+        var cleaned = content
+        
+        cleaned = cleaned.trim()
+        cleaned = cleaned.replace("\\n{3,}".toRegex(), "\n\n")
+        cleaned = cleaned.replace("\\s{2,}".toRegex(), " ")
+        cleaned = cleaned.replace("^\\s+$".toRegex(RegexOption.MULTILINE), "")
+        
+        return cleaned
+    }
 
     /**
      * 更新AI流式回复内容
@@ -294,7 +477,9 @@ class GroupChatMessageAdapter(
                 aiText.setTextColor(context.getColor(android.R.color.darker_gray))
                 Log.w("GroupChatAdapter", "AI消息内容为空: ${message.senderName}, 消息ID: ${message.id}")
             } else {
-                aiText.text = message.content
+                // 对AI回复内容进行格式化
+                val formattedContent = formatAIContent(message.content)
+                aiText.text = formattedContent
                 aiText.setTextColor(context.getColor(android.R.color.black))
             }
             

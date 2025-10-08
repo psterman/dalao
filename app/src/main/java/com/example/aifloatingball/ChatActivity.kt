@@ -161,10 +161,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         clearChatButton = findViewById(R.id.clear_chat_button)
         exportChatButton = findViewById(R.id.export_chat_button)
 
-        // 设置RecyclerView - 使用反向布局从最新消息开始显示
+        // 设置RecyclerView - 使用正向布局，最新消息在底部
         val layoutManager = LinearLayoutManager(this)
-        layoutManager.reverseLayout = true
-        layoutManager.stackFromEnd = true
         messagesRecyclerView.layoutManager = layoutManager
         messageAdapter = ChatMessageAdapter(
             messages = messages,
@@ -413,8 +411,13 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     groupMessageAdapter.updateMessages(recentMessages)
                     hasMoreHistory = allGroupMessages.size > MESSAGES_PER_PAGE
                     
-                    // 反向布局会自动显示最新消息，无需滚动
-                    Log.d(TAG, "群聊模式：加载了 ${recentMessages.size} 条最新消息（共 ${allGroupMessages.size} 条），使用反向布局显示最新内容")
+                    // 滚动到底部显示最新消息
+                    if (recentMessages.isNotEmpty()) {
+                        messagesRecyclerView.post {
+                            messagesRecyclerView.smoothScrollToPosition(recentMessages.size - 1)
+                        }
+                    }
+                    Log.d(TAG, "群聊模式：加载了 ${recentMessages.size} 条最新消息（共 ${allGroupMessages.size} 条），滚动到底部显示最新内容")
                 }
             } else {
                 // 单聊模式：加载普通聊天历史记录
@@ -470,7 +473,13 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     messageAdapter.updateMessages(messages.toList())
                     hasMoreHistory = unifiedMessages.size > MESSAGES_PER_PAGE
                     
-                    Log.d(TAG, "单聊模式：加载了 ${recentMessages.size} 条最新消息（共 ${unifiedMessages.size} 条），使用反向布局显示最新内容")
+                    // 滚动到底部显示最新消息
+                    if (messages.isNotEmpty()) {
+                        messagesRecyclerView.post {
+                            messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                        }
+                    }
+                    Log.d(TAG, "单聊模式：加载了 ${recentMessages.size} 条最新消息（共 ${unifiedMessages.size} 条），滚动到底部显示最新内容")
                 } else {
                     Log.d(TAG, "ChatDataManager中没有找到数据，但简易模式预览有数据，尝试强制同步")
                     
@@ -494,8 +503,13 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     }
                 }
 
-                // 反向布局会自动显示最新消息，无需滚动
-                Log.d(TAG, "单聊模式：加载了 ${messages.size} 条消息，使用反向布局显示最新内容")
+                // 滚动到底部显示最新消息
+                if (messages.isNotEmpty()) {
+                    messagesRecyclerView.post {
+                        messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                    }
+                }
+                Log.d(TAG, "单聊模式：加载了 ${messages.size} 条消息，滚动到底部显示最新内容")
             }
         }
     }
@@ -572,7 +586,10 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 updateContactLastMessage(contact, messageText)
             }
 
-            // 反向布局会自动显示最新消息，无需滚动
+            // 滚动到底部显示最新消息
+            messagesRecyclerView.post {
+                messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+            }
 
             // 发送到AI服务
             currentContact?.let { contact ->
@@ -854,7 +871,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 
                 val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
                 
-                // 检查是否滚动到顶部（由于使用了反向布局，顶部实际上是历史消息）
+                // 检查是否滚动到顶部（正向布局，顶部是历史消息）
                 val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
                 
                 // 如果滚动到顶部且有更多历史记录且当前没有在加载，则加载更多
@@ -900,7 +917,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 val endIndex = allMessages.size - currentCount
                 val newMessages = allMessages.subList(startIndex, endIndex)
                 
-                // 将新消息添加到适配器（由于是反向布局，需要插入到开头）
+                // 将新消息添加到适配器（正向布局，插入到开头）
                 groupMessageAdapter.addMessagesToTop(newMessages)
                 
                 Log.d(TAG, "群聊历史记录加载完成，新增 ${newMessages.size} 条消息")
@@ -929,7 +946,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             val endIndex = allMessages.size - messages.size
             val newMessages = allMessages.subList(startIndex, endIndex)
             
-            // 转换为ChatMessage格式并添加到开头（由于是反向布局）
+            // 转换为ChatMessage格式并添加到开头（正向布局）
             val newChatMessages = newMessages.map { messageData ->
                 ChatMessage(
                     content = messageData.content,
@@ -1214,8 +1231,13 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         groupMessageAdapter.updateMessages(groupMessages)
         Log.d(TAG, "已更新适配器，适配器项目数: ${groupMessageAdapter.itemCount}")
         
-        // 反向布局会自动显示最新消息，无需滚动
-        Log.d(TAG, "群聊消息加载完成，使用反向布局显示最新内容")
+        // 滚动到底部显示最新消息
+        if (groupMessages.isNotEmpty()) {
+            messagesRecyclerView.post {
+                messagesRecyclerView.smoothScrollToPosition(groupMessages.size - 1)
+            }
+        }
+        Log.d(TAG, "群聊消息加载完成，滚动到底部显示最新内容")
     }
     
     // getAIMemberName方法已移除，由GroupChatManager处理
@@ -1614,7 +1636,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
 
     /**
-     * 清理和优化AI回复内容
+     * 清理和优化AI回复内容 - 增强版文本排版
      */
     private fun cleanAndFormatAIResponse(content: String): String {
         var cleanedContent = content
@@ -1625,43 +1647,172 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         // 去掉表情符号
         cleanedContent = cleanedContent.replace("[\uD83C-\uDBFF\uDC00-\uDFFF]+".toRegex(), "")
 
-        // 改进的markdown格式化 - 保持一定的格式但简化
-        // 将 **粗体** 转换为 【粗体】
-        cleanedContent = cleanedContent.replace("\\*\\*(.*?)\\*\\*".toRegex(), "【$1】")
-
-        // 将 *斜体* 转换为普通文本
-        cleanedContent = cleanedContent.replace("\\*(.*?)\\*".toRegex(), "$1")
-
-        // 将 `代码` 转换为 「代码」
-        cleanedContent = cleanedContent.replace("`(.*?)`".toRegex(), "「$1」")
-
-        // 将 ### 标题 转换为 ■ 标题
-        cleanedContent = cleanedContent.replace("#{1,6}\\s*(.*)".toRegex(), "■ $1")
-
-        // 改进列表格式
-        // 将 - 列表项 转换为 • 列表项
-        cleanedContent = cleanedContent.replace("^\\s*[-*+]\\s+".toRegex(RegexOption.MULTILINE), "• ")
-
-        // 将 1. 数字列表 转换为更清晰的数字列表
-        cleanedContent = cleanedContent.replace("^\\s*\\d+\\.\\s+".toRegex(RegexOption.MULTILINE), "◆ ")
-
-        // 处理分段和格式
-        // 将多个连续的换行转换为段落分隔
-        cleanedContent = cleanedContent.replace("\\n\\s*\\n\\s*\\n+".toRegex(), "\n\n")
-
-        // 在句号后添加适当的换行（如果后面紧跟大写字母或数字）
-        cleanedContent = cleanedContent.replace("([。！？])([A-Z0-9一-龯])".toRegex(), "$1\n\n$2")
-
-        // 在冒号后添加换行（用于问答格式）
-        cleanedContent = cleanedContent.replace("([：:])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
-
-        // 去掉首尾空白
-        cleanedContent = cleanedContent.trim()
-
-        // 确保不超过3个连续的换行
-        cleanedContent = cleanedContent.replace("\\n{3,}".toRegex(), "\n\n")
+        // 第一步：处理标题格式 - 增强版
+        cleanedContent = formatHeadings(cleanedContent)
+        
+        // 第二步：处理列表格式 - 增强版
+        cleanedContent = formatLists(cleanedContent)
+        
+        // 第三步：处理代码块和行内代码
+        cleanedContent = formatCodeBlocks(cleanedContent)
+        
+        // 第四步：处理强调和粗体
+        cleanedContent = formatEmphasis(cleanedContent)
+        
+        // 第五步：处理段落和换行
+        cleanedContent = formatParagraphs(cleanedContent)
+        
+        // 第六步：处理特殊格式和结构
+        cleanedContent = formatSpecialStructures(cleanedContent)
+        
+        // 第七步：最终清理和优化
+        cleanedContent = finalCleanup(cleanedContent)
 
         return cleanedContent
+    }
+    
+    /**
+     * 格式化标题
+     */
+    private fun formatHeadings(content: String): String {
+        var formatted = content
+        
+        // 处理多级标题
+        formatted = formatted.replace("^#{6}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
+        formatted = formatted.replace("^#{5}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
+        formatted = formatted.replace("^#{4}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
+        formatted = formatted.replace("^#{3}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
+        formatted = formatted.replace("^#{2}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▪ $1\n")
+        formatted = formatted.replace("^#{1}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n■ $1\n")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化列表
+     */
+    private fun formatLists(content: String): String {
+        var formatted = content
+        
+        // 处理有序列表 - 保持数字序号
+        formatted = formatted.replace("^\\s*(\\d+)\\.\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  $1. $2")
+        
+        // 处理无序列表 - 使用不同符号区分层级
+        formatted = formatted.replace("^\\s*[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  • $1")
+        
+        // 处理嵌套列表（二级）
+        formatted = formatted.replace("^\\s{2,4}[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "    ◦ $1")
+        
+        // 处理嵌套列表（三级）
+        formatted = formatted.replace("^\\s{6,8}[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "      ▪ $1")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化代码块
+     */
+    private fun formatCodeBlocks(content: String): String {
+        var formatted = content
+        
+        // 处理代码块（```包围的）
+        formatted = formatted.replace("```([\\s\\S]*?)```".toRegex()) { matchResult ->
+            val code = matchResult.groupValues[1].trim()
+            "\n┌─ 代码块 ─┐\n$code\n└─────────┘\n"
+        }
+        
+        // 处理行内代码
+        formatted = formatted.replace("`([^`]+)`".toRegex(), "「$1」")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化强调和粗体
+     */
+    private fun formatEmphasis(content: String): String {
+        var formatted = content
+        
+        // 处理粗体 **text** 或 __text__
+        formatted = formatted.replace("\\*\\*(.*?)\\*\\*".toRegex(), "【$1】")
+        formatted = formatted.replace("__(.*?)__".toRegex(), "【$1】")
+        
+        // 处理斜体 *text* 或 _text_
+        formatted = formatted.replace("\\*(.*?)\\*".toRegex(), "$1")
+        formatted = formatted.replace("_(.*?)_".toRegex(), "$1")
+        
+        // 处理删除线 ~~text~~
+        formatted = formatted.replace("~~(.*?)~~".toRegex(), "~~$1~~")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化段落和换行
+     */
+    private fun formatParagraphs(content: String): String {
+        var formatted = content
+        
+        // 在句号、问号、感叹号后添加适当换行
+        formatted = formatted.replace("([。！？])\\s*([A-Z0-9一-龯])".toRegex(), "$1\n\n$2")
+        
+        // 在冒号后添加换行（用于问答格式）
+        formatted = formatted.replace("([：:])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
+        
+        // 在分号后添加换行（用于长句分段）
+        formatted = formatted.replace("([；;])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
+        
+        // 处理多个连续换行
+        formatted = formatted.replace("\\n\\s*\\n\\s*\\n+".toRegex(), "\n\n")
+        
+        return formatted
+    }
+    
+    /**
+     * 格式化特殊结构和分类
+     */
+    private fun formatSpecialStructures(content: String): String {
+        var formatted = content
+        
+        // 处理问答格式
+        formatted = formatted.replace("^问[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n❓ 问：$1\n")
+        formatted = formatted.replace("^答[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n💡 答：$1\n")
+        
+        // 处理步骤格式
+        formatted = formatted.replace("^步骤\\s*(\\d+)[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📋 步骤$1：$2\n")
+        formatted = formatted.replace("^第\\s*(\\d+)\\s*步[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📋 第$1步：$2\n")
+        
+        // 处理要点格式
+        formatted = formatted.replace("^要点\\s*(\\d+)[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n🔹 要点$1：$2\n")
+        formatted = formatted.replace("^注意[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n⚠️ 注意：$1\n")
+        formatted = formatted.replace("^提示[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n💡 提示：$1\n")
+        
+        // 处理总结格式
+        formatted = formatted.replace("^总结[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📝 总结：$1\n")
+        formatted = formatted.replace("^结论[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📝 结论：$1\n")
+        
+        return formatted
+    }
+    
+    /**
+     * 最终清理和优化
+     */
+    private fun finalCleanup(content: String): String {
+        var cleaned = content
+        
+        // 去掉首尾空白
+        cleaned = cleaned.trim()
+        
+        // 确保不超过2个连续的换行
+        cleaned = cleaned.replace("\\n{3,}".toRegex(), "\n\n")
+        
+        // 清理多余的空格
+        cleaned = cleaned.replace("\\s{2,}".toRegex(), " ")
+        
+        // 确保每行开头没有多余空格（除了列表缩进）
+        cleaned = cleaned.replace("^\\s+$".toRegex(RegexOption.MULTILINE), "")
+        
+        return cleaned
     }
 
     /**
