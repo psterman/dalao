@@ -93,6 +93,20 @@ dependencies {
     implementation 'com.belerweb:pinyin4j:2.5.1'
     implementation 'com.airbnb.android:lottie:6.1.0'
     
+    // Markdown解析和渲染
+    implementation 'io.noties.markwon:core:4.6.2'
+    implementation 'io.noties.markwon:html:4.6.2'
+    implementation 'io.noties.markwon:image:4.6.2'
+    implementation 'io.noties.markwon:linkify:4.6.2'
+    implementation 'io.noties.markwon:ext-tables:4.6.2'
+    implementation 'io.noties.markwon:ext-strikethrough:4.6.2'
+    implementation 'io.noties.markwon:ext-tasklist:4.6.2'
+    
+    // 解决依赖冲突
+    implementation('org.jetbrains:annotations:23.0.0') {
+        exclude group: 'org.jetbrains', module: 'annotations-java5'
+    }
+    
     implementation "androidx.interpolator:interpolator:1.0.0"
 
     implementation 'androidx.drawerlayout:drawerlayout:1.2.0'

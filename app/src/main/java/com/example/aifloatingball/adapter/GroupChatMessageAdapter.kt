@@ -16,6 +16,8 @@ import com.example.aifloatingball.R
 import com.example.aifloatingball.model.GroupChatMessage
 import com.example.aifloatingball.model.GroupMessageType
 import com.example.aifloatingball.utils.FaviconLoader
+import com.example.aifloatingball.utils.SimpleMarkdownRenderer
+import com.example.aifloatingball.utils.AdvancedMarkdownRenderer
 import com.google.android.material.card.MaterialCardView
 import java.text.SimpleDateFormat
 import java.util.*
@@ -44,6 +46,10 @@ class GroupChatMessageAdapter(
 
     private val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     private val expandedStates = mutableMapOf<String, Boolean>()
+    
+    // Markdown渲染器
+    private val markdownRenderer = SimpleMarkdownRenderer.getInstance(context)
+    private val advancedMarkdownRenderer = AdvancedMarkdownRenderer.getInstance(context)
 
     /**
      * 消息操作监听器
@@ -143,6 +149,14 @@ class GroupChatMessageAdapter(
      * 格式化AI回复内容 - 增强版文本排版
      */
     private fun formatAIContent(content: String): String {
+        // 使用高级Markdown渲染器进行智能格式化
+        return advancedMarkdownRenderer.getPlainText(content)
+    }
+    
+    /**
+     * 应用DeepSeek风格的格式化
+     */
+    private fun applyDeepSeekFormatting(content: String): String {
         var formatted = content
         
         // 清理HTML标签
@@ -215,7 +229,7 @@ class GroupChatMessageAdapter(
     }
     
     /**
-     * 格式化标题
+     * 格式化标题 - 参考DeepSeek格式
      */
     private fun formatHeadings(content: String): String {
         var formatted = content
@@ -227,19 +241,28 @@ class GroupChatMessageAdapter(
         formatted = formatted.replace("^#{2}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▪ $1\n")
         formatted = formatted.replace("^#{1}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n■ $1\n")
         
+        // 处理常见的小标题格式（参考DeepSeek）
+        formatted = formatted.replace("^([一二三四五六七八九十]+[、.])\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n▪ $1 $2\n")
+        formatted = formatted.replace("^([0-9]+[、.])\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n▪ $1 $2\n")
+        
+        // 处理带冒号的小标题
+        formatted = formatted.replace("^([^：:]+[：:])\\s*$".toRegex(RegexOption.MULTILINE), "\n▪ $1\n")
+        
         return formatted
     }
     
     /**
-     * 格式化列表
+     * 格式化列表 - 参考DeepSeek格式
      */
     private fun formatLists(content: String): String {
         var formatted = content
         
         formatted = formatted.replace("^\\s*(\\d+)\\.\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  $1. $2")
+        formatted = formatted.replace("^\\s*([一二三四五六七八九十]+)\\.\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  $1. $2")
         formatted = formatted.replace("^\\s*[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  • $1")
         formatted = formatted.replace("^\\s{2,4}[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "    ◦ $1")
         formatted = formatted.replace("^\\s{6,8}[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "      ▪ $1")
+        formatted = formatted.replace("^\\s*([•·▪▫])\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  • $2")
         
         return formatted
     }
@@ -261,7 +284,7 @@ class GroupChatMessageAdapter(
     }
     
     /**
-     * 格式化强调
+     * 格式化强调 - 参考DeepSeek格式
      */
     private fun formatEmphasis(content: String): String {
         var formatted = content
@@ -272,11 +295,16 @@ class GroupChatMessageAdapter(
         formatted = formatted.replace("_(.*?)_".toRegex(), "$1")
         formatted = formatted.replace("~~(.*?)~~".toRegex(), "~~$1~~")
         
+        // 处理特殊强调格式（参考DeepSeek）
+        formatted = formatted.replace("《([^》]+)》".toRegex(), "【$1】")
+        formatted = formatted.replace("\"([^\"]+)\"".toRegex(), "「$1」")
+        formatted = formatted.replace("'([^']+)'".toRegex(), "「$1」")
+        
         return formatted
     }
     
     /**
-     * 格式化段落
+     * 格式化段落 - 参考DeepSeek格式
      */
     private fun formatParagraphs(content: String): String {
         var formatted = content
@@ -284,13 +312,16 @@ class GroupChatMessageAdapter(
         formatted = formatted.replace("([。！？])\\s*([A-Z0-9一-龯])".toRegex(), "$1\n\n$2")
         formatted = formatted.replace("([：:])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
         formatted = formatted.replace("([；;])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
+        formatted = formatted.replace("([，,])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
+        formatted = formatted.replace("(\\d+\\.\\s+[^\\n]+)\\n(\\d+\\.\\s+)".toRegex(), "$1\n\n$2")
+        formatted = formatted.replace("(▪\\s+[^\\n]+)\\n([^▪\\n])".toRegex(), "$1\n$2")
         formatted = formatted.replace("\\n\\s*\\n\\s*\\n+".toRegex(), "\n\n")
         
         return formatted
     }
     
     /**
-     * 格式化特殊结构
+     * 格式化特殊结构 - 参考DeepSeek格式
      */
     private fun formatSpecialStructures(content: String): String {
         var formatted = content
@@ -304,6 +335,16 @@ class GroupChatMessageAdapter(
         formatted = formatted.replace("^提示[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n💡 提示：$1\n")
         formatted = formatted.replace("^总结[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📝 总结：$1\n")
         formatted = formatted.replace("^结论[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📝 结论：$1\n")
+        
+        // 处理DeepSeek风格的特殊格式
+        formatted = formatted.replace("^好的[，,]?\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n💡 $1\n")
+        formatted = formatted.replace("^这里\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📖 $1\n")
+        formatted = formatted.replace("^核心\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n⭐ 核心$1\n")
+        formatted = formatted.replace("^主要\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n🔸 主要$1\n")
+        formatted = formatted.replace("^特点[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n✨ 特点：$1\n")
+        formatted = formatted.replace("^特色[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n✨ 特色：$1\n")
+        formatted = formatted.replace("^优势[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n🚀 优势：$1\n")
+        formatted = formatted.replace("^优点[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n🚀 优点：$1\n")
         
         return formatted
     }
@@ -477,9 +518,9 @@ class GroupChatMessageAdapter(
                 aiText.setTextColor(context.getColor(android.R.color.darker_gray))
                 Log.w("GroupChatAdapter", "AI消息内容为空: ${message.senderName}, 消息ID: ${message.id}")
             } else {
-                // 对AI回复内容进行格式化
-                val formattedContent = formatAIContent(message.content)
-                aiText.text = formattedContent
+                // 使用高级Markdown渲染器渲染AI回复内容
+                val spannableString = advancedMarkdownRenderer.renderAIResponse(message.content)
+                aiText.text = spannableString
                 aiText.setTextColor(context.getColor(android.R.color.black))
             }
             

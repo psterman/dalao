@@ -45,6 +45,9 @@ import com.example.aifloatingball.manager.GroupChatManager
 import com.example.aifloatingball.manager.UnifiedGroupChatManager
 import com.example.aifloatingball.manager.GroupChatListener
 // MultiAIReplyHandler已移除，使用GroupChatManager
+import com.example.aifloatingball.utils.SimpleMarkdownRenderer
+import com.example.aifloatingball.utils.AdvancedMarkdownRenderer
+import com.example.aifloatingball.utils.WebViewMarkdownRenderer
 import com.google.android.material.button.MaterialButton
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -96,6 +99,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     private lateinit var chatDataManager: ChatDataManager
     private var isSending = false
     
+    // Markdown渲染器
+    private lateinit var markdownRenderer: SimpleMarkdownRenderer
+    private lateinit var advancedMarkdownRenderer: AdvancedMarkdownRenderer
+    private lateinit var webViewMarkdownRenderer: WebViewMarkdownRenderer
+    
     // 群聊相关
     private lateinit var groupChatManager: GroupChatManager
     // multiAIReplyHandler已移除，使用GroupChatManager
@@ -119,6 +127,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         settingsManager = SettingsManager.getInstance(this)
         groupChatManager = GroupChatManager.getInstance(this)
         // multiAIReplyHandler初始化已移除
+        
+        // 初始化Markdown渲染器
+        markdownRenderer = SimpleMarkdownRenderer.getInstance(this)
+        advancedMarkdownRenderer = AdvancedMarkdownRenderer.getInstance(this)
+        webViewMarkdownRenderer = WebViewMarkdownRenderer(this)
         
         // 调试：检查存储的数据
         groupChatManager.debugCheckStoredData()
@@ -165,6 +178,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         val layoutManager = LinearLayoutManager(this)
         messagesRecyclerView.layoutManager = layoutManager
         messageAdapter = ChatMessageAdapter(
+            context = this,
             messages = messages,
             onMessageLongClick = { message, position ->
                 showMessageOptionsDialog(message, position)
@@ -565,6 +579,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             // 先清空输入框，但保存原始文本用于失败时恢复
             messageInput.text.clear()
             
+            // 保持输入法展开状态
+            messageInput.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+            
             // 添加用户消息
             val userMessage = ChatMessage(messageText, true, System.currentTimeMillis())
             messages.add(userMessage)
@@ -678,6 +697,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
 
                                 isSending = false // 重置发送状态
                         sendButton.isEnabled = true // 重新启用发送按钮
+                        
+                        // 保持输入法展开状态
+                        messageInput.requestFocus()
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
 
                                 // 滚动到底部
                                 messagesRecyclerView.post {
@@ -818,6 +842,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     runOnUiThread {
                         isSending = false
                         sendButton.isEnabled = true
+                        
+                        // 保持输入法展开状态
+                        messageInput.requestFocus()
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
                     }
                 }
             }
@@ -827,6 +856,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             Toast.makeText(this, "群聊数据加载失败，请重新进入群聊", Toast.LENGTH_LONG).show()
             isSending = false
             sendButton.isEnabled = true
+            
+            // 保持输入法展开状态
+            messageInput.requestFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
         }
     }
     
@@ -1366,6 +1400,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
 
                         isSending = false // 重置发送状态
                         sendButton.isEnabled = true // 重新启用发送按钮
+                        
+                        // 保持输入法展开状态
+                        messageInput.requestFocus()
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+                        
                         Toast.makeText(this@ChatActivity, "回复完成", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -1419,6 +1459,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         messageAdapter.updateLastMessage(aiMessage.content)
                         isSending = false // 重置发送状态
                         sendButton.isEnabled = true // 重新启用发送按钮
+                        
+                        // 保持输入法展开状态
+                        messageInput.requestFocus()
+                        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
 
                         // 对于DeepSeek的特定错误，显示诊断选项
                         if (serviceType == AIServiceType.DEEPSEEK && (error.contains("401") || error.contains("403"))) {
@@ -1639,45 +1684,53 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      * 清理和优化AI回复内容 - 增强版文本排版
      */
     private fun cleanAndFormatAIResponse(content: String): String {
-        var cleanedContent = content
-
-        // 清理HTML标签（特别针对智谱AI的回复）
-        cleanedContent = cleanHtmlTags(cleanedContent)
-
-        // 去掉表情符号
-        cleanedContent = cleanedContent.replace("[\uD83C-\uDBFF\uDC00-\uDFFF]+".toRegex(), "")
-
-        // 第一步：处理标题格式 - 增强版
-        cleanedContent = formatHeadings(cleanedContent)
-        
-        // 第二步：处理列表格式 - 增强版
-        cleanedContent = formatLists(cleanedContent)
-        
-        // 第三步：处理代码块和行内代码
-        cleanedContent = formatCodeBlocks(cleanedContent)
-        
-        // 第四步：处理强调和粗体
-        cleanedContent = formatEmphasis(cleanedContent)
-        
-        // 第五步：处理段落和换行
-        cleanedContent = formatParagraphs(cleanedContent)
-        
-        // 第六步：处理特殊格式和结构
-        cleanedContent = formatSpecialStructures(cleanedContent)
-        
-        // 第七步：最终清理和优化
-        cleanedContent = finalCleanup(cleanedContent)
-
-        return cleanedContent
+        // 使用高级Markdown渲染器进行智能格式化
+        return advancedMarkdownRenderer.getPlainText(content)
     }
     
     /**
-     * 格式化标题
+     * 应用DeepSeek风格的格式化
+     */
+    private fun applyDeepSeekFormatting(content: String): String {
+        var formatted = content
+        
+        // 清理HTML标签（特别针对智谱AI的回复）
+        formatted = cleanHtmlTags(formatted)
+
+        // 去掉表情符号
+        formatted = formatted.replace("[\uD83C-\uDBFF\uDC00-\uDFFF]+".toRegex(), "")
+
+        // 第一步：处理标题格式 - 增强版
+        formatted = formatHeadings(formatted)
+        
+        // 第二步：处理列表格式 - 增强版
+        formatted = formatLists(formatted)
+        
+        // 第三步：处理代码块和行内代码
+        formatted = formatCodeBlocks(formatted)
+        
+        // 第四步：处理强调和粗体
+        formatted = formatEmphasis(formatted)
+        
+        // 第五步：处理段落和换行
+        formatted = formatParagraphs(formatted)
+        
+        // 第六步：处理特殊格式和结构
+        formatted = formatSpecialStructures(formatted)
+        
+        // 第七步：最终清理和优化
+        formatted = finalCleanup(formatted)
+
+        return formatted
+    }
+    
+    /**
+     * 格式化标题 - 参考DeepSeek格式
      */
     private fun formatHeadings(content: String): String {
         var formatted = content
         
-        // 处理多级标题
+        // 处理多级标题，使用更清晰的格式
         formatted = formatted.replace("^#{6}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
         formatted = formatted.replace("^#{5}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
         formatted = formatted.replace("^#{4}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▫ $1\n")
@@ -1685,17 +1738,27 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         formatted = formatted.replace("^#{2}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n▪ $1\n")
         formatted = formatted.replace("^#{1}\\s+(.*)$".toRegex(RegexOption.MULTILINE), "\n■ $1\n")
         
+        // 处理常见的小标题格式（参考DeepSeek）
+        formatted = formatted.replace("^([一二三四五六七八九十]+[、.])\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n▪ $1 $2\n")
+        formatted = formatted.replace("^([0-9]+[、.])\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n▪ $1 $2\n")
+        
+        // 处理带冒号的小标题
+        formatted = formatted.replace("^([^：:]+[：:])\\s*$".toRegex(RegexOption.MULTILINE), "\n▪ $1\n")
+        
         return formatted
     }
     
     /**
-     * 格式化列表
+     * 格式化列表 - 参考DeepSeek格式
      */
     private fun formatLists(content: String): String {
         var formatted = content
         
-        // 处理有序列表 - 保持数字序号
+        // 处理有序列表 - 保持数字序号，增强格式
         formatted = formatted.replace("^\\s*(\\d+)\\.\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  $1. $2")
+        
+        // 处理中文数字列表
+        formatted = formatted.replace("^\\s*([一二三四五六七八九十]+)\\.\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  $1. $2")
         
         // 处理无序列表 - 使用不同符号区分层级
         formatted = formatted.replace("^\\s*[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  • $1")
@@ -1705,6 +1768,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         
         // 处理嵌套列表（三级）
         formatted = formatted.replace("^\\s{6,8}[-*+]\\s+(.*)$".toRegex(RegexOption.MULTILINE), "      ▪ $1")
+        
+        // 处理特殊列表格式（参考DeepSeek）
+        formatted = formatted.replace("^\\s*([•·▪▫])\\s+(.*)$".toRegex(RegexOption.MULTILINE), "  • $2")
         
         return formatted
     }
@@ -1728,7 +1794,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
     
     /**
-     * 格式化强调和粗体
+     * 格式化强调和粗体 - 参考DeepSeek格式
      */
     private fun formatEmphasis(content: String): String {
         var formatted = content
@@ -1744,11 +1810,21 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         // 处理删除线 ~~text~~
         formatted = formatted.replace("~~(.*?)~~".toRegex(), "~~$1~~")
         
+        // 处理特殊强调格式（参考DeepSeek）
+        // 处理书名号《》
+        formatted = formatted.replace("《([^》]+)》".toRegex(), "【$1】")
+        
+        // 处理引号""中的内容
+        formatted = formatted.replace("\"([^\"]+)\"".toRegex(), "「$1」")
+        
+        // 处理单引号''中的内容
+        formatted = formatted.replace("'([^']+)'".toRegex(), "「$1」")
+        
         return formatted
     }
     
     /**
-     * 格式化段落和换行
+     * 格式化段落和换行 - 参考DeepSeek格式
      */
     private fun formatParagraphs(content: String): String {
         var formatted = content
@@ -1762,6 +1838,15 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         // 在分号后添加换行（用于长句分段）
         formatted = formatted.replace("([；;])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
         
+        // 在逗号后添加换行（用于长句分段，参考DeepSeek）
+        formatted = formatted.replace("([，,])\\s*([一-龯A-Z])".toRegex(), "$1\n$2")
+        
+        // 处理列表项之间的换行
+        formatted = formatted.replace("(\\d+\\.\\s+[^\\n]+)\\n(\\d+\\.\\s+)".toRegex(), "$1\n\n$2")
+        
+        // 处理小标题后的换行
+        formatted = formatted.replace("(▪\\s+[^\\n]+)\\n([^▪\\n])".toRegex(), "$1\n$2")
+        
         // 处理多个连续换行
         formatted = formatted.replace("\\n\\s*\\n\\s*\\n+".toRegex(), "\n\n")
         
@@ -1769,7 +1854,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
     
     /**
-     * 格式化特殊结构和分类
+     * 格式化特殊结构和分类 - 参考DeepSeek格式
      */
     private fun formatSpecialStructures(content: String): String {
         var formatted = content
@@ -1790,6 +1875,25 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         // 处理总结格式
         formatted = formatted.replace("^总结[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📝 总结：$1\n")
         formatted = formatted.replace("^结论[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📝 结论：$1\n")
+        
+        // 处理DeepSeek风格的特殊格式
+        // 处理"好的"开头
+        formatted = formatted.replace("^好的[，,]?\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n💡 $1\n")
+        
+        // 处理"这里"开头的介绍
+        formatted = formatted.replace("^这里\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n📖 $1\n")
+        
+        // 处理"核心"、"主要"等关键词
+        formatted = formatted.replace("^核心\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n⭐ 核心$1\n")
+        formatted = formatted.replace("^主要\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n🔸 主要$1\n")
+        
+        // 处理"特点"、"特色"等
+        formatted = formatted.replace("^特点[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n✨ 特点：$1\n")
+        formatted = formatted.replace("^特色[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n✨ 特色：$1\n")
+        
+        // 处理"优势"、"优点"等
+        formatted = formatted.replace("^优势[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n🚀 优势：$1\n")
+        formatted = formatted.replace("^优点[:：]\\s*(.*)$".toRegex(RegexOption.MULTILINE), "\n🚀 优点：$1\n")
         
         return formatted
     }

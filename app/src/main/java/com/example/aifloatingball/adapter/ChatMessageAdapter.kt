@@ -7,6 +7,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.ChatActivity
 import com.example.aifloatingball.R
+import com.example.aifloatingball.utils.AdvancedMarkdownRenderer
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -14,14 +15,23 @@ import java.util.*
  * 聊天消息适配器
  */
 class ChatMessageAdapter(
+    private val context: android.content.Context,
     private var messages: List<ChatActivity.ChatMessage> = emptyList(),
     private val onMessageLongClick: ((ChatActivity.ChatMessage, Int) -> Unit)? = null,
     private val onRegenerateClick: ((ChatActivity.ChatMessage, Int) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+    
+    // 高级Markdown渲染器
+    private val advancedMarkdownRenderer: AdvancedMarkdownRenderer
 
     companion object {
         private const val TYPE_USER_MESSAGE = 1
         private const val TYPE_AI_MESSAGE = 2
+    }
+    
+    init {
+        // 初始化渲染器
+        advancedMarkdownRenderer = AdvancedMarkdownRenderer.getInstance(context)
     }
 
     override fun getItemViewType(position: Int): Int {
@@ -38,7 +48,7 @@ class ChatMessageAdapter(
             TYPE_AI_MESSAGE -> {
                 val view = LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_chat_message_ai, parent, false)
-                AIMessageViewHolder(view, onMessageLongClick, onRegenerateClick)
+                AIMessageViewHolder(view, onMessageLongClick, onRegenerateClick, advancedMarkdownRenderer)
             }
             else -> throw IllegalArgumentException("Unknown view type: $viewType")
         }
@@ -110,7 +120,8 @@ class ChatMessageAdapter(
     class AIMessageViewHolder(
         itemView: View,
         private val onMessageLongClick: ((ChatActivity.ChatMessage, Int) -> Unit)?,
-        private val onRegenerateClick: ((ChatActivity.ChatMessage, Int) -> Unit)?
+        private val onRegenerateClick: ((ChatActivity.ChatMessage, Int) -> Unit)?,
+        private val advancedMarkdownRenderer: AdvancedMarkdownRenderer
     ) : RecyclerView.ViewHolder(itemView) {
         private val messageText: TextView = itemView.findViewById(R.id.message_text)
         private val timeText: TextView = itemView.findViewById(R.id.time_text)
@@ -118,7 +129,9 @@ class ChatMessageAdapter(
         private val regenerateButton: TextView = itemView.findViewById(R.id.regenerate_button)
 
         fun bind(message: ChatActivity.ChatMessage, position: Int) {
-            messageText.text = message.content
+            // 使用高级Markdown渲染器渲染AI回复内容
+            val spannableString = advancedMarkdownRenderer.renderAIResponse(message.content)
+            messageText.text = spannableString
             timeText.text = formatTime(message.timestamp)
             
             // 设置长按事件
