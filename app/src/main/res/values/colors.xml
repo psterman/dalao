@@ -749,6 +749,16 @@
 
     <color name="material_chat_input_stroke_focused">#07C160</color>
 
+    <!-- 绿色主题颜色 -->
+    <color name="green_primary">#4CAF50</color>
+    <color name="green_secondary">#66BB6A</color>
+    <color name="green_accent">#81C784</color>
+    <color name="green_dark">#388E3C</color>
+    <color name="green_light">#C8E6C9</color>
+    <color name="green_text_primary">#1B5E20</color>
+    <color name="green_text_secondary">#4E7C59</color>
+    <color name="green_background">#F1F8E9</color>
+
     <!-- 分组标签颜色 -->
     <color name="chat_contact_group_tag_text_light">#2196F3</color>
     <color name="chat_contact_group_tag_text_dark">#64B5F6</color>

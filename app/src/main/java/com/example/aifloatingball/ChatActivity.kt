@@ -15,14 +15,17 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.util.Log
 import android.view.View
+import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.aifloatingball.activity.AIApiConfigActivity
 import com.example.aifloatingball.adapter.ChatMessageAdapter
 import com.example.aifloatingball.adapter.GroupChatMessageAdapter
 import com.example.aifloatingball.model.AIPrompt
@@ -73,12 +76,13 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     private lateinit var messagesRecyclerView: RecyclerView
 
     // 新增按钮声明
+    private lateinit var aiConfigButton: ImageButton
     private lateinit var apiStatusIndicator: TextView
     private lateinit var refreshButton: ImageButton
     private lateinit var settingsButton: ImageButton
-    private lateinit var loadProfileButton: com.google.android.material.button.MaterialButton
-    private lateinit var clearChatButton: com.google.android.material.button.MaterialButton
-    private lateinit var exportChatButton: com.google.android.material.button.MaterialButton
+    private lateinit var clearChatButtonToolbar: ImageButton
+    private lateinit var loadProfileButtonToolbar: ImageButton
+    private lateinit var exportChatButtonToolbar: ImageButton
 
     private var currentContact: ChatContact? = null
     private val messages = mutableListOf<ChatMessage>()
@@ -167,15 +171,18 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         messagesRecyclerView = findViewById(R.id.messages_recycler_view)
 
         // 初始化新增按钮
+        aiConfigButton = findViewById(R.id.ai_config_button)
         apiStatusIndicator = findViewById(R.id.api_status_indicator)
         refreshButton = findViewById(R.id.refresh_button)
         settingsButton = findViewById(R.id.settings_button)
-        loadProfileButton = findViewById(R.id.load_profile_button)
-        clearChatButton = findViewById(R.id.clear_chat_button)
-        exportChatButton = findViewById(R.id.export_chat_button)
+        searchButton = findViewById(R.id.search_button)
+        clearChatButtonToolbar = findViewById(R.id.clear_chat_button_toolbar)
+        loadProfileButtonToolbar = findViewById(R.id.load_profile_button_toolbar)
+        exportChatButtonToolbar = findViewById(R.id.export_chat_button_toolbar)
 
         // 设置RecyclerView - 使用正向布局，最新消息在底部
         val layoutManager = LinearLayoutManager(this)
+        layoutManager.stackFromEnd = true // 从底部开始堆叠，确保最新消息在底部
         messagesRecyclerView.layoutManager = layoutManager
         messageAdapter = ChatMessageAdapter(
             context = this,
@@ -348,6 +355,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             finish()
         }
 
+        // AI配置按钮事件
+        aiConfigButton.setOnClickListener {
+            showAIConfigDialog()
+        }
+
         // 工具栏按钮事件
         searchButton.setOnClickListener {
             showSearchDialog()
@@ -368,16 +380,16 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             }
         }
 
-        // 功能按钮事件
-        loadProfileButton.setOnClickListener {
-            loadDefaultProfile()
-        }
-
-        clearChatButton.setOnClickListener {
+        // 工具栏功能按钮事件
+        clearChatButtonToolbar.setOnClickListener {
             showClearChatDialog()
         }
 
-        exportChatButton.setOnClickListener {
+        loadProfileButtonToolbar.setOnClickListener {
+            loadDefaultProfile()
+        }
+
+        exportChatButtonToolbar.setOnClickListener {
             exportChatHistory()
         }
 
@@ -428,7 +440,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     // 滚动到底部显示最新消息
                     if (recentMessages.isNotEmpty()) {
                         messagesRecyclerView.post {
-                            messagesRecyclerView.smoothScrollToPosition(recentMessages.size - 1)
+                            messagesRecyclerView.scrollToPosition(recentMessages.size - 1)
                         }
                     }
                     Log.d(TAG, "群聊模式：加载了 ${recentMessages.size} 条最新消息（共 ${allGroupMessages.size} 条），滚动到底部显示最新内容")
@@ -490,7 +502,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     // 滚动到底部显示最新消息
                     if (messages.isNotEmpty()) {
                         messagesRecyclerView.post {
-                            messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                            messagesRecyclerView.scrollToPosition(messages.size - 1)
                         }
                     }
                     Log.d(TAG, "单聊模式：加载了 ${recentMessages.size} 条最新消息（共 ${unifiedMessages.size} 条），滚动到底部显示最新内容")
@@ -579,10 +591,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             // 先清空输入框，但保存原始文本用于失败时恢复
             messageInput.text.clear()
             
-            // 保持输入法展开状态
-            messageInput.requestFocus()
+            // 隐藏输入法
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+            imm.hideSoftInputFromWindow(messageInput.windowToken, 0)
             
             // 添加用户消息
             val userMessage = ChatMessage(messageText, true, System.currentTimeMillis())
@@ -698,10 +709,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                                 isSending = false // 重置发送状态
                         sendButton.isEnabled = true // 重新启用发送按钮
                         
-                        // 保持输入法展开状态
-                        messageInput.requestFocus()
+                        // 隐藏输入法
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+                        imm.hideSoftInputFromWindow(messageInput.windowToken, 0)
 
                                 // 滚动到底部
                                 messagesRecyclerView.post {
@@ -843,10 +853,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         isSending = false
                         sendButton.isEnabled = true
                         
-                        // 保持输入法展开状态
-                        messageInput.requestFocus()
+                        // 隐藏输入法
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+                        imm.hideSoftInputFromWindow(messageInput.windowToken, 0)
                     }
                 }
             }
@@ -857,10 +866,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             isSending = false
             sendButton.isEnabled = true
             
-            // 保持输入法展开状态
-            messageInput.requestFocus()
+            // 隐藏输入法
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+            imm.hideSoftInputFromWindow(messageInput.windowToken, 0)
         }
     }
     
@@ -1401,10 +1409,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         isSending = false // 重置发送状态
                         sendButton.isEnabled = true // 重新启用发送按钮
                         
-                        // 保持输入法展开状态
-                        messageInput.requestFocus()
+                        // 隐藏输入法
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+                        imm.hideSoftInputFromWindow(messageInput.windowToken, 0)
                         
                         Toast.makeText(this@ChatActivity, "回复完成", Toast.LENGTH_SHORT).show()
                     }
@@ -1460,10 +1467,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         isSending = false // 重置发送状态
                         sendButton.isEnabled = true // 重新启用发送按钮
                         
-                        // 保持输入法展开状态
-                        messageInput.requestFocus()
+                        // 隐藏输入法
                         val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                        imm.showSoftInput(messageInput, InputMethodManager.SHOW_IMPLICIT)
+                        imm.hideSoftInputFromWindow(messageInput.windowToken, 0)
 
                         // 对于DeepSeek的特定错误，显示诊断选项
                         if (serviceType == AIServiceType.DEEPSEEK && (error.contains("401") || error.contains("403"))) {
@@ -2550,6 +2556,216 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         updateApiStatusIndicator()
         
         Toast.makeText(this, "聊天已刷新", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * 显示AI配置对话框 - Material Design风格
+     */
+    private fun showAIConfigDialog() {
+        // 创建主容器
+        val mainContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, 0)
+        }
+
+        // 顶部卡片 - 对话统计
+        val statsCard = createStatsCard()
+        mainContainer.addView(statsCard)
+
+        // 功能按钮区域
+        val buttonsCard = createButtonsCard()
+        mainContainer.addView(buttonsCard)
+
+        // 创建对话框
+        val dialog = AlertDialog.Builder(this, R.style.Theme_MaterialDialog)
+            .setView(mainContainer)
+            .setTitle("🤖 AI配置中心")
+            .setPositiveButton("关闭", null)
+            .create()
+
+        // 设置对话框样式
+        dialog.window?.setBackgroundDrawableResource(R.drawable.dialog_background_green)
+        dialog.show()
+    }
+
+    /**
+     * 创建统计卡片
+     */
+    private fun createStatsCard(): LinearLayout {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 20, 24, 20)
+            setBackgroundResource(R.drawable.card_background_green)
+            elevation = 4f
+        }
+
+        // 卡片标题
+        val title = TextView(this).apply {
+            text = "📊 对话统计"
+            textSize = 18f
+            setTextColor(getColor(R.color.green_primary))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, 16)
+        }
+        card.addView(title)
+
+        // 统计信息容器
+        val statsContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val totalMessages = messages.size
+        val aiMessages = messages.count { !it.isFromUser }
+        val userMessages = messages.count { it.isFromUser }
+
+        // 总消息数
+        val totalStat = createStatItem("💬", "总消息数", totalMessages.toString(), R.color.green_primary)
+        statsContainer.addView(totalStat)
+
+        // 用户消息
+        val userStat = createStatItem("👤", "用户消息", userMessages.toString(), R.color.green_secondary)
+        statsContainer.addView(userStat)
+
+        // AI回复
+        val aiStat = createStatItem("🤖", "AI回复", aiMessages.toString(), R.color.green_accent)
+        statsContainer.addView(aiStat)
+
+        // 当前AI
+        val currentAI = currentContact?.name ?: "未知"
+        val currentAIStat = createStatItem("⚡", "当前AI", currentAI, R.color.green_dark)
+        statsContainer.addView(currentAIStat)
+
+        card.addView(statsContainer)
+        return card
+    }
+
+    /**
+     * 创建统计项
+     */
+    private fun createStatItem(icon: String, label: String, value: String, colorRes: Int): LinearLayout {
+        val item = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+        }
+
+        val iconText = TextView(this).apply {
+            text = icon
+            textSize = 16f
+            setPadding(0, 0, 12, 0)
+        }
+        item.addView(iconText)
+
+        val labelText = TextView(this).apply {
+            text = label
+            textSize = 14f
+            setTextColor(getColor(R.color.green_text_secondary))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        item.addView(labelText)
+
+        val valueText = TextView(this).apply {
+            text = value
+            textSize = 14f
+            setTextColor(getColor(colorRes))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+        }
+        item.addView(valueText)
+
+        return item
+    }
+
+    /**
+     * 创建功能按钮卡片
+     */
+    private fun createButtonsCard(): LinearLayout {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 20, 24, 20)
+            setBackgroundResource(R.drawable.card_background_white)
+            elevation = 2f
+        }
+
+        // 卡片标题
+        val title = TextView(this).apply {
+            text = "⚙️ 功能配置"
+            textSize = 18f
+            setTextColor(getColor(R.color.green_primary))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, 16)
+        }
+        card.addView(title)
+
+        // API配置按钮
+        val apiButton = createMaterialButton("🔑 API配置", "管理AI服务的API密钥和配置") {
+            val intent = Intent(this@ChatActivity, AIApiConfigActivity::class.java)
+            startActivity(intent)
+        }
+        card.addView(apiButton)
+
+        // AI助手管理按钮
+        val aiManageButton = createMaterialButton("👥 AI助手管理", "添加、编辑和管理AI助手") {
+            val intent = Intent(this@ChatActivity, AIContactListActivity::class.java)
+            startActivity(intent)
+        }
+        card.addView(aiManageButton)
+
+        // 应用设置按钮
+        val settingsButton = createMaterialButton("⚙️ 应用设置", "调整应用偏好和高级选项") {
+            val intent = Intent(this@ChatActivity, SettingsActivity::class.java)
+            startActivity(intent)
+        }
+        card.addView(settingsButton)
+
+        return card
+    }
+
+    /**
+     * 创建Material Design按钮
+     */
+    private fun createMaterialButton(text: String, subtitle: String, onClick: () -> Unit): LinearLayout {
+        val button = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(16, 16, 16, 16)
+            setBackgroundResource(R.drawable.button_background_green)
+            elevation = 2f
+            setOnClickListener { onClick() }
+        }
+
+        // 按钮内容
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val titleText = TextView(this).apply {
+            setText(text)
+            textSize = 16f
+            setTextColor(getColor(R.color.green_primary))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+        }
+        content.addView(titleText)
+
+        val subtitleText = TextView(this).apply {
+            setText(subtitle)
+            textSize = 12f
+            setTextColor(getColor(R.color.green_text_secondary))
+            setPadding(0, 4, 0, 0)
+        }
+        content.addView(subtitleText)
+
+        button.addView(content)
+
+        // 箭头图标
+        val arrow = TextView(this).apply {
+            setText("›")
+            textSize = 20f
+            setTextColor(getColor(R.color.green_primary))
+        }
+        button.addView(arrow)
+
+        return button
     }
 
     /**
