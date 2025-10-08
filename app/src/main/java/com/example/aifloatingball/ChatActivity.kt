@@ -80,6 +80,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     private var currentContact: ChatContact? = null
     private val messages = mutableListOf<ChatMessage>()
     private lateinit var aiApiManager: AIApiManager
+    
+    // 分页加载相关
+    private var isLoadingHistory = false
+    private var hasMoreHistory = true
+    private val MESSAGES_PER_PAGE = 20
     private lateinit var deepSeekApiHelper: DeepSeekApiHelper
     private lateinit var messageAdapter: ChatMessageAdapter
     private lateinit var groupMessageAdapter: GroupChatMessageAdapter
@@ -156,8 +161,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         clearChatButton = findViewById(R.id.clear_chat_button)
         exportChatButton = findViewById(R.id.export_chat_button)
 
-        // 设置RecyclerView
-        messagesRecyclerView.layoutManager = LinearLayoutManager(this)
+        // 设置RecyclerView - 使用反向布局从最新消息开始显示
+        val layoutManager = LinearLayoutManager(this)
+        layoutManager.reverseLayout = true
+        layoutManager.stackFromEnd = true
+        messagesRecyclerView.layoutManager = layoutManager
         messageAdapter = ChatMessageAdapter(
             messages = messages,
             onMessageLongClick = { message, position ->
@@ -202,6 +210,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         })
         
         messagesRecyclerView.adapter = messageAdapter
+        
+        // 设置滚动监听器，用于向上滑动加载历史记录
+        setupScrollListener()
 
         // 初始化AI助手档案列表
         promptListContainer = findViewById(R.id.prompt_list_container)
@@ -390,17 +401,20 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     private fun loadInitialMessages() {
         currentContact?.let { contact ->
             if (isGroupChatMode) {
-                // 群聊模式：加载群聊消息
+                // 群聊模式：加载群聊消息（只加载最新的消息）
                 currentGroupChat?.let { groupChat ->
-                    val groupMessages = groupChatManager.getGroupMessages(groupChat.id)
-                    groupMessageAdapter.updateMessages(groupMessages)
-                    
-                    // 滚动到底部
-                    if (groupMessages.isNotEmpty()) {
-                        messagesRecyclerView.post {
-                            messagesRecyclerView.smoothScrollToPosition(groupMessages.size - 1)
-                        }
+                    val allGroupMessages = groupChatManager.getGroupMessages(groupChat.id)
+                    val recentMessages = if (allGroupMessages.size > MESSAGES_PER_PAGE) {
+                        allGroupMessages.takeLast(MESSAGES_PER_PAGE)
+                    } else {
+                        allGroupMessages
                     }
+                    
+                    groupMessageAdapter.updateMessages(recentMessages)
+                    hasMoreHistory = allGroupMessages.size > MESSAGES_PER_PAGE
+                    
+                    // 反向布局会自动显示最新消息，无需滚动
+                    Log.d(TAG, "群聊模式：加载了 ${recentMessages.size} 条最新消息（共 ${allGroupMessages.size} 条），使用反向布局显示最新内容")
                 }
             } else {
                 // 单聊模式：加载普通聊天历史记录
@@ -432,13 +446,16 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 if (unifiedMessages.isNotEmpty()) {
                     Log.d(TAG, "从ChatDataManager加载到 ${unifiedMessages.size} 条消息，准备合并到当前对话")
                     
-                    // 获取当前messages中已有的消息内容，避免重复
-                    val existingMessageContents = messages.map { "${it.content}|${it.isFromUser}|${it.timestamp}" }.toSet()
-                    Log.d(TAG, "当前已有 ${messages.size} 条消息，准备合并新消息")
+                    // 只加载最新的消息，提高加载速度
+                    val recentMessages = if (unifiedMessages.size > MESSAGES_PER_PAGE) {
+                        unifiedMessages.takeLast(MESSAGES_PER_PAGE)
+                    } else {
+                        unifiedMessages
+                    }
                     
                     messages.clear()
                     // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
-                    unifiedMessages.forEach { unifiedMsg ->
+                    recentMessages.forEach { unifiedMsg ->
                         val chatMsg = ChatMessage(
                             content = unifiedMsg.content,
                             isFromUser = unifiedMsg.role == "user",
@@ -451,7 +468,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     messages.sortBy { it.timestamp }
                     
                     messageAdapter.updateMessages(messages.toList())
-                    Log.d(TAG, "合并完成，现在共有 ${messages.size} 条消息 (${serviceType?.name ?: "默认"})")
+                    hasMoreHistory = unifiedMessages.size > MESSAGES_PER_PAGE
+                    
+                    Log.d(TAG, "单聊模式：加载了 ${recentMessages.size} 条最新消息（共 ${unifiedMessages.size} 条），使用反向布局显示最新内容")
                 } else {
                     Log.d(TAG, "ChatDataManager中没有找到数据，但简易模式预览有数据，尝试强制同步")
                     
@@ -475,14 +494,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     }
                 }
 
-                // 滚动到底部
-                if (messages.isNotEmpty()) {
-                    messagesRecyclerView.post {
-                        messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
-                    }
-                } else {
-                    // 空分支
-                }
+                // 反向布局会自动显示最新消息，无需滚动
+                Log.d(TAG, "单聊模式：加载了 ${messages.size} 条消息，使用反向布局显示最新内容")
             }
         }
     }
@@ -559,10 +572,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 updateContactLastMessage(contact, messageText)
             }
 
-            // 滚动到底部
-            messagesRecyclerView.post {
-                messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
-            }
+            // 反向布局会自动显示最新消息，无需滚动
 
             // 发送到AI服务
             currentContact?.let { contact ->
@@ -835,6 +845,113 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     }
     
     /**
+     * 设置滚动监听器，用于向上滑动加载历史记录
+     */
+    private fun setupScrollListener() {
+        messagesRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                super.onScrolled(recyclerView, dx, dy)
+                
+                val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+                
+                // 检查是否滚动到顶部（由于使用了反向布局，顶部实际上是历史消息）
+                val firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
+                
+                // 如果滚动到顶部且有更多历史记录且当前没有在加载，则加载更多
+                if (firstVisibleItemPosition == 0 && hasMoreHistory && !isLoadingHistory) {
+                    loadMoreHistory()
+                }
+            }
+        })
+    }
+    
+    /**
+     * 加载更多历史记录
+     */
+    private fun loadMoreHistory() {
+        if (isLoadingHistory || !hasMoreHistory) return
+        
+        isLoadingHistory = true
+        Log.d(TAG, "开始加载更多历史记录，当前消息数: ${messages.size}")
+        
+        currentContact?.let { contact ->
+            if (isGroupChatMode) {
+                // 群聊模式：从GroupChatManager加载更多消息
+                loadMoreGroupChatHistory(contact)
+            } else {
+                // 单聊模式：从ChatDataManager加载更多消息
+                loadMoreSingleChatHistory(contact)
+            }
+        }
+    }
+    
+    /**
+     * 加载更多群聊历史记录
+     */
+    private fun loadMoreGroupChatHistory(contact: ChatContact) {
+        currentGroupChat?.let { groupChat ->
+            // 获取当前已加载的消息数量
+            val currentCount = groupMessageAdapter.itemCount
+            val allMessages = groupChatManager.getGroupMessages(groupChat.id)
+            
+            if (currentCount < allMessages.size) {
+                // 还有更多消息可以加载
+                val startIndex = maxOf(0, allMessages.size - currentCount - MESSAGES_PER_PAGE)
+                val endIndex = allMessages.size - currentCount
+                val newMessages = allMessages.subList(startIndex, endIndex)
+                
+                // 将新消息添加到适配器（由于是反向布局，需要插入到开头）
+                groupMessageAdapter.addMessagesToTop(newMessages)
+                
+                Log.d(TAG, "群聊历史记录加载完成，新增 ${newMessages.size} 条消息")
+            } else {
+                hasMoreHistory = false
+                Log.d(TAG, "群聊历史记录已全部加载完成")
+            }
+        }
+        
+        isLoadingHistory = false
+    }
+    
+    /**
+     * 加载更多单聊历史记录
+     */
+    private fun loadMoreSingleChatHistory(contact: ChatContact) {
+        val serviceType = getAIServiceType(contact) ?: AIServiceType.DEEPSEEK
+        val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+        
+        // 获取所有消息
+        val allMessages = chatDataManager.getMessages(contact.id, serviceType)
+        
+        if (messages.size < allMessages.size) {
+            // 还有更多消息可以加载
+            val startIndex = maxOf(0, allMessages.size - messages.size - MESSAGES_PER_PAGE)
+            val endIndex = allMessages.size - messages.size
+            val newMessages = allMessages.subList(startIndex, endIndex)
+            
+            // 转换为ChatMessage格式并添加到开头（由于是反向布局）
+            val newChatMessages = newMessages.map { messageData ->
+                ChatMessage(
+                    content = messageData.content,
+                    isFromUser = messageData.role == "user",
+                    timestamp = messageData.timestamp
+                )
+            }
+            
+            // 插入到消息列表的开头
+            messages.addAll(0, newChatMessages)
+            messageAdapter.updateMessages(messages.toList())
+            
+            Log.d(TAG, "单聊历史记录加载完成，新增 ${newChatMessages.size} 条消息")
+        } else {
+            hasMoreHistory = false
+            Log.d(TAG, "单聊历史记录已全部加载完成")
+        }
+        
+        isLoadingHistory = false
+    }
+    
+    /**
      * 验证群聊中AI成员的配置
      */
     private fun validateGroupChatAIMembers(groupChat: GroupChat) {
@@ -1097,10 +1214,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         groupMessageAdapter.updateMessages(groupMessages)
         Log.d(TAG, "已更新适配器，适配器项目数: ${groupMessageAdapter.itemCount}")
         
-        // 滚动到底部
-        messagesRecyclerView.post {
-            messagesRecyclerView.smoothScrollToPosition(groupMessageAdapter.itemCount - 1)
-        }
+        // 反向布局会自动显示最新消息，无需滚动
+        Log.d(TAG, "群聊消息加载完成，使用反向布局显示最新内容")
     }
     
     // getAIMemberName方法已移除，由GroupChatManager处理

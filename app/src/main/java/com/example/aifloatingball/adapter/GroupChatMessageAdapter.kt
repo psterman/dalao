@@ -130,6 +130,14 @@ class GroupChatMessageAdapter(
         messages.addAll(newMessages)
         notifyDataSetChanged()
     }
+    
+    /**
+     * 在顶部添加更多历史消息（用于分页加载）
+     */
+    fun addMessagesToTop(newMessages: List<GroupChatMessage>) {
+        messages.addAll(0, newMessages)
+        notifyItemRangeInserted(0, newMessages.size)
+    }
 
     /**
      * 更新AI流式回复内容
