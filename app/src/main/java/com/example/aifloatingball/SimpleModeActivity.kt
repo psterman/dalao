@@ -1027,7 +1027,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         findViewById<LinearLayout>(R.id.prompt_preview_layout)?.setBackgroundColor(backgroundColor)
         findViewById<ScrollView>(R.id.voice_layout)?.setBackgroundColor(backgroundColor)
         findViewById<ScrollView>(R.id.settings_layout)?.setBackgroundColor(backgroundColor)
-        findViewById<LinearLayout>(R.id.browser_layout)?.setBackgroundColor(backgroundColor)
+        findViewById<DrawerLayout>(R.id.browser_layout)?.setBackgroundColor(backgroundColor)
         findViewById<View>(R.id.app_search_layout)?.setBackgroundColor(backgroundColor)
     }
 
@@ -8688,7 +8688,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             val filter = IntentFilter().apply {
                 addAction("com.example.aifloatingball.SETTINGS_API_KEY_UPDATED")
             }
-            registerReceiver(apiKeySyncReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(apiKeySyncReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(apiKeySyncReceiver, filter)
+            }
 
             Log.d(TAG, "API密钥同步广播接收器已注册")
 
@@ -9369,7 +9373,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun setupAIChatUpdateReceiver() {
         try {
             val filter = IntentFilter("com.example.aifloatingball.AI_CHAT_UPDATED")
-            registerReceiver(aiChatUpdateReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(aiChatUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(aiChatUpdateReceiver, filter)
+            }
             Log.d(TAG, "AI对话更新广播接收器已注册")
         } catch (e: Exception) {
             Log.e(TAG, "注册AI对话更新广播接收器失败", e)
@@ -9691,7 +9699,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun registerBroadcastReceiver() {
         try {
             val filter = IntentFilter("com.example.aifloatingball.AI_MESSAGE_UPDATED")
-            registerReceiver(aiMessageUpdateReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(aiMessageUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(aiMessageUpdateReceiver, filter)
+            }
             Log.d(TAG, "已注册AI消息更新广播接收器")
         } catch (e: Exception) {
             Log.e(TAG, "注册广播接收器失败", e)
@@ -13322,7 +13334,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 addAction("com.example.aifloatingball.ADD_AI_CONTACT")
                 addAction("com.example.aifloatingball.OPEN_AI_CHAT")
             }
-            registerReceiver(addAIContactReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(addAIContactReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(addAIContactReceiver, filter)
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "设置添加AI联系人接收器失败", e)

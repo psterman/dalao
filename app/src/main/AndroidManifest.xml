@@ -406,6 +406,12 @@
             android:enabled="true"
             android:exported="false" />
 
+        <service
+            android:name=".service.ScreenTextCaptureService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
         <receiver android:name=".widget.SearchWidgetProvider"
             android:exported="true"
             android:enabled="true"
@@ -518,6 +524,15 @@
             android:name=".TestMinimizeActivity"
             android:exported="false"
             android:label="测试最小化" />
+
+        <!-- 屏幕录制权限请求Activity -->
+        <activity
+            android:name=".activity.ScreenCapturePermissionActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:launchMode="singleTask" />
 
         <!-- 桌面小组件 (暂时禁用) -->
         <!--

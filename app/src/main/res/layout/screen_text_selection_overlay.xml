@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <!-- 文字选择覆盖层 -->
+    <com.example.aifloatingball.ui.ScreenTextSelectionOverlay
+        android:id="@+id/text_selection_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- 控制按钮容器 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="80dp"
+        android:background="@drawable/rounded_background_dark"
+        android:elevation="8dp"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <!-- 取消按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_cancel"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:text="取消"
+            android:textColor="@android:color/white"
+            app:icon="@drawable/ic_close"
+            app:iconTint="@android:color/white" />
+
+        <!-- 手动选择按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_manual_selection"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:text="手动"
+            android:textColor="@android:color/white"
+            app:icon="@drawable/ic_crop"
+            app:iconTint="@android:color/white" />
+
+        <!-- 引擎切换按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_switch_engine"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="引擎"
+            android:textColor="@android:color/white"
+            app:icon="@drawable/ic_settings"
+            app:iconTint="@android:color/white" />
+
+    </LinearLayout>
+
+    <!-- 状态指示器 -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="100dp"
+        android:background="@drawable/rounded_background_dark"
+        android:elevation="8dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:visibility="visible">
+
+        <!-- 识别状态图标 -->
+        <ImageView
+            android:id="@+id/iv_recognition_status"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_text_recognition"
+            android:tint="@color/colorPrimary" />
+
+        <!-- 状态文字 -->
+        <TextView
+            android:id="@+id/tv_recognition_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="正在识别屏幕文字..."
+            android:textColor="@android:color/white"
+            android:textSize="14sp" />
+
+    </LinearLayout>
+
+    <!-- 帮助提示 -->
+    <LinearLayout
+        android:id="@+id/help_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:layout_marginTop="160dp"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:background="@drawable/rounded_background_dark"
+        android:elevation="4dp"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:visibility="visible">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="使用说明"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="• 点击绿色框选择文字区域\n• 长按切换手动选择模式\n• 拖拽选择自定义区域"
+            android:textColor="@color/text_secondary_light"
+            android:textSize="14sp"
+            android:lineSpacingExtra="2dp" />
+
+        <!-- 关闭帮助按钮 -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_close_help"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_gravity="end"
+            android:layout_marginTop="8dp"
+            android:text="知道了"
+            android:textColor="@color/colorPrimary"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+</FrameLayout>

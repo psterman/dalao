@@ -24,6 +24,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.example.aifloatingball.R
+import com.example.aifloatingball.model.AppInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -419,39 +420,33 @@ class AIAppOverlayService : Service() {
      * 设置AI应用点击监听器
      */
     private fun setupAIAppClickListeners(menuView: View) {
-        // Grok
-        menuView.findViewById<View>(R.id.ai_menu_grok).setOnClickListener {
-            Log.d(TAG, "Grok被点击")
-            launchAIApp("ai.x.grok", "Grok")
-            hideAIMenu()
-        }
+        // 获取历史选择的应用
+        val recentApps = getRecentAppsFromPrefs()
 
-        // Perplexity
-        menuView.findViewById<View>(R.id.ai_menu_perplexity).setOnClickListener {
-            Log.d(TAG, "Perplexity被点击")
-            launchAIApp("ai.perplexity.app.android", "Perplexity")
-            hideAIMenu()
-        }
+        // 获取所有AI菜单项的ID
+        val aiMenuIds = listOf(
+            R.id.ai_menu_grok,
+            R.id.ai_menu_perplexity,
+            R.id.ai_menu_poe,
+            R.id.ai_menu_manus,
+            R.id.ai_menu_ima
+        )
 
-        // Poe
-        menuView.findViewById<View>(R.id.ai_menu_poe).setOnClickListener {
-            Log.d(TAG, "Poe被点击")
-            launchAIApp("com.poe.android", "Poe")
-            hideAIMenu()
-        }
-
-        // Manus
-        menuView.findViewById<View>(R.id.ai_menu_manus).setOnClickListener {
-            Log.d(TAG, "Manus被点击")
-            launchAIApp("tech.butterfly.app", "Manus")
-            hideAIMenu()
-        }
-
-        // IMA
-        menuView.findViewById<View>(R.id.ai_menu_ima).setOnClickListener {
-            Log.d(TAG, "IMA被点击")
-            launchAIApp("com.tencent.ima", "IMA")
-            hideAIMenu()
+        // 为每个菜单项设置点击事件
+        aiMenuIds.forEachIndexed { index, menuId ->
+            val menuItem = menuView.findViewById<View>(menuId)
+            if (index < recentApps.size) {
+                val appInfo = recentApps[index]
+                menuItem.setOnClickListener {
+                    Log.d(TAG, "${appInfo.label}被点击")
+                    launchAIApp(appInfo.packageName, appInfo.label)
+                    hideAIMenu()
+                }
+                menuItem.visibility = View.VISIBLE
+            } else {
+                // 如果历史应用不足5个，隐藏多余的菜单项
+                menuItem.visibility = View.GONE
+            }
         }
     }
 
@@ -745,6 +740,102 @@ class AIAppOverlayService : Service() {
      */
     private fun Int.dpToPx(): Int {
         return (this * resources.displayMetrics.density).toInt()
+    }
+
+    /**
+     * 获取历史选择的应用列表
+     */
+    private fun getRecentAppsFromPrefs(): List<AppInfo> {
+        return try {
+            val prefs = getSharedPreferences("dynamic_island_prefs", Context.MODE_PRIVATE)
+            val jsonString = prefs.getString("recent_apps", null)
+
+            if (jsonString != null) {
+                val gson = com.google.gson.Gson()
+                val type = object : com.google.gson.reflect.TypeToken<List<SerializableAppInfo>>() {}.type
+                val serializableApps: List<SerializableAppInfo> = gson.fromJson(jsonString, type)
+
+                // 转换回AppInfo并过滤有效的应用，最多返回5个
+                val recentApps = mutableListOf<AppInfo>()
+                serializableApps.take(5).forEach { serializableApp ->
+                    val appInfo = serializableApp.toAppInfo()
+                    if (appInfo != null) {
+                        recentApps.add(appInfo)
+                    }
+                }
+                recentApps
+            } else {
+                // 如果没有历史记录，返回默认的AI应用
+                getDefaultAIApps()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "加载历史应用失败", e)
+            getDefaultAIApps()
+        }
+    }
+
+    /**
+     * 获取默认的AI应用列表
+     */
+    private fun getDefaultAIApps(): List<AppInfo> {
+        val defaultApps = mutableListOf<AppInfo>()
+        val pm = packageManager
+
+        val aiApps = listOf(
+            "ai.x.grok" to "Grok",
+            "ai.perplexity.app.android" to "Perplexity",
+            "com.poe.android" to "Poe",
+            "tech.butterfly.app" to "Manus",
+            "com.tencent.ima" to "IMA"
+        )
+
+        aiApps.forEach { (packageName, appName) ->
+            try {
+                val appInfo = pm.getApplicationInfo(packageName, 0)
+                val icon = pm.getApplicationIcon(packageName)
+                val label = pm.getApplicationLabel(appInfo).toString()
+
+                defaultApps.add(AppInfo(
+                    label = label,
+                    packageName = packageName,
+                    icon = icon,
+                    urlScheme = null
+                ))
+            } catch (e: Exception) {
+                Log.d(TAG, "AI应用 $appName 未安装: $packageName")
+            }
+        }
+
+        return defaultApps
+    }
+
+    /**
+     * 用于序列化的简化AppInfo数据类
+     */
+    private data class SerializableAppInfo(
+        val label: String,
+        val packageName: String,
+        val urlScheme: String? = null
+    )
+
+    /**
+     * 从可序列化格式重建AppInfo
+     */
+    private fun SerializableAppInfo.toAppInfo(): AppInfo? {
+        return try {
+            packageManager.getPackageInfo(this.packageName, 0)
+            val icon = packageManager.getApplicationIcon(this.packageName)
+
+            AppInfo(
+                label = this.label,
+                packageName = this.packageName,
+                icon = icon,
+                urlScheme = this.urlScheme
+            )
+        } catch (e: Exception) {
+            Log.d(TAG, "应用已卸载或无法加载: ${this.label}")
+            null
+        }
     }
 
     /**

@@ -56,6 +56,7 @@ import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -66,6 +67,7 @@ import com.example.aifloatingball.activity.AIApiConfigActivity
 import com.example.aifloatingball.manager.AIApiManager
 import com.example.aifloatingball.manager.AIServiceSelectionManager
 import com.example.aifloatingball.manager.AIServiceType
+import com.example.aifloatingball.manager.ScreenTextRecognitionManager
 import com.example.aifloatingball.data.ChatDataManager
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
@@ -101,7 +103,6 @@ import com.google.android.material.button.MaterialButton
 import android.content.ClipData
 import android.content.ClipboardManager
 import androidx.appcompat.app.AlertDialog
-import android.widget.Toast
 import androidx.core.content.ContextCompat
 import android.content.ClipDescription
 import android.widget.Button
@@ -614,7 +615,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
     // 智能场景匹配系统
     private val contentAnalyzer = ContentAnalyzer()
     private val sceneRecommendationEngine = SceneRecommendationEngine()
-    
+
+    // 屏幕文字识别管理器
+    private var screenTextRecognitionManager: ScreenTextRecognitionManager? = null
+
     // 状态保存相关
     private val PREFS_NAME = "dynamic_island_prefs"
     private val KEY_CURRENT_APP_PACKAGE = "current_app_package"
@@ -667,6 +671,9 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         // 测试增强版灵动岛功能
         testEnhancedIslandFeatures()
         aiServiceSelectionManager = AIServiceSelectionManager(this)
+
+        // 初始化屏幕文字识别管理器
+        initScreenTextRecognitionManager()
 
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         showDynamicIsland()
@@ -1791,6 +1798,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
 
         // 清理应用切换监听器
         cleanupAppSwitchListener()
+
+        // 清理屏幕文字识别管理器
+        screenTextRecognitionManager?.release()
+        screenTextRecognitionManager = null
     }
 
     private fun cleanupViews() {
@@ -1855,8 +1866,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             hideAppSearchResults()
         }
         
-        // 初始化时显示常用APP图标
-        showDefaultAppIcons()
+        // 初始化时隐藏搜索结果，只在用户输入时显示
+        hideAppSearchResults()
         
         // 初始化最近选中的APP按钮
         recentAppButton = configPanelView?.findViewById<MaterialButton>(R.id.recent_app_button)
@@ -3704,10 +3715,15 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
      * 显示常用应用图标（在输入框上方）
      */
     private fun showCommonAppIcons() {
-        Log.d(TAG, "显示常用应用图标")
+        Log.d(TAG, "显示历史选择的应用图标")
 
-        // 创建常用APP列表
-        val commonApps = createDefaultAppList()
+        // 使用历史选择的应用，如果没有则使用默认应用
+        val commonApps = if (recentApps.isNotEmpty()) {
+            recentApps.take(6) // 最多显示6个历史应用
+        } else {
+            createDefaultAppList().take(6) // 如果没有历史记录，显示默认应用
+        }
+
         if (commonApps.isNotEmpty()) {
             // 每次都重新创建适配器
             commonAppsAdapter = AppSearchAdapter(commonApps, isHorizontal = true) { appInfo ->
@@ -3722,10 +3738,10 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
             }
 
             commonAppsContainer?.visibility = View.VISIBLE
-            Log.d(TAG, "常用应用图标显示完成，共 ${commonApps.size} 个")
+            Log.d(TAG, "历史应用图标显示完成，共 ${commonApps.size} 个")
         } else {
             commonAppsContainer?.visibility = View.GONE
-            Log.d(TAG, "没有常用应用可显示")
+            Log.d(TAG, "没有历史应用可显示")
         }
     }
 
@@ -4310,8 +4326,8 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
                     // 启动长按检测
                     longPressRunnable = Runnable {
                         if (!isDragging) {
-                            Log.d(TAG, "长按检测触发，开始拖动")
-                            startDragging()
+                            Log.d(TAG, "长按检测触发，启动屏幕文字识别")
+                            startScreenTextRecognition()
                         }
                     }
                     uiHandler.postDelayed(longPressRunnable!!, longPressDelay)
@@ -8977,15 +8993,85 @@ class DynamicIslandService : Service(), SharedPreferences.OnSharedPreferenceChan
         try {
             // 停止服务
             stopSelf()
-            
+
             // 启动设置页面
             val intent = Intent(this, SettingsActivity::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
-            
+
             Log.d(TAG, "灵动岛已退出，打开设置页面")
         } catch (e: Exception) {
             Log.e(TAG, "退出灵动岛失败", e)
+        }
+    }
+
+    /**
+     * 初始化屏幕文字识别管理器
+     */
+    private fun initScreenTextRecognitionManager() {
+        try {
+            screenTextRecognitionManager = ScreenTextRecognitionManager(this)
+            screenTextRecognitionManager?.setCallback(object : ScreenTextRecognitionManager.TextRecognitionCallback {
+                override fun onTextExtracted(text: String) {
+                    handleExtractedText(text)
+                }
+
+                override fun onError(error: String) {
+                    Log.e(TAG, "屏幕文字识别错误: $error")
+                    showToast("文字识别失败: $error")
+                }
+
+                override fun onCancelled() {
+                    Log.d(TAG, "屏幕文字识别已取消")
+                }
+            })
+            Log.d(TAG, "屏幕文字识别管理器初始化成功")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化屏幕文字识别管理器失败", e)
+        }
+    }
+
+    /**
+     * 启动屏幕文字识别
+     */
+    private fun startScreenTextRecognition() {
+        try {
+            Log.d(TAG, "启动屏幕文字识别")
+            screenTextRecognitionManager?.startTextRecognition()
+        } catch (e: Exception) {
+            Log.e(TAG, "启动屏幕文字识别失败", e)
+            showToast("启动文字识别失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 处理提取的文字
+     */
+    private fun handleExtractedText(text: String) {
+        try {
+            Log.d(TAG, "提取到文字: $text")
+
+            // 将文字填入搜索输入框
+            searchInput?.setText(text)
+
+            // 恢复到灵动岛输入状态
+            restoreIslandState()
+
+            // 显示成功提示
+            showToast("已提取文字: ${text.take(20)}${if (text.length > 20) "..." else ""}")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理提取文字失败", e)
+            showToast("处理文字失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 显示Toast提示
+     */
+    private fun showToast(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
     

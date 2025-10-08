@@ -875,4 +875,7 @@
     <!-- 对话框提示文字颜色 -->
     <color name="dialog_hint_text_light">#999999</color>
 
+    <!-- 屏幕文字识别相关颜色 -->
+    <color name="text_secondary_light">#757575</color>
+
 </resources>

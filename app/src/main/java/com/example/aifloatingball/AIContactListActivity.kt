@@ -752,10 +752,12 @@ class AIContactListActivity : AppCompatActivity() {
      * 显示创建群聊对话框
      */
     private fun showCreateGroupDialog() {
-        // 获取已配置的AI列表
+        // 获取已配置的AI列表（包括临时专线）
         val configuredAIs = allAIContacts.filter { contact ->
             val apiKey = contact.customData["api_key"] ?: ""
-            apiKey.isNotEmpty()
+            val isTempService = contact.customData["is_temp_service"] == "true"
+            // 临时专线不需要API密钥，其他AI需要有效API密钥
+            isTempService || apiKey.isNotEmpty()
         }
 
         if (configuredAIs.size < 2) {
@@ -793,6 +795,10 @@ class AIContactListActivity : AppCompatActivity() {
      * 从ChatContact获取AIServiceType
      */
     private fun getAIServiceTypeFromContact(contact: ChatContact): AIServiceType? {
+        // 特殊处理临时专线
+        if (contact.customData["is_temp_service"] == "true") {
+            return AIServiceType.TEMP_SERVICE
+        }
         return com.example.aifloatingball.utils.AIServiceTypeUtils.getAIServiceTypeFromContact(contact)
     }
 
@@ -839,39 +845,34 @@ class AIContactListActivity : AppCompatActivity() {
              
              Log.d(TAG, "通过UnifiedGroupChatManager创建群聊成功: ${groupChat.id}")
             
-            // 从UnifiedGroupChatManager获取群聊联系人（避免重复创建）
-            val groupContacts = unifiedGroupChatManager.getGroupChatContacts()
-            val groupContact = groupContacts.find { it.groupId == groupChat.id }
+            // 创建群聊联系人并添加到联系人列表
+            val groupContact = ChatContact(
+                id = groupChat.id,
+                name = groupChat.name,
+                avatar = groupChat.avatar,
+                type = ContactType.GROUP,
+                description = groupChat.description,
+                isOnline = true,
+                lastMessage = groupChat.lastMessage,
+                lastMessageTime = groupChat.lastMessageTime,
+                unreadCount = groupChat.unreadCount,
+                isPinned = groupChat.isPinned,
+                isMuted = groupChat.isMuted,
+                groupId = groupChat.id,
+                memberCount = groupChat.members.size,
+                aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
+            )
             
-            if (groupContact != null) {
-                Log.d(TAG, "找到群聊联系人: ${groupContact.name}")
-                
-                // 跳转到群聊界面
-                val intent = Intent(this, ChatActivity::class.java)
-                intent.putExtra(ChatActivity.EXTRA_CONTACT, groupContact)
-                startActivity(intent)
-            } else {
-                Log.e(TAG, "未找到群聊联系人，使用群聊对象创建临时联系人")
-                
-                // 创建临时群聊联系人（仅用于跳转）
-                val tempGroupContact = ChatContact(
-                    id = groupChat.id,
-                    name = groupName,
-                    description = "包含 ${selectedAIs.size} 个AI助手的群聊",
-                    type = ContactType.GROUP,
-                    groupId = groupChat.id,
-                    aiMembers = selectedAIs.map { it.id },
-                    customData = mutableMapOf(
-                        "group_members" to selectedAIs.map { it.id }.joinToString(","),
-                        "created_time" to System.currentTimeMillis().toString()
-                    )
-                )
-                
-                // 跳转到群聊界面
-                val intent = Intent(this, ChatActivity::class.java)
-                intent.putExtra(ChatActivity.EXTRA_CONTACT, tempGroupContact)
-                startActivity(intent)
-            }
+            // 添加到联系人列表（通过SimpleModeActivity的方法）
+            // 这里需要通知SimpleModeActivity更新联系人列表
+            val broadcastIntent = Intent("com.example.aifloatingball.GROUP_CHAT_CREATED")
+            broadcastIntent.putExtra("group_contact", groupContact)
+            sendBroadcast(broadcastIntent)
+            
+            // 跳转到群聊界面
+            val chatIntent = Intent(this, ChatActivity::class.java)
+            chatIntent.putExtra(ChatActivity.EXTRA_CONTACT, groupContact)
+            startActivity(chatIntent)
             
             Toast.makeText(this, "群聊创建成功", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
