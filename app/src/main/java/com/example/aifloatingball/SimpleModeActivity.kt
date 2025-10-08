@@ -462,6 +462,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     // API密钥同步广播接收器
     private var apiKeySyncReceiver: BroadcastReceiver? = null
     private var addAIContactReceiver: BroadcastReceiver? = null
+    private var groupChatCreatedReceiver: BroadcastReceiver? = null
     
     // 群聊管理器
     // 统一群聊管理器
@@ -652,6 +653,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 注册广播接收器
         registerBroadcastReceiver()
+        
+        // 注册群聊创建广播接收器
+        setupGroupChatCreatedReceiver()
         
         // 调试：检查所有AI的数据状态
         debugAllAIData()
@@ -5337,6 +5341,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "注销添加AI联系人广播接收器失败", e)
         }
 
+        // 注销群聊创建广播接收器
+        try {
+            groupChatCreatedReceiver?.let {
+                unregisterReceiver(it)
+                groupChatCreatedReceiver = null
+                Log.d(TAG, "群聊创建广播接收器已注销")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "注销群聊创建广播接收器失败", e)
+        }
+
         // 注销AI对话更新广播接收器
         try {
             unregisterReceiver(aiChatUpdateReceiver)
@@ -9971,18 +9986,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
-            // 收集所有AI联系人
+            // 收集所有AI联系人和群聊
             val aiContacts = mutableListOf<ChatContact>()
+            val groupContacts = mutableListOf<ChatContact>()
             this.allContacts.forEach { category ->
-                // 包含所有分类中的AI联系人，包括"全部"分类
-                val validAIContacts = category.contacts.filter { contact ->
-                    contact.type == ContactType.AI &&
-                    !contact.id.contains("hint") &&
-                    !contact.id.contains("empty") &&
-                    contact.name != "暂无AI助手" &&
-                    contact.name != "AI助手分组为空"
+                category.contacts.forEach { contact ->
+                    when (contact.type) {
+                        ContactType.AI -> {
+                            // 包含所有分类中的AI联系人，包括"全部"分类
+                            if (!contact.id.contains("hint") &&
+                                !contact.id.contains("empty") &&
+                                contact.name != "暂无AI助手" &&
+                                contact.name != "AI助手分组为空") {
+                                aiContacts.add(contact)
+                            }
+                        }
+                        ContactType.GROUP -> {
+                            // 收集群聊联系人
+                            groupContacts.add(contact)
+                        }
+                        else -> {
+                            // 其他类型暂时忽略
+                        }
+                    }
                 }
-                aiContacts.addAll(validAIContacts)
             }
             
             // 从UnifiedGroupChatManager获取群聊数据
@@ -10017,14 +10044,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
             
             // 合并AI和群聊联系人
-            val allContacts = mutableListOf<ChatContact>()
-            allContacts.addAll(aiContacts)
-            allContacts.addAll(groupChatContacts)
+            val allDisplayContacts = mutableListOf<ChatContact>()
+            allDisplayContacts.addAll(aiContacts)
+            allDisplayContacts.addAll(groupContacts)
             
-            Log.d(TAG, "收集到 ${allContacts.size} 个联系人（${aiContacts.size} 个AI，${groupChatContacts.size} 个群聊）")
+            // 如果allContacts中没有群聊，则从UnifiedGroupChatManager获取
+            if (groupContacts.isEmpty() && groupChatContacts.isNotEmpty()) {
+                allDisplayContacts.addAll(groupChatContacts)
+                Log.d(TAG, "从UnifiedGroupChatManager补充了 ${groupChatContacts.size} 个群聊")
+            }
+            
+            Log.d(TAG, "收集到 ${allDisplayContacts.size} 个联系人（${aiContacts.size} 个AI，${groupContacts.size} 个群聊，${groupChatContacts.size} 个补充群聊）")
 
             // 按置顶状态和最后消息时间排序
-            val sortedContacts = allContacts.distinctBy { it.id }.sortedWith(
+            val sortedContacts = allDisplayContacts.distinctBy { it.id }.sortedWith(
                 compareByDescending<ChatContact> { it.isPinned }
                     .thenByDescending { it.lastMessageTime }
             )
@@ -21759,6 +21792,52 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "❌ 触发自动粘贴失败: $appName", e)
             // 回退到剪贴板方案
             sendQuestionViaClipboard(packageName, query, appName)
+        }
+    }
+
+    /**
+     * 设置群聊创建广播接收器
+     */
+    private fun setupGroupChatCreatedReceiver() {
+        try {
+            groupChatCreatedReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    try {
+                        if (intent?.action == "com.example.aifloatingball.GROUP_CHAT_CREATED") {
+                            val groupContact = intent.getParcelableExtra<ChatContact>("group_contact")
+                            if (groupContact != null) {
+                                Log.d(TAG, "收到群聊创建广播: ${groupContact.name}")
+                                
+                                // 在主线程中处理UI更新
+                                runOnUiThread {
+                                    // 添加群聊联系人到联系人列表
+                                    addContactToList(groupContact)
+                                    
+                                    // 刷新当前显示
+                                    refreshCurrentTabDisplay()
+                                    
+                                    Log.d(TAG, "群聊 ${groupContact.name} 已添加到联系人列表")
+                                }
+                            } else {
+                                Log.w(TAG, "群聊创建广播中未找到群聊联系人数据")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "处理群聊创建广播失败", e)
+                    }
+                }
+            }
+            
+            val filter = IntentFilter("com.example.aifloatingball.GROUP_CHAT_CREATED")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(groupChatCreatedReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(groupChatCreatedReceiver, filter)
+            }
+            
+            Log.d(TAG, "群聊创建广播接收器已注册")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置群聊创建广播接收器失败", e)
         }
     }
 

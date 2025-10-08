@@ -226,41 +226,53 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 
                 // 首先尝试通过groupId查找
                 contact.groupId?.let { groupId ->
-                    // 1. 尝试从GroupChatManager查找
-                    currentGroupChat = groupChatManager.getGroupChat(groupId)
+                    Log.d(TAG, "尝试通过groupId查找群聊: $groupId")
                     
-                    // 2. 如果没找到，尝试从UnifiedGroupChatManager查找
+                    // 1. 尝试从UnifiedGroupChatManager查找（优先）
+                    val unifiedManager = UnifiedGroupChatManager.getInstance(this)
+                    currentGroupChat = unifiedManager.getGroupChat(groupId)
+                    if (currentGroupChat != null) {
+                        Log.d(TAG, "从UnifiedGroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                    }
+                    
+                    // 2. 如果没找到，尝试从GroupChatManager查找
                     if (currentGroupChat == null) {
-                        val unifiedManager = UnifiedGroupChatManager.getInstance(this)
-                        currentGroupChat = unifiedManager.getGroupChat(groupId)
+                        currentGroupChat = groupChatManager.getGroupChat(groupId)
                         if (currentGroupChat != null) {
-                            Log.d(TAG, "从UnifiedGroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                            Log.d(TAG, "从GroupChatManager找到群聊: ${currentGroupChat!!.name}")
                         }
                     }
                     
                     if (currentGroupChat != null) {
-                        // 验证AI成员配置
-                        validateGroupChatAIMembers(currentGroupChat!!)
-                        
-                        // 测试智谱AI配置
-                        testZhipuAIConfiguration()
-                        
-                        // 强制修复智谱AI配置
-                        forceFixZhipuAIInGroupChat()
-                        
-                        // 输出诊断报告
-                        outputZhipuAIDiagnosticReport()
-                        
                         groupChatFound = true
                         contactStatusText.text = "群聊 · ${currentGroupChat!!.members.size}个成员"
                         contactStatusText.setTextColor(getColor(R.color.group_chat_color))
+                        Log.d(TAG, "群聊数据加载成功: ${currentGroupChat!!.name}")
+                    } else {
+                        Log.w(TAG, "通过groupId未找到群聊: $groupId")
                     }
                 }
                 
                 // 如果没有找到GroupChat，尝试从customData中获取group_chat_id
                 if (!groupChatFound) {
                     contact.customData["group_chat_id"]?.let { groupChatId ->
-                        currentGroupChat = groupChatManager.getGroupChat(groupChatId)
+                        Log.d(TAG, "尝试通过customData中的group_chat_id查找群聊: $groupChatId")
+                        
+                        // 优先从UnifiedGroupChatManager查找
+                        val unifiedManager = UnifiedGroupChatManager.getInstance(this)
+                        currentGroupChat = unifiedManager.getGroupChat(groupChatId)
+                        if (currentGroupChat != null) {
+                            Log.d(TAG, "从UnifiedGroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                        }
+                        
+                        // 如果没找到，尝试从GroupChatManager查找
+                        if (currentGroupChat == null) {
+                            currentGroupChat = groupChatManager.getGroupChat(groupChatId)
+                            if (currentGroupChat != null) {
+                                Log.d(TAG, "从GroupChatManager找到群聊: ${currentGroupChat!!.name}")
+                            }
+                        }
+                        
                         if (currentGroupChat != null) {
                             groupChatFound = true
                             contactStatusText.text = "群聊 · ${currentGroupChat!!.members.size}个成员"
@@ -522,6 +534,10 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         if (messageText.isNotEmpty() && !isSending) {
             isSending = true
             sendButton.isEnabled = false // 禁用发送按钮
+            
+            // 先清空输入框，但保存原始文本用于失败时恢复
+            messageInput.text.clear()
+            
             // 添加用户消息
             val userMessage = ChatMessage(messageText, true, System.currentTimeMillis())
             messages.add(userMessage)
@@ -547,9 +563,6 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             messagesRecyclerView.post {
                 messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
             }
-
-            // 清空输入框
-            messageInput.text.clear()
 
             // 发送到AI服务
             currentContact?.let { contact ->
@@ -674,6 +687,27 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         aiId.contains("qianwen", ignoreCase = true) -> AIServiceType.QIANWEN
                         aiId.contains("xinghuo", ignoreCase = true) -> AIServiceType.XINGHUO
                         aiId.contains("kimi", ignoreCase = true) -> AIServiceType.KIMI
+                        aiId.contains("临时专线", ignoreCase = true) -> AIServiceType.TEMP_SERVICE
+                        else -> null
+                    }
+                    aiType?.let { aiServiceTypes.add(it) }
+                }
+            }
+            
+            // 如果有customData中的ai_service_types，也尝试解析
+            contact.customData["ai_service_types"]?.let { serviceTypesStr ->
+                serviceTypesStr.split(",").forEach { serviceTypeName ->
+                    val aiType = when (serviceTypeName.trim()) {
+                        "DEEPSEEK" -> AIServiceType.DEEPSEEK
+                        "CHATGPT" -> AIServiceType.CHATGPT
+                        "CLAUDE" -> AIServiceType.CLAUDE
+                        "GEMINI" -> AIServiceType.GEMINI
+                        "ZHIPU_AI" -> AIServiceType.ZHIPU_AI
+                        "WENXIN" -> AIServiceType.WENXIN
+                        "QIANWEN" -> AIServiceType.QIANWEN
+                        "XINGHUO" -> AIServiceType.XINGHUO
+                        "KIMI" -> AIServiceType.KIMI
+                        "TEMP_SERVICE" -> AIServiceType.TEMP_SERVICE
                         else -> null
                     }
                     aiType?.let { aiServiceTypes.add(it) }
@@ -715,6 +749,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      */
     private fun handleGroupChatMessage(messageText: String) {
         currentGroupChat?.let { groupChat ->
+            // 验证群聊配置
+            validateGroupChatAIMembers(groupChat)
+            
             // 使用GroupChatManager发送消息
             lifecycleScope.launch {
                 try {
@@ -724,12 +761,31 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         loadGroupChatMessages(groupChat.id)
                     } else {
                         runOnUiThread {
-                            Toast.makeText(this@ChatActivity, "发送消息失败", Toast.LENGTH_SHORT).show()
+                            // 发送失败时恢复用户输入
+                            restoreUserInput(messageText)
+                            
+                            // 提供详细的错误诊断
+                            val errorMessage = getGroupChatErrorMessage(groupChat)
+                            Toast.makeText(this@ChatActivity, errorMessage, Toast.LENGTH_LONG).show()
                         }
                     }
                 } catch (e: Exception) {
                     runOnUiThread {
-                        Toast.makeText(this@ChatActivity, "发送失败: ${e.message}", Toast.LENGTH_LONG).show()
+                        // 发送异常时恢复用户输入
+                        restoreUserInput(messageText)
+                        
+                        // 根据异常类型提供不同的错误信息
+                        val errorMessage = when {
+                            e.message?.contains("网络", ignoreCase = true) == true -> 
+                                "网络连接失败，请检查网络设置后重试"
+                            e.message?.contains("API", ignoreCase = true) == true -> 
+                                "AI服务暂时不可用，请稍后重试"
+                            e.message?.contains("密钥", ignoreCase = true) == true -> 
+                                "API密钥配置错误，请检查设置"
+                            else -> "发送失败: ${e.message ?: "未知错误"}"
+                        }
+                        
+                        Toast.makeText(this@ChatActivity, errorMessage, Toast.LENGTH_LONG).show()
                     }
                 } finally {
                     runOnUiThread {
@@ -739,10 +795,42 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 }
             }
         } ?: run {
-            // 没有找到群聊数据
-            Toast.makeText(this, "群聊数据加载失败", Toast.LENGTH_SHORT).show()
+            // 没有找到群聊数据，恢复用户输入
+            restoreUserInput(messageText)
+            Toast.makeText(this, "群聊数据加载失败，请重新进入群聊", Toast.LENGTH_LONG).show()
             isSending = false
             sendButton.isEnabled = true
+        }
+    }
+    
+    /**
+     * 恢复用户输入到输入框
+     */
+    private fun restoreUserInput(messageText: String) {
+        messageInput.setText(messageText)
+        messageInput.setSelection(messageText.length)
+        
+        // 从消息列表中移除失败的用户消息
+        if (messages.isNotEmpty() && messages.last().isFromUser) {
+            messages.removeAt(messages.size - 1)
+            messageAdapter.updateMessages(messages.toList())
+        }
+    }
+    
+    /**
+     * 获取群聊错误信息
+     */
+    private fun getGroupChatErrorMessage(groupChat: GroupChat): String {
+        val aiMembers = groupChat.members.filter { it.type == MemberType.AI }
+        
+        return when {
+            aiMembers.isEmpty() -> "群聊中没有AI成员，无法发送消息"
+            aiMembers.all { it.aiServiceType == null } -> "群聊中AI成员配置不完整，请检查设置"
+            aiMembers.any { it.aiServiceType == AIServiceType.ZHIPU_AI && getApiKeyForService(AIServiceType.ZHIPU_AI).isBlank() } -> 
+                "智谱AI API密钥未配置，请检查设置"
+            aiMembers.any { it.aiServiceType == AIServiceType.DEEPSEEK && getApiKeyForService(AIServiceType.DEEPSEEK).isBlank() } -> 
+                "DeepSeek API密钥未配置，请检查设置"
+            else -> "发送消息失败，请检查网络连接或稍后重试"
         }
     }
     

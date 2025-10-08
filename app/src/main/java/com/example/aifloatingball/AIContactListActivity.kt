@@ -860,7 +860,12 @@ class AIContactListActivity : AppCompatActivity() {
                 isMuted = groupChat.isMuted,
                 groupId = groupChat.id,
                 memberCount = groupChat.members.size,
-                aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name }
+                aiMembers = groupChat.members.filter { it.type == MemberType.AI }.map { it.name },
+                customData = mutableMapOf(
+                    "group_chat_id" to groupChat.id,
+                    "created_time" to System.currentTimeMillis().toString(),
+                    "ai_service_types" to aiServiceTypes.joinToString(",") { it.name }
+                )
             )
             
             // 添加到联系人列表（通过SimpleModeActivity的方法）
