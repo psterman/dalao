@@ -101,23 +101,13 @@
         android:paddingVertical="12dp"
         android:elevation="2dp">
 
-        <!-- 默认画像区域 -->
+        <!-- 左侧空白区域 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="horizontal"
             android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="默认画像"
-                android:textSize="14sp"
-                android:textColor="@color/material_chat_toolbar_text"
-                android:drawableStart="@drawable/ic_smart_toy"
-                android:drawablePadding="8dp"
-                android:gravity="center_vertical" />
 
         </LinearLayout>
 
@@ -144,28 +134,6 @@
                 android:textSize="10sp"
                 android:contentDescription="API状态" />
 
-            <!-- 刷新按钮 -->
-            <ImageButton
-                android:id="@+id/refresh_button"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginEnd="6dp"
-                android:src="@drawable/ic_refresh"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="#4CAF50"
-                android:contentDescription="刷新聊天" />
-
-            <!-- 设置按钮 -->
-            <ImageButton
-                android:id="@+id/settings_button"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginEnd="6dp"
-                android:src="@drawable/ic_settings"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:tint="#4CAF50"
-                android:contentDescription="聊天设置" />
-
             <!-- 搜索按钮 -->
             <ImageButton
                 android:id="@+id/search_button"
@@ -188,27 +156,27 @@
                 android:tint="#4CAF50"
                 android:contentDescription="清空对话" />
 
-            <!-- 加载默认画像按钮 -->
+            <!-- 加载默认画像按钮（人物造型） -->
             <ImageButton
                 android:id="@+id/load_profile_button_toolbar"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_marginEnd="6dp"
-                android:src="@drawable/ic_smart_toy"
+                android:src="@drawable/ic_person_profile"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:tint="#4CAF50"
                 android:contentDescription="加载默认画像" />
 
-            <!-- 导出对话按钮 -->
+            <!-- 设置按钮（移到最右边） -->
             <ImageButton
-                android:id="@+id/export_chat_button_toolbar"
+                android:id="@+id/settings_button"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
                 android:layout_marginEnd="4dp"
-                android:src="@drawable/ic_export"
+                android:src="@drawable/ic_settings"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:tint="#4CAF50"
-                android:contentDescription="导出对话" />
+                android:contentDescription="聊天设置" />
 
         </LinearLayout>
 

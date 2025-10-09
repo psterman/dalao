@@ -188,14 +188,17 @@ class GroupChatManager private constructor(private val context: Context) {
         val userMember = groupChat.members.find { it.id == "user" }
         val userRole = userMember?.role?.name ?: "MEMBER"
         
+        // 构建包含上下文的消息内容
+        val contextualContent = buildContextualMessage(groupId, content)
+        
         // 创建用户消息，包含角色信息
         val userMessage = GroupChatMessage(
             id = UUID.randomUUID().toString(),
-            content = content,
+            content = contextualContent,
             senderId = "user",
             senderName = "用户",
             senderType = MemberType.USER,
-            metadata = mapOf("userRole" to userRole)
+            metadata = mapOf("userRole" to userRole, "originalContent" to content)
         )
         
         // 添加消息到群聊
@@ -203,10 +206,41 @@ class GroupChatManager private constructor(private val context: Context) {
         
         // 触发AI回复
         if (groupChat.settings.allowAllMembersReply) {
-            triggerAIReplies(groupId, content, groupChat)
+            triggerAIReplies(groupId, contextualContent, groupChat)
         }
         
         return true
+    }
+    
+    /**
+     * 构建包含上下文的消息内容
+     */
+    private fun buildContextualMessage(groupId: String, currentContent: String): String {
+        val messages = groupMessages[groupId] ?: return currentContent
+        
+        // 获取最近的用户消息（排除系统消息）
+        val recentUserMessages = messages
+            .filter { it.senderType == MemberType.USER && it.senderId == "user" }
+            .takeLast(2) // 获取最近2条用户消息
+        
+        if (recentUserMessages.size <= 1) {
+            // 如果是第一条用户消息，直接返回
+            return currentContent
+        }
+        
+        // 获取上一条用户消息
+        val previousMessage = recentUserMessages[recentUserMessages.size - 2]
+        val previousContent = previousMessage.metadata["originalContent"] ?: previousMessage.content
+        
+        // 构建包含上下文的消息
+        return buildString {
+            appendLine("📝 上下文引用：")
+            appendLine("上次问题：$previousContent")
+            appendLine()
+            appendLine("当前问题：$currentContent")
+            appendLine()
+            appendLine("请结合上下文回答当前问题，如果当前问题与上次问题相关，请提供连贯的回答。")
+        }
     }
     
     /**

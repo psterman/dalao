@@ -78,11 +78,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     // 新增按钮声明
     private lateinit var aiConfigButton: ImageButton
     private lateinit var apiStatusIndicator: TextView
-    private lateinit var refreshButton: ImageButton
     private lateinit var settingsButton: ImageButton
     private lateinit var clearChatButtonToolbar: ImageButton
     private lateinit var loadProfileButtonToolbar: ImageButton
-    private lateinit var exportChatButtonToolbar: ImageButton
 
     private var currentContact: ChatContact? = null
     private val messages = mutableListOf<ChatMessage>()
@@ -173,12 +171,10 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         // 初始化新增按钮
         aiConfigButton = findViewById(R.id.ai_config_button)
         apiStatusIndicator = findViewById(R.id.api_status_indicator)
-        refreshButton = findViewById(R.id.refresh_button)
         settingsButton = findViewById(R.id.settings_button)
         searchButton = findViewById(R.id.search_button)
         clearChatButtonToolbar = findViewById(R.id.clear_chat_button_toolbar)
         loadProfileButtonToolbar = findViewById(R.id.load_profile_button_toolbar)
-        exportChatButtonToolbar = findViewById(R.id.export_chat_button_toolbar)
 
         // 设置RecyclerView - 使用正向布局，最新消息在底部
         val layoutManager = LinearLayoutManager(this)
@@ -365,10 +361,6 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             showSearchDialog()
         }
 
-        refreshButton.setOnClickListener {
-            refreshChat()
-        }
-
         settingsButton.setOnClickListener {
             showChatSettings()
         }
@@ -387,10 +379,6 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
 
         loadProfileButtonToolbar.setOnClickListener {
             loadDefaultProfile()
-        }
-
-        exportChatButtonToolbar.setOnClickListener {
-            exportChatHistory()
         }
 
         // 设置输入框焦点变化事件，显示/隐藏AI助手档案列表

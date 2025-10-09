@@ -385,10 +385,7 @@ class TaskFragment : AIAssistantCenterFragment() {
                 aiMembers = availableAIServices
             )
             
-            // 发送专家身份提示词到群聊
-            sendExpertPromptToGroup(groupChat, template)
-            
-            // 发送用户问题到群聊
+            // 发送用户问题到群聊（包含专家prompt）
             sendUserQuestionToGroup(groupChat, question, template)
             
             // 跳转到群聊界面
@@ -459,15 +456,24 @@ class TaskFragment : AIAssistantCenterFragment() {
         template: com.example.aifloatingball.model.PromptTemplate
     ) {
         try {
-            // 创建用户消息
+            // 构建包含专家prompt的完整问题
+            val expertPrompt = generateExpertPrompt(template)
+            val contextualQuestion = buildString {
+                appendLine(expertPrompt)
+                appendLine()
+                appendLine("用户问题：$question")
+            }
+            
+            // 创建用户消息（包含专家prompt）
             val userMessage = com.example.aifloatingball.model.GroupChatMessage(
                 id = java.util.UUID.randomUUID().toString(),
-                content = question,
+                content = contextualQuestion,
                 senderId = "user",
                 senderName = "用户",
                 senderType = com.example.aifloatingball.model.MemberType.USER,
                 timestamp = System.currentTimeMillis(),
-                messageType = com.example.aifloatingball.model.GroupMessageType.TEXT
+                messageType = com.example.aifloatingball.model.GroupMessageType.TEXT,
+                metadata = mapOf("originalContent" to question)
             )
             
             // 添加到群聊消息列表
@@ -475,7 +481,7 @@ class TaskFragment : AIAssistantCenterFragment() {
             groupChatManager.addMessageToGroup(groupChat.id, userMessage)
             
             // 立即触发AI自动回复
-            triggerAIAutoReplies(groupChat, question)
+            triggerAIAutoReplies(groupChat, contextualQuestion)
             
         } catch (e: Exception) {
             android.util.Log.e("TaskFragment", "发送用户问题失败", e)
