@@ -100,6 +100,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeout
+import java.util.UUID
 import kotlinx.coroutines.TimeoutCancellationException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -583,6 +584,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
+        
+        // 注册档案变更监听器
+        settingsManager.registerOnSettingChangeListener<List<PromptProfile>>("prompt_profiles") { key, value ->
+            Log.d(TAG, "档案列表已更新，重新加载档案选择器")
+            // 如果当前有档案选择器显示，需要刷新
+            refreshProfileSelectorIfVisible()
+        }
 
         // 初始化触摸冲突解决器
         touchConflictResolver = TouchConflictResolver(this)
@@ -21557,6 +21565,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 .create()
             
             
+            // 设置新建档案按钮点击事件
+            dialogView.findViewById<View>(R.id.btn_new_profile)?.setOnClickListener {
+                try {
+                    Log.d(TAG, "简易模式浏览器tab创建新档案")
+                    showNewProfileDialog(dialog)
+                } catch (e: Exception) {
+                    Log.e(TAG, "简易模式浏览器tab创建新档案失败", e)
+                    Toast.makeText(this, "创建新档案失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+            
             // 设置管理档案按钮点击事件
             dialogView.findViewById<View>(R.id.btn_manage_profiles)?.setOnClickListener {
                 Log.d(TAG, "简易模式浏览器tab跳转到档案管理")
@@ -21610,6 +21629,81 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "简易模式浏览器tab显示AI助手档案选择器失败", e)
             Toast.makeText(this, "无法显示档案选择器", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 刷新档案选择器（如果当前可见）
+     */
+    private fun refreshProfileSelectorIfVisible() {
+        // 这里可以添加逻辑来检查是否有档案选择器正在显示
+        // 如果有，则重新显示以刷新数据
+        Log.d(TAG, "档案变更通知：检查是否需要刷新档案选择器")
+    }
+
+    /**
+     * 显示新建档案对话框
+     */
+    private fun showNewProfileDialog(parentDialog: androidx.appcompat.app.AlertDialog) {
+        try {
+            val input = EditText(this).apply {
+                hint = "请输入档案名称"
+                setPadding(32, 16, 32, 16)
+            }
+            
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("新建AI指令档案")
+                .setMessage("请输入新档案的名称：")
+                .setView(input)
+                .setPositiveButton("创建") { _, _ ->
+                    val name = input.text.toString().trim()
+                    if (name.isNotEmpty()) {
+                        try {
+                            val newProfile = PromptProfile(
+                                id = UUID.randomUUID().toString(),
+                                name = name,
+                                persona = "一个乐于助人的通用AI助手",
+                                tone = "友好、清晰、简洁",
+                                formality = "适中",
+                                responseLength = "适中",
+                                outputFormat = "使用Markdown格式进行回复",
+                                language = "中文",
+                                description = "新建的AI助手档案"
+                            )
+                            
+                            // 保存新档案
+                            settingsManager.savePromptProfile(newProfile)
+                            
+                            // 设置为当前活跃档案
+                            settingsManager.setActivePromptProfileId(newProfile.id)
+                            
+                            Toast.makeText(this, "档案「$name」创建成功", Toast.LENGTH_SHORT).show()
+                            
+                            // 关闭父对话框并重新显示档案选择器
+                            parentDialog.dismiss()
+                            showBrowserTabAIProfileSelector()
+                            
+                            Log.d(TAG, "简易模式浏览器tab新档案创建成功: $name")
+                            
+                        } catch (e: Exception) {
+                            Log.e(TAG, "简易模式浏览器tab保存新档案失败", e)
+                            Toast.makeText(this, "保存档案失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(this, "请输入档案名称", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .create()
+            
+            dialog.show()
+            
+            // 自动聚焦到输入框
+            input.requestFocus()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "简易模式浏览器tab显示新建档案对话框失败", e)
+            Toast.makeText(this, "无法显示新建档案对话框", Toast.LENGTH_SHORT).show()
         }
     }
 

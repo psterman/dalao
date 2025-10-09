@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/ai_assistant_center_background_light"
@@ -36,6 +37,153 @@
                 android:textStyle="bold"
                 android:textColor="@color/ai_assistant_text_primary" />
         </LinearLayout>
+
+
+        <!-- 档案管理 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="档案管理"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/ai_assistant_text_primary"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- 当前档案显示 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="当前档案："
+                        android:textSize="14sp"
+                        android:textColor="@color/ai_assistant_text_primary" />
+
+                    <TextView
+                        android:id="@+id/current_profile_name"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="默认画像"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/ai_assistant_primary"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+
+                <!-- 档案列表显示区域 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="选择助手档案"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/ai_assistant_text_primary"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- 档案列表RecyclerView -->
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/profiles_recycler_view"
+                        android:layout_width="match_parent"
+                        android:layout_height="120dp"
+                        android:orientation="horizontal"
+                        android:clipToPadding="false"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="0dp"
+                        android:visibility="visible"
+                        tools:listitem="@layout/item_prompt_profile" />
+
+                    <!-- 空状态提示 -->
+                    <TextView
+                        android:id="@+id/empty_profiles_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="暂无档案，请点击下方按钮创建"
+                        android:textSize="12sp"
+                        android:textColor="@color/ai_assistant_text_secondary"
+                        android:gravity="center"
+                        android:padding="16dp"
+                        android:visibility="gone" />
+                </LinearLayout>
+
+                <!-- 档案操作按钮 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/select_profile_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="选择档案"
+                        android:textSize="12sp"
+                        android:layout_marginEnd="4dp"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:icon="@drawable/ic_person"
+                        app:iconSize="16dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/new_profile_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="新建档案"
+                        android:textSize="12sp"
+                        android:layout_marginStart="4dp"
+                        android:layout_marginEnd="4dp"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:icon="@drawable/ic_add"
+                        app:iconSize="16dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/manage_profiles_button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="管理档案"
+                        android:textSize="12sp"
+                        android:layout_marginStart="4dp"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        app:icon="@drawable/ic_settings"
+                        app:iconSize="16dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="选择、新建或管理您的AI助手档案"
+                    android:textSize="12sp"
+                    android:textColor="@color/ai_assistant_text_secondary"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- 档案名称 -->
         <com.google.android.material.card.MaterialCardView

@@ -165,37 +165,53 @@ class ExtendedConfigFragment : Fragment() {
     }
 
     fun collectProfileData(profile: PromptProfile): PromptProfile {
-        // 获取选定值的索引并转换为对应的值
-        val expertiseEntries = resources.getStringArray(R.array.expertise_entries)
-        val expertiseValues = resources.getStringArray(R.array.expertise_values)
-        val selectedExpertise = expertiseDropdown.text.toString()
-        val expertiseIndex = expertiseEntries.indexOf(selectedExpertise)
-        val expertiseValue = if (expertiseIndex >= 0) expertiseValues[expertiseIndex] else ""
-        
-        val languageEntries = resources.getStringArray(R.array.language_entries)
-        val languageValues = resources.getStringArray(R.array.language_values)
-        val selectedLanguage = languageDropdown.text.toString()
-        val languageIndex = languageEntries.indexOf(selectedLanguage)
-        val languageValue = if (languageIndex >= 0) languageValues[languageIndex] else ""
-        
-        val formalityEntries = resources.getStringArray(R.array.formality_entries)
-        val formalityValues = resources.getStringArray(R.array.formality_values)
-        val selectedFormality = formalityDropdown.text.toString()
-        val formalityIndex = formalityEntries.indexOf(selectedFormality)
-        val formalityValue = if (formalityIndex >= 0) formalityValues[formalityIndex] else ""
-        
-        val responseLengthEntries = resources.getStringArray(R.array.response_length_entries)
-        val responseLengthValues = resources.getStringArray(R.array.response_length_values)
-        val selectedResponseLength = responseLengthDropdown.text.toString()
-        val responseLengthIndex = responseLengthEntries.indexOf(selectedResponseLength)
-        val responseLengthValue = if (responseLengthIndex >= 0) responseLengthValues[responseLengthIndex] else ""
-        
-        return profile.copy(
-            expertise = expertiseValue,
-            language = languageValue,
-            formality = formalityValue,
-            responseLength = responseLengthValue,
-            creativity = seekCreativity.progress
-        )
+        // 检查所有必需的视图是否已初始化
+        if (!::expertiseDropdown.isInitialized ||
+            !::languageDropdown.isInitialized ||
+            !::formalityDropdown.isInitialized ||
+            !::responseLengthDropdown.isInitialized ||
+            !::seekCreativity.isInitialized ||
+            !::labelCreativity.isInitialized) {
+            android.util.Log.w("ExtendedConfigFragment", "Views not initialized yet, returning original profile")
+            return profile
+        }
+
+        try {
+            // 获取选定值的索引并转换为对应的值
+            val expertiseEntries = resources.getStringArray(R.array.expertise_entries)
+            val expertiseValues = resources.getStringArray(R.array.expertise_values)
+            val selectedExpertise = expertiseDropdown.text.toString()
+            val expertiseIndex = expertiseEntries.indexOf(selectedExpertise)
+            val expertiseValue = if (expertiseIndex >= 0) expertiseValues[expertiseIndex] else ""
+            
+            val languageEntries = resources.getStringArray(R.array.language_entries)
+            val languageValues = resources.getStringArray(R.array.language_values)
+            val selectedLanguage = languageDropdown.text.toString()
+            val languageIndex = languageEntries.indexOf(selectedLanguage)
+            val languageValue = if (languageIndex >= 0) languageValues[languageIndex] else ""
+            
+            val formalityEntries = resources.getStringArray(R.array.formality_entries)
+            val formalityValues = resources.getStringArray(R.array.formality_values)
+            val selectedFormality = formalityDropdown.text.toString()
+            val formalityIndex = formalityEntries.indexOf(selectedFormality)
+            val formalityValue = if (formalityIndex >= 0) formalityValues[formalityIndex] else ""
+            
+            val responseLengthEntries = resources.getStringArray(R.array.response_length_entries)
+            val responseLengthValues = resources.getStringArray(R.array.response_length_values)
+            val selectedResponseLength = responseLengthDropdown.text.toString()
+            val responseLengthIndex = responseLengthEntries.indexOf(selectedResponseLength)
+            val responseLengthValue = if (responseLengthIndex >= 0) responseLengthValues[responseLengthIndex] else ""
+            
+            return profile.copy(
+                expertise = expertiseValue,
+                language = languageValue,
+                formality = formalityValue,
+                responseLength = responseLengthValue,
+                creativity = seekCreativity.progress
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("ExtendedConfigFragment", "Error collecting profile data", e)
+            return profile
+        }
     }
 } 

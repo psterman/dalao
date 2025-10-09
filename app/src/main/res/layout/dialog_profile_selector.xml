@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="16dp"
+    android:maxHeight="600dp">
 
     <TextView
         android:layout_width="wrap_content"
@@ -35,23 +36,36 @@
         app:tabMode="scrollable"
         app:tabGravity="fill" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/profiles_recycler_view"
+    <!-- 主要内容区域 - 可滚动 -->
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:maxHeight="300dp"
-        android:overScrollMode="never" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:maxHeight="400dp"
+        android:overScrollMode="never">
 
-    <!-- 预设资料编辑区域 -->
-    <LinearLayout
-        android:id="@+id/preview_container"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginTop="16dp"
-        android:background="@drawable/preview_background"
-        android:padding="12dp"
-        android:visibility="gone">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/profiles_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxHeight="200dp"
+                android:overScrollMode="never" />
+
+            <!-- 预设资料编辑区域 -->
+            <LinearLayout
+                android:id="@+id/preview_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/preview_background"
+                android:padding="12dp"
+                android:visibility="gone">
 
         <TextView
             android:layout_width="wrap_content"
@@ -903,14 +917,30 @@
 
         </ScrollView>
 
-    </LinearLayout>
+            </LinearLayout>
 
+        </LinearLayout>
+
+    </ScrollView>
+
+    <!-- 固定按钮区域 - 始终可见 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:layout_marginTop="16dp"
-        android:gravity="end">
+        android:gravity="end"
+        android:background="?android:attr/colorBackground"
+        android:elevation="4dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_new_profile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="新建档案"
+            android:layout_marginEnd="8dp"
+            android:drawableStart="@drawable/ic_add"
+            style="@style/Widget.MaterialComponents.Button.TextButton" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_manage_profiles"

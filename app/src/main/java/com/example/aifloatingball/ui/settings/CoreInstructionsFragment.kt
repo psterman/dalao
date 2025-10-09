@@ -183,25 +183,40 @@ class CoreInstructionsFragment : Fragment() {
     }
 
     fun collectProfileData(profile: PromptProfile): PromptProfile {
-        // 获取选定值的索引并转换为对应的值
-        val toneEntries = resources.getStringArray(R.array.tone_entries)
-        val toneValues = resources.getStringArray(R.array.tone_values)
-        val selectedTone = toneDropdown.text.toString()
-        val toneIndex = toneEntries.indexOf(selectedTone)
-        val toneValue = if (toneIndex >= 0) toneValues[toneIndex] else ""
-        
-        val outputFormatEntries = resources.getStringArray(R.array.output_format_entries)
-        val outputFormatValues = resources.getStringArray(R.array.output_format_values)
-        val selectedOutputFormat = outputFormatDropdown.text.toString()
-        val outputFormatIndex = outputFormatEntries.indexOf(selectedOutputFormat)
-        val outputFormatValue = if (outputFormatIndex >= 0) outputFormatValues[outputFormatIndex] else ""
-        
-        return profile.copy(
-            name = editProfileName.text.toString(),
-            persona = editPersona.text.toString(),
-            tone = toneValue,
-            outputFormat = outputFormatValue,
-            customInstructions = editCustomInstructions.text.toString()
-        )
+        // 检查所有必需的视图是否已初始化
+        if (!::editProfileName.isInitialized ||
+            !::editPersona.isInitialized ||
+            !::toneDropdown.isInitialized ||
+            !::outputFormatDropdown.isInitialized ||
+            !::editCustomInstructions.isInitialized) {
+            android.util.Log.w("CoreInstructionsFragment", "Views not initialized yet, returning original profile")
+            return profile
+        }
+
+        try {
+            // 获取选定值的索引并转换为对应的值
+            val toneEntries = resources.getStringArray(R.array.tone_entries)
+            val toneValues = resources.getStringArray(R.array.tone_values)
+            val selectedTone = toneDropdown.text.toString()
+            val toneIndex = toneEntries.indexOf(selectedTone)
+            val toneValue = if (toneIndex >= 0) toneValues[toneIndex] else ""
+            
+            val outputFormatEntries = resources.getStringArray(R.array.output_format_entries)
+            val outputFormatValues = resources.getStringArray(R.array.output_format_values)
+            val selectedOutputFormat = outputFormatDropdown.text.toString()
+            val outputFormatIndex = outputFormatEntries.indexOf(selectedOutputFormat)
+            val outputFormatValue = if (outputFormatIndex >= 0) outputFormatValues[outputFormatIndex] else ""
+            
+            return profile.copy(
+                name = editProfileName.text.toString(),
+                persona = editPersona.text.toString(),
+                tone = toneValue,
+                outputFormat = outputFormatValue,
+                customInstructions = editCustomInstructions.text.toString()
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("CoreInstructionsFragment", "Error collecting profile data", e)
+            return profile
+        }
     }
 }

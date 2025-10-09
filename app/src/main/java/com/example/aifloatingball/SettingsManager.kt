@@ -98,14 +98,14 @@ class SettingsManager private constructor(context: Context) {
      * 添加或更新一个用户画像
      */
     fun savePromptProfile(profile: PromptProfile) {
-        val profiles = getAllPromptProfiles()
+        val profiles = getPromptProfiles()
         val index = profiles.indexOfFirst { it.id == profile.id }
         if (index != -1) {
             profiles[index] = profile
         } else {
             profiles.add(profile)
         }
-        saveAllPromptProfiles(profiles)
+        savePromptProfiles(profiles)
     }
 
     /**
@@ -117,13 +117,13 @@ class SettingsManager private constructor(context: Context) {
             Log.w(TAG, "Attempted to delete the default prompt profile.")
             return
         }
-        val profiles = getAllPromptProfiles()
+        val profiles = getPromptProfiles()
         profiles.removeAll { it.id == profileId }
         // 如果删除的是当前激活的画像，则将激活画像重置为默认
         if (getActivePromptProfileId() == profileId) {
             setActivePromptProfileId(PromptProfile.DEFAULT.id)
         }
-        saveAllPromptProfiles(profiles)
+        savePromptProfiles(profiles)
     }
     
     /**
@@ -147,7 +147,7 @@ class SettingsManager private constructor(context: Context) {
      */
     fun getPromptProfile(): PromptProfile {
         val activeId = getActivePromptProfileId()
-        return getAllPromptProfiles().find { it.id == activeId } ?: PromptProfile.DEFAULT
+        return getPromptProfiles().find { it.id == activeId } ?: PromptProfile.DEFAULT
     }
 
 
@@ -639,6 +639,7 @@ class SettingsManager private constructor(context: Context) {
     fun savePromptProfiles(profiles: List<PromptProfile>) {
         val json = gson.toJson(profiles)
         prefs.edit().putString(KEY_PROMPT_PROFILES, json).apply()
+        notifyListeners(KEY_PROMPT_PROFILES, profiles)
     }
 
     fun getActiveProfileId(): String? {

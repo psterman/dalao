@@ -198,33 +198,52 @@ class AiParamsFragment : Fragment() {
     }
 
     fun collectProfileData(profile: PromptProfile): PromptProfile {
-        // 获取选定值的索引并转换为对应的值
-        val inferenceModeEntries = resources.getStringArray(R.array.inference_mode_entries)
-        val inferenceModeValues = resources.getStringArray(R.array.inference_mode_values)
-        val selectedInferenceMode = inferenceModeDropdown.text.toString()
-        val inferenceModeIndex = inferenceModeEntries.indexOf(selectedInferenceMode)
-        val inferenceModeValue = if (inferenceModeIndex >= 0) inferenceModeValues[inferenceModeIndex] else ""
-        
-        val codeStyleEntries = resources.getStringArray(R.array.code_style_entries)
-        val codeStyleValues = resources.getStringArray(R.array.code_style_values)
-        val selectedCodeStyle = codeStyleDropdown.text.toString()
-        val codeStyleIndex = codeStyleEntries.indexOf(selectedCodeStyle)
-        val codeStyleValue = if (codeStyleIndex >= 0) codeStyleValues[codeStyleIndex] else ""
-        
-        val maxTokensEntries = resources.getStringArray(R.array.max_tokens_entries)
-        val maxTokensValues = resources.getStringArray(R.array.max_tokens_values)
-        val selectedMaxTokens = maxTokensDropdown.text.toString()
-        val maxTokensIndex = maxTokensEntries.indexOf(selectedMaxTokens)
-        val maxTokensValue = if (maxTokensIndex >= 0) maxTokensValues[maxTokensIndex].toIntOrNull() ?: 2048 else 2048
-        
-        return profile.copy(
-            inferenceMode = inferenceModeValue,
-            reasoning = switchReasoning.isChecked,
-            examples = switchExamples.isChecked,
-            codeStyle = codeStyleValue,
-            temperature = seekTemperature.progress / 100.0f,
-            topP = seekTopP.progress / 100.0f,
-            maxTokens = maxTokensValue
-        )
+        // 检查所有必需的视图是否已初始化
+        if (!::inferenceModeDropdown.isInitialized ||
+            !::switchReasoning.isInitialized ||
+            !::switchExamples.isInitialized ||
+            !::codeStyleDropdown.isInitialized ||
+            !::seekTemperature.isInitialized ||
+            !::labelTemperature.isInitialized ||
+            !::seekTopP.isInitialized ||
+            !::labelTopP.isInitialized ||
+            !::maxTokensDropdown.isInitialized) {
+            android.util.Log.w("AiParamsFragment", "Views not initialized yet, returning original profile")
+            return profile
+        }
+
+        try {
+            // 获取选定值的索引并转换为对应的值
+            val inferenceModeEntries = resources.getStringArray(R.array.inference_mode_entries)
+            val inferenceModeValues = resources.getStringArray(R.array.inference_mode_values)
+            val selectedInferenceMode = inferenceModeDropdown.text.toString()
+            val inferenceModeIndex = inferenceModeEntries.indexOf(selectedInferenceMode)
+            val inferenceModeValue = if (inferenceModeIndex >= 0) inferenceModeValues[inferenceModeIndex] else ""
+            
+            val codeStyleEntries = resources.getStringArray(R.array.code_style_entries)
+            val codeStyleValues = resources.getStringArray(R.array.code_style_values)
+            val selectedCodeStyle = codeStyleDropdown.text.toString()
+            val codeStyleIndex = codeStyleEntries.indexOf(selectedCodeStyle)
+            val codeStyleValue = if (codeStyleIndex >= 0) codeStyleValues[codeStyleIndex] else ""
+            
+            val maxTokensEntries = resources.getStringArray(R.array.max_tokens_entries)
+            val maxTokensValues = resources.getStringArray(R.array.max_tokens_values)
+            val selectedMaxTokens = maxTokensDropdown.text.toString()
+            val maxTokensIndex = maxTokensEntries.indexOf(selectedMaxTokens)
+            val maxTokensValue = if (maxTokensIndex >= 0) maxTokensValues[maxTokensIndex].toIntOrNull() ?: 2048 else 2048
+            
+            return profile.copy(
+                inferenceMode = inferenceModeValue,
+                reasoning = switchReasoning.isChecked,
+                examples = switchExamples.isChecked,
+                codeStyle = codeStyleValue,
+                temperature = seekTemperature.progress / 100.0f,
+                topP = seekTopP.progress / 100.0f,
+                maxTokens = maxTokensValue
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("AiParamsFragment", "Error collecting profile data", e)
+            return profile
+        }
     }
 } 

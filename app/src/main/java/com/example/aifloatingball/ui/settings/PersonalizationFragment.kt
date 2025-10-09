@@ -204,35 +204,53 @@ class PersonalizationFragment : Fragment() {
     }
 
     fun collectProfileData(currentProfile: PromptProfile): PromptProfile {
-        // 从年代段转换为出生日期
-        val dateOfBirth = when (ageGroupDropdown.text.toString()) {
-            "90后 (1990-1999)" -> "1995-01-01" // 使用年代中点作为代表
-            "80后 (1980-1989)" -> "1985-01-01"
-            "70后 (1970-1979)" -> "1975-01-01"
-            "60后 (1960-1969)" -> "1965-01-01"
-            "未设置" -> "未设置"
-            else -> "未设置"
+        // 检查所有必需的视图是否已初始化
+        if (!::genderDropdown.isInitialized ||
+            !::ageGroupDropdown.isInitialized ||
+            !::occupationDropdown.isInitialized ||
+            !::educationDropdown.isInitialized ||
+            !::entertainmentDropdown.isInitialized ||
+            !::shoppingDropdown.isInitialized ||
+            !::nicheDropdown.isInitialized ||
+            !::diagnosedDropdown.isInitialized) {
+            android.util.Log.w("PersonalizationFragment", "Views not initialized yet, returning original profile")
+            return currentProfile
         }
-        
-        // 收集健康信息
-        val healthInfo = diagnosedDropdown.text.toString().let {
-            if (it == "无上述疾病") "未设置" else it
+
+        try {
+            // 从年代段转换为出生日期
+            val dateOfBirth = when (ageGroupDropdown.text.toString()) {
+                "90后 (1990-1999)" -> "1995-01-01" // 使用年代中点作为代表
+                "80后 (1980-1989)" -> "1985-01-01"
+                "70后 (1970-1979)" -> "1975-01-01"
+                "60后 (1960-1969)" -> "1965-01-01"
+                "未设置" -> "未设置"
+                else -> "未设置"
+            }
+            
+            // 收集健康信息
+            val healthInfo = diagnosedDropdown.text.toString().let {
+                if (it == "无上述疾病") "未设置" else it
+            }
+            
+            // 收集兴趣爱好
+            val interests = listOf(
+                entertainmentDropdown.text.toString(),
+                shoppingDropdown.text.toString(),
+                nicheDropdown.text.toString()
+            ).filter { it.isNotBlank() && it != "未设置" }
+            
+            return currentProfile.copy(
+                gender = genderDropdown.text.toString(),
+                dateOfBirth = dateOfBirth,
+                occupation = occupationDropdown.text.toString(),
+                education = educationDropdown.text.toString(),
+                interests = interests,
+                healthInfo = healthInfo
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("PersonalizationFragment", "Error collecting profile data", e)
+            return currentProfile
         }
-        
-        // 收集兴趣爱好
-        val interests = listOf(
-            entertainmentDropdown.text.toString(),
-            shoppingDropdown.text.toString(),
-            nicheDropdown.text.toString()
-        ).filter { it.isNotBlank() && it != "未设置" }
-        
-        return currentProfile.copy(
-            gender = genderDropdown.text.toString(),
-            dateOfBirth = dateOfBirth,
-            occupation = occupationDropdown.text.toString(),
-            education = educationDropdown.text.toString(),
-            interests = interests,
-            healthInfo = healthInfo
-        )
     }
 } 

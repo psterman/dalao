@@ -18,6 +18,7 @@ import com.example.aifloatingball.ui.settings.AiParamsFragment
 import com.example.aifloatingball.ui.settings.PersonalizationFragment
 import com.example.aifloatingball.ui.settings.SectionsPagerAdapter
 import com.example.aifloatingball.viewmodel.SettingsViewModel
+import com.example.aifloatingball.SettingsManager
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
@@ -57,6 +58,17 @@ class MasterPromptFragment : Fragment() {
             setupRecyclerView()
             setupViewPager()
             setupButtons()
+            
+            // 注册档案变更监听器
+            val settingsManager = SettingsManager.getInstance(requireContext())
+            settingsManager.registerOnSettingChangeListener<List<PromptProfile>>("prompt_profiles") { key: String, value: List<PromptProfile>? ->
+                android.util.Log.d("MasterPromptFragment", "档案列表已更新，重新加载档案")
+                // 在主线程中刷新UI
+                requireActivity().runOnUiThread {
+                    loadProfiles()
+                }
+            }
+            
             loadProfiles()
         } catch (e: Exception) {
             android.util.Log.e("MasterPromptFragment", "初始化失败", e)
@@ -140,30 +152,23 @@ class MasterPromptFragment : Fragment() {
     }
     
     private fun loadProfiles() {
-        // 加载已保存的档案
+        // 从SettingsManager加载已保存的档案
+        val settingsManager = SettingsManager.getInstance(requireContext())
         profiles.clear()
-        profiles.addAll(loadSavedProfiles())
+        profiles.addAll(settingsManager.getPromptProfiles())
+        if (profiles.isEmpty()) {
+            profiles.add(PromptProfile.DEFAULT)
+        }
+        
+        // 更新适配器
         profileAdapter.notifyDataSetChanged()
         
-        // 设置默认档案
-        if (profiles.isNotEmpty()) {
-            selectProfile(profiles[0])
-        }
-    }
-    
-    private fun loadSavedProfiles(): List<PromptProfile> {
-        // 这里应该从SharedPreferences或数据库加载已保存的档案
-        // 暂时返回示例数据
-        return listOf(
-            PromptProfile(
-                id = UUID.randomUUID().toString(),
-                name = "默认助手",
-                persona = "一个乐于助人的通用AI助手",
-                tone = "友好、清晰、简洁",
-                outputFormat = "使用Markdown格式进行回复",
-                description = "通用AI助手"
-            )
-        )
+        // 设置当前活跃档案
+        val activeProfileId = settingsManager.getActivePromptProfileId()
+        val currentProfile = profiles.find { it.id == activeProfileId } ?: profiles.first()
+        selectProfile(currentProfile)
+        
+        android.util.Log.d("MasterPromptFragment", "加载档案完成，共${profiles.size}个档案")
     }
     
     private fun selectProfile(profile: PromptProfile) {
@@ -191,18 +196,33 @@ class MasterPromptFragment : Fragment() {
                 val input = (dialog as androidx.appcompat.app.AlertDialog).findViewById<android.widget.EditText>(android.R.id.edit)
                 val name = input?.text?.toString()?.trim()
                 if (!name.isNullOrEmpty()) {
-                    val newProfile = PromptProfile(
-                        id = UUID.randomUUID().toString(),
-                        name = name,
-                        persona = "一个乐于助人的AI助手",
-                        tone = "友好、清晰、简洁",
-                        outputFormat = "使用Markdown格式进行回复",
-                        description = "新建的AI助手档案"
-                    )
-                    profiles.add(newProfile)
-                    profileAdapter.notifyDataSetChanged()
-                    selectProfile(newProfile)
-                    Toast.makeText(requireContext(), "档案创建成功", Toast.LENGTH_SHORT).show()
+                    try {
+                        val newProfile = PromptProfile(
+                            id = UUID.randomUUID().toString(),
+                            name = name,
+                            persona = "一个乐于助人的AI助手",
+                            tone = "友好、清晰、简洁",
+                            outputFormat = "使用Markdown格式进行回复",
+                            description = "新建的AI助手档案"
+                        )
+                        
+                        // 使用SettingsManager保存档案，确保触发通知机制
+                        val settingsManager = SettingsManager.getInstance(requireContext())
+                        settingsManager.savePromptProfile(newProfile)
+                        
+                        // 设置为当前活跃档案
+                        settingsManager.setActivePromptProfileId(newProfile.id)
+                        
+                        Toast.makeText(requireContext(), "档案创建成功", Toast.LENGTH_SHORT).show()
+                        
+                        android.util.Log.d("MasterPromptFragment", "新档案创建成功: $name")
+                        
+                    } catch (e: Exception) {
+                        android.util.Log.e("MasterPromptFragment", "创建档案失败", e)
+                        Toast.makeText(requireContext(), "创建档案失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "请输入档案名称", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("取消", null)
