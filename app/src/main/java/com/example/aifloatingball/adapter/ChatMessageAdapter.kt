@@ -87,6 +87,16 @@ class ChatMessageAdapter(
     }
 
     /**
+     * 高亮显示指定消息
+     */
+    fun highlightMessage(messageIndex: Int) {
+        if (messageIndex >= 0 && messageIndex < messages.size) {
+            // 通知指定位置的消息更新，触发高亮效果
+            notifyItemChanged(messageIndex)
+        }
+    }
+
+    /**
      * 用户消息ViewHolder
      */
     class UserMessageViewHolder(

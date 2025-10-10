@@ -81,6 +81,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     private lateinit var settingsButton: ImageButton
     private lateinit var clearChatButtonToolbar: ImageButton
     private lateinit var loadProfileButtonToolbar: ImageButton
+    private lateinit var chatHistoryButton: ImageButton
 
     private var currentContact: ChatContact? = null
     private val messages = mutableListOf<ChatMessage>()
@@ -175,6 +176,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         searchButton = findViewById(R.id.search_button)
         clearChatButtonToolbar = findViewById(R.id.clear_chat_button_toolbar)
         loadProfileButtonToolbar = findViewById(R.id.load_profile_button_toolbar)
+        chatHistoryButton = findViewById(R.id.chat_history_button)
 
         // 设置RecyclerView - 使用正向布局，最新消息在底部
         val layoutManager = LinearLayoutManager(this)
@@ -379,6 +381,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
 
         loadProfileButtonToolbar.setOnClickListener {
             loadDefaultProfile()
+        }
+
+        // 聊天记录按钮事件
+        chatHistoryButton.setOnClickListener {
+            showChatHistoryDialog()
         }
 
         // 设置输入框焦点变化事件，显示/隐藏AI助手档案列表
@@ -2878,6 +2885,50 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    /**
+     * 显示聊天记录对话框
+     */
+    private fun showChatHistoryDialog() {
+        val contactName = currentContact?.name ?: "未知联系人"
+        val dialog = com.example.aifloatingball.dialog.ChatHistoryDialog(
+            this,
+            contactName
+        ) { question ->
+            // 跳转到指定消息
+            jumpToMessage(question.messageIndex)
+        }
+        dialog.show()
+    }
+
+    /**
+     * 跳转到指定消息位置
+     */
+    private fun jumpToMessage(messageIndex: Int) {
+        if (messageIndex >= 0 && messageIndex < messages.size) {
+            // 滚动到指定消息位置
+            messagesRecyclerView.smoothScrollToPosition(messageIndex)
+            
+            // 高亮显示该消息（可选）
+            highlightMessage(messageIndex)
+            
+            // 显示提示
+            android.widget.Toast.makeText(
+                this,
+                "已跳转到第${messageIndex + 1}条消息",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    /**
+     * 高亮显示指定消息
+     */
+    private fun highlightMessage(messageIndex: Int) {
+        // 这里可以实现消息高亮效果
+        // 可以通过修改适配器来实现高亮状态
+        messageAdapter.highlightMessage(messageIndex)
     }
 
     /**
