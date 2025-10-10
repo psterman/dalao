@@ -12,8 +12,6 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.content.BroadcastReceiver
-import android.content.IntentFilter
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -106,6 +104,8 @@ import java.util.UUID
 import kotlinx.coroutines.TimeoutCancellationException
 import java.net.HttpURLConnection
 import java.net.URL
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 
 import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
@@ -576,15 +576,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var viewSearchHistoryItem: LinearLayout
     private lateinit var onboardingGuideItem: LinearLayout
     private lateinit var appVersionText: TextView
-    private lateinit var tabSwitchBroadcastReceiver: BroadcastReceiver
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         Log.d(TAG, "onCreate called")
-
-        // 注册广播接收器
-        registerTabSwitchBroadcastReceiver()
 
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
@@ -5316,9 +5312,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         super.onDestroy()
 
         Log.d(TAG, "Activity正在销毁，清理所有资源")
-
-        // 注销广播接收器
-        unregisterTabSwitchBroadcastReceiver()
 
         // 立即清理所有延迟任务，防止在Activity销毁后执行
         try {
@@ -17707,57 +17700,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             3 -> showVoice()
             4 -> showAppSearch()
             5 -> showSettings()
-        }
-    }
-
-    /**
-     * 注册tab切换广播接收器
-     */
-    private fun registerTabSwitchBroadcastReceiver() {
-        tabSwitchBroadcastReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action == "com.example.aifloatingball.SWITCH_TO_SOFTWARE_TAB") {
-                    Log.d(TAG, "收到切换到软件tab广播")
-                    runOnUiThread {
-                        switchToSoftwareTab()
-                    }
-                }
-            }
-        }
-        
-        val filter = IntentFilter("com.example.aifloatingball.SWITCH_TO_SOFTWARE_TAB")
-        
-        // Android 13+ 需要指定RECEIVER_NOT_EXPORTED标志
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(tabSwitchBroadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(tabSwitchBroadcastReceiver, filter)
-        }
-        
-        Log.d(TAG, "已注册tab切换广播接收器")
-    }
-    
-    /**
-     * 注销广播接收器
-     */
-    private fun unregisterTabSwitchBroadcastReceiver() {
-        try {
-            unregisterReceiver(tabSwitchBroadcastReceiver)
-            Log.d(TAG, "已注销tab切换广播接收器")
-        } catch (e: Exception) {
-            Log.e(TAG, "注销广播接收器失败", e)
-        }
-    }
-
-    /**
-     * 切换到软件tab
-     */
-    fun switchToSoftwareTab() {
-        try {
-            Log.d(TAG, "切换到软件tab")
-            showAppSearch()
-        } catch (e: Exception) {
-            Log.e(TAG, "切换到软件tab失败", e)
         }
     }
 

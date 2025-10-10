@@ -27,9 +27,6 @@ class PlatformIconsView @JvmOverloads constructor(
     private val iconMargin = context.resources.getDimensionPixelSize(R.dimen.platform_icon_margin)
     private val iconContainer: LinearLayout
     
-    // 回调接口，用于处理➕号点击事件
-    var onAddPlatformClickListener: (() -> Unit)? = null
-    
     init {
         // 创建水平滚动的LinearLayout容器
         iconContainer = LinearLayout(context).apply {
@@ -56,43 +53,6 @@ class PlatformIconsView @JvmOverloads constructor(
             val iconView = createPlatformIcon(platform, query)
             iconContainer.addView(iconView)
         }
-        
-        // 添加➕号按钮
-        addPlusButton()
-    }
-    
-    /**
-     * 添加➕号按钮
-     */
-    private fun addPlusButton() {
-        val plusButton = ImageView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
-                marginStart = iconMargin
-            }
-            
-            // 设置➕号图标
-            setImageResource(R.drawable.ic_add_platform)
-            
-            // 设置点击效果
-            background = ContextCompat.getDrawable(context, R.drawable.platform_icon_background)
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setPadding(
-                context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding),
-                context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding),
-                context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding),
-                context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding)
-            )
-            
-            // 设置点击事件
-            setOnClickListener {
-                onAddPlatformClickListener?.invoke()
-            }
-            
-            // 设置内容描述
-            contentDescription = "添加或移除平台图标"
-        }
-        
-        iconContainer.addView(plusButton)
     }
     
     /**
@@ -117,7 +77,7 @@ class PlatformIconsView @JvmOverloads constructor(
                 context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding)
             )
             
-            // 设置点击事件，传递用户查询
+            // 设置点击事件
             setOnClickListener {
                 platformJumpManager.jumpToPlatform(platform.name, query)
             }

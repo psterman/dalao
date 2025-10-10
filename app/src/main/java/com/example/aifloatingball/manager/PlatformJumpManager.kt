@@ -138,27 +138,52 @@ class PlatformJumpManager(private val context: Context) {
         
     /**
      * 跳转到应用内搜索
+     * 使用用户原始问题作为关键词，构建更精准的URL scheme
      */
     private fun jumpToApp(config: PlatformConfig, query: String) {
         try {
-            // 构建搜索URL
+            // 清理和优化查询关键词
+            val cleanQuery = cleanQueryForSearch(query)
+            
+            // 构建搜索结果页面URL - 使用与软件tab一致的URL scheme
             val searchUrl = when (config.packageName) {
-                "com.ss.android.ugc.aweme" -> "${config.urlScheme}search?keyword=${Uri.encode(query)}"
-                "com.xingin.xhs" -> "${config.urlScheme}search?keyword=${Uri.encode(query)}"
-                "com.google.android.youtube" -> "${config.urlScheme}results?search_query=${Uri.encode(query)}"
-                "tv.danmaku.bili" -> "${config.urlScheme}search?keyword=${Uri.encode(query)}"
-                "com.smile.gifmaker" -> "${config.urlScheme}search?keyword=${Uri.encode(query)}"
-                "com.sina.weibo" -> "${config.urlScheme}search?keyword=${Uri.encode(query)}"
-                "com.douban.frodo" -> "${config.urlScheme}search?keyword=${Uri.encode(query)}"
-                else -> "${config.urlScheme}search?keyword=${Uri.encode(query)}"
+                "com.ss.android.ugc.aweme" -> {
+                    // 抖音：使用与软件tab一致的URL scheme
+                    "snssdk1128://search/tabs?keyword=${Uri.encode(cleanQuery)}"
+                }
+                "com.xingin.xhs" -> {
+                    // 小红书：使用与软件tab一致的URL scheme
+                    "xhsdiscover://search/result?keyword=${Uri.encode(cleanQuery)}"
+                }
+                "com.google.android.youtube" -> {
+                    // YouTube：使用与软件tab一致的URL scheme
+                    "youtube://results?search_query=${Uri.encode(cleanQuery)}"
+                }
+                "tv.danmaku.bili" -> {
+                    // 哔哩哔哩：使用与软件tab一致的URL scheme
+                    "bilibili://search?keyword=${Uri.encode(cleanQuery)}"
+                }
+                "com.smile.gifmaker" -> {
+                    // 快手：使用通用URL scheme
+                    "kwai://search?keyword=${Uri.encode(cleanQuery)}"
+                }
+                "com.sina.weibo" -> {
+                    // 微博：使用与软件tab一致的URL scheme
+                    "sinaweibo://searchall?q=${Uri.encode(cleanQuery)}"
+                }
+                "com.douban.frodo" -> {
+                    // 豆瓣：使用与软件tab一致的URL scheme
+                    "douban:///search?q=${Uri.encode(cleanQuery)}"
+                }
+                else -> "${config.urlScheme}search?keyword=${Uri.encode(cleanQuery)}"
             }
             
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             
-            Log.d(TAG, "成功跳转到${config.packageName}搜索: $query")
-            Toast.makeText(context, "正在跳转到${getPlatformDisplayName(config.packageName)}", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "成功跳转到${config.packageName}搜索结果页面（使用软件tab一致的URL scheme）: $cleanQuery")
+            Toast.makeText(context, "正在跳转到${getPlatformDisplayName(config.packageName)}搜索结果", Toast.LENGTH_SHORT).show()
             
         } catch (e: Exception) {
             Log.e(TAG, "应用内跳转失败，尝试Web搜索", e)
@@ -167,17 +192,43 @@ class PlatformJumpManager(private val context: Context) {
     }
     
     /**
+     * 清理查询关键词，优化搜索效果
+     */
+    private fun cleanQueryForSearch(query: String): String {
+        return query.trim()
+            .replace(Regex("[\\[\\](){}【】（）]"), "") // 移除括号
+            .replace(Regex("[，。！？,。!?]"), " ") // 替换标点为空格
+            .replace(Regex("\\s+"), " ") // 合并多个空格
+            .trim()
+    }
+    
+    /**
      * 跳转到Web搜索
+     * 使用清理后的查询关键词
      */
     private fun jumpToWebSearch(config: PlatformConfig, query: String) {
         try {
-            val searchUrl = config.searchUrl.format(Uri.encode(query))
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl))
+            // 清理查询关键词
+            val cleanQuery = cleanQueryForSearch(query)
+            
+            // 构建Web搜索结果页面URL - 使用与软件tab一致的URL scheme
+            val webSearchUrl = when (config.packageName) {
+                "com.ss.android.ugc.aweme" -> "https://www.douyin.com/search/${Uri.encode(cleanQuery)}"
+                "com.xingin.xhs" -> "https://www.xiaohongshu.com/search_result?keyword=${Uri.encode(cleanQuery)}"
+                "com.google.android.youtube" -> "https://www.youtube.com/results?search_query=${Uri.encode(cleanQuery)}"
+                "tv.danmaku.bili" -> "https://search.bilibili.com/all?keyword=${Uri.encode(cleanQuery)}"
+                "com.smile.gifmaker" -> "https://www.kuaishou.com/search/video?searchKey=${Uri.encode(cleanQuery)}"
+                "com.sina.weibo" -> "https://s.weibo.com/weibo/${Uri.encode(cleanQuery)}"
+                "com.douban.frodo" -> "https://www.douban.com/search?q=${Uri.encode(cleanQuery)}"
+                else -> config.searchUrl.format(Uri.encode(cleanQuery))
+            }
+            
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(webSearchUrl))
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
             
-            Log.d(TAG, "成功跳转到Web搜索: $searchUrl")
-            Toast.makeText(context, "正在跳转到${getPlatformDisplayName(config.packageName)}网页版", Toast.LENGTH_SHORT).show()
+            Log.d(TAG, "成功跳转到${config.packageName} Web搜索结果页面（使用软件tab一致的URL scheme）: $cleanQuery")
+            Toast.makeText(context, "已通过网页搜索跳转到${getPlatformDisplayName(config.packageName)}搜索结果", Toast.LENGTH_SHORT).show()
             
         } catch (e: Exception) {
             Log.e(TAG, "Web搜索跳转失败", e)

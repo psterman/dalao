@@ -191,39 +191,8 @@ class ChatMessageAdapter(
             val platformIconsView = PlatformIconsView(itemView.context)
             platformIconsView.showRelevantPlatforms(query)
             
-            // 设置➕号按钮点击回调
-            platformIconsView.onAddPlatformClickListener = {
-                // 跳转到软件tab
-                jumpToSoftwareTab()
-            }
-            
             platformIconsContainer.addView(platformIconsView)
             platformIconsContainer.visibility = View.VISIBLE
-        }
-        
-        /**
-         * 跳转到软件tab
-         */
-        private fun jumpToSoftwareTab() {
-            try {
-                // 使用Intent广播的方式跳转到软件tab
-                val intent = android.content.Intent("com.example.aifloatingball.SWITCH_TO_SOFTWARE_TAB")
-                intent.putExtra("source", "platform_icons_plus")
-                itemView.context.sendBroadcast(intent)
-                android.util.Log.d("ChatMessageAdapter", "发送跳转到软件tab广播")
-            } catch (e: Exception) {
-                android.util.Log.e("ChatMessageAdapter", "跳转到软件tab失败", e)
-                // 备用方案：尝试直接调用Activity方法
-                try {
-                    val context = itemView.context
-                    if (context is android.app.Activity) {
-                        val method = context.javaClass.getMethod("switchToSoftwareTab")
-                        method.invoke(context)
-                    }
-                } catch (e2: Exception) {
-                    android.util.Log.e("ChatMessageAdapter", "备用跳转方案也失败", e2)
-                }
-            }
         }
         
         /**

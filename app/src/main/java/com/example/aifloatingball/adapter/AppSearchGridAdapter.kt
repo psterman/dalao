@@ -818,7 +818,7 @@ class AppSearchGridAdapter(
                     }
                     2 -> {
                         if (appConfig.category == AppCategory.AI) {
-                            // AI应用的AI回复定制功能
+                            // 处理AI回复定制功能
                             val platformName = getPlatformNameFromApp(appConfig)
                             if (platformName != null) {
                                 val customizationManager = PlatformIconCustomizationManager.getInstance(context)
@@ -826,23 +826,20 @@ class AppSearchGridAdapter(
                                 val message = if (isEnabled) "已添加到AI回复" else "已从AI回复中移除"
                                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                             }
-                        } else {
-                            // 非AI应用的自定义分类功能
-                            if (isInstalled) {
-                                addToCustomCategory(appConfig)
-                            } else if (appConfig.category == AppCategory.CUSTOM) {
-                                removeFromCustomCategory(appConfig)
-                            }
+                        } else if (isInstalled) {
+                            addToCustomCategory(appConfig)
+                        } else if (appConfig.category == AppCategory.CUSTOM) {
+                            removeFromCustomCategory(appConfig)
                         }
                     }
-                    3 -> {
-                        // 处理其他菜单项
+                    2 -> {
                         if (isInstalled && appConfig.category != AppCategory.AI) {
                             addToCustomCategory(appConfig)
                         } else if (appConfig.category == AppCategory.CUSTOM) {
                             removeFromCustomCategory(appConfig)
                         }
                     }
+                    3 -> if (appConfig.category == AppCategory.CUSTOM) removeFromCustomCategory(appConfig)
                 }
             }
             .show()
