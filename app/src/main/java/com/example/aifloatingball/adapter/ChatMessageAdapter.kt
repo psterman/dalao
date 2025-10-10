@@ -3,10 +3,12 @@ package com.example.aifloatingball.adapter
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aifloatingball.ChatActivity
 import com.example.aifloatingball.R
+import com.example.aifloatingball.ui.PlatformIconsView
 import com.example.aifloatingball.utils.AdvancedMarkdownRenderer
 import java.text.SimpleDateFormat
 import java.util.*
@@ -137,11 +139,32 @@ class ChatMessageAdapter(
         private val timeText: TextView = itemView.findViewById(R.id.time_text)
         private val messageCard: com.google.android.material.card.MaterialCardView = itemView.findViewById(R.id.message_card)
         private val regenerateButton: TextView = itemView.findViewById(R.id.regenerate_button)
+        private val platformIconsContainer: LinearLayout = itemView.findViewById(R.id.platform_icons_container)
 
         fun bind(message: ChatActivity.ChatMessage, position: Int) {
-            // 使用高级Markdown渲染器渲染AI回复内容
-            val spannableString = advancedMarkdownRenderer.renderAIResponse(message.content)
-            messageText.text = spannableString
+            // 检查是否包含平台图标标记
+            val hasPlatformIcons = message.content.contains("[PLATFORM_ICONS]")
+            
+            if (hasPlatformIcons) {
+                // 分离内容和平台图标标记
+                val contentParts = message.content.split("[PLATFORM_ICONS]")
+                val actualContent = contentParts[0].trim()
+                
+                // 使用高级Markdown渲染器渲染AI回复内容
+                val spannableString = advancedMarkdownRenderer.renderAIResponse(actualContent)
+                messageText.text = spannableString
+                
+                // 显示平台图标
+                showPlatformIcons(message.userQuery ?: "")
+            } else {
+                // 使用高级Markdown渲染器渲染AI回复内容
+                val spannableString = advancedMarkdownRenderer.renderAIResponse(message.content)
+                messageText.text = spannableString
+                
+                // 隐藏平台图标
+                hidePlatformIcons()
+            }
+            
             timeText.text = formatTime(message.timestamp)
             
             // 设置长按事件
@@ -157,6 +180,58 @@ class ChatMessageAdapter(
             
             // 只有AI消息且不是用户消息时才显示重新生成按钮
             regenerateButton.visibility = if (!message.isFromUser && message.content.isNotEmpty()) View.VISIBLE else View.GONE
+        }
+        
+        /**
+         * 显示平台图标
+         */
+        private fun showPlatformIcons(query: String) {
+            platformIconsContainer.removeAllViews()
+            
+            val platformIconsView = PlatformIconsView(itemView.context)
+            platformIconsView.showRelevantPlatforms(query)
+            
+            // 设置➕号按钮点击回调
+            platformIconsView.onAddPlatformClickListener = {
+                // 跳转到软件tab
+                jumpToSoftwareTab()
+            }
+            
+            platformIconsContainer.addView(platformIconsView)
+            platformIconsContainer.visibility = View.VISIBLE
+        }
+        
+        /**
+         * 跳转到软件tab
+         */
+        private fun jumpToSoftwareTab() {
+            try {
+                // 使用Intent广播的方式跳转到软件tab
+                val intent = android.content.Intent("com.example.aifloatingball.SWITCH_TO_SOFTWARE_TAB")
+                intent.putExtra("source", "platform_icons_plus")
+                itemView.context.sendBroadcast(intent)
+                android.util.Log.d("ChatMessageAdapter", "发送跳转到软件tab广播")
+            } catch (e: Exception) {
+                android.util.Log.e("ChatMessageAdapter", "跳转到软件tab失败", e)
+                // 备用方案：尝试直接调用Activity方法
+                try {
+                    val context = itemView.context
+                    if (context is android.app.Activity) {
+                        val method = context.javaClass.getMethod("switchToSoftwareTab")
+                        method.invoke(context)
+                    }
+                } catch (e2: Exception) {
+                    android.util.Log.e("ChatMessageAdapter", "备用跳转方案也失败", e2)
+                }
+            }
+        }
+        
+        /**
+         * 隐藏平台图标
+         */
+        private fun hidePlatformIcons() {
+            platformIconsContainer.removeAllViews()
+            platformIconsContainer.visibility = View.GONE
         }
 
         private fun formatTime(timestamp: Long): String {

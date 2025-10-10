@@ -653,7 +653,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                             }
 
                             // 添加AI回复占位符
-                            val aiMessage = ChatMessage("正在思考中...", false, System.currentTimeMillis())
+                            val aiMessage = ChatMessage("正在思考中...", false, System.currentTimeMillis(), messageText)
                             messages.add(aiMessage)
                             messageAdapter.updateMessages(messages.toList())
 
@@ -1305,7 +1305,8 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
     data class ChatMessage(
         var content: String,
         val isFromUser: Boolean,
-        val timestamp: Long
+        val timestamp: Long,
+        val userQuery: String? = null // 用户原始查询，用于平台图标显示
     )
 
     /**
@@ -1686,7 +1687,18 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
      */
     private fun cleanAndFormatAIResponse(content: String): String {
         // 使用高级Markdown渲染器进行智能格式化
-        return advancedMarkdownRenderer.getPlainText(content)
+        val formattedContent = advancedMarkdownRenderer.getPlainText(content)
+        
+        // 添加平台图标标记（用于后续在UI中显示）
+        return addPlatformIconsMarker(formattedContent)
+    }
+    
+    /**
+     * 为AI回复添加平台图标标记
+     */
+    private fun addPlatformIconsMarker(content: String): String {
+        // 在内容末尾添加平台图标标记
+        return "$content\n\n[PLATFORM_ICONS]"
     }
     
     /**

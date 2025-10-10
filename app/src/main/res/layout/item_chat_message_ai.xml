@@ -40,6 +40,17 @@
 
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 平台图标区域 -->
+        <LinearLayout
+            android:id="@+id/platform_icons_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginStart="8dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone" />
+
         <!-- 操作按钮区域 -->
         <LinearLayout
             android:layout_width="wrap_content"

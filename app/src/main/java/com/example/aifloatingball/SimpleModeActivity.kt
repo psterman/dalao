@@ -12,6 +12,8 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -104,8 +106,6 @@ import java.util.UUID
 import kotlinx.coroutines.TimeoutCancellationException
 import java.net.HttpURLConnection
 import java.net.URL
-import android.content.BroadcastReceiver
-import android.content.IntentFilter
 
 import com.example.aifloatingball.service.SimpleModeService
 import com.example.aifloatingball.service.FloatingWindowService
@@ -576,11 +576,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var viewSearchHistoryItem: LinearLayout
     private lateinit var onboardingGuideItem: LinearLayout
     private lateinit var appVersionText: TextView
+    private lateinit var tabSwitchBroadcastReceiver: BroadcastReceiver
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         Log.d(TAG, "onCreate called")
+
+        // 注册广播接收器
+        registerTabSwitchBroadcastReceiver()
 
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
@@ -5313,6 +5317,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         Log.d(TAG, "Activity正在销毁，清理所有资源")
 
+        // 注销广播接收器
+        unregisterTabSwitchBroadcastReceiver()
+
         // 立即清理所有延迟任务，防止在Activity销毁后执行
         try {
             handler.removeCallbacksAndMessages(null)
@@ -9145,7 +9152,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
                         // 更新联系人的最后消息
                         runOnUiThread {
-                            updateContactLastMessage(aiContact, response)
+                            val formattedResponse = formatAIResponseWithPlatformIcons(response, query)
+                            updateContactLastMessage(aiContact, formattedResponse)
                         }
                     } else {
                         // 没有API密钥，使用模拟回复
@@ -9841,6 +9849,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         }
     }
     
+    /**
+     * 格式化AI回复并添加平台图标标记
+     */
+    private fun formatAIResponseWithPlatformIcons(response: String, query: String): String {
+        // 清理和格式化AI回复
+        val cleanedResponse = response
+            .replace("```", "") // 移除代码块标记
+            .replace("**", "") // 移除粗体标记
+            .replace("*", "") // 移除斜体标记
+            .replace("#", "") // 移除标题标记
+            .replace("`", "") // 移除行内代码标记
+            .replace("---", "—") // 替换分隔线
+            .replace("###", "•") // 替换三级标题为项目符号
+            .replace("##", "•") // 替换二级标题为项目符号
+            .replace("#", "•") // 替换一级标题为项目符号
+            .replace("\n\n\n", "\n\n") // 减少多余空行
+            .replace("\\n", "\n") // 处理转义换行符
+            .trim()
+        
+        // 添加平台图标标记
+        return "$cleanedResponse\n\n[PLATFORM_ICONS]"
+    }
+
     /**
      * 更新联系人的最后消息
      */
@@ -17676,6 +17707,57 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             3 -> showVoice()
             4 -> showAppSearch()
             5 -> showSettings()
+        }
+    }
+
+    /**
+     * 注册tab切换广播接收器
+     */
+    private fun registerTabSwitchBroadcastReceiver() {
+        tabSwitchBroadcastReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == "com.example.aifloatingball.SWITCH_TO_SOFTWARE_TAB") {
+                    Log.d(TAG, "收到切换到软件tab广播")
+                    runOnUiThread {
+                        switchToSoftwareTab()
+                    }
+                }
+            }
+        }
+        
+        val filter = IntentFilter("com.example.aifloatingball.SWITCH_TO_SOFTWARE_TAB")
+        
+        // Android 13+ 需要指定RECEIVER_NOT_EXPORTED标志
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(tabSwitchBroadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(tabSwitchBroadcastReceiver, filter)
+        }
+        
+        Log.d(TAG, "已注册tab切换广播接收器")
+    }
+    
+    /**
+     * 注销广播接收器
+     */
+    private fun unregisterTabSwitchBroadcastReceiver() {
+        try {
+            unregisterReceiver(tabSwitchBroadcastReceiver)
+            Log.d(TAG, "已注销tab切换广播接收器")
+        } catch (e: Exception) {
+            Log.e(TAG, "注销广播接收器失败", e)
+        }
+    }
+
+    /**
+     * 切换到软件tab
+     */
+    fun switchToSoftwareTab() {
+        try {
+            Log.d(TAG, "切换到软件tab")
+            showAppSearch()
+        } catch (e: Exception) {
+            Log.e(TAG, "切换到软件tab失败", e)
         }
     }
 
