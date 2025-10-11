@@ -129,7 +129,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
 
             <!-- Manus -->
             <LinearLayout
@@ -170,6 +171,7 @@
                 android:gravity="center"
                 android:padding="6dp"
                 android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
                 android:clickable="true"
                 android:focusable="true">
 
@@ -186,6 +188,400 @@
                     android:text="纳米AI"
                     android:textColor="#FF000000"
                     android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- DeepSeek -->
+            <LinearLayout
+                android:id="@+id/ai_menu_deepseek"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_deepseek_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_deepseek"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="DeepSeek"
+                    android:textColor="#FF000000"
+                    android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第三行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- 豆包 -->
+            <LinearLayout
+                android:id="@+id/ai_menu_doubao"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_doubao_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_doubao"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="豆包"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- ChatGPT -->
+            <LinearLayout
+                android:id="@+id/ai_menu_chatgpt"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_chatgpt_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_chatgpt"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ChatGPT"
+                    android:textColor="#FF000000"
+                    android:textSize="7sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- Kimi -->
+            <LinearLayout
+                android:id="@+id/ai_menu_kimi"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_kimi_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_kimi"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Kimi"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第四行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- 腾讯元宝 -->
+            <LinearLayout
+                android:id="@+id/ai_menu_yuanbao"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_yuanbao_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_yuanbao"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="元宝"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- 讯飞星火 -->
+            <LinearLayout
+                android:id="@+id/ai_menu_xinghuo"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_xinghuo_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_xinghuo"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="星火"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- 智谱清言 -->
+            <LinearLayout
+                android:id="@+id/ai_menu_qingyan"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_qingyan_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_zhipu_qingyan"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="清言"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第五行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="6dp">
+
+            <!-- 通义千问 -->
+            <LinearLayout
+                android:id="@+id/ai_menu_tongyi"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_tongyi_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_tongyi"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="千问"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- 文小言 -->
+            <LinearLayout
+                android:id="@+id/ai_menu_wenxiaoyan"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_wenxiaoyan_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_wenxiaoyan"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="小言"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- 秘塔AI搜索 -->
+            <LinearLayout
+                android:id="@+id/ai_menu_metaso"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_metaso_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_mita_ai"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="秘塔"
+                    android:textColor="#FF000000"
+                    android:textSize="9sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第六行 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <!-- Gemini -->
+            <LinearLayout
+                android:id="@+id/ai_menu_gemini"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:layout_marginEnd="6dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_gemini_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_gemini"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Gemini"
+                    android:textColor="#FF000000"
+                    android:textSize="8sp"
+                    android:layout_marginTop="2dp" />
+
+            </LinearLayout>
+
+            <!-- Copilot -->
+            <LinearLayout
+                android:id="@+id/ai_menu_copilot"
+                android:layout_width="55dp"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="6dp"
+                android:background="@drawable/ai_overlay_button_background"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/ai_menu_copilot_icon"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:src="@drawable/ic_copilot"
+                    android:scaleType="centerInside" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Copilot"
+                    android:textColor="#FF000000"
+                    android:textSize="8sp"
                     android:layout_marginTop="2dp" />
 
             </LinearLayout>

@@ -60,6 +60,26 @@ class AIAppOverlayService : Service() {
     
     // 剪贴板监听器
     private var clipboardListener: ClipboardManager.OnPrimaryClipChangedListener? = null
+    
+    // 应用切换监听相关
+    private var usageStatsManager: android.app.usage.UsageStatsManager? = null
+    private var appSwitchHandler: android.os.Handler? = null
+    private var appSwitchRunnable: Runnable? = null
+    private var currentPackageName: String? = null
+    private var isAppSwitchMonitoringEnabled = true
+    
+    // 无限循环跳转状态管理
+    private var lastSwitchTime: Long = 0
+    private var switchCount: Int = 0
+    private var maxSwitchCount: Int = 50 // 最大跳转次数，防止无限循环
+    private var switchCooldown: Long = 1000 // 跳转冷却时间，防止频繁切换
+    
+    // 智能弹出时机管理
+    private var targetPackageName: String? = null
+    private var overlayShowAttempts: Int = 0
+    private var maxShowAttempts: Int = 5 // 最大尝试次数
+    private var overlayShowHandler: android.os.Handler? = null
+    private var overlayShowRunnable: Runnable? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -185,6 +205,9 @@ class AIAppOverlayService : Service() {
             
             // 注册剪贴板监听器
             registerClipboardListener()
+            
+            // 启动应用切换监听
+            initAppSwitchListener()
             
             // 立即更新一次剪贴板预览（确保初始状态正确）
             // android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
@@ -403,6 +426,9 @@ class AIAppOverlayService : Service() {
             // 取消注册剪贴板监听器
             unregisterClipboardListener()
 
+            // 停止应用切换监听
+            stopAppSwitchMonitoring()
+
             // 同时隐藏AI菜单
             hideAIMenu()
 
@@ -505,11 +531,26 @@ class AIAppOverlayService : Service() {
 
         // 定义所有AI菜单项的配置
         val aiMenuConfigs = listOf(
+            // 主流AI应用
             Triple(R.id.ai_menu_grok, "ai.x.grok", "Grok"),
             Triple(R.id.ai_menu_perplexity, "ai.perplexity.app.android", "Perplexity"),
             Triple(R.id.ai_menu_poe, "com.poe.android", "Poe"),
             Triple(R.id.ai_menu_manus, "tech.butterfly.app", "Manus"),
-            Triple(R.id.ai_menu_ima, "com.qihoo.namiso", "纳米AI")
+            Triple(R.id.ai_menu_ima, "com.qihoo.namiso", "纳米AI"),
+            
+            // 扩展更多AI应用以支持软件tab中的所有应用
+            Triple(R.id.ai_menu_deepseek, "com.deepseek.chat", "DeepSeek"),
+            Triple(R.id.ai_menu_doubao, "com.larus.nova", "豆包"),
+            Triple(R.id.ai_menu_chatgpt, "com.openai.chatgpt", "ChatGPT"),
+            Triple(R.id.ai_menu_kimi, "com.moonshot.kimichat", "Kimi"),
+            Triple(R.id.ai_menu_yuanbao, "com.tencent.hunyuan.app.chat", "腾讯元宝"),
+            Triple(R.id.ai_menu_xinghuo, "com.iflytek.spark", "讯飞星火"),
+            Triple(R.id.ai_menu_qingyan, "com.zhipuai.qingyan", "智谱清言"),
+            Triple(R.id.ai_menu_tongyi, "com.aliyun.tongyi", "通义千问"),
+            Triple(R.id.ai_menu_wenxiaoyan, "com.baidu.newapp", "文小言"),
+            Triple(R.id.ai_menu_metaso, "com.metaso", "秘塔AI搜索"),
+            Triple(R.id.ai_menu_gemini, "com.google.android.apps.gemini", "Gemini"),
+            Triple(R.id.ai_menu_copilot, "com.microsoft.copilot", "Copilot")
         )
 
         // 为每个菜单项设置点击事件
@@ -549,11 +590,14 @@ class AIAppOverlayService : Service() {
 
     /**
      * 启动AI应用
-     * 使用与PlatformJumpManager相同的跳转逻辑
+     * 使用与PlatformJumpManager相同的跳转逻辑，支持无限循环跳转
      */
     private fun launchAIApp(packageName: String, appName: String) {
         try {
-            Log.d(TAG, "启动AI应用: $appName, 包名: $packageName, 查询: $query")
+            Log.d(TAG, "🚀 启动AI应用: $appName, 包名: $packageName, 查询: $query")
+            
+            // 重置无限循环跳转状态，开始新的跳转循环
+            resetSwitchState()
             
             // 使用与PlatformJumpManager相同的跳转逻辑
             
@@ -568,7 +612,7 @@ class AIAppOverlayService : Service() {
             launchAIAppWithAutoPaste(packageName, query, appName)
             
         } catch (e: Exception) {
-            Log.e(TAG, "启动${appName} 失败", e)
+            Log.e(TAG, "❌ 启动${appName} 失败", e)
             Toast.makeText(this, "启动${appName} 失败", Toast.LENGTH_SHORT).show()
         }
     }
@@ -612,10 +656,8 @@ class AIAppOverlayService : Service() {
                 hideOverlay()
                 hideAIMenu()
                 
-                // 延迟显示悬浮窗
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    restartOverlayForApp(packageName, appName)
-                }, 2000)
+                // 使用智能弹出时机检测
+                startSmartOverlayShow(packageName, appName)
                 
                 return true
             }
@@ -654,10 +696,8 @@ class AIAppOverlayService : Service() {
                 hideOverlay()
                 hideAIMenu()
                 
-                // 延迟显示悬浮窗
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    restartOverlayForApp(packageName, appName)
-                }, 2000)
+                // 使用智能弹出时机检测
+                startSmartOverlayShow(packageName, appName)
                 
             } else {
                 Toast.makeText(this, "无法启动${appName}，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
@@ -669,20 +709,174 @@ class AIAppOverlayService : Service() {
     }
 
     /**
+     * 智能弹出时机检测
+     * 基于应用启动状态和多重保障机制
+     */
+    private fun startSmartOverlayShow(packageName: String, appName: String) {
+        try {
+            Log.d(TAG, "🎯 开始智能弹出时机检测: $appName")
+            
+            // 设置目标包名
+            targetPackageName = packageName
+            
+            // 重置尝试次数
+            overlayShowAttempts = 0
+            
+            // 初始化Handler
+            if (overlayShowHandler == null) {
+                overlayShowHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            }
+            
+            // 取消之前的任务
+            overlayShowRunnable?.let { runnable ->
+                overlayShowHandler?.removeCallbacks(runnable)
+            }
+            
+            // 开始智能检测
+            startIntelligentDetection(packageName, appName)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 智能弹出时机检测失败", e)
+            // 回退到传统延迟方式
+            fallbackToDelayedShow(packageName, appName)
+        }
+    }
+    
+    /**
+     * 开始智能检测
+     */
+    private fun startIntelligentDetection(packageName: String, appName: String) {
+        overlayShowRunnable = object : Runnable {
+            override fun run() {
+                if (overlayShowAttempts >= maxShowAttempts) {
+                    Log.w(TAG, "⚠️ 达到最大尝试次数，回退到传统方式")
+                    fallbackToDelayedShow(packageName, appName)
+                    return
+                }
+                
+                overlayShowAttempts++
+                Log.d(TAG, "🔍 第${overlayShowAttempts}次检测应用启动状态: $appName")
+                
+                // 检测应用是否在前台
+                if (isAppInForeground(packageName)) {
+                    Log.d(TAG, "✅ 检测到应用已在前台，立即显示悬浮窗")
+                    restartOverlayForApp(packageName, appName)
+                    return
+                }
+                
+                // 检测应用是否已启动（通过包名存在性）
+                if (isAppRunning(packageName)) {
+                    Log.d(TAG, "✅ 检测到应用已启动，延迟500ms显示悬浮窗")
+                    overlayShowHandler?.postDelayed({
+                        restartOverlayForApp(packageName, appName)
+                    }, 500)
+                    return
+                }
+                
+                // 继续检测
+                val delay = when (overlayShowAttempts) {
+                    1 -> 500L   // 第一次检测：500ms
+                    2 -> 1000L  // 第二次检测：1s
+                    3 -> 1500L  // 第三次检测：1.5s
+                    else -> 2000L // 后续检测：2s
+                }
+                
+                Log.d(TAG, "⏰ 应用未启动，${delay}ms后重试")
+                overlayShowHandler?.postDelayed(this, delay)
+            }
+        }
+        
+        // 立即开始第一次检测
+        overlayShowHandler?.post(overlayShowRunnable!!)
+    }
+    
+    /**
+     * 检测应用是否在前台
+     */
+    private fun isAppInForeground(packageName: String): Boolean {
+        return try {
+            val currentApp = getCurrentAppPackageName()
+            val isForeground = currentApp == packageName
+            Log.d(TAG, "🔍 前台检测: $packageName, 当前应用: $currentApp, 结果: $isForeground")
+            isForeground
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 前台检测失败", e)
+            false
+        }
+    }
+    
+    /**
+     * 检测应用是否正在运行
+     */
+    private fun isAppRunning(packageName: String): Boolean {
+        return try {
+            val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val runningApps = activityManager.runningAppProcesses
+            
+            val isRunning = runningApps?.any { it.processName == packageName } == true
+            Log.d(TAG, "🔍 运行检测: $packageName, 结果: $isRunning")
+            isRunning
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 运行检测失败", e)
+            false
+        }
+    }
+    
+    /**
+     * 回退到传统延迟方式
+     * 提供多重保障机制
+     */
+    private fun fallbackToDelayedShow(packageName: String, appName: String) {
+        Log.d(TAG, "🔄 回退到传统延迟方式: $appName")
+        
+        // 保障机制1：立即尝试显示
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            Log.d(TAG, "🔄 保障机制1：立即尝试显示悬浮窗")
+            restartOverlayForApp(packageName, appName)
+        }, 500)
+        
+        // 保障机制2：延迟1秒再次尝试
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            Log.d(TAG, "🔄 保障机制2：延迟1秒再次尝试")
+            if (!isOverlayVisible) {
+                restartOverlayForApp(packageName, appName)
+            }
+        }, 1000)
+        
+        // 保障机制3：延迟2秒最后尝试
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            Log.d(TAG, "🔄 保障机制3：延迟2秒最后尝试")
+            if (!isOverlayVisible) {
+                restartOverlayForApp(packageName, appName)
+            }
+        }, 2000)
+    }
+
+    /**
      * 重新启动悬浮窗为指定应用
+     * 支持无限循环跳转功能
      */
     private fun restartOverlayForApp(packageName: String, appName: String) {
         try {
+            Log.d(TAG, "🔄 重新启动悬浮窗为${appName}，支持无限循环跳转")
+            
             // 更新当前服务的应用信息
             this.packageName = packageName
             this.appName = appName
-
+            
+            // 确保当前应用切换监听处于活跃状态
+            if (!isAppSwitchMonitoringEnabled) {
+                Log.d(TAG, "重新启用应用切换监听")
+                isAppSwitchMonitoringEnabled = true
+                initAppSwitchListener()
+            }
+            
             // 重新显示悬浮窗
             showOverlay()
 
-            Log.d(TAG, "为${appName} 重新显示悬浮窗")
+            Log.d(TAG, "✅ 为${appName} 重新显示悬浮窗成功，无限循环跳转已启用")
         } catch (e: Exception) {
-            Log.e(TAG, "为${appName} 重新显示悬浮窗失败", e)
+            Log.e(TAG, "❌ 为${appName} 重新显示悬浮窗失败", e)
         }
     }
 
@@ -693,11 +887,26 @@ class AIAppOverlayService : Service() {
         CoroutineScope(Dispatchers.Main).launch {
             // AI应用配置
             val aiApps = listOf(
+                // 主流AI应用
                 Triple("ai.x.grok", "Grok", R.id.ai_menu_grok_icon),
                 Triple("ai.perplexity.app.android", "Perplexity", R.id.ai_menu_perplexity_icon),
                 Triple("com.poe.android", "Poe", R.id.ai_menu_poe_icon),
                 Triple("tech.butterfly.app", "Manus", R.id.ai_menu_manus_icon),
-                Triple("com.qihoo.namiso", "纳米AI", R.id.ai_menu_ima_icon)
+                Triple("com.qihoo.namiso", "纳米AI", R.id.ai_menu_ima_icon),
+                
+                // 扩展更多AI应用
+                Triple("com.deepseek.chat", "DeepSeek", R.id.ai_menu_deepseek_icon),
+                Triple("com.larus.nova", "豆包", R.id.ai_menu_doubao_icon),
+                Triple("com.openai.chatgpt", "ChatGPT", R.id.ai_menu_chatgpt_icon),
+                Triple("com.moonshot.kimichat", "Kimi", R.id.ai_menu_kimi_icon),
+                Triple("com.tencent.hunyuan.app.chat", "腾讯元宝", R.id.ai_menu_yuanbao_icon),
+                Triple("com.iflytek.spark", "讯飞星火", R.id.ai_menu_xinghuo_icon),
+                Triple("com.zhipuai.qingyan", "智谱清言", R.id.ai_menu_qingyan_icon),
+                Triple("com.aliyun.tongyi", "通义千问", R.id.ai_menu_tongyi_icon),
+                Triple("com.baidu.newapp", "文小言", R.id.ai_menu_wenxiaoyan_icon),
+                Triple("com.metaso", "秘塔AI搜索", R.id.ai_menu_metaso_icon),
+                Triple("com.google.android.apps.gemini", "Gemini", R.id.ai_menu_gemini_icon),
+                Triple("com.microsoft.copilot", "Copilot", R.id.ai_menu_copilot_icon)
             )
 
             aiApps.forEach { (packageName, appName, iconViewId) ->
@@ -829,6 +1038,15 @@ class AIAppOverlayService : Service() {
         hideOverlay()
         hideAIMenu()
         unregisterClipboardListener()
+        stopAppSwitchMonitoring()
+        
+        // 清理智能弹出时机检测相关资源
+        overlayShowRunnable?.let { runnable ->
+            overlayShowHandler?.removeCallbacks(runnable)
+        }
+        overlayShowHandler = null
+        overlayShowRunnable = null
+        
         Log.d(TAG, "AI应用悬浮窗服务已销毁")
     }
 
@@ -959,11 +1177,26 @@ class AIAppOverlayService : Service() {
         val pm = packageManager
 
         val aiApps = listOf(
+            // 主流AI应用
             "ai.x.grok" to "Grok",
             "ai.perplexity.app.android" to "Perplexity",
             "com.poe.android" to "Poe",
             "tech.butterfly.app" to "Manus",
-            "com.tencent.ima" to "IMA"
+            "com.qihoo.namiso" to "纳米AI",
+            
+            // 扩展更多AI应用以支持软件tab中的所有应用
+            "com.deepseek.chat" to "DeepSeek",
+            "com.larus.nova" to "豆包",
+            "com.openai.chatgpt" to "ChatGPT",
+            "com.moonshot.kimichat" to "Kimi",
+            "com.tencent.hunyuan.app.chat" to "腾讯元宝",
+            "com.iflytek.spark" to "讯飞星火",
+            "com.zhipuai.qingyan" to "智谱清言",
+            "com.aliyun.tongyi" to "通义千问",
+            "com.baidu.newapp" to "文小言",
+            "com.metaso" to "秘塔AI搜索",
+            "com.google.android.apps.gemini" to "Gemini",
+            "com.microsoft.copilot" to "Copilot"
         )
 
         aiApps.forEach { (packageName, appName) ->
@@ -1681,6 +1914,505 @@ class AIAppOverlayService : Service() {
 
         } catch (e: Exception) {
             Log.e(TAG, "返回灵动岛失败", e)
+        }
+    }
+    
+    /**
+     * 初始化应用切换监听器
+     * 包含无限循环跳转状态管理
+     */
+    private fun initAppSwitchListener() {
+        try {
+            usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as android.app.usage.UsageStatsManager
+            appSwitchHandler = android.os.Handler(android.os.Looper.getMainLooper())
+            
+            // 获取当前应用包名
+            currentPackageName = getCurrentAppPackageName()
+            
+            // 重置无限循环跳转状态
+            resetSwitchState()
+            
+            // 启动定期检查
+            startAppSwitchMonitoring()
+            
+            Log.d(TAG, "🔄 AIAppOverlayService应用切换监听器已初始化，当前应用: $currentPackageName，无限循环跳转已启用")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 初始化应用切换监听器失败", e)
+        }
+    }
+    
+    /**
+     * 重置无限循环跳转状态
+     */
+    private fun resetSwitchState() {
+        lastSwitchTime = 0
+        switchCount = 0
+        Log.d(TAG, "🔄 无限循环跳转状态已重置")
+    }
+    
+    /**
+     * 启动应用切换监控
+     * 优化版本，提高检测频率和准确性
+     */
+    private fun startAppSwitchMonitoring() {
+        if (!isAppSwitchMonitoringEnabled) return
+        
+        appSwitchRunnable = object : Runnable {
+            override fun run() {
+                checkAppSwitch()
+                // 提高检测频率：每500ms检查一次
+                appSwitchHandler?.postDelayed(this, 500)
+            }
+        }
+        appSwitchHandler?.post(appSwitchRunnable!!)
+    }
+    
+    /**
+     * 停止应用切换监控
+     */
+    private fun stopAppSwitchMonitoring() {
+        try {
+            appSwitchRunnable?.let { runnable ->
+                appSwitchHandler?.removeCallbacks(runnable)
+            }
+            appSwitchRunnable = null
+            Log.d(TAG, "AIAppOverlayService应用切换监听已停止")
+        } catch (e: Exception) {
+            Log.e(TAG, "停止应用切换监听失败", e)
+        }
+    }
+    
+    /**
+     * 检查应用切换
+     * 支持无限循环跳转功能，包含状态管理和防重复显示机制
+     */
+    private fun checkAppSwitch() {
+        if (!isAppSwitchMonitoringEnabled || !isOverlayVisible) return
+        
+        try {
+            val newPackageName = getCurrentAppPackageName()
+            
+            // 如果包名发生变化，说明用户切换了应用
+            if (newPackageName != null && newPackageName != currentPackageName) {
+                val currentTime = System.currentTimeMillis()
+                
+                // 检查冷却时间，防止频繁切换
+                if (currentTime - lastSwitchTime < switchCooldown) {
+                    Log.d(TAG, "⏰ 应用切换冷却中，跳过: $currentPackageName -> $newPackageName")
+                    return
+                }
+                
+                // 检查最大跳转次数，防止无限循环
+                if (switchCount >= maxSwitchCount) {
+                    Log.d(TAG, "⚠️ 已达到最大跳转次数 ($maxSwitchCount)，停止无限循环跳转")
+                    Toast.makeText(this, "已达到最大跳转次数，请手动重启服务", Toast.LENGTH_LONG).show()
+                    return
+                }
+                
+                Log.d(TAG, "🔄 AIAppOverlayService检测到应用切换: $currentPackageName -> $newPackageName (第${switchCount + 1}次)")
+                
+                // 检查是否切换到了支持的应用（所有应用都支持无限循环跳转）
+                if (isSupportedPackage(newPackageName)) {
+                    Log.d(TAG, "✅ 检测到切换到支持的应用: $newPackageName，重新显示悬浮窗（无限循环跳转）")
+                    
+                    // 更新状态管理变量
+                    lastSwitchTime = currentTime
+                    switchCount++
+                    
+                    // 更新当前包名和应用信息
+                    packageName = newPackageName
+                    appName = getAppNameFromPackage(newPackageName)
+                    
+                    // 重新显示悬浮窗，支持无限循环
+                    hideOverlay()
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        showOverlay()
+                        Log.d(TAG, "🔄 悬浮窗已重新显示，支持无限循环跳转到: $appName (第${switchCount}次跳转)")
+                    }, 500) // 延迟500ms重新显示
+                } else {
+                    Log.d(TAG, "⚠️ 切换到不支持的应用: $newPackageName，保持悬浮窗显示")
+                }
+                
+                currentPackageName = newPackageName
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 检查应用切换失败", e)
+        }
+    }
+    
+    /**
+     * 获取当前前台应用的包名
+     * 增强版本，提高检测准确性和响应速度
+     */
+    private fun getCurrentAppPackageName(): String? {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                val time = System.currentTimeMillis()
+                
+                // 使用更短的时间间隔提高响应速度
+                val usageStats = usageStatsManager?.queryUsageStats(
+                    android.app.usage.UsageStatsManager.INTERVAL_DAILY,
+                    time - 1000, // 缩短到1秒，提高响应速度
+                    time
+                )
+                
+                // 获取最近使用的应用
+                val currentApp = usageStats?.maxByOrNull { it.lastTimeUsed }
+                
+                if (currentApp != null) {
+                    Log.d(TAG, "🔍 检测到当前应用: ${currentApp.packageName}, 最后使用时间: ${currentApp.lastTimeUsed}")
+                    currentApp.packageName
+                } else {
+                    Log.d(TAG, "⚠️ 未检测到当前应用")
+                    null
+                }
+            } else {
+                Log.d(TAG, "⚠️ Android版本过低，不支持UsageStats")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 获取当前应用包名失败", e)
+            null
+        }
+    }
+    
+    /**
+     * 检查是否是支持的应用包名（支持所有应用，实现无限循环跳转）
+     * 优化版本，确保无限循环跳转的稳定性
+     */
+    private fun isSupportedPackage(packageName: String): Boolean {
+        // 排除一些系统应用和启动器，避免干扰无限循环跳转
+        val excludedPackages = listOf(
+            "com.android.systemui", // 系统UI
+            "com.android.launcher3", // 启动器
+            "com.android.launcher", // 启动器
+            "com.miui.home", // MIUI启动器
+            "com.huawei.android.launcher", // 华为启动器
+            "com.oppo.launcher", // OPPO启动器
+            "com.vivo.launcher", // VIVO启动器
+            "com.samsung.android.launcher", // 三星启动器
+            "com.android.packageinstaller", // 包安装器
+            "com.android.vending", // Google Play
+            "com.android.providers.downloads", // 下载管理器
+            "com.android.settings", // 设置（可选排除）
+            "com.android.keychain", // 密钥链
+            "com.android.providers.media", // 媒体提供者
+            "com.android.providers.contacts", // 联系人提供者
+            "com.android.providers.calendar", // 日历提供者
+            "com.android.providers.telephony", // 电话提供者
+            "com.android.providers.settings", // 设置提供者
+            "com.android.providers.userdictionary", // 用户字典提供者
+            "com.android.providers.blockednumber", // 阻止号码提供者
+            "com.android.providers.downloads.ui", // 下载UI
+            "com.android.providers.media.module", // 媒体模块
+            "com.android.providers.contacts.module", // 联系人模块
+            "com.android.providers.calendar.module", // 日历模块
+            "com.android.providers.telephony.module", // 电话模块
+            "com.android.providers.settings.module", // 设置模块
+            "com.android.providers.userdictionary.module", // 用户字典模块
+            "com.android.providers.blockednumber.module", // 阻止号码模块
+        )
+        
+        // 如果是不支持的系统应用，返回false
+        if (excludedPackages.contains(packageName)) {
+            Log.d(TAG, "⚠️ 应用 $packageName 被排除，不支持无限循环跳转")
+            return false
+        }
+        
+        // 其他所有应用都支持悬浮窗和无限循环跳转
+        Log.d(TAG, "✅ 应用 $packageName 支持无限循环跳转")
+        return true
+    }
+    
+    /**
+     * 检查是否是AI应用包名
+     */
+    private fun isAIPackage(packageName: String): Boolean {
+        val aiPackages = listOf(
+            // 自己的应用
+            "com.example.aifloatingball",
+            
+            // 主流AI应用
+            "com.openai.chatgpt", // ChatGPT
+            "com.anthropic.claude", // Claude
+            "com.google.android.apps.bard", // Bard/Gemini
+            "com.baidu.wenxin", // 文心一言
+            "com.alibaba.dingtalk", // 钉钉（通义千问）
+            "com.iflytek.voiceassistant", // 讯飞星火
+            "com.moonshot.kimi", // Kimi
+            "com.zhipuai.zhipu", // 智谱AI
+            "com.deepseek.deepseek", // DeepSeek
+            
+            // 其他AI相关应用
+            "com.microsoft.cortana", // Cortana
+            "com.amazon.alexa", // Alexa
+            "com.samsung.bixby", // Bixby
+            "com.huawei.hiaiserver", // 小艺
+            "com.xiaomi.miui.voiceassistant", // 小爱同学
+            "com.oppo.voiceassistant", // Breeno
+            "com.vivo.voiceassistant", // Jovi
+            
+            // 聊天应用
+            "com.tencent.mm", // 微信
+            "com.tencent.mobileqq", // QQ
+            "com.alibaba.android.rimet", // 钉钉
+            "com.tencent.wework", // 企业微信
+            "com.skype.raider", // Skype
+            "com.whatsapp", // WhatsApp
+            "com.telegram.messenger", // Telegram
+            "com.discord", // Discord
+            "com.slack.android", // Slack
+            
+            // 浏览器应用
+            "com.android.chrome", // Chrome
+            "com.UCMobile", // UC浏览器
+            "com.tencent.mtt", // QQ浏览器
+            "com.baidu.browser.apps", // 百度浏览器
+            "com.qihoo.browser", // 360浏览器
+            "com.sogou.mobile.explorer", // 搜狗浏览器
+            "com.opera.browser", // Opera
+            "org.mozilla.firefox", // Firefox
+            "com.microsoft.emmx", // Edge
+            
+            // 笔记和办公应用
+            "com.evernote", // Evernote
+            "com.notion.id", // Notion
+            "com.microsoft.office.officehub", // Office
+            "com.google.android.apps.docs", // Google Docs
+            "com.google.android.apps.sheets", // Google Sheets
+            "com.google.android.apps.slides", // Google Slides
+            "com.wps.moffice_eng", // WPS Office
+            "com.kingsoft.moffice_pro", // 金山办公
+            
+            // 社交媒体应用
+            "com.ss.android.ugc.aweme", // 抖音
+            "com.sina.weibo", // 微博
+            "com.zhihu.android", // 知乎
+            "com.xingin.xhs", // 小红书
+            "com.ss.android.ugc.live", // 快手
+            "com.tencent.news", // 腾讯新闻
+            "com.netease.newsreader.activity", // 网易新闻
+            "com.sohu.newsclient", // 搜狐新闻
+            
+            // 学习和教育应用
+            "com.xueersi.parentsmeeting", // 学而思
+            "com.tencent.edu", // 腾讯课堂
+            "com.zhongxue.app", // 作业帮
+            "com.baidu.homework", // 百度作业
+            "com.yuanfudao.student", // 猿辅导
+            
+            // 购物应用
+            "com.taobao.taobao", // 淘宝
+            "com.tmall.wireless", // 天猫
+            "com.jingdong.app.mall", // 京东
+            "com.pinduoduo", // 拼多多
+            "com.suning.mobile.ebuy", // 苏宁易购
+            
+            // 视频应用
+            "com.tencent.qqlive", // 腾讯视频
+            "com.iqiyi.hd", // 爱奇艺
+            "com.youku.phone", // 优酷
+            "com.bilibili.app.in", // B站
+            "com.ss.android.ugc.aweme", // 抖音
+            
+            // 音乐应用
+            "com.netease.cloudmusic", // 网易云音乐
+            "com.tencent.qqmusic", // QQ音乐
+            "com.kugou.android", // 酷狗音乐
+            "com.kuwo.cn", // 酷我音乐
+            "com.xiami.music", // 虾米音乐
+            
+            // 地图和出行应用
+            "com.autonavi.minimap", // 高德地图
+            "com.baidu.BaiduMap", // 百度地图
+            "com.tencent.map", // 腾讯地图
+            "com.didi.global", // 滴滴出行
+            "com.ubercab", // Uber
+            
+            // 金融应用
+            "com.eg.android.AlipayGphone", // 支付宝
+            "com.tencent.mm", // 微信支付
+            "com.icbc", // 工商银行
+            "com.ccb.ccbnetpay", // 建设银行
+            "com.abchina.wallet", // 农业银行
+            
+            // 工具应用
+            "com.adobe.reader", // Adobe Reader
+            "com.microsoft.office.outlook", // Outlook
+            "com.google.android.gm", // Gmail
+            "com.android.email", // 邮件
+            "com.android.calendar", // 日历
+            "com.android.contacts", // 联系人
+            "com.android.mms", // 短信
+            "com.android.dialer", // 电话
+            
+            // 游戏应用（部分主流游戏）
+            "com.tencent.tmgp.sgame", // 王者荣耀
+            "com.tencent.tmgp.pubgmhd", // 和平精英
+            "com.miHoYo.GenshinImpact", // 原神
+            "com.netease.hyxd", // 荒野行动
+            "com.supercell.clashofclans", // 部落冲突
+            "com.supercell.clashroyale", // 皇室战争
+            
+            // 系统应用
+            "com.android.settings", // 设置
+            "com.android.launcher3", // 启动器
+            "com.android.systemui", // 系统UI
+            "com.android.packageinstaller", // 包安装器
+            "com.android.vending", // Google Play
+            "com.android.providers.downloads", // 下载管理器
+        )
+        return aiPackages.contains(packageName)
+    }
+    
+    /**
+     * 根据包名获取应用名称
+     */
+    private fun getAppNameFromPackage(packageName: String): String {
+        return when (packageName) {
+            // 自己的应用
+            "com.example.aifloatingball" -> "AI悬浮球"
+            
+            // 主流AI应用
+            "com.openai.chatgpt" -> "ChatGPT"
+            "com.anthropic.claude" -> "Claude"
+            "com.google.android.apps.bard" -> "Gemini"
+            "com.baidu.wenxin" -> "文心一言"
+            "com.alibaba.dingtalk" -> "通义千问"
+            "com.iflytek.voiceassistant" -> "讯飞星火"
+            "com.moonshot.kimi" -> "Kimi"
+            "com.zhipuai.zhipu" -> "智谱AI"
+            "com.deepseek.deepseek" -> "DeepSeek"
+            
+            // 其他AI相关应用
+            "com.microsoft.cortana" -> "Cortana"
+            "com.amazon.alexa" -> "Alexa"
+            "com.samsung.bixby" -> "Bixby"
+            "com.huawei.hiaiserver" -> "小艺"
+            "com.xiaomi.miui.voiceassistant" -> "小爱同学"
+            "com.oppo.voiceassistant" -> "Breeno"
+            "com.vivo.voiceassistant" -> "Jovi"
+            
+            // 聊天应用
+            "com.tencent.mm" -> "微信"
+            "com.tencent.mobileqq" -> "QQ"
+            "com.alibaba.android.rimet" -> "钉钉"
+            "com.tencent.wework" -> "企业微信"
+            "com.skype.raider" -> "Skype"
+            "com.whatsapp" -> "WhatsApp"
+            "com.telegram.messenger" -> "Telegram"
+            "com.discord" -> "Discord"
+            "com.slack.android" -> "Slack"
+            
+            // 浏览器应用
+            "com.android.chrome" -> "Chrome"
+            "com.UCMobile" -> "UC浏览器"
+            "com.tencent.mtt" -> "QQ浏览器"
+            "com.baidu.browser.apps" -> "百度浏览器"
+            "com.qihoo.browser" -> "360浏览器"
+            "com.sogou.mobile.explorer" -> "搜狗浏览器"
+            "com.opera.browser" -> "Opera"
+            "org.mozilla.firefox" -> "Firefox"
+            "com.microsoft.emmx" -> "Edge"
+            
+            // 笔记和办公应用
+            "com.evernote" -> "Evernote"
+            "com.notion.id" -> "Notion"
+            "com.microsoft.office.officehub" -> "Office"
+            "com.google.android.apps.docs" -> "Google Docs"
+            "com.google.android.apps.sheets" -> "Google Sheets"
+            "com.google.android.apps.slides" -> "Google Slides"
+            "com.wps.moffice_eng" -> "WPS Office"
+            "com.kingsoft.moffice_pro" -> "金山办公"
+            
+            // 社交媒体应用
+            "com.ss.android.ugc.aweme" -> "抖音"
+            "com.sina.weibo" -> "微博"
+            "com.zhihu.android" -> "知乎"
+            "com.xingin.xhs" -> "小红书"
+            "com.ss.android.ugc.live" -> "快手"
+            "com.tencent.news" -> "腾讯新闻"
+            "com.netease.newsreader.activity" -> "网易新闻"
+            "com.sohu.newsclient" -> "搜狐新闻"
+            
+            // 学习和教育应用
+            "com.xueersi.parentsmeeting" -> "学而思"
+            "com.tencent.edu" -> "腾讯课堂"
+            "com.zhongxue.app" -> "作业帮"
+            "com.baidu.homework" -> "百度作业"
+            "com.yuanfudao.student" -> "猿辅导"
+            
+            // 购物应用
+            "com.taobao.taobao" -> "淘宝"
+            "com.tmall.wireless" -> "天猫"
+            "com.jingdong.app.mall" -> "京东"
+            "com.pinduoduo" -> "拼多多"
+            "com.suning.mobile.ebuy" -> "苏宁易购"
+            
+            // 视频应用
+            "com.tencent.qqlive" -> "腾讯视频"
+            "com.iqiyi.hd" -> "爱奇艺"
+            "com.youku.phone" -> "优酷"
+            "com.bilibili.app.in" -> "B站"
+            
+            // 音乐应用
+            "com.netease.cloudmusic" -> "网易云音乐"
+            "com.tencent.qqmusic" -> "QQ音乐"
+            "com.kugou.android" -> "酷狗音乐"
+            "com.kuwo.cn" -> "酷我音乐"
+            "com.xiami.music" -> "虾米音乐"
+            
+            // 地图和出行应用
+            "com.autonavi.minimap" -> "高德地图"
+            "com.baidu.BaiduMap" -> "百度地图"
+            "com.tencent.map" -> "腾讯地图"
+            "com.didi.global" -> "滴滴出行"
+            "com.ubercab" -> "Uber"
+            
+            // 金融应用
+            "com.eg.android.AlipayGphone" -> "支付宝"
+            "com.icbc" -> "工商银行"
+            "com.ccb.ccbnetpay" -> "建设银行"
+            "com.abchina.wallet" -> "农业银行"
+            
+            // 工具应用
+            "com.adobe.reader" -> "Adobe Reader"
+            "com.microsoft.office.outlook" -> "Outlook"
+            "com.google.android.gm" -> "Gmail"
+            "com.android.email" -> "邮件"
+            "com.android.calendar" -> "日历"
+            "com.android.contacts" -> "联系人"
+            "com.android.mms" -> "短信"
+            "com.android.dialer" -> "电话"
+            
+            // 游戏应用
+            "com.tencent.tmgp.sgame" -> "王者荣耀"
+            "com.tencent.tmgp.pubgmhd" -> "和平精英"
+            "com.miHoYo.GenshinImpact" -> "原神"
+            "com.netease.hyxd" -> "荒野行动"
+            "com.supercell.clashofclans" -> "部落冲突"
+            "com.supercell.clashroyale" -> "皇室战争"
+            
+            // 系统应用
+            "com.android.settings" -> "设置"
+            "com.android.launcher3" -> "启动器"
+            "com.android.systemui" -> "系统UI"
+            "com.android.packageinstaller" -> "包安装器"
+            "com.android.vending" -> "Google Play"
+            "com.android.providers.downloads" -> "下载管理器"
+            
+            // 默认返回包名
+            else -> {
+                // 尝试从包名中提取应用名称
+                val packageParts = packageName.split(".")
+                if (packageParts.size > 1) {
+                    val lastPart = packageParts.last()
+                    // 将包名转换为更友好的显示名称
+                    lastPart.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                } else {
+                    packageName
+                }
+            }
         }
     }
 }
