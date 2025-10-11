@@ -72,7 +72,7 @@ class AIAppOverlayService : Service() {
     private var lastSwitchTime: Long = 0
     private var switchCount: Int = 0
     private var maxSwitchCount: Int = 50 // 最大跳转次数，防止无限循环
-    private var switchCooldown: Long = 1000 // 跳转冷却时间，防止频繁切换
+    private var switchCooldown: Long = 200 // 进一步减少跳转冷却时间，提高响应速度
     
     // 智能弹出时机管理
     private var targetPackageName: String? = null
@@ -591,6 +591,7 @@ class AIAppOverlayService : Service() {
     /**
      * 启动AI应用
      * 使用与PlatformJumpManager相同的跳转逻辑，支持无限循环跳转
+     * 修复：添加额外的应用切换检测保障机制
      */
     private fun launchAIApp(packageName: String, appName: String) {
         try {
@@ -598,6 +599,9 @@ class AIAppOverlayService : Service() {
             
             // 重置无限循环跳转状态，开始新的跳转循环
             resetSwitchState()
+            
+            // 设置目标包名，用于后续检测
+            targetPackageName = packageName
             
             // 使用与PlatformJumpManager相同的跳转逻辑
             
@@ -764,21 +768,37 @@ class AIAppOverlayService : Service() {
                     return
                 }
                 
-                // 检测应用是否已启动（通过包名存在性）
-                if (isAppRunning(packageName)) {
-                    Log.d(TAG, "✅ 检测到应用已启动，延迟500ms显示悬浮窗")
+                // 额外检测：检查是否是目标应用且已启动
+                if (targetPackageName == packageName && isAppRunning(packageName)) {
+                    Log.d(TAG, "🎯 检测到目标应用已启动，立即显示悬浮窗")
+                    restartOverlayForApp(packageName, appName)
+                    return
+                }
+                
+                // 目标应用特殊处理：即使未完全启动也尝试显示
+                if (targetPackageName == packageName) {
+                    Log.d(TAG, "🎯 目标应用特殊处理，延迟50ms显示悬浮窗")
                     overlayShowHandler?.postDelayed({
                         restartOverlayForApp(packageName, appName)
-                    }, 500)
+                    }, 50) // 目标应用使用极短延迟
+                    return
+                }
+                
+                // 检测应用是否已启动（通过包名存在性）
+                if (isAppRunning(packageName)) {
+                    Log.d(TAG, "✅ 检测到应用已启动，延迟100ms显示悬浮窗")
+                    overlayShowHandler?.postDelayed({
+                        restartOverlayForApp(packageName, appName)
+                    }, 100) // 进一步减少延迟时间到100ms
                     return
                 }
                 
                 // 继续检测
                 val delay = when (overlayShowAttempts) {
-                    1 -> 500L   // 第一次检测：500ms
-                    2 -> 1000L  // 第二次检测：1s
-                    3 -> 1500L  // 第三次检测：1.5s
-                    else -> 2000L // 后续检测：2s
+                    1 -> 200L   // 第一次检测：200ms（进一步减少）
+                    2 -> 400L   // 第二次检测：400ms（进一步减少）
+                    3 -> 600L   // 第三次检测：600ms（进一步减少）
+                    else -> 800L // 后续检测：800ms（进一步减少）
                 }
                 
                 Log.d(TAG, "⏰ 应用未启动，${delay}ms后重试")
@@ -792,6 +812,7 @@ class AIAppOverlayService : Service() {
     
     /**
      * 检测应用是否在前台
+     * 修复：使用实时检测，不依赖currentPackageName
      */
     private fun isAppInForeground(packageName: String): Boolean {
         return try {
@@ -833,23 +854,23 @@ class AIAppOverlayService : Service() {
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             Log.d(TAG, "🔄 保障机制1：立即尝试显示悬浮窗")
             restartOverlayForApp(packageName, appName)
-        }, 500)
+        }, 100) // 进一步减少延迟时间到100ms
         
-        // 保障机制2：延迟1秒再次尝试
+        // 保障机制2：延迟300ms再次尝试
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            Log.d(TAG, "🔄 保障机制2：延迟1秒再次尝试")
+            Log.d(TAG, "🔄 保障机制2：延迟300ms再次尝试")
             if (!isOverlayVisible) {
                 restartOverlayForApp(packageName, appName)
             }
-        }, 1000)
+        }, 300) // 进一步减少延迟时间到300ms
         
-        // 保障机制3：延迟2秒最后尝试
+        // 保障机制3：延迟600ms最后尝试
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            Log.d(TAG, "🔄 保障机制3：延迟2秒最后尝试")
+            Log.d(TAG, "🔄 保障机制3：延迟600ms最后尝试")
             if (!isOverlayVisible) {
                 restartOverlayForApp(packageName, appName)
             }
-        }, 2000)
+        }, 600) // 进一步减少延迟时间到600ms
     }
 
     /**
@@ -1960,8 +1981,8 @@ class AIAppOverlayService : Service() {
         appSwitchRunnable = object : Runnable {
             override fun run() {
                 checkAppSwitch()
-                // 提高检测频率：每500ms检查一次
-                appSwitchHandler?.postDelayed(this, 500)
+                // 进一步提高检测频率：每200ms检查一次
+                appSwitchHandler?.postDelayed(this, 200)
             }
         }
         appSwitchHandler?.post(appSwitchRunnable!!)
@@ -1985,6 +2006,7 @@ class AIAppOverlayService : Service() {
     /**
      * 检查应用切换
      * 支持无限循环跳转功能，包含状态管理和防重复显示机制
+     * 修复：及时更新currentPackageName，确保检测准确性
      */
     private fun checkAppSwitch() {
         if (!isAppSwitchMonitoringEnabled || !isOverlayVisible) return
@@ -1996,16 +2018,25 @@ class AIAppOverlayService : Service() {
             if (newPackageName != null && newPackageName != currentPackageName) {
                 val currentTime = System.currentTimeMillis()
                 
-                // 检查冷却时间，防止频繁切换
-                if (currentTime - lastSwitchTime < switchCooldown) {
+                // 检查冷却时间，防止频繁切换（目标应用跳过冷却）
+                val isTargetApp = targetPackageName == newPackageName
+                if (!isTargetApp && currentTime - lastSwitchTime < switchCooldown) {
                     Log.d(TAG, "⏰ 应用切换冷却中，跳过: $currentPackageName -> $newPackageName")
+                    // 即使跳过，也要更新currentPackageName，确保下次检测准确
+                    currentPackageName = newPackageName
                     return
+                }
+                
+                if (isTargetApp) {
+                    Log.d(TAG, "🎯 目标应用切换，跳过冷却时间")
                 }
                 
                 // 检查最大跳转次数，防止无限循环
                 if (switchCount >= maxSwitchCount) {
                     Log.d(TAG, "⚠️ 已达到最大跳转次数 ($maxSwitchCount)，停止无限循环跳转")
                     Toast.makeText(this, "已达到最大跳转次数，请手动重启服务", Toast.LENGTH_LONG).show()
+                    // 即使停止跳转，也要更新currentPackageName
+                    currentPackageName = newPackageName
                     return
                 }
                 
@@ -2023,17 +2054,30 @@ class AIAppOverlayService : Service() {
                     packageName = newPackageName
                     appName = getAppNameFromPackage(newPackageName)
                     
-                    // 重新显示悬浮窗，支持无限循环
-                    hideOverlay()
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    // 立即更新currentPackageName，确保后续检测准确
+                    currentPackageName = newPackageName
+                    
+                    // 检查是否是目标应用（从AIAppOverlayService跳转的应用）
+                    val isTargetApp = targetPackageName == newPackageName
+                    if (isTargetApp) {
+                        Log.d(TAG, "🎯 检测到目标应用切换，立即显示悬浮窗")
+                        // 立即显示悬浮窗，不需要延迟
+                        hideOverlay()
                         showOverlay()
-                        Log.d(TAG, "🔄 悬浮窗已重新显示，支持无限循环跳转到: $appName (第${switchCount}次跳转)")
-                    }, 500) // 延迟500ms重新显示
+                        Log.d(TAG, "🔄 目标应用悬浮窗已立即显示: $appName")
+                    } else {
+                        // 重新显示悬浮窗，支持无限循环
+                        hideOverlay()
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            showOverlay()
+                            Log.d(TAG, "🔄 悬浮窗已重新显示，支持无限循环跳转到: $appName (第${switchCount}次跳转)")
+                        }, 100) // 进一步减少延迟时间到100ms
+                    }
                 } else {
                     Log.d(TAG, "⚠️ 切换到不支持的应用: $newPackageName，保持悬浮窗显示")
+                    // 即使不支持，也要更新currentPackageName
+                    currentPackageName = newPackageName
                 }
-                
-                currentPackageName = newPackageName
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ 检查应用切换失败", e)
@@ -2052,7 +2096,7 @@ class AIAppOverlayService : Service() {
                 // 使用更短的时间间隔提高响应速度
                 val usageStats = usageStatsManager?.queryUsageStats(
                     android.app.usage.UsageStatsManager.INTERVAL_DAILY,
-                    time - 1000, // 缩短到1秒，提高响应速度
+                    time - 300, // 进一步缩短到300ms，提高响应速度
                     time
                 )
                 
