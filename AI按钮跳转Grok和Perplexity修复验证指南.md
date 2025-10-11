@@ -208,3 +208,4 @@ private fun launchAIApp(packageName: String, appName: String) {
 3. 测试返回、AI、关闭按钮功能
 4. 验证所有功能正常工作
 
+
