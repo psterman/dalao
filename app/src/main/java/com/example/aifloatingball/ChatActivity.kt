@@ -1624,7 +1624,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         }
 
                         // 添加AI回复占位符
-                        val aiMessage = ChatMessage("正在思考中...", false, System.currentTimeMillis())
+                        val aiMessage = ChatMessage("正在思考中...", false, System.currentTimeMillis(), messageText)
                         messages.add(aiMessage)
                         messageAdapter.updateMessages(messages.toList())
 
@@ -2237,7 +2237,7 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         }
 
                         // 添加AI回复占位符
-                        val aiMessage = ChatMessage("正在重新生成...", false, System.currentTimeMillis())
+                        val aiMessage = ChatMessage("正在重新生成...", false, System.currentTimeMillis(), messageText)
                         messages.add(aiMessage)
                         messageAdapter.updateMessages(messages.toList())
 
