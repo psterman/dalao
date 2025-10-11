@@ -276,3 +276,4 @@ adb shell am broadcast -a clipper.get
 通过改进剪贴板监听器注册逻辑、修复更新方法、添加详细调试信息和优化错误处理，成功解决了AIAppOverlayService剪贴板同步问题。现在剪贴板预览区域能够正确显示和同步系统剪贴板内容。
 
 
+

@@ -209,3 +209,4 @@ private fun launchAIApp(packageName: String, appName: String) {
 4. 验证所有功能正常工作
 
 
+

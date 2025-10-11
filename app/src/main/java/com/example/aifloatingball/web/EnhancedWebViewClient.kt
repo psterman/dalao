@@ -93,6 +93,9 @@ class EnhancedWebViewClient(
         // 注入JavaScript来进一步清理广告元素
         injectAdBlockScript(view)
         
+        // 注入viewport meta标签确保移动版显示
+        injectViewportMetaTag(view)
+        
         onPageLoadListener?.onPageFinished(view, url)
     }
     
@@ -157,6 +160,12 @@ class EnhancedWebViewClient(
                 // 由系统处理
                 true
             }
+            // 处理应用URL scheme
+            url.contains("://") && !url.startsWith("http://") && !url.startsWith("https://") -> {
+                Log.d(TAG, "检测到应用URL scheme: $url")
+                handleAppUrlScheme(view, url)
+                true
+            }
             // 处理文件下载
             url.endsWith(".apk") ||
             url.endsWith(".pdf") ||
@@ -170,6 +179,29 @@ class EnhancedWebViewClient(
                 onUrlChangeListener?.onUrlChanged(view, url)
                 false
             }
+        }
+    }
+
+    /**
+     * 处理应用URL scheme
+     */
+    private fun handleAppUrlScheme(view: WebView?, url: String) {
+        try {
+            val context = view?.context
+            if (context != null) {
+                val urlSchemeHandler = com.example.aifloatingball.manager.UrlSchemeHandler(context)
+                urlSchemeHandler.handleUrlScheme(
+                    url = url,
+                    onSuccess = {
+                        Log.d(TAG, "URL scheme处理成功: $url")
+                    },
+                    onFailure = {
+                        Log.w(TAG, "URL scheme处理失败: $url")
+                    }
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理URL scheme时出错: $url", e)
         }
     }
 
@@ -294,6 +326,48 @@ class EnhancedWebViewClient(
         
         view?.context?.let { context ->
             Toast.makeText(context, "SSL证书验证失败，已停止加载", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 注入viewport meta标签确保移动版显示
+     */
+    private fun injectViewportMetaTag(view: WebView?) {
+        view ?: return
+        
+        val viewportScript = """
+            javascript:(function() {
+                try {
+                    // 检查是否已有viewport meta标签
+                    var viewportMeta = document.querySelector('meta[name="viewport"]');
+                    if (viewportMeta) {
+                        // 更新现有的viewport设置
+                        viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes');
+                    } else {
+                        // 创建新的viewport meta标签
+                        var meta = document.createElement('meta');
+                        meta.name = 'viewport';
+                        meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';
+                        document.head.appendChild(meta);
+                    }
+                    
+                    // 确保页面使用移动端样式
+                    document.documentElement.style.setProperty('--mobile-viewport', '1');
+                    
+                    // 强制重新计算布局
+                    document.body.style.transform = 'scale(1)';
+                    
+                    console.log('Viewport meta tag injected for mobile display');
+                } catch (e) {
+                    console.error('Failed to inject viewport meta tag:', e);
+                }
+            })();
+        """.trimIndent()
+        
+        try {
+            view.evaluateJavascript(viewportScript, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error injecting viewport meta tag", e)
         }
     }
     

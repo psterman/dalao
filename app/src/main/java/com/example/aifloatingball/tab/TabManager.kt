@@ -146,6 +146,14 @@ class TabManager(private val context: Context) {
                 allowContentAccess = true
                 allowFileAccess = true
                 databaseEnabled = true
+                
+                // 设置移动版User-Agent，确保网页加载移动版
+                userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+                
+                // 移动端优化设置
+                textZoom = 100
+                minimumFontSize = 8
+                setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING)
             }
             
             // 设置WebViewClient以处理页面加载
@@ -155,6 +163,33 @@ class TabManager(private val context: Context) {
                     // 页面加载完成后确保WebView可以接收触摸事件
                     view?.isClickable = true
                     view?.isFocusable = true
+                    
+                    // 注入viewport meta标签确保移动版显示
+                    view?.evaluateJavascript("""
+                        (function() {
+                            try {
+                                // 检查是否已有viewport meta标签
+                                var viewportMeta = document.querySelector('meta[name="viewport"]');
+                                if (viewportMeta) {
+                                    // 更新现有的viewport设置
+                                    viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes');
+                                } else {
+                                    // 创建新的viewport meta标签
+                                    var meta = document.createElement('meta');
+                                    meta.name = 'viewport';
+                                    meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';
+                                    document.head.appendChild(meta);
+                                }
+                                
+                                // 确保页面使用移动端样式
+                                document.documentElement.style.setProperty('--mobile-viewport', '1');
+                                
+                                console.log('Viewport meta tag injected for mobile display');
+                            } catch (e) {
+                                console.error('Failed to inject viewport meta tag:', e);
+                            }
+                        })();
+                    """.trimIndent(), null)
                 }
             }
         }

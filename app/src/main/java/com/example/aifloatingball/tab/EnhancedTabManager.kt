@@ -278,8 +278,13 @@ class EnhancedTabManager(
                 allowUniversalAccessFromFileURLs = false
                 allowFileAccessFromFileURLs = false
                 
-                // 用户代理
-                userAgentString = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
+                // 用户代理 - 使用最新的移动版Chrome User-Agent
+                userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+                
+                // 移动端优化设置
+                textZoom = 100
+                minimumFontSize = 8
+                setLayoutAlgorithm(WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING)
             }
             
             // 设置WebViewClient

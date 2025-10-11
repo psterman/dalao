@@ -28,10 +28,10 @@ data class SearchEngine(
         // 默认搜索引擎列表
         val DEFAULT_ENGINES = listOf(
             // A1. 通用搜索引擎
-            SearchEngine(name = "baidu", displayName = "百度", url = "https://www.baidu.com", iconResId = R.drawable.ic_baidu, description = "全球最大的中文搜索引擎", searchUrl = "https://www.baidu.com/s?wd={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "baidu", displayName = "百度", url = "https://m.baidu.com", iconResId = R.drawable.ic_baidu, description = "全球最大的中文搜索引擎", searchUrl = "https://m.baidu.com/s?wd={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "google", displayName = "谷歌", url = "https://www.google.com", iconResId = R.drawable.ic_google, description = "全球最大的搜索引擎", searchUrl = "https://www.google.com/search?q={query}", category = SearchEngineCategory.GENERAL),
-            SearchEngine(name = "sogou", displayName = "搜狗", url = "https://www.sogou.com", iconResId = R.drawable.ic_sogou, description = "腾讯旗下，深度整合微信公众号和知乎内容", searchUrl = "https://www.sogou.com/web?query={query}", category = SearchEngineCategory.GENERAL),
-            SearchEngine(name = "360", displayName = "360搜索", url = "https://www.so.com", iconResId = R.drawable.ic_360search, description = "奇虎360旗下，以\"安全\"为特色", searchUrl = "https://www.so.com/s?q={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "sogou", displayName = "搜狗", url = "https://m.sogou.com", iconResId = R.drawable.ic_sogou, description = "腾讯旗下，深度整合微信公众号和知乎内容", searchUrl = "https://m.sogou.com/web?query={query}", category = SearchEngineCategory.GENERAL),
+            SearchEngine(name = "360", displayName = "360搜索", url = "https://m.so.com", iconResId = R.drawable.ic_360search, description = "奇虎360旗下，以\"安全\"为特色", searchUrl = "https://m.so.com/s?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "bing_cn", displayName = "必应", url = "https://cn.bing.com", iconResId = R.drawable.ic_bing, description = "微软旗下，提供高质量国际视野和学术搜索", searchUrl = "https://cn.bing.com/search?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "duckduckgo", displayName = "DuckDuckGo", url = "https://duckduckgo.com", iconResId = R.drawable.ic_duckduckgo, description = "注重隐私保护的搜索引擎", searchUrl = "https://duckduckgo.com/?q={query}", category = SearchEngineCategory.GENERAL),
             SearchEngine(name = "quark", displayName = "夸克", url = "https://quark.sm.cn", iconResId = R.drawable.ic_search, description = "UC旗下，AI驱动的智能搜索引擎", searchUrl = "https://quark.sm.cn/s?q={query}", category = SearchEngineCategory.GENERAL),

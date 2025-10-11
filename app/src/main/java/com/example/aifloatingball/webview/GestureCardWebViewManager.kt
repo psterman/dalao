@@ -435,6 +435,12 @@ class GestureCardWebViewManager(
                         handleSearchEngineRedirect(view, url, "uc")
                         true
                     }
+                    // 处理应用URL scheme
+                    url.contains("://") && !url.startsWith("http://") && !url.startsWith("https://") -> {
+                        Log.d(TAG, "检测到应用URL scheme: $url")
+                        handleAppUrlScheme(view, url)
+                        true
+                    }
                     // 简单的广告拦截
                     url.contains("ads") || url.contains("doubleclick") -> {
                         Log.d(TAG, "拦截广告URL: $url")
@@ -497,6 +503,29 @@ class GestureCardWebViewManager(
             onPageChangeListener?.onCardAdded(newCard, webViewCards.size - 1)
         } catch (e: Exception) {
             Log.e(TAG, "创建新卡片失败", e)
+        }
+    }
+
+    /**
+     * 处理应用URL scheme
+     */
+    private fun handleAppUrlScheme(view: WebView?, url: String) {
+        try {
+            val context = view?.context
+            if (context != null) {
+                val urlSchemeHandler = com.example.aifloatingball.manager.UrlSchemeHandler(context)
+                urlSchemeHandler.handleUrlScheme(
+                    url = url,
+                    onSuccess = {
+                        Log.d(TAG, "URL scheme处理成功: $url")
+                    },
+                    onFailure = {
+                        Log.w(TAG, "URL scheme处理失败: $url")
+                    }
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理URL scheme时出错: $url", e)
         }
     }
 

@@ -29,7 +29,17 @@ class DraggableSearchEngineAdapter(
 
     fun updateEngines(newEngines: List<SearchEngine>) {
         engines.clear()
-        engines.addAll(newEngines)
+        
+        // 按分类排序：AI搜索引擎 -> 普通搜索引擎 -> 自定义搜索引擎
+        val aiEngines = newEngines.filter { it.isAI }.sortedBy { it.displayName }
+        val normalEngines = newEngines.filter { !it.isAI && !it.isCustom }.sortedBy { it.displayName }
+        val customEngines = newEngines.filter { it.isCustom }.sortedBy { it.displayName }
+        
+        // 按顺序添加
+        engines.addAll(aiEngines)
+        engines.addAll(normalEngines)
+        engines.addAll(customEngines)
+        
         notifyDataSetChanged()
     }
 
@@ -53,7 +63,22 @@ class DraggableSearchEngineAdapter(
 
         fun bind(engine: SearchEngine) {
             engineName.text = engine.displayName
-            engineDescription.text = engine.description
+            
+            // 根据搜索引擎类型设置描述和样式
+            when {
+                engine.isAI -> {
+                    engineDescription.text = "🤖 ${engine.description}"
+                    engineDescription.setTextColor(engineDescription.context.getColor(R.color.ai_engine_color))
+                }
+                engine.isCustom -> {
+                    engineDescription.text = "⭐ ${engine.description}"
+                    engineDescription.setTextColor(engineDescription.context.getColor(R.color.custom_engine_color))
+                }
+                else -> {
+                    engineDescription.text = engine.description
+                    engineDescription.setTextColor(engineDescription.context.getColor(R.color.simple_mode_text_secondary_light))
+                }
+            }
 
             // 使用FaviconLoader加载搜索引擎图标
             FaviconLoader.loadIcon(

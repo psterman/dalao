@@ -4641,7 +4641,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         val searchUrl = when (engineKey) {
             "Google" -> "https://www.google.com/search?q=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
             "Bing" -> "https://www.bing.com/search?q=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
-            "百度" -> "https://www.baidu.com/s?wd=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
+            "百度" -> "https://m.baidu.com/s?wd=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
             else -> "https://www.google.com/search?q=${java.net.URLEncoder.encode(prompt, "UTF-8")}"
         }
 
@@ -8225,12 +8225,37 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
-        // 更新RecyclerView适配器
+        // 分类显示搜索引擎
+        val aiEngines = filteredEngines.filter { it.isAI }
+        val normalEngines = filteredEngines.filter { !it.isAI }
+        val customEngines = filteredEngines.filter { it.isCustom }
+
+        // 是否显示分类标题
+        val showCategory = true // 默认显示分类
+
+        // 更新RecyclerView适配器，按分类显示
         if (::draggableEngineAdapter.isInitialized) {
-            draggableEngineAdapter.updateEngines(filteredEngines)
+            val categorizedEngines = mutableListOf<com.example.aifloatingball.model.SearchEngine>()
+            
+            // 添加AI搜索引擎
+            if (aiEngines.isNotEmpty()) {
+                categorizedEngines.addAll(aiEngines)
+            }
+            
+            // 添加普通搜索引擎
+            if (normalEngines.isNotEmpty()) {
+                categorizedEngines.addAll(normalEngines)
+            }
+            
+            // 添加自定义搜索引擎
+            if (customEngines.isNotEmpty()) {
+                categorizedEngines.addAll(customEngines)
+            }
+            
+            draggableEngineAdapter.updateEngines(categorizedEngines)
         }
 
-        Log.d(TAG, "更新搜索引擎列表: 字母=$letter, 总数=${allEngines.size}, 过滤后=${filteredEngines.size}")
+        Log.d(TAG, "更新搜索引擎列表: 字母=$letter, 总数=${allEngines.size}, 过滤后=${filteredEngines.size}, AI=${aiEngines.size}, 普通=${normalEngines.size}, 自定义=${customEngines.size}")
     }
 
     /**
@@ -16838,7 +16863,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         Log.d(TAG, "获取搜索引擎首页: searchEngine='$searchEngine', searchEngineName='$searchEngineName'")
 
         return when (searchEngine?.lowercase()) {
-            "baidu", "百度" -> "https://www.baidu.com"
+            "baidu", "百度" -> "https://m.baidu.com"
             "google", "谷歌" -> "https://www.google.com"
             "bing", "必应" -> "https://www.bing.com"
             "sogou", "搜狗" -> "https://www.sogou.com"
@@ -16849,7 +16874,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             else -> {
                 // 根据搜索引擎名称推测
                 when (searchEngineName?.lowercase()) {
-                    "百度" -> "https://www.baidu.com"
+                    "百度" -> "https://m.baidu.com"
                     "google", "谷歌" -> "https://www.google.com"
                     "bing", "必应" -> "https://www.bing.com"
                     "搜狗" -> "https://www.sogou.com"
@@ -19244,7 +19269,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val testCards = listOf(
                         com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
                             title = "测试卡片1",
-                            url = "https://www.baidu.com",
+                            url = "https://m.baidu.com",
                             favicon = null,
                             screenshot = null
                         ),

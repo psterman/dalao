@@ -41,6 +41,10 @@
     <color name="webview_tab_pressed">#E0E0E0</color>
     <color name="webview_tab_border">#E0E0E0</color>
 
+    <!-- Search Engine Category Colors -->
+    <color name="ai_engine_color">#FF6B35</color>
+    <color name="custom_engine_color">#9C27B0</color>
+    
     <!-- Theme-specific Colors -->
     <!-- Fold Theme -->
     <color name="fold_background_light">#FFFFFF</color>

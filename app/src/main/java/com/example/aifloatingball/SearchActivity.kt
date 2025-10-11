@@ -369,10 +369,32 @@ class SearchActivity : AppCompatActivity() {
                 
                 // 检测水平滑动
                 if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(velocityX) > 1000) {
-                    if (distanceX > 0 && webView.canGoBack()) {
-                        showGestureHint("返回上一页")
-                        webView.goBack()
-                        return true
+                    if (distanceX > 0) {
+                        // 右滑回退逻辑，与onBackPressed保持一致
+                        when {
+                            webView.canGoBack() -> {
+                                showGestureHint("返回上一页")
+                                webView.goBack()
+                                return true
+                            }
+                            else -> {
+                                val currentUrl = webView.url
+                                val isSearchEngineHomepage = currentSearchEngine?.let { engine ->
+                                    currentUrl?.startsWith(engine.url) == true && currentUrl == engine.url
+                                } ?: false
+                                
+                                if (isSearchEngineHomepage) {
+                                    showGestureHint("退出搜索")
+                                    // 在搜索引擎首页，直接退出
+                                    finish()
+                                    return true
+                                } else {
+                                    showGestureHint("回到搜索引擎首页")
+                                    loadSearchEngineHomepage()
+                                    return true
+                                }
+                            }
+                        }
                     } else if (distanceX < 0 && webView.canGoForward()) {
                         showGestureHint("前进下一页")
                         webView.goForward()
@@ -623,8 +645,8 @@ class SearchActivity : AppCompatActivity() {
             // 设置缓存模式
             cacheMode = WebSettings.LOAD_DEFAULT
             
-            // 设置 UA
-            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            // 设置移动版User-Agent，确保网页加载移动版
+            userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
             
             // 允许混合内容
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -650,7 +672,134 @@ class SearchActivity : AppCompatActivity() {
                 // 隐藏进度条
                 progressBar.visibility = View.GONE
                 updateWebViewTheme()
+                
+                // 更新搜索框显示当前URL
+                updateSearchBoxWithCurrentUrl(url)
+                
+                // 注入viewport meta标签确保移动版显示
+                view?.evaluateJavascript("""
+                    (function() {
+                        try {
+                            // 检查是否已有viewport meta标签
+                            var viewportMeta = document.querySelector('meta[name="viewport"]');
+                            if (viewportMeta) {
+                                // 更新现有的viewport设置
+                                viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes');
+                            } else {
+                                // 创建新的viewport meta标签
+                                var meta = document.createElement('meta');
+                                meta.name = 'viewport';
+                                meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes';
+                                document.head.appendChild(meta);
+                            }
+                            
+                            // 确保页面使用移动端样式
+                            document.documentElement.style.setProperty('--mobile-viewport', '1');
+                            
+                            console.log('SearchActivity: Viewport meta tag injected for mobile display');
+                        } catch (e) {
+                            console.error('SearchActivity: Failed to inject viewport meta tag:', e);
+                        }
+                    })();
+                """.trimIndent(), null)
+                
+                // 修复搜狗移动端输入框输入法激活问题
+                view?.evaluateJavascript("""
+                    (function() {
+                        try {
+                            // 检测是否为搜狗移动端
+                            var isSogouMobile = window.location.hostname.includes('m.sogou.com') || 
+                                               window.location.hostname.includes('wap.sogou.com');
+                            
+                            if (isSogouMobile) {
+                                console.log('SearchActivity: 检测到搜狗移动端，修复输入框');
+                                
+                                // 修复搜狗搜索框的输入法问题
+                                var searchInputs = document.querySelectorAll('input[type="text"], input[type="search"], input[name*="query"], input[name*="keyword"]');
+                                
+                                searchInputs.forEach(function(input) {
+                                    // 移除可能阻止输入法的事件监听器
+                                    input.removeAttribute('readonly');
+                                    input.removeAttribute('disabled');
+                                    
+                                    // 确保输入框可以正常获得焦点
+                                    input.style.webkitUserSelect = 'text';
+                                    input.style.userSelect = 'text';
+                                    
+                                    // 添加点击事件确保输入法激活
+                                    input.addEventListener('click', function(e) {
+                                        e.stopPropagation();
+                                        this.focus();
+                                        this.click();
+                                    }, true);
+                                    
+                                    // 添加触摸事件确保输入法激活
+                                    input.addEventListener('touchstart', function(e) {
+                                        e.stopPropagation();
+                                        this.focus();
+                                    }, true);
+                                    
+                                    // 修复输入框的样式
+                                    input.style.webkitAppearance = 'none';
+                                    input.style.border = '1px solid #ccc';
+                                    input.style.borderRadius = '4px';
+                                    input.style.padding = '8px';
+                                    input.style.fontSize = '16px';
+                                    
+                                    console.log('SearchActivity: 搜狗输入框已修复:', input.name || input.id || 'unnamed');
+                                });
+                                
+                                // 修复搜狗搜索按钮
+                                var searchButtons = document.querySelectorAll('button[type="submit"], input[type="submit"], .search-btn, .btn-search');
+                                searchButtons.forEach(function(button) {
+                                    button.addEventListener('click', function(e) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        
+                                        // 获取搜索框的值
+                                        var searchInput = document.querySelector('input[type="text"], input[type="search"], input[name*="query"], input[name*="keyword"]');
+                                        if (searchInput && searchInput.value.trim()) {
+                                            // 触发搜索
+                                            var form = searchInput.closest('form');
+                                            if (form) {
+                                                form.submit();
+                                            } else {
+                                                // 如果没有表单，直接跳转
+                                                var searchUrl = 'https://m.sogou.com/web?query=' + encodeURIComponent(searchInput.value.trim());
+                                                window.location.href = searchUrl;
+                                            }
+                                        }
+                                    }, true);
+                                });
+                            }
+                        } catch (e) {
+                            console.error('SearchActivity: 修复搜狗输入框失败:', e);
+                        }
+                    })();
+                """.trimIndent(), null)
+                
                 Log.d("SearchActivity", "页面加载完成: $url")
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString()
+                Log.d("SearchActivity", "shouldOverrideUrlLoading: $url")
+                
+                if (url != null) {
+                    return handleSearchResultClick(view, url)
+                }
+                return false
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                Log.d("SearchActivity", "shouldOverrideUrlLoading (legacy): $url")
+                
+                if (url != null) {
+                    // 处理搜索结果页面的链接点击
+                    return handleSearchResultClick(view, url)
+                }
+                return false
             }
 
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -1052,10 +1201,60 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 更新搜索框显示当前URL
+     */
+    private fun updateSearchBoxWithCurrentUrl(url: String?) {
+        if (url != null && ::searchInput.isInitialized) {
+            try {
+                // 始终显示当前URL，让用户可以编辑
+                searchInput.setText(url)
+                searchInput.hint = "当前页面: $url"
+                
+                // 选中URL文本，方便用户编辑
+                searchInput.setSelection(0, url.length)
+                
+                Log.d("SearchActivity", "搜索框已更新: $url")
+            } catch (e: Exception) {
+                Log.e("SearchActivity", "更新搜索框失败", e)
+            }
+        }
+    }
+
     override fun onBackPressed() {
         when {
-            webView.canGoBack() -> webView.goBack()
-            else -> super.onBackPressed()
+            // 如果WebView可以回退，则回退
+            webView.canGoBack() -> {
+                webView.goBack()
+                Log.d("SearchActivity", "WebView回退到上一页")
+            }
+            // 如果WebView不能回退，检查是否在搜索引擎首页
+            else -> {
+                val currentUrl = webView.url
+                val isSearchEngineHomepage = currentSearchEngine?.let { engine ->
+                    currentUrl?.startsWith(engine.url) == true && currentUrl == engine.url
+                } ?: false
+                
+                if (isSearchEngineHomepage) {
+                    // 在搜索引擎首页，直接退出
+                    Log.d("SearchActivity", "在搜索引擎首页，退出SearchActivity")
+                    super.onBackPressed()
+                } else {
+                    // 不在搜索引擎首页，回到搜索引擎首页
+                    loadSearchEngineHomepage()
+                    Log.d("SearchActivity", "回到搜索引擎首页")
+                }
+            }
+        }
+    }
+    
+    /**
+     * 加载搜索引擎首页
+     */
+    private fun loadSearchEngineHomepage() {
+        currentSearchEngine?.let { engine ->
+            webView.loadUrl(engine.url)
+            Log.d("SearchActivity", "加载搜索引擎首页: ${engine.url}")
         }
     }
 
@@ -1611,6 +1810,212 @@ class SearchActivity : AppCompatActivity() {
             loadUrl(searchUrl)
         } ?: run {
             Toast.makeText(this, "请先选择搜索引擎", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 处理搜索结果页面的链接点击
+     */
+    private fun handleSearchResultClick(view: WebView?, url: String): Boolean {
+        Log.d("SearchActivity", "处理搜索结果点击: $url")
+        
+        return when {
+            // 处理移动应用URL scheme重定向
+            url.startsWith("baiduboxapp://") -> {
+                Log.d("SearchActivity", "拦截百度App重定向，保持在WebView中")
+                handleSearchEngineRedirect(view, url, "baidu")
+                true
+            }
+            url.startsWith("mttbrowser://") -> {
+                Log.d("SearchActivity", "拦截搜狗浏览器重定向，保持在WebView中")
+                handleSearchEngineRedirect(view, url, "sogou")
+                true
+            }
+            url.startsWith("quark://") -> {
+                Log.d("SearchActivity", "拦截夸克浏览器重定向，保持在WebView中")
+                handleSearchEngineRedirect(view, url, "quark")
+                true
+            }
+            url.startsWith("ucbrowser://") -> {
+                Log.d("SearchActivity", "拦截UC浏览器重定向，保持在WebView中")
+                handleSearchEngineRedirect(view, url, "uc")
+                true
+            }
+            // 处理搜索结果页面的链接
+            url.contains("baidu.com/s?") && url.contains("wd=") -> {
+                // 百度搜索结果页面，直接加载
+                Log.d("SearchActivity", "加载百度搜索结果页面: $url")
+                view?.loadUrl(url)
+                true
+            }
+            url.contains("m.baidu.com/s?") && url.contains("wd=") -> {
+                // 百度移动版搜索结果页面，直接加载
+                Log.d("SearchActivity", "加载百度移动版搜索结果页面: $url")
+                view?.loadUrl(url)
+                true
+            }
+            url.contains("sogou.com/web?") && url.contains("query=") -> {
+                // 搜狗搜索结果页面，直接加载
+                Log.d("SearchActivity", "加载搜狗搜索结果页面: $url")
+                view?.loadUrl(url)
+                true
+            }
+            url.contains("m.sogou.com/web?") && url.contains("query=") -> {
+                // 搜狗移动版搜索结果页面，直接加载
+                Log.d("SearchActivity", "加载搜狗移动版搜索结果页面: $url")
+                view?.loadUrl(url)
+                true
+            }
+            // 处理其他特殊协议
+            url.startsWith("tel:") ||
+            url.startsWith("mailto:") ||
+            url.startsWith("sms:") -> {
+                // 由系统处理
+                true
+            }
+            // 处理应用URL scheme
+            url.contains("://") && !url.startsWith("http://") && !url.startsWith("https://") -> {
+                Log.d("SearchActivity", "检测到应用URL scheme: $url")
+                handleAppUrlScheme(view, url)
+                true
+            }
+            // 处理文件下载
+            url.endsWith(".apk") ||
+            url.endsWith(".pdf") ||
+            url.endsWith(".zip") ||
+            url.endsWith(".rar") -> {
+                // 可以在这里添加下载处理逻辑
+                false
+            }
+            else -> {
+                // 其他链接，在WebView中继续加载
+                Log.d("SearchActivity", "在WebView中加载链接: $url")
+                view?.loadUrl(url)
+                true
+            }
+        }
+    }
+
+    /**
+     * 处理应用URL scheme
+     */
+    private fun handleAppUrlScheme(view: WebView?, url: String) {
+        try {
+            val urlSchemeHandler = com.example.aifloatingball.manager.UrlSchemeHandler(this)
+            urlSchemeHandler.handleUrlScheme(
+                url = url,
+                onSuccess = {
+                    Log.d("SearchActivity", "URL scheme处理成功: $url")
+                },
+                onFailure = {
+                    Log.w("SearchActivity", "URL scheme处理失败: $url")
+                }
+            )
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "处理URL scheme时出错: $url", e)
+        }
+    }
+
+    /**
+     * 处理搜索引擎重定向到移动应用的情况
+     */
+    private fun handleSearchEngineRedirect(view: WebView?, originalUrl: String, engineType: String) {
+        if (view == null) return
+
+        Log.d("SearchActivity", "处理搜索引擎重定向: $engineType, 原始URL: $originalUrl")
+
+        try {
+            // 从URL scheme中提取搜索参数
+            val searchQuery = extractSearchQueryFromScheme(originalUrl, engineType)
+
+            if (searchQuery.isNotEmpty()) {
+                // 构建Web版本的搜索URL
+                val webSearchUrl = buildWebSearchUrl(engineType, searchQuery)
+                Log.d("SearchActivity", "重定向到Web版本: $webSearchUrl")
+                view.loadUrl(webSearchUrl)
+            } else {
+                // 如果无法提取搜索词，重定向到搜索引擎首页
+                val homepageUrl = getSearchEngineHomepage(engineType)
+                Log.d("SearchActivity", "无法提取搜索词，重定向到首页: $homepageUrl")
+                view.loadUrl(homepageUrl)
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "处理搜索引擎重定向失败", e)
+            // 回退到搜索引擎首页
+            val homepageUrl = getSearchEngineHomepage(engineType)
+            view.loadUrl(homepageUrl)
+        }
+    }
+
+    /**
+     * 从URL scheme中提取搜索查询
+     */
+    private fun extractSearchQueryFromScheme(url: String, engineType: String): String {
+        return try {
+            when (engineType) {
+                "baidu" -> {
+                    // baiduboxapp://utils?action=sendIntent&minver=7.4&params=%7B...
+                    val uri = android.net.Uri.parse(url)
+                    val params = uri.getQueryParameter("params")
+                    // 暂时返回空，让它重定向到首页
+                    ""
+                }
+                "sogou" -> {
+                    // mttbrowser://url=https://m.sogou.com/?...
+                    val uri = android.net.Uri.parse(url)
+                    val redirectUrl = uri.getQueryParameter("url")
+                    if (!redirectUrl.isNullOrEmpty()) {
+                        val redirectUri = android.net.Uri.parse(redirectUrl)
+                        redirectUri.getQueryParameter("keyword") ?: redirectUri.getQueryParameter("query") ?: ""
+                    } else {
+                        ""
+                    }
+                }
+                "quark" -> {
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("q") ?: ""
+                }
+                "uc" -> {
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("keyword") ?: ""
+                }
+                else -> ""
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "提取搜索查询失败: $url", e)
+            ""
+        }
+    }
+
+    /**
+     * 构建Web版本的搜索URL
+     */
+    private fun buildWebSearchUrl(engineType: String, query: String): String {
+        val encodedQuery = try {
+            java.net.URLEncoder.encode(query, "UTF-8")
+        } catch (e: Exception) {
+            query
+        }
+
+        return when (engineType) {
+            "baidu" -> "https://m.baidu.com/s?wd=$encodedQuery"
+            "sogou" -> "https://m.sogou.com/web?query=$encodedQuery"
+            "quark" -> "https://quark.sm.cn/s?q=$encodedQuery"
+            "uc" -> "https://www.uc.cn/s?wd=$encodedQuery"
+            else -> "https://www.google.com/search?q=$encodedQuery"
+        }
+    }
+
+    /**
+     * 获取搜索引擎首页URL
+     */
+    private fun getSearchEngineHomepage(engineType: String): String {
+        return when (engineType) {
+            "baidu" -> "https://m.baidu.com"
+            "sogou" -> "https://m.sogou.com"
+            "quark" -> "https://quark.sm.cn"
+            "uc" -> "https://www.uc.cn"
+            else -> "https://www.google.com"
         }
     }
 } 

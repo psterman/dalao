@@ -855,7 +855,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             } else {
                 // 如果不是URL，使用搜索引擎搜索
                 val encodedQuery = java.net.URLEncoder.encode(input, "UTF-8")
-                "https://www.baidu.com/s?wd=$encodedQuery"
+                "https://m.baidu.com/s?wd=$encodedQuery"
             }
 
             // 在WebView中加载URL
@@ -1119,7 +1119,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             } else {
                 // 如果不是URL，使用搜索引擎搜索
                 val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-                "https://www.baidu.com/s?wd=$encodedQuery"
+                "https://m.baidu.com/s?wd=$encodedQuery"
             }
 
             // 设置移动端User-Agent和WebView配置
