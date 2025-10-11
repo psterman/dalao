@@ -477,6 +477,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         unifiedMessages
                     }
                     
+                    // 保存用户刚发送的消息（如果有的话）
+                    val userMessages = messages.filter { it.isFromUser }
+                    val recentUserMessages = userMessages.filter { 
+                        System.currentTimeMillis() - it.timestamp < 10000 // 10秒内的消息
+                    }
+                    
                     messages.clear()
                     // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
                     recentMessages.forEach { unifiedMsg ->
@@ -486,6 +492,17 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                             timestamp = unifiedMsg.timestamp
                         )
                         messages.add(chatMsg)
+                    }
+                    
+                    // 重新添加用户刚发送的消息
+                    recentUserMessages.forEach { userMsg ->
+                        if (!messages.any { 
+                            it.isFromUser && it.content == userMsg.content && 
+                            Math.abs(it.timestamp - userMsg.timestamp) < 5000
+                        }) {
+                            Log.d(TAG, "重新添加用户消息: ${userMsg.content}")
+                            messages.add(userMsg)
+                        }
                     }
                     
                     // 按时间戳排序确保消息顺序正确
@@ -592,8 +609,11 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             
             // 添加用户消息
             val userMessage = ChatMessage(messageText, true, System.currentTimeMillis())
+            Log.d(TAG, "创建用户消息: content='$messageText', isFromUser=${userMessage.isFromUser}, timestamp=${userMessage.timestamp}")
             messages.add(userMessage)
+            Log.d(TAG, "用户消息已添加到列表，当前消息总数: ${messages.size}")
             messageAdapter.updateMessages(messages.toList())
+            Log.d(TAG, "消息适配器已更新")
 
             // 保存聊天记录到统一存储
             currentContact?.let { contact ->
@@ -611,9 +631,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 updateContactLastMessage(contact, messageText)
             }
 
-            // 滚动到底部显示最新消息
+            // 滚动到底部显示最新消息（使用scrollToPosition避免动画干扰）
             messagesRecyclerView.post {
-                messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                messagesRecyclerView.scrollToPosition(messages.size - 1)
             }
 
             // 发送到AI服务
@@ -657,9 +677,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                             messages.add(aiMessage)
                             messageAdapter.updateMessages(messages.toList())
 
-                            // 滚动到底部
+                            // 滚动到底部（使用scrollToPosition避免动画干扰）
                             messagesRecyclerView.post {
-                                messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                                messagesRecyclerView.scrollToPosition(messages.size - 1)
                             }
 
                             // 如果是DeepSeek且遇到401错误，先测试API连接
@@ -1379,6 +1399,13 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         aiMessage.content += chunk
                         val cleanedContent = cleanAndFormatAIResponse(aiMessage.content)
                         messageAdapter.updateLastMessage(cleanedContent)
+                        
+                        // 减少滚动频率，只在必要时滚动
+                        if (messagesRecyclerView.canScrollVertically(1)) {
+                            messagesRecyclerView.post {
+                                messagesRecyclerView.scrollToPosition(messages.size - 1)
+                            }
+                        }
                     }
                 }
 
@@ -1609,9 +1636,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                             messages.add(errorMsg)
                             messageAdapter.updateMessages(messages.toList())
 
-                            // 滚动到底部
+                            // 滚动到底部（使用scrollToPosition避免动画干扰）
                             messagesRecyclerView.post {
-                                messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                                messagesRecyclerView.scrollToPosition(messages.size - 1)
                             }
 
                             Toast.makeText(this@ChatActivity, errorMessage, Toast.LENGTH_LONG).show()
@@ -1628,9 +1655,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         messages.add(aiMessage)
                         messageAdapter.updateMessages(messages.toList())
 
-                        // 滚动到底部
+                        // 滚动到底部（使用scrollToPosition避免动画干扰）
                         messagesRecyclerView.post {
-                            messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                            messagesRecyclerView.scrollToPosition(messages.size - 1)
                         }
 
                         // 发送到AI服务
@@ -1644,6 +1671,13 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                                         aiMessage.content += chunk
                                         val cleanedContent = cleanAndFormatAIResponse(aiMessage.content)
                                         messageAdapter.updateLastMessage(cleanedContent)
+                                        
+                                        // 减少滚动频率，只在必要时滚动
+                                        if (messagesRecyclerView.canScrollVertically(1)) {
+                                            messagesRecyclerView.post {
+                                                messagesRecyclerView.scrollToPosition(messages.size - 1)
+                                            }
+                                        }
                                     }
                                 }
 
@@ -2222,9 +2256,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                             messages.add(errorMsg)
                             messageAdapter.updateMessages(messages.toList())
 
-                            // 滚动到底部
+                            // 滚动到底部（使用scrollToPosition避免动画干扰）
                             messagesRecyclerView.post {
-                                messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                                messagesRecyclerView.scrollToPosition(messages.size - 1)
                             }
 
                             Toast.makeText(this@ChatActivity, errorMessage, Toast.LENGTH_LONG).show()
@@ -2241,9 +2275,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         messages.add(aiMessage)
                         messageAdapter.updateMessages(messages.toList())
 
-                        // 滚动到底部
+                        // 滚动到底部（使用scrollToPosition避免动画干扰）
                         messagesRecyclerView.post {
-                            messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                            messagesRecyclerView.scrollToPosition(messages.size - 1)
                         }
 
                         // 发送到AI服务
@@ -2257,6 +2291,13 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                                         aiMessage.content += chunk
                                         val cleanedContent = cleanAndFormatAIResponse(aiMessage.content)
                                         messageAdapter.updateLastMessage(cleanedContent)
+                                        
+                                        // 减少滚动频率，只在必要时滚动
+                                        if (messagesRecyclerView.canScrollVertically(1)) {
+                                            messagesRecyclerView.post {
+                                                messagesRecyclerView.scrollToPosition(messages.size - 1)
+                                            }
+                                        }
                                     }
                                 }
 
@@ -2307,9 +2348,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
 
                             // 重置发送状态（这个在重新生成中不需要重置，因为不是主发送流程）
 
-                            // 滚动到底部
+                            // 滚动到底部（使用scrollToPosition避免动画干扰）
                             messagesRecyclerView.post {
-                                messagesRecyclerView.smoothScrollToPosition(messages.size - 1)
+                                messagesRecyclerView.scrollToPosition(messages.size - 1)
                             }
                         }, 1000)
                     }
@@ -2430,15 +2471,32 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                 // 检查ChatDataManager中的消息是否比当前messages列表更完整
                 if (existingMessages.size > messages.size) {
                     Log.d(TAG, "ChatDataManager中有更多消息，同步到当前列表")
-                    messages.clear()
-                    existingMessages.forEach { unifiedMsg ->
-                        val chatMsg = ChatMessage(
-                            content = unifiedMsg.content,
-                            isFromUser = unifiedMsg.role == "user",
-                            timestamp = unifiedMsg.timestamp
-                        )
-                        messages.add(chatMsg)
-                    }
+                        // 保存用户刚发送的消息（如果有的话）
+                        val userMessages = messages.filter { it.isFromUser }
+                        val recentUserMessages = userMessages.filter { 
+                            System.currentTimeMillis() - it.timestamp < 10000 // 10秒内的消息
+                        }
+                        
+                        messages.clear()
+                        existingMessages.forEach { unifiedMsg ->
+                            val chatMsg = ChatMessage(
+                                content = unifiedMsg.content,
+                                isFromUser = unifiedMsg.role == "user",
+                                timestamp = unifiedMsg.timestamp
+                            )
+                            messages.add(chatMsg)
+                        }
+                        
+                        // 重新添加用户刚发送的消息
+                        recentUserMessages.forEach { userMsg ->
+                            if (!messages.any { 
+                                it.isFromUser && it.content == userMsg.content && 
+                                Math.abs(it.timestamp - userMsg.timestamp) < 5000
+                            }) {
+                                Log.d(TAG, "重新添加用户消息: ${userMsg.content}")
+                                messages.add(userMsg)
+                            }
+                        }
                     messages.sortBy { it.timestamp }
                     messageAdapter.updateMessages(messages.toList())
                     Log.d(TAG, "同步完成，现在共有 ${messages.size} 条消息")
@@ -3363,6 +3421,12 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     }
                     
                     if (unifiedMessages.isNotEmpty()) {
+                        // 保存用户刚发送的消息（如果有的话）
+                        val userMessages = messages.filter { it.isFromUser }
+                        val recentUserMessages = userMessages.filter { 
+                            System.currentTimeMillis() - it.timestamp < 10000 // 10秒内的消息
+                        }
+                        
                         messages.clear()
                         // 转换ChatDataManager.ChatMessage到ChatActivity.ChatMessage
                         unifiedMessages.forEach { unifiedMsg ->
@@ -3372,6 +3436,17 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                                 timestamp = unifiedMsg.timestamp
                             )
                             messages.add(chatMsg)
+                        }
+                        
+                        // 重新添加用户刚发送的消息
+                        recentUserMessages.forEach { userMsg ->
+                            if (!messages.any { 
+                                it.isFromUser && it.content == userMsg.content && 
+                                Math.abs(it.timestamp - userMsg.timestamp) < 5000
+                            }) {
+                                Log.d(TAG, "重新添加用户消息: ${userMsg.content}")
+                                messages.add(userMsg)
+                            }
                         }
                         
                         runOnUiThread {
@@ -3468,6 +3543,10 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             Log.d(TAG, "强制同步 - 获取到 ${allMessages.size} 条消息")
             
             if (allMessages.isNotEmpty()) {
+                // 保存用户刚发送的消息（如果有的话）
+                val userMessages = messages.filter { it.isFromUser }
+                val lastUserMessage = userMessages.lastOrNull()
+                
                 messages.clear()
                 allMessages.forEach { unifiedMsg ->
                     val chatMsg = ChatMessage(
@@ -3476,6 +3555,15 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                         timestamp = unifiedMsg.timestamp
                     )
                     messages.add(chatMsg)
+                }
+                
+                // 如果用户刚发送了消息但不在同步的数据中，重新添加
+                if (lastUserMessage != null && !messages.any { 
+                    it.isFromUser && it.content == lastUserMessage.content && 
+                    Math.abs(it.timestamp - lastUserMessage.timestamp) < 5000 // 5秒内的消息
+                }) {
+                    Log.d(TAG, "重新添加用户刚发送的消息: ${lastUserMessage.content}")
+                    messages.add(lastUserMessage)
                 }
                 
                 runOnUiThread {

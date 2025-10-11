@@ -1,5 +1,6 @@
 package com.example.aifloatingball.adapter
 
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -110,8 +111,10 @@ class ChatMessageAdapter(
         private val messageCard: com.google.android.material.card.MaterialCardView = itemView.findViewById(R.id.message_card)
 
         fun bind(message: ChatActivity.ChatMessage, position: Int) {
+            Log.d("ChatMessageAdapter", "绑定用户消息: position=$position, content='${message.content}', isFromUser=${message.isFromUser}")
             messageText.text = message.content
             timeText.text = formatTime(message.timestamp)
+            Log.d("ChatMessageAdapter", "用户消息文本已设置: '${messageText.text}'")
             
             // 设置长按事件
             messageCard.setOnLongClickListener {
