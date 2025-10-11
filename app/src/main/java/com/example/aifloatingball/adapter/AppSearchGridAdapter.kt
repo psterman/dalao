@@ -770,13 +770,10 @@ class AppSearchGridAdapter(
             }
         }
 
-        // 添加AI回复定制功能
-        val customizationManager = PlatformIconCustomizationManager.getInstance(context)
-        val platformName = getPlatformNameFromApp(appConfig)
-        if (platformName != null) {
-            val statusText = customizationManager.getPlatformStatusText(platformName)
+            // 添加AI回复定制功能 - 支持所有应用
+            val customizationManager = PlatformIconCustomizationManager.getInstance(context)
+            val statusText = customizationManager.getAppStatusText(appConfig)
             menuItems.add(statusText)
-        }
 
         if (isInstalled) {
             menuItems.add("添加到自定义分类")
@@ -806,34 +803,21 @@ class AppSearchGridAdapter(
                             // 通知适配器更新排序
                             notifyDataSetChanged()
                         } else {
-                            // 处理AI回复定制功能
-                            val platformName = getPlatformNameFromApp(appConfig)
-                            if (platformName != null) {
-                                val customizationManager = PlatformIconCustomizationManager.getInstance(context)
-                                val isEnabled = customizationManager.togglePlatform(platformName)
-                                val message = if (isEnabled) "已添加到AI回复" else "已从AI回复中移除"
-                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                            }
+                            // 处理AI回复定制功能 - 支持所有应用
+                            val customizationManager = PlatformIconCustomizationManager.getInstance(context)
+                            val isEnabled = customizationManager.toggleApp(appConfig)
+                            val message = if (isEnabled) "已添加到AI回复" else "已从AI回复中移除"
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     }
                     2 -> {
                         if (appConfig.category == AppCategory.AI) {
-                            // 处理AI回复定制功能
-                            val platformName = getPlatformNameFromApp(appConfig)
-                            if (platformName != null) {
-                                val customizationManager = PlatformIconCustomizationManager.getInstance(context)
-                                val isEnabled = customizationManager.togglePlatform(platformName)
-                                val message = if (isEnabled) "已添加到AI回复" else "已从AI回复中移除"
-                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                            }
+                            // 处理AI回复定制功能 - 支持所有应用
+                            val customizationManager = PlatformIconCustomizationManager.getInstance(context)
+                            val isEnabled = customizationManager.toggleApp(appConfig)
+                            val message = if (isEnabled) "已添加到AI回复" else "已从AI回复中移除"
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         } else if (isInstalled) {
-                            addToCustomCategory(appConfig)
-                        } else if (appConfig.category == AppCategory.CUSTOM) {
-                            removeFromCustomCategory(appConfig)
-                        }
-                    }
-                    2 -> {
-                        if (isInstalled && appConfig.category != AppCategory.AI) {
                             addToCustomCategory(appConfig)
                         } else if (appConfig.category == AppCategory.CUSTOM) {
                             removeFromCustomCategory(appConfig)
@@ -978,19 +962,4 @@ class AppSearchGridAdapter(
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
     
-    /**
-     * 根据应用配置获取对应的平台名称
-     */
-    private fun getPlatformNameFromApp(appConfig: AppSearchConfig): String? {
-        return when (appConfig.packageName) {
-            "com.ss.android.ugc.aweme" -> "抖音"
-            "com.xingin.xhs" -> "小红书"
-            "com.google.android.youtube" -> "YouTube"
-            "tv.danmaku.bili" -> "哔哩哔哩"
-            "com.smile.gifmaker" -> "快手"
-            "com.sina.weibo" -> "微博"
-            "com.douban.frodo" -> "豆瓣"
-            else -> null
-        }
-    }
 }

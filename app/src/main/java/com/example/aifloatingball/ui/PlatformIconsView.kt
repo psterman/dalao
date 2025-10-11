@@ -40,7 +40,7 @@ class PlatformIconsView @JvmOverloads constructor(
         isVerticalScrollBarEnabled = false
         
         // 预加载所有平台图标
-        PlatformIconLoader.preloadAllPlatformIcons(context)
+        PlatformIconLoader.preloadAllPlatformIcons()
     }
     
     /**
@@ -57,6 +57,7 @@ class PlatformIconsView @JvmOverloads constructor(
     
     /**
      * 创建平台图标
+     * 使用与软件tab相同的图标样式
      */
     private fun createPlatformIcon(platform: PlatformJumpManager.PlatformInfo, query: String): ImageView {
         val iconView = ImageView(context).apply {
@@ -67,17 +68,11 @@ class PlatformIconsView @JvmOverloads constructor(
             // 使用PlatformIconLoader加载图标
             PlatformIconLoader.loadPlatformIcon(this, platform.name, context)
             
-            // 设置点击效果
-            background = ContextCompat.getDrawable(context, R.drawable.platform_icon_background)
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setPadding(
-                context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding),
-                context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding),
-                context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding),
-                context.resources.getDimensionPixelSize(R.dimen.platform_icon_padding)
-            )
+            // 设置与软件tab相同的图标样式
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            background = null // 清除背景，让IconProcessor处理
             
-            // 设置点击事件
+            // 设置点击效果
             setOnClickListener {
                 platformJumpManager.jumpToPlatform(platform.name, query)
             }

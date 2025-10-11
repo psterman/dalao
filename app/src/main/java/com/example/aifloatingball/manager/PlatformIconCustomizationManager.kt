@@ -3,139 +3,189 @@ package com.example.aifloatingball.manager
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.aifloatingball.model.AppSearchConfig
 
 /**
  * 平台图标定制管理器
- * 管理用户在AI回复中显示的平台图标
+ * 负责管理用户在AI回复中显示哪些应用图标的定制设置
+ * 支持所有应用，不仅仅是预设的平台
  */
 class PlatformIconCustomizationManager private constructor(context: Context) {
-    
+
+    private val sharedPreferences: SharedPreferences
+    private val enabledApps: MutableSet<String> // 存储用户启用的应用包名
+
+    init {
+        sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        enabledApps = sharedPreferences.getStringSet(KEY_ENABLED_APPS, getDefaultEnabledApps())?.toMutableSet() ?: mutableSetOf()
+        Log.d(TAG, "初始化 PlatformIconCustomizationManager, 已启用应用: $enabledApps")
+    }
+
     companion object {
-        private const val TAG = "PlatformIconCustomization"
-        private const val PREFS_NAME = "platform_icon_customization"
-        private const val KEY_ENABLED_PLATFORMS = "enabled_platforms"
-        private const val KEY_CUSTOMIZATION_ENABLED = "customization_enabled"
-        
+        private const val TAG = "PlatformIconCustomizationManager"
+        private const val PREFS_NAME = "platform_icon_customization_prefs"
+        private const val KEY_ENABLED_APPS = "enabled_apps"
+
         @Volatile
         private var INSTANCE: PlatformIconCustomizationManager? = null
-        
+
         fun getInstance(context: Context): PlatformIconCustomizationManager {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: PlatformIconCustomizationManager(context.applicationContext).also { INSTANCE = it }
             }
         }
-    }
-    
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    
-    /**
-     * 默认启用的平台
-     */
-    private val defaultEnabledPlatforms = setOf(
-        "抖音", "小红书", "YouTube", "哔哩哔哩", "快手", "微博", "豆瓣"
-    )
-    
-    /**
-     * 检查是否启用了定制功能
-     */
-    fun isCustomizationEnabled(): Boolean {
-        return prefs.getBoolean(KEY_CUSTOMIZATION_ENABLED, true)
-    }
-    
-    /**
-     * 设置是否启用定制功能
-     */
-    fun setCustomizationEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_CUSTOMIZATION_ENABLED, enabled).apply()
-        Log.d(TAG, "Customization enabled: $enabled")
-    }
-    
-    /**
-     * 获取启用的平台列表
-     */
-    fun getEnabledPlatforms(): Set<String> {
-        val enabledPlatforms = prefs.getStringSet(KEY_ENABLED_PLATFORMS, defaultEnabledPlatforms)
-        return enabledPlatforms ?: defaultEnabledPlatforms
-    }
-    
-    /**
-     * 设置启用的平台列表
-     */
-    fun setEnabledPlatforms(platforms: Set<String>) {
-        prefs.edit().putStringSet(KEY_ENABLED_PLATFORMS, platforms).apply()
-        Log.d(TAG, "Enabled platforms: $platforms")
-    }
-    
-    /**
-     * 添加平台到启用列表
-     */
-    fun addPlatform(platformName: String) {
-        val currentPlatforms = getEnabledPlatforms().toMutableSet()
-        currentPlatforms.add(platformName)
-        setEnabledPlatforms(currentPlatforms)
-        Log.d(TAG, "Added platform: $platformName")
-    }
-    
-    /**
-     * 从启用列表中移除平台
-     */
-    fun removePlatform(platformName: String) {
-        val currentPlatforms = getEnabledPlatforms().toMutableSet()
-        currentPlatforms.remove(platformName)
-        setEnabledPlatforms(currentPlatforms)
-        Log.d(TAG, "Removed platform: $platformName")
-    }
-    
-    /**
-     * 切换平台启用状态
-     */
-    fun togglePlatform(platformName: String): Boolean {
-        val currentPlatforms = getEnabledPlatforms()
-        return if (currentPlatforms.contains(platformName)) {
-            removePlatform(platformName)
-            false
-        } else {
-            addPlatform(platformName)
-            true
+
+        // 默认启用的应用（预设平台）
+        fun getDefaultEnabledApps(): Set<String> {
+            return setOf(
+                "com.ss.android.ugc.aweme", // 抖音
+                "com.xingin.xhs", // 小红书
+                "com.google.android.youtube", // YouTube
+                "tv.danmaku.bili", // 哔哩哔哩
+                "com.smile.gifmaker", // 快手
+                "com.sina.weibo", // 微博
+                "com.douban.frodo" // 豆瓣
+            )
         }
     }
-    
+
     /**
-     * 检查平台是否启用
+     * 切换应用的启用状态
+     * @param appConfig 应用配置
+     * @return 切换后该应用是否启用
      */
-    fun isPlatformEnabled(platformName: String): Boolean {
-        return getEnabledPlatforms().contains(platformName)
+    fun toggleApp(appConfig: AppSearchConfig): Boolean {
+        val packageName = appConfig.packageName
+        val isEnabled = if (enabledApps.contains(packageName)) {
+            enabledApps.remove(packageName)
+            false
+        } else {
+            enabledApps.add(packageName)
+            true
+        }
+        saveEnabledApps()
+        Log.d(TAG, "切换应用 ${appConfig.appName} ($packageName), 状态: $isEnabled, 当前已启用应用: $enabledApps")
+        return isEnabled
     }
-    
+
     /**
-     * 重置为默认设置
+     * 检查应用是否启用
+     * @param packageName 应用包名
+     * @return 如果应用启用则返回true，否则返回false
      */
-    fun resetToDefault() {
-        setEnabledPlatforms(defaultEnabledPlatforms)
-        setCustomizationEnabled(true)
-        Log.d(TAG, "Reset to default settings")
+    fun isAppEnabled(packageName: String): Boolean {
+        return enabledApps.contains(packageName)
     }
-    
+
     /**
-     * 获取平台显示状态文本
+     * 根据用户设置过滤应用列表
+     * @param allApps 包含所有应用信息的列表
+     * @return 过滤后的应用列表
      */
-    fun getPlatformStatusText(platformName: String): String {
-        return if (isPlatformEnabled(platformName)) {
-            "取消到AI回复"
+    fun filterEnabledApps(allApps: List<AppSearchConfig>): List<AppSearchConfig> {
+        return allApps.filter { isAppEnabled(it.packageName) }
+    }
+
+    /**
+     * 获取应用在菜单中显示的状态文本
+     */
+    fun getAppStatusText(appConfig: AppSearchConfig): String {
+        return if (isAppEnabled(appConfig.packageName)) {
+            "取消添加到AI回复"
         } else {
             "添加到AI回复"
         }
     }
-    
+
     /**
-     * 过滤平台列表，只返回启用的平台
+     * 获取所有启用的应用包名
      */
-    fun filterEnabledPlatforms(allPlatforms: List<PlatformJumpManager.PlatformInfo>): List<PlatformJumpManager.PlatformInfo> {
-        if (!isCustomizationEnabled()) {
-            return allPlatforms
+    fun getEnabledApps(): Set<String> {
+        return enabledApps.toSet()
+    }
+
+    /**
+     * 添加应用到启用列表
+     */
+    fun addApp(packageName: String) {
+        enabledApps.add(packageName)
+        saveEnabledApps()
+        Log.d(TAG, "添加应用到启用列表: $packageName")
+    }
+
+    /**
+     * 从启用列表中移除应用
+     */
+    fun removeApp(packageName: String) {
+        enabledApps.remove(packageName)
+        saveEnabledApps()
+        Log.d(TAG, "从启用列表中移除应用: $packageName")
+    }
+
+    /**
+     * 清空所有启用的应用
+     */
+    fun clearAllApps() {
+        enabledApps.clear()
+        saveEnabledApps()
+        Log.d(TAG, "清空所有启用的应用")
+    }
+
+    /**
+     * 重置为默认设置
+     */
+    fun resetToDefault() {
+        enabledApps.clear()
+        enabledApps.addAll(getDefaultEnabledApps())
+        saveEnabledApps()
+        Log.d(TAG, "重置为默认设置")
+    }
+
+    /**
+     * 保存启用的应用列表到SharedPreferences
+     */
+    private fun saveEnabledApps() {
+        sharedPreferences.edit().putStringSet(KEY_ENABLED_APPS, enabledApps).apply()
+    }
+
+    // 为了向后兼容，保留原有的平台相关方法
+    @Deprecated("使用 toggleApp 替代")
+    fun togglePlatform(platformName: String): Boolean {
+        // 将平台名称转换为包名
+        val packageName = when (platformName) {
+            "抖音" -> "com.ss.android.ugc.aweme"
+            "小红书" -> "com.xingin.xhs"
+            "YouTube" -> "com.google.android.youtube"
+            "哔哩哔哩" -> "tv.danmaku.bili"
+            "快手" -> "com.smile.gifmaker"
+            "微博" -> "com.sina.weibo"
+            "豆瓣" -> "com.douban.frodo"
+            else -> return false
         }
-        
-        val enabledPlatforms = getEnabledPlatforms()
-        return allPlatforms.filter { it.name in enabledPlatforms }
+        return toggleApp(AppSearchConfig("", platformName, packageName, true, 0, 0, "", com.example.aifloatingball.model.AppCategory.ALL))
+    }
+
+    @Deprecated("使用 isAppEnabled 替代")
+    fun isPlatformEnabled(platformName: String): Boolean {
+        val packageName = when (platformName) {
+            "抖音" -> "com.ss.android.ugc.aweme"
+            "小红书" -> "com.xingin.xhs"
+            "YouTube" -> "com.google.android.youtube"
+            "哔哩哔哩" -> "tv.danmaku.bili"
+            "快手" -> "com.smile.gifmaker"
+            "微博" -> "com.sina.weibo"
+            "豆瓣" -> "com.douban.frodo"
+            else -> return false
+        }
+        return isAppEnabled(packageName)
+    }
+
+    @Deprecated("使用 getAppStatusText 替代")
+    fun getPlatformStatusText(platformName: String): String {
+        return if (isPlatformEnabled(platformName)) {
+            "取消添加到AI回复"
+        } else {
+            "添加到AI回复"
+        }
     }
 }

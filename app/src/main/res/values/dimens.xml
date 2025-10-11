@@ -112,7 +112,7 @@
     <dimen name="search_input_icon_size_small">20dp</dimen>
     
     <!-- 平台图标尺寸 -->
-    <dimen name="platform_icon_size">36dp</dimen>
+    <dimen name="platform_icon_size">48dp</dimen>
     <dimen name="platform_icon_margin">6dp</dimen>
     <dimen name="platform_icon_padding">6dp</dimen>
 </resources>
