@@ -2415,7 +2415,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
         }
     }
     
-    @Suppress("DEPRECATION") // getRunningTasks is deprecated but still useful for our purpose
+    @Suppress("DEPRECATION") // getRunningTas）ks is deprecated but still useful for our purpose
     private fun isSimpleModeActivityRunning(): Boolean {
         val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val runningTasks = activityManager.getRunningTasks(10)

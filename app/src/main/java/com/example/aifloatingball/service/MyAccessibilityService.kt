@@ -272,6 +272,22 @@ class MyAccessibilityService : AccessibilityService() {
             null
         }
     }
+    
+    /**
+     * 公开方法：获取剪贴板内容
+     * 供其他服务调用
+     */
+    fun getClipboardContent(): String? {
+        return try {
+            Log.d(TAG, "外部请求获取剪贴板内容")
+            val content = getCurrentClipboardContent()
+            Log.d(TAG, "剪贴板内容: '$content'")
+            content
+        } catch (e: Exception) {
+            Log.e(TAG, "外部获取剪贴板内容失败", e)
+            null
+        }
+    }
 
     private fun updateLastClipboardContent() {
         lastClipboardContent = getCurrentClipboardContent()

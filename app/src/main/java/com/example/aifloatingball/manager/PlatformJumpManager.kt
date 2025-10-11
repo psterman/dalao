@@ -253,24 +253,21 @@ class PlatformJumpManager(private val context: Context) {
     
     /**
      * 启动AI应用并使用Intent发送文本
-     * 参考软件tab的AI跳转方法
+     * 完全参考软件tab的AI跳转方法
      */
     private fun launchAIAppWithIntent(packageName: String, query: String, appName: String) {
         try {
-            Log.d(TAG, "启动AI应用: $appName, 包名: $packageName")
+            Log.d(TAG, "启动AI应用: $appName, 包名: $packageName, 查询: $query")
             
-            // 方案1：尝试Intent发送
-            if (tryIntentSend(packageName, query, appName)) {
-                return
+            // 对于豆包应用，尝试使用Intent直接发送文本
+            if (appName.contains("豆包") && packageName == "com.larus.nova") {
+                if (tryIntentSendForDoubao(packageName, query, appName)) {
+                    return
+                }
             }
             
-            // 方案2：直接启动应用并使用自动粘贴
-            if (tryDirectLaunchWithAutoPaste(packageName, query, appName)) {
-                return
-            }
-            
-            // 方案3：使用剪贴板备用方案
-            sendQuestionViaClipboard(packageName, query, appName)
+            // 参考软件tab的AI跳转方法：启动应用并使用自动化粘贴
+            launchAppWithAutoPaste(packageName, query, appName)
             
         } catch (e: Exception) {
             Log.e(TAG, "AI应用启动失败: $appName", e)
@@ -280,10 +277,13 @@ class PlatformJumpManager(private val context: Context) {
     }
     
     /**
-     * 尝试通过Intent发送文本
+     * 尝试使用Intent直接发送文本到豆包应用
      */
-    private fun tryIntentSend(packageName: String, query: String, appName: String): Boolean {
+    private fun tryIntentSendForDoubao(packageName: String, query: String, appName: String): Boolean {
         try {
+            Log.d(TAG, "尝试Intent直接发送到豆包: $query")
+            
+            // 方案1：尝试使用ACTION_SEND直接发送文本
             val sendIntent = Intent().apply {
                 action = Intent.ACTION_SEND
                 type = "text/plain"
@@ -294,21 +294,53 @@ class PlatformJumpManager(private val context: Context) {
             
             if (sendIntent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(sendIntent)
-                Toast.makeText(context, "正在向${appName}发送问题...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "Intent发送成功: $appName")
+                Toast.makeText(context, "正在向豆包发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "豆包Intent发送成功")
+                
+                // 延迟显示悬浮窗
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    showAIAppOverlay(packageName, query, appName)
+                }, 2000)
+                
                 return true
             }
+            
+            // 方案2：尝试使用豆包特定的URL Scheme
+            val doubaoUrl = "doubao://chat?text=${Uri.encode(query)}"
+            val urlIntent = Intent(Intent.ACTION_VIEW, Uri.parse(doubaoUrl)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            
+            if (urlIntent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(urlIntent)
+                Toast.makeText(context, "正在向豆包发送问题...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "豆包URL Scheme发送成功")
+                
+                // 延迟显示悬浮窗
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    showAIAppOverlay(packageName, query, appName)
+                }, 2000)
+                
+                return true
+            }
+            
+            Log.d(TAG, "豆包Intent发送失败，回退到剪贴板方案")
+            return false
+            
         } catch (e: Exception) {
-            Log.d(TAG, "Intent发送失败: $appName, ${e.message}")
+            Log.e(TAG, "豆包Intent发送失败", e)
+            return false
         }
-        return false
     }
     
     /**
-     * 直接启动应用并使用自动粘贴
+     * 启动应用并使用自动化粘贴
+     * 完全参考软件tab的实现
      */
-    private fun tryDirectLaunchWithAutoPaste(packageName: String, query: String, appName: String): Boolean {
+    private fun launchAppWithAutoPaste(packageName: String, query: String, appName: String) {
         try {
+            Log.d(TAG, "启动应用并使用自动化粘贴: $appName, 问题: $query")
+            
             // 将问题复制到剪贴板
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             val clip = android.content.ClipData.newPlainText("AI问题", query)
@@ -319,94 +351,47 @@ class PlatformJumpManager(private val context: Context) {
             if (launchIntent != null) {
                 launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(launchIntent)
-                Toast.makeText(context, "正在启动$appName...", Toast.LENGTH_SHORT).show()
-                Log.d(TAG, "直接启动成功: $appName")
+                Toast.makeText(context, "正在启动${appName}...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "${appName}启动成功")
                 
-                // 延迟启动自动粘贴（确保应用完全启动）
+                // 延迟显示悬浮窗
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    startAutoPaste(packageName, query, appName)
-                }, 2000)
-                return true
+                    showAIAppOverlay(packageName, query, appName)
+                }, 2000) // 等待2秒让应用完全加载
+                
             } else {
-                Log.d(TAG, "直接启动失败: $appName, 无法获取启动Intent")
-                return false
+                Toast.makeText(context, "无法启动${appName}，请检查应用是否已安装", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
-            Log.d(TAG, "直接启动失败: $appName, ${e.message}")
-        }
-        return false
-    }
-    
-    /**
-     * 启动自动粘贴功能
-     */
-    private fun startAutoPaste(packageName: String, query: String, appName: String) {
-        try {
-            Log.d(TAG, "启动自动粘贴: $appName, 查询: $query")
-            
-            // 方案1：尝试使用无障碍服务自动粘贴
-            if (tryAccessibilityAutoPaste(packageName, query, appName)) {
-                return
-            }
-            
-            // 方案2：启动AI应用悬浮窗服务
-            if (tryAIAppOverlayService(packageName, query, appName)) {
-                return
-            }
-            
-            // 方案3：回退到剪贴板方案
-            sendQuestionViaClipboard(packageName, query, appName)
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "自动粘贴启动失败: $appName", e)
+            Log.e(TAG, "启动应用并自动粘贴失败: ${appName}", e)
+            // 回退到剪贴板方案
             sendQuestionViaClipboard(packageName, query, appName)
         }
     }
     
     /**
-     * 尝试使用无障碍服务自动粘贴
+     * 显示AI应用悬浮窗
+     * 完全参考软件tab的实现
      */
-    private fun tryAccessibilityAutoPaste(packageName: String, query: String, appName: String): Boolean {
+    private fun showAIAppOverlay(packageName: String, query: String, appName: String) {
         try {
-            // 发送自动粘贴请求到无障碍服务
-            val intent = Intent("com.example.aifloatingball.AUTO_PASTE").apply {
-                putExtra("package_name", packageName)
-                putExtra("query", query)
-                putExtra("app_name", appName)
-            }
-            context.sendBroadcast(intent)
+            Log.d(TAG, "🎯 显示AI应用悬浮窗: $appName")
             
-            Log.d(TAG, "已发送无障碍服务自动粘贴请求: $appName")
-            Toast.makeText(context, "正在自动粘贴到${appName}...", Toast.LENGTH_SHORT).show()
-            return true
-            
-        } catch (e: Exception) {
-            Log.d(TAG, "无障碍服务自动粘贴失败: $appName, ${e.message}")
-            return false
-        }
-    }
-    
-    /**
-     * 尝试启动AI应用悬浮窗服务
-     */
-    private fun tryAIAppOverlayService(packageName: String, query: String, appName: String): Boolean {
-        try {
             val intent = Intent(context, com.example.aifloatingball.service.AIAppOverlayService::class.java).apply {
-                putExtra("package_name", packageName)
-                putExtra("query", query)
-                putExtra("app_name", appName)
+                action = com.example.aifloatingball.service.AIAppOverlayService.ACTION_SHOW_OVERLAY
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_APP_NAME, appName)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_QUERY, query)
+                putExtra(com.example.aifloatingball.service.AIAppOverlayService.EXTRA_PACKAGE_NAME, packageName)
             }
             context.startService(intent)
             
-            Log.d(TAG, "已启动AI应用悬浮窗服务: $appName")
-            Toast.makeText(context, "已启动${appName}自动粘贴助手", Toast.LENGTH_SHORT).show()
-            return true
-            
         } catch (e: Exception) {
-            Log.d(TAG, "AI应用悬浮窗服务启动失败: $appName, ${e.message}")
-            return false
+            Log.e(TAG, "显示AI应用悬浮窗失败: $appName", e)
+            // 回退到剪贴板方案
+            sendQuestionViaClipboard(packageName, query, appName)
         }
     }
+    
     
     /**
      * 使用剪贴板发送问题
