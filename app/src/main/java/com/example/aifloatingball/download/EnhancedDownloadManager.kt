@@ -1,6 +1,5 @@
 package com.example.aifloatingball.download
 
-import com.example.aifloatingball.utils.PermissionUtils
 import android.app.DownloadManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -9,8 +8,17 @@ import android.content.IntentFilter
 import android.database.Cursor
 import android.net.Uri
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import com.example.aifloatingball.R
+import com.example.aifloatingball.utils.PermissionUtils
 import java.io.File
 import java.net.URLDecoder
 import java.text.SimpleDateFormat
@@ -30,6 +38,16 @@ class EnhancedDownloadManager(private val context: Context) {
     private val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     private val downloadIds = mutableSetOf<Long>()
     private val downloadCallbacks = mutableMapOf<Long, DownloadCallback>()
+    
+    // 下载进度弹窗相关
+    private var progressDialog: AlertDialog? = null
+    private val progressHandler = Handler(Looper.getMainLooper())
+    private val progressUpdateRunnable = object : Runnable {
+        override fun run() {
+            updateProgressDialog()
+            progressHandler.postDelayed(this, 1000) // 每秒更新一次
+        }
+    }
     
     // 下载完成广播接收器
     private val downloadCompleteReceiver = object : BroadcastReceiver() {
@@ -96,6 +114,11 @@ class EnhancedDownloadManager(private val context: Context) {
             callback = callback
         )
         
+        // 显示下载进度弹窗
+        if (downloadId != -1L) {
+            showDownloadProgressDialog(downloadId, fileName)
+        }
+        
         Log.d(TAG, "开始下载图片: $imageUrl -> $fileName")
         Toast.makeText(context, "开始保存图片到相册", Toast.LENGTH_SHORT).show()
         return downloadId
@@ -120,6 +143,11 @@ class EnhancedDownloadManager(private val context: Context) {
             destinationDir = Environment.DIRECTORY_DOWNLOADS,
             callback = callback
         )
+        
+        // 显示下载进度弹窗
+        if (downloadId != -1L) {
+            showDownloadProgressDialog(downloadId, fileName)
+        }
         
         Log.d(TAG, "开始下载文件: $fileUrl -> $fileName")
         Toast.makeText(context, "开始下载文件到下载文件夹", Toast.LENGTH_SHORT).show()
@@ -242,11 +270,24 @@ class EnhancedDownloadManager(private val context: Context) {
             val title = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE))
             val description = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_DESCRIPTION))
             val localUri = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
-            val localFilename = cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_FILENAME))
             val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
             val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
             val bytesTotal = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
             val lastModified = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LAST_MODIFIED_TIMESTAMP))
+            
+            // 安全地获取文件名，避免使用已弃用的COLUMN_LOCAL_FILENAME
+            val localFilename = try {
+                if (localUri != null && localUri.isNotEmpty()) {
+                    val uri = Uri.parse(localUri)
+                    val fileName = getFileNameFromUri(uri)
+                    fileName ?: title // 如果无法获取文件名，使用标题
+                } else {
+                    title // 如果没有URI，使用标题作为文件名
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "获取文件名失败，使用标题: $title", e)
+                title
+            }
             
             downloads.add(DownloadInfo(
                 downloadId = downloadId,
@@ -276,13 +317,14 @@ class EnhancedDownloadManager(private val context: Context) {
     }
     
     /**
-     * 显示系统下载管理器
+     * 显示自定义下载管理器
      */
     fun showDownloadManager() {
         try {
-            val intent = Intent(DownloadManager.ACTION_VIEW_DOWNLOADS)
+            val intent = Intent(context, DownloadManagerActivity::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
+            Log.d(TAG, "打开自定义下载管理器")
         } catch (e: Exception) {
             Log.e(TAG, "无法打开下载管理器", e)
             Toast.makeText(context, "无法打开下载管理器", Toast.LENGTH_SHORT).show()
@@ -294,7 +336,7 @@ class EnhancedDownloadManager(private val context: Context) {
      */
     private fun generateImageFileName(url: String): String {
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-        val extension = getFileExtension(url) ?: "jpg"
+        val extension = getFileExtensionFromUrl(url) ?: getExtensionFromMimeType(url) ?: "jpg"
         return "image_$timestamp.$extension"
     }
     
@@ -305,24 +347,27 @@ class EnhancedDownloadManager(private val context: Context) {
         return try {
             val decodedUrl = URLDecoder.decode(url, "UTF-8")
             val fileName = decodedUrl.substringAfterLast("/")
+            
+            // 如果文件名包含扩展名且长度合理，直接使用
             if (fileName.contains(".") && fileName.length < 100) {
                 fileName
             } else {
+                // 生成带时间戳的文件名
                 val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                val extension = getFileExtension(url) ?: "bin"
+                val extension = getFileExtensionFromUrl(url) ?: getExtensionFromMimeType(url) ?: "bin"
                 "file_$timestamp.$extension"
             }
         } catch (e: Exception) {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val extension = getFileExtension(url) ?: "bin"
+            val extension = getFileExtensionFromUrl(url) ?: getExtensionFromMimeType(url) ?: "bin"
             "file_$timestamp.$extension"
         }
     }
     
     /**
-     * 获取文件扩展名
+     * 从URL路径获取文件扩展名
      */
-    private fun getFileExtension(url: String): String? {
+    private fun getFileExtensionFromUrl(url: String): String? {
         return try {
             val path = Uri.parse(url).path
             path?.substringAfterLast(".", "")?.takeIf { it.isNotEmpty() }
@@ -332,10 +377,61 @@ class EnhancedDownloadManager(private val context: Context) {
     }
     
     /**
+     * 根据MIME类型推断文件扩展名
+     */
+    private fun getExtensionFromMimeType(url: String): String? {
+        return try {
+            // 尝试从URL中推断MIME类型
+            val mimeType = getMimeType(url)
+            when {
+                mimeType.startsWith("application/vnd.android.package-archive") -> "apk"
+                mimeType.startsWith("image/") -> {
+                    when (mimeType) {
+                        "image/jpeg" -> "jpg"
+                        "image/png" -> "png"
+                        "image/gif" -> "gif"
+                        "image/webp" -> "webp"
+                        else -> "jpg"
+                    }
+                }
+                mimeType.startsWith("video/") -> {
+                    when (mimeType) {
+                        "video/mp4" -> "mp4"
+                        "video/avi" -> "avi"
+                        "video/mkv" -> "mkv"
+                        else -> "mp4"
+                    }
+                }
+                mimeType.startsWith("audio/") -> {
+                    when (mimeType) {
+                        "audio/mpeg" -> "mp3"
+                        "audio/wav" -> "wav"
+                        "audio/flac" -> "flac"
+                        else -> "mp3"
+                    }
+                }
+                mimeType == "application/pdf" -> "pdf"
+                mimeType == "application/zip" -> "zip"
+                mimeType == "application/x-rar-compressed" -> "rar"
+                mimeType.startsWith("text/") -> "txt"
+                else -> null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    /**
      * 获取MIME类型
      */
     private fun getMimeType(url: String): String {
-        val extension = getFileExtension(url)?.lowercase()
+        val extension = getFileExtensionFromUrl(url)?.lowercase()
+        
+        // 特殊URL模式检测
+        if (url.contains(".apk") || url.contains("apk") || url.contains("android")) {
+            return "application/vnd.android.package-archive"
+        }
+        
         return when (extension) {
             "jpg", "jpeg" -> "image/jpeg"
             "png" -> "image/png"
@@ -353,7 +449,168 @@ class EnhancedDownloadManager(private val context: Context) {
             "mp4" -> "video/mp4"
             "mp3" -> "audio/mpeg"
             "txt" -> "text/plain"
-            else -> ""
+            "apk" -> "application/vnd.android.package-archive"
+            else -> "*/*"
+        }
+    }
+    
+    /**
+     * 显示下载进度弹窗
+     */
+    private fun showDownloadProgressDialog(downloadId: Long, fileName: String) {
+        try {
+            val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_download_progress, null)
+            
+            val fileNameTextView = dialogView.findViewById<TextView>(R.id.download_file_name)
+            val progressBar = dialogView.findViewById<ProgressBar>(R.id.download_progress_bar)
+            val progressTextView = dialogView.findViewById<TextView>(R.id.download_progress_text)
+            val speedTextView = dialogView.findViewById<TextView>(R.id.download_speed_text)
+            val downloadedSizeTextView = dialogView.findViewById<TextView>(R.id.download_downloaded_size)
+            val totalSizeTextView = dialogView.findViewById<TextView>(R.id.download_total_size)
+            val cancelButton = dialogView.findViewById<TextView>(R.id.download_cancel_button)
+            val managerButton = dialogView.findViewById<TextView>(R.id.download_manager_button)
+            
+            fileNameTextView.text = fileName
+            
+            progressDialog = AlertDialog.Builder(context)
+                .setView(dialogView)
+                .setCancelable(false)
+                .create()
+            
+            // 取消下载
+            cancelButton.setOnClickListener {
+                cancelDownload(downloadId)
+                dismissProgressDialog()
+            }
+            
+            // 打开下载管理
+            managerButton.setOnClickListener {
+                dismissProgressDialog()
+                showDownloadManager()
+            }
+            
+            progressDialog?.show()
+            
+            // 开始更新进度
+            progressHandler.post(progressUpdateRunnable)
+            
+            Log.d(TAG, "显示下载进度弹窗: $fileName")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示下载进度弹窗失败", e)
+        }
+    }
+    
+    /**
+     * 更新下载进度弹窗
+     */
+    private fun updateProgressDialog() {
+        if (progressDialog == null || !progressDialog!!.isShowing) {
+            progressHandler.removeCallbacks(progressUpdateRunnable)
+            return
+        }
+        
+        try {
+            val dialogView = progressDialog!!.findViewById<View>(android.R.id.content)
+            if (dialogView == null) return
+            
+            val progressBar = dialogView.findViewById<ProgressBar>(R.id.download_progress_bar)
+            val progressTextView = dialogView.findViewById<TextView>(R.id.download_progress_text)
+            val speedTextView = dialogView.findViewById<TextView>(R.id.download_speed_text)
+            val downloadedSizeTextView = dialogView.findViewById<TextView>(R.id.download_downloaded_size)
+            val totalSizeTextView = dialogView.findViewById<TextView>(R.id.download_total_size)
+            
+            // 获取最新的下载进度
+            val query = DownloadManager.Query()
+            val cursor = downloadManager.query(query)
+            
+            var hasActiveDownload = false
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID))
+                val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                val bytesDownloaded = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
+                val bytesTotal = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
+                
+                if (downloadIds.contains(id) && status == DownloadManager.STATUS_RUNNING) {
+                    hasActiveDownload = true
+                    
+                    val progress = if (bytesTotal > 0) (bytesDownloaded * 100 / bytesTotal).toInt() else 0
+                    progressBar.progress = progress
+                    progressTextView.text = "$progress%"
+                    
+                    downloadedSizeTextView.text = formatFileSize(bytesDownloaded)
+                    totalSizeTextView.text = formatFileSize(bytesTotal)
+                    
+                    break
+                }
+            }
+            cursor.close()
+            
+            // 如果没有活跃的下载，关闭弹窗
+            if (!hasActiveDownload) {
+                dismissProgressDialog()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新下载进度弹窗失败", e)
+        }
+    }
+    
+    /**
+     * 关闭下载进度弹窗
+     */
+    private fun dismissProgressDialog() {
+        try {
+            progressHandler.removeCallbacks(progressUpdateRunnable)
+            progressDialog?.dismiss()
+            progressDialog = null
+            Log.d(TAG, "关闭下载进度弹窗")
+        } catch (e: Exception) {
+            Log.e(TAG, "关闭下载进度弹窗失败", e)
+        }
+    }
+    
+    /**
+     * 格式化文件大小
+     */
+    private fun formatFileSize(bytes: Long): String {
+        return when {
+            bytes < 1024 -> "$bytes B"
+            bytes < 1024 * 1024 -> "${bytes / 1024} KB"
+            bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)} MB"
+            else -> "${bytes / (1024 * 1024 * 1024)} GB"
+        }
+    }
+    
+    /**
+     * 从URI安全地获取文件名
+     */
+    private fun getFileNameFromUri(uri: Uri): String? {
+        return try {
+            when (uri.scheme) {
+                "file" -> {
+                    // 文件URI，直接获取路径的最后一部分
+                    val path = uri.path
+                    path?.substringAfterLast("/")
+                }
+                "content" -> {
+                    // Content URI，使用ContentResolver查询
+                    val cursor = context.contentResolver.query(uri, null, null, null, null)
+                    cursor?.use {
+                        if (it.moveToFirst()) {
+                            val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex >= 0) {
+                                it.getString(nameIndex)
+                            } else null
+                        } else null
+                    }
+                }
+                else -> {
+                    // 其他URI类型，尝试从路径获取
+                    uri.path?.substringAfterLast("/")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "从URI获取文件名失败: $uri", e)
+            null
         }
     }
     
@@ -362,6 +619,7 @@ class EnhancedDownloadManager(private val context: Context) {
      */
     fun cleanup() {
         try {
+            dismissProgressDialog()
             context.unregisterReceiver(downloadCompleteReceiver)
             context.unregisterReceiver(downloadNotificationReceiver)
         } catch (e: Exception) {

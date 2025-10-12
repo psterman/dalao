@@ -6572,6 +6572,30 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         }
 
+        // 下载管理按钮
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.browser_download_manager_button)?.setOnClickListener {
+            try {
+                Log.d(TAG, "用户点击下载管理按钮")
+
+                // 检查Activity状态
+                if (isFinishing || isDestroyed) {
+                    Log.w(TAG, "Activity正在结束或已销毁，跳过下载管理操作")
+                    return@setOnClickListener
+                }
+
+                // 打开下载管理界面
+                val intent = android.content.Intent(this, com.example.aifloatingball.download.DownloadManagerActivity::class.java)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                
+                Log.d(TAG, "成功打开下载管理界面")
+                showMaterialToast("📁 打开下载管理")
+            } catch (e: Exception) {
+                Log.e(TAG, "下载管理按钮点击处理失败", e)
+                showMaterialToast("❌ 打开下载管理失败")
+            }
+        }
+
         // 设置手势卡片管理器监听器
         gestureCardWebViewManager?.setOnPageChangeListener(object : GestureCardWebViewManager.OnPageChangeListener {
             override fun onCardAdded(cardData: GestureCardWebViewManager.WebViewCardData, position: Int) {

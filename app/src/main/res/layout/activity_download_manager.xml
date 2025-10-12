@@ -2,29 +2,307 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/colorBackground">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@color/colorBackground"
+        app:elevation="0dp">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorPrimary"
+            android:background="@color/colorBackground"
             app:title="下载管理"
-            app:navigationIcon="@drawable/ic_arrow_back" />
+            app:titleTextColor="@color/floating_text_primary"
+            app:navigationIcon="@drawable/ic_arrow_back"
+            app:navigationIconTint="@color/floating_text_primary" />
+
+        <!-- 搜索栏 -->
+        <EditText
+            android:id="@+id/search_edit_text"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:hint="搜索下载文件"
+            android:textSize="14sp"
+            android:textColor="@color/floating_text_primary"
+            android:textColorHint="@color/floating_text_hint"
+            android:background="@drawable/bg_search_input"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp" />
+
+        <!-- 分类标签和过滤 -->
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/category_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+
+                <TextView
+                    android:id="@+id/chip_all"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="全部"
+                    android:textSize="12sp"
+                    android:textColor="@color/floating_text_primary"
+                    android:background="@drawable/bg_chip_selected"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/chip_images"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="图片"
+                    android:textSize="12sp"
+                    android:textColor="@color/floating_text_hint"
+                    android:background="@drawable/bg_chip_normal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/chip_videos"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="视频"
+                    android:textSize="12sp"
+                    android:textColor="@color/floating_text_hint"
+                    android:background="@drawable/bg_chip_normal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/chip_documents"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="文档"
+                    android:textSize="12sp"
+                    android:textColor="@color/floating_text_hint"
+                    android:background="@drawable/bg_chip_normal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/chip_archives"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="压缩包"
+                    android:textSize="12sp"
+                    android:textColor="@color/floating_text_hint"
+                    android:background="@drawable/bg_chip_normal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/chip_apps"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="应用"
+                    android:textSize="12sp"
+                    android:textColor="@color/floating_text_hint"
+                    android:background="@drawable/bg_chip_normal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:gravity="center" />
+
+                <TextView
+                    android:id="@+id/chip_others"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginEnd="8dp"
+                    android:text="其他"
+                    android:textSize="12sp"
+                    android:textColor="@color/floating_text_hint"
+                    android:background="@drawable/bg_chip_normal"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:gravity="center" />
+
+            </LinearLayout>
+
+        </HorizontalScrollView>
+
+        <!-- 排序和操作栏 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="8dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/sort_text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="按时间排序"
+                android:textSize="12sp"
+                android:textColor="@color/floating_text_hint" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/sort_button"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="排序"
+                android:textSize="12sp"
+                style="@style/Widget.MaterialDialog.Button.Outlined" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/cleanup_button"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:text="清理"
+                android:textSize="12sp"
+                style="@style/Widget.MaterialDialog.Button.Outlined" />
+
+        </LinearLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_view"
+    <!-- 主要内容区域 -->
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:padding="8dp"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- 下载统计信息 -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/colorBackground">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="总下载"
+                            android:textSize="12sp"
+                            android:textColor="@color/floating_text_hint" />
+
+                        <TextView
+                            android:id="@+id/total_downloads_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/floating_text_primary" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="已完成"
+                            android:textSize="12sp"
+                            android:textColor="@color/floating_text_hint" />
+
+                        <TextView
+                            android:id="@+id/completed_downloads_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/colorPrimary" />
+
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="总大小"
+                            android:textSize="12sp"
+                            android:textColor="@color/floating_text_hint" />
+
+                        <TextView
+                            android:id="@+id/total_size_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0 MB"
+                            android:textSize="18sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/floating_text_primary" />
+
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 下载列表 -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="16dp"
+                android:nestedScrollingEnabled="false" />
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- 浮动操作按钮 -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab"
         android:layout_width="wrap_content"
@@ -32,6 +310,7 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:src="@drawable/ic_download"
-        app:tint="@android:color/white" />
+        app:tint="@android:color/white"
+        app:backgroundTint="@color/colorPrimary" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
