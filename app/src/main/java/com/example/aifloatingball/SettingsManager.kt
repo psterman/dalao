@@ -953,24 +953,6 @@ class SettingsManager private constructor(context: Context) {
         setThemeMode(themeMode)
     }
     
-    fun getFontSize(): Int = prefs.getInt("font_size", 1)
-    fun setFontSize(size: Int) = prefs.edit().putInt("font_size", size).apply()
-    
-    fun getPushNotificationEnabled(): Boolean = prefs.getBoolean("push_notification_enabled", true)
-    fun setPushNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("push_notification_enabled", enabled).apply()
-    
-    fun getSoundNotificationEnabled(): Boolean = prefs.getBoolean("sound_notification_enabled", false)
-    fun setSoundNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("sound_notification_enabled", enabled).apply()
-    
-    fun getVibrationNotificationEnabled(): Boolean = prefs.getBoolean("vibration_notification_enabled", true)
-    fun setVibrationNotificationEnabled(enabled: Boolean) = prefs.edit().putBoolean("vibration_notification_enabled", enabled).apply()
-    
-    fun getDataCollectionEnabled(): Boolean = prefs.getBoolean("data_collection_enabled", true)
-    fun setDataCollectionEnabled(enabled: Boolean) = prefs.edit().putBoolean("data_collection_enabled", enabled).apply()
-    
-    fun getAnonymizationEnabled(): Boolean = prefs.getBoolean("anonymization_enabled", true)
-    fun setAnonymizationEnabled(enabled: Boolean) = prefs.edit().putBoolean("anonymization_enabled", enabled).apply()
-
     fun getSearchEngineGroups(): MutableList<SearchEngineGroup> {
         val json = prefs.getString(KEY_SEARCH_ENGINE_GROUPS, null)
         return if (json != null) {

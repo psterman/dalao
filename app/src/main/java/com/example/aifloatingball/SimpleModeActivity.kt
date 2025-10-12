@@ -4315,7 +4315,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     0 -> tab.text = "任务"
                     1 -> tab.text = "基础信息"
                     2 -> tab.text = "AI配置"
-                    3 -> tab.text = "个性化"
                 }
             }.attach()
             

@@ -13,8 +13,7 @@ class AIAssistantCenterPagerAdapter(fragmentActivity: FragmentActivity) : Fragme
     private val fragments = listOf(
         TaskFragment(),          // 任务
         BasicInfoFragment(),      // 基础信息（搜索模式设置）
-        AIConfigFragment(),       // AI配置（AI指令、基础信息、API设置）
-        PersonalizationFragment() // 个性化
+        AIConfigFragment()       // AI配置（AI指令、基础信息、API设置）
     )
     
     override fun getItemCount(): Int = fragments.size
