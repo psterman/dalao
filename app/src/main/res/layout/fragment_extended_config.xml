@@ -23,7 +23,8 @@
                 android:id="@+id/expertise_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="none"/>
+                android:focusable="false"
+                android:clickable="true"/>
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -38,7 +39,8 @@
                 android:id="@+id/language_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="none"/>
+                android:focusable="false"
+                android:clickable="true"/>
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -53,7 +55,8 @@
                 android:id="@+id/formality_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="none"/>
+                android:focusable="false"
+                android:clickable="true"/>
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -68,7 +71,8 @@
                 android:id="@+id/response_length_dropdown"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="none"/>
+                android:focusable="false"
+                android:clickable="true"/>
         </com.google.android.material.textfield.TextInputLayout>
 
         <TextView

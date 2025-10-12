@@ -64,7 +64,10 @@
                         android:id="@+id/inference_mode_dropdown"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:inputType="none"/>
+                        android:focusable="false"
+                        android:clickable="true"
+                        android:inputType="none"
+                        android:completionThreshold="0"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <!-- 显示思考过程 -->
@@ -152,7 +155,10 @@
                         android:id="@+id/code_style_dropdown"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:inputType="none"/>
+                        android:focusable="false"
+                        android:clickable="true"
+                        android:inputType="none"
+                        android:completionThreshold="0"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
             </LinearLayout>
@@ -240,14 +246,12 @@
                         android:textColor="?android:attr/textColorSecondary"
                         android:layout_marginBottom="12dp" />
 
-                    <com.google.android.material.slider.Slider
+                    <SeekBar
                         android:id="@+id/seek_temperature"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:valueFrom="0.0"
-                        android:valueTo="1.0"
-                        android:stepSize="0.01"
-                        android:value="0.7" />
+                        android:max="100"
+                        android:progress="70" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -320,14 +324,12 @@
                         android:textColor="?android:attr/textColorSecondary"
                         android:layout_marginBottom="12dp" />
 
-                    <com.google.android.material.slider.Slider
+                    <SeekBar
                         android:id="@+id/seek_top_p"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:valueFrom="0.0"
-                        android:valueTo="1.0"
-                        android:stepSize="0.01"
-                        android:value="0.9" />
+                        android:max="100"
+                        android:progress="90" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -368,7 +370,10 @@
                         android:id="@+id/max_tokens_dropdown"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:inputType="none"/>
+                        android:focusable="false"
+                        android:clickable="true"
+                        android:inputType="none"
+                        android:completionThreshold="0"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
             </LinearLayout>

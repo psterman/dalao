@@ -207,16 +207,14 @@
             <com.google.android.material.tabs.TabItem
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="个性化"
+                android:text="AI指令"
                 android:icon="@drawable/ic_person" />
 
-            <!-- 原个性化标签已注释
             <com.google.android.material.tabs.TabItem
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="个性化"
-                android:icon="@drawable/ic_person" />
-            -->
+                android:text="API设置"
+                android:icon="@drawable/ic_settings" />
         </com.google.android.material.tabs.TabLayout>
 
         <!-- 内容区域 -->

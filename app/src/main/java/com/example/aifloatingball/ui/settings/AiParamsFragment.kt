@@ -55,7 +55,12 @@ class AiParamsFragment : Fragment() {
         // 确保在观察LiveData之前先初始化所有视图
         try {
             setupViews(view)
-            setupDropdowns()
+            
+            // 延迟设置下拉菜单，确保视图完全初始化
+            view.post {
+                setupDropdowns()
+            }
+            
             setupSeekBarListeners()
 
             // 现在安全地观察LiveData
@@ -93,29 +98,129 @@ class AiParamsFragment : Fragment() {
     
     private fun setupDropdowns() {
         context?.let { ctx ->
-            // 设置推理模式下拉菜单
-            val inferenceModeAdapter = ArrayAdapter(
-                ctx,
-                android.R.layout.simple_dropdown_item_1line,
-                resources.getStringArray(R.array.inference_mode_entries)
-            )
-            inferenceModeDropdown.setAdapter(inferenceModeAdapter)
+            try {
+                android.util.Log.d("AiParamsFragment", "开始设置下拉菜单")
+                
+                // 确保视图已经初始化
+                if (!::inferenceModeDropdown.isInitialized || 
+                    !::codeStyleDropdown.isInitialized || 
+                    !::maxTokensDropdown.isInitialized) {
+                    android.util.Log.w("AiParamsFragment", "下拉菜单视图未初始化，延迟设置")
+                    return
+                }
+                
+                // 设置推理模式下拉菜单
+                val inferenceModeEntries = resources.getStringArray(R.array.inference_mode_entries)
+                android.util.Log.d("AiParamsFragment", "推理模式选项数量: ${inferenceModeEntries.size}")
+                if (inferenceModeEntries.isNotEmpty()) {
+                    val inferenceModeAdapter = ArrayAdapter(
+                        ctx,
+                        android.R.layout.simple_dropdown_item_1line,
+                        inferenceModeEntries
+                    )
+                    inferenceModeDropdown.setAdapter(inferenceModeAdapter)
+                    inferenceModeDropdown.threshold = 0 // 立即显示所有选项
+                    inferenceModeDropdown.isFocusable = false
+                    inferenceModeDropdown.isClickable = true
+                    android.util.Log.d("AiParamsFragment", "推理模式下拉菜单设置完成")
+                } else {
+                    android.util.Log.w("AiParamsFragment", "推理模式选项为空")
+                }
+                
+                // 设置代码风格下拉菜单
+                val codeStyleEntries = resources.getStringArray(R.array.code_style_entries)
+                android.util.Log.d("AiParamsFragment", "代码风格选项数量: ${codeStyleEntries.size}")
+                if (codeStyleEntries.isNotEmpty()) {
+                    val codeStyleAdapter = ArrayAdapter(
+                        ctx,
+                        android.R.layout.simple_dropdown_item_1line,
+                        codeStyleEntries
+                    )
+                    codeStyleDropdown.setAdapter(codeStyleAdapter)
+                    codeStyleDropdown.threshold = 0 // 立即显示所有选项
+                    codeStyleDropdown.isFocusable = false
+                    codeStyleDropdown.isClickable = true
+                    android.util.Log.d("AiParamsFragment", "代码风格下拉菜单设置完成")
+                } else {
+                    android.util.Log.w("AiParamsFragment", "代码风格选项为空")
+                }
+                
+                // 设置最大令牌数下拉菜单
+                val maxTokensEntries = resources.getStringArray(R.array.max_tokens_entries)
+                android.util.Log.d("AiParamsFragment", "最大令牌数选项数量: ${maxTokensEntries.size}")
+                if (maxTokensEntries.isNotEmpty()) {
+                    val maxTokensAdapter = ArrayAdapter(
+                        ctx,
+                        android.R.layout.simple_dropdown_item_1line,
+                        maxTokensEntries
+                    )
+                    maxTokensDropdown.setAdapter(maxTokensAdapter)
+                    maxTokensDropdown.threshold = 0 // 立即显示所有选项
+                    maxTokensDropdown.isFocusable = false
+                    maxTokensDropdown.isClickable = true
+                    android.util.Log.d("AiParamsFragment", "最大令牌数下拉菜单设置完成")
+                } else {
+                    android.util.Log.w("AiParamsFragment", "最大令牌数选项为空")
+                }
+                
+                // 设置点击监听器
+                setupDropdownClickListeners()
+                
+                android.util.Log.d("AiParamsFragment", "所有下拉菜单设置完成")
+            } catch (e: Exception) {
+                android.util.Log.e("AiParamsFragment", "设置下拉菜单失败", e)
+            }
+        }
+    }
+    
+    private fun setupDropdownClickListeners() {
+        try {
+            // 为每个下拉菜单设置点击监听器
+            inferenceModeDropdown.setOnClickListener {
+                android.util.Log.d("AiParamsFragment", "推理模式下拉菜单被点击")
+                try {
+                    if (inferenceModeDropdown.adapter != null && inferenceModeDropdown.adapter.count > 0) {
+                        inferenceModeDropdown.showDropDown()
+                        android.util.Log.d("AiParamsFragment", "推理模式下拉菜单已显示")
+                    } else {
+                        android.util.Log.w("AiParamsFragment", "推理模式适配器为空或没有数据")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AiParamsFragment", "显示推理模式下拉菜单失败", e)
+                }
+            }
             
-            // 设置代码风格下拉菜单
-            val codeStyleAdapter = ArrayAdapter(
-                ctx,
-                android.R.layout.simple_dropdown_item_1line,
-                resources.getStringArray(R.array.code_style_entries)
-            )
-            codeStyleDropdown.setAdapter(codeStyleAdapter)
+            codeStyleDropdown.setOnClickListener {
+                android.util.Log.d("AiParamsFragment", "代码风格下拉菜单被点击")
+                try {
+                    if (codeStyleDropdown.adapter != null && codeStyleDropdown.adapter.count > 0) {
+                        codeStyleDropdown.showDropDown()
+                        android.util.Log.d("AiParamsFragment", "代码风格下拉菜单已显示")
+                    } else {
+                        android.util.Log.w("AiParamsFragment", "代码风格适配器为空或没有数据")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AiParamsFragment", "显示代码风格下拉菜单失败", e)
+                }
+            }
             
-            // 设置最大令牌数下拉菜单
-            val maxTokensAdapter = ArrayAdapter(
-                ctx,
-                android.R.layout.simple_dropdown_item_1line,
-                resources.getStringArray(R.array.max_tokens_entries)
-            )
-            maxTokensDropdown.setAdapter(maxTokensAdapter)
+            maxTokensDropdown.setOnClickListener {
+                android.util.Log.d("AiParamsFragment", "最大令牌数下拉菜单被点击")
+                try {
+                    if (maxTokensDropdown.adapter != null && maxTokensDropdown.adapter.count > 0) {
+                        maxTokensDropdown.showDropDown()
+                        android.util.Log.d("AiParamsFragment", "最大令牌数下拉菜单已显示")
+                    } else {
+                        android.util.Log.w("AiParamsFragment", "最大令牌数适配器为空或没有数据")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AiParamsFragment", "显示最大令牌数下拉菜单失败", e)
+                }
+            }
+            
+            android.util.Log.d("AiParamsFragment", "下拉菜单点击监听器设置完成")
+        } catch (e: Exception) {
+            android.util.Log.e("AiParamsFragment", "设置下拉菜单点击监听器失败", e)
         }
     }
 

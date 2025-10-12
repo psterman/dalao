@@ -231,6 +231,9 @@ class BasicInfoFragment : AIAssistantCenterFragment() {
             android.util.Log.d("BasicInfoFragment", "AI搜索模式: $isChecked")
         }
         
+        // 设置下拉菜单
+        setupDropdowns()
+        
         // 档案管理按钮
         selectProfileButton.setOnClickListener {
             showProfileSelector()
@@ -246,6 +249,44 @@ class BasicInfoFragment : AIAssistantCenterFragment() {
         
         saveProfileButton.setOnClickListener {
             saveCurrentProfile()
+        }
+    }
+    
+    private fun setupDropdowns() {
+        try {
+            // 设置对话风格下拉菜单
+            val conversationStyles = arrayOf(
+                "友好、清晰、简洁",
+                "专业、严谨、详细",
+                "幽默、轻松、有趣",
+                "直接、简洁、高效",
+                "温和、耐心、细致"
+            )
+            val conversationStyleAdapter = android.widget.ArrayAdapter(
+                requireContext(),
+                android.R.layout.simple_dropdown_item_1line,
+                conversationStyles
+            )
+            conversationStyleInput.setAdapter(conversationStyleAdapter)
+            
+            // 设置回答格式下拉菜单
+            val answerFormats = arrayOf(
+                "使用Markdown格式进行回复",
+                "使用纯文本格式进行回复",
+                "使用结构化格式进行回复",
+                "使用列表格式进行回复",
+                "使用表格格式进行回复"
+            )
+            val answerFormatAdapter = android.widget.ArrayAdapter(
+                requireContext(),
+                android.R.layout.simple_dropdown_item_1line,
+                answerFormats
+            )
+            answerFormatInput.setAdapter(answerFormatAdapter)
+            
+            android.util.Log.d("BasicInfoFragment", "下拉菜单设置完成")
+        } catch (e: Exception) {
+            android.util.Log.e("BasicInfoFragment", "设置下拉菜单失败", e)
         }
     }
     
