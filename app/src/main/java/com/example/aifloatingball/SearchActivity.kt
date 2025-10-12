@@ -28,6 +28,7 @@ import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.BaseSearchEngine
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.download.EnhancedDownloadManager
+import com.example.aifloatingball.download.DownloadManagerActivity
 import com.example.aifloatingball.view.LetterIndexBar
 import net.sourceforge.pinyin4j.PinyinHelper
 import androidx.core.view.GravityCompat
@@ -71,6 +72,12 @@ class SearchActivity : AppCompatActivity() {
     private lateinit var searchEngineButton: ImageButton
     private lateinit var clearSearchButton: ImageButton
     private var currentSearchEngine: BaseSearchEngine? = null
+    
+    // 下载提示按钮相关
+    private lateinit var downloadIndicatorContainer: FrameLayout
+    private lateinit var downloadIndicatorButton: ImageButton
+    private lateinit var downloadProgressText: TextView
+    private var activeDownloadCount = 0
     
     // 修改搜索引擎集合的类型定义
     private val searchEngines = mutableListOf<BaseSearchEngine>()
@@ -330,6 +337,11 @@ class SearchActivity : AppCompatActivity() {
         searchEngineButton = findViewById(R.id.btn_search_engine)
         clearSearchButton = findViewById(R.id.btn_clear_search)
 
+        // Initialize download indicator views
+        downloadIndicatorContainer = findViewById(R.id.download_indicator_container)
+        downloadIndicatorButton = findViewById(R.id.btn_download_indicator)
+        downloadProgressText = findViewById(R.id.download_progress_text)
+
         // 初始化时隐藏进度条
         progressBar.visibility = View.GONE
         gestureHintView.visibility = View.GONE
@@ -568,6 +580,11 @@ class SearchActivity : AppCompatActivity() {
         // 设置关闭按钮点击事件
         closeButton.setOnClickListener {
             finish()
+        }
+        
+        // 设置下载提示按钮点击事件
+        downloadIndicatorButton.setOnClickListener {
+            openDownloadManager()
         }
         
         // 添加悬浮窗模式按钮
@@ -1336,15 +1353,21 @@ class SearchActivity : AppCompatActivity() {
                 override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
                     Log.d("SearchActivity", "图片下载成功: $fileName")
                     Toast.makeText(this@SearchActivity, "图片已保存到相册", Toast.LENGTH_SHORT).show()
+                    // 下载完成，减少计数
+                    decrementDownloadCount()
                 }
                 
                 override fun onDownloadFailed(downloadId: Long, reason: Int) {
                     Log.e("SearchActivity", "图片下载失败: $reason")
                     Toast.makeText(this@SearchActivity, "图片保存失败", Toast.LENGTH_SHORT).show()
+                    // 下载失败，减少计数
+                    decrementDownloadCount()
                 }
             })
             
             if (downloadId != -1L) {
+                // 开始下载，增加计数
+                incrementDownloadCount()
                 Toast.makeText(this, "开始保存图片", Toast.LENGTH_SHORT).show()
                 Log.d("SearchActivity", "开始下载图片: $imageUrl")
             } else {
@@ -2244,5 +2267,68 @@ class SearchActivity : AppCompatActivity() {
             "uc" -> "https://www.uc.cn"
             else -> "https://www.google.com"
         }
+    }
+    
+    /**
+     * 打开下载管理器
+     */
+    private fun openDownloadManager() {
+        try {
+            val intent = Intent(this, DownloadManagerActivity::class.java)
+            startActivity(intent)
+            Log.d("SearchActivity", "打开下载管理器")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "打开下载管理器失败", e)
+            Toast.makeText(this, "无法打开下载管理器", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 更新下载提示按钮状态
+     */
+    private fun updateDownloadIndicator() {
+        try {
+            if (activeDownloadCount > 0) {
+                downloadIndicatorContainer.visibility = View.VISIBLE
+                downloadProgressText.text = activeDownloadCount.toString()
+                downloadProgressText.visibility = View.VISIBLE
+                Log.d("SearchActivity", "显示下载提示按钮，活跃下载数: $activeDownloadCount")
+            } else {
+                downloadIndicatorContainer.visibility = View.GONE
+                downloadProgressText.visibility = View.GONE
+                Log.d("SearchActivity", "隐藏下载提示按钮")
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "更新下载提示按钮失败", e)
+        }
+    }
+    
+    /**
+     * 增加活跃下载计数
+     */
+    fun incrementDownloadCount() {
+        activeDownloadCount++
+        updateDownloadIndicator()
+        Log.d("SearchActivity", "增加下载计数，当前: $activeDownloadCount")
+    }
+    
+    /**
+     * 减少活跃下载计数
+     */
+    fun decrementDownloadCount() {
+        if (activeDownloadCount > 0) {
+            activeDownloadCount--
+            updateDownloadIndicator()
+            Log.d("SearchActivity", "减少下载计数，当前: $activeDownloadCount")
+        }
+    }
+    
+    /**
+     * 重置下载计数
+     */
+    fun resetDownloadCount() {
+        activeDownloadCount = 0
+        updateDownloadIndicator()
+        Log.d("SearchActivity", "重置下载计数")
     }
 } 

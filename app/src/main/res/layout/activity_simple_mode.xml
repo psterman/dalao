@@ -174,61 +174,23 @@
                 android:textColor="@color/white" />
         </LinearLayout>
 
-        <!-- 助手档案选择 -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_margin="16dp"
-            app:cardCornerRadius="12dp"
-            app:cardElevation="4dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="16dp"
-                android:gravity="center_vertical">
-
-                <ImageView
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:src="@drawable/ic_person"
-                    android:tint="@color/ai_assistant_primary"
-                    android:layout_marginEnd="12dp" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="选择助手档案"
-                    android:textSize="16sp"
-                    android:textColor="@color/simple_mode_text_primary_light" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/create_profile_button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:text="新建档案"
-                    android:textSize="12sp"
-                    android:backgroundTint="@color/ai_assistant_primary"
-                    android:textColor="@color/white"
-                    app:cornerRadius="18dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
         <!-- 标签导航 -->
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/ai_center_tab_layout"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="56dp"
             android:layout_marginHorizontal="16dp"
             android:layout_marginBottom="8dp"
+            android:background="@color/ai_assistant_tab_background"
             app:tabTextColor="@color/ai_assistant_tab_unselected"
             app:tabSelectedTextColor="@color/ai_assistant_primary"
             app:tabIndicatorColor="@color/ai_assistant_primary"
-            app:tabIndicatorHeight="2dp"
-            app:tabMode="scrollable"
-            app:tabGravity="fill">
+            app:tabIndicatorHeight="3dp"
+            app:tabIndicatorGravity="bottom"
+            app:tabMode="fixed"
+            app:tabGravity="fill"
+            app:tabTextAppearance="@style/AIAssistantTabTextAppearance"
+            app:tabRippleColor="@color/ai_assistant_primary_container_light">
 
             <com.google.android.material.tabs.TabItem
                 android:layout_width="wrap_content"
@@ -245,14 +207,16 @@
             <com.google.android.material.tabs.TabItem
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="AI配置"
-                android:icon="@drawable/ic_assistant" />
+                android:text="个性化"
+                android:icon="@drawable/ic_person" />
 
+            <!-- 原个性化标签已注释
             <com.google.android.material.tabs.TabItem
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="个性化"
                 android:icon="@drawable/ic_person" />
+            -->
         </com.google.android.material.tabs.TabLayout>
 
         <!-- 内容区域 -->

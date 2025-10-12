@@ -859,6 +859,8 @@
     <!-- 标签颜色 -->
     <color name="ai_assistant_tab_selected">#07C160</color>
     <color name="ai_assistant_tab_unselected">#999999</color>
+    <color name="ai_assistant_tab_background">#FFFFFF</color>
+    <color name="ai_assistant_primary_container_light">#E8F5E8</color>
     
     <!-- 边框和分割线 -->
     <color name="ai_assistant_border">#E5E5E5</color>

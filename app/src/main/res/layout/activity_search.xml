@@ -51,7 +51,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="48dp"
                         android:layout_marginStart="56dp"
-                        android:layout_marginEnd="104dp"
+                        android:layout_marginEnd="152dp"
                         android:orientation="horizontal"
                         android:background="@drawable/search_bar_background"
                         android:gravity="center_vertical">
@@ -95,6 +95,43 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="end|center_vertical"
                         android:orientation="horizontal">
+
+                        <!-- 下载提示按钮 -->
+                        <FrameLayout
+                            android:id="@+id/download_indicator_container"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp"
+                            android:visibility="gone">
+
+                            <ImageButton
+                                android:id="@+id/btn_download_indicator"
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:background="?android:attr/actionBarItemBackground"
+                                android:contentDescription="查看下载"
+                                android:padding="8dp"
+                                android:scaleType="fitCenter"
+                                android:src="@drawable/ic_download"
+                                android:tint="@color/colorAccent" />
+
+                            <!-- 下载进度指示器 -->
+                            <TextView
+                                android:id="@+id/download_progress_text"
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:layout_gravity="top|end"
+                                android:layout_marginTop="-2dp"
+                                android:layout_marginEnd="-2dp"
+                                android:background="@drawable/badge_background"
+                                android:gravity="center"
+                                android:text="0"
+                                android:textColor="@android:color/white"
+                                android:textSize="10sp"
+                                android:textStyle="bold"
+                                android:visibility="gone" />
+
+                        </FrameLayout>
 
                         <ImageButton
                             android:id="@+id/btn_close"

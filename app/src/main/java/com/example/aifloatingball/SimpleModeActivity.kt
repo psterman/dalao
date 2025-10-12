@@ -351,7 +351,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var aiCenterViewPager: androidx.viewpager2.widget.ViewPager2
     private lateinit var aiCenterTabLayout: com.google.android.material.tabs.TabLayout
     private lateinit var aiCenterPagerAdapter: com.example.aifloatingball.adapter.AIAssistantCenterPagerAdapter
-    private lateinit var createProfileButton: com.google.android.material.button.MaterialButton
     private lateinit var aiCenterBackButton: ImageButton
     private lateinit var aiCenterAddButton: ImageButton
 
@@ -1407,7 +1406,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         try {
             aiCenterViewPager = findViewById<androidx.viewpager2.widget.ViewPager2>(R.id.ai_center_view_pager)
             aiCenterTabLayout = findViewById<com.google.android.material.tabs.TabLayout>(R.id.ai_center_tab_layout)
-            createProfileButton = findViewById<com.google.android.material.button.MaterialButton>(R.id.create_profile_button)
             aiCenterBackButton = findViewById<ImageButton>(R.id.ai_center_back_button)
             aiCenterAddButton = findViewById<ImageButton>(R.id.ai_center_add_button)
             Log.d(TAG, "AI助手中心组件初始化完成")
@@ -4322,11 +4320,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }.attach()
             
             // 设置按钮点击事件
-            createProfileButton.setOnClickListener {
-                // TODO: 实现新建档案功能
-                Toast.makeText(this, "新建档案功能开发中", Toast.LENGTH_SHORT).show()
-            }
-            
             aiCenterBackButton.setOnClickListener {
                 // 返回上一页或关闭AI助手中心
                 onBackPressed()
