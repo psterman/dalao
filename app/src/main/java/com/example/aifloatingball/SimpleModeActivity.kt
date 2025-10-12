@@ -119,6 +119,8 @@ import com.example.aifloatingball.webview.MultiPageWebViewManager
 import com.example.aifloatingball.webview.CardWebViewManager
 import com.example.aifloatingball.webview.GestureCardWebViewManager
 import com.example.aifloatingball.webview.MobileCardManager
+import com.example.aifloatingball.webview.UnifiedWebViewManager
+import com.example.aifloatingball.webview.WebViewManagerAdapter
 import com.example.aifloatingball.manager.GroupChatManager
 import com.example.aifloatingball.manager.UnifiedGroupChatManager
 import com.example.aifloatingball.manager.GroupChatDataChangeListener
@@ -433,6 +435,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 多页面WebView管理器
     private var multiPageWebViewManager: MultiPageWebViewManager? = null
+    
+    // 统一WebView管理器
+    private lateinit var unifiedWebViewManager: UnifiedWebViewManager
 
     // 聊天联系人相关
     private var chatContactAdapter: ChatContactAdapter? = null
@@ -613,6 +618,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } else {
             VoicePromptBranchManager.InteractionMode.CLICK
         }
+        
+        // 初始化统一WebView管理器
+        unifiedWebViewManager = UnifiedWebViewManager()
 
         // 确保 SimpleModeService 不在运行
         if (SimpleModeService.isRunning(this)) {
@@ -5694,6 +5702,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置Safari风格功能
         setupSafariStyleFeatures()
+        
+        // 注册到统一WebView管理器
+        gestureCardWebViewManager?.let { manager ->
+            val adapter = WebViewManagerAdapter(manager, "GestureCardWebViewManager", unifiedWebViewManager)
+            unifiedWebViewManager.registerManager(adapter)
+            Log.d(TAG, "GestureCardWebViewManager已注册到统一WebView管理器")
+        }
 
         // 初始显示主页内容
         showBrowserHome()
@@ -6328,46 +6343,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private fun performUnifiedWebViewBack(source: String) {
         Log.d(TAG, "执行统一WebView后退操作，来源: $source")
         
-        var handled = false
-
-        // 优先检查MobileCardManager
-        val mobileCurrentCard = mobileCardManager?.getCurrentCard()
-        if (mobileCurrentCard?.webView?.canGoBack() == true) {
-            mobileCurrentCard.webView.goBack()
+        // 使用统一WebView管理器处理返回逻辑
+        val handled = unifiedWebViewManager.goBack()
+        
+        if (handled) {
             if (source == "边缘侧滑") {
                 showBrowserGestureHint("网页后退")
             }
-            handled = true
-            Log.d(TAG, "$source：手机卡片返回上一页")
-        }
-
-        // 如果MobileCardManager没有处理，检查GestureCardWebViewManager
-        if (!handled) {
-            val gestureCurrentCard = gestureCardWebViewManager?.getCurrentCard()
-            if (gestureCurrentCard?.webView?.canGoBack() == true) {
-                gestureCurrentCard.webView.goBack()
-                if (source == "边缘侧滑") {
-                    showBrowserGestureHint("网页后退")
-                }
-                handled = true
-                Log.d(TAG, "$source：手势卡片返回上一页")
-            }
-        }
-
-        // 如果都没有处理，检查MultiPageWebViewManager
-        if (!handled) {
-            if (multiPageWebViewManager?.canGoBack() == true) {
-                multiPageWebViewManager?.goBack()
-                if (source == "边缘侧滑") {
-                    showBrowserGestureHint("网页后退")
-                }
-                handled = true
-                Log.d(TAG, "$source：多页面管理器返回上一页")
-            }
-        }
-
-        // 如果没有可返回的页面，返回搜索tab首页
-        if (!handled) {
+            Log.d(TAG, "$source：成功返回上一页")
+        } else {
+            // 如果没有可返回的页面，返回搜索tab首页
             showBrowserHome()
             if (source == "边缘侧滑") {
                 showBrowserGestureHint("返回搜索首页")
@@ -7847,6 +7832,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 Log.d(TAG, "所有手机卡片已移除")
             }
         })
+
+        // 注册到统一WebView管理器
+        mobileCardManager?.let { manager ->
+            val adapter = WebViewManagerAdapter(manager, "MobileCardManager", unifiedWebViewManager)
+            unifiedWebViewManager.registerManager(adapter)
+            Log.d(TAG, "MobileCardManager已注册到统一WebView管理器")
+        }
 
         Log.d(TAG, "手机卡片管理器设置完成")
         } catch (e: Exception) {

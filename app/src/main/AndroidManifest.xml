@@ -185,6 +185,12 @@
             android:theme="@style/Theme.AIFloatingBall"
             android:exported="false" />
             
+        <!-- 内置图片查看器 -->
+        <activity android:name=".viewer.ImageViewerActivity"
+            android:theme="@style/Theme.AIFloatingBall.NoActionBar"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+            
         <!-- FileProvider for APK installation -->
         <provider
             android:name="androidx.core.content.FileProvider"

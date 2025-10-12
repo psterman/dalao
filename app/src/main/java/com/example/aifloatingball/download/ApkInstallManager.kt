@@ -132,7 +132,13 @@ class ApkInstallManager(private val context: Context) {
                 
                 val apkUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     // Android 7.0+ 使用FileProvider
-                    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apkFile)
+                    try {
+                        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apkFile)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "FileProvider获取URI失败", e)
+                        // 备用方案：使用content://
+                        Uri.fromFile(apkFile)
+                    }
                 } else {
                     // Android 7.0以下直接使用file://
                     Uri.fromFile(apkFile)

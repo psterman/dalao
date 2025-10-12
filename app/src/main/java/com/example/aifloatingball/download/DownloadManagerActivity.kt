@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
+import java.io.File
 import android.text.TextWatcher
 import android.util.Log
 import android.view.View
@@ -16,8 +17,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import android.os.Build
+import android.provider.MediaStore
 import com.example.aifloatingball.R
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
@@ -404,11 +408,6 @@ class DownloadManagerActivity : AppCompatActivity() {
     /**
      * 文件类型判断方法
      */
-    private fun isImageFile(fileName: String): Boolean {
-        val imageExtensions = listOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg")
-        return imageExtensions.any { fileName.lowercase().endsWith(".$it") }
-    }
-    
     private fun isVideoFile(fileName: String): Boolean {
         val videoExtensions = listOf("mp4", "avi", "mkv", "mov", "wmv", "flv", "webm", "m4v")
         return videoExtensions.any { fileName.lowercase().endsWith(".$it") }
@@ -550,6 +549,131 @@ class DownloadManagerActivity : AppCompatActivity() {
     }
     
     /**
+     * 将file:// URI转换为content:// URI（Android 10+兼容）
+     */
+    private fun convertToContentUri(uri: Uri, filename: String, mimeType: String): Uri? {
+        return try {
+            if (uri.scheme == "file") {
+                val file = File(uri.path ?: "")
+                if (file.exists()) {
+                    // 尝试使用FileProvider
+                    try {
+                        FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "FileProvider转换失败，尝试其他方法", e)
+                        // 备用方案：通过MediaStore查找
+                        findUriInMediaStore(filename, mimeType)
+                    }
+                } else {
+                    Log.e(TAG, "文件不存在: ${file.absolutePath}")
+                    null
+                }
+            } else {
+                uri
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "URI转换失败", e)
+            null
+        }
+    }
+    
+    /**
+     * 通过MediaStore查找文件URI
+     */
+    private fun findUriInMediaStore(filename: String, mimeType: String): Uri? {
+        return try {
+            val projection = arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME)
+            val selection = "${MediaStore.Images.Media.DISPLAY_NAME} = ?"
+            val selectionArgs = arrayOf(filename)
+            
+            val cursor = contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                selection,
+                selectionArgs,
+                null
+            )
+            
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                    Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id.toString())
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "MediaStore查找失败", e)
+            null
+        }
+    }
+    
+    /**
+     * 检查文件是否可访问
+     */
+    private fun isFileAccessible(uri: Uri): Boolean {
+        return try {
+            when (uri.scheme) {
+                "file" -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        // Android 10+ 不能直接访问file://
+                        false
+                    } else {
+                        File(uri.path ?: "").exists()
+                    }
+                }
+                "content" -> {
+                    // 检查content:// URI是否可访问
+                    val cursor = contentResolver.query(uri, null, null, null, null)
+                    cursor?.use { it.count > 0 } ?: false
+                }
+                else -> {
+                    // 其他scheme直接返回true
+                    true
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "文件访问检查失败", e)
+            false
+        }
+    }
+    
+    /**
+     * 检查是否为图片文件
+     */
+    private fun isImageFile(filename: String): Boolean {
+        val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg")
+        val lowerFilename = filename.lowercase()
+        return imageExtensions.any { lowerFilename.endsWith(it) }
+    }
+    
+    /**
+     * 使用内置图片查看器打开图片
+     */
+    private fun openImageWithInternalViewer(uri: Uri, filename: String) {
+        try {
+            val imageUri = when (uri.scheme) {
+                "file" -> uri.toString()
+                "content" -> uri.toString()
+                else -> {
+                    Log.e(TAG, "不支持的URI scheme: ${uri.scheme}")
+                    Toast.makeText(this, "无法打开图片", Toast.LENGTH_SHORT).show()
+                    return
+                }
+            }
+            
+            // 启动内置图片查看器
+            com.example.aifloatingball.viewer.ImageViewerActivity.start(this, imageUri)
+            Log.d(TAG, "启动内置图片查看器: $filename")
+            Toast.makeText(this, "正在打开图片: $filename", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "打开内置图片查看器失败", e)
+            Toast.makeText(this, "打开图片失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
      * 获取MIME类型
      */
     private fun getMimeType(filename: String): String {
@@ -558,12 +682,33 @@ class DownloadManagerActivity : AppCompatActivity() {
             "jpg", "jpeg" -> "image/jpeg"
             "png" -> "image/png"
             "gif" -> "image/gif"
+            "bmp" -> "image/bmp"
+            "webp" -> "image/webp"
+            "svg" -> "image/svg+xml"
             "pdf" -> "application/pdf"
             "txt" -> "text/plain"
+            "doc" -> "application/msword"
+            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "xls" -> "application/vnd.ms-excel"
+            "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "ppt" -> "application/vnd.ms-powerpoint"
+            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             "mp4" -> "video/mp4"
+            "avi" -> "video/x-msvideo"
+            "mkv" -> "video/x-matroska"
+            "mov" -> "video/quicktime"
             "mp3" -> "audio/mpeg"
+            "wav" -> "audio/wav"
+            "flac" -> "audio/flac"
             "zip" -> "application/zip"
+            "rar" -> "application/x-rar-compressed"
+            "7z" -> "application/x-7z-compressed"
             "apk" -> "application/vnd.android.package-archive"
+            "html", "htm" -> "text/html"
+            "css" -> "text/css"
+            "js" -> "application/javascript"
+            "json" -> "application/json"
+            "xml" -> "application/xml"
             else -> "application/octet-stream"
         }
     }
@@ -636,6 +781,16 @@ class DownloadManagerActivity : AppCompatActivity() {
             return
         }
         
+        Log.d(TAG, "准备安装APK: $apkPath")
+        
+        // 检查文件是否存在
+        val file = File(apkPath)
+        if (!file.exists()) {
+            Log.e(TAG, "APK文件不存在: $apkPath")
+            Toast.makeText(this, "APK文件不存在: $apkPath", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         if (!apkInstallManager.hasInstallPermission()) {
             Toast.makeText(this, "需要安装权限", Toast.LENGTH_SHORT).show()
             apkInstallManager.requestInstallPermission(this, INSTALL_PERMISSION_REQUEST_CODE)
@@ -645,6 +800,9 @@ class DownloadManagerActivity : AppCompatActivity() {
         val success = apkInstallManager.installApk(apkPath)
         if (success) {
             refreshDownloads()
+            Toast.makeText(this, "APK安装请求已发送", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "APK安装失败", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -677,35 +835,79 @@ class DownloadManagerActivity : AppCompatActivity() {
             val localUri = downloadInfo.localUri
             val filename = downloadInfo.localFilename ?: ""
             
+            Log.d(TAG, "准备打开文件: filename=$filename, localUri=$localUri")
+            
             if (localUri != null && localUri.isNotEmpty()) {
                 val uri = Uri.parse(localUri)
                 val mimeType = getMimeType(filename)
                 
                 Log.d(TAG, "尝试打开文件: $filename, URI: $uri, MIME: $mimeType")
                 
+                // Android 10+ 需要使用content:// URI或FileProvider
+                val finalUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Android 10+ 使用FileProvider或MediaStore
+                    convertToContentUri(uri, filename, mimeType) ?: uri
+                } else {
+                    uri
+                }
+                
+                Log.d(TAG, "最终URI: $finalUri")
+                
+                // 检查文件是否存在（兼容不同Android版本）
+                if (!isFileAccessible(finalUri)) {
+                    Log.e(TAG, "文件不可访问: $finalUri")
+                    Toast.makeText(this, "文件不可访问: $filename", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                
+                // 检查是否为图片文件，使用内置查看器
+                if (isImageFile(filename)) {
+                    Log.d(TAG, "检测到图片文件，使用内置查看器: $filename")
+                    openImageWithInternalViewer(finalUri, filename)
+                    return
+                }
+                
+                // 创建Intent
                 val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, mimeType)
+                    setDataAndType(finalUri, mimeType)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 
                 // 尝试启动Activity
                 if (intent.resolveActivity(packageManager) != null) {
                     startActivity(intent)
                     Log.d(TAG, "成功启动文件打开Intent")
+                    Toast.makeText(this, "正在打开文件: $filename", Toast.LENGTH_SHORT).show()
                 } else {
                     // 如果无法解析Intent，尝试使用通用文件管理器
                     val fallbackIntent = Intent(Intent.ACTION_VIEW).apply {
                         setData(uri)
                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
                     
                     if (fallbackIntent.resolveActivity(packageManager) != null) {
                         startActivity(fallbackIntent)
                         Log.d(TAG, "使用备用Intent打开文件")
+                        Toast.makeText(this, "使用文件管理器打开: $filename", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(this, "无法找到打开此文件的应用程序", Toast.LENGTH_SHORT).show()
+                        // 最后尝试使用系统文件管理器
+                        val systemIntent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "*/*")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        
+                        if (systemIntent.resolveActivity(packageManager) != null) {
+                            startActivity(systemIntent)
+                            Log.d(TAG, "使用系统文件管理器打开文件")
+                            Toast.makeText(this, "使用系统文件管理器打开: $filename", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "无法找到打开此文件的应用程序", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             } else {

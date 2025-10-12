@@ -27,6 +27,7 @@ import android.webkit.WebChromeClient
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.BaseSearchEngine
 import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.download.EnhancedDownloadManager
 import com.example.aifloatingball.view.LetterIndexBar
 import net.sourceforge.pinyin4j.PinyinHelper
 import androidx.core.view.GravityCompat
@@ -1329,9 +1330,26 @@ class SearchActivity : AppCompatActivity() {
      */
     private fun saveImage(imageUrl: String) {
         try {
-            // 这里可以实现图片保存功能
-            Toast.makeText(this, "图片保存功能待实现", Toast.LENGTH_SHORT).show()
-            Log.d("SearchActivity", "保存图片: $imageUrl")
+            // 使用增强下载管理器下载图片
+            val enhancedDownloadManager = EnhancedDownloadManager(this)
+            val downloadId = enhancedDownloadManager.downloadImage(imageUrl, object : EnhancedDownloadManager.DownloadCallback {
+                override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                    Log.d("SearchActivity", "图片下载成功: $fileName")
+                    Toast.makeText(this@SearchActivity, "图片已保存到相册", Toast.LENGTH_SHORT).show()
+                }
+                
+                override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                    Log.e("SearchActivity", "图片下载失败: $reason")
+                    Toast.makeText(this@SearchActivity, "图片保存失败", Toast.LENGTH_SHORT).show()
+                }
+            })
+            
+            if (downloadId != -1L) {
+                Toast.makeText(this, "开始保存图片", Toast.LENGTH_SHORT).show()
+                Log.d("SearchActivity", "开始下载图片: $imageUrl")
+            } else {
+                Toast.makeText(this, "无法开始下载图片", Toast.LENGTH_SHORT).show()
+            }
         } catch (e: Exception) {
             Log.e("SearchActivity", "保存图片失败", e)
             Toast.makeText(this, "保存图片失败", Toast.LENGTH_SHORT).show()
@@ -1962,6 +1980,12 @@ class SearchActivity : AppCompatActivity() {
         Log.d("SearchActivity", "处理搜索结果点击: $url")
         
         return when {
+            // 处理图片URL - 优先处理
+            isImageUrl(url) -> {
+                Log.d("SearchActivity", "检测到图片URL，打开图片查看器: $url")
+                openImageInViewer(url)
+                true
+            }
             // 处理移动应用URL scheme重定向
             url.startsWith("baiduboxapp://") -> {
                 Log.d("SearchActivity", "拦截百度App重定向，保持在WebView中")
@@ -2038,6 +2062,67 @@ class SearchActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 检测是否为图片URL
+     */
+    private fun isImageUrl(url: String): Boolean {
+        val imageExtensions = listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg")
+        val imageDomains = listOf("image.baidu.com", "pic.sogou.com", "images.google.com", "cn.bing.com/images")
+        
+        // 检查文件扩展名
+        val hasImageExtension = imageExtensions.any { url.lowercase().contains(it) }
+        
+        // 检查图片域名
+        val hasImageDomain = imageDomains.any { url.contains(it) }
+        
+        // 检查图片相关的URL模式
+        val hasImagePattern = url.contains("/image/") || 
+                             url.contains("/pic/") || 
+                             url.contains("/photo/") ||
+                             url.contains("imgurl=") ||
+                             url.contains("img=")
+        
+        return hasImageExtension || hasImageDomain || hasImagePattern
+    }
+    
+    /**
+     * 在图片查看器中打开图片
+     */
+    private fun openImageInViewer(imageUrl: String) {
+        try {
+            // 创建Intent打开图片
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(Uri.parse(imageUrl), "image/*")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            
+            // 检查是否有应用可以处理图片
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+                Log.d("SearchActivity", "成功打开图片查看器: $imageUrl")
+                Toast.makeText(this, "正在打开图片", Toast.LENGTH_SHORT).show()
+            } else {
+                // 备用方案：在WebView中打开
+                webView.loadUrl(imageUrl)
+                Log.d("SearchActivity", "使用WebView打开图片: $imageUrl")
+                Toast.makeText(this, "在浏览器中打开图片", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "打开图片失败", e)
+            Toast.makeText(this, "打开图片失败", Toast.LENGTH_SHORT).show()
+            
+            // 最后备用方案：在WebView中打开
+            try {
+                webView.loadUrl(imageUrl)
+                Toast.makeText(this, "在浏览器中打开图片", Toast.LENGTH_SHORT).show()
+            } catch (e2: Exception) {
+                Log.e("SearchActivity", "WebView打开图片也失败", e2)
+                Toast.makeText(this, "无法打开图片", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
     /**
      * 处理应用URL scheme
      */
