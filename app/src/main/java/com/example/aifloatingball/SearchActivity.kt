@@ -40,8 +40,6 @@ import android.os.Looper
 import android.net.Uri
 import android.webkit.URLUtil
 import android.app.AlertDialog
-import android.content.ClipData
-import android.content.ClipboardManager
 import com.google.android.material.appbar.AppBarLayout
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -658,6 +656,24 @@ class SearchActivity : AppCompatActivity() {
                 CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
             }
         }
+        
+        // 启用WebView上下文菜单
+        webView.setOnLongClickListener { view ->
+            val result = (view as WebView).hitTestResult
+            when (result.type) {
+                WebView.HitTestResult.IMAGE_TYPE,
+                WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                    showImageContextMenu(result.extra)
+                    true
+                }
+                WebView.HitTestResult.ANCHOR_TYPE,
+                WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                    showLinkContextMenu(result.extra)
+                    true
+                }
+                else -> false
+            }
+        }
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -1257,6 +1273,132 @@ class SearchActivity : AppCompatActivity() {
             Log.d("SearchActivity", "加载搜索引擎首页: ${engine.url}")
         }
     }
+    
+    /**
+     * 显示图片上下文菜单
+     */
+    private fun showImageContextMenu(imageUrl: String?) {
+        if (imageUrl.isNullOrEmpty()) return
+        
+        val options = arrayOf(
+            "保存图片",
+            "复制图片链接",
+            "在新标签页中打开",
+            "分享图片"
+        )
+        
+        AlertDialog.Builder(this)
+            .setTitle("图片操作")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> saveImage(imageUrl)
+                    1 -> copyToClipboard(imageUrl)
+                    2 -> openInNewTab(imageUrl)
+                    3 -> shareImage(imageUrl)
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * 显示链接上下文菜单
+     */
+    private fun showLinkContextMenu(linkUrl: String?) {
+        if (linkUrl.isNullOrEmpty()) return
+        
+        val options = arrayOf(
+            "在新标签页中打开",
+            "复制链接",
+            "分享链接"
+        )
+        
+        AlertDialog.Builder(this)
+            .setTitle("链接操作")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> openInNewTab(linkUrl)
+                    1 -> copyToClipboard(linkUrl)
+                    2 -> shareLink(linkUrl)
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * 保存图片
+     */
+    private fun saveImage(imageUrl: String) {
+        try {
+            // 这里可以实现图片保存功能
+            Toast.makeText(this, "图片保存功能待实现", Toast.LENGTH_SHORT).show()
+            Log.d("SearchActivity", "保存图片: $imageUrl")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "保存图片失败", e)
+            Toast.makeText(this, "保存图片失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 复制到剪贴板
+     */
+    private fun copyToClipboard(text: String) {
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            val clip = android.content.ClipData.newPlainText("URL", text)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(this, "已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            Log.d("SearchActivity", "复制到剪贴板: $text")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "复制失败", e)
+            Toast.makeText(this, "复制失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 在新标签页中打开
+     */
+    private fun openInNewTab(url: String) {
+        try {
+            // 在当前WebView中打开URL
+            webView.loadUrl(url)
+            Log.d("SearchActivity", "在新标签页中打开: $url")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "打开链接失败", e)
+            Toast.makeText(this, "打开链接失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 分享图片
+     */
+    private fun shareImage(imageUrl: String) {
+        try {
+            val shareIntent = Intent(Intent.ACTION_SEND)
+            shareIntent.type = "text/plain"
+            shareIntent.putExtra(Intent.EXTRA_TEXT, imageUrl)
+            startActivity(Intent.createChooser(shareIntent, "分享图片"))
+            Log.d("SearchActivity", "分享图片: $imageUrl")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "分享图片失败", e)
+            Toast.makeText(this, "分享图片失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 分享链接
+     */
+    private fun shareLink(linkUrl: String) {
+        try {
+            val shareIntent = Intent(Intent.ACTION_SEND)
+            shareIntent.type = "text/plain"
+            shareIntent.putExtra(Intent.EXTRA_TEXT, linkUrl)
+            startActivity(Intent.createChooser(shareIntent, "分享链接"))
+            Log.d("SearchActivity", "分享链接: $linkUrl")
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "分享链接失败", e)
+            Toast.makeText(this, "分享链接失败", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onDestroy() {
         try {
@@ -1425,7 +1567,7 @@ class SearchActivity : AppCompatActivity() {
 
     private fun checkClipboard() {
         if (intent.getBooleanExtra("from_floating_ball", false)) {
-            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             if (clipboardManager.hasPrimaryClip()) {
                 val clipData = clipboardManager.primaryClip
                 val clipText = clipData?.getItemAt(0)?.text?.toString()?.trim()

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  简易模式搜索tab中网页链接长按弹出菜单
+  根布局是一个全屏的 FrameLayout，作为触摸拦截层。
+  它本身是透明的，不会影响视觉，但能捕获所有屏幕触摸事件。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <!--
+      这是实际显示的菜单内容。
+      它被包裹在拦截层之内，通过设置 layout_gravity 来定位。
+    -->
+    <LinearLayout
+        android:id="@+id/simple_mode_link_menu_content"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/light_menu_background"
+        android:paddingVertical="8dp"
+        android:minWidth="160dp">
+
+        <!-- 后台打开 -->
+        <TextView
+            android:id="@+id/action_open_in_background"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="后台打开"
+            android:drawableStart="@drawable/ic_open_in_background"
+            android:drawablePadding="8dp" />
+
+        <!-- 新标签打开 -->
+        <TextView
+            android:id="@+id/action_open_in_new_tab"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="新标签打开"
+            android:drawableStart="@drawable/ic_open_in_new"
+            android:drawablePadding="8dp" />
+
+        <!-- 拷贝链接文字 -->
+        <TextView
+            android:id="@+id/action_copy_link_text"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="拷贝链接文字"
+            android:drawableStart="@drawable/ic_copy_text"
+            android:drawablePadding="8dp" />
+
+        <!-- 自由复制 -->
+        <TextView
+            android:id="@+id/action_free_copy"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="自由复制"
+            android:drawableStart="@drawable/ic_free_copy"
+            android:drawablePadding="8dp" />
+
+        <!-- 拷贝链接 -->
+        <TextView
+            android:id="@+id/action_copy_link"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="拷贝链接"
+            android:drawableStart="@drawable/ic_copy_link"
+            android:drawablePadding="8dp" />
+
+        <!-- 分享链接 -->
+        <TextView
+            android:id="@+id/action_share_link"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="分享链接"
+            android:drawableStart="@drawable/ic_share"
+            android:drawablePadding="8dp" />
+
+        <!-- 下载链接 -->
+        <TextView
+            android:id="@+id/action_download_link"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="下载链接"
+            android:drawableStart="@drawable/ic_download"
+            android:drawablePadding="8dp" />
+
+        <!-- 生成二维码 -->
+        <TextView
+            android:id="@+id/action_generate_qr"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="生成二维码"
+            android:drawableStart="@drawable/ic_qr_code"
+            android:drawablePadding="8dp" />
+
+        <!-- 屏蔽广告 -->
+        <TextView
+            android:id="@+id/action_block_ads"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="屏蔽广告"
+            android:drawableStart="@drawable/ic_block_ads"
+            android:drawablePadding="8dp" />
+
+    </LinearLayout>
+
+</FrameLayout>

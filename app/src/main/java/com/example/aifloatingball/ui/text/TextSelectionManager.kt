@@ -1,5 +1,6 @@
 package com.example.aifloatingball.ui.text
 
+import android.app.DownloadManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -835,6 +836,117 @@ class TextSelectionManager(private val context: Context, private val windowManag
     }
 
     /**
+     * 显示简易模式专用的链接操作菜单
+     */
+    fun showSimpleModeLinkMenu(webView: WebView, url: String, x: Int, y: Int) {
+        Log.i(TAG, "[MENU_LIFECYCLE] showSimpleModeLinkMenu: URL=$url, x=$x, y=$y")
+
+        // 如果有其他菜单正在显示，先隐藏
+        if (isMenuShowing.get() || isMenuAnimating.get()) {
+            hideTextSelectionMenu(true)
+            handler.postDelayed({
+                doShowSimpleModeLinkMenu(webView, url, x, y)
+            }, 160)
+            return
+        }
+        doShowSimpleModeLinkMenu(webView, url, x, y)
+    }
+
+    private fun doShowSimpleModeLinkMenu(webView: WebView, url: String, x: Int, y: Int) {
+        if (Looper.myLooper() != Looper.getMainLooper()) return
+
+        val themedContext = ContextThemeWrapper(context, R.style.Theme_AIFloatingBall)
+        // 1. 加载包装器布局，它将作为全屏的触摸拦截层
+        floatingMenuView = LayoutInflater.from(themedContext)
+            .inflate(R.layout.simple_mode_link_menu_wrapper, null)
+
+        // 2. 从包装器中找到实际的菜单内容视图
+        val menuContent = floatingMenuView!!.findViewById<View>(R.id.simple_mode_link_menu_content)!!
+
+        // 为动画设置初始状态
+        menuContent.alpha = 0f
+        menuContent.scaleX = 0.8f
+        menuContent.scaleY = 0.8f
+
+        // 3. 在全屏的根视图上设置触摸监听器
+        floatingMenuView!!.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                val contentRect = Rect()
+                menuContent.getGlobalVisibleRect(contentRect)
+                // 如果触摸点在菜单内容视图的矩形区域之外，则隐藏菜单
+                if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
+                    hideTextSelectionMenu()
+                }
+            }
+            // 修复：始终返回false，允许事件穿透，同时让子视图（按钮）可以被点击
+            false
+        }
+
+        // 在内容视图上设置菜单项
+        setupSimpleModeLinkMenuItems(menuContent, webView, url)
+
+        val webViewLocation = IntArray(2)
+        webView.getLocationOnScreen(webViewLocation)
+
+        // 4. 测量并定位内容视图
+        menuContent.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val menuWidth = menuContent.measuredWidth
+        val menuHeight = menuContent.measuredHeight
+        val margin = (20 * context.resources.displayMetrics.density).toInt() // 20dp margin
+
+        // 获取屏幕尺寸
+        val screenWidth = context.resources.displayMetrics.widthPixels
+        val screenHeight = context.resources.displayMetrics.heightPixels
+
+        // 初始定位：点击坐标下方居中
+        var absoluteMenuX = webViewLocation[0] + x - (menuWidth / 2)
+        var absoluteMenuY = webViewLocation[1] + y + margin
+
+        // 边界检查与调整
+        if (absoluteMenuY + menuHeight > screenHeight) {
+            absoluteMenuY = webViewLocation[1] + y - menuHeight - margin
+        }
+        if (absoluteMenuX + menuWidth > screenWidth) {
+            absoluteMenuX = screenWidth - menuWidth - margin
+        }
+        if (absoluteMenuX < 0) {
+            absoluteMenuX = margin
+        }
+        if (absoluteMenuY < 0) {
+            absoluteMenuY = margin
+        }
+
+        // 使用FrameLayout.LayoutParams在包装器内定位内容视图
+        val contentParams = menuContent.layoutParams as FrameLayout.LayoutParams
+        contentParams.gravity = Gravity.TOP or Gravity.START
+        contentParams.leftMargin = absoluteMenuX
+        contentParams.topMargin = absoluteMenuY
+        menuContent.layoutParams = contentParams
+
+        // 5. 为根视图（包装器）使用全屏的窗口参数
+        val layoutParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT, // 全屏大小以捕捉所有外部点击
+            OVERLAY_WINDOW_TYPE,
+            MENU_WINDOW_FLAGS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            this.x = 0
+            this.y = 0
+        }
+        
+        try {
+            windowManager.addView(floatingMenuView, layoutParams)
+            // 6. 对内容视图执行显示动画
+            showMenuWithAnimation(menuContent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding simple mode link menu to WindowManager", e)
+            cleanupStateAndHandles() // 出错时清理
+        }
+    }
+
+    /**
      * 显示针对EditText的文本选择菜单
      */
     fun showEditTextSelectionMenu(editText: EditText) {
@@ -981,4 +1093,181 @@ class TextSelectionManager(private val context: Context, private val windowManag
             }
         }
     }
-} 
+
+    private fun setupSimpleModeLinkMenuItems(menuView: View, webView: WebView, url: String) {
+        // 后台打开
+        menuView.findViewById<View>(R.id.action_open_in_background)?.setOnClickListener {
+            try {
+                // 发送广播通知SimpleModeActivity在后台打开链接
+                val intent = android.content.Intent("com.example.aifloatingball.OPEN_LINK_IN_BACKGROUND").apply {
+                    putExtra("url", url)
+                }
+                context.sendBroadcast(intent)
+                Toast.makeText(context, "已在后台打开", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "后台打开链接失败", e)
+                Toast.makeText(context, "后台打开失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 新标签打开
+        menuView.findViewById<View>(R.id.action_open_in_new_tab)?.setOnClickListener {
+            try {
+                // 发送广播通知SimpleModeActivity在新标签打开链接
+                val intent = android.content.Intent("com.example.aifloatingball.OPEN_LINK_IN_NEW_TAB").apply {
+                    putExtra("url", url)
+                }
+                context.sendBroadcast(intent)
+                Toast.makeText(context, "已在新标签打开", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "新标签打开链接失败", e)
+                Toast.makeText(context, "新标签打开失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 拷贝链接文字
+        menuView.findViewById<View>(R.id.action_copy_link_text)?.setOnClickListener {
+            // 执行JavaScript获取链接的文本内容
+            webView.evaluateJavascript(
+                """
+                (function() {
+                    var links = document.querySelectorAll('a[href="$url"]');
+                    if (links.length > 0) {
+                        return links[0].textContent || links[0].innerText || '$url';
+                    }
+                    return '$url';
+                })();
+                """.trimIndent()
+            ) { result ->
+                try {
+                    val linkText = result?.replace("\"", "") ?: url
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("Link Text", linkText)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "链接文字已复制", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Log.e(TAG, "复制链接文字失败", e)
+                    Toast.makeText(context, "复制失败", Toast.LENGTH_SHORT).show()
+                }
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 自由复制
+        menuView.findViewById<View>(R.id.action_free_copy)?.setOnClickListener {
+            // 启用文本选择模式，让用户自由选择要复制的内容
+            webView.evaluateJavascript(
+                """
+                (function() {
+                    document.body.style.webkitUserSelect = 'text';
+                    document.body.style.userSelect = 'text';
+                    var selection = window.getSelection();
+                    selection.removeAllRanges();
+                    return 'enabled';
+                })();
+                """.trimIndent()
+            ) { _ ->
+                Toast.makeText(context, "已启用自由复制模式，请选择要复制的文本", Toast.LENGTH_LONG).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 拷贝链接
+        menuView.findViewById<View>(R.id.action_copy_link)?.setOnClickListener {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Link URL", url)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(context, "链接已复制", Toast.LENGTH_SHORT).show()
+            hideTextSelectionMenu()
+        }
+
+        // 分享链接
+        menuView.findViewById<View>(R.id.action_share_link)?.setOnClickListener {
+            try {
+                val shareIntent = android.content.Intent().apply {
+                    action = android.content.Intent.ACTION_SEND
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TEXT, url)
+                }
+                val chooser = android.content.Intent.createChooser(shareIntent, "分享链接")
+                chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(chooser)
+                Toast.makeText(context, "分享链接", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "分享失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 下载链接
+        menuView.findViewById<View>(R.id.action_download_link)?.setOnClickListener {
+            try {
+                // 使用DownloadManager下载文件
+                val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                val request = DownloadManager.Request(android.net.Uri.parse(url)).apply {
+                    setTitle("下载文件")
+                    setDescription("正在下载: $url")
+                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, 
+                        url.substringAfterLast("/").ifEmpty { "download_${System.currentTimeMillis()}" })
+                }
+                downloadManager.enqueue(request)
+                Toast.makeText(context, "开始下载", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "下载链接失败", e)
+                Toast.makeText(context, "下载失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 生成二维码
+        menuView.findViewById<View>(R.id.action_generate_qr)?.setOnClickListener {
+            try {
+                // 发送广播通知显示二维码
+                val intent = android.content.Intent("com.example.aifloatingball.GENERATE_QR_CODE").apply {
+                    putExtra("url", url)
+                }
+                context.sendBroadcast(intent)
+                Toast.makeText(context, "正在生成二维码", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "生成二维码失败", e)
+                Toast.makeText(context, "生成二维码失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 屏蔽广告
+        menuView.findViewById<View>(R.id.action_block_ads)?.setOnClickListener {
+            try {
+                // 添加到广告屏蔽列表
+                webView.evaluateJavascript(
+                    """
+                    (function() {
+                        var link = document.querySelector('a[href="$url"]');
+                        if (link) {
+                            link.style.display = 'none';
+                            link.parentNode.style.display = 'none';
+                        }
+                        // 尝试屏蔽包含该链接的广告容器
+                        var adContainers = document.querySelectorAll('[class*="ad"], [id*="ad"], [class*="advertisement"], [id*="advertisement"]');
+                        adContainers.forEach(function(container) {
+                            if (container.innerHTML.includes('$url')) {
+                                container.style.display = 'none';
+                            }
+                        });
+                        return 'blocked';
+                    })();
+                    """.trimIndent()
+                ) { _ ->
+                    Toast.makeText(context, "已屏蔽相关广告", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "屏蔽广告失败", e)
+                Toast.makeText(context, "屏蔽广告失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+    }
+}

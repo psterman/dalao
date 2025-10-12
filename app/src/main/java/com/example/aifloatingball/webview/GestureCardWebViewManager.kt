@@ -8,6 +8,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -16,6 +17,8 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.aifloatingball.R
 import com.example.aifloatingball.adapter.GestureCardAdapter
 import com.example.aifloatingball.webview.EnhancedWebViewTouchHandler
+import com.example.aifloatingball.webview.WebViewContextMenuManager
+import com.example.aifloatingball.ui.text.TextSelectionManager
 
 
 /**
@@ -52,11 +55,26 @@ class GestureCardWebViewManager(
     // 增强的触摸处理器
     private var touchHandler: EnhancedWebViewTouchHandler? = null
 
+    // 上下文菜单管理器
+    private val contextMenuManager: WebViewContextMenuManager by lazy {
+        WebViewContextMenuManager(context)
+    }
+
+    // 文本选择管理器
+    private val textSelectionManager: TextSelectionManager by lazy {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        TextSelectionManager(context, windowManager)
+    }
+
     // 页面变化监听器
     private var onPageChangeListener: OnPageChangeListener? = null
 
     // WebView创建监听器
     private var onWebViewCreatedListener: ((android.webkit.WebView) -> Unit)? = null
+    
+    // 触摸坐标跟踪
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
     
     // SharedPreferences用于保存悬浮卡片状态
     private val sharedPreferences by lazy {
@@ -99,6 +117,16 @@ class GestureCardWebViewManager(
     init {
         setupViewPager()
         setupGestureDetector()
+        setupContextMenuManager()
+    }
+
+    /**
+     * 设置上下文菜单管理器
+     */
+    private fun setupContextMenuManager() {
+        contextMenuManager.setOnNewTabListener { url, inBackground ->
+            addNewCard(url)
+        }
     }
 
     /**
@@ -345,10 +373,20 @@ class GestureCardWebViewManager(
         // 设置高级触摸处理
         setupAdvancedTouchHandling(this)
         
-        // 确保WebView可以接收触摸事件，即使在遮罩层激活时
+        // 设置触摸监听器跟踪坐标和处理事件
         setOnTouchListener { _, event ->
-            // 直接让WebView处理触摸事件，不进行拦截
-            false
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+                }
+            }
+            false // 不拦截事件，让WebView正常处理
+        }
+        
+        // 设置长按监听器处理上下文菜单
+        setOnLongClickListener { view ->
+            handleWebViewLongClick(view as WebView)
         }
 
             // 通知WebView创建监听器
@@ -1007,6 +1045,81 @@ class GestureCardWebViewManager(
         } catch (e: Exception) {
             Log.e(TAG, "恢复悬浮卡片状态失败", e)
         }
+    }
+
+    /**
+     * 处理WebView长按事件
+     */
+    private fun handleWebViewLongClick(webView: WebView): Boolean {
+        val result = webView.hitTestResult
+        return when (result.type) {
+            WebView.HitTestResult.ANCHOR_TYPE,
+            WebView.HitTestResult.SRC_ANCHOR_TYPE -> {
+                // 链接长按
+                val url = result.extra
+                if (!url.isNullOrEmpty()) {
+                    // 检查是否为简易模式，使用相应的菜单
+                    if (isSimpleMode()) {
+                        // 使用简易模式的完整菜单，传递正确的坐标
+                        textSelectionManager.showSimpleModeLinkMenu(webView, url, lastTouchX.toInt(), lastTouchY.toInt())
+                        Log.d(TAG, "显示简易模式链接菜单: $url at ($lastTouchX, $lastTouchY)")
+                    } else {
+                        // 使用标准菜单
+                        contextMenuManager.showLinkContextMenu(url, "", webView)
+                        Log.d(TAG, "显示标准链接上下文菜单: $url")
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            WebView.HitTestResult.IMAGE_TYPE,
+            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                // 图片长按
+                val imageUrl = result.extra
+                if (!imageUrl.isNullOrEmpty()) {
+                    if (isSimpleMode()) {
+                        // 简易模式暂时使用标准图片菜单，后续可以扩展
+                        contextMenuManager.showImageContextMenu(imageUrl, webView)
+                        Log.d(TAG, "显示简易模式图片菜单: $imageUrl")
+                    } else {
+                        contextMenuManager.showImageContextMenu(imageUrl, webView)
+                        Log.d(TAG, "显示标准图片上下文菜单: $imageUrl")
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
+            else -> {
+                // 其他情况显示通用菜单
+                if (isSimpleMode()) {
+                    // 简易模式暂时使用标准通用菜单，后续可以扩展
+                    contextMenuManager.showGeneralContextMenu(webView, webView)
+                    Log.d(TAG, "显示简易模式通用菜单")
+                } else {
+                    contextMenuManager.showGeneralContextMenu(webView, webView)
+                    Log.d(TAG, "显示标准通用上下文菜单")
+                }
+                true
+            }
+        }
+    }
+    
+    /**
+     * 检查是否为简易模式
+     */
+    private fun isSimpleMode(): Boolean {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val runningTasks = activityManager.getRunningTasks(10)
+        
+        for (task in runningTasks) {
+            val className = task.topActivity?.className
+            if (className == "com.example.aifloatingball.SimpleModeActivity") {
+                return true
+            }
+        }
+        return false
     }
 
 

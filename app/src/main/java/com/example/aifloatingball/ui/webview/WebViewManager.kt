@@ -1,5 +1,6 @@
 package com.example.aifloatingball.ui.webview
 
+import android.app.ActivityManager
 import android.content.Context
 import android.util.Log
 import android.view.MotionEvent
@@ -334,8 +335,33 @@ class WebViewManager(
     override fun onLinkLongPressed(url: String, x: Int, y: Int) {
         activeWebView?.let {
             Log.d(TAG, "Link menu triggered for URL: $url")
-            textSelectionManager.showLinkMenu(it, url, x, y)
+            
+            // 判断是否为简易模式
+            val isSimpleMode = isSimpleModeRunning()
+            if (isSimpleMode) {
+                Log.d(TAG, "Using simple mode link menu")
+                textSelectionManager.showSimpleModeLinkMenu(it, url, x, y)
+            } else {
+                Log.d(TAG, "Using standard link menu")
+                textSelectionManager.showLinkMenu(it, url, x, y)
+            }
         }
+    }
+    
+    /**
+     * 检查是否为简易模式
+     */
+    private fun isSimpleModeRunning(): Boolean {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val runningTasks = activityManager.getRunningTasks(10)
+        
+        for (task in runningTasks) {
+            val className = task.topActivity?.className
+            if (className == "com.example.aifloatingball.SimpleModeActivity") {
+                return true
+            }
+        }
+        return false
     }
 
     fun setActiveWebView(webView: CustomWebView?) {
@@ -352,4 +378,4 @@ class WebViewManager(
         activeWebView = null
         Log.d(TAG, "清除活动WebView")
     }
-} 
+}

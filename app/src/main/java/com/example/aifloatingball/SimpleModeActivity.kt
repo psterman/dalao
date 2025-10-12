@@ -465,6 +465,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var addAIContactReceiver: BroadcastReceiver? = null
     private var groupChatCreatedReceiver: BroadcastReceiver? = null
     
+    // 链接操作广播接收器
+    private var linkActionReceiver: BroadcastReceiver? = null
+    
     // 群聊管理器
     // 统一群聊管理器
     private lateinit var unifiedGroupChatManager: UnifiedGroupChatManager
@@ -661,6 +664,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         
         // 注册广播接收器
         registerBroadcastReceiver()
+        
+        // 注册链接操作广播接收器
+        setupLinkActionReceiver()
         
         // 注册群聊创建广播接收器
         setupGroupChatCreatedReceiver()
@@ -5358,6 +5364,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             }
         } catch (e: Exception) {
             Log.e(TAG, "注销群聊创建广播接收器失败", e)
+        }
+
+        // 注销链接操作广播接收器
+        try {
+            linkActionReceiver?.let {
+                unregisterReceiver(it)
+                linkActionReceiver = null
+                Log.d(TAG, "链接操作广播接收器已注销")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "注销链接操作广播接收器失败", e)
         }
 
         // 注销AI对话更新广播接收器
@@ -19913,7 +19930,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             AlertDialog.Builder(this)
                 .setTitle("🎮 手势操作指南")
                 .setMessage(instructions)
-                .setPositiveButton("开始使用", null)
+                .setPositiveButton("开始使用") { _, _ ->
+                    // 确保手势区处于激活状态
+                    if (!isSearchTabGestureOverlayActive) {
+                        activateSearchTabGestureOverlay()
+                    }
+                    // 显示使用提示
+                    showMaterialToast("🎯 手势区已激活！现在可以使用快捷手势操作")
+                }
                 .setNegativeButton("关闭手势区") { _, _ ->
                     deactivateSearchTabGestureOverlay()
                 }
@@ -21981,6 +22005,155 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.d(TAG, "群聊创建广播接收器已注册")
         } catch (e: Exception) {
             Log.e(TAG, "设置群聊创建广播接收器失败", e)
+        }
+    }
+
+    /**
+     * 设置链接操作广播接收器
+     */
+    private fun setupLinkActionReceiver() {
+        try {
+            linkActionReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    try {
+                        when (intent?.action) {
+                            "com.example.aifloatingball.OPEN_LINK_IN_BACKGROUND" -> {
+                                val url = intent.getStringExtra("url")
+                                if (!url.isNullOrEmpty()) {
+                                    Log.d(TAG, "收到后台打开链接广播: $url")
+                                    openLinkInBackground(url)
+                                }
+                            }
+                            "com.example.aifloatingball.OPEN_LINK_IN_NEW_TAB" -> {
+                                val url = intent.getStringExtra("url")
+                                if (!url.isNullOrEmpty()) {
+                                    Log.d(TAG, "收到新标签打开链接广播: $url")
+                                    openLinkInNewTab(url)
+                                }
+                            }
+                            "com.example.aifloatingball.GENERATE_QR_CODE" -> {
+                                val url = intent.getStringExtra("url")
+                                if (!url.isNullOrEmpty()) {
+                                    Log.d(TAG, "收到生成二维码广播: $url")
+                                    generateQRCode(url)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "处理链接操作广播失败", e)
+                    }
+                }
+            }
+            
+            val filter = IntentFilter().apply {
+                addAction("com.example.aifloatingball.OPEN_LINK_IN_BACKGROUND")
+                addAction("com.example.aifloatingball.OPEN_LINK_IN_NEW_TAB")
+                addAction("com.example.aifloatingball.GENERATE_QR_CODE")
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(linkActionReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(linkActionReceiver, filter)
+            }
+            
+            Log.d(TAG, "链接操作广播接收器已注册")
+        } catch (e: Exception) {
+            Log.e(TAG, "注册链接操作广播接收器失败", e)
+        }
+    }
+
+    /**
+     * 在后台打开链接
+     */
+    private fun openLinkInBackground(url: String) {
+        try {
+            Log.d(TAG, "在后台打开链接: $url")
+            
+            // 确保当前在浏览器状态
+            if (currentState != UIState.BROWSER) {
+                showBrowser()
+            }
+            
+            // 使用手势卡片WebView管理器在后台创建新卡片
+            gestureCardWebViewManager?.let { manager ->
+                // 创建新的WebView卡片并加载URL
+                val newCard = manager.addNewCard(url)
+                
+                // 显示提示信息
+                Toast.makeText(this, "链接已在后台打开", Toast.LENGTH_SHORT).show()
+                
+                Log.d(TAG, "链接已在后台WebView卡片中打开: $url")
+            } ?: run {
+                Log.w(TAG, "手势卡片WebView管理器未初始化")
+                Toast.makeText(this, "无法在后台打开链接", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "在后台打开链接失败", e)
+            Toast.makeText(this, "打开链接失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 在新标签中打开链接
+     */
+    private fun openLinkInNewTab(url: String) {
+        try {
+            Log.d(TAG, "在新标签中打开链接: $url")
+            
+            // 确保当前在浏览器状态
+            if (currentState != UIState.BROWSER) {
+                showBrowser()
+            }
+            
+            // 使用手势卡片WebView管理器创建新标签并切换到它
+            gestureCardWebViewManager?.let { manager ->
+                val newCard = manager.addNewCard(url)
+                
+                // 显示提示信息
+                Toast.makeText(this, "链接已在新标签中打开", Toast.LENGTH_SHORT).show()
+                
+                Log.d(TAG, "链接已在新标签中打开: $url")
+            } ?: run {
+                Log.w(TAG, "手势卡片WebView管理器未初始化")
+                Toast.makeText(this, "无法在新标签中打开链接", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "在新标签中打开链接失败", e)
+            Toast.makeText(this, "打开链接失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 生成二维码
+     */
+    private fun generateQRCode(url: String) {
+        try {
+            Log.d(TAG, "生成二维码: $url")
+            
+            // 这里可以实现二维码生成功能
+            // 可以使用第三方库如ZXing来生成二维码
+            // 或者调用系统的二维码生成功能
+            
+            // 临时实现：显示一个对话框显示URL
+            val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("二维码内容")
+                .setMessage("URL: $url\n\n(二维码生成功能待实现)")
+                .setPositiveButton("确定") { dialog, _ -> dialog.dismiss() }
+                .setNeutralButton("复制链接") { _, _ ->
+                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("URL", url)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(this, "链接已复制", Toast.LENGTH_SHORT).show()
+                }
+                .create()
+            
+            dialog.show()
+            
+            Log.d(TAG, "二维码对话框已显示")
+        } catch (e: Exception) {
+            Log.e(TAG, "生成二维码失败", e)
+            Toast.makeText(this, "生成二维码失败", Toast.LENGTH_SHORT).show()
         }
     }
 
