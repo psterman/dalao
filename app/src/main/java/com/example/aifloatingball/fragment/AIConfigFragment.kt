@@ -12,7 +12,7 @@ import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 
 /**
- * AI配置Fragment - 合并AI指令中心和API设置
+ * AI配置Fragment - 包含AI指令、基础信息、API配置的子标签
  */
 class AIConfigFragment : Fragment() {
 
@@ -38,7 +38,8 @@ class AIConfigFragment : Fragment() {
 
     private fun setupViewPager() {
         val fragmentList = listOf(
-            MasterPromptFragment(),  // AI指令中心
+            MasterPromptFragment(),  // AI指令
+            BasicInfoSubpageFragment(),  // 基础信息
             AIApiSettingsFragment()  // API设置
         )
         
@@ -66,7 +67,8 @@ class AIConfigFragment : Fragment() {
         TabLayoutMediator(tabLayout, viewPager) { tab, position ->
             when (position) {
                 0 -> tab.text = "AI指令"
-                1 -> tab.text = "API设置"
+                1 -> tab.text = "基础信息"
+                2 -> tab.text = "API设置"
             }
         }.attach()
     }

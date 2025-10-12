@@ -11,10 +11,10 @@ import com.example.aifloatingball.fragment.*
 class AIAssistantCenterPagerAdapter(fragmentActivity: FragmentActivity) : FragmentStateAdapter(fragmentActivity) {
     
     private val fragments = listOf(
-        TaskFragment(),          // 任务（移到第一位）
-        BasicInfoFragment(),
-        AIConfigFragment(),      // AI配置（合并AI指令中心和API设置）
-        PersonalizationFragment()
+        TaskFragment(),          // 任务
+        BasicInfoFragment(),      // 基础信息（搜索模式设置）
+        AIConfigFragment(),       // AI配置（AI指令、基础信息、API设置）
+        PersonalizationFragment() // 个性化
     )
     
     override fun getItemCount(): Int = fragments.size
