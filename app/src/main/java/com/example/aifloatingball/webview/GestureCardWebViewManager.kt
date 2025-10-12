@@ -1079,9 +1079,9 @@ class GestureCardWebViewManager(
                 val imageUrl = result.extra
                 if (!imageUrl.isNullOrEmpty()) {
                     if (isSimpleMode()) {
-                        // 简易模式暂时使用标准图片菜单，后续可以扩展
-                        contextMenuManager.showImageContextMenu(imageUrl, webView)
-                        Log.d(TAG, "显示简易模式图片菜单: $imageUrl")
+                        // 使用简易模式的完整图片菜单，传递正确的坐标
+                        textSelectionManager.showSimpleModeImageMenu(webView, imageUrl, lastTouchX.toInt(), lastTouchY.toInt())
+                        Log.d(TAG, "显示简易模式图片菜单: $imageUrl at ($lastTouchX, $lastTouchY)")
                     } else {
                         contextMenuManager.showImageContextMenu(imageUrl, webView)
                         Log.d(TAG, "显示标准图片上下文菜单: $imageUrl")

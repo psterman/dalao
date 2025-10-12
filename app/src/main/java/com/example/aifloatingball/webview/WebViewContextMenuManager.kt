@@ -162,8 +162,22 @@ class WebViewContextMenuManager(
         
         // 保存图片
         menuView.findViewById<MaterialButton>(R.id.menu_save_image).setOnClickListener {
-            // TODO: 实现图片保存功能
-            Toast.makeText(context, "图片保存功能待实现", Toast.LENGTH_SHORT).show()
+            try {
+                // 使用DownloadManager下载图片
+                val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                val request = android.app.DownloadManager.Request(android.net.Uri.parse(imageUrl)).apply {
+                    setTitle("保存图片")
+                    setDescription("正在下载图片: $imageUrl")
+                    setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_PICTURES, 
+                        "image_${System.currentTimeMillis()}.jpg")
+                }
+                downloadManager.enqueue(request)
+                Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "保存图片失败", e)
+                Toast.makeText(context, "保存图片失败", Toast.LENGTH_SHORT).show()
+            }
             dismissPopup()
         }
         

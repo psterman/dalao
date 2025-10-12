@@ -1270,4 +1270,260 @@ class TextSelectionManager(private val context: Context, private val windowManag
             hideTextSelectionMenu()
         }
     }
-}
+    
+    /**
+     * 显示简易模式专用的图片操作菜单
+     */
+    fun showSimpleModeImageMenu(webView: WebView, imageUrl: String, x: Int, y: Int) {
+        Log.i(TAG, "[MENU_LIFECYCLE] showSimpleModeImageMenu: URL=$imageUrl, x=$x, y=$y")
+
+        // 如果有其他菜单正在显示，先隐藏
+        if (isMenuShowing.get() || isMenuAnimating.get()) {
+            hideTextSelectionMenu(true)
+            handler.postDelayed({
+                doShowSimpleModeImageMenu(webView, imageUrl, x, y)
+            }, 160)
+            return
+        }
+        doShowSimpleModeImageMenu(webView, imageUrl, x, y)
+    }
+
+    private fun doShowSimpleModeImageMenu(webView: WebView, imageUrl: String, x: Int, y: Int) {
+        if (Looper.myLooper() != Looper.getMainLooper()) return
+
+        val themedContext = ContextThemeWrapper(context, R.style.Theme_AIFloatingBall)
+        // 1. 加载包装器布局，它将作为全屏的触摸拦截层
+        floatingMenuView = LayoutInflater.from(themedContext)
+            .inflate(R.layout.simple_mode_image_menu_wrapper, null)
+
+        // 2. 从包装器中找到实际的菜单内容视图
+        val menuContent = floatingMenuView!!.findViewById<View>(R.id.simple_mode_image_menu_content)!!
+
+        // 为动画设置初始状态
+        menuContent.alpha = 0f
+        menuContent.scaleX = 0.8f
+        menuContent.scaleY = 0.8f
+
+        // 3. 在全屏的根视图上设置触摸监听器
+        floatingMenuView!!.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_DOWN) {
+                val contentRect = Rect()
+                menuContent.getGlobalVisibleRect(contentRect)
+                // 如果触摸点在菜单内容视图的矩形区域之外，则隐藏菜单
+                if (!contentRect.contains(event.x.toInt(), event.y.toInt())) {
+                    hideTextSelectionMenu()
+                }
+            }
+            // 修复：始终返回false，允许事件穿透，同时让子视图（按钮）可以被点击
+            false
+        }
+
+        // 在内容视图上设置菜单项
+        setupSimpleModeImageMenuItems(menuContent, webView, imageUrl)
+
+        val webViewLocation = IntArray(2)
+        webView.getLocationOnScreen(webViewLocation)
+
+        // 4. 测量并定位内容视图
+        menuContent.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val menuWidth = menuContent.measuredWidth
+        val menuHeight = menuContent.measuredHeight
+        val margin = (20 * context.resources.displayMetrics.density).toInt() // 20dp margin
+
+        // 获取屏幕尺寸
+        val screenWidth = context.resources.displayMetrics.widthPixels
+        val screenHeight = context.resources.displayMetrics.heightPixels
+
+        // 初始定位：点击坐标下方居中
+        var absoluteMenuX = webViewLocation[0] + x - (menuWidth / 2)
+        var absoluteMenuY = webViewLocation[1] + y + margin
+
+        // 边界检查与调整
+        if (absoluteMenuY + menuHeight > screenHeight) {
+            absoluteMenuY = webViewLocation[1] + y - menuHeight - margin
+        }
+        if (absoluteMenuX + menuWidth > screenWidth) {
+            absoluteMenuX = screenWidth - menuWidth - margin
+        }
+        if (absoluteMenuX < 0) {
+            absoluteMenuX = margin
+        }
+        if (absoluteMenuY < 0) {
+            absoluteMenuY = margin
+        }
+
+        // 使用FrameLayout.LayoutParams在包装器内定位内容视图
+        val contentParams = menuContent.layoutParams as FrameLayout.LayoutParams
+        contentParams.gravity = Gravity.TOP or Gravity.START
+        contentParams.leftMargin = absoluteMenuX
+        contentParams.topMargin = absoluteMenuY
+        menuContent.layoutParams = contentParams
+
+        // 5. 为根视图（包装器）使用全屏的窗口参数
+        val layoutParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT, // 全屏大小以捕捉所有外部点击
+            OVERLAY_WINDOW_TYPE,
+            MENU_WINDOW_FLAGS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            this.x = 0
+            this.y = 0
+        }
+        
+        try {
+            windowManager.addView(floatingMenuView, layoutParams)
+            // 6. 对内容视图执行显示动画
+            showMenuWithAnimation(menuContent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding simple mode image menu to WindowManager", e)
+            cleanupStateAndHandles() // 出错时清理
+        }
+    }
+
+    private fun setupSimpleModeImageMenuItems(menuView: View, webView: WebView, imageUrl: String) {
+        // 进入看图模式
+        menuView.findViewById<View>(R.id.action_view_image_mode)?.setOnClickListener {
+            try {
+                // 发送广播通知SimpleModeActivity进入看图模式
+                val intent = android.content.Intent("com.example.aifloatingball.VIEW_IMAGE_MODE").apply {
+                    putExtra("imageUrl", imageUrl)
+                }
+                context.sendBroadcast(intent)
+                Toast.makeText(context, "进入看图模式", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "进入看图模式失败", e)
+                Toast.makeText(context, "进入看图模式失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 保存图片
+        menuView.findViewById<View>(R.id.action_save_image)?.setOnClickListener {
+            try {
+                // 使用DownloadManager下载图片
+                val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                val request = android.app.DownloadManager.Request(android.net.Uri.parse(imageUrl)).apply {
+                    setTitle("保存图片")
+                    setDescription("正在下载图片: $imageUrl")
+                    setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                    setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_PICTURES, 
+                        "image_${System.currentTimeMillis()}.jpg")
+                }
+                downloadManager.enqueue(request)
+                Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "保存图片失败", e)
+                Toast.makeText(context, "保存图片失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 复制图片链接
+        menuView.findViewById<View>(R.id.action_copy_image_url)?.setOnClickListener {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Image URL", imageUrl)
+            clipboard.setPrimaryClip(clip)
+            Toast.makeText(context, "图片链接已复制", Toast.LENGTH_SHORT).show()
+            hideTextSelectionMenu()
+        }
+
+        // 分享图片
+        menuView.findViewById<View>(R.id.action_share_image)?.setOnClickListener {
+            try {
+                val shareIntent = android.content.Intent().apply {
+                    action = android.content.Intent.ACTION_SEND
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TEXT, imageUrl)
+                }
+                val chooser = android.content.Intent.createChooser(shareIntent, "分享图片")
+                chooser.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(chooser)
+                Toast.makeText(context, "分享图片", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "分享失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 以图搜图
+        menuView.findViewById<View>(R.id.action_search_by_image)?.setOnClickListener {
+            try {
+                // 发送广播通知进行以图搜图
+                val intent = android.content.Intent("com.example.aifloatingball.SEARCH_BY_IMAGE").apply {
+                    putExtra("imageUrl", imageUrl)
+                }
+                context.sendBroadcast(intent)
+                Toast.makeText(context, "正在以图搜图", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "以图搜图失败", e)
+                Toast.makeText(context, "以图搜图失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 识别二维码
+        menuView.findViewById<View>(R.id.action_recognize_qr)?.setOnClickListener {
+            try {
+                // 发送广播通知识别二维码
+                val intent = android.content.Intent("com.example.aifloatingball.RECOGNIZE_QR_CODE").apply {
+                    putExtra("imageUrl", imageUrl)
+                }
+                context.sendBroadcast(intent)
+                Toast.makeText(context, "正在识别二维码", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "识别二维码失败", e)
+                Toast.makeText(context, "识别二维码失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 设为壁纸
+        menuView.findViewById<View>(R.id.action_set_wallpaper)?.setOnClickListener {
+            try {
+                // 发送广播通知设置壁纸
+                val intent = android.content.Intent("com.example.aifloatingball.SET_WALLPAPER").apply {
+                    putExtra("imageUrl", imageUrl)
+                }
+                context.sendBroadcast(intent)
+                Toast.makeText(context, "正在设置壁纸", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "设置壁纸失败", e)
+                Toast.makeText(context, "设置壁纸失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 屏蔽广告
+        menuView.findViewById<View>(R.id.action_block_ads)?.setOnClickListener {
+            try {
+                // 添加到广告屏蔽列表
+                webView.evaluateJavascript(
+                    """
+                    (function() {
+                        var img = document.querySelector('img[src="$imageUrl"]');
+                        if (img) {
+                            img.style.display = 'none';
+                            img.parentNode.style.display = 'none';
+                        }
+                        // 尝试屏蔽包含该图片的广告容器
+                        var adContainers = document.querySelectorAll('[class*="ad"], [id*="ad"], [class*="advertisement"], [id*="advertisement"]');
+                        adContainers.forEach(function(container) {
+                            if (container.innerHTML.includes('$imageUrl')) {
+                                container.style.display = 'none';
+                            }
+                        });
+                        return 'blocked';
+                    })();
+                    """.trimIndent()
+                ) { _ ->
+                    Toast.makeText(context, "已屏蔽相关广告", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "屏蔽广告失败", e)
+                Toast.makeText(context, "屏蔽广告失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+    }}
