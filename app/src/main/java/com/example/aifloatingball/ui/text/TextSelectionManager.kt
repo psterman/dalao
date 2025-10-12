@@ -1,6 +1,6 @@
 package com.example.aifloatingball.ui.text
 
-import android.app.DownloadManager
+import com.example.aifloatingball.download.EnhancedDownloadManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -54,6 +54,11 @@ class TextSelectionManager(private val context: Context, private val windowManag
     private var autoHideRunnable: Runnable? = null
     private var lastMenuPositionX = 0f
     private var lastMenuPositionY = 0f
+    
+    // 增强下载管理器
+    private val enhancedDownloadManager: EnhancedDownloadManager by lazy {
+        EnhancedDownloadManager(context)
+    }
     
     // 为EditText保存选择状态
     private var savedSelectionStart: Int = -1
@@ -1204,17 +1209,20 @@ class TextSelectionManager(private val context: Context, private val windowManag
         // 下载链接
         menuView.findViewById<View>(R.id.action_download_link)?.setOnClickListener {
             try {
-                // 使用DownloadManager下载文件
-                val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-                val request = DownloadManager.Request(android.net.Uri.parse(url)).apply {
-                    setTitle("下载文件")
-                    setDescription("正在下载: $url")
-                    setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, 
-                        url.substringAfterLast("/").ifEmpty { "download_${System.currentTimeMillis()}" })
+                // 使用增强下载管理器下载文件
+                val downloadId = enhancedDownloadManager.downloadFile(url, object : EnhancedDownloadManager.DownloadCallback {
+                    override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                        Log.d(TAG, "文件下载成功: $fileName")
+                    }
+                    
+                    override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                        Log.e(TAG, "文件下载失败: $reason")
+                    }
+                })
+                
+                if (downloadId != -1L) {
+                    Toast.makeText(context, "开始下载文件", Toast.LENGTH_SHORT).show()
                 }
-                downloadManager.enqueue(request)
-                Toast.makeText(context, "开始下载", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e(TAG, "下载链接失败", e)
                 Toast.makeText(context, "下载失败", Toast.LENGTH_SHORT).show()
@@ -1234,6 +1242,20 @@ class TextSelectionManager(private val context: Context, private val windowManag
             } catch (e: Exception) {
                 Log.e(TAG, "生成二维码失败", e)
                 Toast.makeText(context, "生成二维码失败", Toast.LENGTH_SHORT).show()
+            }
+            hideTextSelectionMenu()
+        }
+
+        // 下载管理
+        menuView.findViewById<View>(R.id.action_download_manager)?.setOnClickListener {
+            try {
+                val intent = android.content.Intent(context, com.example.aifloatingball.download.DownloadManagerActivity::class.java)
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                Toast.makeText(context, "打开下载管理", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Log.e(TAG, "打开下载管理失败", e)
+                Toast.makeText(context, "打开下载管理失败", Toast.LENGTH_SHORT).show()
             }
             hideTextSelectionMenu()
         }
@@ -1402,17 +1424,20 @@ class TextSelectionManager(private val context: Context, private val windowManag
         // 保存图片
         menuView.findViewById<View>(R.id.action_save_image)?.setOnClickListener {
             try {
-                // 使用DownloadManager下载图片
-                val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-                val request = android.app.DownloadManager.Request(android.net.Uri.parse(imageUrl)).apply {
-                    setTitle("保存图片")
-                    setDescription("正在下载图片: $imageUrl")
-                    setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_PICTURES, 
-                        "image_${System.currentTimeMillis()}.jpg")
+                // 使用增强下载管理器下载图片
+                val downloadId = enhancedDownloadManager.downloadImage(imageUrl, object : EnhancedDownloadManager.DownloadCallback {
+                    override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                        Log.d(TAG, "图片下载成功: $fileName")
+                    }
+                    
+                    override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                        Log.e(TAG, "图片下载失败: $reason")
+                    }
+                })
+                
+                if (downloadId != -1L) {
+                    Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
                 }
-                downloadManager.enqueue(request)
-                Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e(TAG, "保存图片失败", e)
                 Toast.makeText(context, "保存图片失败", Toast.LENGTH_SHORT).show()

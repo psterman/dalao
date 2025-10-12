@@ -37,6 +37,12 @@ class PermissionActivity : AppCompatActivity() {
     private val requiredPermissions = mutableListOf(
         Manifest.permission.RECORD_AUDIO
     ).apply {
+        // Android 12及以下需要存储权限
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        // Android 13+需要通知权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             add(Manifest.permission.POST_NOTIFICATIONS)
         }

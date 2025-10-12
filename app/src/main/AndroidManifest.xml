@@ -178,6 +178,9 @@
             android:theme="@style/Theme.AIFloatingBall.NoActionBar"/>
         <activity android:name=".SearchEngineManagerActivity" />
         <activity android:name=".SearchEngineGroupManagerActivity" />
+        <activity android:name=".download.DownloadManagerActivity"
+            android:theme="@style/Theme.AIFloatingBall"
+            android:exported="false" />
         <activity
             android:name=".MenuManagerActivity"
             android:exported="false"

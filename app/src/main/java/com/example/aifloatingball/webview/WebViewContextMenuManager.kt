@@ -1,5 +1,6 @@
 package com.example.aifloatingball.webview
 
+import com.example.aifloatingball.download.EnhancedDownloadManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -28,6 +29,11 @@ class WebViewContextMenuManager(
     
     private var currentPopup: PopupWindow? = null
     private var onNewTabListener: ((String, Boolean) -> Unit)? = null // URL, inBackground
+    
+    // 增强下载管理器
+    private val enhancedDownloadManager: EnhancedDownloadManager by lazy {
+        EnhancedDownloadManager(context)
+    }
     
     /**
      * 设置新标签页监听器
@@ -163,17 +169,20 @@ class WebViewContextMenuManager(
         // 保存图片
         menuView.findViewById<MaterialButton>(R.id.menu_save_image).setOnClickListener {
             try {
-                // 使用DownloadManager下载图片
-                val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-                val request = android.app.DownloadManager.Request(android.net.Uri.parse(imageUrl)).apply {
-                    setTitle("保存图片")
-                    setDescription("正在下载图片: $imageUrl")
-                    setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                    setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_PICTURES, 
-                        "image_${System.currentTimeMillis()}.jpg")
+                // 使用增强下载管理器下载图片
+                val downloadId = enhancedDownloadManager.downloadImage(imageUrl, object : EnhancedDownloadManager.DownloadCallback {
+                    override fun onDownloadSuccess(downloadId: Long, localUri: String?, fileName: String?) {
+                        Log.d(TAG, "图片下载成功: $fileName")
+                    }
+                    
+                    override fun onDownloadFailed(downloadId: Long, reason: Int) {
+                        Log.e(TAG, "图片下载失败: $reason")
+                    }
+                })
+                
+                if (downloadId != -1L) {
+                    Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
                 }
-                downloadManager.enqueue(request)
-                Toast.makeText(context, "开始保存图片", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Log.e(TAG, "保存图片失败", e)
                 Toast.makeText(context, "保存图片失败", Toast.LENGTH_SHORT).show()

@@ -86,6 +86,14 @@
             android:drawableStart="@drawable/ic_qr_code"
             android:drawablePadding="8dp" />
 
+        <!-- 下载管理 -->
+        <TextView
+            android:id="@+id/action_download_manager"
+            style="@style/LightTextSelectionMenuItem"
+            android:text="下载管理"
+            android:drawableStart="@drawable/ic_download"
+            android:drawablePadding="8dp" />
+
         <!-- 屏蔽广告 -->
         <TextView
             android:id="@+id/action_block_ads"
