@@ -1397,8 +1397,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     // 更新AI回复内容
                     runOnUiThread {
                         aiMessage.content += chunk
-                        val cleanedContent = cleanAndFormatAIResponse(aiMessage.content)
-                        messageAdapter.updateLastMessage(cleanedContent)
+                        // 流式回复时只进行简单清理，不进行复杂格式化
+                        val simpleCleanedContent = simpleCleanText(aiMessage.content)
+                        messageAdapter.updateLastMessage(simpleCleanedContent)
                         
                         // 减少滚动频率，只在必要时滚动
                         if (messagesRecyclerView.canScrollVertically(1)) {
@@ -1669,8 +1670,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                                 override fun onChunkReceived(chunk: String) {
                                     runOnUiThread {
                                         aiMessage.content += chunk
-                                        val cleanedContent = cleanAndFormatAIResponse(aiMessage.content)
-                                        messageAdapter.updateLastMessage(cleanedContent)
+                                        // 流式回复时只进行简单清理，不进行复杂格式化
+                                        val simpleCleanedContent = simpleCleanText(aiMessage.content)
+                                        messageAdapter.updateLastMessage(simpleCleanedContent)
                                         
                                         // 减少滚动频率，只在必要时滚动
                                         if (messagesRecyclerView.canScrollVertically(1)) {
@@ -1716,6 +1718,27 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
         }
     }
 
+    /**
+     * 简单文本清理（用于流式回复）
+     * 只进行基本的文本清理，不进行复杂的Markdown解析
+     */
+    private fun simpleCleanText(content: String): String {
+        var cleaned = content
+        
+        // 只进行基本的HTML实体解码
+        cleaned = cleaned.replace("&lt;", "<")
+        cleaned = cleaned.replace("&gt;", ">")
+        cleaned = cleaned.replace("&amp;", "&")
+        cleaned = cleaned.replace("&quot;", "\"")
+        cleaned = cleaned.replace("&#39;", "'")
+        cleaned = cleaned.replace("&nbsp;", " ")
+        
+        // 处理基本的换行符
+        cleaned = cleaned.replace("\\n", "\n")
+        
+        return cleaned
+    }
+    
     /**
      * 清理和优化AI回复内容 - 增强版文本排版
      */
@@ -2289,8 +2312,9 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                                 override fun onChunkReceived(chunk: String) {
                                     runOnUiThread {
                                         aiMessage.content += chunk
-                                        val cleanedContent = cleanAndFormatAIResponse(aiMessage.content)
-                                        messageAdapter.updateLastMessage(cleanedContent)
+                                        // 流式回复时只进行简单清理，不进行复杂格式化
+                                        val simpleCleanedContent = simpleCleanText(aiMessage.content)
+                                        messageAdapter.updateLastMessage(simpleCleanedContent)
                                         
                                         // 减少滚动频率，只在必要时滚动
                                         if (messagesRecyclerView.canScrollVertically(1)) {
