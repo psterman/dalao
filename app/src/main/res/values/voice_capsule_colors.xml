@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 语音胶囊输入区域背景色 -->
+    <color name="voice_capsule_input_background">#6C5CE7</color>
+    
+    <!-- 语音胶囊渐变背景 -->
+    <color name="voice_capsule_gradient_start">#6C5CE7</color>
+    <color name="voice_capsule_gradient_end">#A29BFE</color>
+    
+    <!-- 语音胶囊按钮背景 -->
+    <color name="voice_capsule_button_background">#5F3DC4</color>
+    
+    <!-- 语音胶囊文本颜色 -->
+    <color name="voice_capsule_text_primary">#FFFFFF</color>
+    <color name="voice_capsule_text_secondary">#E8E4FF</color>
+    
+    <!-- 语音胶囊边框颜色 -->
+    <color name="voice_capsule_border">#4C63D2</color>
+    
+    <!-- 语音胶囊阴影颜色 -->
+    <color name="voice_capsule_shadow">#40000000</color>
+</resources>
+

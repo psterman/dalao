@@ -131,6 +131,7 @@ import com.example.aifloatingball.views.WebViewTabBar
 import com.example.aifloatingball.views.MaterialSearchEngineSelector
 import com.example.aifloatingball.views.CardPreviewOverlay
 import com.example.aifloatingball.views.QuarterArcOperationBar
+import com.example.aifloatingball.service.AIAppOverlayService
 
 import com.google.android.material.switchmaterial.SwitchMaterial
 import android.widget.EditText
@@ -463,6 +464,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
     // 四分之一圆弧操作栏
     private var quarterArcOperationBar: QuarterArcOperationBar? = null
+
+    // 语音胶囊三段式布局相关
+    private var voiceCapsuleLayout: LinearLayout? = null
+    private var voiceCapsuleTextInput: EditText? = null
+    private var voiceCapsuleSearchInput: EditText? = null
+    private var voiceCapsuleWebViewContainer: FrameLayout? = null
+    private var voiceCapsuleWebView: WebView? = null
+    private var isVoiceCapsuleMode = false
+    private var shouldContinueRecording = true
 
     // API密钥同步广播接收器
     private var apiKeySyncReceiver: BroadcastReceiver? = null
@@ -1902,21 +1912,51 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 初始化语音输入管理器
         voiceInputManager = VoiceInputManager(this)
+        
+        // 初始化三段式胶囊布局
+        initializeVoiceCapsuleLayout()
         voiceInputManager.setCallback(object : VoiceInputManager.VoiceInputCallback {
             override fun onVoiceInputResult(text: String) {
                 runOnUiThread {
-                    // 将识别结果添加到现有文本中
-                    val currentText = voiceTextInput.text.toString()
-                    val newText = if (currentText.isEmpty()) text else "$currentText $text"
+                    try {
+                        // 流式显示：将识别结果添加到现有文本中
+                        val currentText = voiceCapsuleTextInput?.text?.toString() ?: ""
+                        val newText = if (currentText.isEmpty()) text else "$currentText $text"
 
-                    voiceTextInput.setText(newText)
-                    voiceTextInput.setSelection(newText.length)
-                    voiceStatusText.text = "识别完成，可以继续语音输入或开始搜索"
-                    voiceSearchButton.isEnabled = true
+                        // 更新胶囊输入框 - 流式显示文字
+                        voiceCapsuleTextInput?.let { input ->
+                            input.setText(newText)
+                            input.setSelection(newText.length)
+                            
+                            // 确保输入框保持固定高度
+                            input.requestLayout()
+                        }
 
-                    // 重置监听状态
-                    isListening = false
-                    updateVoiceListeningState(false)
+                        // 更新原始输入框（保持同步）
+                        voiceTextInput.setText(newText)
+                        voiceTextInput.setSelection(newText.length)
+                        voiceStatusText.text = "识别完成，可以继续说话或点击麦克风停止录音"
+                        voiceSearchButton.isEnabled = true
+
+                        // 重置监听状态
+                        isListening = false
+                        updateVoiceListeningState(false)
+
+                        // 在胶囊模式下，始终继续录音，直到用户点击麦克风停止
+                        if (isVoiceCapsuleMode && shouldContinueRecording) {
+                            // 立即继续录音，实现连续录音
+                            voiceCapsuleTextInput?.postDelayed({
+                                if (shouldContinueRecording) {
+                                    continueRecording()
+                                }
+                            }, 200) // 进一步减少延迟时间，实现更快的连续录音
+                        } else {
+                            // 切换到三段式胶囊布局
+                            switchToVoiceCapsuleLayout(newText)
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "处理语音识别结果失败", e)
+                    }
                 }
             }
 
@@ -1925,6 +1965,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     voiceStatusText.text = error
                     isListening = false
                     updateVoiceListeningState(false)
+                    
+                    // 更新胶囊录音状态
+                    updateCapsuleRecordingState(false)
                 }
             }
 
@@ -1933,6 +1976,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     voiceStatusText.text = "语音输入已取消"
                     isListening = false
                     updateVoiceListeningState(false)
+                    
+                    // 更新胶囊录音状态
+                    updateCapsuleRecordingState(false)
                 }
             }
         })
@@ -2363,11 +2409,25 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         browserLayout.visibility = View.GONE
         settingsLayout.visibility = View.GONE
 
+        // 确保语音输入管理器已初始化
+        if (!::voiceInputManager.isInitialized) {
+            voiceInputManager = VoiceInputManager(this)
+            Log.d(TAG, "重新初始化VoiceInputManager")
+        }
+
+        // 默认显示三段式胶囊布局
+        showVoiceCapsuleLayout()
+
         // 检查录音权限
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this,
                 arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
+        } else {
+            // 如果有权限，确保自动开始录音
+            if (isVoiceCapsuleMode) {
+                startAutoRecording()
+            }
         }
 
         updateTabColors()
@@ -8494,7 +8554,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // 权限授予后重新检测语音支持情况
                     detectAndUpdateVoiceSupport()
-                    startVoiceRecognition()
+                    // 如果当前在语音胶囊模式，自动开始录音
+                    if (isVoiceCapsuleMode) {
+                        startAutoRecording()
+                    } else {
+                        startVoiceRecognition()
+                    }
                 } else {
                     voiceStatusText.text = "需要录音权限才能使用语音识别"
                     // 权限被拒绝后也重新检测，可能有其他不需要权限的方案
@@ -22163,6 +22228,824 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         } catch (e: Exception) {
             Log.e(TAG, "生成二维码失败", e)
             Toast.makeText(this, "生成二维码失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * 初始化三段式胶囊布局
+     */
+    private fun initializeVoiceCapsuleLayout() {
+        try {
+            // 获取胶囊布局容器
+            voiceCapsuleLayout = findViewById(R.id.voice_capsule_container)
+            
+            // 初始化胶囊布局中的组件
+            voiceCapsuleTextInput = findViewById(R.id.voice_capsule_text_input)
+            
+            // 初始化三窗口WebView
+            initializeCapsuleWebViews()
+            
+            
+            // 设置应用图标点击事件
+            setupCapsuleAppClickListeners()
+            
+            // 关闭按钮已移除，不需要设置点击事件
+            
+            // 设置话筒按钮点击事件 - 重新设计状态控制
+            findViewById<ImageView>(R.id.voice_capsule_floating_mic)?.setOnClickListener {
+                if (isListening) {
+                    // 正在录音时点击 -> 停止录音
+                    finishRecording()
+                } else {
+                    // 停止状态时点击 -> 开始录音
+                    shouldContinueRecording = true
+                    startAutoRecording()
+                }
+            }
+            
+            // 设置暂停按钮点击事件
+            findViewById<ImageView>(R.id.voice_capsule_pause_btn)?.setOnClickListener {
+                // 点击红色暂停按钮 -> 继续录音
+                shouldContinueRecording = true
+                startAutoRecording()
+            }
+            
+            // 设置文本工具按钮点击事件 - 使用新的布局结构
+            findViewById<LinearLayout>(R.id.voice_capsule_clear_btn)?.parent?.let { parent ->
+                if (parent is LinearLayout) {
+                    parent.setOnClickListener {
+                        clearText()
+                    }
+                }
+            }
+            
+            findViewById<ImageView>(R.id.voice_capsule_copy_btn)?.parent?.let { parent ->
+                if (parent is LinearLayout) {
+                    parent.setOnClickListener {
+                        copyText()
+                    }
+                }
+            }
+            
+            findViewById<ImageView>(R.id.voice_capsule_paste_btn)?.parent?.let { parent ->
+                if (parent is LinearLayout) {
+                    parent.setOnClickListener {
+                        pasteText()
+                    }
+                }
+            }
+            
+            findViewById<ImageView>(R.id.voice_capsule_share_btn)?.parent?.let { parent ->
+                if (parent is LinearLayout) {
+                    parent.setOnClickListener {
+                        shareText()
+                    }
+                }
+            }
+            
+            Log.d(TAG, "三段式胶囊布局初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化三段式胶囊布局失败", e)
+        }
+    }
+    
+    /**
+     * 显示三段式胶囊布局（默认状态）
+     */
+    private fun showVoiceCapsuleLayout() {
+        try {
+            runOnUiThread {
+                // 隐藏原始语音布局
+                findViewById<LinearLayout>(R.id.voice_original_layout)?.visibility = View.GONE
+                
+                // 显示胶囊布局
+                voiceCapsuleLayout?.visibility = View.VISIBLE
+                
+                // 设置为胶囊模式
+                isVoiceCapsuleMode = true
+                
+                // 调整麦克风按钮位置（支持左右手模式）
+                adjustMicButtonForHandMode()
+                
+                // 自动开始录音
+                startAutoRecording()
+                
+                Log.d(TAG, "已显示三段式胶囊布局并开始自动录音")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "显示三段式胶囊布局失败", e)
+        }
+    }
+    
+    /**
+     * 调整麦克风按钮位置（支持左右手模式）
+     */
+    private fun adjustMicButtonForHandMode() {
+        try {
+            val micContainer = findViewById<RelativeLayout>(R.id.voice_capsule_floating_mic)?.parent as? RelativeLayout
+            if (micContainer != null) {
+                val layoutParams = micContainer.layoutParams as? RelativeLayout.LayoutParams
+                if (layoutParams != null) {
+                    // 检测左右手模式
+                    val isRightHanded = isRightHandedMode()
+                    
+                    if (isRightHanded) {
+                        // 右手模式：麦克风在右下角
+                        layoutParams.addRule(RelativeLayout.ALIGN_PARENT_END)
+                        layoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT, 0)
+                        layoutParams.marginEnd = 4.dpToPx()
+                        layoutParams.marginStart = 0
+                    } else {
+                        // 左手模式：麦克风在左下角
+                        layoutParams.addRule(RelativeLayout.ALIGN_PARENT_START)
+                        layoutParams.addRule(RelativeLayout.ALIGN_PARENT_LEFT, 0)
+                        layoutParams.addRule(RelativeLayout.ALIGN_PARENT_END, 0)
+                        layoutParams.addRule(RelativeLayout.ALIGN_PARENT_RIGHT, 0)
+                        layoutParams.marginStart = 4.dpToPx()
+                        layoutParams.marginEnd = 0
+                    }
+                    
+                    micContainer.layoutParams = layoutParams
+                    Log.d(TAG, "麦克风按钮位置已调整为${if (isRightHanded) "右手" else "左手"}模式")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "调整麦克风按钮位置失败", e)
+        }
+    }
+    
+    /**
+     * 检测是否为右手模式
+     */
+    private fun isRightHandedMode(): Boolean {
+        return try {
+            // 检测系统设置中的左右手模式
+            val configuration = resources.configuration
+            val layoutDirection = configuration.layoutDirection
+            layoutDirection == android.view.View.LAYOUT_DIRECTION_LTR
+        } catch (e: Exception) {
+            // 默认使用右手模式
+            true
+        }
+    }
+    
+    /**
+     * 自动开始录音
+     */
+    private fun startAutoRecording() {
+        try {
+            Log.d(TAG, "开始自动录音流程")
+            
+            // 重置继续录音标志
+            shouldContinueRecording = true
+            
+            // 检查录音权限
+            val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            Log.d(TAG, "录音权限状态: $hasPermission")
+            
+            if (!hasPermission) {
+                Log.d(TAG, "请求录音权限")
+                ActivityCompat.requestPermissions(this,
+                    arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
+                return
+            }
+            
+            // 检查语音输入管理器是否已初始化
+            if (!::voiceInputManager.isInitialized) {
+                Log.e(TAG, "voiceInputManager未初始化，重新初始化")
+                voiceInputManager = VoiceInputManager(this)
+            }
+            
+            // 确保设置了回调
+            if (voiceInputManager != null) {
+                voiceInputManager.setCallback(object : VoiceInputManager.VoiceInputCallback {
+                    override fun onVoiceInputResult(text: String) {
+                        runOnUiThread {
+                            try {
+                                // 流式显示：将识别结果添加到现有文本中
+                                val currentText = voiceCapsuleTextInput?.text?.toString() ?: ""
+                                val newText = if (currentText.isEmpty()) text else "$currentText $text"
+
+                                // 更新胶囊输入框 - 流式显示文字
+                                voiceCapsuleTextInput?.let { input ->
+                                    input.setText(newText)
+                                    input.setSelection(newText.length)
+                                    
+                                    // 确保输入框保持固定高度
+                                    input.requestLayout()
+                                }
+
+                                // 更新原始输入框（保持同步）
+                                voiceTextInput.setText(newText)
+                                voiceTextInput.setSelection(newText.length)
+                                voiceStatusText.text = "识别完成，可以继续说话或点击麦克风停止录音"
+                                voiceSearchButton.isEnabled = true
+
+                                // 重置监听状态
+                                isListening = false
+                                updateVoiceListeningState(false)
+
+                                // 在胶囊模式下，始终继续录音，直到用户点击麦克风停止
+                                if (isVoiceCapsuleMode && shouldContinueRecording) {
+                                    // 立即继续录音，实现连续录音
+                                    voiceCapsuleTextInput?.postDelayed({
+                                        if (shouldContinueRecording) {
+                                            continueRecording()
+                                        }
+                                    }, 200) // 进一步减少延迟时间，实现更快的连续录音
+                                }
+                                // 注意：不自动切换到三段式胶囊布局，保持录音状态
+                            } catch (e: Exception) {
+                                Log.e(TAG, "处理语音识别结果失败", e)
+                            }
+                        }
+                    }
+
+                    override fun onVoiceInputError(error: String) {
+                        runOnUiThread {
+                            voiceStatusText.text = error
+                            isListening = false
+                            updateVoiceListeningState(false)
+                        }
+                    }
+
+                    override fun onVoiceInputCancelled() {
+                        runOnUiThread {
+                            voiceStatusText.text = "语音输入已取消"
+                            isListening = false
+                            updateVoiceListeningState(false)
+                        }
+                    }
+                })
+            }
+            
+            Log.d(TAG, "开始调用voiceInputManager.startVoiceInput()")
+            // 开始语音识别
+            voiceInputManager.startVoiceInput()
+            
+            // 设置监听状态
+            isListening = true
+            
+            // 更新UI状态
+            updateCapsuleRecordingState(true)
+            
+            // 更新状态文本
+            voiceStatusText.text = "正在录音，点击麦克风停止录音"
+            
+            Log.d(TAG, "已开始自动录音")
+        } catch (e: Exception) {
+            Log.e(TAG, "自动录音失败", e)
+        }
+    }
+    
+    /**
+     * 继续录音
+     */
+    private fun continueRecording() {
+        try {
+            Log.d(TAG, "继续录音")
+            
+            // 检查录音权限
+            val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                Log.e(TAG, "没有录音权限，无法继续录音")
+                return
+            }
+            
+            // 检查语音输入管理器是否已初始化
+            if (voiceInputManager == null) {
+                Log.e(TAG, "voiceInputManager未初始化")
+                return
+            }
+            
+            // 继续语音识别
+            voiceInputManager.startVoiceInput()
+            
+            // 设置监听状态
+            isListening = true
+            
+            // 更新UI状态
+            updateCapsuleRecordingState(true)
+            
+            Log.d(TAG, "已继续录音")
+        } catch (e: Exception) {
+            Log.e(TAG, "继续录音失败", e)
+        }
+    }
+    
+    /**
+     * 完成录音
+     */
+    private fun finishRecording() {
+        try {
+            Log.d(TAG, "完成录音")
+            
+            // 设置标志停止继续录音
+            shouldContinueRecording = false
+            isListening = false
+            
+            // 停止语音输入管理器（如果存在destroy方法）
+            try {
+                voiceInputManager?.let { manager ->
+                    // 尝试调用destroy方法，如果不存在则忽略
+                    val destroyMethod = manager.javaClass.getMethod("destroy")
+                    destroyMethod.invoke(manager)
+                }
+            } catch (e: Exception) {
+                // destroy方法不存在，忽略
+                Log.d(TAG, "VoiceInputManager没有destroy方法")
+            }
+            
+            // 停止录音状态
+            updateCapsuleRecordingState(false)
+            
+            // 更新状态文本
+            voiceStatusText.text = "录音已停止，点击麦克风重新开始录音"
+            
+            Log.d(TAG, "录音已完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "完成录音失败", e)
+        }
+    }
+    
+    /**
+     * 更新胶囊录音状态 - 重新设计动画状态
+     */
+    private fun updateCapsuleRecordingState(isRecording: Boolean) {
+        try {
+            runOnUiThread {
+                val waveform = findViewById<com.example.aifloatingball.ui.WaveformView>(R.id.voice_capsule_waveform)
+                val micButton = findViewById<ImageView>(R.id.voice_capsule_floating_mic)
+                val pauseButton = findViewById<ImageView>(R.id.voice_capsule_pause_btn)
+                
+                if (isRecording) {
+                    waveform?.visibility = View.VISIBLE
+                    
+                    // 显示话筒按钮，隐藏暂停按钮
+                    micButton?.visibility = View.VISIBLE
+                    pauseButton?.visibility = View.GONE
+                    
+                    // 话筒图标 - 正在录音状态（只设置颜色，不添加缩放动画）
+                    micButton?.let { icon ->
+                        // 设置绿色话筒图标
+                        icon.setColorFilter(ContextCompat.getColor(this, R.color.simple_mode_accent_light))
+                        // 停止所有动画
+                        icon.clearAnimation()
+                    }
+                } else {
+                    waveform?.visibility = View.GONE
+                    
+                    // 显示话筒按钮，隐藏暂停按钮
+                    micButton?.visibility = View.VISIBLE
+                    pauseButton?.visibility = View.GONE
+                    
+                    // 话筒图标 - 等待录音状态（只设置颜色，不添加缩放动画）
+                    micButton?.let { icon ->
+                        // 停止所有动画
+                        icon.clearAnimation()
+                        
+                        // 设置灰色话筒图标表示等待状态
+                        icon.setColorFilter(ContextCompat.getColor(this, android.R.color.darker_gray))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新胶囊录音状态失败", e)
+        }
+    }
+    
+    /**
+     * 更新暂停状态
+     */
+    private fun updatePauseState() {
+        try {
+            runOnUiThread {
+                val waveform = findViewById<com.example.aifloatingball.ui.WaveformView>(R.id.voice_capsule_waveform)
+                val micButton = findViewById<ImageView>(R.id.voice_capsule_floating_mic)
+                val pauseButton = findViewById<ImageView>(R.id.voice_capsule_pause_btn)
+                
+                waveform?.visibility = View.GONE
+                
+                // 隐藏话筒按钮，显示红色暂停按钮
+                micButton?.visibility = View.GONE
+                pauseButton?.visibility = View.VISIBLE
+                
+                // 暂停按钮（不添加动画）
+                pauseButton?.let { icon ->
+                    icon.clearAnimation()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新暂停状态失败", e)
+        }
+    }
+    
+    /**
+     * 暂停录音
+     */
+    private fun pauseRecording() {
+        try {
+            Log.d(TAG, "暂停录音")
+            isListening = false
+            shouldContinueRecording = false
+            
+            // 更新暂停状态
+            updatePauseState()
+            
+            Log.d(TAG, "录音已暂停")
+        } catch (e: Exception) {
+            Log.e(TAG, "暂停录音失败", e)
+        }
+    }
+    
+    /**
+     * 继续录音
+     */
+    private fun resumeRecording() {
+        try {
+            Log.d(TAG, "继续录音")
+            shouldContinueRecording = true
+            continueRecording()
+        } catch (e: Exception) {
+            Log.e(TAG, "继续录音失败", e)
+        }
+    }
+    
+    /**
+     * 清空文本
+     */
+    private fun clearText() {
+        try {
+            voiceCapsuleTextInput?.setText("")
+            voiceTextInput.setText("")
+            Log.d(TAG, "文本已清空")
+        } catch (e: Exception) {
+            Log.e(TAG, "清空文本失败", e)
+        }
+    }
+    
+    /**
+     * 复制文本
+     */
+    private fun copyText() {
+        try {
+            val text = voiceCapsuleTextInput?.text?.toString()?.trim()
+            if (!text.isNullOrEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = android.content.ClipData.newPlainText("语音文本", text)
+                clipboard.setPrimaryClip(clip)
+                Log.d(TAG, "文本已复制到剪贴板")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "复制文本失败", e)
+        }
+    }
+    
+    /**
+     * 粘贴文本
+     */
+    private fun pasteText() {
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clipboard.hasPrimaryClip()) {
+                val clipData = clipboard.primaryClip
+                if (clipData != null && clipData.itemCount > 0) {
+                    val text = clipData.getItemAt(0).text.toString()
+                    val currentText = voiceCapsuleTextInput?.text?.toString() ?: ""
+                    val newText = if (currentText.isEmpty()) text else "$currentText\n$text"
+                    voiceCapsuleTextInput?.setText(newText)
+                    voiceCapsuleTextInput?.setSelection(newText.length)
+                    Log.d(TAG, "文本已粘贴")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "粘贴文本失败", e)
+        }
+    }
+    
+    /**
+     * 分享文本
+     */
+    private fun shareText() {
+        try {
+            val text = voiceCapsuleTextInput?.text?.toString()?.trim()
+            if (!text.isNullOrEmpty()) {
+                val shareIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                startActivity(Intent.createChooser(shareIntent, "分享文本"))
+                Log.d(TAG, "文本已分享")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "分享文本失败", e)
+        }
+    }
+    
+    /**
+     * 初始化三窗口WebView
+     */
+    private fun initializeCapsuleWebViews() {
+        try {
+            val baiduWebView = findViewById<WebView>(R.id.voice_capsule_webview_baidu)
+            val googleWebView = findViewById<WebView>(R.id.voice_capsule_webview_google)
+            val bingWebView = findViewById<WebView>(R.id.voice_capsule_webview_bing)
+            
+            // 配置WebView设置
+            listOf(baiduWebView, googleWebView, bingWebView).forEach { webView ->
+                webView?.let {
+                    it.settings.javaScriptEnabled = true
+                    it.settings.domStorageEnabled = true
+                    it.settings.loadWithOverviewMode = true
+                    it.settings.useWideViewPort = true
+                    it.settings.builtInZoomControls = false
+                    it.settings.displayZoomControls = false
+                }
+            }
+            
+            Log.d(TAG, "三窗口WebView初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化三窗口WebView失败", e)
+        }
+    }
+    
+    /**
+     * 刷新三窗口WebView
+     */
+    private fun refreshCapsuleWebViews() {
+        try {
+            val query = voiceCapsuleTextInput?.text?.toString()?.trim()
+            if (!query.isNullOrEmpty()) {
+                performTripleWebSearch(query)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "刷新三窗口WebView失败", e)
+        }
+    }
+    
+    /**
+     * 执行三窗口搜索
+     */
+    private fun performTripleWebSearch(query: String) {
+        try {
+            val baiduWebView = findViewById<WebView>(R.id.voice_capsule_webview_baidu)
+            val googleWebView = findViewById<WebView>(R.id.voice_capsule_webview_google)
+            val bingWebView = findViewById<WebView>(R.id.voice_capsule_webview_bing)
+            
+            // 百度搜索
+            baiduWebView?.loadUrl("https://www.baidu.com/s?wd=${java.net.URLEncoder.encode(query, "UTF-8")}")
+            
+            // Google搜索
+            googleWebView?.loadUrl("https://www.google.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
+            
+            // 必应搜索
+            bingWebView?.loadUrl("https://www.bing.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
+            
+            Log.d(TAG, "已执行三窗口搜索: $query")
+        } catch (e: Exception) {
+            Log.e(TAG, "执行三窗口搜索失败", e)
+        }
+    }
+    
+    /**
+     * 切换到三段式胶囊布局
+     */
+    private fun switchToVoiceCapsuleLayout(text: String) {
+        try {
+            runOnUiThread {
+                // 隐藏原始语音布局
+                findViewById<LinearLayout>(R.id.voice_original_layout)?.visibility = View.GONE
+                
+                // 显示胶囊布局
+                voiceCapsuleLayout?.visibility = View.VISIBLE
+                
+                // 设置识别文本到胶囊输入框
+                voiceCapsuleTextInput?.setText(text)
+                
+                // 设置为胶囊模式
+                isVoiceCapsuleMode = true
+                
+                // 停止录音状态
+                updateCapsuleRecordingState(false)
+                
+                // 自动开始录音
+                startAutoRecording()
+                
+                Log.d(TAG, "已切换到三段式胶囊布局，文本: $text，自动开始录音")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "切换到三段式胶囊布局失败", e)
+        }
+    }
+    
+    /**
+     * 执行胶囊布局中的网络搜索
+     */
+    private fun performCapsuleWebSearch() {
+        try {
+            val query = voiceCapsuleSearchInput?.text?.toString()?.trim()
+            if (!query.isNullOrEmpty()) {
+                Log.d(TAG, "执行胶囊网络搜索: $query")
+                
+                // 启动FloatingWebViewService进行搜索
+                val serviceIntent = Intent(this, FloatingWebViewService::class.java).apply {
+                    putExtra("query", query)
+                    putExtra("search_engine", "baidu") // 默认使用百度搜索
+                }
+                startService(serviceIntent)
+                
+                // 更新搜索状态
+                updateCapsuleSearchStatus("正在搜索: $query")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "执行胶囊网络搜索失败", e)
+        }
+    }
+    
+    /**
+     * 设置胶囊布局中应用图标的点击事件
+     */
+    private fun setupCapsuleAppClickListeners() {
+        try {
+            val query = voiceCapsuleTextInput?.text?.toString() ?: ""
+            
+            // 小红书
+            findViewById<LinearLayout>(R.id.voice_capsule_app_xiaohongshu)?.setOnClickListener {
+                launchAppWithSearch("com.xingin.xhs", "小红书", query)
+            }
+            
+            // 哔哩哔哩
+            findViewById<LinearLayout>(R.id.voice_capsule_app_bilibili)?.setOnClickListener {
+                launchAppWithSearch("tv.danmaku.bili", "哔哩哔哩", query)
+            }
+            
+            // YouTube
+            findViewById<LinearLayout>(R.id.voice_capsule_app_youtube)?.setOnClickListener {
+                launchAppWithSearch("com.google.android.youtube", "YouTube", query)
+            }
+            
+            // 微博
+            findViewById<LinearLayout>(R.id.voice_capsule_app_weibo)?.setOnClickListener {
+                launchAppWithSearch("com.sina.weibo", "微博", query)
+            }
+            
+            // 豆瓣
+            findViewById<LinearLayout>(R.id.voice_capsule_app_douban)?.setOnClickListener {
+                launchAppWithSearch("com.douban.frodo", "豆瓣", query)
+            }
+            
+            // 快手
+            findViewById<LinearLayout>(R.id.voice_capsule_app_kuaishou)?.setOnClickListener {
+                launchAppWithSearch("com.smile.gifmaker", "快手", query)
+            }
+            
+            // 元宝
+            findViewById<LinearLayout>(R.id.voice_capsule_app_yuanbao)?.setOnClickListener {
+                launchAppWithSearch("com.yuanbao.app", "元宝", query)
+            }
+            
+            // Kimi
+            findViewById<LinearLayout>(R.id.voice_capsule_app_kimi)?.setOnClickListener {
+                launchAppWithSearch("com.moonshot.kimi", "Kimi", query)
+            }
+            
+            // 搜狗搜索
+            findViewById<LinearLayout>(R.id.voice_capsule_app_sogou)?.setOnClickListener {
+                launchAppWithSearch("com.sogou.android.websearch", "搜狗搜索", query)
+            }
+            
+            // 豆包
+            findViewById<LinearLayout>(R.id.voice_capsule_app_doubao)?.setOnClickListener {
+                launchAppWithSearch("com.bytedance.doubao", "豆包", query)
+            }
+            
+            Log.d(TAG, "胶囊布局应用图标点击事件设置完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "设置胶囊布局应用图标点击事件失败", e)
+        }
+    }
+    
+    /**
+     * 启动应用并进行搜索
+     */
+    private fun launchAppWithSearch(packageName: String, appName: String, query: String) {
+        try {
+            Log.d(TAG, "启动应用并进行搜索: $appName, 查询: $query")
+            
+            // 检查应用是否已安装
+            if (!isAppInstalled(packageName)) {
+                Toast.makeText(this, "$appName 未安装", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 将查询内容复制到剪贴板
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("搜索内容", query)
+            clipboard.setPrimaryClip(clip)
+            
+            // 启动应用
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+                Toast.makeText(this, "已启动 $appName，内容已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "$appName 启动成功")
+            } else {
+                Toast.makeText(this, "无法启动 $appName", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "启动应用并搜索失败: $appName", e)
+            Toast.makeText(this, "启动 $appName 失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 启动AI应用并显示悬浮窗
+     */
+    private fun launchAIApp(packageName: String, appName: String, query: String) {
+        try {
+            Log.d(TAG, "启动AI应用: $appName, 查询: $query")
+            
+            // 启动AI应用悬浮窗服务
+            val overlayIntent = Intent(this, AIAppOverlayService::class.java).apply {
+                putExtra(AIAppOverlayService.EXTRA_APP_NAME, appName)
+                putExtra(AIAppOverlayService.EXTRA_QUERY, query)
+                putExtra(AIAppOverlayService.EXTRA_PACKAGE_NAME, packageName)
+                putExtra("mode", "simple")
+            }
+            startService(overlayIntent)
+            
+            // 显示启动提示
+            Toast.makeText(this, "已启动 $appName", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "启动AI应用失败", e)
+            Toast.makeText(this, "启动 $appName 失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 显示更多AI应用对话框
+     */
+    private fun showMoreAIAppsDialog() {
+        try {
+            val apps = listOf(
+                "ChatGPT" to "com.openai.chatgpt",
+                "Claude" to "com.anthropic.claude",
+                "Gemini" to "com.google.gemini",
+                "文心一言" to "com.baidu.wenxin",
+                "通义千问" to "com.alibaba.tongyi"
+            )
+            
+            val appNames = apps.map { it.first }.toTypedArray()
+            
+            AlertDialog.Builder(this)
+                .setTitle("选择AI应用")
+                .setItems(appNames) { _, which ->
+                    val (appName, packageName) = apps[which]
+                    launchAIApp(packageName, appName, voiceCapsuleTextInput?.text?.toString() ?: "")
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示更多AI应用对话框失败", e)
+        }
+    }
+    
+    /**
+     * 更新胶囊搜索状态
+     */
+    private fun updateCapsuleSearchStatus(status: String) {
+        try {
+            runOnUiThread {
+                // 可以在这里更新搜索状态显示
+                Log.d(TAG, "胶囊搜索状态: $status")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新胶囊搜索状态失败", e)
+        }
+    }
+    
+    /**
+     * 退出胶囊模式
+     */
+    private fun exitVoiceCapsuleMode() {
+        try {
+            runOnUiThread {
+                // 隐藏胶囊布局
+                voiceCapsuleLayout?.visibility = View.GONE
+                
+                // 显示原始语音布局
+                findViewById<LinearLayout>(R.id.voice_original_layout)?.visibility = View.VISIBLE
+                
+                // 重置胶囊模式标志
+                isVoiceCapsuleMode = false
+                
+                Log.d(TAG, "已退出胶囊模式")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "退出胶囊模式失败", e)
         }
     }
 

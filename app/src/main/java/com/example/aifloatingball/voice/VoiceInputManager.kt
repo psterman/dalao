@@ -204,10 +204,23 @@ class VoiceInputManager(private val activity: Activity) {
     fun startVoiceInput() {
         Log.d(TAG, "开始语音输入，设备: ${getDeviceInfo()}")
         
+        // 检查权限
+        val hasPermission = ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        Log.d(TAG, "录音权限状态: $hasPermission")
+        
+        if (!hasPermission) {
+            Log.e(TAG, "没有录音权限，无法启动语音输入")
+            callback?.onVoiceInputError("需要录音权限才能使用语音识别")
+            return
+        }
+        
         // 第1层：尝试SpeechRecognizer
-        if (SpeechRecognizer.isRecognitionAvailable(activity)) {
+        val isRecognitionAvailable = SpeechRecognizer.isRecognitionAvailable(activity)
+        Log.d(TAG, "SpeechRecognizer可用性: $isRecognitionAvailable")
+        
+        if (isRecognitionAvailable) {
             Log.d(TAG, "使用SpeechRecognizer")
-            callback?.onVoiceInputError("请使用应用内置的SpeechRecognizer功能")
+            startSpeechRecognizer()
             return
         }
         
@@ -230,6 +243,7 @@ class VoiceInputManager(private val activity: Activity) {
         }
         
         // 第5层：显示选择对话框
+        Log.d(TAG, "所有语音输入方案都不可用，显示选择对话框")
         showVoiceInputOptions()
     }
     
@@ -245,6 +259,93 @@ class VoiceInputManager(private val activity: Activity) {
      */
     private fun getDeviceBrand(): String {
         return Build.BRAND.lowercase()
+    }
+    
+    /**
+     * 启动SpeechRecognizer语音识别
+     */
+    private fun startSpeechRecognizer() {
+        try {
+            val speechRecognizer = SpeechRecognizer.createSpeechRecognizer(activity)
+            
+            val recognitionListener = object : android.speech.RecognitionListener {
+                override fun onReadyForSpeech(params: android.os.Bundle?) {
+                    Log.d(TAG, "SpeechRecognizer准备就绪")
+                }
+                
+                override fun onBeginningOfSpeech() {
+                    Log.d(TAG, "开始说话")
+                }
+                
+                override fun onRmsChanged(rmsdB: Float) {
+                    // 可以在这里更新音量指示器
+                }
+                
+                override fun onBufferReceived(buffer: ByteArray?) {
+                    // 处理音频缓冲区
+                }
+                
+                override fun onEndOfSpeech() {
+                    Log.d(TAG, "说话结束")
+                }
+                
+                override fun onError(error: Int) {
+                    val errorMessage = when (error) {
+                        SpeechRecognizer.ERROR_AUDIO -> "音频错误"
+                        SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "权限不足"
+                        SpeechRecognizer.ERROR_NETWORK -> "网络错误"
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
+                        SpeechRecognizer.ERROR_NO_MATCH -> "没有匹配的语音"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别器忙碌"
+                        SpeechRecognizer.ERROR_SERVER -> "服务器错误"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时"
+                        else -> "未知错误: $error"
+                    }
+                    Log.e(TAG, "SpeechRecognizer错误: $errorMessage")
+                    callback?.onVoiceInputError(errorMessage)
+                }
+                
+                override fun onResults(results: android.os.Bundle?) {
+                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    if (!matches.isNullOrEmpty()) {
+                        val recognizedText = matches[0]
+                        Log.d(TAG, "语音识别结果: $recognizedText")
+                        callback?.onVoiceInputResult(recognizedText)
+                    } else {
+                        callback?.onVoiceInputError("没有识别到语音内容")
+                    }
+                }
+                
+                override fun onPartialResults(partialResults: android.os.Bundle?) {
+                    val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    if (!matches.isNullOrEmpty()) {
+                        Log.d(TAG, "部分识别结果: ${matches[0]}")
+                    }
+                }
+                
+                override fun onEvent(eventType: Int, params: android.os.Bundle?) {
+                    // 处理其他事件
+                }
+            }
+            
+            speechRecognizer.setRecognitionListener(recognitionListener)
+            
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "请说话...")
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            }
+            
+            speechRecognizer.startListening(intent)
+            Log.d(TAG, "SpeechRecognizer开始监听")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "启动SpeechRecognizer失败", e)
+            callback?.onVoiceInputError("启动语音识别失败: ${e.message}")
+        }
     }
     
     /**

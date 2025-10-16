@@ -512,6 +512,21 @@
             android:orientation="vertical"
             android:padding="24dp">
 
+            <!-- 三段式胶囊布局容器 -->
+            <include
+                android:id="@+id/voice_capsule_container"
+                layout="@layout/voice_capsule_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <!-- 原始语音布局 -->
+            <LinearLayout
+                android:id="@+id/voice_original_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
             <!-- 顶部标题区域 -->
             <LinearLayout
                 android:layout_width="match_parent"
@@ -736,6 +751,7 @@
                     android:textColor="@color/simple_mode_button_text_light"
                     app:icon="@drawable/ic_search"
                     app:iconGravity="textStart" />
+            </LinearLayout>
             </LinearLayout>
         </LinearLayout>
     </ScrollView>

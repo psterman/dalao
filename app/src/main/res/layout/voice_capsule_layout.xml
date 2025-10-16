@@ -1,0 +1,695 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/simple_mode_background_light">
+
+    <!-- 第一段：语音输入文本编辑区域 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/voice_capsule_input_card"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:layout_weight="0"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="6dp"
+        app:cardBackgroundColor="@android:color/white"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- 顶部绿色分割线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:background="@drawable/voice_capsule_gradient_background" />
+
+            <!-- 文本输入区域 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@android:color/white">
+
+                <!-- 输入框容器 -->
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/voice_capsule_input_background"
+                    android:padding="8dp">
+
+                    <EditText
+                        android:id="@+id/voice_capsule_text_input"
+                        android:layout_width="match_parent"
+                        android:layout_height="120dp"
+                        android:layout_marginBottom="40dp"
+                        android:gravity="top|start"
+                        android:textSize="14sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:hint="语音识别结果将显示在这里..."
+                        android:background="@android:color/transparent"
+                        android:inputType="textMultiLine"
+                        android:maxLines="4"
+                        android:scrollbars="vertical"
+                        android:overScrollMode="ifContentScrolls" />
+
+                    <!-- 麦克风按钮 - 放在输入框右下角，支持左右手模式 -->
+                    <RelativeLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                        android:layout_alignParentBottom="true"
+                        android:layout_alignParentEnd="true"
+                        android:layout_marginBottom="4dp"
+                        android:layout_marginEnd="4dp"
+                        android:elevation="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless">
+
+                        <!-- 录音波形动画（在麦克风按钮内部） -->
+                        <com.example.aifloatingball.ui.WaveformView
+                            android:id="@+id/voice_capsule_waveform"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:layout_centerInParent="true"
+                            android:visibility="gone" />
+
+                        <!-- 麦克风按钮 -->
+                    <ImageView
+                            android:id="@+id/voice_capsule_floating_mic"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@drawable/ic_mic"
+                            android:background="@drawable/voice_capsule_app_icon_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                            android:padding="12dp"
+                            android:elevation="4dp" />
+
+                        <!-- 暂停按钮（录音停止时显示） -->
+                    <ImageView
+                            android:id="@+id/voice_capsule_pause_btn"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@drawable/ic_pause"
+                            android:background="@drawable/voice_capsule_red_button_background"
+                        android:clickable="true"
+                        android:focusable="true"
+                            android:padding="12dp"
+                            android:visibility="gone"
+                            android:elevation="4dp" />
+
+                    </RelativeLayout>
+
+                    <!-- 文本工具按钮区域 - 放入输入框内 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentBottom="true"
+                        android:orientation="horizontal"
+                        android:gravity="center"
+                        android:padding="4dp"
+                        android:background="@android:color/white">
+
+                        <!-- 清空按钮 -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:layout_marginEnd="8dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:id="@+id/voice_capsule_clear_btn"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:src="@drawable/ic_trash"
+                                android:background="@drawable/voice_capsule_button_background"
+                                android:padding="6dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="清空"
+                                android:textSize="10sp"
+                                android:textColor="@color/simple_mode_text_secondary_light"
+                                android:layout_marginTop="2dp" />
+
+                        </LinearLayout>
+
+                        <!-- 复制按钮 -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:layout_marginEnd="8dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:id="@+id/voice_capsule_copy_btn"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:src="@drawable/ic_copy_white"
+                                android:background="@drawable/voice_capsule_button_background"
+                                android:padding="6dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="复制"
+                                android:textSize="10sp"
+                                android:textColor="@color/simple_mode_text_secondary_light"
+                                android:layout_marginTop="2dp" />
+
+                        </LinearLayout>
+
+                        <!-- 粘贴按钮 -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:layout_marginEnd="8dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:id="@+id/voice_capsule_paste_btn"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:src="@drawable/ic_paste_white"
+                                android:background="@drawable/voice_capsule_button_background"
+                                android:padding="6dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="粘贴"
+                                android:textSize="10sp"
+                                android:textColor="@color/simple_mode_text_secondary_light"
+                                android:layout_marginTop="2dp" />
+
+                        </LinearLayout>
+
+                        <!-- 分享按钮 -->
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+
+                            <ImageView
+                                android:id="@+id/voice_capsule_share_btn"
+                                android:layout_width="32dp"
+                                android:layout_height="32dp"
+                                android:src="@drawable/ic_share"
+                                android:background="@drawable/voice_capsule_button_background"
+                                android:padding="6dp" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="分享"
+                                android:textSize="10sp"
+                                android:textColor="@color/simple_mode_text_secondary_light"
+                                android:layout_marginTop="2dp" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </RelativeLayout>
+
+            </LinearLayout>
+
+
+
+            <!-- 底部绿色分割线 -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="3dp"
+                android:background="@drawable/voice_capsule_gradient_background" />
+
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- 第二段：三窗口浏览器搜索区域 -->
+    <LinearLayout
+        android:id="@+id/voice_capsule_browser_container"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:orientation="vertical"
+        android:background="@color/simple_mode_card_background_light">
+
+
+        <!-- 三窗口浏览器容器 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="300dp"
+                android:orientation="horizontal"
+            android:padding="8dp">
+
+            <!-- 窗口1：百度搜索 -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:background="@color/simple_mode_background_light">
+
+                <WebView
+                    android:id="@+id/voice_capsule_webview_baidu"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <!-- 窗口标题 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="百度"
+                    android:textSize="12sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:background="@color/simple_mode_card_background_light"
+                    android:padding="4dp"
+                    android:layout_margin="4dp" />
+
+            </FrameLayout>
+
+            <!-- 窗口2：Google搜索 -->
+            <FrameLayout
+                android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:background="@color/simple_mode_background_light">
+
+                <WebView
+                    android:id="@+id/voice_capsule_webview_google"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <!-- 窗口标题 -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Google"
+                    android:textSize="12sp"
+                    android:textColor="@color/simple_mode_text_secondary_light"
+                    android:background="@color/simple_mode_card_background_light"
+                    android:padding="4dp"
+                    android:layout_margin="4dp" />
+
+            </FrameLayout>
+
+            <!-- 窗口3：必应搜索 -->
+            <FrameLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:background="@color/simple_mode_background_light">
+
+                <WebView
+                    android:id="@+id/voice_capsule_webview_bing"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+
+                <!-- 窗口标题 -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                    android:text="必应"
+                    android:textSize="12sp"
+                        android:textColor="@color/simple_mode_text_secondary_light"
+                    android:background="@color/simple_mode_card_background_light"
+                    android:padding="4dp"
+                    android:layout_margin="4dp" />
+
+            </FrameLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- 第三段：应用图标区域（无背景卡片） -->
+    <LinearLayout
+        android:id="@+id/voice_capsule_apps_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- 提示文本 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+            android:text="分享到以下应用搜索相关内容"
+                android:textSize="14sp"
+                android:textColor="@color/simple_mode_text_secondary_light"
+                android:gravity="center"
+                android:layout_marginBottom="16dp" />
+
+        <!-- 第一行应用图标 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="12dp">
+
+            <!-- 小红书 -->
+            <LinearLayout
+                android:id="@+id/voice_capsule_app_xiaohongshu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_xiaohongshu"
+                    android:background="@drawable/voice_capsule_app_icon_background" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="小红书"
+                    android:textSize="10sp"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center" />
+
+            </LinearLayout>
+
+            <!-- 哔哩哔哩 -->
+            <LinearLayout
+                android:id="@+id/voice_capsule_app_bilibili"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_bilibili"
+                    android:background="@drawable/voice_capsule_app_icon_background" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="哔哩哔哩"
+                    android:textSize="10sp"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center" />
+
+            </LinearLayout>
+
+            <!-- YouTube -->
+            <LinearLayout
+                android:id="@+id/voice_capsule_app_youtube"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_youtube"
+                    android:background="@drawable/voice_capsule_app_icon_background" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="YouTube"
+                    android:textSize="10sp"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center" />
+
+            </LinearLayout>
+
+            <!-- 微博 -->
+            <LinearLayout
+                android:id="@+id/voice_capsule_app_weibo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_weibo"
+                    android:background="@drawable/voice_capsule_app_icon_background" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="微博"
+                    android:textSize="10sp"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center" />
+
+            </LinearLayout>
+
+            <!-- 豆瓣 -->
+            <LinearLayout
+                android:id="@+id/voice_capsule_app_douban"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="8dp"
+                android:background="?attr/selectableItemBackground"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_douban"
+                    android:background="@drawable/voice_capsule_app_icon_background" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="豆瓣"
+                    android:textSize="10sp"
+                    android:textColor="@color/simple_mode_text_primary_light"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- 第二行应用图标 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+            <!-- 快手 -->
+                <LinearLayout
+                android:id="@+id/voice_capsule_app_kuaishou"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_kuaishou"
+                        android:background="@drawable/voice_capsule_app_icon_background" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                    android:text="快手"
+                    android:textSize="10sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center" />
+
+                </LinearLayout>
+
+            <!-- 元宝 -->
+                <LinearLayout
+                android:id="@+id/voice_capsule_app_yuanbao"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_yuanbao"
+                        android:background="@drawable/voice_capsule_app_icon_background" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                    android:text="元宝"
+                    android:textSize="10sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center" />
+
+                </LinearLayout>
+
+            <!-- Kimi -->
+                <LinearLayout
+                android:id="@+id/voice_capsule_app_kimi"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_kimi"
+                        android:background="@drawable/voice_capsule_app_icon_background" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                    android:text="Kimi"
+                    android:textSize="10sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center" />
+
+                </LinearLayout>
+
+            <!-- 搜狗搜索 -->
+                <LinearLayout
+                android:id="@+id/voice_capsule_app_sogou"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginEnd="12dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_sogou"
+                        android:background="@drawable/voice_capsule_app_icon_background" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                    android:text="搜狗"
+                    android:textSize="10sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center" />
+
+                </LinearLayout>
+
+            <!-- 豆包 -->
+                <LinearLayout
+                android:id="@+id/voice_capsule_app_doubao"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center"
+                android:padding="8dp"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_doubao"
+                        android:background="@drawable/voice_capsule_app_icon_background" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                    android:text="豆包"
+                    android:textSize="10sp"
+                        android:textColor="@color/simple_mode_text_primary_light"
+                        android:layout_marginTop="4dp"
+                        android:gravity="center" />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+</LinearLayout>
