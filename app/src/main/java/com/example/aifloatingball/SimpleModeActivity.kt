@@ -45,6 +45,8 @@ import android.view.inputmethod.EditorInfo
 import kotlin.math.abs
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.widget.*
@@ -5147,10 +5149,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             stopVoiceRecognition()
             releaseSpeechRecognizer()
 
-            // 使用内嵌浏览器进行搜索
-            showBrowser()
-            browserSearchInput.setText(query)
-            performBrowserSearch()
+            // 直接在语音胶囊的WebView中搜索，而不是跳转到浏览器tab
+            if (isVoiceCapsuleMode) {
+                // 如果已经在胶囊模式，直接搜索
+                performCapsuleWebViewSearch(query)
+            } else {
+                // 如果不在胶囊模式，先切换到胶囊布局，然后搜索
+                switchToVoiceCapsuleLayout(query)
+                performCapsuleWebViewSearch(query)
+            }
         } else {
             Toast.makeText(this, "请先输入搜索内容", Toast.LENGTH_SHORT).show()
         }
@@ -22593,22 +22600,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (!query.isNullOrEmpty()) {
                 Log.d(TAG, "录音完成后自动搜索: $query")
                 
-                // 检查是否在语音胶囊模式
-                if (isVoiceCapsuleMode) {
-                    // 语音胶囊模式：使用DualFloatingWebViewService
-                    val dualSearchInput = findViewById<EditText>(R.id.dual_search_input)
-                    dualSearchInput?.setText(query)
-                    performDualWebSearch(query)
-                } else {
-                    // 语音tab模式：直接在语音胶囊的WebView中搜索
-                    // 切换到语音胶囊布局
-                    switchToVoiceCapsuleLayout(query)
-                    
-                    // 使用新的方法在胶囊WebView中执行搜索
-                    performCapsuleWebViewSearch(query)
-                    
-                    Log.d(TAG, "已在语音胶囊WebView中执行搜索: $query")
-                }
+                // 始终在语音tab的内嵌WebView中搜索，不使用DualFloatingWebViewService
+                // 切换到语音胶囊布局
+                switchToVoiceCapsuleLayout(query)
+                
+                // 使用新的方法在胶囊WebView中执行搜索
+                performCapsuleWebViewSearch(query)
+                
+                Log.d(TAG, "已在语音胶囊WebView中执行搜索: $query")
                 
                 // 更新状态文本
                 voiceStatusText.text = "已自动搜索: $query"
@@ -22818,13 +22817,80 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     it.settings.setSupportZoom(true)
                     it.settings.textZoom = 100
                     
+                    // 禁用外部浏览器打开
+                    it.settings.setSupportMultipleWindows(false)
+                    it.settings.javaScriptCanOpenWindowsAutomatically = false
+                    
+                    // 设置User-Agent确保移动端体验
+                    it.settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+                    
+                    // 确保WebView保持活跃状态
+                    it.keepScreenOn = false
+                    it.isFocusable = true
+                    it.isFocusableInTouchMode = true
+                    
                     // 设置WebViewClient阻止外部浏览器打开
                     it.webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                            // 阻止外部浏览器打开，所有链接都在WebView内加载
-                            url?.let { urlString ->
-                                view?.loadUrl(urlString)
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                            val url = request?.url?.toString()
+                            Log.d(TAG, "语音胶囊WebView URL加载: $url")
+                            
+                            // 强制阻止外部浏览器打开，所有链接都在WebView内加载
+                            if (url != null && view != null) {
+                                try {
+                                    view.loadUrl(url)
+                                    Log.d(TAG, "已在WebView内加载URL: $url")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "WebView加载URL失败: $url", e)
+                                }
                             }
+                            return true // 始终返回true，阻止系统默认处理
+                        }
+                        
+                        @Deprecated("Deprecated in Java")
+                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                            Log.d(TAG, "语音胶囊WebView URL加载 (legacy): $url")
+                            
+                            // 强制阻止外部浏览器打开，所有链接都在WebView内加载
+                            if (url != null && view != null) {
+                                try {
+                                    view.loadUrl(url)
+                                    Log.d(TAG, "已在WebView内加载URL (legacy): $url")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "WebView加载URL失败 (legacy): $url", e)
+                                }
+                            }
+                            return true // 始终返回true，阻止系统默认处理
+                        }
+                        
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                            super.onPageStarted(view, url, favicon)
+                            Log.d(TAG, "语音胶囊WebView页面开始加载: $url")
+                        }
+                        
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            Log.d(TAG, "语音胶囊WebView页面加载完成: $url")
+                        }
+                        
+                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                            super.onReceivedError(view, request, error)
+                            Log.e(TAG, "语音胶囊WebView加载错误: ${error?.description}")
+                        }
+                    }
+                    
+                    // 设置WebChromeClient进一步控制WebView行为
+                    it.webChromeClient = object : WebChromeClient() {
+                        override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+                            // 阻止创建新窗口，强制在当前WebView中打开
+                            Log.d(TAG, "阻止WebView创建新窗口")
+                            return true
+                        }
+                        
+                        override fun onJsAlert(view: WebView?, url: String?, message: String?, result: android.webkit.JsResult?): Boolean {
+                            // 处理JavaScript弹窗
+                            Log.d(TAG, "JavaScript弹窗: $message")
+                            result?.confirm()
                             return true
                         }
                     }
@@ -23083,6 +23149,94 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     
                     Log.d(TAG, "WebView ${index + 1} 使用搜索引擎: $engineKey, URL: $searchUrl")
                     
+                    // 确保WebViewClient配置正确，强制阻止外部浏览器打开
+                    webView?.webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                            val url = request?.url?.toString()
+                            Log.d(TAG, "语音胶囊WebView URL拦截: $url")
+                            
+                            // 强制在WebView内加载，阻止外部浏览器
+                            if (url != null && view != null) {
+                                try {
+                                    view.loadUrl(url)
+                                    Log.d(TAG, "已在WebView内强制加载: $url")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "WebView强制加载失败: $url", e)
+                                }
+                            }
+                            return true // 始终返回true，阻止系统默认处理
+                        }
+                        
+                        @Deprecated("Deprecated in Java")
+                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                            Log.d(TAG, "语音胶囊WebView URL拦截 (legacy): $url")
+                            
+                            if (url != null && view != null) {
+                                try {
+                                    view.loadUrl(url)
+                                    Log.d(TAG, "已在WebView内强制加载 (legacy): $url")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "WebView强制加载失败 (legacy): $url", e)
+                                }
+                            }
+                            return true
+                        }
+                        
+                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                            super.onPageStarted(view, url, favicon)
+                            Log.d(TAG, "语音胶囊WebView页面开始加载: $url")
+                        }
+                        
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            Log.d(TAG, "语音胶囊WebView页面加载完成: $url")
+                        }
+                    }
+                    
+                    // 设置WebChromeClient阻止新窗口
+                    webView?.webChromeClient = object : WebChromeClient() {
+                        override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+                            Log.d(TAG, "阻止WebView创建新窗口")
+                            return true // 阻止创建新窗口
+                        }
+                        
+                        override fun onJsAlert(view: WebView?, url: String?, message: String?, result: android.webkit.JsResult?): Boolean {
+                            Log.d(TAG, "处理JavaScript弹窗: $message")
+                            result?.confirm()
+                            return true
+                        }
+                    }
+                    
+                    // 确保WebView设置正确，完全阻止外部浏览器
+                    webView?.settings?.apply {
+                        setSupportMultipleWindows(false)
+                        javaScriptCanOpenWindowsAutomatically = false
+                        userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36"
+                        
+                        // 额外的安全设置
+                        allowFileAccess = false
+                        allowContentAccess = false
+                        allowFileAccessFromFileURLs = false
+                        allowUniversalAccessFromFileURLs = false
+                        
+                        // 确保JavaScript不会打开外部链接
+                        javaScriptEnabled = true
+                        domStorageEnabled = true
+                        loadWithOverviewMode = true
+                        useWideViewPort = true
+                    }
+                    
+                    // 确保WebView不会失去焦点
+                    webView?.isFocusable = true
+                    webView?.isFocusableInTouchMode = true
+                    
+                    // 添加额外的保护措施，确保WebView不会被意外关闭
+                    webView?.setOnTouchListener { _, _ ->
+                        // 确保WebView保持活跃状态
+                        webView?.requestFocus()
+                        false
+                    }
+                    
                     webView?.loadUrl(searchUrl)
                 }
             }
@@ -23099,16 +23253,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 刷新双窗口WebView
+     * 刷新胶囊WebView
      */
     private fun refreshCapsuleWebViews() {
         try {
             val query = voiceCapsuleTextInput?.text?.toString()?.trim()
             if (!query.isNullOrEmpty()) {
-                performDualWebSearch(query)
+                // 使用内嵌WebView搜索，不使用DualFloatingWebViewService
+                performCapsuleWebViewSearch(query)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "刷新双窗口WebView失败", e)
+            Log.e(TAG, "刷新胶囊WebView失败", e)
         }
     }
     
@@ -23144,7 +23299,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 执行胶囊布局中的网络搜索 - 使用DualFloatingWebViewService避免内嵌浏览器
+     * 执行胶囊布局中的网络搜索 - 使用内嵌WebView
      */
     private fun performCapsuleWebSearch() {
         try {
@@ -23152,21 +23307,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (!query.isNullOrEmpty()) {
                 Log.d(TAG, "执行胶囊网络搜索: $query")
                 
-                // 启动DualFloatingWebViewService进行搜索，避免使用内嵌浏览器
-                val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
-                    putExtra("search_query", query)
-                    putExtra("engine_key", "baidu") // 默认使用百度搜索
-                    putExtra("search_source", "语音胶囊")
-                    putExtra("window_count", 2) // 使用双窗口模式
-                }
-                startService(serviceIntent)
+                // 使用内嵌WebView进行搜索，不使用DualFloatingWebViewService
+                performCapsuleWebViewSearch(query)
                 
                 // 更新搜索状态
-                updateCapsuleSearchStatus("正在启动搜索服务...")
+                updateCapsuleSearchStatus("正在搜索...")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "启动DualFloatingWebViewService失败", e)
-            Toast.makeText(this, "启动搜索服务失败", Toast.LENGTH_SHORT).show()
+            Log.e(TAG, "胶囊网络搜索失败", e)
+            Toast.makeText(this, "搜索失败，请重试", Toast.LENGTH_SHORT).show()
         }
     }
     
