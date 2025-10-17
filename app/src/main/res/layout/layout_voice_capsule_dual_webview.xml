@@ -121,29 +121,18 @@
         android:layout_height="0dp"
         android:layout_weight="1">
         
-        <!-- 外层垂直滚动容器 -->
-        <ScrollView
+        <!-- 水平滚动容器 - 移除外层ScrollView避免滚动冲突 -->
+        <com.example.aifloatingball.ui.widget.LockableHorizontalScrollView
+            android:id="@+id/webviews_scroll_container"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scrollbars="vertical"
+            android:fillViewport="true"
+            android:scrollbars="horizontal"
             android:scrollbarStyle="insideOverlay"
-            android:scrollbarSize="6dp"
+            android:scrollbarSize="4dp"
             android:fadeScrollbars="false"
             android:smoothScrollbar="true"
-            android:fillViewport="true">
-            
-            <!-- 内层水平滚动容器 -->
-            <com.example.aifloatingball.ui.widget.LockableHorizontalScrollView
-                android:id="@+id/webviews_scroll_container"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:fillViewport="true"
-                android:scrollbars="horizontal"
-                android:scrollbarStyle="insideOverlay"
-                android:scrollbarSize="4dp"
-                android:fadeScrollbars="false"
-                android:smoothScrollbar="true"
-                android:paddingBottom="0dp">
+            android:paddingBottom="0dp">
 
                 <!-- 三WebView容器 -->
                 <LinearLayout
@@ -202,9 +191,7 @@
                             android:layout_marginEnd="0dp"/>
                     </LinearLayout>
                 </LinearLayout>
-            </com.example.aifloatingball.ui.widget.LockableHorizontalScrollView>
-            
-        </ScrollView>
+        </com.example.aifloatingball.ui.widget.LockableHorizontalScrollView>
 
     </FrameLayout>
 

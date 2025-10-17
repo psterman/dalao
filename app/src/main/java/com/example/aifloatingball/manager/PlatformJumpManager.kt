@@ -7,6 +7,7 @@ import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import com.example.aifloatingball.manager.PlatformIconCustomizationManager
+import com.example.aifloatingball.service.AIAppOverlayService
 
 /**
  * 平台跳转管理器
@@ -113,6 +114,7 @@ class PlatformJumpManager(private val context: Context) {
     /**
      * 跳转到指定平台搜索
      * 支持预设平台和动态应用，提供web搜索和favicon loader候补方案
+     * 新增：所有平台跳转后都激活悬浮窗服务
      */
     fun jumpToPlatform(platformName: String, query: String) {
         val config = PLATFORM_CONFIGS[platformName]
@@ -127,10 +129,17 @@ class PlatformJumpManager(private val context: Context) {
                     // 应用未安装，使用Web搜索
                     jumpToWebSearch(config, query)
                 }
+                
+                // 预设平台跳转后也激活悬浮窗服务
+                activateAIAppOverlayService(config.packageName, query, platformName)
+                
             } catch (e: Exception) {
                 Log.e(TAG, "预设平台跳转失败", e)
                 // 跳转失败，使用Web搜索作为备选方案
                 jumpToWebSearch(config, query)
+                
+                // 即使跳转失败也尝试激活悬浮窗服务
+                activateAIAppOverlayService(config.packageName, query, platformName)
             }
         } else {
             // 动态应用，使用通用跳转逻辑
@@ -254,6 +263,7 @@ class PlatformJumpManager(private val context: Context) {
     /**
      * 启动AI应用并使用Intent发送文本
      * 完全参考软件tab的AI跳转方法
+     * 新增：激活AI应用悬浮窗服务模式
      */
     private fun launchAIAppWithIntent(packageName: String, query: String, appName: String) {
         try {
@@ -262,6 +272,8 @@ class PlatformJumpManager(private val context: Context) {
             // 对于豆包应用，尝试使用Intent直接发送文本
             if (appName.contains("豆包") && packageName == "com.larus.nova") {
                 if (tryIntentSendForDoubao(packageName, query, appName)) {
+                    // 激活AI应用悬浮窗服务
+                    activateAIAppOverlayService(packageName, query, appName)
                     return
                 }
             }
@@ -269,10 +281,16 @@ class PlatformJumpManager(private val context: Context) {
             // 参考软件tab的AI跳转方法：启动应用并使用自动化粘贴
             launchAppWithAutoPaste(packageName, query, appName)
             
+            // 激活AI应用悬浮窗服务
+            activateAIAppOverlayService(packageName, query, appName)
+            
         } catch (e: Exception) {
             Log.e(TAG, "AI应用启动失败: $appName", e)
             Toast.makeText(context, "$appName 启动失败", Toast.LENGTH_SHORT).show()
             sendQuestionViaClipboard(packageName, query, appName)
+            
+            // 即使启动失败也尝试激活悬浮窗服务
+            activateAIAppOverlayService(packageName, query, appName)
         }
     }
     
@@ -749,6 +767,33 @@ class PlatformJumpManager(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "创建应用信息失败: $packageName", e)
             null
+        }
+    }
+    
+    /**
+     * 激活AI应用悬浮窗服务
+     * 在AI应用跳转后启动悬浮窗服务，支持用户反复跳转
+     */
+    private fun activateAIAppOverlayService(packageName: String, query: String, appName: String) {
+        try {
+            Log.d(TAG, "激活AI应用悬浮窗服务: $appName, 包名: $packageName, 查询: $query")
+            
+            val intent = Intent(context, AIAppOverlayService::class.java).apply {
+                action = AIAppOverlayService.ACTION_SHOW_OVERLAY
+                putExtra(AIAppOverlayService.EXTRA_APP_NAME, appName)
+                putExtra(AIAppOverlayService.EXTRA_QUERY, query)
+                putExtra(AIAppOverlayService.EXTRA_PACKAGE_NAME, packageName)
+                putExtra("mode", "overlay") // 设置为悬浮窗模式
+            }
+            
+            context.startService(intent)
+            
+            Log.d(TAG, "AI应用悬浮窗服务已激活: $appName")
+            Toast.makeText(context, "已激活AI应用悬浮窗服务，可反复跳转", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "激活AI应用悬浮窗服务失败: $appName", e)
+            Toast.makeText(context, "悬浮窗服务启动失败", Toast.LENGTH_SHORT).show()
         }
     }
 }

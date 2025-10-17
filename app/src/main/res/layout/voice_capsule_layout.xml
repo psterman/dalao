@@ -7,9 +7,9 @@
     android:background="@color/simple_mode_background_light">
 
 
-    <!-- 第一段：快捷操作图标区域 -->
+    <!-- 第一段：平台图标区域 - 参考对话tab中AI回复下方的图标 -->
     <LinearLayout
-        android:id="@+id/voice_capsule_quick_actions"
+        android:id="@+id/voice_capsule_platform_icons_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -18,66 +18,14 @@
         android:orientation="horizontal"
         android:gravity="center"
         android:background="@color/simple_mode_card_background_light"
-        android:padding="12dp">
+        android:padding="12dp"
+        android:visibility="gone">
 
-        <!-- AI助手按钮 -->
-        <ImageButton
-            android:id="@+id/voice_capsule_ai_assistant_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="12dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_ai_assistant"
-            android:contentDescription="AI助手档案"
-            android:scaleType="fitCenter"
-            app:tint="@color/simple_mode_accent_light" />
-
-        <!-- 搜索按钮 -->
-        <ImageButton
-            android:id="@+id/voice_capsule_search_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="12dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_web_search"
-            android:contentDescription="网络搜索"
-            android:scaleType="fitCenter"
-            app:tint="@color/simple_mode_accent_light" />
-
-        <!-- 应用搜索按钮 -->
-        <ImageButton
-            android:id="@+id/voice_capsule_app_search_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="12dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_apps"
-            android:contentDescription="应用搜索"
-            android:scaleType="fitCenter"
-            app:tint="@color/simple_mode_accent_light" />
-
-        <!-- 设置按钮 -->
-        <ImageButton
-            android:id="@+id/voice_capsule_settings_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="12dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_settings"
-            android:contentDescription="设置"
-            android:scaleType="fitCenter"
-            app:tint="@color/simple_mode_accent_light" />
-
-        <!-- 更多按钮 -->
-        <ImageButton
-            android:id="@+id/voice_capsule_more_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_more"
-            android:contentDescription="更多"
-            android:scaleType="fitCenter"
-            app:tint="@color/simple_mode_accent_light" />
+        <!-- 平台图标将动态添加到这里 -->
+        <com.example.aifloatingball.ui.PlatformIconsView
+            android:id="@+id/voice_capsule_platform_icons_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
 
     </LinearLayout>
 

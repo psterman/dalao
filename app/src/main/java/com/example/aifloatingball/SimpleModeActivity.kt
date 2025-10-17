@@ -486,6 +486,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var voiceCapsuleWebView: WebView? = null
     private var isVoiceCapsuleMode = false
     private var shouldContinueRecording = true
+    
+    // 语音胶囊平台图标相关
+    private var voiceCapsulePlatformIconsContainer: LinearLayout? = null
+    private var voiceCapsulePlatformIconsView: com.example.aifloatingball.ui.PlatformIconsView? = null
 
     // API密钥同步广播接收器
     private var apiKeySyncReceiver: BroadcastReceiver? = null
@@ -1969,6 +1973,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         } else {
                             // 切换到三段式胶囊布局
                             switchToVoiceCapsuleLayout(newText)
+                            // 显示平台图标
+                            showVoiceCapsulePlatformIcons(newText)
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "处理语音识别结果失败", e)
@@ -22266,6 +22272,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 初始化胶囊布局中的组件
             voiceCapsuleTextInput = findViewById(R.id.voice_capsule_text_input)
             
+            // 初始化平台图标相关组件
+            voiceCapsulePlatformIconsContainer = findViewById(R.id.voice_capsule_platform_icons_container)
+            voiceCapsulePlatformIconsView = findViewById(R.id.voice_capsule_platform_icons_view)
+            
             // 初始化三窗口WebView
             initializeCapsuleWebViews()
             
@@ -22829,6 +22839,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     it.isFocusable = true
                     it.isFocusableInTouchMode = true
                     
+                    // 确保WebView可以正常滚动 - 使用默认安全的滚动条设置
+                    try {
+                        it.isVerticalScrollBarEnabled = true
+                        it.isHorizontalScrollBarEnabled = false
+                        // 使用默认的滚动条样式，避免null pointer异常
+                        it.scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
+                    } catch (e: Exception) {
+                        Log.e(TAG, "设置WebView滚动条失败", e)
+                    }
+                    
                     // 设置WebViewClient阻止外部浏览器打开
                     it.webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -22940,8 +22960,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 初始化高度调整把手
             setupHeightAdjustmentHandle()
 
-            // 设置快捷操作按钮点击事件
-            setupCapsuleQuickActionButtons()
+            // 注意：快捷操作按钮已被平台图标替换，不再需要设置按钮点击事件
+            // 平台图标的点击事件由PlatformIconsView内部处理
 
             Log.d(TAG, "语音胶囊双窗口WebView服务初始化完成")
         } catch (e: Exception) {
@@ -23224,17 +23244,26 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         domStorageEnabled = true
                         loadWithOverviewMode = true
                         useWideViewPort = true
+                        
+                        // 确保滚动正常工作
+                        setSupportZoom(true)
+                        builtInZoomControls = false
+                        displayZoomControls = false
+                        textZoom = 100
                     }
                     
                     // 确保WebView不会失去焦点
                     webView?.isFocusable = true
                     webView?.isFocusableInTouchMode = true
                     
-                    // 添加额外的保护措施，确保WebView不会被意外关闭
-                    webView?.setOnTouchListener { _, _ ->
-                        // 确保WebView保持活跃状态
-                        webView?.requestFocus()
-                        false
+                    // 确保WebView可以正常滚动 - 使用默认安全的滚动条设置
+                    try {
+                        webView?.isVerticalScrollBarEnabled = true
+                        webView?.isHorizontalScrollBarEnabled = false
+                        // 使用默认的滚动条样式，避免null pointer异常
+                        webView?.scrollBarStyle = View.SCROLLBARS_OUTSIDE_OVERLAY
+                    } catch (e: Exception) {
+                        Log.e(TAG, "设置WebView滚动条失败", e)
                     }
                     
                     webView?.loadUrl(searchUrl)
@@ -23244,6 +23273,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新搜索输入框的文本
             val dualSearchInput = findViewById<EditText>(R.id.dual_search_input)
             dualSearchInput?.setText(query)
+            
+            // 显示平台图标
+            showVoiceCapsulePlatformIcons(query)
             
             Log.d(TAG, "语音胶囊WebView搜索完成")
         } catch (e: Exception) {
@@ -23268,6 +23300,31 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
+     * 显示语音胶囊平台图标
+     */
+    private fun showVoiceCapsulePlatformIcons(query: String) {
+        try {
+            voiceCapsulePlatformIconsContainer?.visibility = View.VISIBLE
+            voiceCapsulePlatformIconsView?.showRelevantPlatforms(query)
+            Log.d(TAG, "已显示语音胶囊平台图标，查询: $query")
+        } catch (e: Exception) {
+            Log.e(TAG, "显示语音胶囊平台图标失败", e)
+        }
+    }
+    
+    /**
+     * 隐藏语音胶囊平台图标
+     */
+    private fun hideVoiceCapsulePlatformIcons() {
+        try {
+            voiceCapsulePlatformIconsContainer?.visibility = View.GONE
+            Log.d(TAG, "已隐藏语音胶囊平台图标")
+        } catch (e: Exception) {
+            Log.e(TAG, "隐藏语音胶囊平台图标失败", e)
+        }
+    }
+    
+    /**
      * 切换到三段式胶囊布局
      */
     private fun switchToVoiceCapsuleLayout(text: String) {
@@ -23281,6 +23338,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 
                 // 设置识别文本到胶囊输入框
                 voiceCapsuleTextInput?.setText(text)
+                
+                // 显示平台图标
+                showVoiceCapsulePlatformIcons(text)
                 
                 // 设置为胶囊模式
                 isVoiceCapsuleMode = true
@@ -23322,48 +23382,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     
     /**
      * 设置胶囊布局中快捷操作按钮的点击事件
+     * 注意：此方法已废弃，因为快捷操作按钮已被平台图标替换
      */
+    @Deprecated("快捷操作按钮已被平台图标替换")
     private fun setupCapsuleQuickActionButtons() {
-        try {
-            // AI助手按钮
-            findViewById<ImageButton>(R.id.voice_capsule_ai_assistant_button)?.setOnClickListener {
-                showBrowserTabAIProfileSelector()
-            }
-
-            // 搜索按钮
-            findViewById<ImageButton>(R.id.voice_capsule_search_button)?.setOnClickListener {
-                val query = voiceCapsuleTextInput?.text?.toString()?.trim()
-                if (!query.isNullOrEmpty()) {
-                    performCapsuleWebViewSearch(query)
-                } else {
-                    Toast.makeText(this, "请先输入搜索内容", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            // 应用搜索按钮
-            findViewById<ImageButton>(R.id.voice_capsule_app_search_button)?.setOnClickListener {
-                val query = voiceCapsuleTextInput?.text?.toString()?.trim()
-                if (!query.isNullOrEmpty()) {
-                    switchToAppSearchWithQuery(query)
-                } else {
-                    showAppSearch()
-                }
-            }
-
-            // 设置按钮
-            findViewById<ImageButton>(R.id.voice_capsule_settings_button)?.setOnClickListener {
-                showSettings()
-            }
-
-            // 更多按钮
-            findViewById<ImageButton>(R.id.voice_capsule_more_button)?.setOnClickListener {
-                showMoreOptionsDialog()
-            }
-
-            Log.d(TAG, "胶囊布局快捷操作按钮点击事件设置完成")
-        } catch (e: Exception) {
-            Log.e(TAG, "设置胶囊布局快捷操作按钮点击事件失败", e)
-        }
+        // 此方法已废弃，快捷操作按钮已被平台图标替换
+        // 平台图标的点击事件由PlatformIconsView内部处理
+        Log.d(TAG, "快捷操作按钮已被平台图标替换，此方法已废弃")
     }
 
     /**
@@ -23500,6 +23525,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             runOnUiThread {
                 // 隐藏胶囊布局
                 voiceCapsuleLayout?.visibility = View.GONE
+                
+                // 隐藏平台图标
+                hideVoiceCapsulePlatformIcons()
                 
                 // 显示原始语音布局
                 findViewById<LinearLayout>(R.id.voice_original_layout)?.visibility = View.VISIBLE
