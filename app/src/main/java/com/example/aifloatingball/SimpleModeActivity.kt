@@ -133,6 +133,7 @@ import com.example.aifloatingball.views.CardPreviewOverlay
 import com.example.aifloatingball.views.QuarterArcOperationBar
 import com.example.aifloatingball.service.AIAppOverlayService
 
+import com.example.aifloatingball.engine.SearchEngineHandler
 import com.google.android.material.switchmaterial.SwitchMaterial
 import android.widget.EditText
 import android.widget.Button
@@ -157,6 +158,16 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         private const val KEY_SAVED_CONTACTS = "saved_contacts"
         // Activity请求码
         private const val REQUEST_CODE_ADD_AI_CONTACT = 1101
+        
+        // 单例实例，用于WebViewFactory访问
+        @Volatile
+        private var INSTANCE: SimpleModeActivity? = null
+        
+        fun getInstance(): SimpleModeActivity? = INSTANCE
+        
+        fun isVoiceCapsuleModeActive(): Boolean {
+            return INSTANCE?.isVoiceCapsuleMode ?: false
+        }
     }
 
     /**
@@ -598,6 +609,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         super.onCreate(savedInstanceState)
 
         Log.d(TAG, "onCreate called")
+        
+        // 设置单例实例
+        INSTANCE = this
 
         // 初始化SettingsManager
         settingsManager = SettingsManager.getInstance(this)
@@ -5379,6 +5393,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         super.onDestroy()
 
         Log.d(TAG, "Activity正在销毁，清理所有资源")
+        
+        // 清理单例实例
+        INSTANCE = null
 
         // 立即清理所有延迟任务，防止在Activity销毁后执行
         try {
@@ -22245,10 +22262,6 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 初始化三窗口WebView
             initializeCapsuleWebViews()
             
-            
-            // 设置应用图标点击事件
-            setupCapsuleAppClickListeners()
-            
             // 关闭按钮已移除，不需要设置点击事件
             
             // 设置话筒按钮点击事件 - 重新设计状态控制
@@ -22562,9 +22575,46 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             // 更新状态文本
             voiceStatusText.text = "录音已停止，点击麦克风重新开始录音"
             
+            // 自动执行搜索
+            autoSearchAfterRecording()
+            
             Log.d(TAG, "录音已完成")
         } catch (e: Exception) {
             Log.e(TAG, "完成录音失败", e)
+        }
+    }
+    
+    /**
+     * 录音完成后自动搜索 - 在语音tab中使用胶囊WebView
+     */
+    private fun autoSearchAfterRecording() {
+        try {
+            val query = voiceCapsuleTextInput?.text?.toString()?.trim()
+            if (!query.isNullOrEmpty()) {
+                Log.d(TAG, "录音完成后自动搜索: $query")
+                
+                // 检查是否在语音胶囊模式
+                if (isVoiceCapsuleMode) {
+                    // 语音胶囊模式：使用DualFloatingWebViewService
+                    val dualSearchInput = findViewById<EditText>(R.id.dual_search_input)
+                    dualSearchInput?.setText(query)
+                    performDualWebSearch(query)
+                } else {
+                    // 语音tab模式：直接在语音胶囊的WebView中搜索
+                    // 切换到语音胶囊布局
+                    switchToVoiceCapsuleLayout(query)
+                    
+                    // 使用新的方法在胶囊WebView中执行搜索
+                    performCapsuleWebViewSearch(query)
+                    
+                    Log.d(TAG, "已在语音胶囊WebView中执行搜索: $query")
+                }
+                
+                // 更新状态文本
+                voiceStatusText.text = "已自动搜索: $query"
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "自动搜索失败", e)
         }
     }
     
@@ -22744,16 +22794,20 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 初始化三窗口WebView
+     * 初始化语音胶囊双窗口WebView服务
      */
     private fun initializeCapsuleWebViews() {
         try {
-            val baiduWebView = findViewById<WebView>(R.id.voice_capsule_webview_baidu)
-            val googleWebView = findViewById<WebView>(R.id.voice_capsule_webview_google)
-            val bingWebView = findViewById<WebView>(R.id.voice_capsule_webview_bing)
+            // 获取双窗口浮动WebView容器
+            val dualWebViewContainer = findViewById<FrameLayout>(R.id.voice_capsule_dual_webview_container)
+            
+            // 初始化语音胶囊双窗口WebView组件
+            val firstWebView = findViewById<com.example.aifloatingball.ui.webview.CustomWebView>(R.id.first_floating_webview)
+            val secondWebView = findViewById<com.example.aifloatingball.ui.webview.CustomWebView>(R.id.second_floating_webview)
+            val thirdWebView = findViewById<com.example.aifloatingball.ui.webview.CustomWebView>(R.id.third_floating_webview)
             
             // 配置WebView设置
-            listOf(baiduWebView, googleWebView, bingWebView).forEach { webView ->
+            listOf(firstWebView, secondWebView, thirdWebView).forEach { webView ->
                 webView?.let {
                     it.settings.javaScriptEnabled = true
                     it.settings.domStorageEnabled = true
@@ -22761,50 +22815,300 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     it.settings.useWideViewPort = true
                     it.settings.builtInZoomControls = false
                     it.settings.displayZoomControls = false
+                    it.settings.setSupportZoom(true)
+                    it.settings.textZoom = 100
+                    
+                    // 设置WebViewClient阻止外部浏览器打开
+                    it.webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                            // 阻止外部浏览器打开，所有链接都在WebView内加载
+                            url?.let { urlString ->
+                                view?.loadUrl(urlString)
+                            }
+                            return true
+                        }
+                    }
                 }
             }
             
-            Log.d(TAG, "三窗口WebView初始化完成")
+            // 初始化搜索输入框
+            val dualSearchInput = findViewById<EditText>(R.id.dual_search_input)
+            dualSearchInput?.let {
+                it.hint = "输入搜索内容"
+                it.setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                        performCapsuleWebViewSearch(it.text.toString())
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            
+            // 初始化搜索按钮
+            val searchButton = findViewById<ImageButton>(R.id.btn_search)
+            searchButton?.setOnClickListener {
+                val query = dualSearchInput?.text?.toString()?.trim()
+                if (!query.isNullOrEmpty()) {
+                    performCapsuleWebViewSearch(query)
+                }
+            }
+            
+            // 初始化窗口数量切换按钮
+            val windowCountButton = findViewById<ImageButton>(R.id.btn_window_count)
+            windowCountButton?.setOnClickListener {
+                // 切换窗口数量显示逻辑
+                val windowCountText = findViewById<TextView>(R.id.window_count_toggle)
+                val currentCount = windowCountText?.text?.toString()?.toIntOrNull() ?: 2
+                val newCount = if (currentCount == 2) 3 else 2
+                windowCountText?.text = newCount.toString()
+                
+                // 根据窗口数量显示/隐藏第三个WebView
+                thirdWebView?.parent?.let { parent ->
+                    if (parent is ViewGroup) {
+                        parent.visibility = if (newCount == 3) View.VISIBLE else View.GONE
+                    }
+                }
+            }
+            
+            // 初始化高度调整把手
+            setupHeightAdjustmentHandle()
+
+            // 设置快捷操作按钮点击事件
+            setupCapsuleQuickActionButtons()
+
+            Log.d(TAG, "语音胶囊双窗口WebView服务初始化完成")
         } catch (e: Exception) {
-            Log.e(TAG, "初始化三窗口WebView失败", e)
+            Log.e(TAG, "初始化语音胶囊双窗口WebView服务失败", e)
         }
     }
     
     /**
-     * 刷新三窗口WebView
+     * 设置高度调整把手
+     */
+    private fun setupHeightAdjustmentHandle() {
+        try {
+            val resizeHandle = findViewById<LinearLayout>(R.id.voice_capsule_resize_handle)
+            val dualWebViewContainer = findViewById<LinearLayout>(R.id.voice_capsule_dual_webview_container)
+            
+            if (resizeHandle != null && dualWebViewContainer != null) {
+                var initialHeight = 0
+                var initialY = 0f
+                var isResizing = false
+                
+                // 最小和最大高度限制（dp转px）
+                val minHeight = (200 * resources.displayMetrics.density).toInt()
+                val maxHeight = (600 * resources.displayMetrics.density).toInt()
+                
+                // 设置把手的触摸监听器
+                resizeHandle.setOnTouchListener { view, event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            initialHeight = dualWebViewContainer.height
+                            initialY = event.rawY
+                            isResizing = true
+                            
+                            // 改变把手颜色以提供视觉反馈
+                            resizeHandle.background = resources.getDrawable(
+                                R.drawable.voice_capsule_resize_handle_background, 
+                                null
+                            )
+                            
+                            // 请求所有父容器不要拦截触摸事件
+                            var parent = view.parent
+                            while (parent != null) {
+                                if (parent is ViewGroup) {
+                                    parent.requestDisallowInterceptTouchEvent(true)
+                                }
+                                parent = parent.parent
+                            }
+                            
+                            true
+                        }
+                        
+                        MotionEvent.ACTION_MOVE -> {
+                            if (isResizing) {
+                                val deltaY = initialY - event.rawY // 向上拖拽为正值
+                                val newHeight = (initialHeight + deltaY.toInt()).coerceIn(minHeight, maxHeight)
+                                
+                                // 更新容器高度
+                                val layoutParams = dualWebViewContainer.layoutParams
+                                layoutParams.height = newHeight
+                                dualWebViewContainer.layoutParams = layoutParams
+                                
+                                // 添加平滑动画
+                                dualWebViewContainer.animate()
+                                    .setDuration(50)
+                                    .alpha(1f)
+                                    .start()
+                                
+                                // 继续请求所有父容器不要拦截触摸事件
+                                var parent = view.parent
+                                while (parent != null) {
+                                    if (parent is ViewGroup) {
+                                        parent.requestDisallowInterceptTouchEvent(true)
+                                    }
+                                    parent = parent.parent
+                                }
+                            }
+                            true
+                        }
+                        
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            isResizing = false
+                            
+                            // 恢复把手颜色
+                            resizeHandle.background = resources.getDrawable(
+                                R.drawable.voice_capsule_resize_handle_background, 
+                                null
+                            )
+                            
+                            // 允许所有父容器重新拦截触摸事件
+                            var parent = view.parent
+                            while (parent != null) {
+                                if (parent is ViewGroup) {
+                                    parent.requestDisallowInterceptTouchEvent(false)
+                                }
+                                parent = parent.parent
+                            }
+                            
+                            // 保存当前高度到SharedPreferences
+                            saveWebViewHeight(dualWebViewContainer.height)
+                            
+                            true
+                        }
+                        
+                        else -> false
+                    }
+                }
+                
+                // 设置把手的点击监听器，防止点击事件被拦截
+                resizeHandle.setOnClickListener {
+                    // 空实现，只是为了确保点击事件被处理
+                }
+                
+                // 恢复保存的高度
+                restoreWebViewHeight(dualWebViewContainer)
+                
+                Log.d(TAG, "高度调整把手初始化完成")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "设置高度调整把手失败", e)
+        }
+    }
+    
+    /**
+     * 保存WebView高度
+     */
+    private fun saveWebViewHeight(height: Int) {
+        try {
+            val sharedPref = getSharedPreferences("voice_capsule_prefs", Context.MODE_PRIVATE)
+            with(sharedPref.edit()) {
+                putInt("webview_height", height)
+                apply()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "保存WebView高度失败", e)
+        }
+    }
+    
+    /**
+     * 恢复WebView高度
+     */
+    private fun restoreWebViewHeight(container: LinearLayout) {
+        try {
+            val sharedPref = getSharedPreferences("voice_capsule_prefs", Context.MODE_PRIVATE)
+            val savedHeight = sharedPref.getInt("webview_height", 0)
+            
+            if (savedHeight > 0) {
+                val minHeight = (200 * resources.displayMetrics.density).toInt()
+                val maxHeight = (600 * resources.displayMetrics.density).toInt()
+                val height = savedHeight.coerceIn(minHeight, maxHeight)
+                
+                val layoutParams = container.layoutParams
+                layoutParams.height = height
+                container.layoutParams = layoutParams
+                
+                Log.d(TAG, "恢复WebView高度: $height")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "恢复WebView高度失败", e)
+        }
+    }
+    
+    /**
+     * 执行双窗口搜索 - 启动DualFloatingWebViewService避免使用内嵌浏览器
+     */
+    private fun performDualWebSearch(query: String) {
+        try {
+            // 启动DualFloatingWebViewService进行搜索，避免使用内嵌WebView
+            val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                putExtra("search_query", query)
+                putExtra("engine_key", "baidu") // 默认使用百度搜索
+                putExtra("search_source", "语音胶囊")
+                putExtra("window_count", 3) // 使用三窗口模式
+            }
+            startService(serviceIntent)
+            
+            Log.d(TAG, "已启动DualFloatingWebViewService进行双窗口搜索: $query")
+        } catch (e: Exception) {
+            Log.e(TAG, "启动DualFloatingWebViewService失败", e)
+            Toast.makeText(this, "启动搜索服务失败", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 在输入框下方的webview中执行搜索
+     */
+    private fun performCapsuleWebViewSearch(query: String) {
+        try {
+            Log.d(TAG, "在语音胶囊WebView中执行搜索: $query")
+            
+            // 获取三个WebView实例
+            val firstWebView = findViewById<com.example.aifloatingball.ui.webview.CustomWebView>(R.id.first_floating_webview)
+            val secondWebView = findViewById<com.example.aifloatingball.ui.webview.CustomWebView>(R.id.second_floating_webview)
+            val thirdWebView = findViewById<com.example.aifloatingball.ui.webview.CustomWebView>(R.id.third_floating_webview)
+            
+            // 创建搜索引擎处理器实例
+            val searchEngineHandler = SearchEngineHandler(settingsManager)
+            
+            // 为每个WebView分配不同的搜索引擎
+            val engines = listOf("baidu", "google", "bing")
+            val webViews = listOfNotNull(firstWebView, secondWebView, thirdWebView)
+            
+            webViews.forEachIndexed { index, webView ->
+                if (index < engines.size) {
+                    val engineKey = engines[index]
+                    val searchUrl = searchEngineHandler.getSearchUrl(query, engineKey)
+                    
+                    Log.d(TAG, "WebView ${index + 1} 使用搜索引擎: $engineKey, URL: $searchUrl")
+                    
+                    webView?.loadUrl(searchUrl)
+                }
+            }
+            
+            // 更新搜索输入框的文本
+            val dualSearchInput = findViewById<EditText>(R.id.dual_search_input)
+            dualSearchInput?.setText(query)
+            
+            Log.d(TAG, "语音胶囊WebView搜索完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "在语音胶囊WebView中执行搜索失败", e)
+            Toast.makeText(this, "搜索失败，请重试", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 刷新双窗口WebView
      */
     private fun refreshCapsuleWebViews() {
         try {
             val query = voiceCapsuleTextInput?.text?.toString()?.trim()
             if (!query.isNullOrEmpty()) {
-                performTripleWebSearch(query)
+                performDualWebSearch(query)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "刷新三窗口WebView失败", e)
-        }
-    }
-    
-    /**
-     * 执行三窗口搜索
-     */
-    private fun performTripleWebSearch(query: String) {
-        try {
-            val baiduWebView = findViewById<WebView>(R.id.voice_capsule_webview_baidu)
-            val googleWebView = findViewById<WebView>(R.id.voice_capsule_webview_google)
-            val bingWebView = findViewById<WebView>(R.id.voice_capsule_webview_bing)
-            
-            // 百度搜索
-            baiduWebView?.loadUrl("https://www.baidu.com/s?wd=${java.net.URLEncoder.encode(query, "UTF-8")}")
-            
-            // Google搜索
-            googleWebView?.loadUrl("https://www.google.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
-            
-            // 必应搜索
-            bingWebView?.loadUrl("https://www.bing.com/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}")
-            
-            Log.d(TAG, "已执行三窗口搜索: $query")
-        } catch (e: Exception) {
-            Log.e(TAG, "执行三窗口搜索失败", e)
+            Log.e(TAG, "刷新双窗口WebView失败", e)
         }
     }
     
@@ -22840,7 +23144,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
     
     /**
-     * 执行胶囊布局中的网络搜索
+     * 执行胶囊布局中的网络搜索 - 使用DualFloatingWebViewService避免内嵌浏览器
      */
     private fun performCapsuleWebSearch() {
         try {
@@ -22848,83 +23152,95 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (!query.isNullOrEmpty()) {
                 Log.d(TAG, "执行胶囊网络搜索: $query")
                 
-                // 启动FloatingWebViewService进行搜索
-                val serviceIntent = Intent(this, FloatingWebViewService::class.java).apply {
-                    putExtra("query", query)
-                    putExtra("search_engine", "baidu") // 默认使用百度搜索
+                // 启动DualFloatingWebViewService进行搜索，避免使用内嵌浏览器
+                val serviceIntent = Intent(this, DualFloatingWebViewService::class.java).apply {
+                    putExtra("search_query", query)
+                    putExtra("engine_key", "baidu") // 默认使用百度搜索
+                    putExtra("search_source", "语音胶囊")
+                    putExtra("window_count", 2) // 使用双窗口模式
                 }
                 startService(serviceIntent)
                 
                 // 更新搜索状态
-                updateCapsuleSearchStatus("正在搜索: $query")
+                updateCapsuleSearchStatus("正在启动搜索服务...")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "执行胶囊网络搜索失败", e)
+            Log.e(TAG, "启动DualFloatingWebViewService失败", e)
+            Toast.makeText(this, "启动搜索服务失败", Toast.LENGTH_SHORT).show()
         }
     }
     
+    
     /**
-     * 设置胶囊布局中应用图标的点击事件
+     * 设置胶囊布局中快捷操作按钮的点击事件
      */
-    private fun setupCapsuleAppClickListeners() {
+    private fun setupCapsuleQuickActionButtons() {
         try {
-            val query = voiceCapsuleTextInput?.text?.toString() ?: ""
-            
-            // 小红书
-            findViewById<LinearLayout>(R.id.voice_capsule_app_xiaohongshu)?.setOnClickListener {
-                launchAppWithSearch("com.xingin.xhs", "小红书", query)
+            // AI助手按钮
+            findViewById<ImageButton>(R.id.voice_capsule_ai_assistant_button)?.setOnClickListener {
+                showBrowserTabAIProfileSelector()
             }
-            
-            // 哔哩哔哩
-            findViewById<LinearLayout>(R.id.voice_capsule_app_bilibili)?.setOnClickListener {
-                launchAppWithSearch("tv.danmaku.bili", "哔哩哔哩", query)
+
+            // 搜索按钮
+            findViewById<ImageButton>(R.id.voice_capsule_search_button)?.setOnClickListener {
+                val query = voiceCapsuleTextInput?.text?.toString()?.trim()
+                if (!query.isNullOrEmpty()) {
+                    performCapsuleWebViewSearch(query)
+                } else {
+                    Toast.makeText(this, "请先输入搜索内容", Toast.LENGTH_SHORT).show()
+                }
             }
-            
-            // YouTube
-            findViewById<LinearLayout>(R.id.voice_capsule_app_youtube)?.setOnClickListener {
-                launchAppWithSearch("com.google.android.youtube", "YouTube", query)
+
+            // 应用搜索按钮
+            findViewById<ImageButton>(R.id.voice_capsule_app_search_button)?.setOnClickListener {
+                val query = voiceCapsuleTextInput?.text?.toString()?.trim()
+                if (!query.isNullOrEmpty()) {
+                    switchToAppSearchWithQuery(query)
+                } else {
+                    showAppSearch()
+                }
             }
-            
-            // 微博
-            findViewById<LinearLayout>(R.id.voice_capsule_app_weibo)?.setOnClickListener {
-                launchAppWithSearch("com.sina.weibo", "微博", query)
+
+            // 设置按钮
+            findViewById<ImageButton>(R.id.voice_capsule_settings_button)?.setOnClickListener {
+                showSettings()
             }
-            
-            // 豆瓣
-            findViewById<LinearLayout>(R.id.voice_capsule_app_douban)?.setOnClickListener {
-                launchAppWithSearch("com.douban.frodo", "豆瓣", query)
+
+            // 更多按钮
+            findViewById<ImageButton>(R.id.voice_capsule_more_button)?.setOnClickListener {
+                showMoreOptionsDialog()
             }
-            
-            // 快手
-            findViewById<LinearLayout>(R.id.voice_capsule_app_kuaishou)?.setOnClickListener {
-                launchAppWithSearch("com.smile.gifmaker", "快手", query)
-            }
-            
-            // 元宝
-            findViewById<LinearLayout>(R.id.voice_capsule_app_yuanbao)?.setOnClickListener {
-                launchAppWithSearch("com.yuanbao.app", "元宝", query)
-            }
-            
-            // Kimi
-            findViewById<LinearLayout>(R.id.voice_capsule_app_kimi)?.setOnClickListener {
-                launchAppWithSearch("com.moonshot.kimi", "Kimi", query)
-            }
-            
-            // 搜狗搜索
-            findViewById<LinearLayout>(R.id.voice_capsule_app_sogou)?.setOnClickListener {
-                launchAppWithSearch("com.sogou.android.websearch", "搜狗搜索", query)
-            }
-            
-            // 豆包
-            findViewById<LinearLayout>(R.id.voice_capsule_app_doubao)?.setOnClickListener {
-                launchAppWithSearch("com.bytedance.doubao", "豆包", query)
-            }
-            
-            Log.d(TAG, "胶囊布局应用图标点击事件设置完成")
+
+            Log.d(TAG, "胶囊布局快捷操作按钮点击事件设置完成")
         } catch (e: Exception) {
-            Log.e(TAG, "设置胶囊布局应用图标点击事件失败", e)
+            Log.e(TAG, "设置胶囊布局快捷操作按钮点击事件失败", e)
         }
     }
+
+    /**
+     * 显示更多选项对话框
+     */
+    private fun showMoreOptionsDialog() {
+        try {
+            val options = arrayOf("清空文本", "复制文本", "粘贴文本", "分享文本")
+            
+            AlertDialog.Builder(this)
+                .setTitle("更多选项")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> clearText()
+                        1 -> copyText()
+                        2 -> pasteText()
+                        3 -> shareText()
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "显示更多选项对话框失败", e)
+        }
+    }
+
     
     /**
      * 启动应用并进行搜索

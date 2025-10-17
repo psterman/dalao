@@ -31,6 +31,21 @@ class WebViewFactory(private val context: Context) {
         private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
         // 智能User-Agent，默认使用移动端
         private const val SMART_USER_AGENT = MOBILE_USER_AGENT
+        
+        // 检测是否在语音胶囊模式中的方法
+        private fun isInVoiceCapsuleMode(): Boolean {
+            return try {
+                // 通过检查当前Activity的类名来判断是否在语音胶囊模式
+                val activityClass = Class.forName("com.example.aifloatingball.SimpleModeActivity")
+                val method = activityClass.getDeclaredMethod("isVoiceCapsuleModeActive")
+                method.isAccessible = true
+                val instance = activityClass.getDeclaredField("INSTANCE").get(null)
+                method.invoke(instance) as? Boolean ?: false
+            } catch (e: Exception) {
+                Log.d(TAG, "无法检测语音胶囊模式状态: ${e.message}")
+                false
+            }
+        }
     }
     
     val textSelectionManager: TextSelectionManager by lazy {
@@ -99,6 +114,12 @@ class WebViewFactory(private val context: Context) {
                                 handleSearchEngineRedirect(view, url, "uc")
                                 true
                             }
+                            // 检查是否在语音胶囊模式中，如果是则阻止外部浏览器打开
+                            isInVoiceCapsuleMode() -> {
+                                Log.d(TAG, "语音胶囊模式：阻止外部浏览器打开，在WebView内加载: $url")
+                                view?.loadUrl(url)
+                                true
+                            }
                             else -> false
                         }
                     }
@@ -130,6 +151,12 @@ class WebViewFactory(private val context: Context) {
                             url.startsWith("ucbrowser://") -> {
                                 Log.d(TAG, "拦截UC浏览器重定向，保持在WebView中")
                                 handleSearchEngineRedirect(view, url, "uc")
+                                true
+                            }
+                            // 检查是否在语音胶囊模式中，如果是则阻止外部浏览器打开
+                            isInVoiceCapsuleMode() -> {
+                                Log.d(TAG, "语音胶囊模式：阻止外部浏览器打开，在WebView内加载: $url")
+                                view?.loadUrl(url)
                                 true
                             }
                             else -> false

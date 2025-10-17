@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/simple_mode_background_light">
+
+    <!-- 顶部搜索栏 -->
+    <LinearLayout
+        android:id="@+id/voice_capsule_search_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="@color/simple_mode_card_background_light">
+
+        <EditText
+            android:id="@+id/dual_search_input"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="输入搜索内容"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:singleLine="true"
+            android:textColor="@color/simple_mode_text_primary_light"
+            android:textColorHint="@color/simple_mode_text_secondary_light"
+            android:background="@drawable/voice_capsule_search_button_background"
+            android:textSize="14sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingVertical="8dp"/>
+
+        <ImageButton
+            android:id="@+id/btn_search"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_web_search"
+            android:background="@drawable/voice_capsule_button_background"
+            android:tint="@color/simple_mode_text_primary_light"
+            android:contentDescription="搜索"/>
+
+        <ImageButton
+            android:id="@+id/btn_save_engines"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:src="@drawable/ic_save"
+            android:background="@drawable/voice_capsule_button_background"
+            android:tint="@color/simple_mode_text_primary_light"
+            android:contentDescription="保存搜索引擎"/>
+
+        <!-- 窗口数量切换控件 -->
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp">
+            
+            <ImageButton
+                android:id="@+id/btn_window_count"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/ic_layers"
+                android:tint="@color/simple_mode_text_primary_light"
+                android:background="@drawable/voice_capsule_button_background"
+                android:contentDescription="窗口数量切换"/>
+                
+            <TextView
+                android:id="@+id/window_count_toggle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|end"
+                android:textSize="10sp"
+                android:textColor="@color/simple_mode_text_primary_light"
+                android:background="@color/simple_mode_card_background_light"
+                android:paddingStart="2dp"
+                android:paddingEnd="2dp"
+                android:text="2"/>
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- 全局AI搜索引擎栏 -->
+    <HorizontalScrollView
+        android:id="@+id/global_ai_engine_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:background="@color/simple_mode_card_background_light"
+        android:paddingVertical="2dp">
+        <LinearLayout
+            android:id="@+id/global_ai_engine_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp"
+            android:gravity="center_vertical"/>
+    </HorizontalScrollView>
+
+    <!-- 全局标准搜索引擎栏 -->
+    <HorizontalScrollView
+        android:id="@+id/global_standard_engine_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        android:background="@color/simple_mode_card_background_light"
+        android:paddingVertical="2dp">
+        <LinearLayout
+            android:id="@+id/global_standard_engine_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp"
+            android:gravity="center_vertical"/>
+    </HorizontalScrollView>
+
+    <!-- WebView内容容器 -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+        
+        <!-- 外层垂直滚动容器 -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scrollbars="vertical"
+            android:scrollbarStyle="insideOverlay"
+            android:scrollbarSize="6dp"
+            android:fadeScrollbars="false"
+            android:smoothScrollbar="true"
+            android:fillViewport="true">
+            
+            <!-- 内层水平滚动容器 -->
+            <com.example.aifloatingball.ui.widget.LockableHorizontalScrollView
+                android:id="@+id/webviews_scroll_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fillViewport="true"
+                android:scrollbars="horizontal"
+                android:scrollbarStyle="insideOverlay"
+                android:scrollbarSize="4dp"
+                android:fadeScrollbars="false"
+                android:smoothScrollbar="true"
+                android:paddingBottom="0dp">
+
+                <!-- 三WebView容器 -->
+                <LinearLayout
+                    android:id="@+id/dual_webview_container"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <!-- 第一个WebView容器 -->
+                    <LinearLayout
+                        android:layout_width="280dp"
+                        android:layout_height="600dp"
+                        android:orientation="vertical">
+
+                        <com.example.aifloatingball.ui.webview.CustomWebView
+                            android:id="@+id/first_floating_webview"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:layout_marginTop="0dp"
+                            android:layout_marginBottom="0dp"
+                            android:layout_marginStart="0dp"
+                            android:layout_marginEnd="1dp"/>
+                    </LinearLayout>
+
+                    <!-- 第二个WebView容器 -->
+                    <LinearLayout
+                        android:layout_width="280dp"
+                        android:layout_height="600dp"
+                        android:orientation="vertical"
+                        android:layout_marginStart="1dp">
+
+                        <com.example.aifloatingball.ui.webview.CustomWebView
+                            android:id="@+id/second_floating_webview"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:layout_marginTop="0dp"
+                            android:layout_marginBottom="0dp"
+                            android:layout_marginStart="1dp"
+                            android:layout_marginEnd="1dp"/>
+                    </LinearLayout>
+
+                    <!-- 第三个WebView容器 -->
+                    <LinearLayout
+                        android:layout_width="280dp"
+                        android:layout_height="600dp"
+                        android:orientation="vertical"
+                        android:layout_marginStart="1dp">
+
+                        <com.example.aifloatingball.ui.webview.CustomWebView
+                            android:id="@+id/third_floating_webview"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:layout_marginTop="0dp"
+                            android:layout_marginBottom="0dp"
+                            android:layout_marginStart="1dp"
+                            android:layout_marginEnd="0dp"/>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.example.aifloatingball.ui.widget.LockableHorizontalScrollView>
+            
+        </ScrollView>
+
+    </FrameLayout>
+
+</LinearLayout>
