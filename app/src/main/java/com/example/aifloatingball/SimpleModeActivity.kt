@@ -22300,8 +22300,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 startAutoRecording()
             }
             
-            // 设置文本工具按钮点击事件 - 使用新的布局结构
-            findViewById<LinearLayout>(R.id.voice_capsule_clear_btn)?.parent?.let { parent ->
+            // 设置文本工具按钮点击事件 - 直接设置按钮的父容器点击事件
+            findViewById<ImageView>(R.id.voice_capsule_clear_btn)?.parent?.let { parent ->
                 if (parent is LinearLayout) {
                     parent.setOnClickListener {
                         clearText()
@@ -22735,11 +22735,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      */
     private fun clearText() {
         try {
-            voiceCapsuleTextInput?.setText("")
-            voiceTextInput.setText("")
-            Log.d(TAG, "文本已清空")
+            val currentText = voiceCapsuleTextInput?.text?.toString()?.trim()
+            if (!currentText.isNullOrEmpty()) {
+                voiceCapsuleTextInput?.setText("")
+                voiceTextInput.setText("")
+                Toast.makeText(this, "文本已清空", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "文本已清空")
+            } else {
+                Toast.makeText(this, "没有文本需要清空", Toast.LENGTH_SHORT).show()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "清空文本失败", e)
+            Toast.makeText(this, "清空失败", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -22753,10 +22760,14 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 val clip = android.content.ClipData.newPlainText("语音文本", text)
                 clipboard.setPrimaryClip(clip)
-                Log.d(TAG, "文本已复制到剪贴板")
+                Toast.makeText(this, "文本已复制到剪贴板", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "文本已复制到剪贴板: $text")
+            } else {
+                Toast.makeText(this, "没有文本可以复制", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, "复制文本失败", e)
+            Toast.makeText(this, "复制失败", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -22769,16 +22780,29 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             if (clipboard.hasPrimaryClip()) {
                 val clipData = clipboard.primaryClip
                 if (clipData != null && clipData.itemCount > 0) {
-                    val text = clipData.getItemAt(0).text.toString()
-                    val currentText = voiceCapsuleTextInput?.text?.toString() ?: ""
-                    val newText = if (currentText.isEmpty()) text else "$currentText\n$text"
-                    voiceCapsuleTextInput?.setText(newText)
-                    voiceCapsuleTextInput?.setSelection(newText.length)
-                    Log.d(TAG, "文本已粘贴")
+                    val text = clipData.getItemAt(0).text.toString().trim()
+                    if (text.isNotEmpty()) {
+                        val currentText = voiceCapsuleTextInput?.text?.toString() ?: ""
+                        val newText = if (currentText.isEmpty()) text else "$currentText\n$text"
+                        voiceCapsuleTextInput?.setText(newText)
+                        voiceCapsuleTextInput?.setSelection(newText.length)
+                        // 同步到原始输入框
+                        voiceTextInput.setText(newText)
+                        voiceTextInput.setSelection(newText.length)
+                        Toast.makeText(this, "文本已粘贴", Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, "文本已粘贴: $text")
+                    } else {
+                        Toast.makeText(this, "剪贴板内容为空", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(this, "剪贴板没有内容", Toast.LENGTH_SHORT).show()
                 }
+            } else {
+                Toast.makeText(this, "剪贴板没有内容", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, "粘贴文本失败", e)
+            Toast.makeText(this, "粘贴失败", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -22793,12 +22817,19 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     action = Intent.ACTION_SEND
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, text)
+                    putExtra(Intent.EXTRA_SUBJECT, "语音识别文本")
                 }
-                startActivity(Intent.createChooser(shareIntent, "分享文本"))
-                Log.d(TAG, "文本已分享")
+                val chooserIntent = Intent.createChooser(shareIntent, "分享文本")
+                chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(chooserIntent)
+                Toast.makeText(this, "正在分享文本...", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "文本已分享: $text")
+            } else {
+                Toast.makeText(this, "没有文本可以分享", Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
             Log.e(TAG, "分享文本失败", e)
+            Toast.makeText(this, "分享失败", Toast.LENGTH_SHORT).show()
         }
     }
     
