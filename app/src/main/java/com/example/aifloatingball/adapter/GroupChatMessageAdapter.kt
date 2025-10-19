@@ -57,6 +57,7 @@ class GroupChatMessageAdapter(
     interface OnMessageActionListener {
         fun onCopyMessage(message: GroupChatMessage)
         fun onRegenerateMessage(message: GroupChatMessage)
+        fun onTTSSpeak(message: GroupChatMessage)
         fun onCopyAIReply(message: GroupChatMessage, aiName: String, replyContent: String)
         fun onRegenerateAIReply(message: GroupChatMessage, aiName: String)
         fun onLikeAIReply(message: GroupChatMessage, aiName: String)
@@ -502,6 +503,7 @@ class GroupChatMessageAdapter(
         private val aiTime: TextView = itemView.findViewById(R.id.ai_message_time)
         private val copyButton: ImageButton = itemView.findViewById(R.id.btn_copy_message)
         private val regenerateButton: ImageButton = itemView.findViewById(R.id.btn_regenerate)
+        private val ttsSpeakButton: ImageButton = itemView.findViewById(R.id.btn_tts_speak)
 
         fun bind(message: GroupChatMessage) {
             // 显示单个AI消息容器，隐藏其他容器
@@ -537,6 +539,10 @@ class GroupChatMessageAdapter(
 
             regenerateButton.setOnClickListener {
                 actionListener?.onRegenerateMessage(message)
+            }
+            
+            ttsSpeakButton.setOnClickListener {
+                actionListener?.onTTSSpeak(message)
             }
         }
     }

@@ -142,6 +142,10 @@ import android.widget.Button
 import androidx.appcompat.app.AppCompatDelegate
 import android.provider.Settings
 import android.os.Build
+import com.example.aifloatingball.tts.TTSManager
+import com.example.aifloatingball.tts.TTSDiagnosticTool
+import com.example.aifloatingball.tts.TTSSupportLevel
+import com.example.aifloatingball.tts.TTSEngineInfo
 
 class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchViewListener, GroupChatDataChangeListener {
 
@@ -573,6 +577,13 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private lateinit var voiceInputManager: VoiceInputManager
     private var voiceSupportInfo: VoiceInputManager.VoiceSupportInfo? = null
     private val handler = Handler(Looper.getMainLooper())
+    
+    // TTS朗读相关
+    private lateinit var ttsManager: TTSManager
+    private var isTTSEnabled = false
+    
+    // 麦克风按钮模式：true为TTS朗读模式，false为语音输入模式
+    private var isMicInTTSMode = false
 
     // 语音提示分支管理器
     private lateinit var promptBranchManager: VoicePromptBranchManager
@@ -582,8 +593,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     private var isLongPress = false
     private val longPressRunnable = Runnable {
         isLongPress = true
-        // 显示提示分支界面
-        showPromptBranches()
+        // 长按开始，准备切换麦克风模式
+        // 实际的模式切换在ACTION_UP事件中处理
     }
 
     // 设置页面组件 - 扩展所有设置选项
@@ -680,6 +691,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         setupAIAssistantCenter()
         setupTaskSelection()
         setupChat()
+        
+        // 初始化TTS管理器
+        initializeTTS()
 
         // 注册API密钥同步广播接收器
         setupApiKeySyncReceiver()
@@ -1491,6 +1505,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         voiceSearchButton = findViewById(R.id.voice_search_button)
         voiceInteractionModeSwitch = findViewById(R.id.voice_interaction_mode_switch)
 
+        // TTS朗读按钮 - 使用麦克风按钮代替
+
         // 查找需要根据语音支持情况控制的UI元素
         voiceHintText = findViewById(R.id.voice_hint_text)
         voiceSettingsCard = findViewById(R.id.voice_settings_card)
@@ -1644,6 +1660,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 设置麦克风监听器
         setupVoiceMicListener()
+        
+        // 初始化麦克风按钮外观
+        updateMicButtonAppearance()
+        
+        // 调试：检查麦克风按钮状态
+        Log.d(TAG, "麦克风按钮初始化完成:")
+        Log.d(TAG, "  按钮可见性: ${voiceMicContainer.visibility}")
+        Log.d(TAG, "  按钮是否启用: ${voiceMicContainer.isEnabled}")
+        Log.d(TAG, "  当前模式: ${if (isMicInTTSMode) "TTS朗读" else "语音输入"}")
     }
 
     /**
@@ -1666,28 +1691,32 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun setupVoiceMicListener() {
+        Log.d(TAG, "设置麦克风按钮监听器")
+        
         // 麦克风按钮触摸监听，处理单击和长按
         voiceMicContainer.setOnTouchListener { _, event ->
+            Log.d(TAG, "麦克风按钮触摸事件: ${event.action}")
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    Log.d(TAG, "麦克风按钮按下")
                     isLongPress = false
                     longPressHandler.postDelayed(longPressRunnable, 500) // 500ms算长按
                     true // 消费事件
                 }
                 MotionEvent.ACTION_MOVE -> {
-                     if (isLongPress) {
-                        // 如果是长按模式，则将事件转发给分支管理器
-                        promptBranchManager.handleDragEvent(event)
-                    }
+                    // 长按模式切换不需要处理MOVE事件
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    Log.d(TAG, "麦克风按钮抬起 - isLongPress: $isLongPress")
                     longPressHandler.removeCallbacks(longPressRunnable)
                     if (isLongPress) {
-                        // 如果是长按模式，则将UP事件也转发，用于结束拖动
-                         promptBranchManager.handleDragEvent(event)
+                        // 长按：切换麦克风模式（语音输入/TTS朗读）
+                        Log.d(TAG, "检测到长按，切换模式")
+                        toggleMicMode()
                     } else {
-                        // 否则认为是单击
+                        // 单击：执行当前模式的功能
+                        Log.d(TAG, "检测到单击，执行当前模式功能")
                         toggleVoiceRecognition()
                     }
                     isLongPress = false
@@ -4891,20 +4920,59 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     private fun toggleVoiceRecognition() {
+        Log.d(TAG, "麦克风按钮被点击 - 当前模式: ${if (isMicInTTSMode) "TTS朗读" else "语音输入"}")
+        
         // 检查语音支持情况
         val supportInfo = voiceSupportInfo
         if (supportInfo == null) {
+            Log.w(TAG, "语音支持信息为空")
             voiceStatusText.text = "语音功能检测中，请稍后重试"
             return
         }
 
+        // 如果正在语音识别，先停止
         if (isListening) {
+            Log.d(TAG, "正在语音识别，停止识别")
             stopVoiceRecognition()
             return
         }
 
-        // 如果按钮可见，说明支持SpeechRecognizer，直接启动
+        // 如果当前是TTS朗读模式，执行朗读功能
+        if (isMicInTTSMode) {
+            Log.d(TAG, "执行TTS朗读功能")
+            performTTSReading()
+            return
+        }
+        
+        // 临时测试：如果TTS已启用，直接测试TTS功能
+        if (isTTSEnabled && ttsManager.isAvailable()) {
+            Log.d(TAG, "TTS功能可用，执行测试朗读")
+            val testText = "这是麦克风按钮TTS功能测试。如果您听到这段语音，说明TTS功能正常工作。"
+            voiceStatusText.text = "正在测试TTS功能..."
+            ttsManager.speak(testText, "mic_test_tts")
+            return
+        } else {
+            // TTS不可用，尝试强制初始化
+            Log.w(TAG, "TTS功能不可用，尝试强制初始化")
+            ttsManager.forceInitializeTTS()
+            
+            if (ttsManager.isAvailable()) {
+                Log.d(TAG, "TTS强制初始化成功，执行测试朗读")
+                val testText = "这是麦克风按钮TTS功能测试。如果您听到这段语音，说明TTS功能正常工作。"
+                voiceStatusText.text = "正在测试TTS功能..."
+                ttsManager.speak(testText, "mic_test_tts")
+                return
+            } else {
+                Log.w(TAG, "TTS强制初始化失败")
+                voiceStatusText.text = "TTS功能不可用，请检查系统设置"
+                Toast.makeText(this, "TTS功能不可用，请检查系统设置", Toast.LENGTH_SHORT).show()
+                return
+            }
+        }
+
+        // 如果按钮可见，说明支持SpeechRecognizer，直接启动语音识别
         if (supportInfo.isSupported) {
+            Log.d(TAG, "启动语音识别")
             startVoiceRecognition()
         } else {
             // 这种情况不应该发生，因为按钮已经隐藏了
@@ -5523,6 +5591,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
 
         // 清理搜索tab手势遮罩区
         deactivateSearchTabGestureOverlay()
+
+        // 释放TTS资源
+        if (::ttsManager.isInitialized) {
+            ttsManager.release()
+        }
 
         Log.d(TAG, "Activity销毁完成")
     }
@@ -9293,12 +9366,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                         runOnUiThread {
                             val formattedResponse = formatAIResponseWithPlatformIcons(response, query)
                             updateContactLastMessage(aiContact, formattedResponse)
+                            
+                            // 自动朗读AI回复
+                            speakAIResponse(response)
                         }
                     } else {
                         // 没有API密钥，使用模拟回复
                         val mockResponse = generateMockResponse(aiContact.name, query)
                         runOnUiThread {
                             updateContactLastMessage(aiContact, mockResponse)
+                            
+                            // 自动朗读AI回复
+                            speakAIResponse(mockResponse)
                         }
                     }
                 } else {
@@ -9306,6 +9385,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     val mockResponse = generateMockResponse(aiContact.name, query)
                     runOnUiThread {
                         updateContactLastMessage(aiContact, mockResponse)
+                        
+                        // 自动朗读AI回复
+                        speakAIResponse(mockResponse)
                     }
                 }
 
@@ -9315,6 +9397,9 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val mockResponse = "抱歉，我暂时无法回答您的问题。请稍后再试或检查网络连接。"
                 runOnUiThread {
                     updateContactLastMessage(aiContact, mockResponse)
+                    
+                    // 自动朗读AI回复
+                    speakAIResponse(mockResponse)
                 }
             }
         }
@@ -23572,5 +23657,424 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
             Log.e(TAG, "退出胶囊模式失败", e)
         }
     }
+    
+    // ==================== TTS朗读功能 ====================
+    
+    /**
+     * 初始化TTS管理器
+     */
+    private fun initializeTTS() {
+        try {
+            // 初始化TTS管理器
+            ttsManager = TTSManager.getInstance(this)
+            ttsManager.setStatusListener(object : TTSManager.TTSStatusListener {
+                override fun onInitialized() {
+                    Log.d(TAG, "TTS引擎初始化完成")
+                }
+                override fun onStart(utteranceId: String?) {
+                    Log.d(TAG, "TTS开始朗读: $utteranceId")
+                }
+                override fun onComplete(utteranceId: String?) {
+                    Log.d(TAG, "TTS朗读完成: $utteranceId")
+                    runOnUiThread {
+                        // 如果是麦克风TTS朗读完成，恢复按钮状态
+                        if (utteranceId == "mic_tts_reading") {
+                            voiceStatusText.text = if (isMicInTTSMode) "TTS朗读模式 - 点击朗读AI回复" else "点击麦克风开始语音输入"
+                            voiceMicContainer.setCardBackgroundColor(
+                                if (isMicInTTSMode) 
+                                    ContextCompat.getColor(this@SimpleModeActivity, android.R.color.holo_blue_light)
+                                else 
+                                    ContextCompat.getColor(this@SimpleModeActivity, R.color.simple_mode_accent_light)
+                            )
+                        }
+                    }
+                }
+                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    Log.d(TAG, "TTS朗读停止: $utteranceId, 被中断: $interrupted")
+                }
+                override fun onError(error: String) {
+                    Log.e(TAG, "TTS错误: $error")
+                    runOnUiThread {
+                        // 显示TTS错误对话框
+                        showSimpleModeTTSErrorDialog(error)
+                    }
+                }
+                override fun onSupportLevelChanged(supportLevel: TTSSupportLevel, engineInfo: TTSEngineInfo?) {
+                    Log.d(TAG, "TTS支持级别变化: $supportLevel")
+                    runOnUiThread {
+                        if (supportLevel == TTSSupportLevel.NO_SUPPORT || 
+                            supportLevel == TTSSupportLevel.ENGINE_UNAVAILABLE) {
+                            showSimpleModeTTSNotSupportedDialog(supportLevel, engineInfo)
+                        }
+                    }
+                }
+            })
+            
+            // 检查TTS支持
+            if (!ttsManager.isTTSSupported()) {
+                Log.w(TAG, "设备不支持TTS功能")
+                Toast.makeText(this, "设备不支持朗读功能", Toast.LENGTH_LONG).show()
+            } else {
+                // 默认启用TTS功能
+                isTTSEnabled = true
+                ttsManager.setEnabled(true)
+                Log.d(TAG, "TTS功能已默认启用")
+            }
+            
+            // 强制启用TTS功能用于测试
+            if (!isTTSEnabled) {
+                Log.w(TAG, "强制启用TTS功能用于测试")
+                isTTSEnabled = true
+                ttsManager.setEnabled(true)
+            }
+            
+            // 强制初始化TTS，确保TTS可用
+            ttsManager.forceInitializeTTS()
+            
+            // 调试：检查TTS状态
+            Log.d(TAG, "TTS初始化完成:")
+            Log.d(TAG, "  TTS是否支持: ${ttsManager.isTTSSupported()}")
+            Log.d(TAG, "  TTS是否可用: ${ttsManager.isAvailable()}")
+            Log.d(TAG, "  TTS是否启用: $isTTSEnabled")
+            
+            Log.d(TAG, "TTS管理器初始化完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "初始化TTS管理器失败", e)
+        }
+    }
+    
+    
+    /**
+     * 显示SimpleMode TTS错误对话框
+     */
+    private fun showSimpleModeTTSErrorDialog(error: String) {
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("朗读功能错误")
+        builder.setMessage("朗读时发生错误：$error\n\n是否要打开TTS设置？")
+        builder.setPositiveButton("打开设置") { _, _ ->
+            ttsManager.openTTSSettings()
+        }
+        builder.setNegativeButton("取消", null)
+        builder.show()
+    }
+    
+    
+    /**
+     * 执行TTS诊断
+     */
+    private fun performTTSDiagnostic() {
+        try {
+            val diagnosticTool = TTSDiagnosticTool(this)
+            val result = diagnosticTool.performFullDiagnostic()
+            
+            val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+            builder.setTitle("TTS诊断结果")
+            builder.setMessage(result.getSummary())
+            builder.setPositiveButton("打开设置") { _, _ ->
+                diagnosticTool.openTTSSettings()
+            }
+            builder.setNegativeButton("关闭", null)
+            builder.show()
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "TTS诊断失败", e)
+            Toast.makeText(this, "TTS诊断失败: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    /**
+     * 显示SimpleMode TTS不支持对话框
+     */
+    private fun showSimpleModeTTSNotSupportedDialog(supportLevel: TTSSupportLevel, engineInfo: TTSEngineInfo?) {
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("朗读功能不可用")
+        
+        val message = when (supportLevel) {
+            TTSSupportLevel.NO_SUPPORT -> "设备不支持TTS功能\n\n解决方案：\n1. 检查系统设置中的TTS选项\n2. 安装TTS引擎（如Google TTS）\n3. 确保系统语言包已安装"
+            TTSSupportLevel.ENGINE_UNAVAILABLE -> "TTS引擎不可用\n\n解决方案：\n1. 在设置中启用TTS功能\n2. 安装TTS引擎\n3. 重启应用"
+            TTSSupportLevel.PERMISSION_DENIED -> "TTS权限被拒绝\n\n解决方案：\n1. 在系统设置中允许TTS权限\n2. 检查无障碍服务设置"
+            else -> "TTS功能不可用\n\n请检查系统设置"
+        }
+        
+        val engineInfoText = engineInfo?.let { 
+            "\n\n当前引擎：${it.engineName}\n支持中文：${it.hasChineseSupport}\n支持英文：${it.hasEnglishSupport}"
+        } ?: ""
+        
+        builder.setMessage("$message$engineInfoText\n\n请选择解决方案：")
+        builder.setPositiveButton("打开设置") { _, _ ->
+            ttsManager.openTTSSettings()
+        }
+        builder.setNeutralButton("重试检测") { _, _ ->
+            // 重新检测TTS支持
+            ttsManager.reinitializeTTS()
+        }
+        builder.setNegativeButton("重新检测") { _, _ ->
+            // 重新检测TTS支持
+            ttsManager.reinitializeTTS()
+            Toast.makeText(this@SimpleModeActivity, "正在重新检测TTS支持", Toast.LENGTH_SHORT).show()
+        }
+        builder.show()
+    }
+    
+    /**
+     * 朗读AI回复内容
+     */
+    private fun speakAIResponse(content: String) {
+        if (!isTTSEnabled || !ttsManager.isAvailable()) {
+            return
+        }
+        
+        try {
+            Log.d(TAG, "开始朗读AI回复: ${content.take(50)}...")
+            ttsManager.speak(content, "simple_mode_ai_response")
+        } catch (e: Exception) {
+            Log.e(TAG, "朗读AI回复失败", e)
+        }
+    }
+    
+    /**
+     * 执行TTS朗读功能 - 读取所有AI的最新回复
+     */
+    private fun performTTSReading() {
+        try {
+            Log.d(TAG, "开始执行TTS朗读 - isTTSEnabled: $isTTSEnabled, ttsManager.isAvailable(): ${ttsManager.isAvailable()}")
+            
+            if (!isTTSEnabled || !ttsManager.isAvailable()) {
+                Log.w(TAG, "TTS功能不可用 - isTTSEnabled: $isTTSEnabled, isAvailable: ${ttsManager.isAvailable()}")
+                voiceStatusText.text = "TTS功能不可用，请检查设置"
+                Toast.makeText(this, "TTS功能不可用，请检查设置", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // 获取所有AI的最新回复
+            val aiNames = listOf("DeepSeek", "Kimi", "智谱AI", "ChatGPT", "Claude", "Gemini")
+            val latestResponses = mutableListOf<String>()
+            
+            val chatDataManager = com.example.aifloatingball.data.ChatDataManager.getInstance(this)
+            
+            aiNames.forEach { aiName ->
+                val serviceType = getAIServiceTypeFromName(aiName)
+                if (serviceType != null) {
+                    val processedName = if (aiName.contains(Regex("[\\u4e00-\\u9fff]"))) {
+                        aiName
+                    } else {
+                        aiName.lowercase()
+                    }
+                    val contactId = "ai_${processedName.replace(" ", "_")}"
+                    
+                    val messages = chatDataManager.getMessages(contactId, serviceType)
+                    if (messages.isNotEmpty()) {
+                        val lastMessage = messages.last()
+                        if (lastMessage.role == "assistant") {
+                            latestResponses.add("$aiName 的回复：${lastMessage.content}")
+                        }
+                    }
+                }
+            }
+            
+            if (latestResponses.isEmpty()) {
+                // 如果没有AI回复，使用测试文本
+                Log.d(TAG, "没有找到AI回复，使用测试文本")
+                val testText = "这是TTS朗读功能测试。如果您听到这段语音，说明TTS功能正常工作。"
+                voiceStatusText.text = "正在朗读测试文本..."
+                voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
+                
+                Log.d(TAG, "开始朗读测试文本")
+                ttsManager.speak(testText, "mic_tts_reading")
+                return
+            }
+            
+            // 合并所有回复
+            val combinedText = latestResponses.joinToString("\n\n")
+            
+            // 更新UI状态
+            voiceStatusText.text = "正在朗读AI回复..."
+            voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
+            
+            // 开始朗读
+            Log.d(TAG, "开始朗读所有AI回复，共${latestResponses.size}条")
+            ttsManager.speak(combinedText, "mic_tts_reading")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "执行TTS朗读失败", e)
+            voiceStatusText.text = "朗读失败，请重试"
+            Toast.makeText(this, "朗读失败：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    /**
+     * 切换麦克风按钮模式（语音输入/TTS朗读）
+     */
+    private fun toggleMicMode() {
+        Log.d(TAG, "麦克风按钮长按 - 切换模式")
+        isMicInTTSMode = !isMicInTTSMode
+        updateMicButtonAppearance()
+        
+        val modeText = if (isMicInTTSMode) "TTS朗读模式" else "语音输入模式"
+        voiceStatusText.text = "已切换到$modeText"
+        Toast.makeText(this, "麦克风按钮：$modeText", Toast.LENGTH_SHORT).show()
+        
+        Log.d(TAG, "麦克风按钮模式切换为：$modeText")
+    }
+    
+    /**
+     * 更新麦克风按钮外观
+     */
+    private fun updateMicButtonAppearance() {
+        if (isMicInTTSMode) {
+            // TTS朗读模式 - 显示扬声器图标
+            voiceMicIcon.setImageResource(android.R.drawable.ic_btn_speak_now)
+            voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_light))
+        } else {
+            // 语音输入模式 - 显示麦克风图标
+            voiceMicIcon.setImageResource(R.drawable.ic_mic)
+            voiceMicContainer.setCardBackgroundColor(ContextCompat.getColor(this, R.color.simple_mode_accent_light))
+        }
+    }
+    
+    /**
+     * 停止TTS朗读
+     */
+    private fun stopTTS() {
+        try {
+            ttsManager.stop()
+            Log.d(TAG, "停止TTS朗读")
+        } catch (e: Exception) {
+            Log.e(TAG, "停止TTS朗读失败", e)
+        }
+    }
+    
+    /**
+     * 显示TTS设置对话框
+     */
+    private fun showSimpleModeTTSSettingsDialog() {
+        if (!ttsManager.isTTSSupported()) {
+            Toast.makeText(this, "设备不支持朗读功能", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // 创建对话框内容
+        val scrollView = ScrollView(this)
+        val mainLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
+        }
+        
+        // 语音速度调节
+        val speedText = TextView(this).apply {
+            text = "语音速度: ${String.format("%.1f", ttsManager.getSpeechRate())}x"
+            textSize = 16f
+            setPadding(0, 0, 0, 16)
+        }
+        
+        val speedSeekBar = SeekBar(this).apply {
+            max = 29 // 0.1 to 3.0 in 0.1 increments
+            progress = ((ttsManager.getSpeechRate() - 0.1f) * 10).toInt()
+            setPadding(0, 0, 0, 32)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val speed = 0.1f + progress * 0.1f
+                    ttsManager.setSpeechRate(speed)
+                    speedText.text = "语音速度: ${String.format("%.1f", speed)}x"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        
+        // 语音音调调节
+        val pitchText = TextView(this).apply {
+            text = "语音音调: ${String.format("%.1f", ttsManager.getPitch())}"
+            textSize = 16f
+            setPadding(0, 0, 0, 16)
+        }
+        
+        val pitchSeekBar = SeekBar(this).apply {
+            max = 19 // 0.1 to 2.0 in 0.1 increments
+            progress = ((ttsManager.getPitch() - 0.1f) * 10).toInt()
+            setPadding(0, 0, 0, 32)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val pitch = 0.1f + progress * 0.1f
+                    ttsManager.setPitch(pitch)
+                    pitchText.text = "语音音调: ${String.format("%.1f", pitch)}"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        
+        // 语音音量调节
+        val volumeText = TextView(this).apply {
+            text = "语音音量: ${String.format("%.0f", ttsManager.getVolume() * 100)}%"
+            textSize = 16f
+            setPadding(0, 0, 0, 16)
+        }
+        
+        val volumeSeekBar = SeekBar(this).apply {
+            max = 100 // 0.0 to 1.0 in 0.01 increments
+            progress = (ttsManager.getVolume() * 100).toInt()
+            setPadding(0, 0, 0, 32)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val volume = progress / 100.0f
+                    ttsManager.setVolume(volume)
+                    volumeText.text = "语音音量: ${String.format("%.0f", volume * 100)}%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        
+        // 按钮布局
+        val buttonLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        
+        val testButton = Button(this).apply {
+            text = "测试语音"
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                setMargins(0, 0, 16, 0)
+            }
+            setOnClickListener {
+                val testText = "这是语音测试，您可以听到当前的语音设置效果。"
+                ttsManager.speak(testText, "simple_mode_tts_test")
+            }
+        }
+        
+        val stopButton = Button(this).apply {
+            text = "停止朗读"
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                setMargins(16, 0, 0, 0)
+            }
+            setOnClickListener {
+                ttsManager.stop()
+            }
+        }
+        
+        // 添加所有组件
+        mainLayout.addView(speedText)
+        mainLayout.addView(speedSeekBar)
+        mainLayout.addView(pitchText)
+        mainLayout.addView(pitchSeekBar)
+        mainLayout.addView(volumeText)
+        mainLayout.addView(volumeSeekBar)
+        
+        buttonLayout.addView(testButton)
+        buttonLayout.addView(stopButton)
+        mainLayout.addView(buttonLayout)
+        
+        scrollView.addView(mainLayout)
+        
+        // 创建对话框
+        AlertDialog.Builder(this)
+            .setTitle("朗读设置")
+            .setView(scrollView)
+            .setPositiveButton("确定", null)
+            .setNegativeButton("取消", null)
+            .show()
+    }
+    
 
 }

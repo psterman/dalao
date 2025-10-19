@@ -34,6 +34,7 @@ class AdaptiveChatMessageAdapter(
     interface OnMessageActionListener {
         fun onCopyMessage(message: ChatMessage)
         fun onRegenerateMessage(message: ChatMessage)
+        fun onTTSSpeak(message: ChatMessage)
     }
     
     private var actionListener: OnMessageActionListener? = null
@@ -115,6 +116,7 @@ class AdaptiveChatMessageAdapter(
         private val aiTime: TextView = itemView.findViewById(R.id.ai_message_time)
         private val copyButton: ImageButton = itemView.findViewById(R.id.btn_copy_message)
         private val regenerateButton: ImageButton = itemView.findViewById(R.id.btn_regenerate)
+        private val ttsSpeakButton: ImageButton = itemView.findViewById(R.id.btn_tts_speak)
 
         fun bind(message: ChatMessage) {
             val layoutMode = layoutManager.getCurrentLayoutMode()
@@ -217,6 +219,10 @@ class AdaptiveChatMessageAdapter(
             
             regenerateButton.setOnClickListener {
                 actionListener?.onRegenerateMessage(message)
+            }
+            
+            ttsSpeakButton.setOnClickListener {
+                actionListener?.onTTSSpeak(message)
             }
         }
         

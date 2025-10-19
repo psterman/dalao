@@ -200,6 +200,17 @@
                     android:contentDescription="重新生成"
                     android:padding="4dp" />
 
+                <ImageButton
+                    android:id="@+id/btn_tts_speak"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="8dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_btn_speak_now"
+                    android:tint="@color/material_chat_timestamp_light"
+                    android:contentDescription="朗读消息"
+                    android:padding="4dp" />
+
             </LinearLayout>
 
         </LinearLayout>

@@ -178,6 +178,17 @@
                 android:tint="#4CAF50"
                 android:contentDescription="加载默认画像" />
 
+            <!-- TTS朗读开关按钮 -->
+            <ImageButton
+                android:id="@+id/tts_toggle_button"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginEnd="6dp"
+                android:src="@android:drawable/ic_btn_speak_now"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="#4CAF50"
+                android:contentDescription="朗读开关" />
+
             <!-- 设置按钮（移到最右边） -->
             <ImageButton
                 android:id="@+id/settings_button"

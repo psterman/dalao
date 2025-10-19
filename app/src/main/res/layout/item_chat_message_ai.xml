@@ -82,6 +82,17 @@
                 android:fontFamily="sans-serif"
                 android:visibility="gone" />
 
+            <ImageButton
+                android:id="@+id/btn_tts_speak"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_btn_speak_now"
+                android:tint="@color/material_wechat_primary"
+                android:contentDescription="朗读消息"
+                android:padding="4dp" />
+
         </LinearLayout>
 
     </LinearLayout>

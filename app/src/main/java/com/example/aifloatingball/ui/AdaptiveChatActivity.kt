@@ -101,6 +101,11 @@ class AdaptiveChatActivity : AppCompatActivity() {
                 android.widget.Toast.makeText(this@AdaptiveChatActivity, "正在重新生成...", android.widget.Toast.LENGTH_SHORT).show()
                 // 这里可以添加重新生成逻辑
             }
+            
+            override fun onTTSSpeak(message: ChatMessage) {
+                // TTS朗读消息
+                android.widget.Toast.makeText(this@AdaptiveChatActivity, "TTS朗读功能待实现", android.widget.Toast.LENGTH_SHORT).show()
+            }
         })
     }
     

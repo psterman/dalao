@@ -21,7 +21,8 @@ class ChatMessageAdapter(
     private val context: android.content.Context,
     private var messages: List<ChatActivity.ChatMessage> = emptyList(),
     private val onMessageLongClick: ((ChatActivity.ChatMessage, Int) -> Unit)? = null,
-    private val onRegenerateClick: ((ChatActivity.ChatMessage, Int) -> Unit)? = null
+    private val onRegenerateClick: ((ChatActivity.ChatMessage, Int) -> Unit)? = null,
+    private val onTTSSpeak: ((ChatActivity.ChatMessage, Int) -> Unit)? = null
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     
     // 高级Markdown渲染器
@@ -51,7 +52,7 @@ class ChatMessageAdapter(
             TYPE_AI_MESSAGE -> {
                 val view = LayoutInflater.from(parent.context)
                     .inflate(R.layout.item_chat_message_ai, parent, false)
-                AIMessageViewHolder(view, onMessageLongClick, onRegenerateClick, advancedMarkdownRenderer)
+                AIMessageViewHolder(view, onMessageLongClick, onRegenerateClick, onTTSSpeak, advancedMarkdownRenderer)
             }
             else -> throw IllegalArgumentException("Unknown view type: $viewType")
         }
@@ -136,12 +137,14 @@ class ChatMessageAdapter(
         itemView: View,
         private val onMessageLongClick: ((ChatActivity.ChatMessage, Int) -> Unit)?,
         private val onRegenerateClick: ((ChatActivity.ChatMessage, Int) -> Unit)?,
+        private val onTTSSpeak: ((ChatActivity.ChatMessage, Int) -> Unit)?,
         private val advancedMarkdownRenderer: AdvancedMarkdownRenderer
     ) : RecyclerView.ViewHolder(itemView) {
         private val messageText: TextView = itemView.findViewById(R.id.message_text)
         private val timeText: TextView = itemView.findViewById(R.id.time_text)
         private val messageCard: com.google.android.material.card.MaterialCardView = itemView.findViewById(R.id.message_card)
         private val regenerateButton: TextView = itemView.findViewById(R.id.regenerate_button)
+        private val ttsSpeakButton: android.widget.ImageButton = itemView.findViewById(R.id.btn_tts_speak)
         private val platformIconsContainer: LinearLayout = itemView.findViewById(R.id.platform_icons_container)
 
         fun bind(message: ChatActivity.ChatMessage, position: Int) {
@@ -179,6 +182,11 @@ class ChatMessageAdapter(
             // 设置重新生成按钮
             regenerateButton.setOnClickListener {
                 onRegenerateClick?.invoke(message, position)
+            }
+            
+            // 设置TTS朗读按钮
+            ttsSpeakButton.setOnClickListener {
+                onTTSSpeak?.invoke(message, position)
             }
             
             // 只有AI消息且不是用户消息时才显示重新生成按钮

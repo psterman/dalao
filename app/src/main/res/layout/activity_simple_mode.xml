@@ -54,6 +54,18 @@
 
             </androidx.cardview.widget.CardView>
 
+            <!-- TTS朗读开关按钮 -->
+            <ImageButton
+                android:id="@+id/simple_mode_tts_toggle_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_btn_speak_now"
+                android:contentDescription="朗读开关"
+                android:scaleType="fitCenter"
+                app:tint="@color/chat_add_button_light" />
+
             <!-- AI助手按钮 -->
             <ImageButton
                 android:id="@+id/chat_ai_assistant_button"
