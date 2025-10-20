@@ -101,6 +101,11 @@ class SearchActivity : AppCompatActivity() {
     private var gestureHintHandler = Handler(Looper.getMainLooper())
     private var lastGestureHintRunnable: Runnable? = null
     
+    // 自维护的URL历史栈，保证在WebView历史缺失时仍可回退
+    private val urlBackStack: ArrayDeque<String> = ArrayDeque()
+    // 标识是否正在通过自维护历史恢复，避免在onPageFinished再次入栈
+    private var isRestoringFromHistory = false
+    
     // 手势状态追踪
     private var lastTapTime = 0L
     private var lastTapCount = 0
@@ -381,31 +386,15 @@ class SearchActivity : AppCompatActivity() {
                 // 检测水平滑动
                 if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(velocityX) > 1000) {
                     if (distanceX > 0) {
-                        // 右滑回退逻辑，与onBackPressed保持一致
-                        when {
-                            webView.canGoBack() -> {
-                                showGestureHint("返回上一页")
-                                webView.goBack()
-                                return true
-                            }
-                            else -> {
-                                val currentUrl = webView.url
-                                val isSearchEngineHomepage = currentSearchEngine?.let { engine ->
-                                    currentUrl?.startsWith(engine.url) == true && currentUrl == engine.url
-                                } ?: false
-                                
-                                if (isSearchEngineHomepage) {
-                                    showGestureHint("退出搜索")
-                                    // 在搜索引擎首页，直接退出
-                                    finish()
-                                    return true
-                                } else {
-                                    showGestureHint("回到搜索引擎首页")
-                                    loadSearchEngineHomepage()
-                                    return true
-                                }
-                            }
+                        // 右滑回退：统一使用handleBackNavigation，确保返回上一浏览界面
+                        val handled = handleBackNavigation()
+                        if (handled) {
+                            showGestureHint("返回上一页")
+                            return true
                         }
+                        // 无可回退时交给默认：结束当前Activity（不跳转主页）
+                        finish()
+                        return true
                     } else if (distanceX < 0 && webView.canGoForward()) {
                         showGestureHint("前进下一页")
                         webView.goForward()
@@ -559,7 +548,7 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun setupBasicClickListeners() {
-        // 设置菜单按钮点击事件
+        // 设置菜单按钮点击事件：恢复为抽屉开关
         menuButton.setOnClickListener {
             val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
             if (isLeftHanded) {
@@ -587,54 +576,49 @@ class SearchActivity : AppCompatActivity() {
             openDownloadManager()
         }
         
-        // 添加悬浮窗模式按钮
-        val floatingModeButton = findViewById<ImageButton>(R.id.btn_floating_mode)
-        if (floatingModeButton != null) {
-            floatingModeButton.setOnClickListener {
-                toggleFloatingMode()
-            }
-        }
+        // 移除原有的悬浮窗模式按钮绑定（如果存在则不再启用）
     }
 
     private fun toggleFloatingMode() {
-        // 简化权限检查，没有权限时直接返回
-        if (!Settings.canDrawOverlays(this)) {
-            Log.w("SearchActivity", "No overlay permission, cannot toggle floating mode")
-            return
-        }
+        // 已弃用：由 activateMultiCardFloatingBackground 取代
+    }
 
-        // 有权限，启动悬浮窗服务
-        val intent = Intent(this, DualFloatingWebViewService::class.java)
-        
-        // 获取当前URL
-        val currentUrl = webView.url
-        if (currentUrl != null && currentUrl != "about:blank") {
-            intent.putExtra("url", currentUrl)
-        } else {
-            // 如果没有当前URL，使用当前搜索引擎
-            currentSearchEngine?.let { engine ->
-                val query = searchInput.text.toString().trim()
-                if (query.isEmpty()) {
-                    // 如果没有查询文本，直接打开搜索引擎主页
-                    intent.putExtra("url", engine.url.replace("{query}", "").replace("search?q=", "")
-                        .replace("search?query=", "")
-                        .replace("search?word=", "")
-                        .replace("s?wd=", ""))
-                } else {
-                    // 有查询文本，使用搜索引擎进行搜索
-                    val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-                    val searchUrl = engine.url.replace("{query}", encodedQuery)
-                    intent.putExtra("search_url", searchUrl as String)
+    // 激活多卡片悬浮后台系统：默认从当前URL或当前搜索引擎生成
+    private fun activateMultiCardFloatingBackground() {
+        try {
+            if (!Settings.canDrawOverlays(this)) {
+                Toast.makeText(this, "缺少悬浮窗权限", Toast.LENGTH_SHORT).show()
+                Log.w("SearchActivity", "No overlay permission, cannot start multi-card floating background")
+                return
+            }
+
+            val intent = Intent(this, DualFloatingWebViewService::class.java)
+
+            val currentUrl = webView.url
+            if (!currentUrl.isNullOrEmpty() && currentUrl != "about:blank") {
+                intent.putExtra("url", currentUrl)
+            } else {
+                currentSearchEngine?.let { engine ->
+                    val query = searchInput.text.toString().trim()
+                    if (query.isEmpty()) {
+                        val base = engine.url.replace("{query}", "")
+                        intent.putExtra("url", base)
+                    } else {
+                        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+                        val searchUrl = engine.url.replace("{query}", encodedQuery)
+                        intent.putExtra("url", searchUrl)
+                    }
                 }
             }
+
+            val windowCount = settingsManager.getDefaultWindowCount()
+            intent.putExtra("window_count", windowCount)
+
+            startService(intent)
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "启动多卡片悬浮后台失败", e)
+            Toast.makeText(this, "启动悬浮后台失败", Toast.LENGTH_SHORT).show()
         }
-        
-        // 获取用户设置的窗口数量
-        val windowCount = settingsManager.getDefaultWindowCount()
-        intent.putExtra("window_count", windowCount)
-        
-        startService(intent)
-        finish() // 关闭当前Activity
     }
 
     private fun setupWebView() {
@@ -709,6 +693,21 @@ class SearchActivity : AppCompatActivity() {
                 
                 // 更新搜索框显示当前URL
                 updateSearchBoxWithCurrentUrl(url)
+                
+                // 维护自定义历史栈
+                try {
+                    if (!isRestoringFromHistory && url != null && url.isNotEmpty()) {
+                        val last = if (urlBackStack.isEmpty()) null else urlBackStack.last()
+                        if (last == null || last != url) {
+                            urlBackStack.addLast(url)
+                            Log.d("SearchActivity", "历史入栈: $url (size=${urlBackStack.size})")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("SearchActivity", "维护自定义历史栈失败", e)
+                } finally {
+                    isRestoringFromHistory = false
+                }
                 
                 // 注入viewport meta标签确保移动版显示
                 view?.evaluateJavascript("""
@@ -1256,29 +1255,8 @@ class SearchActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        when {
-            // 如果WebView可以回退，则回退
-            webView.canGoBack() -> {
-                webView.goBack()
-                Log.d("SearchActivity", "WebView回退到上一页")
-            }
-            // 如果WebView不能回退，检查是否在搜索引擎首页
-            else -> {
-                val currentUrl = webView.url
-                val isSearchEngineHomepage = currentSearchEngine?.let { engine ->
-                    currentUrl?.startsWith(engine.url) == true && currentUrl == engine.url
-                } ?: false
-                
-                if (isSearchEngineHomepage) {
-                    // 在搜索引擎首页，直接退出
-                    Log.d("SearchActivity", "在搜索引擎首页，退出SearchActivity")
-                    super.onBackPressed()
-                } else {
-                    // 不在搜索引擎首页，回到搜索引擎首页
-                    loadSearchEngineHomepage()
-                    Log.d("SearchActivity", "回到搜索引擎首页")
-                }
-            }
+        if (!handleBackNavigation()) {
+            super.onBackPressed()
         }
     }
     
@@ -2330,5 +2308,33 @@ class SearchActivity : AppCompatActivity() {
         activeDownloadCount = 0
         updateDownloadIndicator()
         Log.d("SearchActivity", "重置下载计数")
+    }
+    
+    // 统一处理返回逻辑：优先WebView历史；否则使用自维护栈；最后返回false
+    private fun handleBackNavigation(): Boolean {
+        return try {
+            if (webView.canGoBack()) {
+                webView.goBack()
+                Log.d("SearchActivity", "使用WebView历史回退")
+                true
+            } else if (urlBackStack.size >= 2) {
+                // 弹出当前页，回到上一历史URL
+                urlBackStack.removeLast()
+                val previous = if (urlBackStack.isEmpty()) null else urlBackStack.last()
+                if (!previous.isNullOrEmpty()) {
+                    isRestoringFromHistory = true
+                    webView.loadUrl(previous)
+                    Log.d("SearchActivity", "使用自定义历史回退到: $previous")
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            Log.e("SearchActivity", "handleBackNavigation发生异常", e)
+            false
+        }
     }
 } 

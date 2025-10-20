@@ -4112,10 +4112,10 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                     deactivateStackedCardPreview()
                     showBrowser()
 
-                    // 单击搜索tab时，如果遮罩层已激活，则激活多卡片系统
+                    // 单击搜索tab时，如果遮罩层已激活，则退出遮罩层
                     if (isSearchTabGestureOverlayActive) {
-                        Log.d(TAG, "遮罩层已激活，激活多卡片系统")
-                        activateStackedCardPreview()
+                        Log.d(TAG, "遮罩层已激活，退出遮罩层")
+                        deactivateSearchTabGestureOverlay()
                     } else {
                         Log.d(TAG, "遮罩层未激活，正常切换到搜索tab")
                     }
@@ -6641,10 +6641,12 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
      * 设置浏览器按钮监听器
      */
     private fun setupBrowserButtons() {
-        // 卡片预览按钮 - 显示所有打开的页面卡片（原返回按钮）
-        browserBtnClose.setOnClickListener {
-            showCardPreviewDialog() // 短按显示卡片预览
-        }
+		// 卡片预览按钮（左上角九宫格）- 激活搜索tab的悬浮卡片系统
+		browserBtnClose.setOnClickListener {
+			Log.d(TAG, "左上角九宫格被点击，激活搜索tab的悬浮卡片系统")
+			// 调用搜索tab的层叠卡片预览激活方法
+			activateStackedCardPreview()
+		}
 
         // 设置长按监听器 - 保留返回功能
         browserBtnClose.setOnLongClickListener {
@@ -6999,20 +7001,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
         Log.d(TAG, "卡片预览覆盖层已添加到根布局")
 
         // 设置卡片预览按钮点击事件
-        browserPreviewCardsButton.setOnClickListener {
-            Log.d(TAG, "左上角卡片预览按钮被点击")
-
-            // 先强制同步所有卡片系统数据
-            syncAllCardSystems()
-
-            // 先隐藏其他覆盖层
-            hideAllOverlays()
-
-            // 延迟显示卡片预览，确保其他覆盖层完全隐藏
-            browserLayout.postDelayed({
-                showCardPreview()
-            }, 100)
-        }
+		browserPreviewCardsButton.setOnClickListener {
+			// 需求变更：点击九宫格按钮不再激活后台卡片预览
+			Log.d(TAG, "左上角九宫格按钮被点击，但不触发卡片预览")
+			// 可在此放置其它期望行为，例如打开菜单或忽略点击
+		}
 
         // 设置卡片预览覆盖层监听器
         cardPreviewOverlay.setOnCardClickListener(object : CardPreviewOverlay.OnCardClickListener {
@@ -17758,57 +17751,8 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 } ?: false
             }
 
-            // 只有当前已经在搜索tab且点击的是搜索tab时，才显示层叠卡片预览效果
-            if (isSearchTab && isCurrentlyInSearchTab) {
-                // 搜索tab - 显示层叠卡片预览效果
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        // 显示层叠卡片预览器，但确保不阻挡底部导航栏
-                        stackedCardPreview?.apply {
-                            visibility = View.VISIBLE
-                            // 强制设置为不可交互
-                            isClickable = false
-                            isFocusable = false
-                            isFocusableInTouchMode = false
-                            isEnabled = false
-                            // 确保触摸事件穿透
-                            setOnTouchListener { _, _ -> false }
-                        }
-
-                        // 将触摸坐标转换为层叠卡片预览器的坐标系
-                        val location = IntArray(2)
-                        view.getLocationOnScreen(location)
-                        val stackedLocation = IntArray(2)
-                        stackedCardPreview?.getLocationOnScreen(stackedLocation)
-
-                        val relativeX = location[0] - stackedLocation[0] + event.x
-                        val relativeY = location[1] - stackedLocation[1] + event.y
-
-                        // 更新手指位置，显示卡片预览
-                        stackedCardPreview?.updateFingerPosition(relativeX, relativeY)
-
-                        // 确保卡片数据是最新的
-                        updateWaveTrackerCards()
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        // 继续更新手指位置
-                        val location = IntArray(2)
-                        view.getLocationOnScreen(location)
-                        val stackedLocation = IntArray(2)
-                        stackedCardPreview?.getLocationOnScreen(stackedLocation)
-
-                        val relativeX = location[0] - stackedLocation[0] + event.x
-                        val relativeY = location[1] - stackedLocation[1] + event.y
-
-                        stackedCardPreview?.updateFingerPosition(relativeX, relativeY)
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        // 停止卡片预览效果并隐藏
-                        stackedCardPreview?.stopWave()
-                        stackedCardPreview?.visibility = View.GONE
-                    }
-                }
-            }
+            // 已禁用搜索tab的层叠卡片预览效果
+            // 现在只有通过左上角按钮才能激活卡片预览
 
             // 处理手势检测（横滑切换）
             gestureDetector.onTouchEvent(event)
@@ -19846,11 +19790,11 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                                 return true
                             }
                             1 -> {
-                                // 在遮罩层中单击搜索tab - 激活多卡片系统
-                                Log.d(TAG, "遮罩层中单击搜索tab，激活多卡片系统")
-                                performGestureVibration("medium")
-                                activateStackedCardPreview()
-                                showMaterialToast("📱 多卡片系统已激活")
+                                // 在遮罩层中单击搜索tab - 退出遮罩层
+                                Log.d(TAG, "遮罩层中单击搜索tab，退出遮罩层")
+                                performGestureVibration("light")
+                                deactivateSearchTabGestureOverlay()
+                                showMaterialToast("🔍 已退出遮罩层")
                                 return true
                             }
                             2 -> {
