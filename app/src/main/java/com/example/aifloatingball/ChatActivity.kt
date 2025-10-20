@@ -3791,6 +3791,35 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
                     AIReplyStatus.COMPLETED -> {
                         // 隐藏回复状态
                         replyStatusIndicator.visibility = View.GONE
+						// 群聊模式下：AI回复完成后自动朗读
+						if (isTTSEnabled) {
+							val contentToSpeak = message ?: ""
+							if (contentToSpeak.isNotBlank()) {
+								if (ttsManager.isAvailable()) {
+									try {
+										val utteranceId = "group_ai_${aiId}_${System.currentTimeMillis()}"
+										ttsManager.speak(contentToSpeak, utteranceId)
+										Log.d(TAG, "群聊AI自动朗读: $aiId, 内容长度=${contentToSpeak.length}")
+									} catch (e: Exception) {
+										Log.e(TAG, "群聊AI自动朗读失败", e)
+									}
+								} else {
+									// TTS未就绪时，尝试强制初始化后延迟朗读
+									ttsManager.forceInitializeTTS()
+									messageInput.postDelayed({
+										if (ttsManager.isAvailable()) {
+											try {
+												val utteranceId = "group_ai_${aiId}_${System.currentTimeMillis()}"
+												ttsManager.speak(contentToSpeak, utteranceId)
+												Log.d(TAG, "群聊AI延迟自动朗读成功: $aiId")
+											} catch (e: Exception) {
+												Log.e(TAG, "群聊AI延迟自动朗读失败", e)
+											}
+										}
+									}, 800)
+								}
+							}
+						}
                     }
                     AIReplyStatus.ERROR -> {
                         // 显示错误状态
@@ -3842,11 +3871,27 @@ class ChatActivity : AppCompatActivity(), GroupChatListener {
             return
         }
         
-        // 检查TTS状态，如果不可用则显示错误对话框
-        if (!ttsManager.isAvailable()) {
-            ttsManager.checkAndShowTTSDialog()
-            return
-        }
+		// 检查TTS状态；不可用则尝试强制初始化并延迟朗读，而不是直接报错
+		if (!ttsManager.isAvailable()) {
+			Log.w(TAG, "群聊TTS未就绪，尝试强制初始化后延迟朗读")
+			ttsManager.forceInitializeTTS()
+			messageInput.postDelayed({
+				if (ttsManager.isAvailable()) {
+					try {
+						val utteranceId = "group_message_${message.timestamp}"
+						ttsManager.speak(message.content, utteranceId)
+						Log.d(TAG, "群聊消息延迟朗读成功")
+					} catch (e: Exception) {
+						Log.e(TAG, "群聊消息延迟朗读失败", e)
+						Toast.makeText(this, "朗读失败", Toast.LENGTH_SHORT).show()
+					}
+				} else {
+					// 若仍不可用，才提示错误
+					ttsManager.checkAndShowTTSDialog()
+				}
+			}, 800)
+			return
+		}
         
         // 使用TTSManager的speak方法
         ttsManager.speak(message.content, "group_message_${message.timestamp}")
