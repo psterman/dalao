@@ -144,6 +144,10 @@ class GestureCardWebViewManager(
                 cards = webViewCards,
                 onWebViewSetup = { webView, cardData ->
                     setupWebViewCallbacks(webView, cardData)
+                },
+                onCardClose = { url ->
+                    // 通过URL关闭卡片
+                    closeCardByUrl(url)
                 }
             ).also { cardAdapter ->
                 this@GestureCardWebViewManager.adapter = cardAdapter
@@ -671,6 +675,18 @@ class GestureCardWebViewManager(
     }
 
     /**
+     * 通过URL关闭卡片
+     */
+    fun closeCardByUrl(url: String) {
+        val cardIndex = webViewCards.indexOfFirst { it.url == url }
+        if (cardIndex >= 0) {
+            removeCard(cardIndex)
+        } else {
+            Log.w(TAG, "尝试关闭不存在的卡片，URL: $url")
+        }
+    }
+
+    /**
      * 移除卡片
      */
     fun removeCard(index: Int) {
@@ -681,8 +697,9 @@ class GestureCardWebViewManager(
 
         val cardData = webViewCards[index]
 
-        // 销毁WebView
-        cardData.webView.destroy()
+        // 修复：不在这里销毁WebView，因为已经在外部的closeWebViewCardByUrl中处理
+        // 这样避免重复销毁导致的异常
+        Log.d(TAG, "准备移除卡片: ${cardData.title} (WebView销毁已在外部处理)")
 
         // 从列表中移除
         webViewCards.removeAt(index)
@@ -703,7 +720,11 @@ class GestureCardWebViewManager(
             viewPager?.setCurrentItem(currentCardIndex, false)
         }
 
-        Log.d(TAG, "移除卡片: ${cardData.title}")
+        // 关键修复：立即保存卡片状态，确保持久化数据被更新
+        // 这样可以防止切换标签页时重新恢复被移除的卡片
+        saveCardsState()
+
+        Log.d(TAG, "移除卡片: ${cardData.title}，已更新持久化数据")
     }
 
     /**

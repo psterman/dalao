@@ -17419,10 +17419,18 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 }
 
                 // 设置卡片关闭监听器
-                setOnCardCloseListener { cardIndex ->
-                    // 关闭指定的webview卡片
-                    closeWebViewCard(cardIndex)
+                setOnCardCloseListener { url ->
+                    // 通过URL关闭指定的webview卡片
+                    Log.d(TAG, "🔗 StackedCardPreview 请求关闭卡片: $url")
+                    closeWebViewCardByUrl(url)
                 }
+
+                // 添加测试方法，方便调试
+                Log.d(TAG, "📊 StackedCardPreview 初始状态：")
+                printDebugInfo()
+
+                // 检查SharedPreferences状态
+                checkSavedState()
 
                 // 设置卡片刷新监听器
                 setOnCardRefreshListener { cardIndex ->
@@ -17629,7 +17637,268 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
     }
 
     /**
-     * 关闭指定的webview卡片
+     * 通过URL关闭指定的webview卡片
+     */
+    private fun closeWebViewCardByUrl(url: String) {
+        try {
+            Log.d(TAG, "🔥 开始关闭卡片，URL: $url")
+
+            var cardClosed = false
+
+            // 关键修复：同时从两个管理器中查找并删除卡片
+            // 1. 从GestureCardWebViewManager中删除
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                val cardIndex = allCards.indexOfFirst { it.url == url }
+
+                if (cardIndex >= 0) {
+                    val cardData = allCards[cardIndex]
+                    Log.d(TAG, "📍 在GestureCardWebViewManager中找到卡片: ${cardData.title}")
+
+                    // 关键修复：彻底销毁WebView，确保网页完全关闭
+                    cardData.webView?.let { webView ->
+                        try {
+                            Log.d(TAG, "开始彻底销毁WebView: ${cardData.title}")
+
+                            // 1. 停止所有加载和JavaScript执行
+                            webView.stopLoading()
+
+                            // 2. 加载空白页面，停止当前页面的所有活动
+                            webView.loadUrl("about:blank")
+
+                            // 3. 清除历史记录
+                            webView.clearHistory()
+
+                            // 4. 清除缓存和数据
+                            webView.clearCache(true)
+                            webView.clearFormData()
+
+                            // 5. 移除所有JavaScript接口（如果有的话）
+                            try {
+                                webView.removeJavascriptInterface("AndroidInterface")
+                            } catch (e: Exception) {
+                                // 忽略接口不存在的异常
+                            }
+
+                            // 6. 暂停WebView的所有活动
+                            webView.onPause()
+
+                            // 7. 移除WebView的父容器
+                            (webView.parent as? ViewGroup)?.removeView(webView)
+
+                            // 8. 最终销毁WebView
+                            webView.destroy()
+
+                            Log.d(TAG, "🔒 WebView已彻底销毁: ${cardData.title}")
+                        } catch (webViewException: Exception) {
+                            Log.e(TAG, "销毁WebView时发生异常: ${cardData.title}", webViewException)
+                            // 即使WebView销毁失败，也要继续移除卡片
+                        }
+                    }
+
+                    // 从管理器中移除卡片
+                    manager.removeCard(cardIndex)
+                    Log.d(TAG, "✅ 从GestureCardWebViewManager移除卡片: $cardIndex (${cardData.title})")
+
+                    // 关键修复：立即更新保存状态，防止恢复机制重新加载已关闭的卡片
+                    manager.saveCardsState()
+
+                    cardClosed = true
+                }
+            }
+
+            // 2. 关键修复：同时从MobileCardManager中删除相同URL的卡片
+            mobileCardManager?.let { manager ->
+                try {
+                    Log.d(TAG, "🔍 检查MobileCardManager中是否有相同URL的卡片")
+                    manager.closeCardByUrl(url)
+                    Log.d(TAG, "✅ 从MobileCardManager移除卡片（如果存在）")
+                } catch (e: Exception) {
+                    Log.w(TAG, "从MobileCardManager移除卡片时出错", e)
+                }
+            }
+
+            if (cardClosed) {
+                // 立即同步所有卡片系统数据，确保数据一致性
+                syncAllCardSystems()
+
+                // 关键修复：强制更新StackedCardPreview的数据，确保显示状态正确
+                stackedCardPreview?.let { preview ->
+                    val remainingCards = getAllUnifiedCards()
+                    Log.d(TAG, "🔄 更新StackedCardPreview，剩余卡片数: ${remainingCards.size}")
+                    preview.setWebViewCards(remainingCards.map { card ->
+                        com.example.aifloatingball.views.StackedCardPreview.WebViewCardData(
+                            title = card.title,
+                            url = card.url,
+                            favicon = card.favicon,
+                            screenshot = null
+                        )
+                    })
+                    if (remainingCards.isEmpty()) {
+                        preview.visibility = View.GONE
+                        Log.d(TAG, "📴 没有剩余卡片，隐藏StackedCardPreview")
+                    }
+                }
+
+                // 错误恢复机制：延迟检查状态一致性
+                browserLayout.postDelayed({
+                    verifyCardStateConsistency(url)
+                }, 500)
+
+                // 立即从SharedPreferences中移除该URL
+                removeUrlFromSavedState(url)
+
+                // 强制刷新SharedPreferences，确保关闭的卡片不会被恢复
+                handler.postDelayed({
+                    gestureCardWebViewManager?.saveCardsState()
+                    Log.d(TAG, "🔄 延迟保存卡片状态，确保数据一致性")
+                }, 100)
+
+                // 提供用户反馈
+                Toast.makeText(this, "卡片已关闭", Toast.LENGTH_SHORT).show()
+                Log.d(TAG, "✅ 成功关闭webview卡片，URL: $url")
+
+            } else {
+                Log.w(TAG, "⚠️ 尝试关闭不存在的webview卡片，URL: $url")
+                // 尝试从StackedCardPreview中移除该URL的卡片
+                forceRemoveCardFromPreview(url)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ 关闭webview卡片失败，URL: $url", e)
+            // 错误恢复：尝试强制清理
+            forceCleanupCard(url)
+        }
+    }
+
+    /**
+     * 验证卡片状态一致性
+     */
+    private fun verifyCardStateConsistency(closedUrl: String) {
+        try {
+            Log.d(TAG, "🔍 验证卡片状态一致性，URL: $closedUrl")
+
+            var needsCleanup = false
+
+            // 检查GestureCardWebViewManager
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                val stillExists = allCards.any { it.url == closedUrl }
+
+                if (stillExists) {
+                    Log.w(TAG, "⚠️ GestureCardWebViewManager中URL $closedUrl 仍然存在")
+                    needsCleanup = true
+                } else {
+                    Log.d(TAG, "✅ GestureCardWebViewManager验证通过")
+                }
+            }
+
+            // 关键修复：同时检查MobileCardManager
+            mobileCardManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                val stillExists = allCards.any { it.url == closedUrl }
+
+                if (stillExists) {
+                    Log.w(TAG, "⚠️ MobileCardManager中URL $closedUrl 仍然存在")
+                    needsCleanup = true
+                } else {
+                    Log.d(TAG, "✅ MobileCardManager验证通过")
+                }
+            }
+
+            // 如果任何一个管理器中还存在，执行强制清理
+            if (needsCleanup) {
+                Log.w(TAG, "⚠️ 卡片状态不一致，尝试强制清理")
+                forceCleanupCard(closedUrl)
+            } else {
+                Log.d(TAG, "✅ 卡片状态验证通过，URL $closedUrl 已正确关闭")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "验证卡片状态一致性失败", e)
+        }
+    }
+
+    /**
+     * 强制从预览中移除卡片
+     */
+    private fun forceRemoveCardFromPreview(url: String) {
+        try {
+            stackedCardPreview?.let { preview ->
+                // 这里需要访问StackedCardPreview的内部状态，暂时记录日志
+                Log.d(TAG, "尝试强制从预览中移除URL: $url")
+                // 可以添加更多强制清理逻辑
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "强制移除预览卡片失败", e)
+        }
+    }
+
+    /**
+     * 强制清理卡片
+     */
+    private fun forceCleanupCard(url: String) {
+        try {
+            Log.d(TAG, "🧹 执行强制清理卡片，URL: $url")
+
+            // 从GestureCardWebViewManager中清理
+            gestureCardWebViewManager?.let { manager ->
+                val allCards = manager.getAllCards()
+                val cardIndex = allCards.indexOfFirst { it.url == url }
+
+                if (cardIndex >= 0) {
+                    Log.d(TAG, "从GestureCardWebViewManager强制移除卡片: $cardIndex")
+                    manager.removeCard(cardIndex)
+                    manager.saveCardsState()
+                }
+            }
+
+            // 关键修复：同时从MobileCardManager中清理
+            mobileCardManager?.let { manager ->
+                try {
+                    Log.d(TAG, "从MobileCardManager强制移除卡片")
+                    manager.closeCardByUrl(url)
+                } catch (e: Exception) {
+                    Log.w(TAG, "从MobileCardManager强制移除卡片时出错", e)
+                }
+            }
+
+            // 同步所有卡片系统
+            syncAllCardSystems()
+
+            // 同时从SharedPreferences中移除
+            removeUrlFromSavedState(url)
+
+            Log.d(TAG, "✅ 强制清理完成")
+        } catch (e: Exception) {
+            Log.e(TAG, "强制清理卡片失败", e)
+        }
+    }
+
+    /**
+     * 从SharedPreferences中移除指定URL
+     */
+    private fun removeUrlFromSavedState(url: String) {
+        try {
+            val sharedPreferences = getSharedPreferences("gesture_cards_state", Context.MODE_PRIVATE)
+            val savedUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet())?.toMutableSet() ?: mutableSetOf()
+
+            Log.d(TAG, "🗑️ 从SharedPreferences中移除URL: $url")
+            Log.d(TAG, "移除前URL列表: $savedUrls")
+
+            val removed = savedUrls.remove(url)
+            if (removed) {
+                sharedPreferences.edit().putStringSet("floating_card_urls", savedUrls).apply()
+                Log.d(TAG, "✅ 成功从SharedPreferences中移除URL: $url")
+                Log.d(TAG, "移除后URL列表: $savedUrls")
+            } else {
+                Log.w(TAG, "⚠️ URL不在SharedPreferences中: $url")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "从SharedPreferences中移除URL失败", e)
+        }
+    }
+
+    /**
+     * 关闭指定的webview卡片（保留原方法以兼容其他调用）
      */
     private fun closeWebViewCard(cardIndex: Int) {
         try {
@@ -17637,40 +17906,15 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 val allCards = manager.getAllCards()
                 if (cardIndex >= 0 && cardIndex < allCards.size) {
                     val cardData = allCards[cardIndex]
-
-                    // 关闭webview
-                    cardData.webView?.destroy()
-
-                    // 从管理器中移除卡片
-                    manager.removeCard(cardIndex)
-
-                    Log.d(TAG, "✅ 关闭webview卡片: $cardIndex (${cardData.title})")
-
-                    // 更新卡片数据
-                    updateWaveTrackerCards()
                     
-                    // 检查是否还有卡片
-                    val remainingCards = manager.getAllCards()
-                    if (remainingCards.isEmpty()) {
-                        // 没有卡片了，隐藏预览并返回搜索tab
-                        stackedCardPreview?.visibility = View.GONE
-                        // 清理所有预览器的卡片数据
-                        materialWaveTracker?.updateWebViewCards(emptyList())
-                        stackedCardPreview?.setWebViewCards(emptyList())
-                        browserLayout.postDelayed({
-                            switchToSearchTab()
-                            Log.d(TAG, "最后一个卡片已关闭，返回搜索tab")
-                        }, 300)
-                    } else {
-                        // 还有卡片，继续显示预览
-                        Log.d(TAG, "还有 ${remainingCards.size} 个卡片")
-                    }
+                    // 使用新的URL关闭方法
+                    closeWebViewCardByUrl(cardData.url)
                 } else {
                     Log.w(TAG, "⚠️ 无效的卡片索引: $cardIndex")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ 关闭webview卡片失败", e)
+            Log.e(TAG, "❌ 关闭webview卡片失败: $cardIndex", e)
         }
     }
 
@@ -19215,12 +19459,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 return
             }
 
-            Log.d(TAG, "搜索tab激活层叠卡片预览")
+            Log.d(TAG, "🎯 搜索tab激活层叠卡片预览")
 
             // 使用统一的卡片数据获取方法
             val allCards = getAllUnifiedCards()
 
-            Log.d(TAG, "搜索tab激活层叠卡片预览 - 总计: ${allCards.size}")
+            Log.d(TAG, "📊 搜索tab激活层叠卡片预览 - 总计: ${allCards.size}")
+
+            // 详细日志：显示每张卡片的信息
+            allCards.forEachIndexed { index, card ->
+                Log.d(TAG, "  卡片 $index: ${card.title} - ${card.url}")
+            }
 
             if (allCards.isEmpty()) {
                 Toast.makeText(this, "没有打开的网页卡片", Toast.LENGTH_SHORT).show()
@@ -19233,6 +19482,7 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 resetToStackedMode()
 
                 // 更新卡片数据
+                Log.d(TAG, "🔄 调用updateWaveTrackerCards更新卡片数据")
                 updateWaveTrackerCards()
 
                 // 启用层叠预览模式的交互
@@ -19241,21 +19491,17 @@ class SimpleModeActivity : AppCompatActivity(), VoicePromptBranchManager.BranchV
                 // 显示预览器
                 visibility = View.VISIBLE
 
-                Log.d(TAG, "层叠卡片预览已激活，显示 ${allCards.size} 张卡片，交互已启用")
+                Log.d(TAG, "✅ 层叠卡片预览已激活，显示 ${allCards.size} 张卡片，交互已启用")
             }
 
-            // 给用户详细的操作提示
-            val message = """
-                已显示 ${allCards.size} 张网页卡片
+            // 给用户简洁的操作提示
+            val message = when {
+                allCards.size == 1 -> "卡片预览已激活\n• 点击按钮关闭/新建 • 上滑关闭 • 点击打开"
+                allCards.size > 1 -> "已显示 ${allCards.size} 张卡片\n• 左右滑动切换 • 上滑关闭 • 点击打开"
+                else -> "没有可显示的卡片"
+            }
 
-                操作说明：
-                • 长按并左右滑动：切换卡片
-                • 长按并向上滑动：关闭卡片
-                • 长按后松开：打开当前卡片
-                • 快速滑动：惯性滚动
-            """.trimIndent()
-
-            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
             // 确保搜索tab保持选中状态（绿色主题）
             updateTabColors()

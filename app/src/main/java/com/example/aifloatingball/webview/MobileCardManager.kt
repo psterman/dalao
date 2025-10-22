@@ -76,6 +76,10 @@ class MobileCardManager(
                 cards = webViewCards,
                 onWebViewSetup = { webView, cardData ->
                     setupWebViewCallbacks(webView, cardData)
+                },
+                onCardClose = { url ->
+                    // 通过URL关闭卡片
+                    closeCardByUrl(url)
                 }
             ).also { cardAdapter ->
                 this@MobileCardManager.adapter = cardAdapter
@@ -467,6 +471,18 @@ class MobileCardManager(
         } else null
     }
     
+    /**
+     * 通过URL关闭卡片
+     */
+    fun closeCardByUrl(url: String) {
+        val cardIndex = webViewCards.indexOfFirst { it.url == url }
+        if (cardIndex >= 0) {
+            removeCard(cardIndex)
+        } else {
+            Log.w(TAG, "尝试关闭不存在的卡片，URL: $url")
+        }
+    }
+
     /**
      * 移除卡片
      */

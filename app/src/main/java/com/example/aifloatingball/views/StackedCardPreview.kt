@@ -26,6 +26,11 @@ class StackedCardPreview @JvmOverloads constructor(
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
+    companion object {
+        // 测试标签，方便logcat过滤
+        private const val TAG = "StackedCardPreview"
+    }
+
     // 蒙版背景画笔
     private val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -101,6 +106,14 @@ class StackedCardPreview @JvmOverloads constructor(
     private var centerCardOffsetY = 0f // 中心卡片的垂直偏移
     private var closeThreshold = 0f // 关闭阈值（旁边卡片高度的一半）
     private var refreshAnimationProgress = 0f // 刷新动画进度
+    
+    // 手势优化相关
+    private var swipeStartY = 0f // 滑动起始Y坐标
+    private var isSwipeCloseInProgress = false // 是否正在进行上滑关闭
+    private var swipeCloseProgress = 0f // 上滑关闭进度（0-1）
+    private var minSwipeDistance = 80f // 最小滑动距离
+    private var maxSwipeDistance = 400f // 最大滑动距离
+    private var velocityTracker: VelocityTracker? = null // 速度跟踪器
 
     // 点击检测相关
     private var isClick = false // 是否是点击操作
@@ -126,7 +139,7 @@ class StackedCardPreview @JvmOverloads constructor(
 
     // 回调接口
     private var onCardSelectedListener: ((Int) -> Unit)? = null
-    private var onCardCloseListener: ((Int) -> Unit)? = null
+    private var onCardCloseListener: ((String) -> Unit)? = null  // 改为传递URL
     private var onCardRefreshListener: ((Int) -> Unit)? = null
     private var onNewCardRequestedListener: (() -> Unit)? = null
     private var onAllCardsRemovedListener: (() -> Unit)? = null
@@ -186,7 +199,7 @@ class StackedCardPreview @JvmOverloads constructor(
      * 设置webview卡片数据
      */
     fun setWebViewCards(cards: List<WebViewCardData>) {
-        Log.d("StackedCardPreview", "setWebViewCards: 设置 ${cards.size} 张卡片，当前模式: 平行")
+        Log.d(TAG, "setWebViewCards: 设置 ${cards.size} 张卡片，当前模式: 平行")
 
         cardAnimator?.cancel()
 
@@ -199,7 +212,7 @@ class StackedCardPreview @JvmOverloads constructor(
         initializeCardProperties()
         invalidate()
 
-        Log.d("StackedCardPreview", "setWebViewCards: 完成，卡片数据已更新")
+        Log.d(TAG, "setWebViewCards: 完成，卡片数据已更新")
     }
 
     /**
@@ -302,8 +315,16 @@ class StackedCardPreview @JvmOverloads constructor(
                 touchY = event.y
                 centerCardOffsetY = 0f
                 longPressStartTime = System.currentTimeMillis()
+                
+                // 初始化速度跟踪器
+                velocityTracker = VelocityTracker.obtain()
+                velocityTracker?.addMovement(event)
+                
+                // 记录滑动起始位置
+                swipeStartY = event.y
+                swipeCloseProgress = 0f
 
-                Log.d("StackedCardPreview", "开始长按检测，当前激活状态: $isLongPressActivated")
+                Log.d(TAG, "开始长按检测，当前激活状态: $isLongPressActivated")
                 return true
             }
 
@@ -313,6 +334,9 @@ class StackedCardPreview @JvmOverloads constructor(
                     val deltaY = event.y - slideStartY
                     val distance = sqrt(deltaX * deltaX + deltaY * deltaY)
                     val currentTime = System.currentTimeMillis()
+                    
+                    // 更新速度跟踪器
+                    velocityTracker?.addMovement(event)
 
                     // 检查是否超过点击阈值
                     if (isClick && distance > clickThreshold) {
@@ -332,6 +356,9 @@ class StackedCardPreview @JvmOverloads constructor(
                             // 垂直滑动更容易触发
                             isVerticalDragging = true
                             Log.d("StackedCardPreview", "开始垂直拖拽（关闭卡片）")
+                            
+                            // 垂直滑动开始时提供触觉反馈
+                            vibrate(VibrationType.LIGHT)
                         }
                     }
 
@@ -368,16 +395,29 @@ class StackedCardPreview @JvmOverloads constructor(
                         // 垂直滑动结束，检查是否需要关闭卡片
                         handleVerticalDragEnd()
                     } else {
-                        // 如果是点击操作，检查是否点击了新建卡片按钮
+                        // 如果是点击操作，检查是否点击了按钮
                         if (isClick) {
-                            if (isNewCardButtonClicked(event.x, event.y)) {
-                                Log.d("StackedCardPreview", "检测到新建卡片按钮点击")
-                                onNewCardRequestedListener?.invoke()
-                                vibrate(VibrationType.IMPORTANT) // 重要操作震动
-                            } else {
-                                Log.d("StackedCardPreview", "检测到点击操作，立即打开当前中心卡片")
-                                selectCurrentCardWithFadeIn()
-                                vibrate(VibrationType.BASIC) // 基本操作震动
+                            when {
+                                isNewCardButtonClicked(event.x, event.y) -> {
+                                    Log.d("StackedCardPreview", "检测到新建卡片按钮点击")
+                                    onNewCardRequestedListener?.invoke()
+                                    vibrate(VibrationType.IMPORTANT) // 重要操作震动
+                                }
+                                isCloseButtonClicked(event.x, event.y) -> {
+                                    Log.d(TAG, "🔴 检测到关闭按钮点击")
+                                    closeCurrentCard()
+                                    vibrate(VibrationType.HEAVY) // 重要操作震动
+                                }
+                                isNewCardButtonOnCardClicked(event.x, event.y) -> {
+                                    Log.d(TAG, "🟢 检测到卡片上的新建按钮点击")
+                                    onNewCardRequestedListener?.invoke()
+                                    vibrate(VibrationType.IMPORTANT) // 重要操作震动
+                                }
+                                else -> {
+                                    Log.d("StackedCardPreview", "检测到点击操作，立即打开当前中心卡片")
+                                    selectCurrentCardWithFadeIn()
+                                    vibrate(VibrationType.BASIC) // 基本操作震动
+                                }
                             }
                         }
                     }
@@ -494,9 +534,36 @@ class StackedCardPreview @JvmOverloads constructor(
         }
         
         if (deltaY < 0) {
-            // 向上拖拽：关闭卡片
-            centerCardOffsetY = deltaY
-            Log.d("StackedCardPreview", "中心卡片向上偏移: $centerCardOffsetY, 关闭阈值: $closeThreshold")
+            // 向上拖拽：关闭卡片 - 优化手势识别
+            val swipeDistance = abs(deltaY)
+            
+            // 计算关闭进度（0-1），基于滑动距离和速度
+            swipeCloseProgress = when {
+                swipeDistance < minSwipeDistance -> 0f
+                swipeDistance > maxSwipeDistance -> 1f
+                else -> (swipeDistance - minSwipeDistance) / (maxSwipeDistance - minSwipeDistance)
+            }
+            
+            // 根据进度计算卡片偏移，提供更自然的跟随效果
+            centerCardOffsetY = -minSwipeDistance - (swipeDistance - minSwipeDistance) * 0.8f
+            
+            // 根据滑动速度调整关闭阈值
+            val velocity = velocityTracker?.let { 
+                it.computeCurrentVelocity(1000)
+                abs(it.yVelocity)
+            } ?: 0f
+            
+            // 快速滑动时降低关闭阈值
+            val dynamicCloseThreshold = if (velocity > 2000f) {
+                closeThreshold * 0.6f // 快速滑动时阈值降低40%
+            } else if (velocity > 1000f) {
+                closeThreshold * 0.8f // 中等速度时阈值降低20%
+            } else {
+                closeThreshold
+            }
+            
+            Log.d(TAG, "⬆️ 上滑关闭进度: ${(swipeCloseProgress * 100).toInt()}%, 速度: ${velocity.toInt()}px/s, 动态阈值: $dynamicCloseThreshold")
+            
         } else if (deltaY > 0) {
             // 向下拖拽：刷新页面（限制最大偏移量）
             val maxRefreshOffset = closeThreshold * 0.8f // 刷新阈值为关闭阈值的80%
@@ -504,6 +571,7 @@ class StackedCardPreview @JvmOverloads constructor(
             Log.d("StackedCardPreview", "中心卡片向下偏移: $centerCardOffsetY, 刷新阈值: $maxRefreshOffset")
         } else {
             centerCardOffsetY = 0f
+            swipeCloseProgress = 0f
         }
 
         // 重新绘制
@@ -516,9 +584,32 @@ class StackedCardPreview @JvmOverloads constructor(
     private fun handleVerticalDragEnd() {
         val maxRefreshOffset = closeThreshold * 0.8f
         
-        if (centerCardOffsetY < -closeThreshold) {
+        // 获取滑动速度用于智能判断
+        val velocity = velocityTracker?.let { 
+            it.computeCurrentVelocity(1000)
+            abs(it.yVelocity)
+        } ?: 0f
+        
+        // 动态关闭阈值：考虑滑动速度
+        val dynamicCloseThreshold = if (velocity > 2000f) {
+            closeThreshold * 0.6f // 快速滑动时阈值降低40%
+        } else if (velocity > 1000f) {
+            closeThreshold * 0.8f // 中等速度时阈值降低20%
+        } else {
+            closeThreshold
+        }
+        
+        // 智能关闭判断：考虑滑动距离、速度和进度
+        val shouldClose = when {
+            centerCardOffsetY < -dynamicCloseThreshold -> true // 超过动态阈值
+            swipeCloseProgress > 0.7f -> true // 进度超过70%
+            velocity > 1500f && centerCardOffsetY < -minSwipeDistance -> true // 快速滑动且有一定距离
+            else -> false
+        }
+        
+        if (shouldClose) {
             // 向上超过关闭阈值，关闭中心卡片
-            Log.d("StackedCardPreview", "关闭中心卡片: $currentCardIndex")
+            Log.d(TAG, "🗑️ 关闭中心卡片: $currentCardIndex, 速度: ${velocity.toInt()}px/s, 进度: ${(swipeCloseProgress * 100).toInt()}%")
             closeCurrentCard()
         } else if (centerCardOffsetY > maxRefreshOffset) {
             // 向下超过刷新阈值，刷新当前卡片
@@ -528,39 +619,109 @@ class StackedCardPreview @JvmOverloads constructor(
             // 没有超过任何阈值，回弹到原位置
             animateCenterCardReturn()
         }
+        
+        // 清理速度跟踪器
+        velocityTracker?.recycle()
+        velocityTracker = null
+        swipeCloseProgress = 0f
     }
 
 
 
     /**
-     * 关闭当前中心卡片
+     * 关闭当前中心卡片 - 增强版本
      */
     private fun closeCurrentCard() {
-        if (currentCardIndex < 0 || currentCardIndex >= webViewCards.size) return
+        if (currentCardIndex < 0 || currentCardIndex >= webViewCards.size) {
+            Log.w("StackedCardPreview", "❌ 无法关闭卡片：无效的卡片索引 $currentCardIndex，总卡片数：${webViewCards.size}")
+            return
+        }
+
+        val cardToClose = webViewCards[currentCardIndex]
+        Log.d(TAG, "🔥 开始关闭卡片：${cardToClose.title} (${cardToClose.url})")
+
+        // 提供强烈的触觉反馈
+        vibrate(VibrationType.HEAVY)
 
         // 播放关闭动画
         animateCardClose()
     }
 
     /**
-     * 卡片关闭动画
+     * 卡片关闭动画 - 修复版本
      */
     private fun animateCardClose() {
-        ValueAnimator.ofFloat(centerCardOffsetY, -height.toFloat()).apply {
-            duration = 300
+        // 关键修复：在动画开始前就获取要关闭的卡片URL并通知外部系统销毁WebView
+        val cardToClose = webViewCards[currentCardIndex]
+        Log.d("StackedCardPreview", "开始关闭动画，准备销毁WebView: ${cardToClose.url}")
+
+        // 创建更流畅的关闭动画
+        val startOffset = centerCardOffsetY
+        val endOffset = -height.toFloat()
+
+        ValueAnimator.ofFloat(startOffset, endOffset).apply {
+            duration = 300 // 缩短动画时间，减少WebView处于不稳定状态的时间
+            interpolator = android.view.animation.AccelerateInterpolator() // 加速动画，快速完成关闭
+
             addUpdateListener { animator ->
                 centerCardOffsetY = animator.animatedValue as Float
+
+                // 计算动画进度，用于视觉反馈
+                val progress = (centerCardOffsetY - startOffset) / (endOffset - startOffset)
+
+                // 根据进度调整卡片透明度，提供更自然的消失效果
+                val alpha = (1f - progress * 0.8f).coerceAtLeast(0.2f)
+                cardPaint.alpha = (alpha * 255).toInt()
+
                 invalidate()
             }
 
             addListener(object : android.animation.AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: android.animation.Animator) {
-                    // 触发重震动
+                override fun onAnimationStart(animation: android.animation.Animator) {
+                    // 动画开始时提供触觉反馈
                     vibrate(VibrationType.HEAVY)
-                    // 通知关闭卡片
-                    onCardCloseListener?.invoke(currentCardIndex)
-                    // 移除卡片
+
+                    // 关键修复：动画开始时立即通知外部系统销毁WebView
+                    // 这样可以确保WebView在动画过程中就开始停止加载和清理资源
+                    Log.d(TAG, "🎬 关闭动画开始，立即通知外部销毁WebView: ${cardToClose.title} (${cardToClose.url})")
+                    onCardCloseListener?.invoke(cardToClose.url)
+                }
+
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // 关键修复：动画结束后立即更新本地数据，不再延迟等待
+                    // 因为WebView销毁已经在动画开始时触发
+
+                    // 从本地数据中移除卡片
                     removeCard(currentCardIndex)
+
+                    // 重置卡片透明度
+                    cardPaint.alpha = 255
+
+                    // 检查是否还有卡片
+                    if (webViewCards.isEmpty()) {
+                        // 没有卡片了，通知外部
+                        onAllCardsRemovedListener?.invoke()
+
+                        // 隐藏预览
+                        visibility = View.GONE
+                    } else {
+                        // 调整当前卡片索引
+                        if (currentCardIndex >= webViewCards.size) {
+                            currentCardIndex = webViewCards.size - 1
+                        }
+
+                        // 重置卡片偏移
+                        centerCardOffsetY = 0f
+                        invalidate()
+                    }
+
+                    Log.d(TAG, "✅ 卡片关闭动画完成，本地数据已更新：${cardToClose.title}")
+
+                    // 延迟再次通知外部保存状态，确保数据一致性
+                    post {
+                        onCardCloseListener?.invoke(cardToClose.url)
+                        Log.d(TAG, "🔄 延迟再次通知外部保存状态")
+                    }
                 }
             })
             start()
@@ -568,19 +729,58 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
-     * 中心卡片回弹动画
+     * 中心卡片回弹动画 - 优化版本
      */
     private fun animateCenterCardReturn() {
         if (centerCardOffsetY == 0f) return
 
+        // 根据滑动距离和速度调整回弹动画
+        val swipeDistance = abs(centerCardOffsetY)
+        val velocity = velocityTracker?.let { 
+            it.computeCurrentVelocity(1000)
+            abs(it.yVelocity)
+        } ?: 0f
+        
+        // 动态调整动画时长：滑动距离越大，速度越快，动画时间越短
+        val baseDuration = 300L
+        val distanceFactor = (swipeDistance / closeThreshold).coerceIn(0.1f, 2.0f)
+        val velocityFactor = (velocity / 1000f).coerceIn(0.5f, 2.0f)
+        val dynamicDuration = (baseDuration / distanceFactor / velocityFactor).toLong().coerceIn(150L, 500L)
+        
+        val startOffset = centerCardOffsetY
+        
         ValueAnimator.ofFloat(centerCardOffsetY, 0f).apply {
-            duration = 250
+            duration = dynamicDuration
+            interpolator = android.view.animation.OvershootInterpolator(0.8f) // 轻微过冲，更自然
+            
             addUpdateListener { animator ->
                 centerCardOffsetY = animator.animatedValue as Float
+                
+                // 根据进度恢复卡片透明度
+                val progress = (centerCardOffsetY - startOffset) / (0f - startOffset)
+                val alpha = 0.2f + progress * 0.8f // 从20%透明度恢复到100%
+                cardPaint.alpha = (alpha * 255).toInt()
+                
                 invalidate()
             }
+            
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    // 动画结束时确保透明度完全恢复
+                    cardPaint.alpha = 255
+                    invalidate()
+                    
+                    // 提供轻微触觉反馈
+                    if (swipeDistance > minSwipeDistance) {
+                        vibrate(VibrationType.LIGHT)
+                    }
+                }
+            })
+            
             start()
         }
+        
+        Log.d("StackedCardPreview", "回弹动画: 距离${swipeDistance.toInt()}px, 速度${velocity.toInt()}px/s, 时长${dynamicDuration}ms")
     }
 
     /**
@@ -615,7 +815,7 @@ class StackedCardPreview @JvmOverloads constructor(
             invalidate()
         }
 
-        Log.d("StackedCardPreview", "移除卡片后，剩余 ${webViewCards.size} 张卡片")
+        Log.d(TAG, "🗂️ 移除卡片后，剩余 ${webViewCards.size} 张卡片")
     }
 
     /**
@@ -1014,6 +1214,11 @@ class StackedCardPreview @JvmOverloads constructor(
 
         // 绘制卡片位置指示器
         drawCardPositionIndicator(canvas, viewWidth, viewHeight)
+        
+        // 绘制上滑关闭进度指示器（如果有上滑操作）
+        if (isVerticalDragging && centerCardOffsetY < 0) {
+            drawSwipeCloseIndicator(canvas, centerX, centerY)
+        }
     }
 
     /**
@@ -1036,6 +1241,73 @@ class StackedCardPreview @JvmOverloads constructor(
             centerX,
             indicatorY + indicatorHeight,
             indicatorPaint
+        )
+    }
+    
+    /**
+     * 绘制上滑关闭进度指示器
+     */
+    private fun drawSwipeCloseIndicator(canvas: Canvas, centerX: Float, centerY: Float) {
+        val indicatorWidth = 200f
+        val indicatorHeight = 8f
+        val indicatorY = centerY + baseCardHeight / 2f + 100f // 在卡片下方显示
+        
+        // 背景轨道
+        val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            alpha = 80
+            style = Paint.Style.FILL
+        }
+        
+        // 进度条
+        val progressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#2196F3") // 蓝色进度条
+            alpha = 200
+            style = Paint.Style.FILL
+        }
+        
+        // 绘制背景轨道
+        canvas.drawRoundRect(
+            centerX - indicatorWidth / 2f,
+            indicatorY,
+            centerX + indicatorWidth / 2f,
+            indicatorY + indicatorHeight,
+            indicatorHeight / 2f,
+            indicatorHeight / 2f,
+            trackPaint
+        )
+        
+        // 绘制进度条
+        val progressWidth = indicatorWidth * swipeCloseProgress
+        canvas.drawRoundRect(
+            centerX - indicatorWidth / 2f,
+            indicatorY,
+            centerX - indicatorWidth / 2f + progressWidth,
+            indicatorY + indicatorHeight,
+            indicatorHeight / 2f,
+            indicatorHeight / 2f,
+            progressPaint
+        )
+        
+        // 绘制关闭提示文字
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 28f
+            textAlign = Paint.Align.CENTER
+            alpha = (255 * swipeCloseProgress).toInt()
+        }
+        
+        val closeText = when {
+            swipeCloseProgress > 0.7f -> "松手关闭"
+            swipeCloseProgress > 0.3f -> "继续上滑关闭"
+            else -> "上滑关闭"
+        }
+        
+        canvas.drawText(
+            closeText,
+            centerX,
+            indicatorY - 20f,
+            textPaint
         )
     }
 
@@ -1089,6 +1361,153 @@ class StackedCardPreview @JvmOverloads constructor(
             top + height - 20f * scale,
             titlePaint
         )
+
+        // 绘制右上角红色关闭按钮
+        drawCloseButton(canvas, left, top, width, scale, alpha)
+
+        // 绘制左上角绿色新建按钮
+        drawNewCardButtonOnCard(canvas, left, top, scale, alpha)
+    }
+
+    /**
+     * 绘制卡片右上角的红色关闭按钮
+     */
+    private fun drawCloseButton(
+        canvas: Canvas,
+        cardLeft: Float,
+        cardTop: Float,
+        cardWidth: Float,
+        scale: Float,
+        alpha: Float
+    ) {
+        // 增大按钮尺寸，提高点击便利性
+        val buttonSize = 60f * scale // 从40f增加到60f
+        val buttonMargin = 8f * scale // 减少边距，让按钮更靠近边缘
+        val buttonX = cardLeft + cardWidth - buttonMargin - buttonSize / 2f
+        val buttonY = cardTop + buttonMargin + buttonSize / 2f
+
+        // 绘制按钮阴影
+        val shadowPaint = Paint().apply {
+            color = Color.parseColor("#40000000")
+            isAntiAlias = true
+            this.alpha = (255 * alpha * 0.6f).toInt()
+        }
+        canvas.drawCircle(buttonX + 2f, buttonY + 2f, buttonSize / 2f, shadowPaint)
+
+        // 绘制按钮背景（红色背景）
+        val buttonBackgroundPaint = Paint().apply {
+            color = Color.parseColor("#F44336") // 红色背景
+            isAntiAlias = true
+            this.alpha = (255 * alpha).toInt()
+        }
+        canvas.drawCircle(buttonX, buttonY, buttonSize / 2f, buttonBackgroundPaint)
+
+        // 绘制按钮边框
+        val buttonBorderPaint = Paint().apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 2f * scale
+            isAntiAlias = true
+            this.alpha = (255 * alpha).toInt()
+        }
+        canvas.drawCircle(buttonX, buttonY, buttonSize / 2f - 1f, buttonBorderPaint)
+
+        // 绘制X图标
+        val xPaint = Paint().apply {
+            color = Color.WHITE
+            strokeWidth = 4f * scale // 增加X符号粗细
+            isAntiAlias = true
+            strokeCap = Paint.Cap.ROUND
+            this.alpha = (255 * alpha).toInt()
+        }
+
+        val xSize = buttonSize * 0.35f // 稍微增大X符号
+        // 左上到右下的线
+        canvas.drawLine(
+            buttonX - xSize / 2f,
+            buttonY - xSize / 2f,
+            buttonX + xSize / 2f,
+            buttonY + xSize / 2f,
+            xPaint
+        )
+        // 右上到左下的线
+        canvas.drawLine(
+            buttonX + xSize / 2f,
+            buttonY - xSize / 2f,
+            buttonX - xSize / 2f,
+            buttonY + xSize / 2f,
+            xPaint
+        )
+    }
+
+    /**
+     * 绘制卡片左上角的绿色新建按钮
+     */
+    private fun drawNewCardButtonOnCard(
+        canvas: Canvas,
+        cardLeft: Float,
+        cardTop: Float,
+        scale: Float,
+        alpha: Float
+    ) {
+        // 增大按钮尺寸，提高点击便利性
+        val buttonSize = 60f * scale // 从40f增加到60f
+        val buttonMargin = 8f * scale // 减少边距，让按钮更靠近边缘
+        val buttonX = cardLeft + buttonMargin + buttonSize / 2f
+        val buttonY = cardTop + buttonMargin + buttonSize / 2f
+
+        // 绘制按钮阴影
+        val shadowPaint = Paint().apply {
+            color = Color.parseColor("#40000000")
+            isAntiAlias = true
+            this.alpha = (255 * alpha * 0.6f).toInt()
+        }
+        canvas.drawCircle(buttonX + 2f, buttonY + 2f, buttonSize / 2f, shadowPaint)
+
+        // 绘制按钮背景（绿色背景）
+        val buttonBackgroundPaint = Paint().apply {
+            color = Color.parseColor("#4CAF50") // 绿色背景
+            isAntiAlias = true
+            this.alpha = (255 * alpha).toInt()
+        }
+        canvas.drawCircle(buttonX, buttonY, buttonSize / 2f, buttonBackgroundPaint)
+
+        // 绘制按钮边框
+        val buttonBorderPaint = Paint().apply {
+            color = Color.WHITE
+            style = Paint.Style.STROKE
+            strokeWidth = 2f * scale
+            isAntiAlias = true
+            this.alpha = (255 * alpha).toInt()
+        }
+        canvas.drawCircle(buttonX, buttonY, buttonSize / 2f - 1f, buttonBorderPaint)
+
+        // 绘制加号图标
+        val plusPaint = Paint().apply {
+            color = Color.WHITE
+            strokeWidth = 4f * scale // 增加加号粗细
+            isAntiAlias = true
+            strokeCap = Paint.Cap.ROUND
+            this.alpha = (255 * alpha).toInt()
+        }
+
+        val plusSize = buttonSize * 0.35f // 稍微增大加号符号
+        // 水平线
+        canvas.drawLine(
+            buttonX - plusSize / 2f,
+            buttonY,
+            buttonX + plusSize / 2f,
+            buttonY,
+            plusPaint
+        )
+        // 垂直线
+        canvas.drawLine(
+            buttonX,
+            buttonY - plusSize / 2f,
+            buttonX,
+            buttonY + plusSize / 2f,
+            plusPaint
+        )
     }
 
     /**
@@ -1101,7 +1520,7 @@ class StackedCardPreview @JvmOverloads constructor(
     /**
      * 设置卡片关闭监听器
      */
-    fun setOnCardCloseListener(listener: (Int) -> Unit) {
+    fun setOnCardCloseListener(listener: (String) -> Unit) {
         onCardCloseListener = listener
     }
 
@@ -1256,13 +1675,71 @@ class StackedCardPreview @JvmOverloads constructor(
     }
 
     /**
-     * 检查是否点击了新建卡片按钮
+     * 检查是否点击了新建卡片按钮（在指示器区域）
      */
     private fun isNewCardButtonClicked(x: Float, y: Float): Boolean {
         val buttonSize = 70f
         val buttonMargin = 50f
         val buttonX = width - buttonMargin - buttonSize / 2f
         val buttonY = height / 2f - baseCardHeight / 2f - 60f // 与指示器位置一致
+
+        val distance = sqrt((x - buttonX) * (x - buttonX) + (y - buttonY) * (y - buttonY))
+        return distance <= buttonSize / 2f
+    }
+
+    /**
+     * 检查是否点击了当前中心卡片的关闭按钮
+     */
+    private fun isCloseButtonClicked(x: Float, y: Float): Boolean {
+        if (webViewCards.isEmpty() || currentCardIndex < 0 || currentCardIndex >= webViewCards.size) {
+            return false
+        }
+
+        val viewWidth = width.toFloat()
+        val viewHeight = height.toFloat()
+        val centerX = viewWidth / 2f
+        val centerY = viewHeight / 2f
+
+        // 计算当前中心卡片的位置
+        val cardWidth = baseCardWidth
+        val cardHeight = baseCardHeight
+        val cardLeft = centerX - cardWidth / 2f
+        val cardTop = centerY - cardHeight / 2f + centerCardOffsetY
+
+        // 计算关闭按钮的位置（与绘制时保持一致）
+        val buttonSize = 60f // 更新为新的按钮尺寸
+        val buttonMargin = 8f // 更新为新的边距
+        val buttonX = cardLeft + cardWidth - buttonMargin - buttonSize / 2f
+        val buttonY = cardTop + buttonMargin + buttonSize / 2f
+
+        val distance = sqrt((x - buttonX) * (x - buttonX) + (y - buttonY) * (y - buttonY))
+        return distance <= buttonSize / 2f
+    }
+
+    /**
+     * 检查是否点击了当前中心卡片的新建按钮
+     */
+    private fun isNewCardButtonOnCardClicked(x: Float, y: Float): Boolean {
+        if (webViewCards.isEmpty() || currentCardIndex < 0 || currentCardIndex >= webViewCards.size) {
+            return false
+        }
+
+        val viewWidth = width.toFloat()
+        val viewHeight = height.toFloat()
+        val centerX = viewWidth / 2f
+        val centerY = viewHeight / 2f
+
+        // 计算当前中心卡片的位置
+        val cardWidth = baseCardWidth
+        val cardHeight = baseCardHeight
+        val cardLeft = centerX - cardWidth / 2f
+        val cardTop = centerY - cardHeight / 2f + centerCardOffsetY
+
+        // 计算新建按钮的位置（与绘制时保持一致）
+        val buttonSize = 60f // 更新为新的按钮尺寸
+        val buttonMargin = 8f // 更新为新的边距
+        val buttonX = cardLeft + buttonMargin + buttonSize / 2f
+        val buttonY = cardTop + buttonMargin + buttonSize / 2f
 
         val distance = sqrt((x - buttonX) * (x - buttonX) + (y - buttonY) * (y - buttonY))
         return distance <= buttonSize / 2f
@@ -1383,7 +1860,7 @@ class StackedCardPreview @JvmOverloads constructor(
      * 启用平行预览模式的交互
      */
     fun enableStackedInteraction() {
-        Log.d("StackedCardPreview", "启用平行预览模式交互")
+        Log.d(TAG, "启用平行预览模式交互")
 
         // 设置为可交互
         isClickable = true
@@ -1393,11 +1870,59 @@ class StackedCardPreview @JvmOverloads constructor(
         // 重置触摸状态
         resetActivationState()
 
-        Log.d("StackedCardPreview", "平行预览模式交互已启用")
+        Log.d(TAG, "平行预览模式交互已启用")
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         cardAnimator?.cancel()
     }
+
+    /**
+     * 测试方法：打印当前状态信息，方便调试
+     */
+    fun printDebugInfo() {
+        Log.d(TAG, "=== StackedCardPreview 调试信息 ===")
+        Log.d(TAG, "卡片总数: ${webViewCards.size}")
+        Log.d(TAG, "当前卡片索引: $currentCardIndex")
+        Log.d(TAG, "可见性: ${if (visibility == View.VISIBLE) "VISIBLE" else "GONE/INVISIBLE"}")
+        Log.d(TAG, "是否可点击: $isClickable")
+        Log.d(TAG, "是否可聚焦: $isFocusable")
+        Log.d(TAG, "中心卡片偏移Y: $centerCardOffsetY")
+        Log.d(TAG, "滚动偏移: $scrollOffset")
+
+        webViewCards.forEachIndexed { index, card ->
+            Log.d(TAG, "卡片 $index: ${card.title} (${card.url})")
+        }
+        Log.d(TAG, "=== 调试信息结束 ===")
+    }
+
+    /**
+     * 测试方法：模拟关闭当前卡片
+     */
+    fun testCloseCurrentCard() {
+        Log.d(TAG, "🧪 测试：模拟关闭当前卡片")
+        printDebugInfo()
+        closeCurrentCard()
+    }
+
+    /**
+     * 测试方法：检查SharedPreferences中的保存状态
+     */
+    fun checkSavedState() {
+        try {
+            val sharedPreferences = context.getSharedPreferences("gesture_cards_state", Context.MODE_PRIVATE)
+            val savedUrls = sharedPreferences.getStringSet("floating_card_urls", emptySet()) ?: emptySet()
+
+            Log.d(TAG, "=== SharedPreferences 状态检查 ===")
+            Log.d(TAG, "保存的URL数量: ${savedUrls.size}")
+            savedUrls.forEachIndexed { index, url ->
+                Log.d(TAG, "保存的URL $index: $url")
+            }
+            Log.d(TAG, "=== 状态检查结束 ===")
+        } catch (e: Exception) {
+            Log.e(TAG, "检查保存状态失败", e)
+        }
+    }
 }
+
