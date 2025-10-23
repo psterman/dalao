@@ -27,6 +27,7 @@ import android.webkit.WebChromeClient
 import com.example.aifloatingball.model.SearchEngine
 import com.example.aifloatingball.model.BaseSearchEngine
 import com.example.aifloatingball.model.AISearchEngine
+import com.example.aifloatingball.utils.WebViewConstants
 import com.example.aifloatingball.download.EnhancedDownloadManager
 import com.example.aifloatingball.download.DownloadManagerActivity
 import com.example.aifloatingball.view.LetterIndexBar
@@ -54,11 +55,22 @@ import com.example.aifloatingball.service.FloatingWindowService
 import android.view.WindowManager
 import android.graphics.PixelFormat
 import com.example.aifloatingball.service.DualFloatingWebViewService
+import com.example.aifloatingball.webview.PaperStackWebViewManager
 
 class SearchActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var webView: WebView
     private lateinit var letterIndexBar: LetterIndexBar
+    
+    // 纸堆WebView相关
+    private var paperStackManager: PaperStackWebViewManager? = null
+    private var paperStackContainer: FrameLayout? = null
+    private var paperStackControls: LinearLayout? = null
+    private var paperCountText: TextView? = null
+    private var addPaperButton: ImageButton? = null
+    private var closeAllPapersButton: ImageButton? = null
+    private var paperStackHint: TextView? = null
+    private var isPaperStackMode = false
     private lateinit var letterTitle: TextView
     private lateinit var previewEngineList: LinearLayout
     private lateinit var closeButton: ImageButton
@@ -347,6 +359,15 @@ class SearchActivity : AppCompatActivity() {
         downloadIndicatorButton = findViewById(R.id.btn_download_indicator)
         downloadProgressText = findViewById(R.id.download_progress_text)
 
+        // Initialize paper stack views
+        val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+        paperStackContainer = paperStackLayout.findViewById(R.id.paper_stack_container)
+        paperStackControls = paperStackLayout.findViewById(R.id.paper_stack_controls)
+        paperCountText = paperStackLayout.findViewById(R.id.paper_count_text)
+        addPaperButton = paperStackLayout.findViewById(R.id.btn_add_paper)
+        closeAllPapersButton = paperStackLayout.findViewById(R.id.btn_close_all_papers)
+        paperStackHint = paperStackLayout.findViewById(R.id.paper_stack_hint)
+
         // 初始化时隐藏进度条
         progressBar.visibility = View.GONE
         gestureHintView.visibility = View.GONE
@@ -480,6 +501,15 @@ class SearchActivity : AppCompatActivity() {
             return super.dispatchTouchEvent(ev)
         }
 
+        // 如果是纸堆模式，优先处理纸堆的触摸事件
+        if (isPaperStackMode && paperStackManager != null) {
+            val handled = paperStackManager?.onTouchEvent(ev) ?: false
+            if (handled) {
+                Log.d("SearchActivity", "纸堆触摸事件已处理: ${ev.action}")
+                return true
+            }
+        }
+
         // 处理缩放手势
         scaleGestureDetector.onTouchEvent(ev)
 
@@ -548,22 +578,9 @@ class SearchActivity : AppCompatActivity() {
     }
 
     private fun setupBasicClickListeners() {
-        // 设置菜单按钮点击事件：恢复为抽屉开关
+        // 设置菜单按钮点击事件：显示菜单选项
         menuButton.setOnClickListener {
-            val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
-            if (isLeftHanded) {
-                if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
-                    drawerLayout.closeDrawer(GravityCompat.END)
-                } else {
-                    drawerLayout.openDrawer(GravityCompat.END)
-                }
-            } else {
-                if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                    drawerLayout.closeDrawer(GravityCompat.START)
-                } else {
-                    drawerLayout.openDrawer(GravityCompat.START)
-                }
-            }
+            showMenuOptions()
         }
 
         // 设置关闭按钮点击事件
@@ -576,11 +593,198 @@ class SearchActivity : AppCompatActivity() {
             openDownloadManager()
         }
         
+        // 设置纸堆相关按钮点击事件
+        setupPaperStackClickListeners()
+        
         // 移除原有的悬浮窗模式按钮绑定（如果存在则不再启用）
     }
 
     private fun toggleFloatingMode() {
         // 已弃用：由 activateMultiCardFloatingBackground 取代
+    }
+    
+    /**
+     * 设置纸堆相关按钮的点击事件
+     */
+    private fun setupPaperStackClickListeners() {
+        addPaperButton?.setOnClickListener {
+            addNewTab()
+        }
+        
+        closeAllPapersButton?.setOnClickListener {
+            closeAllTabs()
+        }
+    }
+    
+    /**
+     * 初始化纸堆WebView管理器
+     */
+    private fun initializePaperStackManager() {
+        paperStackContainer?.let { container ->
+            Log.d("SearchActivity", "初始化纸堆WebView管理器")
+            paperStackManager = PaperStackWebViewManager(this, container)
+            
+            // 设置监听器
+            paperStackManager?.setOnTabCreatedListener { tab ->
+                Log.d("SearchActivity", "标签页创建完成: ${tab.title}, URL: ${tab.url}")
+            }
+            
+            paperStackManager?.setOnTabSwitchedListener { tab, index ->
+                updatePaperCountText()
+                Log.d("SearchActivity", "切换到标签页: $index, 标题: ${tab.title}, URL: ${tab.url}")
+            }
+            
+            // 添加第一个标签页
+            addNewTab()
+        }
+    }
+    
+    /**
+     * 添加新的标签页
+     */
+    private fun addNewTab() {
+        val currentUrl = webView.url ?: "https://www.baidu.com"
+        val currentTitle = webView.title ?: "新标签页"
+        Log.d("SearchActivity", "添加新标签页，URL: $currentUrl, 标题: $currentTitle")
+        
+        val newTab = paperStackManager?.addTab(currentUrl, currentTitle)
+        
+        if (newTab != null) {
+            updatePaperCountText()
+            showPaperStackControls()
+            hidePaperStackHint()
+            Log.d("SearchActivity", "添加新标签页成功，当前数量: ${paperStackManager?.getTabCount()}")
+        } else {
+            Log.e("SearchActivity", "添加新标签页失败")
+        }
+    }
+    
+    /**
+     * 关闭所有标签页
+     */
+    private fun closeAllTabs() {
+        paperStackManager?.cleanup()
+        hidePaperStackControls()
+        showPaperStackHint()
+        Log.d("SearchActivity", "关闭所有标签页")
+    }
+    
+    /**
+     * 更新标签页计数文本
+     */
+    private fun updatePaperCountText() {
+        val count = paperStackManager?.getTabCount() ?: 0
+        val currentIndex = 1 // 当前标签页索引（从1开始）
+        paperCountText?.text = "$currentIndex / $count"
+    }
+    
+    /**
+     * 显示纸堆控制面板
+     */
+    private fun showPaperStackControls() {
+        paperStackControls?.visibility = View.VISIBLE
+    }
+    
+    /**
+     * 隐藏纸堆控制面板
+     */
+    private fun hidePaperStackControls() {
+        paperStackControls?.visibility = View.GONE
+    }
+    
+    /**
+     * 显示纸堆提示
+     */
+    private fun showPaperStackHint() {
+        paperStackHint?.visibility = View.VISIBLE
+    }
+    
+    /**
+     * 隐藏纸堆提示
+     */
+    private fun hidePaperStackHint() {
+        paperStackHint?.visibility = View.GONE
+    }
+    
+    /**
+     * 显示菜单选项
+     */
+    private fun showMenuOptions() {
+        val options = arrayOf(
+            "搜索引擎列表",
+            if (isPaperStackMode) "切换到普通模式" else "切换到纸堆模式",
+            "悬浮窗模式",
+            "设置"
+        )
+        
+        AlertDialog.Builder(this)
+            .setTitle("菜单选项")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 打开搜索引擎列表
+                        val isLeftHanded = settingsManager.isLeftHandedModeEnabled()
+                        if (isLeftHanded) {
+                            if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
+                                drawerLayout.closeDrawer(GravityCompat.END)
+                            } else {
+                                drawerLayout.openDrawer(GravityCompat.END)
+                            }
+                        } else {
+                            if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                                drawerLayout.closeDrawer(GravityCompat.START)
+                            } else {
+                                drawerLayout.openDrawer(GravityCompat.START)
+                            }
+                        }
+                    }
+                    1 -> {
+                        // 切换纸堆模式
+                        togglePaperStackMode()
+                    }
+                    2 -> {
+                        // 悬浮窗模式
+                        activateMultiCardFloatingBackground()
+                    }
+                    3 -> {
+                        // 打开设置
+                        val intent = Intent(this, SettingsActivity::class.java)
+                        startActivity(intent)
+                    }
+                }
+            }
+            .show()
+    }
+    
+    /**
+     * 切换纸堆模式
+     */
+    private fun togglePaperStackMode() {
+        isPaperStackMode = !isPaperStackMode
+        
+        val paperStackLayout = findViewById<View>(R.id.paper_stack_layout)
+        
+        if (isPaperStackMode) {
+            // 切换到纸堆模式
+            webView.visibility = View.GONE
+            paperStackLayout.visibility = View.VISIBLE
+            
+            if (paperStackManager == null) {
+                initializePaperStackManager()
+            } else {
+                // 如果管理器已存在，确保显示控制按钮
+                showPaperStackControls()
+                updatePaperCountText()
+            }
+            
+            Toast.makeText(this, "已切换到纸堆模式", Toast.LENGTH_SHORT).show()
+        } else {
+            // 切换到普通模式
+            webView.visibility = View.VISIBLE
+            paperStackLayout.visibility = View.GONE
+            hidePaperStackControls()
+            Toast.makeText(this, "已切换到普通模式", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // 激活多卡片悬浮后台系统：默认从当前URL或当前搜索引擎生成
@@ -646,7 +850,7 @@ class SearchActivity : AppCompatActivity() {
             cacheMode = WebSettings.LOAD_DEFAULT
             
             // 设置移动版User-Agent，确保网页加载移动版
-            userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+            userAgentString = WebViewConstants.MOBILE_USER_AGENT
             
             // 允许混合内容
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -1421,6 +1625,9 @@ class SearchActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         try {
+            // 清理纸堆管理器
+            paperStackManager?.cleanup()
+            
             if (isSettingsReceiverRegistered) {
                 unregisterReceiver(settingsReceiver)
                 isSettingsReceiverRegistered = false

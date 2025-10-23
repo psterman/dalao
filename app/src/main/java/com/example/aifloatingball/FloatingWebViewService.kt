@@ -22,9 +22,7 @@ import android.content.res.Configuration
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.webkit.CookieManager
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import com.example.aifloatingball.utils.WebViewConstants
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -62,6 +60,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.example.aifloatingball.model.AISearchEngine
 import com.example.aifloatingball.model.BaseSearchEngine
+import com.example.aifloatingball.webview.StackedWebViewManager
 
 class FloatingWebViewService : Service() {
     companion object {
@@ -112,8 +111,14 @@ class FloatingWebViewService : Service() {
     private var floatingTitle: TextView? = null
     private var resizeHandle: View? = null
     private var saveButton: ImageButton? = null
+    private var addWebViewButton: ImageButton? = null
+    private var webViewPositionIndicator: TextView? = null
     
     private val halfCircleWindow by lazy { HalfCircleFloatingWindow(this) }
+    
+    // 堆叠WebView管理器
+    private var stackedWebViewManager: StackedWebViewManager? = null
+    private var isStackMode = false
     
     private var initialX = 0
     private var initialY = 0
@@ -305,8 +310,15 @@ class FloatingWebViewService : Service() {
     
     private fun createFloatingView() {
         try {
+            // 根据模式选择布局
+            val layoutRes = if (isStackMode) {
+                R.layout.layout_vertical_webview
+            } else {
+                R.layout.layout_floating_webview
+            }
+            
             // 加载悬浮窗布局
-            floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_webview, null)
+            floatingView = LayoutInflater.from(this).inflate(layoutRes, null)
             
             // 创建favicon视图
             faviconView = ImageView(this).apply {
@@ -406,7 +418,7 @@ class FloatingWebViewService : Service() {
                 cacheMode = WebSettings.LOAD_DEFAULT
                 
                 // 设置移动版UA
-                userAgentString = "Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36"
+                userAgentString = WebViewConstants.MOBILE_USER_AGENT
                 
                 // 文本缩放比例适合移动设备
                 textZoom = 100
@@ -629,7 +641,20 @@ class FloatingWebViewService : Service() {
         
         // 刷新按钮
         refreshButton?.setOnClickListener {
-            webView?.reload()
+            if (isStackMode) {
+                stackedWebViewManager?.getCurrentWebView()?.webView?.reload()
+            } else {
+                webView?.reload()
+            }
+        }
+        
+        // 添加WebView按钮（仅在堆叠模式下可见）
+        addWebViewButton?.setOnClickListener {
+            if (isStackMode) {
+                val currentUrl = searchInput?.text?.toString()
+                stackedWebViewManager?.addWebView(currentUrl)
+                Toast.makeText(this, "已添加新WebView到堆栈", Toast.LENGTH_SHORT).show()
+            }
         }
     }
     
@@ -1186,7 +1211,12 @@ class FloatingWebViewService : Service() {
         if (query.isNotEmpty()) {
             val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
             val searchUrl = "https://www.baidu.com/s?wd=$encodedQuery"
-            webView?.loadUrl(searchUrl)
+            
+            if (isStackMode) {
+                stackedWebViewManager?.getCurrentWebView()?.webView?.loadUrl(searchUrl)
+            } else {
+                webView?.loadUrl(searchUrl)
+            }
             
             // 隐藏键盘
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
@@ -1210,12 +1240,22 @@ class FloatingWebViewService : Service() {
     }
     
     private fun updateNavigationButtons() {
-        webView?.let { webView ->
-            backButton?.isEnabled = webView.canGoBack()
-            backButton?.alpha = if (webView.canGoBack()) 1.0f else 0.5f
-            
-            forwardButton?.isEnabled = webView.canGoForward()
-            forwardButton?.alpha = if (webView.canGoForward()) 1.0f else 0.5f
+        if (isStackMode) {
+            stackedWebViewManager?.getCurrentWebView()?.webView?.let { webView ->
+                backButton?.isEnabled = webView.canGoBack()
+                backButton?.alpha = if (webView.canGoBack()) 1.0f else 0.5f
+                
+                forwardButton?.isEnabled = webView.canGoForward()
+                forwardButton?.alpha = if (webView.canGoForward()) 1.0f else 0.5f
+            }
+        } else {
+            webView?.let { webView ->
+                backButton?.isEnabled = webView.canGoBack()
+                backButton?.alpha = if (webView.canGoBack()) 1.0f else 0.5f
+                
+                forwardButton?.isEnabled = webView.canGoForward()
+                forwardButton?.alpha = if (webView.canGoForward()) 1.0f else 0.5f
+            }
         }
     }
     
@@ -1586,13 +1626,20 @@ class FloatingWebViewService : Service() {
         forwardButton = floatingView?.findViewById(R.id.btn_forward)
         refreshButton = floatingView?.findViewById(R.id.btn_refresh)
         saveButton = floatingView?.findViewById(R.id.btn_save)
+        addWebViewButton = floatingView?.findViewById(R.id.btn_add_webview)
+        webViewPositionIndicator = floatingView?.findViewById(R.id.webview_position_indicator)
         floatingTitle = floatingView?.findViewById(R.id.floating_title)
         resizeHandle = floatingView?.findViewById(R.id.resize_handle)
         searchBar = floatingView?.findViewById(R.id.search_bar)
         navigationBar = floatingView?.findViewById(R.id.navigation_bar)
 
-        // Setup components
-        setupWebView()
+        // Setup components based on mode
+        if (isStackMode) {
+            setupStackMode()
+        } else {
+            setupHorizontalMode()
+        }
+        
         setupSearchInput()
         setupButtons()
         setupDragHandling()
@@ -1604,6 +1651,55 @@ class FloatingWebViewService : Service() {
         saveButton?.visibility = View.VISIBLE
         // 确保导航栏可见
         navigationBar?.visibility = View.VISIBLE
+    }
+    
+    /**
+     * 设置堆叠模式
+     */
+    private fun setupStackMode() {
+        val container = floatingView?.findViewById<FrameLayout>(R.id.vertical_webview_container)
+        if (container != null) {
+            stackedWebViewManager = StackedWebViewManager(this, container)
+            
+            // 设置监听器
+            stackedWebViewManager?.setOnWebViewChangeListener(object : StackedWebViewManager.OnWebViewChangeListener {
+                override fun onWebViewAdded(webViewData: StackedWebViewManager.StackedWebViewData, index: Int) {
+                    updateWebViewPositionIndicator()
+                }
+                
+                override fun onWebViewRemoved(webViewData: StackedWebViewManager.StackedWebViewData, index: Int) {
+                    updateWebViewPositionIndicator()
+                }
+                
+                override fun onWebViewSwitched(webViewData: StackedWebViewManager.StackedWebViewData, index: Int) {
+                    updateWebViewPositionIndicator()
+                    updateNavigationButtons()
+                }
+                
+                override fun onStackChanged(fromIndex: Int, toIndex: Int) {
+                    updateWebViewPositionIndicator()
+                }
+            })
+            
+            // 添加初始WebView
+            stackedWebViewManager?.addWebView()
+        }
+    }
+    
+    /**
+     * 设置横向模式（原有模式）
+     */
+    private fun setupHorizontalMode() {
+        setupWebView()
+    }
+    
+    /**
+     * 更新WebView位置指示器
+     */
+    private fun updateWebViewPositionIndicator() {
+        stackedWebViewManager?.let { manager ->
+            webViewPositionIndicator?.text = manager.getStackInfo()
+        }
     }
 
     private fun showViews() {
@@ -1724,5 +1820,44 @@ class FloatingWebViewService : Service() {
 
     private fun loadAndApplySettings() {
         // Implementation of loadAndApplySettings method
+    }
+    
+    /**
+     * 切换WebView模式（横向/堆叠）
+     */
+    fun toggleWebViewMode() {
+        isStackMode = !isStackMode
+        
+        // 保存当前状态
+        val currentUrl = if (isStackMode) {
+            webView?.url
+        } else {
+            stackedWebViewManager?.getCurrentWebView()?.url
+        }
+        
+        // 重新创建悬浮窗
+        try {
+            windowManager.removeView(floatingView)
+            floatingView = null
+            
+            // 清理资源
+            stackedWebViewManager?.cleanup()
+            stackedWebViewManager = null
+            
+            // 重新创建
+            createFloatingView()
+            
+            // 加载之前的URL
+            currentUrl?.let { url ->
+                if (isStackMode) {
+                    stackedWebViewManager?.addWebView(url)
+                } else {
+                    webView?.loadUrl(url)
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "切换WebView模式失败", e)
+        }
     }
 } 

@@ -1,6 +1,7 @@
 package com.example.aifloatingball.tab
 
 import android.content.Context
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -12,7 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.example.aifloatingball.adblock.AdBlockFilter
 import com.example.aifloatingball.web.EnhancedWebViewClient
-import com.google.android.material.tabs.TabLayout
+import com.example.aifloatingball.utils.WebViewConstants
 
 class TabManager(private val context: Context) {
     private val _tabs = MutableStateFlow<List<WebViewTab>>(emptyList())
@@ -41,6 +42,9 @@ class TabManager(private val context: Context) {
             
             // 设置适配器
             adapter = TabPagerAdapter(context)
+            
+            // 优化ViewPager的触摸处理，减少与WebView的冲突
+            setupSmartTouchHandling(this)
         }
         
         // 设置标签预览列表适配器
@@ -148,7 +152,7 @@ class TabManager(private val context: Context) {
                 databaseEnabled = true
                 
                 // 设置移动版User-Agent，确保网页加载移动版
-                userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+                userAgentString = WebViewConstants.MOBILE_USER_AGENT
                 
                 // 移动端优化设置
                 textZoom = 100
@@ -206,6 +210,44 @@ class TabManager(private val context: Context) {
             true
         } else {
             false
+        }
+    }
+    
+    /**
+     * 设置智能触摸处理，减少ViewPager与WebView的冲突
+     */
+    private fun setupSmartTouchHandling(viewPager: ViewPager2) {
+        var initialX = 0f
+        var initialY = 0f
+        var isHorizontalSwipe = false
+        var swipeThreshold = 100f // 滑动阈值
+        
+        viewPager.setOnTouchListener { view, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = event.x
+                    initialY = event.y
+                    isHorizontalSwipe = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = kotlin.math.abs(event.x - initialX)
+                    val deltaY = kotlin.math.abs(event.y - initialY)
+                    
+                    // 如果横向移动距离大于纵向移动距离，且超过阈值，则认为是横向滑动
+                    if (deltaX > swipeThreshold && deltaX > deltaY) {
+                        isHorizontalSwipe = true
+                    } else if (deltaY > swipeThreshold && deltaY > deltaX) {
+                        isHorizontalSwipe = false
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    // 只有在确认是横向滑动时才允许ViewPager处理
+                    if (!isHorizontalSwipe) {
+                        return@setOnTouchListener false
+                    }
+                }
+            }
+            false // 让ViewPager处理事件
         }
     }
 }

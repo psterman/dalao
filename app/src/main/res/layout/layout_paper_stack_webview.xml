@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <!-- 纸堆WebView容器 -->
+    <FrameLayout
+        android:id="@+id/paper_stack_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginTop="56dp"
+        android:layout_marginBottom="120dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@android:color/transparent"
+        android:elevation="2dp"
+        android:clipChildren="false"
+        android:clipToPadding="false" />
+
+    <!-- 纸堆控制面板 -->
+    <LinearLayout
+        android:id="@+id/paper_stack_controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/paper_stack_control_background"
+        android:elevation="4dp"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <!-- 添加新纸张按钮 -->
+        <ImageButton
+            android:id="@+id/btn_add_paper"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/paper_stack_button_background"
+            android:contentDescription="添加新纸张"
+            android:src="@drawable/ic_add"
+            android:tint="@color/colorPrimary" />
+
+        <!-- 纸张计数器 -->
+        <TextView
+            android:id="@+id/paper_count_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="1 / 1"
+            android:textColor="@color/textColorPrimary"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <!-- 关闭所有纸张按钮 -->
+        <ImageButton
+            android:id="@+id/btn_close_all_papers"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/paper_stack_button_background"
+            android:contentDescription="关闭所有纸张"
+            android:src="@drawable/ic_close"
+            android:tint="@color/colorAccent" />
+
+    </LinearLayout>
+
+    <!-- 纸堆提示信息 -->
+    <TextView
+        android:id="@+id/paper_stack_hint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_margin="16dp"
+        android:background="@drawable/paper_stack_hint_background"
+        android:elevation="6dp"
+        android:padding="12dp"
+        android:text="左右滑动查看不同的纸张"
+        android:textColor="@color/textColorPrimary"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+</FrameLayout>

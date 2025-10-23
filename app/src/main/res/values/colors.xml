@@ -893,5 +893,12 @@
 
     <!-- 屏幕文字识别相关颜色 -->
     <color name="text_secondary_light">#757575</color>
+    
+    <!-- 纸堆WebView相关颜色 -->
+    <color name="colorPrimaryLight">#90CAF9</color>
+    <color name="dividerColor">#E0E0E0</color>
+    
+    <!-- 文本颜色 -->
+    <color name="textColorPrimary">#1A1A1A</color>
 
 </resources>

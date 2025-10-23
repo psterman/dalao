@@ -2146,6 +2146,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent">
 
+                        <!-- 纸堆WebView布局 -->
+                        <include
+                            android:id="@+id/paper_stack_layout"
+                            layout="@layout/layout_paper_stack_webview"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:visibility="gone" />
+
                     <!-- 主页内容 -->
                     <ScrollView
                         android:layout_width="match_parent"

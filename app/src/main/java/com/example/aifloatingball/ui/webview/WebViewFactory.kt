@@ -12,11 +12,12 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.LinearLayout
+import com.example.aifloatingball.utils.WebViewConstants
 import com.example.aifloatingball.R
 import com.example.aifloatingball.ui.text.TextSelectionManager
 import android.content.Context.WINDOW_SERVICE
 import android.view.WindowManager
+import android.widget.LinearLayout
 
 /**
  * WebView工厂，负责创建和配置WebView实例
@@ -26,11 +27,11 @@ class WebViewFactory(private val context: Context) {
     companion object {
         private const val TAG = "WebViewFactory"
         // 移动版Chrome User-Agent，适合移动端优化的网站
-        private const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+        private const val MOBILE_USER_AGENT = WebViewConstants.MOBILE_USER_AGENT
         // 桌面版Chrome User-Agent，用于避免搜索引擎重定向到移动应用
-        private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        private const val DESKTOP_USER_AGENT = WebViewConstants.DESKTOP_USER_AGENT
         // 智能User-Agent，默认使用移动端
-        private const val SMART_USER_AGENT = MOBILE_USER_AGENT
+        private const val SMART_USER_AGENT = WebViewConstants.DEFAULT_USER_AGENT
         
         // 检测是否在语音胶囊模式中的方法
         private fun isInVoiceCapsuleMode(): Boolean {
@@ -49,7 +50,8 @@ class WebViewFactory(private val context: Context) {
     }
     
     val textSelectionManager: TextSelectionManager by lazy {
-        val windowManager = context.getSystemService(WINDOW_SERVICE) as WindowManager
+        val windowManager = context.getSystemService(
+            WINDOW_SERVICE) as WindowManager
         TextSelectionManager(context, windowManager)
     }
     
@@ -344,7 +346,11 @@ class WebViewFactory(private val context: Context) {
                 context.resources.displayMetrics.widthPixels,
                 ViewGroup.LayoutParams.MATCH_PARENT
             ).apply {
-                marginEnd = context.resources.getDimensionPixelSize(R.dimen.webview_margin)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                    marginEnd = context.resources.getDimensionPixelSize(R.dimen.webview_margin)
+                } else {
+                    rightMargin = context.resources.getDimensionPixelSize(R.dimen.webview_margin)
+                }
             }
             
             setTextSelectionManager(textSelectionManager)
@@ -515,12 +521,17 @@ class WebViewFactory(private val context: Context) {
 
     /**
      * 设置高级触摸处理，严格区分单指和双指操作
+     * 优化版本：解决横向滚动与标签页切换的冲突
      */
     private fun setupAdvancedTouchHandling(webView: CustomWebView) {
         var lastTouchTime = 0L
         var pointerCount = 0
         var isZooming = false
         var initialDistance = 0f
+        var initialX = 0f
+        var initialY = 0f
+        var isHorizontalScroll = false
+        var scrollThreshold = 50f // 横向滚动阈值
 
         webView.setOnTouchListener { view, event ->
             val currentTime = System.currentTimeMillis()
@@ -529,7 +540,10 @@ class WebViewFactory(private val context: Context) {
                 MotionEvent.ACTION_DOWN -> {
                     pointerCount = 1
                     isZooming = false
+                    isHorizontalScroll = false
                     lastTouchTime = currentTime
+                    initialX = event.x
+                    initialY = event.y
                     Log.d(TAG, "单指按下")
                 }
 
@@ -538,10 +552,11 @@ class WebViewFactory(private val context: Context) {
                     if (pointerCount == 2) {
                         // 双指按下，准备缩放
                         isZooming = true
+                        isHorizontalScroll = false
                         initialDistance = getDistance(event)
                         Log.d(TAG, "双指按下，开始缩放模式")
 
-                        // 禁用ViewPager的触摸事件，避免与缩放冲突
+                        // 双指操作时完全禁用ViewPager
                         view.parent?.requestDisallowInterceptTouchEvent(true)
                     }
                 }
@@ -558,17 +573,33 @@ class WebViewFactory(private val context: Context) {
                             Log.d(TAG, "双指缩放中，距离变化: $deltaDistance")
                         }
                     } else if (pointerCount == 1 && !isZooming) {
-                        // 单指移动，允许正常的页面滚动和ViewPager切换
-                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        // 单指移动模式 - 智能判断是否为横向滚动
+                        val deltaX = kotlin.math.abs(event.x - initialX)
+                        val deltaY = kotlin.math.abs(event.y - initialY)
+                        
+                        // 如果横向移动距离大于纵向移动距离，且超过阈值，则认为是横向滚动
+                        if (deltaX > scrollThreshold && deltaX > deltaY) {
+                            isHorizontalScroll = true
+                            // 横向滚动时禁用ViewPager，避免误触发标签页切换
+                            view.parent?.requestDisallowInterceptTouchEvent(true)
+                            Log.d(TAG, "检测到横向滚动，禁用ViewPager")
+                        } else if (deltaY > scrollThreshold && deltaY > deltaX) {
+                            // 纵向滚动时允许ViewPager处理（用于标签页切换）
+                            isHorizontalScroll = false
+                            view.parent?.requestDisallowInterceptTouchEvent(false)
+                            Log.d(TAG, "检测到纵向滚动，允许ViewPager")
+                        }
                     }
                 }
 
                 MotionEvent.ACTION_POINTER_UP -> {
                     pointerCount = event.pointerCount - 1
                     if (pointerCount < 2) {
-                        // 不再是双指操作，重新允许ViewPager
+                        // 不再是双指操作，根据当前滚动状态决定是否重新允许ViewPager
                         isZooming = false
-                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        if (!isHorizontalScroll) {
+                            view.parent?.requestDisallowInterceptTouchEvent(false)
+                        }
                         Log.d(TAG, "结束缩放模式")
                     }
                 }
@@ -576,6 +607,8 @@ class WebViewFactory(private val context: Context) {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     pointerCount = 0
                     isZooming = false
+                    isHorizontalScroll = false
+                    // 触摸结束后重新允许ViewPager处理事件
                     view.parent?.requestDisallowInterceptTouchEvent(false)
                     Log.d(TAG, "触摸结束")
                 }

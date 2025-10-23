@@ -55,7 +55,9 @@ import com.example.aifloatingball.model.*
 import com.example.aifloatingball.service.*
 import com.example.aifloatingball.SettingsActivity
 import com.example.aifloatingball.tab.TabManager
+import com.example.aifloatingball.utils.WebViewConstants
 import com.example.aifloatingball.utils.WebViewHelper
+import com.example.aifloatingball.webview.StackedWebViewManager
 import com.example.aifloatingball.view.LetterIndexBar
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -86,6 +88,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     private lateinit var previewEngineList: LinearLayout
     private lateinit var settingsManager: SettingsManager
     private val gestureHintHandler = Handler(Looper.getMainLooper())
+    
+    // 堆叠WebView管理器
+    private var stackedWebViewManager: StackedWebViewManager? = null
+    private var isStackMode = false
     
     // 浏览器设置状态
     private var isNoImageMode = false
@@ -967,6 +973,56 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     }
 
     private fun setupSearch() {
+        // 初始化WebView容器
+        webViewContainer = findViewById(R.id.webview_container)
+        if (webViewContainer == null) {
+            Log.e(TAG, "WebView container not found in layout")
+            return
+        }
+        
+        // 根据模式选择WebView设置
+        if (isStackMode) {
+            setupStackedWebView()
+        } else {
+            setupSingleWebView()
+        }
+    }
+    
+    /**
+     * 设置堆叠WebView模式
+     */
+    private fun setupStackedWebView() {
+        stackedWebViewManager = StackedWebViewManager(this, webViewContainer)
+        
+        // 设置监听器
+        stackedWebViewManager?.setOnWebViewChangeListener(object : StackedWebViewManager.OnWebViewChangeListener {
+            override fun onWebViewAdded(webViewData: StackedWebViewManager.StackedWebViewData, index: Int) {
+                Log.d(TAG, "WebView已添加到堆栈: ${webViewData.title}")
+            }
+            
+            override fun onWebViewRemoved(webViewData: StackedWebViewManager.StackedWebViewData, index: Int) {
+                Log.d(TAG, "WebView已从堆栈移除: ${webViewData.title}")
+            }
+            
+            override fun onWebViewSwitched(webViewData: StackedWebViewManager.StackedWebViewData, index: Int) {
+                Log.d(TAG, "切换到WebView: ${webViewData.title}")
+                // 隐藏主页内容，显示WebView
+                homeContent.visibility = View.GONE
+            }
+            
+            override fun onStackChanged(fromIndex: Int, toIndex: Int) {
+                Log.d(TAG, "堆栈变化: $fromIndex -> $toIndex")
+            }
+        })
+        
+        // 添加初始WebView
+        stackedWebViewManager?.addWebView()
+    }
+    
+    /**
+     * 设置单个WebView模式（原有模式）
+     */
+    private fun setupSingleWebView() {
         // 初始化WebView
         webView = findViewById(R.id.webview)
         if (webView == null) {
@@ -994,6 +1050,8 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             // 缓存模式
             cacheMode = WebSettings.LOAD_DEFAULT
+            // 设置移动端User-Agent
+            userAgentString = WebViewConstants.MOBILE_USER_AGENT
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -1073,6 +1131,13 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                 performSearch(query)
             }
         }
+        
+        // 长按搜索按钮切换WebView模式
+        voiceSearchButton.setOnLongClickListener {
+            toggleWebViewMode()
+            Toast.makeText(this, "WebView模式切换为: ${if (isStackMode) "堆叠模式" else "单WebView模式"}", Toast.LENGTH_SHORT).show()
+            true
+        }
     }
 
     private fun performSearch(query: String) {
@@ -1125,7 +1190,7 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             // 设置移动端User-Agent和WebView配置
             webView.settings.apply {
                 // 设置UA
-                userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                userAgentString = WebViewConstants.MOBILE_USER_AGENT
                 
                 // 基本设置
                 javaScriptEnabled = true
@@ -1162,11 +1227,18 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             }
 
             // 在WebView中加载URL
-            webView.loadUrl(url)
-            
-            // 更新UI显示
-            webView.visibility = View.VISIBLE
-            homeContent.visibility = View.GONE
+            if (isStackMode) {
+                // 堆叠模式：添加新的WebView到堆栈
+                stackedWebViewManager?.addWebView(url)
+                // 隐藏主页内容
+                homeContent.visibility = View.GONE
+            } else {
+                // 单WebView模式：在现有WebView中加载
+                webView.loadUrl(url)
+                // 更新UI显示
+                webView.visibility = View.VISIBLE
+                homeContent.visibility = View.GONE
+            }
             
             // 不要立即清空输入框，让 WebViewClient 的 onPageFinished 来处理
             // searchInput.setText("")
@@ -1181,6 +1253,18 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
             Log.e(TAG, "加载内容失败", e)
             Toast.makeText(this, "无法加载页面: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
+    
+    /**
+     * 切换WebView模式（单WebView/堆叠）
+     */
+    fun toggleWebViewMode() {
+        isStackMode = !isStackMode
+        
+        // 重新设置WebView
+        setupSearch()
+        
+        Log.d(TAG, "WebView模式切换为: ${if (isStackMode) "堆叠模式" else "单WebView模式"}")
     }
 
     private fun setupShortcuts() {
@@ -1287,10 +1371,10 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
                     findViewById(R.id.text_desktop_mode),
                     iconContainer
                 )
-                webView.settings.userAgentString = if (isDesktopMode) {
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                if (isDesktopMode) {
+                    WebViewHelper.switchToDesktopMode(webView)
                 } else {
-                    null
+                    WebViewHelper.switchToMobileMode(webView)
                 }
                 webView.reload()
             }
@@ -2362,6 +2446,9 @@ class HomeActivity : AppCompatActivity(), GestureDetector.OnGestureListener {
     override fun onDestroy() {
         super.onDestroy()
         settingsManager.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
+        
+        // 清理堆叠WebView管理器
+        stackedWebViewManager?.cleanup()
     }
 
     override fun onResume() {

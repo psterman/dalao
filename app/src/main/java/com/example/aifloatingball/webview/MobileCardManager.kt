@@ -10,8 +10,10 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import android.widget.FrameLayout
 import androidx.viewpager2.widget.ViewPager2
-import com.example.aifloatingball.gesture.MobileGestureManager
 import com.example.aifloatingball.adapter.GestureCardAdapter
+import com.example.aifloatingball.gesture.MobileGestureManager
+import com.example.aifloatingball.webview.EnhancedMenuManager
+import com.example.aifloatingball.utils.WebViewConstants
 
 
 /**
@@ -74,14 +76,14 @@ class MobileCardManager(
             // 设置适配器
             adapter = GestureCardAdapter(
                 cards = webViewCards,
-                onWebViewSetup = { webView, cardData ->
+                onWebViewSetup = { webView: WebView, cardData: GestureCardWebViewManager.WebViewCardData ->
                     setupWebViewCallbacks(webView, cardData)
                 },
-                onCardClose = { url ->
+                onCardClose = { url: String ->
                     // 通过URL关闭卡片
                     closeCardByUrl(url)
                 }
-            ).also { cardAdapter ->
+            ).also { cardAdapter: GestureCardAdapter ->
                 this@MobileCardManager.adapter = cardAdapter
             }
             
@@ -220,7 +222,7 @@ class MobileCardManager(
                 displayZoomControls = false
                 setSupportZoom(true)
                 // 使用移动版User-Agent，提供更好的移动端体验
-                userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36"
+                userAgentString = WebViewConstants.MOBILE_USER_AGENT
 
 
                 cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
@@ -635,30 +637,41 @@ class MobileCardManager(
 
     /**
      * 设置高级触摸处理，严格区分单指和双指操作
+     * 优化版本：解决横向滚动与标签页切换的冲突
      */
     private fun setupAdvancedTouchHandling(webView: WebView) {
         var pointerCount = 0
         var isZooming = false
         var initialDistance = 0f
+        var initialX = 0f
+        var initialY = 0f
+        var isHorizontalScroll = false
+        var scrollThreshold = 50f // 横向滚动阈值
 
         webView.setOnTouchListener { view, event ->
             when (event.action and MotionEvent.ACTION_MASK) {
                 MotionEvent.ACTION_DOWN -> {
                     pointerCount = 1
                     isZooming = false
+                    isHorizontalScroll = false
+                    initialX = event.x
+                    initialY = event.y
                 }
 
                 MotionEvent.ACTION_POINTER_DOWN -> {
                     pointerCount = event.pointerCount
                     if (pointerCount == 2) {
                         isZooming = true
+                        isHorizontalScroll = false
                         initialDistance = getDistance(event)
+                        // 双指操作时完全禁用ViewPager
                         view.parent?.requestDisallowInterceptTouchEvent(true)
                     }
                 }
 
                 MotionEvent.ACTION_MOVE -> {
                     if (pointerCount >= 2 && isZooming) {
+                        // 双指缩放模式
                         val currentDistance = getDistance(event)
                         val deltaDistance = kotlin.math.abs(currentDistance - initialDistance)
 
@@ -666,7 +679,20 @@ class MobileCardManager(
                             view.parent?.requestDisallowInterceptTouchEvent(true)
                         }
                     } else if (pointerCount == 1 && !isZooming) {
-                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        // 单指移动模式 - 智能判断是否为横向滚动
+                        val deltaX = kotlin.math.abs(event.x - initialX)
+                        val deltaY = kotlin.math.abs(event.y - initialY)
+                        
+                        // 如果横向移动距离大于纵向移动距离，且超过阈值，则认为是横向滚动
+                        if (deltaX > scrollThreshold && deltaX > deltaY) {
+                            isHorizontalScroll = true
+                            // 横向滚动时禁用ViewPager，避免误触发标签页切换
+                            view.parent?.requestDisallowInterceptTouchEvent(true)
+                        } else if (deltaY > scrollThreshold && deltaY > deltaX) {
+                            // 纵向滚动时允许ViewPager处理（用于标签页切换）
+                            isHorizontalScroll = false
+                            view.parent?.requestDisallowInterceptTouchEvent(false)
+                        }
                     }
                 }
 
@@ -674,13 +700,18 @@ class MobileCardManager(
                     pointerCount = event.pointerCount - 1
                     if (pointerCount < 2) {
                         isZooming = false
-                        view.parent?.requestDisallowInterceptTouchEvent(false)
+                        // 双指操作结束后，根据当前滚动状态决定是否重新启用ViewPager
+                        if (!isHorizontalScroll) {
+                            view.parent?.requestDisallowInterceptTouchEvent(false)
+                        }
                     }
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     pointerCount = 0
                     isZooming = false
+                    isHorizontalScroll = false
+                    // 触摸结束后重新允许ViewPager处理事件
                     view.parent?.requestDisallowInterceptTouchEvent(false)
                 }
             }
