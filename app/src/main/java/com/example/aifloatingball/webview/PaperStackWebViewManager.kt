@@ -17,6 +17,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.AccelerateInterpolator
 import android.webkit.WebView
@@ -46,6 +47,7 @@ class PaperStackWebViewManager(
     private val context: Context,
     private val container: ViewGroup
 ) {
+    
     companion object {
         private const val TAG = "PaperStackWebViewManager"
         private const val MAX_TABS = 8 // 最大标签页数量
@@ -567,6 +569,14 @@ class PaperStackWebViewManager(
             setBackground(null)
             setLayerType(LAYER_TYPE_HARDWARE, null)
             
+            // 设置长按菜单处理
+            setOnLongClickListener { view ->
+                Log.d(TAG, "🎯 PaperWebView长按事件触发")
+                android.widget.Toast.makeText(context, "长按检测到！", android.widget.Toast.LENGTH_SHORT).show()
+                handleWebViewLongClick(view as WebView)
+                true // 拦截长按事件，阻止系统默认菜单
+            }
+            
             // 设置触摸监听器来检测文本选择
             setOnTouchListener { _, event ->
                 when (event.action) {
@@ -644,5 +654,171 @@ class PaperStackWebViewManager(
             super.onDraw(canvas)
             // 移除阴影和边框绘制，避免灰色蒙版效果
         }
+    }
+
+    /**
+     * 处理WebView长按事件
+     */
+    private fun handleWebViewLongClick(webView: WebView): Boolean {
+        val hitTestResult = webView.hitTestResult
+        val url = hitTestResult.extra
+
+        Log.d(TAG, "PaperStackWebView长按检测 - 类型: ${hitTestResult.type}, URL: $url")
+
+        when (hitTestResult.type) {
+            WebView.HitTestResult.SRC_ANCHOR_TYPE,
+            WebView.HitTestResult.ANCHOR_TYPE -> {
+                // 链接 - 显示简单菜单
+                url?.let {
+                    Log.d(TAG, "🔗 显示链接菜单: $it")
+                    showSimpleLinkMenu(webView, it)
+                } ?: run {
+                    Log.d(TAG, "🔗 链接URL为空，显示通用菜单")
+                    showSimpleGeneralMenu(webView)
+                }
+                return true
+            }
+            WebView.HitTestResult.IMAGE_TYPE,
+            WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE -> {
+                // 图片 - 显示简单菜单
+                url?.let {
+                    Log.d(TAG, "🖼️ 显示图片菜单: $it")
+                    showSimpleImageMenu(webView, it)
+                } ?: run {
+                    Log.d(TAG, "🖼️ 图片URL为空，显示通用菜单")
+                    showSimpleGeneralMenu(webView)
+                }
+                return true
+            }
+            else -> {
+                // 其他类型，显示通用菜单
+                Log.d(TAG, "📄 显示通用菜单")
+                showSimpleGeneralMenu(webView)
+                return true
+            }
+        }
+    }
+
+    /**
+     * 显示简单的链接菜单
+     */
+    private fun showSimpleLinkMenu(webView: WebView, url: String) {
+        val items = arrayOf("在新标签页中打开", "复制链接", "分享链接", "刷新页面")
+        
+        android.app.AlertDialog.Builder(context)
+            .setTitle("链接操作")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 在新标签页中打开
+                        addTab(url, "新标签页")
+                        android.widget.Toast.makeText(context, "已在新标签页中打开", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> {
+                        // 复制链接
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("链接", url)
+                        clipboard.setPrimaryClip(clip)
+                        android.widget.Toast.makeText(context, "链接已复制", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        // 分享链接
+                        val shareIntent = android.content.Intent().apply {
+                            action = android.content.Intent.ACTION_SEND
+                            putExtra(android.content.Intent.EXTRA_TEXT, url)
+                            type = "text/plain"
+                        }
+                        context.startActivity(android.content.Intent.createChooser(shareIntent, "分享链接"))
+                    }
+                    3 -> {
+                        // 刷新页面
+                        webView.reload()
+                        android.widget.Toast.makeText(context, "页面已刷新", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 显示简单的图片菜单
+     */
+    private fun showSimpleImageMenu(webView: WebView, imageUrl: String) {
+        val items = arrayOf("查看大图", "复制图片链接", "分享图片", "保存图片")
+        
+        android.app.AlertDialog.Builder(context)
+            .setTitle("图片操作")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 查看大图
+                        addTab(imageUrl, "图片查看")
+                        android.widget.Toast.makeText(context, "已在新标签页中打开图片", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> {
+                        // 复制图片链接
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("图片链接", imageUrl)
+                        clipboard.setPrimaryClip(clip)
+                        android.widget.Toast.makeText(context, "图片链接已复制", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        // 分享图片
+                        val shareIntent = android.content.Intent().apply {
+                            action = android.content.Intent.ACTION_SEND
+                            putExtra(android.content.Intent.EXTRA_TEXT, imageUrl)
+                            type = "text/plain"
+                        }
+                        context.startActivity(android.content.Intent.createChooser(shareIntent, "分享图片"))
+                    }
+                    3 -> {
+                        // 保存图片
+                        android.widget.Toast.makeText(context, "保存图片功能开发中", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /**
+     * 显示简单的通用菜单
+     */
+    private fun showSimpleGeneralMenu(webView: WebView) {
+        val items = arrayOf("刷新页面", "重新加载", "页面信息", "新建标签页")
+        
+        android.app.AlertDialog.Builder(context)
+            .setTitle("页面操作")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        // 刷新页面
+                        webView.reload()
+                        android.widget.Toast.makeText(context, "页面已刷新", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    1 -> {
+                        // 重新加载
+                        webView.loadUrl(webView.url ?: "about:blank")
+                        android.widget.Toast.makeText(context, "页面已重新加载", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        // 页面信息
+                        val info = "URL: ${webView.url}\n标题: ${webView.title}"
+                        android.app.AlertDialog.Builder(context)
+                            .setTitle("页面信息")
+                            .setMessage(info)
+                            .setPositiveButton("确定", null)
+                            .show()
+                    }
+                    3 -> {
+                        // 新建标签页
+                        addTab("https://www.baidu.com", "新标签页")
+                        android.widget.Toast.makeText(context, "已创建新标签页", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 }
